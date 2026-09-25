@@ -125,6 +125,40 @@ describe("OTP limits", () => {
     expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
   });
 
+  it("a new OTP can be sent 60 s after the last one, not sooner", async () => {
+    const { clock, whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+
+    clock.set(wib("2026-10-01 09:00:59"));
+    expect(await identity.requestOtp({ phoneNumber: "0812-3456-7890" })).toEqual({
+      ok: false,
+      reason: "tunggu_kirim_ulang",
+      retryAt: wib("2026-10-01 09:01"),
+    });
+    expect(whatsapp.sent).toHaveLength(1);
+
+    clock.set(wib("2026-10-01 09:01"));
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
+    expect(whatsapp.sent).toHaveLength(2);
+  });
+
+  it("only the newest OTP works once a new one is sent", async () => {
+    const { clock, whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const oldCode = lastCode(whatsapp);
+    clock.advance({ minutes: 1 });
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const newCode = lastCode(whatsapp);
+
+    if (oldCode !== newCode) {
+      expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: oldCode })).toEqual({
+        ok: false,
+        reason: "kode_salah",
+      });
+    }
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: newCode })).toMatchObject({ ok: true });
+  });
+
   it("a code still works just before its 10 minutes are up", async () => {
     const { clock, whatsapp, identity } = setup();
     await identity.requestOtp({ phoneNumber: "081234567890" });

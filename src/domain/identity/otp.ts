@@ -15,6 +15,8 @@ export const OTP_LENGTH = 6;
 export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
 /** The 5th wrong code burns the OTP; the Pemesan must ask for a new one. */
 export const OTP_MAX_WRONG_ATTEMPTS = 5;
+/** "Kirim ulang" opens 60 s after the last OTP to the number, when the fallback slot also appears. */
+export const OTP_RESEND_AFTER_MS = 60_000;
 
 export interface OtpDeps {
   db: Database;
@@ -25,7 +27,8 @@ export interface OtpDeps {
 
 export type RequestOtpResult =
   | { ok: true; phoneNumber: string; sentAt: Date; expiresAt: Date }
-  | { ok: false; reason: "nomor_tidak_valid" };
+  | { ok: false; reason: "nomor_tidak_valid" }
+  | { ok: false; reason: "tunggu_kirim_ulang"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -36,12 +39,29 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   const code = generateCode();
   const expiresAt = new Date(now.getTime() + OTP_EXPIRES_AFTER_MS);
 
-  await deps.db.insert(identityOtpRequest).values({
-    phoneNumber,
-    codeHash: hashCode(deps.secret, phoneNumber, code),
-    sentAt: now,
-    expiresAt,
+  const refused = await deps.db.transaction(async (tx) => {
+    // One request at a time per number, so two quick taps cannot both pass the limits.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:${phoneNumber}`}))`);
+    const [last] = await tx
+      .select({ sentAt: identityOtpRequest.sentAt })
+      .from(identityOtpRequest)
+      .where(eq(identityOtpRequest.phoneNumber, phoneNumber))
+      .orderBy(desc(identityOtpRequest.sentAt))
+      .limit(1);
+    if (last) {
+      const retryAt = new Date(last.sentAt.getTime() + OTP_RESEND_AFTER_MS);
+      if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt } as const;
+    }
+    await tx.insert(identityOtpRequest).values({
+      phoneNumber,
+      codeHash: hashCode(deps.secret, phoneNumber, code),
+      sentAt: now,
+      expiresAt,
+    });
+    return null;
   });
+  if (refused) return refused;
+
   await deps.whatsapp.sendTemplate({
     to: phoneNumber,
     template: OTP_TEMPLATE,
