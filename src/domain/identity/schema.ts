@@ -54,8 +54,11 @@ export const identityUser = pgTable(
     updatedAt: at("updated_at").notNull(),
   },
   (table) => [
-    // A verified email belongs to at most one Akun (enforced here, not only in code).
-    uniqueIndex("identity_user_verified_email_idx").on(table.contactEmail).where(sql`email_verified_at is not null`),
+    // A verified email belongs to at most one Akun, whatever its case (enforced here, not only in code;
+    // the module also stores emails lower-cased).
+    uniqueIndex("identity_user_verified_email_idx")
+      .on(sql`lower(${table.contactEmail})`)
+      .where(sql`email_verified_at is not null`),
   ],
 );
 

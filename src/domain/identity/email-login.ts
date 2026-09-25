@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { EmailSender } from "@/ports/email-sender";
 import { kodeMasukEmailMessage } from "./email-templates";
@@ -134,6 +134,6 @@ async function akunOfVerifiedEmail(db: Database, email: string) {
   const [row] = await db
     .select({ id: identityUser.id, phoneNumber: identityUser.phoneNumber })
     .from(identityUser)
-    .where(and(eq(identityUser.contactEmail, email), isNotNull(identityUser.emailVerifiedAt)));
+    .where(and(eq(sql`lower(${identityUser.contactEmail})`, email), isNotNull(identityUser.emailVerifiedAt)));
   return row?.phoneNumber ? { id: row.id, phoneNumber: row.phoneNumber } : null;
 }
