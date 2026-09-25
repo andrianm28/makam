@@ -50,7 +50,11 @@ describe("runtime environment", () => {
         new RegExp(`${key} is required`),
       );
     }
-    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH })).toMatchObject(VAPID);
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH }).vapid).toEqual({
+      publicKey: VAPID.VAPID_PUBLIC_KEY,
+      privateKey: VAPID.VAPID_PRIVATE_KEY,
+      subject: VAPID.VAPID_SUBJECT,
+    });
   });
 
   it("rejects VAPID keys that are not a P-256 key pair in base64url", () => {
@@ -62,7 +66,7 @@ describe("runtime environment", () => {
 
   it("needs a VAPID subject that push services accept: a mailto: or an https URL, never localhost", () => {
     const live = { DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH };
-    expect(readRuntimeEnv({ ...live, VAPID_SUBJECT: "https://makam.co.id" }).VAPID_SUBJECT).toBe("https://makam.co.id");
+    expect(readRuntimeEnv({ ...live, VAPID_SUBJECT: "https://makam.co.id" }).vapid.subject).toBe("https://makam.co.id");
     expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "ops@makam.co.id" })).toThrow(/VAPID_SUBJECT/);
     expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "http://makam.co.id" })).toThrow(/VAPID_SUBJECT/);
     expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "https://localhost" })).toThrow(/VAPID_SUBJECT/);
@@ -70,10 +74,10 @@ describe("runtime environment", () => {
 
   it.each(["development", "test"])("gives %s a fixed local VAPID key pair and subject when unset", (APP_ENV) => {
     const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, VAPID_PUBLIC_KEY: "", VAPID_PRIVATE_KEY: "", VAPID_SUBJECT: "" });
-    expect(Buffer.from(env.VAPID_PUBLIC_KEY, "base64url")).toHaveLength(65);
-    expect(Buffer.from(env.VAPID_PRIVATE_KEY, "base64url")).toHaveLength(32);
-    expect(env.VAPID_SUBJECT).toMatch(/^mailto:/);
-    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).VAPID_PUBLIC_KEY).toBe(env.VAPID_PUBLIC_KEY);
+    expect(Buffer.from(env.vapid.publicKey, "base64url")).toHaveLength(65);
+    expect(Buffer.from(env.vapid.privateKey, "base64url")).toHaveLength(32);
+    expect(env.vapid.subject).toMatch(/^mailto:/);
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).vapid).toEqual(env.vapid);
   });
 
   it.each(["staging", "production"])("needs TOTP_ENCRYPTION_KEY in %s", (APP_ENV) => {

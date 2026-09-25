@@ -21,18 +21,13 @@ import {
   type StaffRole,
   type WriteRefusal,
 } from "@/domain/identity";
+import { base64urlBytes } from "@/lib/base64url";
 import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { notificationsPushDevice } from "./schema";
-
-const base64urlBytes = (length: number) =>
-  z
-    .string()
-    .regex(/^[A-Za-z0-9_-]+$/)
-    .refine((value) => Buffer.from(value, "base64url").length === length);
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
 export const pushSubscriptionSchema = z.object({

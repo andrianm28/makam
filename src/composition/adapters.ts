@@ -3,26 +3,33 @@ import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import { createMemoryAdapters } from "@/adapters/memory";
-import { usesInMemoryFakes, type AppEnvironment, type SmtpSettings } from "@/lib/env";
+import { usesInMemoryFakes, type AppEnvironment, type SmtpSettings, type VapidKeys } from "@/lib/env";
 import type { Adapters } from "@/ports";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
-import type { WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 
-export interface AdapterOptions {
-  appEnv: AppEnvironment;
+interface CommonAdapterOptions {
   /** Svix secret for the fake PaymentProvider's webhooks (development and test only; ignored elsewhere). */
   fakePaymentWebhookSecret?: string;
   /** The SumoPod SMTP relay for the live EmailSender (`env.smtp`); ignored in development and test. */
   smtp?: SmtpSettings;
-  /** VAPID key pair and subject for the live WebPush (from the validated env; ignored where fakes run). */
-  vapid?: { publicKey: string; privateKey: string; subject: string };
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
+
+/**
+ * Staging and production must be given the VAPID keys for the live WebPush
+ * (`env.vapid`, which env validation requires there); development and test
+ * ignore them and keep the fake.
+ */
+export type AdapterOptions = CommonAdapterOptions &
+  (
+    | { appEnv: Extract<AppEnvironment, "development" | "test">; vapid?: VapidKeys }
+    | { appEnv: Extract<AppEnvironment, "staging" | "production">; vapid: VapidKeys }
+  );
 
 /**
  * The composition root for adapters: the one place that decides real or fake.
@@ -47,10 +54,16 @@ export function createAdapters(options: AdapterOptions): Adapters {
         email: options.smtp
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
-        webPush: options.vapid ? new VapidWebPush({ ...options.vapid, clock }) : notConfigured<WebPush>("WebPush"),
+        webPush: new VapidWebPush({ ...requiredVapid(options), clock }),
         files: notConfigured<FileStore>("FileStore (S3)"),
         pdf: notConfigured<PdfRenderer>("PdfRenderer"),
       };
 
   return { ...base, ...options.overrides };
+}
+
+/** The VAPID keys; the type demands them in staging and production, and a caller that got round it fails here. */
+function requiredVapid(options: AdapterOptions): VapidKeys {
+  if (!options.vapid) throw new Error(`VAPID keys are required in ${options.appEnv}`);
+  return options.vapid;
 }

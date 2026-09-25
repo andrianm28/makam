@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base64urlBytes } from "./base64url";
 
 /**
  * Where the app is running. It decides which adapters the composition root
@@ -46,20 +47,24 @@ const LOCAL_VAPID_PUBLIC_KEY = "BC_qW4wXMGMGnjLWnznxcJ2eJgsuIZyje3y3GNBPPKosK2tm
 const LOCAL_VAPID_PRIVATE_KEY = "_ePH1MZPQEBgQ9idRe19cAhO6_v7NU8maCcgKgB1fOs";
 const LOCAL_VAPID_SUBJECT = "mailto:dev@makam.co.id";
 
-/** Unpadded base64url (RFC 4648 §5), the encoding of VAPID keys. */
-const base64url = z.string().regex(/^[A-Za-z0-9_-]+$/, "must be unpadded base64url");
-
-/** A P-256 public key, uncompressed (65 bytes, first byte 0x04). */
-const vapidPublicKey = base64url.refine((value) => {
-  const bytes = Buffer.from(value, "base64url");
-  return bytes.length === 65 && bytes[0] === 0x04;
-}, "must be an uncompressed P-256 public key (65 bytes)");
-
-/** A P-256 private key (32 bytes). */
-const vapidPrivateKey = base64url.refine(
-  (value) => Buffer.from(value, "base64url").length === 32,
-  "must be a P-256 private key (32 bytes)",
+/** A P-256 public key, uncompressed (65 bytes, first byte 0x04), unpadded base64url. */
+const vapidPublicKey = base64urlBytes(65, "must be an uncompressed P-256 public key (65 bytes)").refine(
+  (value) => Buffer.from(value, "base64url")[0] === 0x04,
+  "must be an uncompressed P-256 public key (65 bytes)",
 );
+
+/** A P-256 private key (32 bytes), unpadded base64url. */
+const vapidPrivateKey = base64urlBytes(32, "must be a P-256 private key (32 bytes)");
+
+/** The VAPID key pair and subject that sign web push to staff (RFC 8292). */
+export interface VapidKeys {
+  /** VAPID_PUBLIC_KEY: P-256, uncompressed, unpadded base64url; browsers subscribe with it. */
+  publicKey: string;
+  /** VAPID_PRIVATE_KEY: its private half (32 bytes, unpadded base64url). */
+  privateKey: string;
+  /** VAPID_SUBJECT: the mailto: or https contact push services see. */
+  subject: string;
+}
 
 /** Push services want a contact: `mailto:` or an https URL; Apple refuses localhost subjects. */
 const vapidSubject = z.string().refine(
@@ -68,6 +73,8 @@ const vapidSubject = z.string().refine(
     (value.startsWith("https://") && URL.canParse(value) && new URL(value).hostname !== "localhost"),
   "must be mailto:<email> or an https URL (not localhost)",
 );
+
+const vapidKeys = (keys: VapidKeys): VapidKeys => keys;
 
 /** Settings staging and production must set; development and test fall back to local values. */
 const liveRequired = [
@@ -175,16 +182,30 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
     }
   })
-  .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, TOTP_ENCRYPTION_KEY, ...env }) => ({
-    ...withSmtpSettings(env),
-    VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY ?? LOCAL_VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY ?? LOCAL_VAPID_PRIVATE_KEY,
-    VAPID_SUBJECT: env.VAPID_SUBJECT ?? LOCAL_VAPID_SUBJECT,
-    FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
-    AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
-    APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
-    TOTP_ENCRYPTION_KEY: TOTP_ENCRYPTION_KEY ?? LOCAL_TOTP_ENCRYPTION_KEY,
-  }));
+  .transform(
+    ({
+      FAKE_PAYMENT_WEBHOOK_SECRET,
+      AUTH_SECRET,
+      APP_BASE_URL,
+      TOTP_ENCRYPTION_KEY,
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY,
+      VAPID_SUBJECT,
+      ...env
+    }) => ({
+      ...withSmtpSettings(env),
+      // Required (and so set) in staging and production; the fixed local pair only where fakes run.
+      vapid: vapidKeys({
+        publicKey: VAPID_PUBLIC_KEY ?? LOCAL_VAPID_PUBLIC_KEY,
+        privateKey: VAPID_PRIVATE_KEY ?? LOCAL_VAPID_PRIVATE_KEY,
+        subject: VAPID_SUBJECT ?? LOCAL_VAPID_SUBJECT,
+      }),
+      FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
+      AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
+      APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
+      TOTP_ENCRYPTION_KEY: TOTP_ENCRYPTION_KEY ?? LOCAL_TOTP_ENCRYPTION_KEY,
+    }),
+  );
 
 /**
  * Browser error monitoring. Next.js inlines NEXT_PUBLIC_* at build time, so the

@@ -36,7 +36,7 @@ export function serverRuntime(): ServerRuntime {
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
-      vapid: { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT },
+      vapid: env.vapid,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const notifications = createNotifications({

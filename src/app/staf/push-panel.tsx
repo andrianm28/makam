@@ -15,7 +15,7 @@ export async function PushPanel() {
   const devices = await notifications.pushDevices(actor.accountId);
   return (
     <PushPanelClient
-      vapidPublicKey={env.VAPID_PUBLIC_KEY}
+      vapidPublicKey={env.vapid.publicKey}
       knownEndpoints={devices.map((device) => device.endpoint)}
     />
   );

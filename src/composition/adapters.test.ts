@@ -27,6 +27,12 @@ function expectNoFakes(adapters: Adapters) {
 }
 
 describe("composition root", () => {
+  const VAPID = {
+    publicKey: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+    privateKey: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+    subject: "mailto:ops@makam.co.id",
+  };
+
   it.each(["development", "test"] as const)("wires the in-memory fakes in %s", (appEnv) => {
     const adapters = createAdapters({ appEnv });
 
@@ -38,7 +44,7 @@ describe("composition root", () => {
   it.each(["staging", "production"] as const)(
     "never wires a fake in %s: a port without a live adapter refuses to run",
     async (appEnv) => {
-      const adapters = createAdapters({ appEnv });
+      const adapters = createAdapters({ appEnv, vapid: VAPID });
 
       expect(adapters.clock).toBeInstanceOf(SystemClock);
       expectNoFakes(adapters);
@@ -54,7 +60,7 @@ describe("composition root", () => {
   it.each(["staging", "production"] as const)(
     "a fake payment webhook secret does not bring the fake PaymentProvider back in %s",
     async (appEnv) => {
-      const adapters = createAdapters({ appEnv, fakePaymentWebhookSecret: WEBHOOK_SECRET });
+      const adapters = createAdapters({ appEnv, vapid: VAPID, fakePaymentWebhookSecret: WEBHOOK_SECRET });
 
       expect(adapters.payments).not.toBeInstanceOf(FakePaymentProvider);
       await expect(
@@ -72,13 +78,13 @@ describe("composition root", () => {
   };
 
   it.each(["staging", "production"] as const)("sends email through the SumoPod SMTP relay in %s", (appEnv) => {
-    expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(SmtpEmailSender);
+    expect(createAdapters({ appEnv, vapid: VAPID, smtp: SMTP }).email).toBeInstanceOf(SmtpEmailSender);
   });
 
   it.each(["staging", "production"] as const)(
     "without SMTP settings the EmailSender refuses to send in %s, never faking it",
     async (appEnv) => {
-      const { email } = createAdapters({ appEnv });
+      const { email } = createAdapters({ appEnv, vapid: VAPID });
       await expect(email.send({ to: "a@example.test", subject: "x", text: "x" })).rejects.toThrow(
         /EmailSender \(SumoPod SMTP\)/,
       );
@@ -89,15 +95,18 @@ describe("composition root", () => {
     expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(FakeEmailSender);
   });
 
-  const VAPID = {
-    publicKey: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
-    privateKey: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
-    subject: "mailto:ops@makam.co.id",
-  };
 
   it.each(["staging", "production"] as const)("wires the live VAPID WebPush for staff push in %s", (appEnv) => {
     expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(VapidWebPush);
   });
+
+  it.each(["staging", "production"] as const)(
+    "refuses to compose without the VAPID keys in %s (a type error, and loud at run time)",
+    (appEnv) => {
+      // @ts-expect-error staging and production must be given the VAPID keys
+      expect(() => createAdapters({ appEnv })).toThrow(/VAPID keys are required in/);
+    },
+  );
 
   it.each(["development", "test"] as const)("keeps the fake WebPush in %s, even with VAPID keys", (appEnv) => {
     expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(FakeWebPush);

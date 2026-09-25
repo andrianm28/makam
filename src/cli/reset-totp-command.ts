@@ -47,7 +47,7 @@ export async function resetTotpCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 1, applicationName: "makam-reset-totp" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV, smtp: env.smtp });
+      const adapters = createAdapters({ appEnv: env.APP_ENV, smtp: env.smtp, vapid: env.vapid });
       const { identity } = composeIdentity({ env, db: database.db, adapters });
       const result = await identity.resetTotp({ phoneNumber, reason });
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };

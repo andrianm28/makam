@@ -1,5 +1,6 @@
 import { createECDH } from "node:crypto";
 import webpush from "web-push";
+import type { VapidKeys } from "@/lib/env";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushResult, PushSubscription, WebPush } from "@/ports/web-push";
 
@@ -9,12 +10,7 @@ const TTL_SECONDS = 24 * 60 * 60;
 const VAPID_TOKEN_SECONDS = 12 * 60 * 60;
 const REQUEST_TIMEOUT_MS = 10_000;
 
-export interface VapidWebPushOptions {
-  /** VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY: a P-256 pair, unpadded base64url. */
-  publicKey: string;
-  privateKey: string;
-  /** VAPID_SUBJECT: mailto: or https contact for the push services. */
-  subject: string;
+export interface VapidWebPushOptions extends VapidKeys {
   clock: Clock;
 }
 
