@@ -61,7 +61,7 @@ Staff of one Lokasi Mitra who manage its plot inventory, verify its Perpanjangan
 _Avoid_: Makam admin, pengelola, operator (as a person)
 
 **Admin YIEM**:
-Central platform staff who onboard Lokasi Mitra, define Paket Layanan, review wakaf applications, and file online Pengurusan for TPU.
+Central platform staff who onboard Lokasi Mitra, define Paket Layanan, review Pengajuan Wakaf, and file online Pengurusan for TPU.
 _Avoid_: Superadmin, admin pusat
 
 **Petugas YIEM**:
@@ -71,6 +71,14 @@ _Avoid_: Kurir, staf lapangan
 **Mitra Jasa**:
 An individual service provider outside YIEM, paid per job, who fulfils Layanan at TPU.
 _Avoid_: Vendor, tukang (as the role name), Mitra (alone)
+
+**Wakif**:
+The landowner (or heir or representative) who gives land as wakaf for a cemetery and applies through a Pengajuan Wakaf.
+_Avoid_: Donatur, pewakaf
+
+**Nazhir**:
+The registered person, organisation or legal body that receives wakaf land and manages it; YIEM is not a Nazhir and only matches a Wakif to one.
+_Avoid_: Pengelola (alone), penerima wakaf
 
 ### Journeys
 
@@ -121,6 +129,10 @@ _Avoid_: Renewal, sewa ulang
 **Pengurusan**:
 YIEM handling a Pemda permit on a family's behalf at a TPU: arranging the burial with the TPU and then filing the new or tumpang IPTM for a Pemesanan Saat Duka, or filing the IPTM for a Perpanjangan Makam. The Pemda, not YIEM, issues the permit.
 _Avoid_: Calo, jasa urus, fasilitasi (as the name)
+
+**Pengajuan Wakaf**:
+A Wakif's application to give land as wakaf for a cemetery (sosial or keluarga), which YIEM facilitates up to the ikrar at the KUA and the BPN certificate without ever receiving the land or any money.
+_Avoid_: Wakaf (alone, when meaning the application), donasi tanah
 
 ### Services
 
