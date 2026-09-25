@@ -4,6 +4,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Identity } from "@/domain/identity";
+import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
 
@@ -13,6 +14,8 @@ export interface ServerRuntime {
   adapters: Adapters;
   audit: AuditLog;
   identity: Identity;
+  /** Pengaturan Operator: read through `current()` / `inForceAt()`, never from env or constants. */
+  operatorSettings: OperatorSettings;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -31,11 +34,14 @@ export function serverRuntime(): ServerRuntime {
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
     });
+    const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     globalForRuntime.__makamRuntime = {
       env,
       database,
       adapters,
-      ...composeIdentity({ env, db: database.db, adapters }),
+      audit,
+      identity,
+      operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
     };
   }
   return globalForRuntime.__makamRuntime;

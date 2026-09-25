@@ -347,3 +347,7 @@ _Avoid_: Riwayat, activity log
 **Entri Audit**:
 One record in the Audit Log: which Akun did it, under which role, when, to what, the before and after, and the reason.
 _Avoid_: Log (alone), histori
+
+**Pengaturan Operator**:
+The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, and the CS WhatsApp number with its reply hours. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
+_Avoid_: Konfigurasi, settings (alone), data perusahaan

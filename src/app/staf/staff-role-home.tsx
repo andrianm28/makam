@@ -15,6 +15,11 @@ interface MenuItem {
 const menus: Record<StaffRole, MenuItem[]> = {
   admin_platform: [
     { label: "Staf", href: "/staf/admin-platform/staf", description: "Undang staf dan nonaktifkan Akun Staf." },
+    {
+      label: "Pengaturan Operator",
+      href: "/staf/admin-platform/pengaturan-operator",
+      description: "Nama resmi, alamat dan kontak Operator; nomor WhatsApp CS dan jam balasnya.",
+    },
     { label: "Pindah Nomor", href: "/staf/admin-platform/pindah-nomor", description: "Pindahkan Akun ke nomor baru setelah cek KTP." },
     { label: "Antrean", description: "Segera hadir (tiket 17)." },
     { label: "Lokasi Mitra", description: "Segera hadir (tiket 10)." },

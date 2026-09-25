@@ -68,7 +68,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [60](60-real-s3-filestore-adapter.md) | Real FileStore adapter (S3 Jakarta) | ready-for-agent | 03 |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter | ready-for-agent | 05, 20 |
-| [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | ready-for-agent | 09 |
+| [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
 | [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | ready-for-agent | 09 |
 | [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | ready-for-agent | 04 |
 

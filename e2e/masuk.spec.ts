@@ -1,23 +1,6 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
-
-/** A number that has never been used: no account and no orders. */
-function coldNumber() {
-  const subscriber = `8${Math.floor(Math.random() * 1e10).toString().padStart(10, "0")}`;
-  return { typed: `0${subscriber}`, canonical: `+62${subscriber}` };
-}
-
-/** The OTP the in-memory WhatsAppSender "sent" (development stack only). */
-async function lastOtp(request: APIRequestContext, to: string): Promise<string> {
-  let code: string | undefined;
-  await expect(async () => {
-    const response = await request.get(`/api/dev/whatsapp-outbox?to=${encodeURIComponent(to)}`);
-    expect(response.ok()).toBe(true);
-    const { messages } = (await response.json()) as { messages: { template: string; copyCode?: string }[] };
-    code = messages.filter((message) => message.template === "kode_verifikasi").at(-1)?.copyCode;
-    expect(code).toMatch(/^\d{6}$/);
-  }).toPass({ timeout: 10_000 });
-  return code!;
-}
+import { expect, test } from "@playwright/test";
+import { coldNumber } from "./support/numbers";
+import { lastOtp } from "./support/whatsapp-outbox";
 
 test("Masuk with a cold WhatsApp number and the OTP lands on Akun Saya", async ({ page, request }) => {
   const number = coldNumber();
