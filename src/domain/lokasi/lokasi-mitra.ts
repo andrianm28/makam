@@ -63,6 +63,15 @@ export interface LokasiDeps {
 
 export type NotFound = { ok: false; reason: "tidak_ditemukan" };
 
+/**
+ * The role an authorised actor writes a Lokasi Mitra under, for its Entri
+ * Audit: Admin Platform when it holds it, else Admin Lokasi (an Admin Lokasi
+ * write, e.g. Jam Operasional in ticket 11, is authorised for that Lokasi only).
+ */
+export function actingRole(by: Actor): "admin_platform" | "admin_lokasi" {
+  return by.roles.includes("admin_platform") ? "admin_platform" : "admin_lokasi";
+}
+
 /** A Lokasi Mitra id has the shape of one (a UUID); anything else names no Lokasi. */
 export function isLokasiId(lokasiId: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lokasiId);
@@ -106,7 +115,7 @@ export async function createLokasiMitra(
       .returning();
     const created = toLokasiMitra(row);
     await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
+      actor: { accountId: by.accountId, role: actingRole(by) },
       action: "lokasi.buat",
       entity: { kind: "lokasi_mitra", id: created.id },
       lokasiId: created.id,
@@ -305,8 +314,9 @@ function bankAccountOf(row: Row): BankAccount | null {
 }
 
 /**
- * One Admin Platform write on a Lokasi Mitra's record: authorised, locked,
- * changed and audited in one transaction.
+ * One staff write on a Lokasi Mitra's record: authorised (`authorisedAs`),
+ * locked, changed and audited in one transaction, under the role the actor
+ * wrote as (`actingRole`).
  */
 export async function writeLokasiMitra(
   deps: LokasiDeps,
@@ -328,7 +338,7 @@ export async function writeLokasiMitra(
       .set({ ...values, updatedAt: deps.clock.now() })
       .where(eq(lokasiMitraTable.id, lokasiId));
     await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
+      actor: { accountId: by.accountId, role: actingRole(by) },
       action,
       entity: { kind: "lokasi_mitra", id: lokasiId },
       lokasiId,
