@@ -138,6 +138,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "audit.lihat":
       return holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.lihat":
+      // The edit screen: Admin Platform only (the values themselves are public, read by server code).
+      return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.ubah":
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
   }

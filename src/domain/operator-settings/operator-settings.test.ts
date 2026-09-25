@@ -199,6 +199,26 @@ describe("Pengaturan Operator", () => {
     expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([]);
   });
 
+  it.each([
+    { who: "an Admin Lokasi", role: "admin_lokasi", number: "082222222222" },
+    { who: "a Petugas Lapangan", role: "petugas_lapangan", number: "083333333333" },
+    { who: "a Mitra Jasa", role: "mitra_jasa", number: "084444444444" },
+  ] as const)("only Admin Platform may change it: $who is refused and nothing is kept or audited", async ({ role, number }) => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(admin, { phoneNumber: number, email: "staf@contoh.id", role });
+    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, number);
+    const staff = await actorOf(setup.identity, cookies);
+    expect(staff.roles).toEqual(["pemesan", role]);
+
+    expect(await setup.operatorSettings.change(staff, { ...pengaturan, reason: null })).toEqual({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+    expect(await setup.operatorSettings.current()).toBeNull();
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([]);
+  });
+
   it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
     const setup = operatorSettingsOnTestDatabase();
     await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
