@@ -40,4 +40,21 @@ describe("npm run seed:admin <phone> <email>", () => {
       output: "Ditolak: email tidak valid.",
     });
   });
+
+  it("refuses an invalid number with the shared phone-number message", async () => {
+    expect(await seedAdminCommand(["12", "admin@makam.co.id"], env())).toEqual({
+      exitCode: 1,
+      output: "Ditolak: Nomor WhatsApp tidak valid.",
+    });
+  });
+
+  it("when the database cannot be reached, says so briefly without the connection string", async () => {
+    const result = await seedAdminCommand(["081111111111", "admin@makam.co.id"], {
+      APP_ENV: "test",
+      DATABASE_URL: "postgres://makam:rahasia-sekali@127.0.0.1:1/makam",
+    });
+
+    expect(result).toEqual({ exitCode: 1, output: "Gagal: perintah berhenti karena galat (Error ECONNREFUSED)." });
+    expect(result.output).not.toContain("rahasia");
+  });
 });

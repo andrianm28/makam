@@ -59,8 +59,8 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     expect(entries.filter((entry) => entry.action === "akun.totp_daftar")).toEqual([
       expect.objectContaining({
         actor: { accountId: login.account.id, role: "admin_platform" },
-        before: { totpEnrolled: false },
-        after: { totpEnrolled: true },
+        before: { terdaftar: false },
+        after: { terdaftar: true },
       }),
     ]);
     expect(JSON.stringify(entries)).not.toContain(secret);

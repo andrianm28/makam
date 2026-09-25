@@ -3,6 +3,7 @@
  * `node dist/seed-admin.mjs <phone> <email>`: seeds the first Admin Platform.
  * See docs/ops/runbook.md.
  */
+import { cliFailure } from "./cli-failure";
 import { seedAdminCommand } from "./seed-admin-command";
 
 seedAdminCommand(process.argv.slice(2))
@@ -11,6 +12,6 @@ seedAdminCommand(process.argv.slice(2))
     process.exit(exitCode);
   })
   .catch((error: unknown) => {
-    console.error("[seed:admin] failed", error);
+    console.error(`[seed:admin] ${cliFailure(error)}`);
     process.exit(1);
   });

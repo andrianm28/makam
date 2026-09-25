@@ -175,8 +175,8 @@ export async function passTotp(
       actor: { accountId: session.accountId, role: "admin_platform" },
       action: "akun.totp_daftar",
       entity: { kind: "akun", id: session.accountId },
-      before: { totpEnrolled: false },
-      after: { totpEnrolled: true },
+      before: { terdaftar: false },
+      after: { terdaftar: true },
       reason: null,
     });
     return passed;
