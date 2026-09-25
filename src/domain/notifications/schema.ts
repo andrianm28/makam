@@ -14,6 +14,11 @@ export const notificationsPushDevice = pgTable(
     /** The push service URL; one browser has one, so it identifies the device. */
     endpoint: text("endpoint").notNull().unique(),
     /** The browser's P-256 public key and auth secret (unpadded base64url), for payload encryption. */
+    /**
+     * The identity session push was turned on in: the Perangkat Push lasts as
+     * long as it does (Keluar turns push off). Not a foreign key: identity owns its tables.
+     */
+    sessionId: text("session_id").notNull(),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
     enabledAt: timestamp("enabled_at", { withTimezone: true, mode: "date" }).notNull(),

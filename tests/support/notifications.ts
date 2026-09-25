@@ -16,6 +16,7 @@ export function notificationsOnTestDatabase(db: Database, options: { whatsapp?: 
     clock: setup.clock,
     whatsapp: options.whatsapp ?? setup.whatsapp,
     webPush,
+    identity: setup.identity,
     audit: setup.audit,
   });
   return { ...setup, webPush, notifications };
@@ -42,6 +43,13 @@ export async function invitedStaff(
   if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
   const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
   return actorOf(setup.identity, cookies);
+}
+
+/** The same Akun logged in by OTP on another browser (a minute later, past the OTP resend wait): its own session. */
+export async function loggedInOnAnotherBrowser(setup: ReturnType<typeof identityOnTestDatabase>, phoneNumber: string) {
+  setup.clock.advance({ minutes: 1 });
+  const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
+  return { actor: await actorOf(setup.identity, cookies), cookies };
 }
 
 let device = 0;

@@ -8,11 +8,11 @@
  *
  * Owns table: notifications_push_device.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { akunResource, authorize, staffRoles, type Actor } from "@/domain/identity";
+import { akunResource, authorize, staffRoles, type Actor, type Identity } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -40,6 +40,8 @@ export interface NotificationsDeps {
   clock: Clock;
   whatsapp: WhatsAppSender;
   webPush: WebPush;
+  /** Who an Akun Staf is and which of its sessions are live: a Perangkat Push lasts as long as its session. */
+  identity: Pick<Identity, "staffRecipient">;
   /** Turning push on or off is a staff write: one Entri Audit each. */
   audit: AuditLog;
 }
@@ -85,12 +87,34 @@ export interface Notifications {
 export function createNotifications(deps: NotificationsDeps): Notifications {
   const { db } = deps;
 
-  const devicesOf = (accountId: string) =>
-    db
+  /** The Akun's Perangkat Push whose session is still live, oldest first. */
+  const devicesOf = async (tx: Database, accountId: string) => {
+    const liveSessionIds = (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
+    if (liveSessionIds.length === 0) return [];
+    return tx
       .select()
       .from(notificationsPushDevice)
-      .where(eq(notificationsPushDevice.accountId, accountId))
+      .where(
+        and(
+          eq(notificationsPushDevice.accountId, accountId),
+          inArray(notificationsPushDevice.sessionId, liveSessionIds),
+        ),
+      )
       .orderBy(asc(notificationsPushDevice.enabledAt), asc(notificationsPushDevice.id));
+  };
+  const countDevices = async (tx: Database, accountId: string) => (await devicesOf(tx, accountId)).length;
+
+  const forgetEndedSessions = async (accountId: string) => {
+    const liveSessionIds = (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
+    await db
+      .delete(notificationsPushDevice)
+      .where(
+        and(
+          eq(notificationsPushDevice.accountId, accountId),
+          liveSessionIds.length > 0 ? notInArray(notificationsPushDevice.sessionId, liveSessionIds) : undefined,
+        ),
+      );
+  };
 
   return {
     async enablePush(by, input) {
@@ -105,19 +129,28 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         .select()
         .from(notificationsPushDevice)
         .where(eq(notificationsPushDevice.endpoint, endpoint));
-      if (current?.accountId === by.accountId && current.p256dh === keys.p256dh && current.auth === keys.auth) {
+      if (
+        current?.accountId === by.accountId &&
+        current.sessionId === by.sessionId &&
+        current.p256dh === keys.p256dh &&
+        current.auth === keys.auth
+      ) {
         return { ok: true };
       }
 
       return deps.audit.staffWrite(db, async (tx, record) => {
         const before = await countDevices(tx, by.accountId);
+        const device = {
+          accountId: by.accountId,
+          sessionId: by.sessionId,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          enabledAt: deps.clock.now(),
+        };
         await tx
           .insert(notificationsPushDevice)
-          .values({ accountId: by.accountId, endpoint, p256dh: keys.p256dh, auth: keys.auth, enabledAt: deps.clock.now() })
-          .onConflictDoUpdate({
-            target: notificationsPushDevice.endpoint,
-            set: { accountId: by.accountId, p256dh: keys.p256dh, auth: keys.auth, enabledAt: deps.clock.now() },
-          });
+          .values({ endpoint, ...device })
+          .onConflictDoUpdate({ target: notificationsPushDevice.endpoint, set: device });
         await record({
           actor: { accountId: by.accountId, role: actingRole(by) },
           action: "akun.push_aktifkan",
@@ -153,7 +186,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async pushDevices(accountId) {
-      const rows = await devicesOf(accountId);
+      const rows = await devicesOf(db, accountId);
       return rows.map((row) => ({ endpoint: row.endpoint, enabledAt: row.enabledAt }));
     },
 
@@ -173,7 +206,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       }
 
       const push = { delivered: 0, removed: 0 };
-      for (const device of await devicesOf(alert.to.accountId)) {
+      // A Perangkat Push whose session ended (Keluar, Dinonaktifkan, a new role grant) is gone.
+      await forgetEndedSessions(alert.to.accountId);
+      for (const device of await devicesOf(db, alert.to.accountId)) {
         const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
         const result = await deps.webPush.send({ subscription, notification: alert.push }).catch(() => null);
         if (result?.delivered) push.delivered++;
@@ -199,11 +234,4 @@ function actingRole(by: Actor) {
   return staffRoles.find((role) => by.roles.includes(role)) ?? "pemesan";
 }
 
-async function countDevices(tx: Database, accountId: string): Promise<number> {
-  const rows = await tx
-    .select({ id: notificationsPushDevice.id })
-    .from(notificationsPushDevice)
-    .where(eq(notificationsPushDevice.accountId, accountId));
-  return rows.length;
-}
 

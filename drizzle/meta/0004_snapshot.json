@@ -1,5 +1,5 @@
 {
-  "id": "bfc0ddcf-ce05-4be7-8a63-f0e26d12390d",
+  "id": "f7d3637a-07f4-4d2f-9cbb-37d8cca4f1db",
   "prevId": "7dde8840-51a0-4816-bcf8-b79602d19741",
   "version": "7",
   "dialect": "postgresql",
@@ -821,6 +821,12 @@
         },
         "endpoint": {
           "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true

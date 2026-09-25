@@ -24,9 +24,11 @@ import {
   deactivateStaff,
   seedFirstAdminPlatform,
   staffAccounts,
+  staffRecipient,
   type DeactivateStaffResult,
   type SeedResult,
   type StaffAccount,
+  type StaffRecipient,
 } from "./staff";
 import {
   passTotp,
@@ -43,7 +45,7 @@ export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from 
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
-export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
+export type { DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 export type { InviteStaffResult, StaffInvite } from "./invites";
 export {
@@ -97,6 +99,11 @@ export interface Identity {
   seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
+  /**
+   * The Akun Staf a staff message goes to: its WhatsApp number and live
+   * sessions. Null when it holds no staff role (never invited, or Dinonaktifkan).
+   */
+  staffRecipient(accountId: string): Promise<StaffRecipient | null>;
   /** Admin Platform sends an Undangan Staf (role, WhatsApp number, required email), audited. */
   inviteStaff(
     by: Actor,
@@ -136,6 +143,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
+    staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
     openStaffInvites: () => openStaffInvites(deps),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),

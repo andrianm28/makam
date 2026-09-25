@@ -4,6 +4,7 @@ import { actorOf, logInByOtp, signedInAdminPlatform } from "../../../tests/suppo
 import {
   browserPushSubscription,
   invitedStaff,
+  loggedInOnAnotherBrowser,
   notificationsOnTestDatabase,
   signedInStaff,
 } from "../../../tests/support/notifications";
@@ -106,6 +107,46 @@ describe("Peringatan Staf", () => {
 });
 
 describe("Perangkat Push", () => {
+  it("is turned off by Keluar: after Keluar, a Peringatan Staf reaches that browser no more", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, webPush, identity } = setup;
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const { actor: diLaptop, cookies: laptopCookies } = await loggedInOnAnotherBrowser(setup, adminLokasi.phoneNumber);
+    const ponsel = browserPushSubscription();
+    const laptop = browserPushSubscription();
+    await notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await notifications.enablePush(diLaptop, { subscription: laptop });
+
+    await identity.endSession(laptopCookies);
+
+    expect(await notifications.pushDevices(adminLokasi.accountId)).toEqual([
+      { endpoint: ponsel.endpoint, enabledAt: expect.any(Date) },
+    ]);
+    await notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      ...saatDukaBaru,
+    });
+    expect(webPush.sent.map((push) => push.subscription.endpoint)).toEqual([ponsel.endpoint]);
+  });
+
+  it("is turned off when a new role grant ends its session: only the browser that accepted the role keeps push", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, identity } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "082222222222");
+    await notifications.enablePush(petugas, { subscription: browserPushSubscription() });
+    const invited = await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "mj@contoh.id", role: "mitra_jasa" });
+    expect(invited.ok).toBe(true);
+
+    const { actor: diLaptop } = await loggedInOnAnotherBrowser(setup, petugas.phoneNumber);
+    const laptop = browserPushSubscription();
+    await notifications.enablePush(diLaptop, { subscription: laptop });
+
+    expect(await notifications.pushDevices(petugas.accountId)).toEqual([
+      { endpoint: laptop.endpoint, enabledAt: expect.any(Date) },
+    ]);
+  });
+
   it("is removed once its browser reports the subscription gone, and gets no further pushes", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, webPush } = setup;

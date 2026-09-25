@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -192,4 +192,36 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
       deactivated: held.length === 0,
     };
   });
+}
+
+/** Where a message to an Akun Staf goes: its WhatsApp number, its staff roles and its live sessions. */
+export interface StaffRecipient {
+  accountId: string;
+  /** Canonical E.164 WhatsApp number, from the Akun record. */
+  phoneNumber: string;
+  roles: StaffRole[];
+  /** Sessions not ended (Keluar, Dinonaktifkan, a new role grant, reset-totp, Pindah Nomor) nor expired on the Clock. */
+  liveSessionIds: string[];
+}
+
+/**
+ * The Akun Staf behind `accountId` as a message recipient, or null when the
+ * Akun holds no staff role (never invited, or Dinonaktifkan) or does not exist.
+ */
+export async function staffRecipient(
+  deps: { db: Database; clock: Clock },
+  accountId: string,
+): Promise<StaffRecipient | null> {
+  const [user] = await deps.db
+    .select({ phoneNumber: identityUser.phoneNumber })
+    .from(identityUser)
+    .where(eq(identityUser.id, accountId));
+  if (!user?.phoneNumber) return null;
+  const roles = (await rolesOf(deps.db, accountId)).filter((role): role is StaffRole => role !== "pemesan");
+  if (roles.length === 0) return null;
+  const sessions = await deps.db
+    .select({ id: identitySession.id })
+    .from(identitySession)
+    .where(and(eq(identitySession.userId, accountId), gt(identitySession.expiresAt, deps.clock.now())));
+  return { accountId, phoneNumber: user.phoneNumber, roles, liveSessionIds: sessions.map((session) => session.id) };
 }

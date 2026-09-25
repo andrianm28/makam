@@ -43,6 +43,7 @@ export function serverRuntime(): ServerRuntime {
       clock: adapters.clock,
       whatsapp: adapters.whatsapp,
       webPush: adapters.webPush,
+      identity,
       audit,
     });
     globalForRuntime.__makamRuntime = {
