@@ -1,3 +1,14 @@
+/**
+ * Pengaturan Operator (spec, domain module 17): the Operator's own reference
+ * values that no other screen owns. Every consumer (document headers, the CS
+ * button, Hubungi Kami, the inbound auto-reply, the OTP no-fallback pointer,
+ * the night TPU submission text) reads them here, never from env or constants.
+ *
+ * Owns table: operator_settings_version (append-only: the database refuses
+ * UPDATE and DELETE). Each change is a full new version stamped with the Clock.
+ *
+ * Every change records an Entri Audit through the Audit Log, in the same transaction.
+ */
 import { desc, lte, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
@@ -12,13 +23,21 @@ import {
 import type { Clock } from "@/ports/clock";
 import { operatorSettingsVersion } from "./schema";
 
+/** Pengaturan Operator as in force from `inForceFrom` until the next change. */
 export interface OperatorSettingsValues {
+  /** The Operator's legal name, e.g. "PT Jaya Korpora Prima" (document headers, footer, Hubungi Kami). */
   legalName: string;
+  /** Registered address, free text, may span lines (document headers, Hubungi Kami). */
   address: string;
+  /** The Operator's contact phone as typed (may be a landline), trimmed. */
   phone: string;
+  /** The Operator's contact email, trimmed and lower-cased. */
   email: string;
+  /** The CS WhatsApp number, canonical E.164 +62 (e.g. "+6281122223333"); build wa.me links from it. */
   csWhatsApp: string;
+  /** When CS replies, as shown next to the number, e.g. "dibalas mulai pukul 06:00". */
   csReplyHours: string;
+  /** The Clock instant this version came into force. */
   inForceFrom: Date;
 }
 
@@ -42,8 +61,15 @@ export type ChangeOperatorSettingsResult =
   | PhoneNumberRejection;
 
 export interface OperatorSettings {
+  /** The values in force now, or null before an Admin Platform first enters them (nothing is seeded). */
   current(): Promise<OperatorSettingsValues | null>;
+  /**
+   * The values in force at `instant`: the last change made at or before it, or
+   * null when none was. An issued Tagihan or Bukti reads its header with its
+   * issue time, so a later change never alters it.
+   */
   inForceAt(instant: Date): Promise<OperatorSettingsValues | null>;
+  /** Admin Platform (past TOTP) saves all the values as a new version in force from now; audited with before/after. */
   change(by: Actor, input: ChangeOperatorSettingsInput): Promise<ChangeOperatorSettingsResult>;
 }
 
