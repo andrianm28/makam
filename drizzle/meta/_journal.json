@@ -22,6 +22,13 @@
       "when": 1790337338825,
       "tag": "0002_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790337678022,
+      "tag": "0003_identity_staff_roles",
+      "breakpoints": true
     }
   ]
 }

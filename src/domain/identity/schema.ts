@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Owned by the identity module. Better Auth reads and writes the first four
@@ -28,9 +28,30 @@ export const identityUser = pgTable("identity_user", {
   /** Canonical E.164, e.g. +6281234567890. */
   phoneNumber: text("phone_number").unique(),
   phoneNumberVerified: boolean("phone_number_verified"),
+  /**
+   * The account's real email (lower-cased), unlike `placeholder_email`.
+   * Required for every Akun Staf (set by the seed or the accepted Undangan
+   * Staf); optional for a Pemesan (ticket 27). Carries the email OTP fallback (ticket 60).
+   */
+  contactEmail: text("email"),
+  /** Set when Admin Platform deactivates the Akun Staf: it can no longer log in. Its history stays. */
+  deactivatedAt: at("deactivated_at"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });
+
+/** The staff roles an Akun holds (Pemesan is implicit and never stored). */
+export const identityStaffRole = pgTable(
+  "identity_staff_role",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => identityUser.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] }).notNull(),
+    grantedAt: at("granted_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.accountId, table.role] })],
+);
 
 /** Better Auth model `session`. Expiry is read against the Clock. */
 export const identitySession = pgTable(

@@ -1,20 +1,33 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { FakeClock, FakeWhatsAppSender } from "@/adapters/memory";
+import { FakeClock, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
+import { createAuditLog } from "@/domain/audit";
 import { wib } from "@/lib/time/jakarta";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { TEST_AUTH_SECRET, TEST_TOTP_KEY } from "../../../tests/support/identity";
 import { createIdentity, type Identity } from "./index";
 
 const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-const AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef";
+function build(clock: FakeClock, whatsapp: WhatsAppSender): Identity {
+  return createIdentity({
+    db,
+    clock,
+    whatsapp,
+    files: new FakeFileStore({ clock }),
+    audit: createAuditLog({ db, clock }),
+    secret: TEST_AUTH_SECRET,
+    totpEncryptionKey: TEST_TOTP_KEY,
+    baseURL: "http://localhost:3000",
+  });
+}
 
 function setup() {
   const clock = new FakeClock(wib("2026-10-01 09:00"));
   const whatsapp = new FakeWhatsAppSender();
-  const identity = createIdentity({ db, clock, whatsapp, secret: AUTH_SECRET, baseURL: "http://localhost:3000" });
+  const identity = build(clock, whatsapp);
   return { clock, whatsapp, identity };
 }
 
@@ -166,7 +179,7 @@ describe("OTP limits", () => {
       statusOf: (id) => whatsapp.statusOf(id),
       replyText: (reply) => whatsapp.replyText(reply),
     };
-    const identity = createIdentity({ db, clock, whatsapp: flaky, secret: AUTH_SECRET, baseURL: "http://localhost:3000" });
+    const identity = build(clock, flaky);
 
     expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toEqual({ ok: false, reason: "gagal_kirim" });
 

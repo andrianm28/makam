@@ -2,22 +2,30 @@
  * Identity & Access: accounts keyed by one WhatsApp number, OTP, roles, staff invites, sessions.
  *
  * Owns tables: identity_user, identity_session, identity_auth_account,
- * identity_verification (Better Auth's models) and identity_otp_request.
+ * identity_verification (Better Auth's models), identity_otp_request and
+ * identity_staff_role.
+ *
+ * Every staff write here records an Entri Audit through the Audit Log module,
+ * in the same transaction.
  */
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
+import type { FileStore } from "@/ports/file-store";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import type { Actor } from "./authorize";
 import { createBetterAuth, OtpRejected } from "./better-auth";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
+import { seedFirstAdminPlatform, staffAccounts, type SeedResult, type StaffAccount } from "./staff";
 
 export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 export type { CodeRejection, RequestOtpResult } from "./otp";
 export { PEMESAN_SESSION_MS } from "./better-auth";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
+export type { SeedResult, StaffAccount } from "./staff";
 export {
   akunResource,
   auditLogResource,
@@ -38,8 +46,14 @@ export interface IdentityDeps {
   db: Database;
   clock: Clock;
   whatsapp: WhatsAppSender;
+  /** The private bucket, for the KTP check behind a Pindah Nomor. */
+  files: FileStore;
+  /** Every staff write records an Entri Audit here. */
+  audit: AuditLog;
   /** Signs session cookies and keys the OTP hashes (AUTH_SECRET). */
   secret: string;
+  /** Encrypts TOTP secrets at rest (TOTP_ENCRYPTION_KEY): 32 bytes, base64. */
+  totpEncryptionKey: string;
   /** The site's own origin, e.g. https://makam.co.id. */
   baseURL: string;
 }
@@ -55,6 +69,10 @@ export interface Identity {
   actorFromCookies(cookieHeader: string | null | undefined): Promise<Actor | null>;
   /** Keluar: ends the session behind the Cookie header and names the cookies to clear. */
   endSession(cookieHeader: string | null | undefined): Promise<{ clearCookies: string[] }>;
+  /** The CLI seed: the first Admin Platform (number and email). Refused once one exists. */
+  seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
+  /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
+  staffAccounts(): Promise<StaffAccount[]>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -73,7 +91,10 @@ export function createIdentity(deps: IdentityDeps): Identity {
     requestOtp: (input) => requestOtp(deps, input),
     verifyOtp: (input) => verifyOtp({ auth, db: deps.db }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
-    actorFromCookies: (cookieHeader) => actorFromCookies({ auth, clock: deps.clock, secret: deps.secret }, cookieHeader),
+    actorFromCookies: (cookieHeader) =>
+      actorFromCookies({ auth, db: deps.db, clock: deps.clock, secret: deps.secret }, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
+    seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
+    staffAccounts: () => staffAccounts(deps),
   };
 }

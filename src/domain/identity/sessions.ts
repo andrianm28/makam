@@ -1,8 +1,10 @@
 import { getSessionCookie, parseSetCookieHeader } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
+import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import { COOKIE_PREFIX, type MakamAuth } from "./better-auth";
 import type { Actor } from "./authorize";
+import { rolesOf } from "./staff";
 
 /** A cookie the web layer must set on the response, as Better Auth wrote it. */
 export interface SessionCookie {
@@ -52,7 +54,7 @@ export function sessionCookiesFrom(headers: Headers): SessionCookie[] {
  * checked against the Clock, never the system time.
  */
 export async function actorFromCookies(
-  deps: { auth: MakamAuth; clock: Clock; secret: string },
+  deps: { auth: MakamAuth; db: Database; clock: Clock; secret: string },
   cookieHeader: string | null | undefined,
 ): Promise<Actor | null> {
   const token = await verifiedSessionToken(deps.secret, cookieHeader);
@@ -64,7 +66,8 @@ export async function actorFromCookies(
 
   const phoneNumber = (found.user as { phoneNumber?: string | null }).phoneNumber;
   if (!phoneNumber) return null;
-  return { accountId: found.user.id, phoneNumber, roles: ["pemesan"], totp: "tidak_perlu" };
+  const roles = await rolesOf(deps.db, found.user.id);
+  return { accountId: found.user.id, phoneNumber, roles, totp: "tidak_perlu" };
 }
 
 /** The session token from a signed `makam.session_token` cookie, if the signature holds. */
