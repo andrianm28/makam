@@ -16,6 +16,8 @@ const runtimeEnvSchema = z.object({
   SENTRY_DSN: z.preprocess(emptyToUndefined, z.url().optional()),
   SENTRY_ENVIRONMENT: z.preprocess(emptyToUndefined, z.string().optional()),
   SENTRY_RELEASE: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
+  MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
   /** Svix signing secret the fake PaymentProvider signs its webhooks with. */
   FAKE_PAYMENT_WEBHOOK_SECRET: z.preprocess(
     emptyToUndefined,

@@ -12,12 +12,10 @@ export const PG_BOSS_SCHEMA = "pgboss";
  */
 export async function migrateDatabase(
   connectionString: string,
+  /** `migrationsFolder` defaults to ./drizzle; `npm run migrate` passes MIGRATIONS_DIR. */
   options: { migrationsFolder?: string } = {},
 ): Promise<void> {
-  const migrationsFolder =
-    options.migrationsFolder ??
-    process.env.MIGRATIONS_DIR ??
-    path.resolve(process.cwd(), "drizzle");
+  const migrationsFolder = options.migrationsFolder ?? path.resolve(process.cwd(), "drizzle");
 
   const handle = createDatabase(connectionString, { max: 1, applicationName: "makam-migrate" });
   try {

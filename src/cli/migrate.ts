@@ -8,7 +8,7 @@ import { readRuntimeEnv } from "@/lib/env";
 async function main() {
   const env = readRuntimeEnv();
   console.log("[migrate] applying Drizzle migrations and pg-boss schema");
-  await migrateDatabase(env.DATABASE_URL);
+  await migrateDatabase(env.DATABASE_URL, { migrationsFolder: env.MIGRATIONS_DIR });
   console.log("[migrate] done");
 }
 
