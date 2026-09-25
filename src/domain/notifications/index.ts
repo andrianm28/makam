@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { akunResource, authorize, staffRoles, type Actor, type Identity } from "@/domain/identity";
+import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -59,7 +60,7 @@ export interface StaffAlert {
   to: { accountId: string };
   /** The approved template (`whatsapp-templates.md`, `staf_*`) and its parameters. */
   whatsapp: { template: string; parameters: string[] };
-  /** What the push shows; `url` is the staff page tapping it opens (under /staf). */
+  /** What the push shows; `url` is the staff page tapping it opens (`STAFF_AREA_PATH` or under it). */
   push: PushNotification & { url: string };
 }
 
@@ -182,7 +183,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async sendStaffAlert(alert) {
-      if (!alert.push.url.startsWith("/staf")) throw new Error("A Peringatan Staf push opens a staff page (/staf…)");
+      const url = staffPagePath(alert.push.url);
+      if (!url) throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
 
       const recipient = await deps.identity.staffRecipient(alert.to.accountId);
       if (!recipient) {
@@ -216,7 +218,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         );
       for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
         const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
-        const result = await deps.webPush.send({ subscription, notification: alert.push }).catch(() => null);
+        const result = await deps.webPush.send({ subscription, notification: { ...alert.push, url } }).catch(() => null);
         if (result?.delivered) push.delivered++;
         if (result?.subscriptionGone) {
           await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));

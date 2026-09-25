@@ -1,5 +1,5 @@
 /*
- * The staff area's service worker (registered with scope /staf by
+ * The staff area's service worker (registered with scope STAFF_AREA_PATH by
  * src/app/staf/push-panel-client.tsx). It only shows Peringatan Staf pushes and
  * opens the staff page a tapped one names; it caches nothing.
  *
@@ -10,9 +10,28 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-/** Only staff pages open from a push; anything else falls back to the staff area's start. */
+/** The staff area. Must equal STAFF_AREA_PATH in src/lib/staff-area-path.ts (checked by its test). */
+const STAFF_AREA_PATH = "/staf";
+
+/** True for the staff area itself or a page under it: `/staf`, `/staf/…`; never `/stafxyz`. */
+function inStaffArea(pathname) {
+  return pathname === STAFF_AREA_PATH || pathname.startsWith(STAFF_AREA_PATH + "/");
+}
+
+/**
+ * Only staff pages on this site open from a push; anything else falls back to
+ * the staff area's start. Mirrors staffPagePath in src/lib/staff-area-path.ts.
+ */
 function staffPage(url) {
-  return typeof url === "string" && url.startsWith("/staf") ? url : "/staf";
+  if (typeof url !== "string" || !url.startsWith("/")) return STAFF_AREA_PATH;
+  let parsed;
+  try {
+    parsed = new URL(url, self.location.origin);
+  } catch {
+    return STAFF_AREA_PATH;
+  }
+  if (parsed.origin !== self.location.origin || !inStaffArea(parsed.pathname)) return STAFF_AREA_PATH;
+  return parsed.pathname + parsed.search + parsed.hash;
 }
 
 self.addEventListener("push", (event) => {
@@ -42,7 +61,7 @@ self.addEventListener("notificationclick", (event) => {
       // An open staff window goes to the page; otherwise a new one opens (the installed app on a phone).
       const windows = await self.clients.matchAll({ type: "window" });
       for (const client of windows) {
-        if (new URL(client.url).pathname.startsWith("/staf")) {
+        if (inStaffArea(new URL(client.url).pathname)) {
           const navigated = (await client.navigate(target)) || client;
           await navigated.focus().catch(() => undefined);
           return;

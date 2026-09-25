@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { STAFF_AREA_PATH } from "@/lib/staff-area-path";
 import { aktifkanPush, matikanPush } from "./push-actions";
 
 
@@ -42,7 +43,7 @@ function runsInstalled(): boolean {
 }
 
 async function staffServiceWorker(): Promise<ServiceWorkerRegistration> {
-  await navigator.serviceWorker.register("/sw.js", { scope: "/staf", updateViaCache: "none" });
+  await navigator.serviceWorker.register("/sw.js", { scope: STAFF_AREA_PATH, updateViaCache: "none" });
   return navigator.serviceWorker.ready;
 }
 

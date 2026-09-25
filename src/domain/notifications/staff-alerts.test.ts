@@ -115,13 +115,15 @@ describe("Peringatan Staf", () => {
     const setup = notificationsOnTestDatabase(db);
     const adminLokasi = await signedInStaff(setup, "admin_lokasi");
 
-    await expect(
-      setup.notifications.sendStaffAlert({
-        to: { accountId: adminLokasi.accountId },
-        ...saatDukaBaru,
-        push: { ...saatDukaBaru.push, url: "https://contoh.example/staf" },
-      }),
-    ).rejects.toThrow(/staff page/);
+    for (const url of ["https://contoh.example/staf", "/stafxyz", "/staf/../akun"]) {
+      await expect(
+        setup.notifications.sendStaffAlert({
+          to: { accountId: adminLokasi.accountId },
+          ...saatDukaBaru,
+          push: { ...saatDukaBaru.push, url },
+        }),
+      ).rejects.toThrow(/staff page/);
+    }
   });
 });
 
