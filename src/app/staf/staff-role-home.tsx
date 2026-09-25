@@ -4,7 +4,7 @@ import type { StaffRole } from "@/domain/identity";
 import { staffRoleLabels } from "./role-labels";
 import { heldStaffRoles, staffMenuActor, staffRoleSlugs } from "@/server/staff-area";
 
-interface MenuItem {
+export interface MenuItem {
   label: string;
   /** A page that exists; items without one are shells for later tickets. */
   href?: string;
@@ -22,7 +22,7 @@ const menus: Record<StaffRole, MenuItem[]> = {
     },
     { label: "Pindah Nomor", href: "/staf/admin-platform/pindah-nomor", description: "Pindahkan Akun ke nomor baru setelah cek KTP." },
     { label: "Antrean", description: "Segera hadir (tiket 17)." },
-    { label: "Lokasi Mitra", description: "Segera hadir (tiket 10)." },
+    { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi", description: "Onboarding Lokasi Mitra dan undangan Admin Lokasi." },
   ],
   admin_lokasi: [
     { label: "Antrean Lokasi", description: "Segera hadir (tiket 23)." },
@@ -37,19 +37,33 @@ const menus: Record<StaffRole, MenuItem[]> = {
 
 /**
  * One role's page in the staff area: the role switcher (for an Akun holding
- * several roles) and that role's menu only.
+ * several roles) and that role's menu only. A role whose screens are scoped
+ * (Admin Lokasi: one Lokasi Mitra) passes its own `title`, `menu` and what
+ * goes above the menu (the Lokasi switcher).
  */
-export async function StaffRoleHome({ role }: { role: StaffRole }) {
+export async function StaffRoleHome({
+  role,
+  title,
+  menu,
+  children,
+}: {
+  role: StaffRole;
+  title?: string;
+  menu?: MenuItem[];
+  children?: React.ReactNode;
+}) {
   const actor = await staffMenuActor(role);
   const held = heldStaffRoles(actor.roles);
   const label = staffRoleLabels[role];
+  const items = menu ?? menus[role];
 
   return (
     <>
       {held.length > 1 ? <RoleSwitcher held={held} current={role} /> : null}
-      <h1 className="text-3xl font-semibold tracking-tight">{label}</h1>
+      {children}
+      <h1 className="text-3xl font-semibold tracking-tight">{title ?? label}</h1>
       <nav aria-label={`Menu ${label}`} className="grid gap-3 sm:grid-cols-2">
-        {menus[role].map((item) => (
+        {items.map((item) => (
           <Card key={item.label} size="sm">
             <CardHeader>
               <CardTitle>

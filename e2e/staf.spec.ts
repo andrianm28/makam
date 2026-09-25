@@ -8,8 +8,9 @@ import { outbox } from "./support/whatsapp-outbox";
 /*
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
  * the e2e Admin Platform (seeded by the seed CLI, see e2e/support/admin-platform.ts)
- * logs in by OTP, enrols and passes TOTP, invites an Admin Lokasi (who is also a
- * Petugas Lapangan), and the invitee logs in and switches roles. The first test
+ * logs in by OTP, enrols and passes TOTP, invites a Petugas Lapangan (who is also a
+ * Mitra Jasa), and the invitee logs in and switches roles. (Admin Lokasi are
+ * invited from their Lokasi Mitra's page.) The first test
  * enrols TOTP, so this file needs a stack whose e2e Admin Platform has not
  * enrolled yet (a fresh one, or `down -v` between runs).
  */
@@ -19,7 +20,7 @@ test.describe.configure({ mode: "serial" });
 const admin = e2eAdminPlatform;
 const invitee = coldNumber();
 let adminPage: Page;
-/** The invitee's own browser, signed in as Admin Lokasi and Petugas Lapangan. */
+/** The invitee's own browser, signed in as Petugas Lapangan and Mitra Jasa. */
 let inviteePage: Page;
 
 test.beforeAll(async ({ browser }: { browser: Browser }) => {
@@ -56,7 +57,7 @@ test("the seeded Admin Platform logs in by OTP, must enrol TOTP, and passes it w
   await expect(page.getByRole("navigation", { name: "Ganti peran" })).toHaveCount(0);
 });
 
-test("Admin Platform invites an Admin Lokasi who is also a Petugas Lapangan; the invite goes out by WhatsApp", async ({
+test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the invite goes out by WhatsApp", async ({
   request,
 }) => {
   const page = adminPage;
@@ -64,16 +65,16 @@ test("Admin Platform invites an Admin Lokasi who is also a Petugas Lapangan; the
   await page.getByRole("navigation", { name: "Menu Admin Platform" }).getByRole("link", { name: "Staf" }).click();
   await expect(page).toHaveURL(/\/staf\/admin-platform\/staf$/);
 
-  for (const role of ["Admin Lokasi", "Petugas Lapangan"]) {
+  for (const role of ["Petugas Lapangan", "Mitra Jasa"]) {
     await page.getByLabel("Nomor WhatsApp").fill(invitee.typed);
-    await page.getByLabel("Email").fill("lokasi-e2e@contoh.id");
+    await page.getByLabel("Email").fill("staf-e2e@contoh.id");
     await page.getByLabel("Peran").selectOption({ label: role });
     await page.getByRole("button", { name: "Kirim undangan" }).click();
     await expect(page.getByRole("status")).toContainText(`Undangan ${role} terkirim ke ${invitee.canonical}`);
   }
 
   const invites = (await outbox(request, invitee.canonical)).filter((message) => message.template === "staf_undangan");
-  expect(invites.map((message) => message.parameters[0])).toEqual(["Admin Lokasi", "Petugas Lapangan"]);
+  expect(invites.map((message) => message.parameters[0])).toEqual(["Petugas Lapangan", "Mitra Jasa"]);
   await expect(page.getByTestId("undangan-terbuka")).toContainText(invitee.canonical);
 });
 
@@ -82,29 +83,29 @@ test("the invitee logs in by OTP, holds both roles, and switches between their m
   inviteePage = page;
   await masuk(page, request, invitee);
 
-  await expect(page).toHaveURL(/\/staf\/admin-lokasi$/);
-  await expect(page.getByRole("heading", { name: "Admin Lokasi" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Menu Admin Lokasi" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/staf\/petugas-lapangan$/);
+  await expect(page.getByRole("heading", { name: "Petugas Lapangan" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
 
   const switcher = page.getByRole("navigation", { name: "Ganti peran" });
-  await expect(switcher.getByRole("link")).toHaveText(["Admin Lokasi", "Petugas Lapangan"]);
-  await switcher.getByRole("link", { name: "Petugas Lapangan" }).click();
-  await expect(page).toHaveURL(/\/staf\/petugas-lapangan$/);
-  await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Menu Admin Lokasi" })).toHaveCount(0);
+  await expect(switcher.getByRole("link")).toHaveText(["Petugas Lapangan", "Mitra Jasa"]);
+  await switcher.getByRole("link", { name: "Mitra Jasa" }).click();
+  await expect(page).toHaveURL(/\/staf\/mitra-jasa$/);
+  await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
 
   // A role the Akun does not hold shows nothing of its menu.
   await page.goto("/staf/admin-platform");
   await expect(page).not.toHaveURL(/\/staf\/admin-platform/);
   await expect(page.getByRole("navigation", { name: "Menu Admin Platform" })).toHaveCount(0);
-  await page.goto("/staf/mitra-jasa");
-  await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
+  await page.goto("/staf/admin-lokasi");
+  await expect(page.getByRole("navigation", { name: "Menu Admin Lokasi" })).toHaveCount(0);
 });
 
 test("the staff area installs as an app: its manifest, icons and a service worker scoped to /staf", async ({ request }) => {
   const page = inviteePage;
-  await page.goto("/staf/admin-lokasi");
+  await page.goto("/staf/petugas-lapangan");
 
   // Installable: a manifest scoped to the staff area, with icons for Android and iPhone.
   const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");
@@ -156,8 +157,8 @@ test("Admin Platform deactivates the invitee: staff access ends, but the number 
 }) => {
   test.setTimeout(120_000);
   const staffPage = inviteePage;
-  await staffPage.goto("/staf/admin-lokasi");
-  await expect(staffPage.getByRole("navigation", { name: "Menu Admin Lokasi" })).toBeVisible();
+  await staffPage.goto("/staf/petugas-lapangan");
+  await expect(staffPage.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
 
   const page = adminPage;
   await page.goto("/staf/admin-platform/staf");
@@ -167,7 +168,7 @@ test("Admin Platform deactivates the invitee: staff access ends, but the number 
   await expect(row).toContainText("Dinonaktifkan");
 
   // The staff session on the other device no longer grants staff access.
-  await staffPage.goto("/staf/admin-lokasi");
+  await staffPage.goto("/staf/petugas-lapangan");
   await expect(staffPage).toHaveURL(/\/masuk/);
 
   // The number logs in again as a Pemesan: Akun Saya opens, the staff area does not.
@@ -177,9 +178,9 @@ test("Admin Platform deactivates the invitee: staff access ends, but the number 
   await expect(pemesan.getByTestId("akun-phone-number")).toHaveText(invitee.canonical);
   await pemesan.goto("/staf");
   await expect(pemesan).toHaveURL(/\/akun$/);
-  await pemesan.goto("/staf/admin-lokasi");
-  await expect(pemesan).not.toHaveURL(/\/staf\/admin-lokasi/);
-  await expect(pemesan.getByRole("navigation", { name: "Menu Admin Lokasi" })).toHaveCount(0);
+  await pemesan.goto("/staf/petugas-lapangan");
+  await expect(pemesan).not.toHaveURL(/\/staf\/petugas-lapangan/);
+  await expect(pemesan.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
 });
 
 test("Admin Platform invites the Dinonaktifkan number again: its next login holds the role again", async ({
@@ -191,17 +192,17 @@ test("Admin Platform invites the Dinonaktifkan number again: its next login hold
   await page.goto("/staf/admin-platform/staf");
   await page.getByLabel("Nomor WhatsApp").fill(invitee.typed);
   await page.getByLabel("Email").fill("kembali-e2e@contoh.id");
-  await page.getByLabel("Peran").selectOption({ label: "Mitra Jasa" });
+  await page.getByLabel("Peran").selectOption({ label: "Petugas Lapangan" });
   await page.getByRole("button", { name: "Kirim undangan" }).click();
-  await expect(page.getByRole("status")).toContainText(`Undangan Mitra Jasa terkirim ke ${invitee.canonical}`);
+  await expect(page.getByRole("status")).toContainText(`Undangan Petugas Lapangan terkirim ke ${invitee.canonical}`);
 
   const staffPage = await (await browser.newContext()).newPage();
   await masuk(staffPage, request, invitee);
-  await expect(staffPage).toHaveURL(/\/staf\/mitra-jasa$/);
-  await expect(staffPage.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
+  await expect(staffPage).toHaveURL(/\/staf\/petugas-lapangan$/);
+  await expect(staffPage.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
 
   await page.reload();
   const row = page.getByRole("row", { name: new RegExp(invitee.canonical.replace("+", "\\+")) });
-  await expect(row).toContainText("Mitra Jasa");
+  await expect(row).toContainText("Petugas Lapangan");
   await expect(row).not.toContainText("Dinonaktifkan");
 });

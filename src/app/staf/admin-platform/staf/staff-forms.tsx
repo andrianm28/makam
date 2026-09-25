@@ -37,7 +37,7 @@ export function InviteForm({ roles }: { roles: { value: string; label: string }[
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Peran
-        <select name="role" required defaultValue="admin_lokasi" className={inputClass}>
+        <select name="role" required defaultValue="petugas_lapangan" className={inputClass}>
           {roles.map((role) => (
             <option key={role.value} value={role.value}>
               {role.label}
