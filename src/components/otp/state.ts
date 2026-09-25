@@ -39,6 +39,19 @@ export type EmailFallbackState = { status: "idle" } | { status: "terkirim"; sent
 export const initialEmailFallbackState: EmailFallbackState = { status: "idle" };
 export const initialOtpVerifyState: OtpVerifyState = { status: "idle" };
 
+/** The CS WhatsApp contact from Pengaturan Operator, for the OTP screen's pointer; null until it is entered. */
+export interface CsContact {
+  /** Canonical E.164 (+62…). */
+  whatsApp: string;
+  /** e.g. "dibalas mulai pukul 06:00". */
+  replyHours: string;
+}
+
+/** The wa.me link to the CS WhatsApp number. */
+export function csWhatsAppLink(contact: CsContact): string {
+  return `https://wa.me/${contact.whatsApp.replace(/^\+/, "")}`;
+}
+
 type Refusal<T> = T extends { ok: false; reason: infer R } ? R : never;
 
 /** Every reason the identity module's Kode Masuk and email actions, or the guard, can refuse. */

@@ -3,7 +3,14 @@
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { kirimKodeLewatEmail } from "./actions";
-import { initialEmailFallbackState, initialOtpVerifyState, type OtpRequestState, type OtpVerifyState } from "./state";
+import {
+  csWhatsAppLink,
+  initialEmailFallbackState,
+  initialOtpVerifyState,
+  type CsContact,
+  type OtpRequestState,
+  type OtpVerifyState,
+} from "./state";
 
 type Sent = Extract<OtpRequestState, { status: "terkirim" }>;
 
@@ -26,6 +33,8 @@ export interface OtpVerificationProps {
    * number's Akun has an Email Terverifikasi) or the CS WhatsApp pointer.
    */
   fallback?: ReactNode;
+  /** The CS WhatsApp contact from Pengaturan Operator (`current()`); null while it is not entered: the pointer then names no number. */
+  csContact?: CsContact | null;
 }
 
 /**
@@ -42,6 +51,7 @@ export function OtpVerification({
   resendError,
   submitLabel = "Verifikasi",
   fallback,
+  csContact = null,
 }: OtpVerificationProps) {
   const [verifyState, verify, verifying] = useActionState(verifyAction, initialOtpVerifyState);
   const resendIn = useCountdown(sent.resendInSeconds);
@@ -105,13 +115,28 @@ export function OtpVerification({
           {sent.emailFallback ? (
             <EmailFallback phoneNumber={sent.phoneNumber} verifyAction={verifyAction} submitLabel={submitLabel} />
           ) : (
-            // Until Pengaturan Operator (ticket 63) holds the CS WhatsApp number, the pointer names no number.
-            <p data-testid="otp-cs-pointer">Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp.</p>
+            <CsPointer contact={csContact} />
           )}
           {fallback}
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** "Hubungi CS" for a number with no Email Terverifikasi: the CS WhatsApp number from Pengaturan Operator, if entered. */
+function CsPointer({ contact }: { contact: CsContact | null }) {
+  if (!contact) {
+    return <p data-testid="otp-cs-pointer">Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp.</p>;
+  }
+  return (
+    <p data-testid="otp-cs-pointer">
+      Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp di{" "}
+      <a href={csWhatsAppLink(contact)} className="font-medium underline underline-offset-4" target="_blank" rel="noopener">
+        {contact.whatsApp}
+      </a>{" "}
+      ({contact.replyHours}).
+    </p>
   );
 }
 
