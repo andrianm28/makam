@@ -142,6 +142,25 @@ describe("OTP limits", () => {
     expect(whatsapp.sent).toHaveLength(2);
   });
 
+  it("a number gets at most 5 OTPs in any 60 minutes", async () => {
+    const { clock, whatsapp, identity } = setup();
+    for (let sent = 1; sent <= 5; sent++) {
+      expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
+      clock.advance({ minutes: 2 });
+    }
+
+    // 09:10, and the first OTP went at 09:00.
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toEqual({
+      ok: false,
+      reason: "terlalu_sering",
+      retryAt: wib("2026-10-01 10:00"),
+    });
+    expect(whatsapp.sent).toHaveLength(5);
+
+    clock.set(wib("2026-10-01 10:00"));
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
+  });
+
   it("only the newest OTP works once a new one is sent", async () => {
     const { clock, whatsapp, identity } = setup();
     await identity.requestOtp({ phoneNumber: "081234567890" });

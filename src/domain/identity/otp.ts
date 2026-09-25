@@ -1,5 +1,5 @@
 import { createHmac, randomInt } from "node:crypto";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -17,6 +17,9 @@ export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
 export const OTP_MAX_WRONG_ATTEMPTS = 5;
 /** "Kirim ulang" opens 60 s after the last OTP to the number, when the fallback slot also appears. */
 export const OTP_RESEND_AFTER_MS = 60_000;
+/** At most 5 OTPs to one number in any rolling 60 minutes. */
+export const OTP_MAX_SENDS_PER_WINDOW = 5;
+export const OTP_SEND_WINDOW_MS = 60 * 60_000;
 
 export interface OtpDeps {
   db: Database;
@@ -28,7 +31,7 @@ export interface OtpDeps {
 export type RequestOtpResult =
   | { ok: true; phoneNumber: string; sentAt: Date; expiresAt: Date }
   | { ok: false; reason: "nomor_tidak_valid" }
-  | { ok: false; reason: "tunggu_kirim_ulang"; retryAt: Date };
+  | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -42,15 +45,26 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   const refused = await deps.db.transaction(async (tx) => {
     // One request at a time per number, so two quick taps cannot both pass the limits.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:${phoneNumber}`}))`);
-    const [last] = await tx
+    const recent = await tx
       .select({ sentAt: identityOtpRequest.sentAt })
       .from(identityOtpRequest)
-      .where(eq(identityOtpRequest.phoneNumber, phoneNumber))
-      .orderBy(desc(identityOtpRequest.sentAt))
-      .limit(1);
+      .where(
+        and(
+          eq(identityOtpRequest.phoneNumber, phoneNumber),
+          gt(identityOtpRequest.sentAt, new Date(now.getTime() - OTP_SEND_WINDOW_MS)),
+        ),
+      )
+      .orderBy(desc(identityOtpRequest.sentAt));
+    const [last] = recent;
     if (last) {
       const retryAt = new Date(last.sentAt.getTime() + OTP_RESEND_AFTER_MS);
       if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt } as const;
+    }
+    if (recent.length >= OTP_MAX_SENDS_PER_WINDOW) {
+      // The window reopens when the oldest send that keeps it full drops out of it.
+      const oldestCounted = recent[OTP_MAX_SENDS_PER_WINDOW - 1];
+      const retryAt = new Date(oldestCounted.sentAt.getTime() + OTP_SEND_WINDOW_MS);
+      return { ok: false, reason: "terlalu_sering", retryAt } as const;
     }
     await tx.insert(identityOtpRequest).values({
       phoneNumber,
