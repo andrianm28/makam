@@ -51,14 +51,19 @@ export type Action =
   /** Deactivate an Akun Staf (Admin Platform). */
   | "staf.nonaktifkan"
   /** Read the whole Audit Log. */
-  | "audit.lihat";
+  | "audit.lihat"
+  /** Open the Pengaturan Operator edit screen (Admin Platform). */
+  | "pengaturan_operator.lihat"
+  /** Change Pengaturan Operator (Admin Platform). */
+  | "pengaturan_operator.ubah";
 
 /** What the action is done to. */
 export type Resource =
   | { kind: "akun"; accountId: string }
   | { kind: "staf" }
   | { kind: "menu_staf"; role: StaffRole }
-  | { kind: "audit_log" };
+  | { kind: "audit_log" }
+  | { kind: "pengaturan_operator" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -78,6 +83,11 @@ export function stafMenuResource(role: StaffRole): Resource {
 /** The whole Audit Log. The Lokasi-scoped view for Admin Lokasi is ticket 10. */
 export function auditLogResource(): Resource {
   return { kind: "audit_log" };
+}
+
+/** Pengaturan Operator: the Operator's own reference values. */
+export function pengaturanOperatorResource(): Resource {
+  return { kind: "pengaturan_operator" };
 }
 
 export type Authorization =
@@ -127,5 +137,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.pindah_nomor":
     case "audit.lihat":
       return holds("admin_platform") ? allowed : denied;
+    case "pengaturan_operator.lihat":
+    case "pengaturan_operator.ubah":
+      return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
   }
 }

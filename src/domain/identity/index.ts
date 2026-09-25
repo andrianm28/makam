@@ -51,6 +51,7 @@ export {
   auditLogResource,
   authorize,
   needsTotp,
+  pengaturanOperatorResource,
   stafMenuResource,
   stafResource,
   staffRoles,

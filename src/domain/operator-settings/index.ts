@@ -1,7 +1,7 @@
-import { desc } from "drizzle-orm";
+import { desc, lte, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { normalisePhoneNumber, type Actor } from "@/domain/identity";
+import { authorize, normalisePhoneNumber, pengaturanOperatorResource, type Actor } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { operatorSettingsVersion } from "./schema";
 
@@ -35,18 +35,14 @@ export interface OperatorSettings {
 
 export function createOperatorSettings(deps: { db: Database; clock: Clock; audit: AuditLog }): OperatorSettings {
   return {
-    async current() {
-      const [row] = await deps.db
-        .select()
-        .from(operatorSettingsVersion)
-        .orderBy(desc(operatorSettingsVersion.inForceFrom), desc(operatorSettingsVersion.seq))
-        .limit(1);
-      return row ? toValues(row) : null;
-    },
-    async inForceAt() {
-      return null;
-    },
+    current: () => latest(deps.db),
+    inForceAt: (instant) => latest(deps.db, lte(operatorSettingsVersion.inForceFrom, instant)),
     async change(by, input) {
+      // Defence in depth behind guarded(): the module checks the actor itself.
+      const authorization = authorize(by, "pengaturan_operator.ubah", pengaturanOperatorResource());
+      if (!authorization.allowed) {
+        return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+      }
       const phone = normalisePhoneNumber(input.csWhatsApp);
       if (!phone.ok) return { ok: false, reason: phone.reason };
       return deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -76,6 +72,17 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
       });
     },
   };
+}
+
+/** The last change (optionally among those matching `where`), or null when there is none. */
+async function latest(db: Database, where?: SQL): Promise<OperatorSettingsValues | null> {
+  const [row] = await db
+    .select()
+    .from(operatorSettingsVersion)
+    .where(where)
+    .orderBy(desc(operatorSettingsVersion.inForceFrom), desc(operatorSettingsVersion.seq))
+    .limit(1);
+  return row ? toValues(row) : null;
 }
 
 function toValues(row: typeof operatorSettingsVersion.$inferSelect): OperatorSettingsValues {
