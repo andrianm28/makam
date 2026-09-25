@@ -10,7 +10,7 @@ export interface HealthReport {
   worker: WorkerHeartbeat | null;
 }
 
-/** DB connectivity plus the worker's last heartbeat (fresh = younger than 2 minutes). */
+/** DB connectivity plus the worker's last heartbeat (fresh = younger than `HEARTBEAT_FRESH_FOR_SECONDS`). */
 export async function readHealth(): Promise<HealthReport> {
   let runtime;
   try {

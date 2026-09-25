@@ -35,7 +35,7 @@ export async function heartbeatTick(ctx: SchedulerContext, now: Date): Promise<v
   await recordHeartbeat(ctx.db, now);
 }
 
-/** The worker's last heartbeat as seen at `now`; fresh while younger than 2 minutes. */
+/** The worker's last heartbeat as seen at `now`; fresh while younger than `HEARTBEAT_FRESH_FOR_SECONDS`. */
 export async function workerHeartbeat(ctx: SchedulerContext, now: Date): Promise<WorkerHeartbeat> {
   return readHeartbeat(ctx.db, now);
 }
