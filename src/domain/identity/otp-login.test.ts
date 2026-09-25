@@ -320,7 +320,9 @@ describe("Pemesan session", () => {
   it("a forged or missing session cookie signs no one in", async () => {
     const { whatsapp, identity } = setup();
     const login = await logIn(identity, whatsapp, "081234567890");
-    const [token] = login.session.cookies.map((cookie) => decodeURIComponent(cookie.value).split(".")[0]);
+    const sessionCookie = login.session.cookies.find((cookie) => cookie.name === "makam.session_token");
+    if (!sessionCookie) throw new Error("no session cookie was issued");
+    const [token] = decodeURIComponent(sessionCookie.value).split(".");
 
     expect(await identity.actorFromCookies(null)).toBeNull();
     expect(await identity.actorFromCookies(`makam.session_token=${token}.forged`)).toBeNull();
