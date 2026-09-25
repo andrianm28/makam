@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { authorize, pengaturanOperatorResource } from "@/domain/identity";
+import { operatorSettingsFields, type OperatorSettingsEntry } from "@/domain/operator-settings";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
@@ -11,6 +12,9 @@ export default async function PengaturanOperatorPage() {
   const actor = await staffMenuActor("admin_platform");
   if (!authorize(actor, "pengaturan_operator.lihat", pengaturanOperatorResource()).allowed) redirect("/staf");
   const current = await serverRuntime().operatorSettings.current();
+  const formValues = Object.fromEntries(
+    operatorSettingsFields.map((field) => [field, current?.[field] ?? ""]),
+  ) as OperatorSettingsEntry;
 
   return (
     <>
@@ -58,16 +62,7 @@ export default async function PengaturanOperatorPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <PengaturanOperatorForm
-            values={{
-              legalName: current?.legalName ?? "",
-              address: current?.address ?? "",
-              phone: current?.phone ?? "",
-              email: current?.email ?? "",
-              csWhatsApp: current?.csWhatsApp ?? "",
-              csReplyHours: current?.csReplyHours ?? "",
-            }}
-          />
+          <PengaturanOperatorForm values={formValues} />
         </CardContent>
       </Card>
     </>

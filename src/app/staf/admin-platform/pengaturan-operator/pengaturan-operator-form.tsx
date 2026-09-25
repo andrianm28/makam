@@ -2,22 +2,14 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import type { OperatorSettingsEntry } from "@/domain/operator-settings";
 import { simpanPengaturanOperator, type PengaturanOperatorFormState } from "./actions";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** The values the form starts with: those in force, or empty before the first entry. */
-export interface PengaturanOperatorFormValues {
-  legalName: string;
-  address: string;
-  phone: string;
-  email: string;
-  csWhatsApp: string;
-  csReplyHours: string;
-}
-
-export function PengaturanOperatorForm({ values }: { values: PengaturanOperatorFormValues }) {
+/** `values`: what the form starts with, those in force or empty before the first entry. */
+export function PengaturanOperatorForm({ values }: { values: OperatorSettingsEntry }) {
   const [state, action, pending] = useActionState<PengaturanOperatorFormState, FormData>(simpanPengaturanOperator, {
     status: "idle",
   });
