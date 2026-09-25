@@ -138,6 +138,26 @@ describe("Verifikasi Email in the staff area", () => {
     expect(await audit.entriesAbout({ kind: "akun", id: pemesan.accountId })).toEqual([]);
   });
 
+  it("an Admin Platform must pass TOTP first, as for every other staff action", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    await identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+    const { cookies } = await logInByOtp(identity, whatsapp, "081111111111");
+    const beforeTotp = await actorOf(identity, cookies);
+
+    expect(await identity.requestEmailVerification(beforeTotp, { email: "admin@makam.co.id", ip: IP })).toEqual({
+      ok: false,
+      reason: "perlu_totp",
+    });
+    expect(await identity.confirmEmailVerification(beforeTotp, { code: "123456" })).toEqual({
+      ok: false,
+      reason: "perlu_totp",
+    });
+    expect(await identity.saveEmail(beforeTotp, { email: "lain@makam.co.id" })).toEqual({ ok: false, reason: "perlu_totp" });
+    expect(email.sent).toEqual([]);
+    expect(await identity.accountEmail(beforeTotp)).toEqual({ email: "admin@makam.co.id", verified: false });
+  });
+
   it("an Akun Staf changing its email is a staff write too (akun.email_ubah), and the new email is not verified", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, audit } = setup;

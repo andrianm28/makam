@@ -3,7 +3,7 @@ import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
-import { staffRoles, type Actor } from "./authorize";
+import { ownAkunRefusal, staffRoles, type Actor } from "./authorize";
 import { verifikasiEmailMessage } from "./email-templates";
 import { akunLockKey, checkCode, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { identityUser } from "./schema";
@@ -38,13 +38,18 @@ export async function accountEmail(deps: { db: Database }, by: Actor): Promise<A
   return { email: row?.email ?? null, verified: Boolean(row?.email && row.verifiedAt) };
 }
 
-export type SaveEmailResult = { ok: true; email: string } | { ok: false; reason: "email_tidak_valid" };
+/** Refused before TOTP (an Admin Platform), or for anyone but the Akun itself. */
+type OwnAkunRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+
+export type SaveEmailResult = { ok: true; email: string } | { ok: false; reason: "email_tidak_valid" } | OwnAkunRefusal;
 
 /**
  * The profile's email field: stores the typed email on the Akun, unverified.
  * A different email clears the verified mark; the same email keeps it.
  */
 export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: string }): Promise<SaveEmailResult> {
+  const refusal = ownAkunRefusal(by, "akun.email");
+  if (refusal) return refusal;
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
   const now = deps.clock.now();
@@ -59,10 +64,12 @@ export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: stri
   return written.ok ? { ok: true, email } : written;
 }
 
-export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" };
+export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" } | OwnAkunRefusal;
 
 /** Removes the Akun's email and its verified mark. An Akun Staf must keep one. */
 export async function removeEmail(deps: EmailDeps, by: Actor): Promise<RemoveEmailResult> {
+  const refusal = ownAkunRefusal(by, "akun.email");
+  if (refusal) return refusal;
   if (by.roles.some((role) => role !== "pemesan")) return { ok: false, reason: "email_wajib" };
   const now = deps.clock.now();
   await deps.db
@@ -75,7 +82,8 @@ export async function removeEmail(deps: EmailDeps, by: Actor): Promise<RemoveEma
 export type RequestEmailVerificationResult =
   | { ok: true; email: string; sentAt: Date; expiresAt: Date; resendAt: Date }
   | { ok: false; reason: "email_tidak_valid" | "gagal_kirim" }
-  | LimitRefusal;
+  | LimitRefusal
+  | OwnAkunRefusal;
 
 /**
  * Verifikasi Email, step 1: sends a code to the email typed (the Akun's own, or
@@ -87,6 +95,8 @@ export async function requestEmailVerification(
   by: Actor,
   input: { email: string; ip: string },
 ): Promise<RequestEmailVerificationResult> {
+  const refusal = ownAkunRefusal(by, "akun.email");
+  if (refusal) return refusal;
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
 
@@ -103,7 +113,8 @@ export type ConfirmEmailVerificationResult =
   | { ok: true; email: string }
   | CodeRejection
   /** Another Akun already has this Email Terverifikasi; Admin Platform resolves it through CS. */
-  | { ok: false; reason: "email_sudah_dipakai" };
+  | { ok: false; reason: "email_sudah_dipakai" }
+  | OwnAkunRefusal;
 
 /**
  * Verifikasi Email, step 2: the code sent in step 1 makes its email the Akun's
@@ -115,6 +126,8 @@ export async function confirmEmailVerification(
   by: Actor,
   input: { code: string },
 ): Promise<ConfirmEmailVerificationResult> {
+  const refusal = ownAkunRefusal(by, "akun.email");
+  if (refusal) return refusal;
   const lockKey = akunLockKey(by.accountId);
   const checked = await checkCode(deps, { lookup: { purpose: "verifikasi_email", lockKey }, lockKey, code: input.code });
   if (!checked.ok) return checked;

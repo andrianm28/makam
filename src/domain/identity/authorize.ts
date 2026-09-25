@@ -42,6 +42,8 @@ export type Action =
   | "akun.keluar"
   /** Enrol or pass TOTP on one's own Akun. */
   | "akun.totp"
+  /** Change, remove or verify (Verifikasi Email) one's own Akun's email. */
+  | "akun.email"
   /** Pindah Nomor: move an Akun to a new WhatsApp number (Admin Platform). */
   | "akun.pindah_nomor"
   /** Turn push on or off for a Perangkat Push of one's own Akun Staf. */
@@ -121,6 +123,19 @@ export function writeRefusal(actor: Actor, action: Action, resource: Resource): 
   return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }
 
+/**
+ * The identity module's own check before a write on the actor's own Akun
+ * (defence in depth behind `guarded()`): null when allowed.
+ */
+export function ownAkunRefusal(
+  actor: Actor,
+  action: "akun.email",
+): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
+  const authorization = authorize(actor, action, akunResource(actor.accountId));
+  if (authorization.allowed) return null;
+  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+}
+
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
   if (needsTotp(actor) && !beforeTotp.has(action)) {
@@ -132,6 +147,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.lihat":
     case "akun.keluar":
     case "akun.totp":
+    case "akun.email":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
     case "akun.push":
       return resource.kind === "akun" && resource.accountId === actor.accountId && staffRoles.some(holds)
