@@ -5,6 +5,9 @@ import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } fr
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { authenticatorCode } from "../../../tests/support/totp";
 
+/** The Lokasi Mitra an Admin Lokasi invite names (the identity module keeps it as given). */
+const LOKASI = "5d1f4c2e-0000-4000-8000-000000000001";
+
 const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
@@ -87,6 +90,7 @@ describe("Undangan Staf", () => {
       phoneNumber: "0822-2222-2222",
       email: "Lokasi@Contoh.id",
       role: "admin_lokasi",
+      lokasiId: LOKASI,
     });
 
     expect(invited).toMatchObject({
@@ -142,6 +146,40 @@ describe("Undangan Staf", () => {
     },
   );
 
+  it("an Undangan Staf for Admin Lokasi names its Lokasi Mitra: without one it is refused and nothing is sent", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+
+    for (const lokasiId of [undefined, null, " "]) {
+      expect(
+        await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi", lokasiId }),
+      ).toEqual({ ok: false, reason: "lokasi_wajib" });
+    }
+    expect(setup.whatsapp.sent.filter((message) => message.template === "staf_undangan")).toEqual([]);
+    expect(await setup.identity.openStaffInvites()).toEqual([]);
+  });
+
+  it("an accepted Admin Lokasi invite makes the Akun Admin Lokasi of that Lokasi Mitra; a second invite adds another, all equal", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const OTHER = "5d1f4c2e-0000-4000-8000-000000000002";
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
+    const first = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+    expect(await setup.identity.actorFromCookies(first.cookies)).toMatchObject({ lokasiIds: [LOKASI] });
+
+    setup.clock.advance({ minutes: 5 });
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi", lokasiId: OTHER });
+    const second = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+
+    expect(await setup.identity.actorFromCookies(second.cookies)).toMatchObject({
+      roles: ["pemesan", "admin_lokasi"],
+      lokasiIds: [LOKASI, OTHER],
+    });
+    expect(await setup.identity.adminLokasiOf(OTHER)).toEqual([
+      { accountId: second.login.account.id, phoneNumber: "+6282222222222", email: "lokasi@contoh.id" },
+    ]);
+  });
+
   it("is single-use: once the invitee has logged in it is no longer open", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
@@ -173,6 +211,7 @@ describe("Undangan Staf", () => {
       phoneNumber: INVITEE,
       email: "lokasi@contoh.id",
       role: "admin_lokasi",
+      lokasiId: LOKASI,
       reason: "Admin baru TPU Wakaf Al-Ikhlas",
     });
     if (!invited.ok) throw new Error(invited.reason);
@@ -187,6 +226,7 @@ describe("Undangan Staf", () => {
           phoneNumber: "+6282222222222",
           email: "lokasi@contoh.id",
           role: "admin_lokasi",
+          lokasiId: LOKASI,
           expiresAt: "2026-10-08T02:00:00.000Z",
         },
         reason: "Admin baru TPU Wakaf Al-Ikhlas",
@@ -197,7 +237,7 @@ describe("Undangan Staf", () => {
   it("accepting it grants the role with an Entri Audit on the Akun, in the same step as the grant", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
-    const invited = await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "Lokasi@Contoh.id", role: "admin_lokasi" });
+    const invited = await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "Lokasi@Contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     if (!invited.ok) throw new Error(invited.reason);
     setup.clock.advance({ hours: 1 });
 
@@ -209,7 +249,7 @@ describe("Undangan Staf", () => {
         actor: { accountId: login.account.id, role: "pemesan" },
         action: "staf.peran_diberikan",
         before: { roles: [], email: null },
-        after: { roles: ["admin_lokasi"], email: "lokasi@contoh.id", undanganStafId: invited.invite.id },
+        after: { roles: ["admin_lokasi"], email: "lokasi@contoh.id", lokasiId: LOKASI, undanganStafId: invited.invite.id },
         reason: null,
       }),
     ]);
@@ -218,7 +258,7 @@ describe("Undangan Staf", () => {
   it("two open invites for one number grant both roles, one Entri Audit per role", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
-    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "dua@contoh.id", role: "admin_lokasi" });
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "dua@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "dua@contoh.id", role: "petugas_lapangan" });
 
     const { login } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
@@ -245,6 +285,7 @@ describe("Undangan Staf", () => {
       phoneNumber: INVITEE,
       email: "lokasi@contoh.id",
       role: "admin_lokasi",
+      lokasiId: LOKASI,
     });
 
     expect(invited).toMatchObject({ ok: true, delivered: false });
@@ -255,7 +296,7 @@ describe("Undangan Staf", () => {
   it("is refused to anyone but an Admin Platform past TOTP", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
-    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi" });
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
     const adminLokasi = await setup.identity.actorFromCookies(cookies);
     if (!adminLokasi) throw new Error("not signed in");
@@ -294,7 +335,7 @@ describe("staff sessions", () => {
   it("an Akun holding Admin Platform and Admin Lokasi gets the 12 h session and must pass TOTP", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
-    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi" });
+    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_platform" });
 
     const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "082222222222");
@@ -310,7 +351,7 @@ describe("staff sessions", () => {
     const setup = identityOnTestDatabase(db);
     const { identity, whatsapp, clock } = setup;
     const { actor } = await signedInAdminPlatform(setup);
-    await identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi" });
+    await identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     const otherDevice = await logInByOtp(identity, whatsapp, "082222222222");
     expect(await identity.actorFromCookies(otherDevice.cookies)).toMatchObject({ roles: ["pemesan", "admin_lokasi"] });
 
@@ -349,6 +390,7 @@ describe("deactivating an Akun Staf", () => {
       phoneNumber: "082222222222",
       email: "lokasi@contoh.id",
       role: "admin_lokasi",
+      lokasiId: LOKASI,
     });
     if (!invited.ok) throw new Error(invited.reason);
     const staff = await logInByOtp(setup.identity, setup.whatsapp, "082222222222");

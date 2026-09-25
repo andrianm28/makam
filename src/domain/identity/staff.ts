@@ -7,7 +7,7 @@ import { staffRoles, stafResource, writeRefusal, type Actor, type Role, type Sta
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
+import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
 export interface StaffAccount {
   accountId: string;
@@ -30,6 +30,38 @@ export async function rolesOf(db: Database, accountId: string): Promise<Role[]> 
     .where(eq(identityStaffRole.accountId, accountId));
   const held = new Set(rows.map((row) => row.role));
   return ["pemesan", ...staffRoles.filter((role) => held.has(role))];
+}
+
+/** The Lokasi Mitra an Akun is Admin Lokasi of, oldest link first. */
+export async function adminLokasiIdsOf(db: Database, accountId: string): Promise<string[]> {
+  const rows = await db
+    .select({ lokasiId: identityAdminLokasi.lokasiId })
+    .from(identityAdminLokasi)
+    .where(eq(identityAdminLokasi.accountId, accountId))
+    .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityAdminLokasi.lokasiId));
+  return rows.map((row) => row.lokasiId);
+}
+
+/** An Admin Lokasi of one Lokasi Mitra. */
+export interface AdminLokasiAccount {
+  accountId: string;
+  phoneNumber: string;
+  email: string | null;
+}
+
+/** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
+export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): Promise<AdminLokasiAccount[]> {
+  const rows = await deps.db
+    .select({ accountId: identityUser.id, phoneNumber: identityUser.phoneNumber, email: identityUser.contactEmail })
+    .from(identityAdminLokasi)
+    .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
+    .innerJoin(
+      identityStaffRole,
+      and(eq(identityStaffRole.accountId, identityAdminLokasi.accountId), eq(identityStaffRole.role, "admin_lokasi")),
+    )
+    .where(eq(identityAdminLokasi.lokasiId, lokasiId))
+    .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
+  return rows.map((row) => ({ accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email }));
 }
 
 export type SeedResult =

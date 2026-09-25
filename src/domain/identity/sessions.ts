@@ -6,7 +6,7 @@ import type { Clock } from "@/ports/clock";
 import { COOKIE_PREFIX, type MakamAuth } from "./better-auth";
 import type { Actor, Role } from "./authorize";
 import { identitySession, identityUser } from "./schema";
-import { rolesOf } from "./staff";
+import { adminLokasiIdsOf, rolesOf } from "./staff";
 import { totpStatus } from "./totp";
 
 /** A cookie the web layer must set on the response, as Better Auth wrote it. */
@@ -67,6 +67,7 @@ export async function actorFromCookies(
     accountId: session.accountId,
     phoneNumber: session.phoneNumber,
     roles: session.roles,
+    lokasiIds: session.roles.includes("admin_lokasi") ? await adminLokasiIdsOf(deps.db, session.accountId) : [],
     totp,
     sessionId: session.id,
   };

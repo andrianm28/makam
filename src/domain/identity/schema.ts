@@ -76,6 +76,27 @@ export const identityStaffRole = pgTable(
 );
 
 /**
+ * Which Lokasi Mitra an Admin Lokasi works for: many-to-many, all equal. The
+ * `admin_lokasi` role row says only that the Akun is an Admin Lokasi somewhere;
+ * these rows scope it. The Lokasi id is the Lokasi module's; it is not a
+ * foreign key, so the identity module stays independent of that module's tables.
+ */
+export const identityAdminLokasi = pgTable(
+  "identity_admin_lokasi",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => identityUser.id, { onDelete: "cascade" }),
+    lokasiId: text("lokasi_id").notNull(),
+    grantedAt: at("granted_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accountId, table.lokasiId] }),
+    index("identity_admin_lokasi_lokasi_idx").on(table.lokasiId),
+  ],
+);
+
+/**
  * One Undangan Staf: a staff role offered to a WhatsApp number and email by an
  * Admin Platform. Single-use: the next OTP login of that number before
  * `expiresAt` accepts it and grants the role.
@@ -87,6 +108,11 @@ export const identityStaffInvite = pgTable(
     phoneNumber: text("phone_number").notNull(),
     email: text("email").notNull(),
     role: text("role", { enum: staffRoles }).notNull(),
+    /**
+     * The Lokasi Mitra an Admin Lokasi invite is for (required for that role,
+     * null for the others). Accepting it links the Akun to that Lokasi.
+     */
+    lokasiId: text("lokasi_id"),
     invitedByAccountId: text("invited_by_account_id").notNull(),
     createdAt: at("created_at").notNull(),
     expiresAt: at("expires_at").notNull(),

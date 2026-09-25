@@ -10,10 +10,10 @@ import {
   type Role,
 } from "./index";
 
-const pemesan: Actor = { accountId: "akun-1", phoneNumber: "+6281234567890", roles: ["pemesan"], totp: "tidak_perlu", sessionId: "sesi-1" };
+const pemesan: Actor = { accountId: "akun-1", phoneNumber: "+6281234567890", roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-1" };
 
 function staff(roles: Role[], totp: Actor["totp"] = "tidak_perlu"): Actor {
-  return { accountId: "akun-staf", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], totp, sessionId: "sesi-staf" };
+  return { accountId: "akun-staf", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], lokasiIds: [], totp, sessionId: "sesi-staf" };
 }
 
 const adminPlatform = staff(["admin_platform"], "lolos");

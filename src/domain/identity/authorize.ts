@@ -29,6 +29,8 @@ export interface Actor {
   /** Canonical E.164 WhatsApp number. */
   phoneNumber: string;
   roles: Role[];
+  /** The Lokasi Mitra this Akun is Admin Lokasi of (empty without that role). Scopes every Admin Lokasi screen. */
+  lokasiIds: string[];
   totp: TotpStatus;
   /** The session this actor signed in with (TOTP is passed per session). */
   sessionId: string;
@@ -59,7 +61,17 @@ export type Action =
   /** Open the Pengaturan Operator edit screen (Admin Platform). */
   | "pengaturan_operator.lihat"
   /** Change Pengaturan Operator (Admin Platform). */
-  | "pengaturan_operator.ubah";
+  | "pengaturan_operator.ubah"
+  /** Create a Lokasi Mitra (Admin Platform). */
+  | "lokasi.buat"
+  /** See one Lokasi Mitra's record. */
+  | "lokasi.lihat"
+  /** Change a Lokasi Mitra's onboarding record: profile, pin, facilities, documents, policies, flags, agreement (Admin Platform). */
+  | "lokasi.ubah"
+  /** Set or change a Lokasi Mitra's bank account (Admin Platform only). */
+  | "lokasi.ubah_rekening"
+  /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
+  | "lokasi.atur_admin_lokasi";
 
 /** What the action is done to. */
 export type Resource =
@@ -67,7 +79,9 @@ export type Resource =
   | { kind: "staf" }
   | { kind: "menu_staf"; role: StaffRole }
   | { kind: "audit_log" }
-  | { kind: "pengaturan_operator" };
+  | { kind: "pengaturan_operator" }
+  | { kind: "lokasi_mitra_semua" }
+  | { kind: "lokasi_mitra"; lokasiId: string };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -92,6 +106,16 @@ export function auditLogResource(): Resource {
 /** Pengaturan Operator: the Operator's own reference values. */
 export function pengaturanOperatorResource(): Resource {
   return { kind: "pengaturan_operator" };
+}
+
+/** Every Lokasi Mitra (onboarding a new one, the Admin Platform list). */
+export function semuaLokasiMitraResource(): Resource {
+  return { kind: "lokasi_mitra_semua" };
+}
+
+/** One Lokasi Mitra's record. */
+export function lokasiMitraResource(lokasiId: string): Resource {
+  return { kind: "lokasi_mitra", lokasiId };
 }
 
 export type Authorization =
@@ -146,11 +170,17 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "staf.nonaktifkan":
     case "akun.pindah_nomor":
     case "audit.lihat":
+    case "lokasi.buat":
       return holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.lihat":
       // The edit screen: Admin Platform only (the values themselves are public, read by server code).
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.ubah":
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
+    case "lokasi.lihat":
+    case "lokasi.ubah":
+    case "lokasi.ubah_rekening":
+    case "lokasi.atur_admin_lokasi":
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
   }
 }

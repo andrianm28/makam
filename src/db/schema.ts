@@ -11,3 +11,4 @@ export * from "@/domain/identity/schema";
 export * from "@/domain/notifications/schema";
 export * from "@/domain/operator-settings/schema";
 export * from "@/domain/scheduler/schema";
+export * from "@/domain/lokasi/schema";

@@ -49,7 +49,15 @@ export type AuditAction =
   /** An Akun Staf turns push off for a Perangkat Push. */
   | "akun.push_matikan"
   /** An Akun Staf verifies its email, the same one or a new one (Verifikasi Email; never the code). */
-  | "akun.email_verifikasi";
+  | "akun.email_verifikasi"
+  /** Admin Platform creates a Lokasi Mitra (Belum Tayang). */
+  | "lokasi.buat"
+  /** Admin Platform edits a Lokasi Mitra's document checklist. */
+  | "lokasi.ubah_dokumen"
+  /** Admin Platform sets a Lokasi Mitra's policies and flags. */
+  | "lokasi.ubah_kebijakan"
+  /** Admin Platform sets or changes a Lokasi Mitra's bank account. */
+  | "lokasi.ubah_rekening";
 
 export interface NewAuditEntry {
   /** The Akun that did the write, and the role it acted under. */

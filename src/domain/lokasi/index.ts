@@ -1,7 +1,110 @@
 /**
  * Lokasi: Lokasi Mitra and TPU, Jam Operasional, Kontak Siaga, publish gate, working-time calculator.
  *
- * Placeholder from the walking skeleton (ticket 01). The module's public
- * functions and its own tables (in ./schema.ts) arrive with its tickets.
+ * Owns table: lokasi_mitra (the onboarding record).
+ *
+ * Every write is a staff write: it records an Entri Audit through the Audit
+ * Log module in the same transaction, and re-checks `authorize` itself.
  */
-export {};
+import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
+import type { Actor, Identity } from "@/domain/identity";
+import type { Clock } from "@/ports/clock";
+import type { FileStore } from "@/ports/file-store";
+import {
+  createLokasiMitra,
+  readLokasiMitra,
+  setDocumentChecklist,
+  setPoliciesAndFlags,
+  changeBankAccount,
+  type BankAccount,
+  type ChangeBankAccountResult,
+  type SetPoliciesResult,
+  type CreateLokasiMitraResult,
+  type LokasiMitraResult,
+  type NewLokasiMitra,
+  type WriteResult,
+} from "./lokasi-mitra";
+
+import type { LokasiFlags, LokasiPolicies } from "./policies";
+import {
+  adminLokasiOfLokasi,
+  inviteAdminLokasi,
+  type AdminLokasiOfResult,
+  type InviteAdminLokasiResult,
+} from "./admin-lokasi";
+
+export type { AdminLokasiOfResult, InviteAdminLokasiResult } from "./admin-lokasi";
+
+export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
+export {
+  DEFAULT_FLAGS,
+  DEFAULT_POLICIES,
+  lokasiFlagsSchema,
+  lokasiPoliciesSchema,
+  type LokasiFlags,
+  type LokasiPolicies,
+} from "./policies";
+export type {
+  BankAccount,
+  ChangeBankAccountResult,
+  SetPoliciesResult,
+  CreateLokasiMitraResult,
+  LokasiMitra,
+  LokasiMitraResult,
+  LokasiMitraStatus,
+  NewLokasiMitra,
+  WriteResult,
+} from "./lokasi-mitra";
+
+export interface LokasiModuleDeps {
+  db: Database;
+  clock: Clock;
+  /** The private bucket, for agreement scans. */
+  files: FileStore;
+  /** Every write records an Entri Audit here. */
+  audit: AuditLog;
+  /** Admin Lokasi invites and links go through the identity module. */
+  identity: Identity;
+}
+
+export interface Lokasi {
+  /** Admin Platform starts a Lokasi Mitra's onboarding record (Belum Tayang), audited. */
+  createLokasiMitra(by: Actor, input: NewLokasiMitra): Promise<CreateLokasiMitraResult>;
+  /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
+  lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
+  /** Admin Platform replaces the document checklist, audited. */
+  setDocumentChecklist(by: Actor, lokasiId: string, input: { documentChecklist: string[] }): Promise<WriteResult>;
+  /** Admin Platform sets the policies and flags together, audited; values outside the rules are refused. */
+  setPoliciesAndFlags(
+    by: Actor,
+    lokasiId: string,
+    input: { policies: LokasiPolicies; flags: LokasiFlags },
+  ): Promise<SetPoliciesResult>;
+  /** Admin Platform (only) sets or changes the bank account, audited. */
+  changeBankAccount(
+    by: Actor,
+    lokasiId: string,
+    input: BankAccount & { reason: string | null },
+  ): Promise<ChangeBankAccountResult>;
+  /** Admin Platform (only) invites an Admin Lokasi to this Lokasi Mitra by WhatsApp number and required email, audited. */
+  inviteAdminLokasi(
+    by: Actor,
+    lokasiId: string,
+    input: { phoneNumber: string; email: string; reason?: string | null },
+  ): Promise<InviteAdminLokasiResult>;
+  /** The Admin Lokasi of this Lokasi Mitra and the open invites to it. */
+  adminLokasiOf(by: Actor, lokasiId: string): Promise<AdminLokasiOfResult>;
+}
+
+export function createLokasi(deps: LokasiModuleDeps): Lokasi {
+  return {
+    createLokasiMitra: (by, input) => createLokasiMitra(deps, by, input),
+    lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
+    setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
+    setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),
+    changeBankAccount: (by, lokasiId, input) => changeBankAccount(deps, by, lokasiId, input),
+    inviteAdminLokasi: (by, lokasiId, input) => inviteAdminLokasi(deps, by, lokasiId, input),
+    adminLokasiOf: (by, lokasiId) => adminLokasiOfLokasi(deps, by, lokasiId),
+  };
+}
