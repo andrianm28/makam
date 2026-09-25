@@ -88,6 +88,19 @@ const denied: Authorization = { allowed: false, reason: "tidak_berwenang" };
 /** Actions an Akun holding Admin Platform may take before passing TOTP. */
 const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
 
+/**
+ * The identity module's own check before a staff write (defence in depth
+ * behind `guarded()`): null when `actor` may do `action` on the staff roster.
+ */
+export function staffWriteRefusal(
+  actor: Actor,
+  action: "staf.undang" | "staf.nonaktifkan" | "akun.pindah_nomor",
+): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
+  const authorization = authorize(actor, action, stafResource());
+  if (authorization.allowed) return null;
+  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+}
+
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
   if ((actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi") && !beforeTotp.has(action)) {

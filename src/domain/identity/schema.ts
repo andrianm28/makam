@@ -53,6 +53,27 @@ export const identityStaffRole = pgTable(
   (table) => [primaryKey({ columns: [table.accountId, table.role] })],
 );
 
+/**
+ * One Undangan Staf: a staff role offered to a WhatsApp number and email by an
+ * Admin Platform. Single-use: the next OTP login of that number before
+ * `expiresAt` accepts it and grants the role.
+ */
+export const identityStaffInvite = pgTable(
+  "identity_staff_invite",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    phoneNumber: text("phone_number").notNull(),
+    email: text("email").notNull(),
+    role: text("role", { enum: ["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] }).notNull(),
+    invitedByAccountId: text("invited_by_account_id").notNull(),
+    createdAt: at("created_at").notNull(),
+    expiresAt: at("expires_at").notNull(),
+    acceptedAt: at("accepted_at"),
+    acceptedAccountId: text("accepted_account_id"),
+  },
+  (table) => [index("identity_staff_invite_phone_idx").on(table.phoneNumber, table.expiresAt)],
+);
+
 /** Better Auth model `session`. Expiry is read against the Clock. */
 export const identitySession = pgTable(
   "identity_session",

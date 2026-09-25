@@ -13,9 +13,10 @@ import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import type { Actor } from "./authorize";
+import type { Actor, StaffRole } from "./authorize";
 import { createBetterAuth, OtpRejected } from "./better-auth";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
+import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
 import { seedFirstAdminPlatform, staffAccounts, type SeedResult, type StaffAccount } from "./staff";
@@ -28,6 +29,7 @@ export type { PassTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export type { SeedResult, StaffAccount } from "./staff";
+export { staffRoleLabels, type InviteStaffResult, type StaffInvite } from "./invites";
 export {
   akunResource,
   auditLogResource,
@@ -75,6 +77,13 @@ export interface Identity {
   seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
+  /** Admin Platform sends an Undangan Staf (role, WhatsApp number, required email), audited. */
+  inviteStaff(
+    by: Actor,
+    input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
+  ): Promise<InviteStaffResult>;
+  /** Every Undangan Staf not yet accepted and not expired. */
+  openStaffInvites(): Promise<StaffInvite[]>;
   /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform. */
   startTotpEnrolment(cookieHeader: string | null | undefined): Promise<StartTotpEnrolmentResult>;
   /** Checks an authenticator code for the signed-in Admin Platform's session. */
@@ -95,13 +104,14 @@ export function createIdentity(deps: IdentityDeps): Identity {
 
   return {
     requestOtp: (input) => requestOtp(deps, input),
-    verifyOtp: (input) => verifyOtp({ auth, db: deps.db }, input),
+    verifyOtp: (input) => verifyOtp({ auth, db: deps.db, clock: deps.clock }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
-    actorFromCookies: (cookieHeader) =>
-      actorFromCookies(deps, cookieHeader),
+    actorFromCookies: (cookieHeader) => actorFromCookies(deps, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
+    inviteStaff: (by, input) => inviteStaff(deps, by, input),
+    openStaffInvites: () => openStaffInvites(deps),
     startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
     passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
   };

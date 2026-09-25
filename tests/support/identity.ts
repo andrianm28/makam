@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import { createAuditLog } from "@/domain/audit";
 import { createIdentity, type Identity } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
+import { authenticatorCode } from "./totp";
 
 export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef";
 /** 32 bytes, base64: the TOTP secret encryption key used in tests. */
@@ -25,6 +26,27 @@ export function identityOnTestDatabase(db: Database, start = wib("2026-10-01 09:
     baseURL: "http://localhost:3000",
   });
   return { clock, whatsapp, files, audit, identity };
+}
+
+/**
+ * The first Admin Platform, seeded, logged in by OTP and past TOTP: the actor
+ * a guarded staff Server Action would hand to the identity module.
+ */
+export async function signedInAdminPlatform(
+  setup: ReturnType<typeof identityOnTestDatabase>,
+  phoneNumber = "081111111111",
+) {
+  const { identity, whatsapp, clock } = setup;
+  const seeded = await identity.seedFirstAdminPlatform({ phoneNumber, email: "admin@makam.co.id" });
+  if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
+  const { cookies } = await logInByOtp(identity, whatsapp, phoneNumber);
+  const enrolment = await identity.startTotpEnrolment(cookies);
+  if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
+  const passed = await identity.passTotp(cookies, authenticatorCode(enrolment.secret, clock.now()));
+  if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
+  const actor = await identity.actorFromCookies(cookies);
+  if (!actor) throw new Error("not signed in");
+  return { actor, cookies, totpSecret: enrolment.secret };
 }
 
 /** The last login OTP the fake WhatsAppSender "sent" to a number. */

@@ -36,6 +36,13 @@
       "when": 1790338015400,
       "tag": "0004_identity_totp",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790338226734,
+      "tag": "0005_identity_staff_invite",
+      "breakpoints": true
     }
   ]
 }

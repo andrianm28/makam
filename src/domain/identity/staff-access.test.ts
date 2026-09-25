@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { identityOnTestDatabase, logInByOtp } from "../../../tests/support/identity";
+import { wib } from "@/lib/time/jakarta";
+import { identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 
 const { db, close } = testDatabase();
@@ -52,5 +53,198 @@ describe("seeding the first Admin Platform", () => {
       reason: "nomor_tidak_valid",
     });
     expect(await identity.staffAccounts()).toEqual([]);
+  });
+});
+
+describe("Undangan Staf", () => {
+  const INVITEE = "082222222222";
+
+  it("Admin Platform invites by WhatsApp number and email with a role; the invitee logs in by OTP and holds the role", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp } = setup;
+    const { actor } = await signedInAdminPlatform(setup);
+
+    const invited = await identity.inviteStaff(actor, {
+      phoneNumber: "0822-2222-2222",
+      email: "Lokasi@Contoh.id",
+      role: "admin_lokasi",
+    });
+
+    expect(invited).toMatchObject({
+      ok: true,
+      delivered: true,
+      invite: {
+        phoneNumber: "+6282222222222",
+        email: "lokasi@contoh.id",
+        role: "admin_lokasi",
+        expiresAt: wib("2026-10-08 09:00"),
+      },
+    });
+    expect(whatsapp.sent.filter((message) => message.template === "staf_undangan")).toEqual([
+      expect.objectContaining({
+        to: "+6282222222222",
+        language: "id",
+        parameters: ["Admin Lokasi", "http://localhost:3000/masuk"],
+      }),
+    ]);
+
+    const { cookies } = await logInByOtp(identity, whatsapp, INVITEE);
+    expect(await identity.actorFromCookies(cookies)).toMatchObject({
+      phoneNumber: "+6282222222222",
+      roles: ["pemesan", "admin_lokasi"],
+      totp: "tidak_perlu",
+    });
+    expect(await identity.staffAccounts()).toContainEqual({
+      accountId: expect.any(String),
+      phoneNumber: "+6282222222222",
+      email: "lokasi@contoh.id",
+      roles: ["admin_lokasi"],
+      deactivated: false,
+    });
+  });
+
+  it.each(["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const)(
+    "an Undangan Staf for %s without an email is rejected",
+    async (role) => {
+      const setup = identityOnTestDatabase(db);
+      const { actor } = await signedInAdminPlatform(setup);
+
+      expect(await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "", role })).toEqual({
+        ok: false,
+        reason: "email_wajib",
+      });
+      expect(await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "bukan-email", role })).toEqual({
+        ok: false,
+        reason: "email_tidak_valid",
+      });
+      expect(setup.whatsapp.sent.filter((message) => message.template === "staf_undangan")).toEqual([]);
+      expect(await setup.identity.openStaffInvites()).toEqual([]);
+    },
+  );
+
+  it("is single-use: once the invitee has logged in it is no longer open", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "petugas@contoh.id", role: "petugas_lapangan" });
+    expect(await setup.identity.openStaffInvites()).toMatchObject([{ phoneNumber: "+6282222222222" }]);
+
+    await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+
+    expect(await setup.identity.openStaffInvites()).toEqual([]);
+  });
+
+  it("expires 7 days after it was sent: a later login by that number gets no staff role", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "mitra@contoh.id", role: "mitra_jasa" });
+
+    setup.clock.set(wib("2026-10-08 09:00"));
+    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan"] });
+    expect(await setup.identity.openStaffInvites()).toEqual([]);
+  });
+
+  it("records an Entri Audit: Admin Platform, the Clock time, the invite and its reason", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+
+    const invited = await setup.identity.inviteStaff(actor, {
+      phoneNumber: INVITEE,
+      email: "lokasi@contoh.id",
+      role: "admin_lokasi",
+      reason: "Admin baru TPU Wakaf Al-Ikhlas",
+    });
+    if (!invited.ok) throw new Error(invited.reason);
+
+    expect(await setup.audit.entriesAbout({ kind: "undangan_staf", id: invited.invite.id })).toEqual([
+      expect.objectContaining({
+        at: wib("2026-10-01 09:00"),
+        actor: { accountId: actor.accountId, role: "admin_platform" },
+        action: "staf.undang",
+        before: null,
+        after: {
+          phoneNumber: "+6282222222222",
+          email: "lokasi@contoh.id",
+          role: "admin_lokasi",
+          expiresAt: "2026-10-08T02:00:00.000Z",
+        },
+        reason: "Admin baru TPU Wakaf Al-Ikhlas",
+      }),
+    ]);
+  });
+
+  it("still stands when WhatsApp cannot deliver it: the invitee can log in by OTP all the same", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const failing = setup.whatsapp.sendTemplate.bind(setup.whatsapp);
+    setup.whatsapp.sendTemplate = async (message) => {
+      if (message.template === "staf_undangan") throw new Error("kirim.dev unavailable");
+      return failing(message);
+    };
+
+    const invited = await setup.identity.inviteStaff(actor, {
+      phoneNumber: INVITEE,
+      email: "lokasi@contoh.id",
+      role: "admin_lokasi",
+    });
+
+    expect(invited).toMatchObject({ ok: true, delivered: false });
+    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", "admin_lokasi"] });
+  });
+
+  it("is refused to anyone but an Admin Platform past TOTP", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "lokasi@contoh.id", role: "admin_lokasi" });
+    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+    const adminLokasi = await setup.identity.actorFromCookies(cookies);
+    if (!adminLokasi) throw new Error("not signed in");
+
+    expect(
+      await setup.identity.inviteStaff(adminLokasi, { phoneNumber: "083333333333", email: "x@contoh.id", role: "admin_platform" }),
+    ).toEqual({ ok: false, reason: "tidak_berwenang" });
+
+    setup.clock.advance({ minutes: 5 });
+    const again = await logInByOtp(setup.identity, setup.whatsapp, "081111111111");
+    const adminBeforeTotp = await setup.identity.actorFromCookies(again.cookies);
+    if (!adminBeforeTotp) throw new Error("not signed in");
+    expect(
+      await setup.identity.inviteStaff(adminBeforeTotp, { phoneNumber: "083333333333", email: "x@contoh.id", role: "mitra_jasa" }),
+    ).toEqual({ ok: false, reason: "perlu_totp" });
+    expect(await setup.identity.accountByPhoneNumber("083333333333")).toBeNull();
+  });
+});
+
+describe("staff sessions", () => {
+  it("an Akun Staf without Admin Platform needs no TOTP and its session lasts 30 days on the Clock", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "p@contoh.id", role: "petugas_lapangan" });
+
+    const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "082222222222");
+
+    expect(login.session.expiresAt).toEqual(wib("2026-10-31 09:00"));
+    expect(login.session.cookies.find((cookie) => cookie.name === "makam.session_token")?.maxAge).toBe(30 * 86_400);
+    setup.clock.set(wib("2026-10-31 08:59"));
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ totp: "tidak_perlu" });
+    setup.clock.set(wib("2026-10-31 09:00"));
+    expect(await setup.identity.actorFromCookies(cookies)).toBeNull();
+  });
+
+  it("an Akun holding Admin Platform and Admin Lokasi gets the 12 h session and must pass TOTP", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi" });
+    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_platform" });
+
+    const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "082222222222");
+
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({
+      roles: ["pemesan", "admin_platform", "admin_lokasi"],
+      totp: "perlu_daftar",
+    });
+    expect(login.session.expiresAt).toEqual(wib("2026-10-01 21:00"));
   });
 });

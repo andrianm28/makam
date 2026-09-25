@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import type { Clock } from "@/ports/clock";
 import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
+import { acceptOpenInvites } from "./invites";
 import { rolesOf } from "./staff";
 
 type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
@@ -31,7 +33,7 @@ export type VerifyOtpResult =
  * number has none (story 26: no sign-up).
  */
 export async function verifyOtp(
-  deps: { auth: MakamAuth; db: Database },
+  deps: { auth: MakamAuth; db: Database; clock: Clock },
   input: { phoneNumber: string; code: string },
 ): Promise<VerifyOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -60,6 +62,7 @@ export async function verifyOtp(
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
 
+  await acceptOpenInvites(deps, { id: response.user.id, phoneNumber });
   // The session lasts as long as the strictest role the Akun now holds allows.
   const lengthMs = sessionLengthMs(await rolesOf(deps.db, response.user.id));
   const expiresAt = new Date(session.session.createdAt.getTime() + lengthMs);
