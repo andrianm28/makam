@@ -42,9 +42,9 @@ export async function signedInAdminPlatform(
   const seeded = await identity.seedFirstAdminPlatform({ phoneNumber, email: "admin@makam.co.id" });
   if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
   const { cookies } = await logInByOtp(identity, whatsapp, phoneNumber);
-  const enrolment = await identity.startTotpEnrolment(cookies);
+  const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await identity.passTotp(cookies, authenticatorCode(enrolment.secret, clock.now()));
+  const passed = await identity.passTotp(await actorOf(identity, cookies), authenticatorCode(enrolment.secret, clock.now()));
   if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   const actor = await identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
@@ -67,4 +67,11 @@ export async function logInByOtp(identity: Identity, whatsapp: FakeWhatsAppSende
   const login = await identity.verifyOtp({ phoneNumber, code: lastOtpTo(whatsapp, sent.phoneNumber) });
   if (!login.ok) throw new Error(`login failed: ${login.reason}`);
   return { login, cookies: login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
+}
+
+/** The signed-in actor behind a Cookie header, as `guarded()` would resolve it. */
+export async function actorOf(identity: Identity, cookies: string) {
+  const actor = await identity.actorFromCookies(cookies);
+  if (!actor) throw new Error("not signed in");
+  return actor;
 }

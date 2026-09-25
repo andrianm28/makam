@@ -104,10 +104,10 @@ export interface Identity {
   moveAccountToNewNumber(by: Actor, input: MoveAccountInput): Promise<MoveAccountResult>;
   /** Every Undangan Staf not yet accepted and not expired. */
   openStaffInvites(): Promise<StaffInvite[]>;
-  /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform. */
-  startTotpEnrolment(cookieHeader: string | null | undefined): Promise<StartTotpEnrolmentResult>;
-  /** Checks an authenticator code for the signed-in Admin Platform's session. */
-  passTotp(cookieHeader: string | null | undefined, code: string): Promise<PassTotpResult>;
+  /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform (the guarded actor). */
+  startTotpEnrolment(by: Actor): Promise<StartTotpEnrolmentResult>;
+  /** Checks an authenticator code for the signed-in Admin Platform's session (the guarded actor's). */
+  passTotp(by: Actor, code: string): Promise<PassTotpResult>;
   /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
   resetTotp(input: { phoneNumber: string; reason: string }): Promise<ResetTotpResult>;
 }
@@ -136,8 +136,8 @@ export function createIdentity(deps: IdentityDeps): Identity {
     openStaffInvites: () => openStaffInvites(deps),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
-    startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
-    passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
+    startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
+    passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
   };
 }

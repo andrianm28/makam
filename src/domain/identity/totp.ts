@@ -3,11 +3,11 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import type { Role, TotpStatus } from "./authorize";
+import type { Actor, Role, TotpStatus } from "./authorize";
 import type { Account } from "./login";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityTotp, identityUser } from "./schema";
-import { activeSession } from "./sessions";
+import { actorSession } from "./sessions";
 import { rolesOf } from "./staff";
 import { openTotpSecret, sealTotpSecret } from "./totp-secret-box";
 
@@ -65,15 +65,12 @@ export type StartTotpEnrolmentResult =
   | { ok: false; reason: "belum_masuk" | "tidak_perlu_totp" | "totp_sudah_terdaftar" };
 
 /**
- * Starts (or restarts) TOTP enrolment for the signed-in Admin Platform. The
+ * Starts (or restarts) TOTP enrolment for the signed-in Admin Platform `by`. The
  * enrolment is complete once `passTotp` accepts a code for it. An enrolled
  * authenticator cannot be replaced here: there is no self-service recovery.
  */
-export async function startTotpEnrolment(
-  deps: TotpDeps,
-  cookieHeader: string | null | undefined,
-): Promise<StartTotpEnrolmentResult> {
-  const session = await activeSession(deps, cookieHeader);
+export async function startTotpEnrolment(deps: TotpDeps, by: Actor): Promise<StartTotpEnrolmentResult> {
+  const session = await actorSession(deps, by);
   if (!session) return { ok: false, reason: "belum_masuk" };
   if (!session.roles.includes("admin_platform")) return { ok: false, reason: "tidak_perlu_totp" };
 
@@ -110,16 +107,12 @@ export type PassTotpResult =
     };
 
 /**
- * Checks an authenticator code for the signed-in Admin Platform's session. A
+ * Checks an authenticator code for the signed-in Admin Platform `by`'s session. A
  * pass marks the session (and completes a pending enrolment); each code works
  * once; the `TOTP_MAX_WRONG_ATTEMPTS`th wrong code ends the session.
  */
-export async function passTotp(
-  deps: TotpDeps,
-  cookieHeader: string | null | undefined,
-  code: string,
-): Promise<PassTotpResult> {
-  const session = await activeSession(deps, cookieHeader);
+export async function passTotp(deps: TotpDeps, by: Actor, code: string): Promise<PassTotpResult> {
+  const session = await actorSession(deps, by);
   if (!session) return { ok: false, reason: "belum_masuk" };
   if (!session.roles.includes("admin_platform")) return { ok: false, reason: "tidak_perlu_totp" };
 

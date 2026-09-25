@@ -3,7 +3,7 @@ import { createAuditLog } from "@/domain/audit";
 import { FakeFileStore } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { identityOnTestDatabase, logInByOtp, TEST_AUTH_SECRET } from "../../../tests/support/identity";
+import { actorOf, identityOnTestDatabase, logInByOtp, TEST_AUTH_SECRET } from "../../../tests/support/identity";
 import { authenticatorCode } from "../../../tests/support/totp";
 import { createIdentity } from "./index";
 
@@ -22,9 +22,9 @@ async function adminPlatformAfterOtp() {
 
 async function enrolled() {
   const setup = await adminPlatformAfterOtp();
-  const enrolment = await setup.identity.startTotpEnrolment(setup.cookies);
+  const enrolment = await setup.identity.startTotpEnrolment(await actorOf(setup.identity, setup.cookies));
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await setup.identity.passTotp(setup.cookies, authenticatorCode(enrolment.secret, setup.clock.now()));
+  const passed = await setup.identity.passTotp(await actorOf(setup.identity, setup.cookies), authenticatorCode(enrolment.secret, setup.clock.now()));
   if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   return { ...setup, secret: enrolment.secret };
 }
@@ -39,7 +39,7 @@ describe("Admin Platform TOTP on top of the OTP", () => {
   it("enrolment gives a secret for the authenticator; its current code passes TOTP for this session", async () => {
     const { identity, clock, cookies } = await adminPlatformAfterOtp();
 
-    const enrolment = await identity.startTotpEnrolment(cookies);
+    const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
     expect(enrolment).toMatchObject({ ok: true, secret: expect.stringMatching(/^[A-Z2-7]{32}$/) });
     if (!enrolment.ok) throw new Error("unreachable");
     expect(enrolment.otpauthUri).toBe(
@@ -48,7 +48,7 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     // The authenticator app shows no phone number.
     expect(enrolment.otpauthUri).not.toMatch(/6281111111111/);
 
-    expect(await identity.passTotp(cookies, authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, cookies), authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
     expect(await identity.actorFromCookies(cookies)).toMatchObject({ totp: "lolos", roles: ["pemesan", "admin_platform"] });
   });
 
@@ -69,11 +69,11 @@ describe("Admin Platform TOTP on top of the OTP", () => {
 
   it("a wrong code does not pass TOTP", async () => {
     const { identity, clock, cookies } = await adminPlatformAfterOtp();
-    const enrolment = await identity.startTotpEnrolment(cookies);
+    const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
     if (!enrolment.ok) throw new Error("enrolment refused");
     const right = authenticatorCode(enrolment.secret, clock.now());
 
-    expect(await identity.passTotp(cookies, right === "000000" ? "111111" : "000000")).toEqual({
+    expect(await identity.passTotp(await actorOf(identity, cookies), right === "000000" ? "111111" : "000000")).toEqual({
       ok: false,
       reason: "kode_salah",
     });
@@ -87,14 +87,14 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     const again = await logInByOtp(identity, whatsapp, ADMIN);
     expect(await identity.actorFromCookies(again.cookies)).toMatchObject({ totp: "perlu_verifikasi" });
 
-    expect(await identity.passTotp(again.cookies, authenticatorCode(secret, clock.now()))).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, again.cookies), authenticatorCode(secret, clock.now()))).toEqual({ ok: true });
     expect(await identity.actorFromCookies(again.cookies)).toMatchObject({ totp: "lolos" });
   });
 
   it("an enrolled Admin Platform cannot enrol again (no self-service recovery)", async () => {
     const { identity, cookies } = await enrolled();
 
-    expect(await identity.startTotpEnrolment(cookies)).toEqual({ ok: false, reason: "totp_sudah_terdaftar" });
+    expect(await identity.startTotpEnrolment(await actorOf(identity, cookies))).toEqual({ ok: false, reason: "totp_sudah_terdaftar" });
   });
 
   it("accepts the code of the 30 s step before or after the Clock's, not two steps away", async () => {
@@ -104,13 +104,13 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     const at = (seconds: number) => new Date(now.getTime() + seconds * 1000);
 
     const first = await logInByOtp(identity, whatsapp, ADMIN);
-    expect(await identity.passTotp(first.cookies, authenticatorCode(secret, at(-60)))).toMatchObject({ ok: false });
-    expect(await identity.passTotp(first.cookies, authenticatorCode(secret, at(60)))).toMatchObject({ ok: false });
-    expect(await identity.passTotp(first.cookies, authenticatorCode(secret, at(-30)))).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(-60)))).toMatchObject({ ok: false });
+    expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(60)))).toMatchObject({ ok: false });
+    expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(-30)))).toEqual({ ok: true });
 
     clock.advance({ minutes: 2 });
     const second = await logInByOtp(identity, whatsapp, ADMIN);
-    expect(await identity.passTotp(second.cookies, authenticatorCode(secret, at(150)))).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, second.cookies), authenticatorCode(secret, at(150)))).toEqual({ ok: true });
   });
 
   it("a TOTP code that was used once is refused the second time", async () => {
@@ -119,11 +119,11 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     // The code of the next 30 s step: still inside the window one minute from now.
     const code = authenticatorCode(secret, new Date(clock.now().getTime() + 30_000));
     const first = await logInByOtp(identity, whatsapp, ADMIN);
-    expect(await identity.passTotp(first.cookies, code)).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, first.cookies), code)).toEqual({ ok: true });
 
     clock.advance({ minutes: 1 });
     const second = await logInByOtp(identity, whatsapp, ADMIN);
-    expect(await identity.passTotp(second.cookies, code)).toEqual({ ok: false, reason: "kode_sudah_dipakai" });
+    expect(await identity.passTotp(await actorOf(identity, second.cookies), code)).toEqual({ ok: false, reason: "kode_sudah_dipakai" });
   });
 
   it("5 wrong TOTP codes end the session: the Admin Platform must log in by OTP again", async () => {
@@ -134,9 +134,9 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     const wrong = right === "000000" ? "111111" : "000000";
 
     for (let attempt = 1; attempt <= 4; attempt++) {
-      expect(await identity.passTotp(cookies, wrong)).toEqual({ ok: false, reason: "kode_salah" });
+      expect(await identity.passTotp(await actorOf(identity, cookies), wrong)).toEqual({ ok: false, reason: "kode_salah" });
     }
-    expect(await identity.passTotp(cookies, wrong)).toEqual({ ok: false, reason: "sesi_diakhiri" });
+    expect(await identity.passTotp(await actorOf(identity, cookies), wrong)).toEqual({ ok: false, reason: "sesi_diakhiri" });
     expect(await identity.actorFromCookies(cookies)).toBeNull();
   });
 
@@ -155,7 +155,7 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     clock.advance({ hours: 1 });
     const { cookies } = await logInByOtp(otherKey, whatsapp, ADMIN);
 
-    await expect(otherKey.passTotp(cookies, authenticatorCode(secret, clock.now()))).rejects.toThrow();
+    await expect(otherKey.passTotp(await actorOf(otherKey, cookies), authenticatorCode(secret, clock.now()))).rejects.toThrow();
   });
 });
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { akunResource, authorize, stafMenuResource } from "./index";
-import { identityOnTestDatabase, lastOtpTo, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
+import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { authenticatorCode } from "../../../tests/support/totp";
 
@@ -489,9 +489,9 @@ describe("deactivating an Akun Staf", () => {
     const admin = await signedInAdminPlatform(setup);
     await identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "dua@makam.co.id", role: "admin_platform" });
     const second = await logInByOtp(identity, whatsapp, "082222222222");
-    const enrolment = await identity.startTotpEnrolment(second.cookies);
+    const enrolment = await identity.startTotpEnrolment(await actorOf(identity, second.cookies));
     if (!enrolment.ok) throw new Error(enrolment.reason);
-    expect(await identity.passTotp(second.cookies, authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
+    expect(await identity.passTotp(await actorOf(identity, second.cookies), authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
 
     await identity.deactivateStaff(admin.actor, { accountId: second.login.account.id, reason: "Cuti panjang" });
     clock.advance({ days: 1 });

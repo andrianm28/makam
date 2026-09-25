@@ -1,6 +1,6 @@
 import { getSessionCookie, parseSetCookieHeader } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import { COOKIE_PREFIX, type MakamAuth } from "./better-auth";
@@ -63,11 +63,18 @@ export async function actorFromCookies(
   const session = await activeSession(deps, cookieHeader);
   if (!session) return null;
   const totp = await totpStatus(deps.db, session);
-  return { accountId: session.accountId, phoneNumber: session.phoneNumber, roles: session.roles, totp };
+  return {
+    accountId: session.accountId,
+    phoneNumber: session.phoneNumber,
+    roles: session.roles,
+    totp,
+    sessionId: session.id,
+  };
 }
 
 /** A signed-in session, as the identity module reads it. */
 export interface ActiveSession {
+  id: string;
   token: string;
   accountId: string;
   phoneNumber: string;
@@ -87,9 +94,22 @@ export async function activeSession(
 ): Promise<ActiveSession | null> {
   const token = await verifiedSessionToken(deps.secret, cookieHeader);
   if (!token) return null;
+  return liveSession(deps, eq(identitySession.token, token));
+}
 
+/**
+ * The signed-in actor's own session, still live on the Clock: for writes on
+ * the session itself (TOTP) after `guarded()` resolved the actor. Null when it
+ * has ended since.
+ */
+export async function actorSession(deps: { db: Database; clock: Clock }, actor: Actor): Promise<ActiveSession | null> {
+  return liveSession(deps, and(eq(identitySession.id, actor.sessionId), eq(identitySession.userId, actor.accountId)));
+}
+
+async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | undefined): Promise<ActiveSession | null> {
   const [row] = await deps.db
     .select({
+      id: identitySession.id,
       token: identitySession.token,
       accountId: identitySession.userId,
       createdAt: identitySession.createdAt,
@@ -99,7 +119,7 @@ export async function activeSession(
     })
     .from(identitySession)
     .innerJoin(identityUser, eq(identityUser.id, identitySession.userId))
-    .where(eq(identitySession.token, token));
+    .where(where);
   if (!row?.phoneNumber) return null;
   if (row.expiresAt.getTime() <= deps.clock.now().getTime()) return null;
 

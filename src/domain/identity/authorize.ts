@@ -30,6 +30,8 @@ export interface Actor {
   phoneNumber: string;
   roles: Role[];
   totp: TotpStatus;
+  /** The session this actor signed in with (TOTP is passed per session). */
+  sessionId: string;
 }
 
 /** What an actor wants to do. Later tickets add their actions to this list. */

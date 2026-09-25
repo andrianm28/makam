@@ -5,7 +5,6 @@ import { z } from "zod";
 import { akunResource } from "@/domain/identity";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
-import { currentCookieHeader } from "@/server/session";
 import { guardMessage } from "../messages";
 
 export type EnrolState =
@@ -17,13 +16,12 @@ export type VerifyTotpState = { status: "idle" } | { status: "gagal"; message: s
 
 /** Starts TOTP enrolment: shows the secret for the authenticator app. */
 export async function mulaiDaftarTotp(): Promise<EnrolState> {
-  const cookieHeader = await currentCookieHeader();
   const result = await guarded({
     action: "akun.totp",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({}),
     input: {},
-    run: () => serverRuntime().identity.startTotpEnrolment(cookieHeader),
+    run: (actor) => serverRuntime().identity.startTotpEnrolment(actor),
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   const enrolment = result.value;
@@ -43,13 +41,12 @@ const codeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/) });
 
 /** Checks the authenticator code; on success the staff area opens. */
 export async function verifikasiTotp(_previous: VerifyTotpState, formData: FormData): Promise<VerifyTotpState> {
-  const cookieHeader = await currentCookieHeader();
   const result = await guarded({
     action: "akun.totp",
     resource: (actor) => akunResource(actor.accountId),
     schema: codeSchema,
     input: { code: formData.get("code") },
-    run: (_actor, data) => serverRuntime().identity.passTotp(cookieHeader, data.code),
+    run: (actor, data) => serverRuntime().identity.passTotp(actor, data.code),
   });
   if (!result.ok) {
     if (result.error === "input_tidak_valid") return { status: "gagal", message: "Masukkan 6 angka dari aplikasi authenticator." };
