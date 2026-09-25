@@ -1,5 +1,5 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, isNull, max, sql, sum, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, max, sql, sum, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -204,6 +204,21 @@ export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: 
     await tx.insert(identityIpRequest).values({ ip, requestedAt: now });
     return { ok: true } as const;
   });
+}
+
+/** The per-IP request records are kept this long; the limits only ever look back 60 minutes. */
+export const IP_REQUESTS_KEPT_MS = 24 * 3_600_000;
+
+/**
+ * Scheduler tick: deletes the per-IP request records older than 24 hours at
+ * `now`. Idempotent: a second run for the same `now` deletes nothing.
+ */
+export async function pruneIpRequests(ctx: { db: Database }, now: Date): Promise<{ deleted: number }> {
+  const deleted = await ctx.db
+    .delete(identityIpRequest)
+    .where(lt(identityIpRequest.requestedAt, new Date(now.getTime() - IP_REQUESTS_KEPT_MS)))
+    .returning({ id: identityIpRequest.id });
+  return { deleted: deleted.length };
 }
 
 /**

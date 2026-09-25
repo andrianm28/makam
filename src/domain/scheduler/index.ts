@@ -12,6 +12,7 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
+import { pruneIpRequests } from "@/domain/identity";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
 export { HEARTBEAT_FRESH_FOR_SECONDS, type WorkerHeartbeat } from "./heartbeat";
@@ -46,4 +47,10 @@ export async function workerHeartbeat(ctx: SchedulerContext, now: Date): Promise
  */
 export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "scheduler.heartbeat", cron: "* * * * *", tick: heartbeatTick },
+  // Identity & Access: per-IP request records for emailed codes older than 24 h (ticket 67).
+  { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
 ];
+
+async function pruneIpRequestsTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await pruneIpRequests(ctx, now);
+}

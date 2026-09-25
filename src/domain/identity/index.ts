@@ -59,7 +59,7 @@ import {
 } from "./totp";
 
 export { normalisePhoneNumber, type PhoneNumberRejection, type PhoneNumberResult } from "./phone-number";
-export type { CodeRejection, RequestOtpResult } from "./otp";
+export { pruneIpRequests, type CodeRejection, type RequestOtpResult } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
