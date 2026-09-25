@@ -11,7 +11,7 @@ name: makam-v1-dev
 x-app: &app
   build:
     context: .
-  image: makam-v1:dev
+  image: makam-v1:${COMPOSE_PROJECT_NAME:-makam-v1-dev}
   environment: &app-env
     APP_ENV: development
     DATABASE_URL: postgres://makam:makam@postgres:5432/makam

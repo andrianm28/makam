@@ -39,7 +39,8 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 - Tests **never assert on table layouts, private helpers or call sequences**.
 - Name tests in glossary terms from `CONTEXT.md` (e.g. "Saat Duka Tagihan becomes Lewat Jatuh Tempo 3×24 h after the recorded Pemakaman").
 - Scheduler behaviour is tested by calling tick functions directly with the fake Clock; only the pg-boss smoke test exercises pg-boss timing.
-- Playwright (`e2e/`) covers only the critical paths listed in the spec.
+- Playwright (`e2e/`) covers the critical paths listed in the spec, plus a short smoke test when a ticket explicitly asks for one for its UI. Keep each spec file fast (target under 10 s once the stack is warm) and never re-test in Playwright what a unit or domain test already covers.
+- Each worktree runs its own local stack: `docker compose -p <unique-name> up --build -d` (the dev image is tagged per project, so stacks never overwrite each other).
 
 ## Commands
 

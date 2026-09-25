@@ -628,7 +628,7 @@ Core entities at a glance (details in each module):
   - **Wakaf**: status transitions and Dirujuk.
   - **Field Work**: Selesai gated on uploads, and the auto-created pickup task.
   - **Audit Log**: every staff write logged, and the Admin Lokasi view filter.
-- **End-to-end**: a thin **Playwright** layer on the critical paths only (ticket 12):
+- **End-to-end**: a thin **Playwright** layer on the critical paths (ticket 12), plus short UI smoke tests where a build ticket explicitly asks for one (amended 2026-09-25, user decision; each spec file stays fast and does not repeat unit/domain coverage):
   1. Pemesanan Saat Duka at a Lokasi Mitra from the Pilih makam list through OTP, Admin Lokasi confirmation and payment to the Bukti Pemesanan.
   2. The SumoPod webhook marking a Tagihan Lunas (signed payload against the running app).
   3. A Pencairan run producing a Bukti Pencairan.
