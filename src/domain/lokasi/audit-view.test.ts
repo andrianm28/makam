@@ -96,10 +96,9 @@ describe("the Audit Log of a Lokasi Mitra, for its Admin Lokasi", () => {
     if (!thirdLog.ok) throw new Error(thirdLog.reason);
     expect(thirdLog.entries.filter((entry) => entry.action === "staf.nonaktifkan")).toEqual([]);
     const aboutAkun = await setup.audit.entriesAbout({ kind: "akun", id: leaving.accountId });
-    expect(aboutAkun.filter((entry) => entry.action === "staf.nonaktifkan").map((entry) => entry.lokasiId)).toEqual([
-      first.id,
-      second.id,
-    ]);
+    expect(aboutAkun.filter((entry) => entry.action === "staf.nonaktifkan").map((entry) => entry.lokasiId).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
   });
 
   it("is refused for a Lokasi the Admin Lokasi is not Admin Lokasi of; Admin Platform reads any Lokasi's", async () => {
