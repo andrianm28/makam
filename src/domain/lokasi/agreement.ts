@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { lokasiMitraResource, type Actor } from "@/domain/identity";
+import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { documentExtension } from "@/lib/files/document-type";
 import type { FileStore } from "@/ports/file-store";
-import { isLokasiId, refusalFor, writeLokasiMitra, type LokasiDeps, type NotFound, type Refusal, type WriteResult } from "./lokasi-mitra";
+import { isLokasiId, writeLokasiMitra, type LokasiDeps, type NotFound, type WriteResult } from "./lokasi-mitra";
 import { lokasiMitra } from "./schema";
 
 /** The largest agreement scan accepted, 10 MB (the Server Action body limit is 11 MB). */
@@ -32,7 +32,7 @@ export async function uploadAgreement(
   lokasiId: string,
   input: { scan: { body: Uint8Array; contentType: string }; signedOn: string },
 ): Promise<UploadAgreementResult> {
-  const refusal = refusalFor(by, "lokasi.ubah", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.ubah", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   const extension = documentExtension(input.scan, ["application/pdf", "image/jpeg", "image/png"]);
   if (!extension || input.scan.body.byteLength > AGREEMENT_SCAN_MAX_BYTES) {
@@ -58,13 +58,13 @@ export async function uploadAgreement(
 
 export type AgreementScanUrlResult =
   | { ok: true; url: string; expiresAt: Date }
-  | Refusal
+  | WriteRefusal
   | NotFound
   | { ok: false; reason: "belum_ada_berkas" };
 
 /** A short-lived signed URL (5 minutes) to the agreement scan, for Admin Platform or the Lokasi's Admin Lokasi. */
 export async function agreementScanUrl(deps: AgreementDeps, by: Actor, lokasiId: string): Promise<AgreementScanUrlResult> {
-  const refusal = refusalFor(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   const [row] = await deps.db

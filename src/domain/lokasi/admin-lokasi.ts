@@ -2,14 +2,16 @@ import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import {
   lokasiMitraResource,
+  writeRefusal,
   type Actor,
   type AdminLokasiAccount,
   type Identity,
   type InviteStaffResult,
   type RemoveAdminLokasiResult,
   type StaffInvite,
+  type WriteRefusal,
 } from "@/domain/identity";
-import { isLokasiId, refusalFor, type NotFound, type Refusal } from "./lokasi-mitra";
+import { isLokasiId, type NotFound } from "./lokasi-mitra";
 import { lokasiMitra } from "./schema";
 
 export interface AdminLokasiDeps {
@@ -32,7 +34,7 @@ export async function inviteAdminLokasi(
   lokasiId: string,
   input: { phoneNumber: string; email: string; reason?: string | null },
 ): Promise<InviteAdminLokasiResult> {
-  const refusal = refusalFor(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!(await lokasiExists(deps.db, lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
   return deps.identity.inviteStaff(by, { ...input, role: "admin_lokasi", lokasiId });
@@ -47,7 +49,7 @@ export async function removeAdminLokasiFromLokasi(
   lokasiId: string,
   input: { accountId: string; reason: string },
 ): Promise<RemoveAdminLokasiFromLokasiResult> {
-  const refusal = refusalFor(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!(await lokasiExists(deps.db, lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
   return deps.identity.removeAdminLokasi(by, { lokasiId, ...input });
@@ -55,7 +57,7 @@ export async function removeAdminLokasiFromLokasi(
 
 export type AdminLokasiOfResult =
   | { ok: true; adminLokasi: AdminLokasiAccount[]; openInvites: StaffInvite[] }
-  | Refusal
+  | WriteRefusal
   | NotFound;
 
 /** The Admin Lokasi of one Lokasi Mitra, and the open invites to it. */
@@ -64,7 +66,7 @@ export async function adminLokasiOfLokasi(
   by: Actor,
   lokasiId: string,
 ): Promise<AdminLokasiOfResult> {
-  const refusal = refusalFor(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!(await lokasiExists(deps.db, lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
   const [adminLokasi, openInvites] = await Promise.all([

@@ -2,12 +2,11 @@ import { asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog, AuditSnapshot } from "@/domain/audit";
 import {
-  authorize,
   lokasiMitraResource,
   semuaLokasiMitraResource,
-  type Action,
+  writeRefusal,
   type Actor,
-  type Resource,
+  type WriteRefusal,
 } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import {
@@ -59,19 +58,11 @@ export interface LokasiDeps {
   audit: AuditLog;
 }
 
-export type Refusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
 export type NotFound = { ok: false; reason: "tidak_ditemukan" };
 
 /** A Lokasi Mitra id has the shape of one (a UUID); anything else names no Lokasi. */
 export function isLokasiId(lokasiId: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lokasiId);
-}
-
-/** The authorisation check inside the module (defence in depth behind `guarded()`). */
-export function refusalFor(actor: Actor, action: Action, resource: Resource): Refusal | null {
-  const authorization = authorize(actor, action, resource);
-  if (authorization.allowed) return null;
-  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }
 
 export interface NewLokasiMitra {
@@ -81,7 +72,7 @@ export interface NewLokasiMitra {
   city: string;
 }
 
-export type CreateLokasiMitraResult = { ok: true; lokasiMitra: LokasiMitra } | Refusal;
+export type CreateLokasiMitraResult = { ok: true; lokasiMitra: LokasiMitra } | WriteRefusal;
 
 /** Admin Platform starts a Lokasi Mitra's onboarding record: it is Belum Tayang until the publish gate (ticket 16). */
 export async function createLokasiMitra(
@@ -89,7 +80,7 @@ export async function createLokasiMitra(
   by: Actor,
   input: NewLokasiMitra,
 ): Promise<CreateLokasiMitraResult> {
-  const refusal = refusalFor(by, "lokasi.buat", semuaLokasiMitraResource());
+  const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
   if (refusal) return refusal;
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -130,11 +121,11 @@ export async function createLokasiMitra(
   });
 }
 
-export type LokasiMitraResult = { ok: true; lokasiMitra: LokasiMitra } | Refusal | NotFound;
+export type LokasiMitraResult = { ok: true; lokasiMitra: LokasiMitra } | WriteRefusal | NotFound;
 
 /** One Lokasi Mitra's record, for an actor allowed to see it. */
 export async function readLokasiMitra(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<LokasiMitraResult> {
-  const refusal = refusalFor(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
@@ -159,7 +150,7 @@ const summaryColumns = {
 
 /** Every Lokasi Mitra, by name, for Admin Platform; nothing for anyone else. */
 export async function allLokasiMitra(deps: LokasiDeps, by: Actor): Promise<LokasiMitraSummary[]> {
-  if (refusalFor(by, "lokasi.buat", semuaLokasiMitraResource())) return [];
+  if (writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource())) return [];
   return deps.db.select(summaryColumns).from(lokasiMitraTable).orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
 }
 
@@ -174,7 +165,7 @@ export async function lokasiMitraOfAdminLokasi(deps: LokasiDeps, by: Actor): Pro
     .orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
 }
 
-export type WriteResult = { ok: true } | Refusal | NotFound;
+export type WriteResult = { ok: true } | WriteRefusal | NotFound;
 
 /** Admin Platform replaces a Lokasi Mitra's document checklist (blank lines dropped), audited. */
 export async function setDocumentChecklist(
@@ -269,7 +260,7 @@ export async function changeBankAccount(
   lokasiId: string,
   input: BankAccount & { reason: string | null },
 ): Promise<ChangeBankAccountResult> {
-  const refusal = refusalFor(by, "lokasi.ubah_rekening", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.ubah_rekening", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   const bankAccount: BankAccount = {
     bankName: input.bankName.trim(),
@@ -314,7 +305,7 @@ export async function writeLokasiMitra(
   change: (row: Row) => { values: Partial<Row>; before: AuditSnapshot; after: AuditSnapshot; reason?: string | null },
   authorisedAs: "lokasi.ubah" | "lokasi.ubah_rekening" = "lokasi.ubah",
 ): Promise<WriteResult> {
-  const refusal = refusalFor(by, authorisedAs, lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, authorisedAs, lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   return deps.audit.staffWrite(deps.db, async (tx, record) => {

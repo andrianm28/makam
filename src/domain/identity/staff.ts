@@ -3,7 +3,7 @@ import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import { authorize, lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
+import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
@@ -78,10 +78,8 @@ export async function removeAdminLokasi(
   by: Actor,
   input: { lokasiId: string; accountId: string; reason: string },
 ): Promise<RemoveAdminLokasiResult> {
-  const authorization = authorize(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(input.lokasiId));
-  if (!authorization.allowed) {
-    return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
-  }
+  const refusal = writeRefusal(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(input.lokasiId));
+  if (refusal) return refusal;
   const reason = input.reason.trim();
   if (!reason) return { ok: false, reason: "alasan_wajib" };
 
