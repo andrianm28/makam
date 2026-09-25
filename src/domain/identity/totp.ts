@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -6,6 +6,7 @@ import type { Clock } from "@/ports/clock";
 import type { Role, TotpStatus } from "./authorize";
 import { identitySession, identityTotp } from "./schema";
 import { activeSession } from "./sessions";
+import { openTotpSecret, sealTotpSecret } from "./totp-secret-box";
 
 /*
  * Admin Platform TOTP (RFC 6238), kept in the module rather than in Better
@@ -24,6 +25,8 @@ export const TOTP_MAX_WRONG_ATTEMPTS = 5;
 /** 20 random bytes (160 bits), as RFC 4226 recommends; 32 base32 characters. */
 const SECRET_BYTES = 20;
 const ISSUER = "Makam.co.id";
+/** The account name the authenticator app shows: never the phone number or anything else identifying. */
+const ACCOUNT_LABEL = "Admin Platform";
 
 export interface TotpDeps {
   db: Database;
@@ -72,7 +75,7 @@ export async function startTotpEnrolment(
   if (!session.roles.includes("admin_platform")) return { ok: false, reason: "tidak_perlu_totp" };
 
   const secret = base32Encode(randomBytes(SECRET_BYTES));
-  const ciphertext = seal(deps.totpEncryptionKey, secret);
+  const ciphertext = sealTotpSecret(deps.totpEncryptionKey, session.accountId, secret);
   const now = deps.clock.now();
   const [stored] = await deps.db
     .insert(identityTotp)
@@ -86,7 +89,7 @@ export async function startTotpEnrolment(
     .returning({ accountId: identityTotp.accountId });
   if (!stored) return { ok: false, reason: "totp_sudah_terdaftar" };
 
-  const label = encodeURIComponent(`${ISSUER}:${session.phoneNumber}`).replace("%3A", ":");
+  const label = `${encodeURIComponent(ISSUER)}:${encodeURIComponent(ACCOUNT_LABEL)}`;
   return {
     ok: true,
     secret,
@@ -120,7 +123,7 @@ export async function passTotp(
   const [totp] = await deps.db.select().from(identityTotp).where(eq(identityTotp.accountId, session.accountId));
   if (!totp) return { ok: false, reason: "belum_daftar" };
 
-  const key = Buffer.from(base32Decode(open(deps.totpEncryptionKey, totp.secretCiphertext)));
+  const key = Buffer.from(base32Decode(openTotpSecret(deps.totpEncryptionKey, session.accountId, totp.secretCiphertext)));
   const now = deps.clock.now();
   const step = Math.floor(now.getTime() / 1000 / TOTP_PERIOD_SECONDS);
   const matched = /^\d+$/.test(code) && code.length === TOTP_DIGITS ? matchingStep(key, code, step) : null;
@@ -229,21 +232,4 @@ function base32Decode(text: string): Uint8Array {
     }
   }
   return Uint8Array.from(out);
-}
-
-/** AES-256-GCM: `v1.<iv>.<tag>.<ciphertext>`, each part base64url. */
-function seal(keyBase64: string, plaintext: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", Buffer.from(keyBase64, "base64"), iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  return ["v1", iv, cipher.getAuthTag(), ciphertext].map((part) => (typeof part === "string" ? part : part.toString("base64url"))).join(".");
-}
-
-/** Opens a `seal`ed value; throws when the key is wrong or the value was altered. */
-function open(keyBase64: string, sealed: string): string {
-  const [version, iv, tag, ciphertext] = sealed.split(".");
-  if (version !== "v1" || !iv || !tag || !ciphertext) throw new Error("Unknown TOTP secret format");
-  const decipher = createDecipheriv("aes-256-gcm", Buffer.from(keyBase64, "base64"), Buffer.from(iv, "base64url"));
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
 }

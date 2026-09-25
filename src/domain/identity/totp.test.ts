@@ -43,8 +43,10 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     expect(enrolment).toMatchObject({ ok: true, secret: expect.stringMatching(/^[A-Z2-7]{32}$/) });
     if (!enrolment.ok) throw new Error("unreachable");
     expect(enrolment.otpauthUri).toBe(
-      `otpauth://totp/Makam.co.id:%2B6281111111111?secret=${enrolment.secret}&issuer=Makam.co.id&algorithm=SHA1&digits=6&period=30`,
+      `otpauth://totp/Makam.co.id:Admin%20Platform?secret=${enrolment.secret}&issuer=Makam.co.id&algorithm=SHA1&digits=6&period=30`,
     );
+    // The authenticator app shows no phone number.
+    expect(enrolment.otpauthUri).not.toMatch(/6281111111111/);
 
     expect(await identity.passTotp(cookies, authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
     expect(await identity.actorFromCookies(cookies)).toMatchObject({ totp: "lolos", roles: ["pemesan", "admin_platform"] });
