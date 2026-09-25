@@ -63,11 +63,23 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
 /**
  * Browser error monitoring. Next.js inlines NEXT_PUBLIC_* at build time, so the
  * caller passes each one written out (`process.env.NEXT_PUBLIC_SENTRY_DSN`).
+ * The environment is not among them: one image serves staging and production,
+ * so the browser takes it from the page's host (`browserSentryEnvironment`).
  */
 const publicSentryEnvSchema = z.object({
   NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.url().optional()),
-  NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.preprocess(emptyToUndefined, z.string().default("development")),
 });
+
+const browserEnvironmentByHost: Record<string, AppEnvironment> = {
+  "dev.makam.co.id": "staging",
+  "makam.co.id": "production",
+  "www.makam.co.id": "production",
+};
+
+/** The Sentry environment for browser events, from `window.location.hostname`. Unknown hosts are `development`. */
+export function browserSentryEnvironment(hostname: string): AppEnvironment {
+  return browserEnvironmentByHost[hostname.toLowerCase()] ?? "development";
+}
 
 export type SentryEnv = z.infer<typeof sentryEnvSchema>;
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
