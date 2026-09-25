@@ -46,14 +46,9 @@ A v1 MVP spec for makam.co.id, ready for `/to-spec`: per-pillar scope, actors an
 
 ## Not yet specified
 
-- **Onboarding existing records**: the one-off Excel import of a Lokasi Mitra's plots and Pemegang Hak. Lifecycle is now settled (Petak Makam / Hak Pakai / Pemakaman); the template waits on the first partner showing how they keep records.
-- **TPU outside DKI**: Pengurusan for Bogor, Depok, Tangerang and Bekasi TPUs, each with its own Perda and mostly manual procedures.
-- **Mitra Jasa operations**: recruiting, vetting and quality control of Mitra Jasa, service areas, and sanctions for repeated Terlambat / Keluhan. Job assignment, Terlambat and Keluhan handling are settled in "Layanan catalog and Paket Layanan model".
-- **Unpaid Saat Duka invoices**: after a burial at a Lokasi Mitra, a family may never pay the 3×24 h invoice. The Hak Pakai stays active and no Pencairan goes out until payment ("Money flow and revenue model", "Petak Makam lifecycle"); at a DKI TPU the Operator itself bears the loss and the IPTM is handed over regardless ("Pemesanan Saat Duka at a DKI TPU via Pengurusan"). Admin Platform can record a later offline payment by hand ("Invoice and payment proof for the Pemesan"). Still open is who chases payment, for how long, and whether the partner ever bears the loss.
-- **Operator daily operations**: Admin Platform must confirm TPU Saat Duka orders 06:00–18:00 every day and keep each TPU's "menerima makam baru" flag current from Distamhut; open is the staffing rota, the back-office queue, and how on-call handover works.
-- **Trust and transparency surface**: how "lokasi terverifikasi" shows up (verification badge criteria) and whether official tariffs are published on the Lokasi page. Booking-flow prices are settled as all-in totals ("Booking flow prototype for a Lokasi Mitra").
-- **Cutover from the old Laravel app**: moving `makam.co.id` from the frozen makam-app beta to v1, and whether any beta data (users, orders, Lokasi) must be carried over. Waits until v1 nears launch.
-- **Content pages**: Tentang Kami (now about makam.co.id and PT Jaya Korpora Prima, no YIEM), FAQ, Daftar Lokasi Makam; probably trivial once the rest is known.
+- **Onboarding existing records**: the one-off Excel import of a Lokasi Mitra's plots and Pemegang Hak. Lifecycle is now settled (Petak Makam / Hak Pakai / Pemakaman); the template waits on the first partner showing how they keep records. Not needed before `/to-spec`: the spec states the import requirement and `Perlu Verifikasi`, the template follows the first partner.
+- **Cutover from the old Laravel app**: moving `makam.co.id` from the frozen makam-app beta to v1, and whether any beta data (users, orders, Lokasi) must be carried over. Waits until v1 nears launch; not needed before `/to-spec`.
+- **Content pages**: Tentang Kami (about makam.co.id and PT Jaya Korpora Prima, no YIEM), FAQ, Hubungi Kami, Daftar Lokasi Makam. No decision left; written directly in the spec.
 
 ## Out of scope
 
@@ -65,3 +60,4 @@ A v1 MVP spec for makam.co.id, ready for `/to-spec`: per-pillar scope, actors an
 - A second payment gateway with a payout API: added after v1 launch, per "Tech stack for a solo engineer with AI agents"; v1 is SumoPod with manual Pencairan.
 - PSE registration with Komdigi via OSS: mandatory before launch but legal compliance, same basis as above (facts in [research/12-tech-stack.md](research/12-tech-stack.md)).
 - PPN and tax treatment of invoices: legal/tax compliance, same basis as above.
+- TPU outside DKI (Bogor, Depok, Tangerang, Bekasi): each has its own Perda and mostly manual procedures; v1 serves TPU in DKI only ("YIEM's current assets and records"). A later expansion, not v1.
