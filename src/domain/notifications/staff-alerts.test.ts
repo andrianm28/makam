@@ -27,7 +27,7 @@ const saatDukaBaru = {
 };
 
 describe("Peringatan Staf", () => {
-  it("goes by WhatsApp and by push to every Perangkat Push of the Akun Staf", async () => {
+  it("goes by WhatsApp to the number on the Akun and by push to every Perangkat Push of the Akun Staf", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, whatsapp, webPush } = setup;
     const adminLokasi = await signedInStaff(setup, "admin_lokasi");
@@ -37,7 +37,7 @@ describe("Peringatan Staf", () => {
     await notifications.enablePush(adminLokasi, { subscription: laptop });
 
     const sent = await notifications.sendStaffAlert({
-      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      to: { accountId: adminLokasi.accountId },
       ...saatDukaBaru,
     });
 
@@ -60,7 +60,7 @@ describe("Peringatan Staf", () => {
     const petugas = await signedInStaff(setup, "petugas_lapangan");
 
     const sent = await notifications.sendStaffAlert({
-      to: { accountId: petugas.accountId, phoneNumber: petugas.phoneNumber },
+      to: { accountId: petugas.accountId },
       whatsapp: { template: "staf_tugas_lapangan_baru", parameters: ["Kunjungan Verifikasi", "Taman Makam Contoh", "2 Okt"] },
       push: { title: "Tugas Lapangan baru", body: "Kunjungan Verifikasi, 2 Okt", url: "/staf/petugas-lapangan" },
     });
@@ -84,7 +84,7 @@ describe("Peringatan Staf", () => {
     await withFailingWhatsApp.notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
 
     const sent = await withFailingWhatsApp.notifications.sendStaffAlert({
-      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      to: { accountId: adminLokasi.accountId },
       ...saatDukaBaru,
     });
 
@@ -103,7 +103,7 @@ describe("Peringatan Staf", () => {
 
     expect(
       await notifications.sendStaffAlert({
-        to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+        to: { accountId: adminLokasi.accountId },
         ...saatDukaBaru,
       }),
     ).toEqual({ ok: false, reason: "bukan_akun_staf" });
@@ -117,7 +117,7 @@ describe("Peringatan Staf", () => {
 
     await expect(
       setup.notifications.sendStaffAlert({
-        to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+        to: { accountId: adminLokasi.accountId },
         ...saatDukaBaru,
         push: { ...saatDukaBaru.push, url: "https://contoh.example/staf" },
       }),
@@ -142,7 +142,7 @@ describe("Perangkat Push", () => {
       { endpoint: ponsel.endpoint, enabledAt: expect.any(Date) },
     ]);
     await notifications.sendStaffAlert({
-      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      to: { accountId: adminLokasi.accountId },
       ...saatDukaBaru,
     });
     expect(webPush.sent.map((push) => push.subscription.endpoint)).toEqual([ponsel.endpoint]);
@@ -189,7 +189,7 @@ describe("Perangkat Push", () => {
     await notifications.enablePush(adminLokasi, { subscription: lama });
     await notifications.enablePush(adminLokasi, { subscription: baru });
     webPush.expireSubscription(lama.endpoint);
-    const to = { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber };
+    const to = { accountId: adminLokasi.accountId };
 
     expect(await notifications.sendStaffAlert({ to, ...saatDukaBaru })).toEqual({
       ok: true,

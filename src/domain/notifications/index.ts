@@ -55,8 +55,8 @@ export type EnablePushResult = { ok: true } | { ok: false; reason: "tidak_berwen
 export type DisablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
 
 export interface StaffAlert {
-  /** The Akun Staf, and the WhatsApp number of that Akun. */
-  to: { accountId: string; phoneNumber: string };
+  /** The Akun Staf; its WhatsApp number is read from the Akun, never taken from the caller. */
+  to: { accountId: string };
   /** The approved template (`whatsapp-templates.md`, `staf_*`) and its parameters. */
   whatsapp: { template: string; parameters: string[] };
   /** What the push shows; `url` is the staff page tapping it opens (under /staf). */
@@ -92,33 +92,16 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
   const { db } = deps;
 
   /** The Akun's Perangkat Push whose session is still live, oldest first. */
-  const devicesOf = async (tx: Database, accountId: string) => {
-    const liveSessionIds = (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
-    if (liveSessionIds.length === 0) return [];
+  const devicesOf = async (tx: Database, accountId: string, liveSessionIds?: string[]) => {
+    const live = liveSessionIds ?? (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
+    if (live.length === 0) return [];
     return tx
       .select()
       .from(notificationsPushDevice)
-      .where(
-        and(
-          eq(notificationsPushDevice.accountId, accountId),
-          inArray(notificationsPushDevice.sessionId, liveSessionIds),
-        ),
-      )
+      .where(and(eq(notificationsPushDevice.accountId, accountId), inArray(notificationsPushDevice.sessionId, live)))
       .orderBy(asc(notificationsPushDevice.enabledAt), asc(notificationsPushDevice.id));
   };
   const countDevices = async (tx: Database, accountId: string) => (await devicesOf(tx, accountId)).length;
-
-  const forgetEndedSessions = async (accountId: string) => {
-    const liveSessionIds = (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
-    await db
-      .delete(notificationsPushDevice)
-      .where(
-        and(
-          eq(notificationsPushDevice.accountId, accountId),
-          liveSessionIds.length > 0 ? notInArray(notificationsPushDevice.sessionId, liveSessionIds) : undefined,
-        ),
-      );
-  };
 
   return {
     async enablePush(by, input) {
@@ -206,7 +189,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       let whatsapp: "terkirim" | "gagal" = "terkirim";
       try {
         await deps.whatsapp.sendTemplate({
-          to: alert.to.phoneNumber,
+          to: recipient.phoneNumber,
           template: alert.whatsapp.template,
           language: "id",
           parameters: alert.whatsapp.parameters,
@@ -216,9 +199,18 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       }
 
       const push = { delivered: 0, removed: 0 };
-      // A Perangkat Push whose session ended (Keluar, Dinonaktifkan, a new role grant) is gone.
-      await forgetEndedSessions(alert.to.accountId);
-      for (const device of await devicesOf(db, alert.to.accountId)) {
+      // A Perangkat Push whose session ended (Keluar, a new role grant, expiry) is gone.
+      await db
+        .delete(notificationsPushDevice)
+        .where(
+          and(
+            eq(notificationsPushDevice.accountId, recipient.accountId),
+            recipient.liveSessionIds.length > 0
+              ? notInArray(notificationsPushDevice.sessionId, recipient.liveSessionIds)
+              : undefined,
+          ),
+        );
+      for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
         const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
         const result = await deps.webPush.send({ subscription, notification: alert.push }).catch(() => null);
         if (result?.delivered) push.delivered++;
