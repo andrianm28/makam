@@ -41,7 +41,7 @@ describe("Peringatan Staf", () => {
       ...saatDukaBaru,
     });
 
-    expect(sent).toEqual({ whatsapp: "terkirim", push: { delivered: 2, removed: 0 } });
+    expect(sent).toEqual({ ok: true, whatsapp: "terkirim", push: { delivered: 2, removed: 0 } });
     expect(whatsapp.sent.filter((message) => message.template === "staf_saat_duka_baru")).toEqual([
       expect.objectContaining({ to: "+6282222222222", language: "id", parameters: saatDukaBaru.whatsapp.parameters }),
     ]);
@@ -65,7 +65,7 @@ describe("Peringatan Staf", () => {
       push: { title: "Tugas Lapangan baru", body: "Kunjungan Verifikasi, 2 Okt", url: "/staf/petugas-lapangan" },
     });
 
-    expect(sent).toEqual({ whatsapp: "terkirim", push: { delivered: 0, removed: 0 } });
+    expect(sent).toEqual({ ok: true, whatsapp: "terkirim", push: { delivered: 0, removed: 0 } });
     expect(whatsapp.sent.map((message) => message.template)).toContain("staf_tugas_lapangan_baru");
     expect(webPush.sent).toEqual([]);
   });
@@ -88,8 +88,27 @@ describe("Peringatan Staf", () => {
       ...saatDukaBaru,
     });
 
-    expect(sent).toEqual({ whatsapp: "gagal", push: { delivered: 1, removed: 0 } });
+    expect(sent).toEqual({ ok: true, whatsapp: "gagal", push: { delivered: 1, removed: 0 } });
     expect(withFailingWhatsApp.webPush.sent).toHaveLength(1);
+  });
+
+  it("is not sent to an Akun that no longer holds a staff role (Dinonaktifkan): no WhatsApp, no push", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, whatsapp, webPush, identity } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
+    await notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+    await identity.deactivateStaff(admin, { accountId: adminLokasi.accountId, reason: "Keluar dari Operator" });
+    const sentBefore = whatsapp.sent.length;
+
+    expect(
+      await notifications.sendStaffAlert({
+        to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+        ...saatDukaBaru,
+      }),
+    ).toEqual({ ok: false, reason: "bukan_akun_staf" });
+    expect(whatsapp.sent.slice(sentBefore)).toEqual([]);
+    expect(webPush.sent).toEqual([]);
   });
 
   it("opens only a staff page when tapped: a push naming any other place is refused", async () => {
@@ -147,6 +166,20 @@ describe("Perangkat Push", () => {
     ]);
   });
 
+  it("is removed, every one of them, when the Akun Staf is Dinonaktifkan", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, identity } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
+    const { actor: diLaptop } = await loggedInOnAnotherBrowser(setup, adminLokasi.phoneNumber);
+    await notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+    await notifications.enablePush(diLaptop, { subscription: browserPushSubscription() });
+
+    await identity.deactivateStaff(admin, { accountId: adminLokasi.accountId, reason: "Keluar dari Operator" });
+
+    expect(await notifications.pushDevices(adminLokasi.accountId)).toEqual([]);
+  });
+
   it("is removed once its browser reports the subscription gone, and gets no further pushes", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, webPush } = setup;
@@ -159,6 +192,7 @@ describe("Perangkat Push", () => {
     const to = { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber };
 
     expect(await notifications.sendStaffAlert({ to, ...saatDukaBaru })).toEqual({
+      ok: true,
       whatsapp: "terkirim",
       push: { delivered: 1, removed: 1 },
     });
@@ -167,6 +201,7 @@ describe("Perangkat Push", () => {
     ]);
 
     expect(await notifications.sendStaffAlert({ to, ...saatDukaBaru })).toEqual({
+      ok: true,
       whatsapp: "terkirim",
       push: { delivered: 1, removed: 0 },
     });

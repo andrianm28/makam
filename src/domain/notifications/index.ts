@@ -63,11 +63,15 @@ export interface StaffAlert {
   push: PushNotification & { url: string };
 }
 
-export interface StaffAlertResult {
-  whatsapp: "terkirim" | "gagal";
-  /** Pushes the push services accepted, and Perangkat Push removed because their browser dropped them. */
-  push: { delivered: number; removed: number };
-}
+export type StaffAlertResult =
+  | {
+      ok: true;
+      whatsapp: "terkirim" | "gagal";
+      /** Pushes the push services accepted, and Perangkat Push removed because their browser dropped them. */
+      push: { delivered: number; removed: number };
+    }
+  /** The Akun holds no staff role (Dinonaktifkan, or never invited): nothing is sent. */
+  | { ok: false; reason: "bukan_akun_staf" };
 
 export interface Notifications {
   /** An Akun Staf turns push on for the browser it is using (one Perangkat Push per browser); audited. */
@@ -193,7 +197,13 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async sendStaffAlert(alert) {
       if (!alert.push.url.startsWith("/staf")) throw new Error("A Peringatan Staf push opens a staff page (/staf…)");
 
-      let whatsapp: StaffAlertResult["whatsapp"] = "terkirim";
+      const recipient = await deps.identity.staffRecipient(alert.to.accountId);
+      if (!recipient) {
+        await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
+        return { ok: false, reason: "bukan_akun_staf" };
+      }
+
+      let whatsapp: "terkirim" | "gagal" = "terkirim";
       try {
         await deps.whatsapp.sendTemplate({
           to: alert.to.phoneNumber,
@@ -217,7 +227,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           push.removed++;
         }
       }
-      return { whatsapp, push };
+      return { ok: true, whatsapp, push };
     },
   };
 }
