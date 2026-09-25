@@ -20,6 +20,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "akun.pindah_nomor": "Pindah Nomor",
   "akun.totp_daftar": "Authenticator didaftarkan",
   "akun.totp_reset": "Authenticator direset",
+  "pengaturan_operator.ubah": "Pengaturan Operator diubah",
   "lokasi.buat": "Lokasi Mitra dibuat",
   "lokasi.ubah_profil": "Profil diubah",
   "lokasi.ubah_dokumen": "Daftar dokumen diubah",
