@@ -2,11 +2,17 @@ import { z } from "zod";
 
 /**
  * Where the app is running. It decides which adapters the composition root
- * wires: `production` uses live adapters only; everything else uses in-memory
- * fakes for the outbound ports.
+ * wires: `development` and `test` use in-memory fakes for the outbound ports;
+ * `staging` and `production` use live adapters only (staging with sandbox
+ * credentials, e.g. SumoPod sandbox), never a fake.
  */
 export const appEnvironments = ["development", "test", "staging", "production"] as const;
 export type AppEnvironment = (typeof appEnvironments)[number];
+
+/** True only where the in-memory fakes may stand in for outside services. */
+export function usesInMemoryFakes(appEnv: AppEnvironment): boolean {
+  return appEnv === "development" || appEnv === "test";
+}
 
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
@@ -24,12 +30,18 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
-  /** Svix signing secret the fake PaymentProvider signs its webhooks with. */
+  /**
+   * Svix signing secret the fake PaymentProvider signs its webhooks with.
+   * Development and test only: dropped in staging and production.
+   */
   FAKE_PAYMENT_WEBHOOK_SECRET: z.preprocess(
     emptyToUndefined,
     z.string().startsWith("whsec_").optional(),
   ),
-});
+}).transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, ...env }) => ({
+  ...env,
+  FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
+}));
 
 /**
  * Browser error monitoring. Next.js inlines NEXT_PUBLIC_* at build time, so the

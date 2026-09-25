@@ -1,29 +1,64 @@
 import { describe, expect, it } from "vitest";
 import { SystemClock } from "@/adapters/live/system-clock";
-import { FakePaymentProvider, FakeWhatsAppSender } from "@/adapters/memory";
+import {
+  FakeEmailSender,
+  FakeFileStore,
+  FakePaymentProvider,
+  FakePdfRenderer,
+  FakeWebPush,
+  FakeWhatsAppSender,
+} from "@/adapters/memory";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
+import type { Adapters } from "@/ports";
 import { createAdapters } from "./adapters";
 
+const WEBHOOK_SECRET = "whsec_c2VjcmV0LWZvci10ZXN0cw==";
+
+function expectNoFakes(adapters: Adapters) {
+  expect(adapters.payments).not.toBeInstanceOf(FakePaymentProvider);
+  expect(adapters.whatsapp).not.toBeInstanceOf(FakeWhatsAppSender);
+  expect(adapters.email).not.toBeInstanceOf(FakeEmailSender);
+  expect(adapters.webPush).not.toBeInstanceOf(FakeWebPush);
+  expect(adapters.files).not.toBeInstanceOf(FakeFileStore);
+  expect(adapters.pdf).not.toBeInstanceOf(FakePdfRenderer);
+}
+
 describe("composition root", () => {
-  it("wires the in-memory fakes outside production", () => {
-    const adapters = createAdapters({ appEnv: "development" });
+  it.each(["development", "test"] as const)("wires the in-memory fakes in %s", (appEnv) => {
+    const adapters = createAdapters({ appEnv });
 
     expect(adapters.clock).toBeInstanceOf(SystemClock);
     expect(adapters.payments).toBeInstanceOf(FakePaymentProvider);
     expect(adapters.whatsapp).toBeInstanceOf(FakeWhatsAppSender);
   });
 
-  it("never wires a fake in production: a port without a live adapter refuses to run", async () => {
-    const adapters = createAdapters({ appEnv: "production" });
+  it.each(["staging", "production"] as const)(
+    "never wires a fake in %s: a port without a live adapter refuses to run",
+    async (appEnv) => {
+      const adapters = createAdapters({ appEnv });
 
-    expect(adapters.clock).toBeInstanceOf(SystemClock);
-    await expect(
-      adapters.whatsapp.sendTemplate({ to: "+6281234567890", template: "t", language: "id", parameters: [] }),
-    ).rejects.toBeInstanceOf(PortNotConfiguredError);
-    await expect(
-      adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
-    ).rejects.toBeInstanceOf(PortNotConfiguredError);
-  });
+      expect(adapters.clock).toBeInstanceOf(SystemClock);
+      expectNoFakes(adapters);
+      await expect(
+        adapters.whatsapp.sendTemplate({ to: "+6281234567890", template: "t", language: "id", parameters: [] }),
+      ).rejects.toBeInstanceOf(PortNotConfiguredError);
+      await expect(
+        adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
+      ).rejects.toBeInstanceOf(PortNotConfiguredError);
+    },
+  );
+
+  it.each(["staging", "production"] as const)(
+    "a fake payment webhook secret does not bring the fake PaymentProvider back in %s",
+    async (appEnv) => {
+      const adapters = createAdapters({ appEnv, fakePaymentWebhookSecret: WEBHOOK_SECRET });
+
+      expect(adapters.payments).not.toBeInstanceOf(FakePaymentProvider);
+      await expect(
+        adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
+      ).rejects.toBeInstanceOf(PortNotConfiguredError);
+    },
+  );
 
   it("lets a test inject its own Clock and fakes", () => {
     const whatsapp = new FakeWhatsAppSender();

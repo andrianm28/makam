@@ -12,6 +12,18 @@ describe("runtime environment", () => {
   it("leaves the migrations folder unset when empty", () => {
     expect(readRuntimeEnv({ DATABASE_URL, MIGRATIONS_DIR: "" }).MIGRATIONS_DIR).toBeUndefined();
   });
+
+  const FAKE_PAYMENT_WEBHOOK_SECRET = "whsec_c2VjcmV0LWZvci10ZXN0cw==";
+
+  it.each(["development", "test"])("keeps the fake payment webhook secret in %s", (APP_ENV) => {
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, FAKE_PAYMENT_WEBHOOK_SECRET });
+    expect(env.FAKE_PAYMENT_WEBHOOK_SECRET).toBe(FAKE_PAYMENT_WEBHOOK_SECRET);
+  });
+
+  it.each(["staging", "production"])("ignores the fake payment webhook secret in %s", (APP_ENV) => {
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, FAKE_PAYMENT_WEBHOOK_SECRET });
+    expect(env.FAKE_PAYMENT_WEBHOOK_SECRET).toBeUndefined();
+  });
 });
 
 describe("error monitoring environment", () => {
