@@ -20,7 +20,7 @@ export const OTP_LENGTH = 6;
 export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
 /** The 5th wrong code burns the code; a new one must be sent. */
 export const OTP_MAX_WRONG_ATTEMPTS = 5;
-/** "Kirim ulang" opens 60 s after the last code to the same target (and, for email, from the same IP). */
+/** "Kirim ulang" opens 60 s after the last code of the same kind to the same target (and, for email, any request from the same IP). */
 export const OTP_RESEND_AFTER_MS = 60_000;
 /** The fallback slot ("Kirim lewat email" or the CS WhatsApp pointer) shows 60 s after the WhatsApp code was sent. */
 export const OTP_FALLBACK_AFTER_MS = 60_000;
@@ -153,7 +153,7 @@ export async function issueCode(
     const locked = await lockedUntil(tx, request.lockKey, now);
     if (locked) return { ok: false, reason: "terkunci", retryAt: locked } as const;
     const recent = await tx
-      .select({ sentAt: identityOtpRequest.sentAt })
+      .select({ sentAt: identityOtpRequest.sentAt, purpose: identityOtpRequest.purpose })
       .from(identityOtpRequest)
       .where(
         and(
@@ -163,9 +163,11 @@ export async function issueCode(
         ),
       )
       .orderBy(desc(identityOtpRequest.sentAt));
+    // "Kirim ulang" waits for the last code of the same kind; the hourly limit counts every code to the target.
     const refusal = sendLimitRefusal(
       recent.map((row) => row.sentAt),
       now,
+      recent.filter((row) => row.purpose === request.purpose).map((row) => row.sentAt),
     );
     if (refusal) return refusal;
     const [created] = await tx
@@ -217,9 +219,12 @@ export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: 
   });
 }
 
-/** The 60 s and 5-per-hour rules over earlier sends (newest first) within the window. */
-function sendLimitRefusal(sentNewestFirst: Date[], now: Date): LimitRefusal | null {
-  const [last] = sentNewestFirst;
+/**
+ * The 60 s and 5-per-hour rules over earlier sends (newest first) within the
+ * window; the 60 s wait looks only at `resendNewestFirst` (default: all of them).
+ */
+function sendLimitRefusal(sentNewestFirst: Date[], now: Date, resendNewestFirst = sentNewestFirst): LimitRefusal | null {
+  const [last] = resendNewestFirst;
   if (last) {
     const retryAt = new Date(last.getTime() + OTP_RESEND_AFTER_MS);
     if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };

@@ -591,6 +591,23 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     expect(email.sent).toHaveLength(sends + 1);
   });
 
+  it("per email: a Verifikasi Email code does not hold back a Kode Masuk; the 60 s wait is per kind of code", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
+    const actor = await actorOf(identity, cookies);
+    await identity.requestEmailVerification(actor, { email: "sari@contoh.id", ip: IP });
+    await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "sari@contoh.id") });
+
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.70" });
+
+    expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
+    expect(await identity.requestEmailVerification(actor, { email: "sari@contoh.id", ip: IP })).toMatchObject({
+      ok: false,
+      reason: "tunggu_kirim_ulang",
+    });
+  });
+
   it("per email: at most 5 codes in any 60 minutes", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, email, clock } = setup;
