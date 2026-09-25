@@ -55,3 +55,8 @@ It is built and tested against the in-memory `EmailSender` fake. Real sending in
 ## Notes (main session, 2026-09-25)
 
 - Update code comments that still name SES or ticket 60 for the email fallback: `src/ports/email-sender.ts`, `src/composition/adapters.ts` (`notConfigured("EmailSender (SES)")` → SumoPod SMTP, ticket 68), `src/domain/identity/schema.ts`, `invites.ts`, `otp.ts`.
+
+## Decisions (2026-09-25, user)
+
+- **Q9:** an email typed on an order form never overwrites the Email Terverifikasi; it is used only for that order's document copies. Changing the login email is done in the Akun Saya profile by re-verification: a code goes to the new address, and the old one is replaced only once that code is entered.
+- **Q10:** wrong codes count **per Akun across channels**: 10 wrong Kode Masuk in 60 minutes by WhatsApp or email lock the **Akun** for 60 minutes; per-email and per-IP send limits apply on top. (Amends the per-number lockout of ticket 08.)
