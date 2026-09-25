@@ -1,4 +1,5 @@
 import type { Breadcrumb, ErrorEvent, EventHint, Options } from "@sentry/core";
+import type { SentryEnv } from "@/lib/env";
 
 /**
  * PII scrubbing for error monitoring (spec: Architecture; Data and privacy
@@ -132,4 +133,13 @@ export function sentryOptions(settings: SentrySettings) {
     beforeSend: (event: ErrorEvent, hint: EventHint) => scrubEvent(event, hint),
     beforeBreadcrumb: (breadcrumb: Breadcrumb) => scrubBreadcrumb(breadcrumb),
   } satisfies Options;
+}
+
+/** The web server's and the worker's options, from the validated env. */
+export function serverSentryOptions(env: SentryEnv) {
+  return sentryOptions({
+    dsn: env.SENTRY_DSN,
+    environment: env.SENTRY_ENVIRONMENT ?? env.APP_ENV,
+    release: env.SENTRY_RELEASE,
+  });
 }

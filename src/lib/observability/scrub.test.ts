@@ -1,6 +1,6 @@
 import type { Breadcrumb, ErrorEvent } from "@sentry/core";
 import { describe, expect, it } from "vitest";
-import { scrubBreadcrumb, scrubEvent, scrubText, sentryOptions } from "./scrub";
+import { scrubBreadcrumb, scrubEvent, scrubText, sentryOptions, serverSentryOptions } from "./scrub";
 
 describe("phone number scrubbing", () => {
   it.each([
@@ -93,5 +93,24 @@ describe("Sentry options", () => {
     expect(options.beforeSend).toBeTypeOf("function");
     expect(options.beforeBreadcrumb).toBeTypeOf("function");
     expect(options.maxValueLength).toBeLessThanOrEqual(1000);
+  });
+
+  it("builds the web server's and the worker's options from the validated env", () => {
+    const options = serverSentryOptions({
+      APP_ENV: "staging",
+      SENTRY_DSN: "https://k@glitchtip.makam.co.id/1",
+      SENTRY_RELEASE: "abc123",
+    });
+    expect(options).toMatchObject({
+      dsn: "https://k@glitchtip.makam.co.id/1",
+      enabled: true,
+      environment: "staging",
+      release: "abc123",
+    });
+    expect(options.beforeSend).toBeTypeOf("function");
+  });
+
+  it("prefers SENTRY_ENVIRONMENT over APP_ENV", () => {
+    expect(serverSentryOptions({ APP_ENV: "production", SENTRY_ENVIRONMENT: "local" }).environment).toBe("local");
   });
 });
