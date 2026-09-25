@@ -26,12 +26,11 @@ async function outcomeOf(action: () => Promise<unknown>) {
 }
 
 describe("Keluar (Server Action)", () => {
-  it("is refused by the guard when there is no session, and does not redirect as if it worked", async () => {
+  it("with no session is refused by the guard and sends the visitor to Masuk marked as an ended session, not as a Keluar", async () => {
     const outcome = await outcomeOf(keluar);
 
-    expect(outcome).toHaveProperty("thrown");
-    expect(isRedirectError(outcome.thrown)).toBe(false);
-    expect(outcome.thrown).toMatchObject({ error: "belum_masuk" });
+    expect(isRedirectError(outcome.thrown)).toBe(true);
+    expect(String((outcome.thrown as { digest: string }).digest)).toContain("/masuk?sesi=berakhir");
   });
 
   it("ends the Pemesan's session and goes back to Masuk", async () => {
@@ -42,7 +41,9 @@ describe("Keluar (Server Action)", () => {
     const outcome = await outcomeOf(keluar);
 
     expect(isRedirectError(outcome.thrown)).toBe(true);
-    expect(String((outcome.thrown as { digest: string }).digest)).toContain("/masuk");
+    const digest = String((outcome.thrown as { digest: string }).digest);
+    expect(digest).toContain("/masuk");
+    expect(digest).not.toContain("sesi=berakhir");
     expect(browser.has("makam.session_token")).toBe(false);
     expect(await server.runtime().identity.actorFromCookies(sessionCookies)).toBeNull();
   });
