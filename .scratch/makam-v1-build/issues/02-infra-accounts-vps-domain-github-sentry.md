@@ -31,6 +31,6 @@ The nginx server block for `makam.co.id` is not changed here; ticket 07 switches
 
 ## Remaining from ticket 07 (2026-09-25)
 
-- [ ] DNS A record `errors.makam.co.id` → 103.92.214.243. Then tell the main session, which enables the prepared nginx site, runs Certbot, and switches staging's DSN to the public URL (runbook "GlitchTip" section).
+- [x] DNS A record `errors.makam.co.id` → 103.92.214.243 (added by the user 2026-09-25). Site enabled, Certbot certificate issued, HTTP→HTTPS redirect, `https://errors.makam.co.id/_health/` → `ok`; GitHub variable `NEXT_PUBLIC_SENTRY_DSN` set to the public staging DSN so the next image reports browser errors.
 - [ ] External uptime monitor (e.g. UptimeRobot free) on `https://dev.makam.co.id/api/health`, alerting on non-200 (runbook "Uptime alarm").
 - [ ] Change the GlitchTip superuser password after first login (`/opt/makam-v1/glitchtip/admin-credentials.txt`).

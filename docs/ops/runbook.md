@@ -10,7 +10,7 @@ are not `makam-staging`, `makam-prod` or `glitchtip`**, and never run
 | What | Compose project | Listens on | Public URL |
 |---|---|---|---|
 | v1 staging (`web`, `worker`, `postgres`) | `makam-staging` | `127.0.0.1:3110` (web) | https://dev.makam.co.id (basic auth) |
-| GlitchTip (`web`, `worker`, `postgres`, `valkey`) | `glitchtip` | `127.0.0.1:8130` (web) | https://errors.makam.co.id (**waits for DNS**) |
+| GlitchTip (`web`, `worker`, `postgres`, `valkey`) | `glitchtip` | `127.0.0.1:8130` (web) | https://errors.makam.co.id (live since 2026-09-25) |
 | v1 production (ticket 65) | `makam-prod` | `127.0.0.1:3100` | https://makam.co.id |
 
 Ports in use by other projects on this host: 3001, 8081, 8082, 8083 (old
@@ -208,8 +208,7 @@ answered (200, same size and headers as before), then re-applied.
 
 ## errors.makam.co.id (GlitchTip behind nginx and TLS)
 
-**Waiting on DNS:** add an A record `errors.makam.co.id → 103.92.214.243`
-(ticket 02). Until then GlitchTip is reachable only on the host
+**Live since 2026-09-25** (DNS added, site enabled, Certbot). Before DNS existed GlitchTip was reachable only on the host
 (`http://127.0.0.1:8130`, e.g. `ssh -L 8130:127.0.0.1:8130 ubuntu@103.92.214.243`
 and open http://localhost:8130). Server-side events do not need DNS: `web` and
 `worker` send them straight to `http://glitchtip-web:8000` over the Docker
@@ -388,3 +387,5 @@ file alone never changes an existing database's password.
 `makam-deploy --env prod --tag sha-<commit>`. Production should deploy an
 explicit tag rather than follow `:latest` on a timer. Then do the gated nginx
 switch.
+
+Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
