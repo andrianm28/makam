@@ -6,6 +6,9 @@
 /** The one reply to the email step of Masuk dengan email, whatever the email (spec, story 189). */
 export const EMAIL_LOGIN_REPLY = "Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim.";
 
+/** "gagal kirim" for a code by email ("Kirim lewat email" and Verifikasi Email; never the email step of Masuk). */
+export const EMAIL_GAGAL_KIRIM = "Kode belum bisa dikirim lewat email. Silakan coba lagi.";
+
 export type EmailRequestState =
   | { status: "idle" }
   | {

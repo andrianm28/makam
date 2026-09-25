@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { EMAIL_GAGAL_KIRIM } from "@/components/email/state";
 import { clientIp } from "@/server/client-ip";
 import { phoneNumberInput } from "@/server/phone-number-input";
 import { serverRuntime } from "@/server/runtime";
@@ -23,7 +24,7 @@ export async function kirimKodeLewatEmail(_previous: EmailFallbackState, formDat
   const result = await identity.requestEmailFallback({ phoneNumber: parsed.data.phoneNumber, ip: await clientIp() });
   if (result.ok) return { status: "terkirim", sentAt: result.sentAt.toISOString() };
   if (result.reason === "gagal_kirim") {
-    return { status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." };
+    return { status: "gagal", message: EMAIL_GAGAL_KIRIM };
   }
   return {
     status: "gagal",

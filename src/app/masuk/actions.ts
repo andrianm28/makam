@@ -11,6 +11,7 @@ import {
 } from "@/components/otp/state";
 import type { Role } from "@/domain/identity";
 import { clientIp } from "@/server/client-ip";
+import { codeInput, emailInput } from "@/server/code-inputs";
 import { phoneNumberInput } from "@/server/phone-number-input";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
@@ -22,8 +23,6 @@ import { setSessionCookies } from "@/server/session";
  * Kode Masuk rule.
  */
 
-const codeInput = z.string().trim().regex(/^\d{6}$/);
-const emailInput = z.string().trim().min(3).max(254);
 
 const requestSchema = z.object({ phoneNumber: phoneNumberInput });
 const verifySchema = z.object({

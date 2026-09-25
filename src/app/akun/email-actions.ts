@@ -2,10 +2,11 @@
 
 import { refresh } from "next/cache";
 import { z } from "zod";
-import { type EmailProfileState, type EmailRequestState } from "@/components/email/state";
+import { EMAIL_GAGAL_KIRIM, type EmailProfileState, type EmailRequestState } from "@/components/email/state";
 import { otpMessage, type OtpRefusal } from "@/components/otp/state";
 import { akunResource } from "@/domain/identity";
 import { clientIp } from "@/server/client-ip";
+import { codeInput, emailInput } from "@/server/code-inputs";
 import { guarded, type GuardError } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 
@@ -16,8 +17,6 @@ import { serverRuntime } from "@/server/runtime";
  * module audits the ones an Akun Staf makes.
  */
 
-const emailInput = z.string().trim().min(3).max(254);
-const codeInput = z.string().trim().regex(/^\d{6}$/);
 
 /** Removes the email (a Pemesan only). */
 export async function hapusEmail(): Promise<EmailProfileState> {
@@ -50,7 +49,7 @@ export async function kirimKodeVerifikasi(_previous: EmailRequestState, formData
   if (!sent.ok) {
     const message =
       sent.reason === "gagal_kirim"
-        ? "Kode belum bisa dikirim lewat email. Silakan coba lagi."
+        ? EMAIL_GAGAL_KIRIM
         : otpMessage(sent.reason, "retryAt" in sent ? sent.retryAt : undefined, now);
     return { status: "gagal", message };
   }
