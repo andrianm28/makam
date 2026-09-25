@@ -11,4 +11,10 @@ CREATE TABLE "operator_settings_version" (
 	"changed_by_account_id" text NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "operator_settings_version_in_force_idx" ON "operator_settings_version" USING btree ("in_force_from","seq");
+CREATE INDEX "operator_settings_version_in_force_idx" ON "operator_settings_version" USING btree ("in_force_from","seq");--> statement-breakpoint
+CREATE FUNCTION "operator_settings_version_append_only"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	RAISE EXCEPTION 'operator_settings_version is append-only: % is not allowed', TG_OP USING ERRCODE = 'insufficient_privilege';
+END;
+$$;--> statement-breakpoint
+CREATE TRIGGER "operator_settings_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "operator_settings_version" FOR EACH ROW EXECUTE FUNCTION "operator_settings_version_append_only"();

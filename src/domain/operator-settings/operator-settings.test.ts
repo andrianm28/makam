@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
@@ -77,6 +78,16 @@ describe("Pengaturan Operator", () => {
       inForceFrom: wib("2026-11-15 08:30"),
     });
     expect(await setup.operatorSettings.current()).toMatchObject({ address: "Jl. Kantor Baru No. 9, Jakarta Pusat 10110" });
+  });
+
+  it("past values cannot be rewritten: the database refuses to change or delete a kept change", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.operatorSettings.change(actor, { ...pengaturan, reason: null });
+
+    await expect(db.execute(sql`update operator_settings_version set address = 'diubah'`)).rejects.toThrow();
+    await expect(db.execute(sql`delete from operator_settings_version`)).rejects.toThrow();
+    expect(await setup.operatorSettings.current()).toMatchObject({ address: pengaturan.address });
   });
 
   it("of two changes at the same Clock instant, the later one is in force", async () => {
