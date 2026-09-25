@@ -72,3 +72,5 @@ Decided with the user on 2026-09-25 (grilling). Facts: [research/19-whatsapp-pro
 **Amended by "Admin Lokasi back office and Petugas Lapangan work"** (2026-09-25): on a Lokasi Mitra order, the phone call after a final failed send is split by subject: money messages (Tagihan, reminders, Bukti Pembayaran, refunds) → Admin Platform; the Lokasi's own work (confirmation, Bukti Pemesanan, Perpanjangan, Hak Pakai expiry, Lokasi Layanan) → Admin Lokasi. An unconfirmed Saat Duka order re-alerts the Lokasi's Admin Lokasi and Kontak Siaga at 1 h.
 
 **Consistency review 2** (2026-09-25): DKI TPU IPTM reminders go **3 months and 1 month** before expiry ("TPU order loose ends"), replacing 60 and 30 days. A Terencana Tagihan gets one reminder ~4 h before its hold expires; other pay-first Tagihan get H-1 and due-day reminders ("Tagihan deadlines and refunds after Pencairan").
+
+**Spec review** (2026-09-25, decided with the user): a new Pengajuan Wakaf sends no staff alert; it appears as a Tier 3 Antrean row ("Admin Platform back-office queue and on-call").

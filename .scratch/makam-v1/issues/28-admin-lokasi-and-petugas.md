@@ -56,3 +56,5 @@ Resolved 2026-09-25 (grilling). `CONTEXT.md`: added **Antrean Lokasi**, **Jam Op
 - **Admin Platform** sees everything. **Admin Lokasi** see every entry about their own Lokasi, including Admin Platform's actions on it (tariff versions, bank account, publish status, Ditangguhkan, renumbering). Catatan Internal and the Operator's Antrean claims stay hidden from them. Mitra Jasa and Petugas Lapangan see no log.
 
 **Final review** (2026-09-25): Pembatalan, Pengembalian Hak Pakai and Ganti Pemegang Hak **requests** from a Pemegang Hak are **Antrean Lokasi rows** due within **2 working days** ("Lokasi Mitra order lifecycle", "Homepage, search and Akun Saya"); the Petak / Hak Pakai page actions remain for changes the Admin Lokasi starts itself (e.g. a pembongkaran, a phoned-in request). A Pembatalan refund row reaches Admin Platform only after the Admin Lokasi confirms no Pemakaman.
+
+**Spec review** (2026-09-25, decided with the user): the **Ambil surat pengantar** Tugas Lapangan is also created automatically for a Pengurusan IPTM, but only once its Tagihan is Lunas (filing-only Pengurusan is pay-first).

@@ -65,3 +65,5 @@ Resolved 2026-09-25 (grilling). `CONTEXT.md`: new section Operations with **Antr
 **Amended by "Admin Lokasi back office and Petugas Lapangan work"** (2026-09-25): new Antrean rows for Tugas Lapangan: unassigned or overdue Ambil surat pengantar in Tier 2, other Tugas Lapangan in Tier 4. Failed-send calls on Lokasi Mitra orders reach this Antrean only for money messages.
 
 **Consistency review 2** (2026-09-25): new Tier 3 rows from "TPU order loose ends": TPU Perpanjangan / Pengurusan IPTM document check (1 working day from Diajukan) and filing (3 working days from Lunas), plus the lapsed-IPTM check with the TPU before billing. New approval row: a Pembatalan refund forwarded from the Antrean Lokasi ("Lokasi Mitra order lifecycle").
+
+**Spec review** (2026-09-25, decided with the user): a new Pengajuan Wakaf is a Tier 3 row and sends **no alert** (supersedes the alert in "Notification channels and WhatsApp provider"). The Pembatalan refund approval row is **Tier 3**, due within 2 working days like other refunds.
