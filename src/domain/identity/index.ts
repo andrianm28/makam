@@ -11,7 +11,7 @@ import type { Actor } from "./authorize";
 import { createBetterAuth, OtpRejected } from "./better-auth";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
-import { actorFromCookies } from "./sessions";
+import { actorFromCookies, endSession } from "./sessions";
 
 export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 export {
@@ -52,6 +52,8 @@ export interface Identity {
   accountByPhoneNumber(phoneNumber: string): Promise<Account | null>;
   /** The signed-in actor for a request's Cookie header, or null when not signed in. */
   actorFromCookies(cookieHeader: string | null | undefined): Promise<Actor | null>;
+  /** Keluar: ends the session behind the Cookie header and names the cookies to clear. */
+  endSession(cookieHeader: string | null | undefined): Promise<{ clearCookies: string[] }>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -71,5 +73,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     verifyOtp: (input) => verifyOtp({ auth, db: deps.db }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
     actorFromCookies: (cookieHeader) => actorFromCookies({ auth, clock: deps.clock, secret: deps.secret }, cookieHeader),
+    endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
   };
 }

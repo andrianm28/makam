@@ -293,6 +293,16 @@ describe("Pemesan session", () => {
     );
   });
 
+  it("after Keluar the session no longer signs the Pemesan in", async () => {
+    const { whatsapp, identity } = setup();
+    const login = await logIn(identity, whatsapp, "081234567890");
+    const cookies = cookieHeader(login.session.cookies);
+
+    await identity.endSession(cookies);
+
+    expect(await identity.actorFromCookies(cookies)).toBeNull();
+  });
+
   it("a forged or missing session cookie signs no one in", async () => {
     const { whatsapp, identity } = setup();
     const login = await logIn(identity, whatsapp, "081234567890");

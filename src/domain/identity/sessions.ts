@@ -83,3 +83,17 @@ function safeDecode(value: string): string {
     return value;
   }
 }
+
+/**
+ * Keluar: ends the session behind the Cookie header (if any) and names the
+ * cookies the web layer must clear.
+ */
+export async function endSession(
+  deps: { auth: MakamAuth; secret: string },
+  cookieHeader: string | null | undefined,
+): Promise<{ clearCookies: string[] }> {
+  const context = await deps.auth.$context;
+  const token = await verifiedSessionToken(deps.secret, cookieHeader);
+  if (token) await context.internalAdapter.deleteSession(token);
+  return { clearCookies: [context.authCookies.sessionToken.name] };
+}
