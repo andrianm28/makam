@@ -70,11 +70,35 @@ to run unless the first three match `--env`:
 | `MAKAM_WEB_PORT` | `3110` | web's port on 127.0.0.1 |
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
 | `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and OTP |
+| `TOTP_ENCRYPTION_KEY` | secret, `openssl rand -base64 32` (exactly 32 bytes) | encrypts Admin Platform TOTP secrets at rest; **required from ticket 09 on**: without it `migrate`, `web` and `worker` refuse to start |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
 script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
 shows the running `APP_ENV` (`staging`) without any secret.
+
+## First Admin Platform (`seed:admin`)
+
+The only seed (spec, Pengaturan Operator): it creates the first Admin Platform
+from a WhatsApp number (+62) and an email, and nothing else. It is refused once
+any Admin Platform exists; every later staff member, Admin Platform included,
+comes by Undangan Staf from the staff area (`/staf/admin-platform/staf`).
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id
+# [seed:admin] Admin Platform pertama dibuat: +62812xxxxxxxx (admin@example.co.id). ...
+# exit 1 "Ditolak: sudah ada Admin Platform ..." when one exists; exit 2 prints the usage.
+```
+
+Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
+`DATABASE_URL`), or `docker compose -p makam-v1-dev exec web node dist/seed-admin.mjs ...`.
+
+The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
+(staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
+and enrols an authenticator app for TOTP at once. There is no self-service
+recovery of a lost authenticator; see "Rotating secrets" for resetting TOTP.
 
 ## Staging deploy
 
@@ -339,6 +363,7 @@ Never paste values into the repo, a ticket or chat.
 |---|---|
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
+| `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then clear the enrolments so each Admin Platform enrols again at its next login: `docker exec -it makam-staging-postgres-1 psql -U makam -d makam -c 'delete from identity_totp;'`. The same `delete ... where account_id = '<akun id>'` resets one Admin Platform who lost their authenticator (record who asked and why). |
 | Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |
@@ -382,9 +407,10 @@ file alone never changes an existing database's password.
 `/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_PROJECT=makam-prod`,
 `MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
 `MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
-`POSTGRES_PASSWORD` and `AUTH_SECRET`, and `SENTRY_DSN` from
+`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, and `SENTRY_DSN` from
 `dsn-makam-prod-internal.txt`. Copy the compose file to
 `/opt/makam-v1/prod/compose.yml` and deploy with
 `makam-deploy --env prod --tag sha-<commit>`. Production should deploy an
-explicit tag rather than follow `:latest` on a timer. Then do the gated nginx
-switch.
+explicit tag rather than follow `:latest` on a timer. Seed the first Admin
+Platform with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then
+do the gated nginx switch.

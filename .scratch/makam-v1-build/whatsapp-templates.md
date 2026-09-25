@@ -4,7 +4,7 @@ Status: draft, ready to submit to Meta through kirim.dev
 Owner tickets: 05 (submission), 20 (event table), 62 (name and parameter mapping)
 Sources: `../makam-v1/spec.md` (Domain modules 1, 6–12, 15; stories), `../../CONTEXT.md`, `../makam-v1/issues/19-notification-channels.md` and the build tickets listed per template.
 
-WhatsApp Business Account: PT Jaya Korpora Prima. Display name: **Makam.co.id**. All templates use language `id`. There are 42 templates: 1 authentication and 41 utility. None are marketing. WhatsApp is the only channel for the OTP.
+WhatsApp Business Account: PT Jaya Korpora Prima. Display name: **Makam.co.id**. All templates use language `id`. There are 43 templates: 1 authentication and 42 utility (#43 `staf_undangan` added by ticket 09). None are marketing. WhatsApp is the only channel for the OTP.
 
 ## Summary table
 
@@ -54,6 +54,7 @@ WhatsApp Business Account: PT Jaya Korpora Prima. Display name: **Makam.co.id**.
 | 40 | `staf_hak_pakai_berakhir` | UTILITY | id | Hak Pakai end reminders to the Admin Lokasi, same schedule as #20/#21 (§15 schedule row 5; ticket 42) | Admin Lokasi of the Lokasi | unit, lokasi, tanggal_berakhir; URL staf | Rem. |
 | 41 | `staf_calon_penghuni_diubah` | UTILITY | id | Pemegang Hak changes a Calon Penghuni label: "the Lokasi is notified, with no review" (§5 Inventory; story 105; ticket 39) | Admin Lokasi of the Lokasi | unit, lokasi; URL staf | Any |
 | 42 | `pencairan_terkirim` | UTILITY | id | Pencairan transferred, Bukti Pencairan issued; "the recipient gets its link by message" (§11 Pencairan run; issue 19; ticket 32) | Lokasi Mitra (its Admin Lokasi) or Mitra Jasa | penerima, jumlah, tanggal_transfer, nomor_bukti; URL dokumen | Any |
+| 43 | `staf_undangan` | UTILITY | id | Undangan Staf sent by Admin Platform (§1 Identity & Access; story 170; ticket 09) | The invited WhatsApp number | peran, tautan_masuk | Any |
 
 ## Conventions for every template
 
@@ -1154,6 +1155,29 @@ Bukti Pencairan {{4}} berisi rincian setiap pesanan atau pekerjaan yang tercakup
 The body says nothing about Potongan, because a Mitra Jasa never has any. The Lokasi Mitra version of the document lists them.
 
 ---
+
+### 43. `staf_undangan`
+
+UTILITY · `id` · the invited number · ticket 09 (added 2026-09-25; sent today by the identity module through WhatsAppSender, to move behind Notifications in ticket 20)
+
+**Header:** `Undangan Staf`
+
+**Body:**
+```
+Anda diundang sebagai {{1}} di Makam.co.id.
+
+Masuk dalam 7 hari dengan nomor WhatsApp ini lewat {{2}}. Peran Anda aktif setelah Anda memasukkan kode verifikasi.
+
+Bila Anda tidak mengenal undangan ini, abaikan pesan ini.
+```
+
+| Var | Meaning | Sample |
+|---|---|---|
+| {{1}} | role: Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa | `Admin Lokasi` |
+| {{2}} | the Masuk page of the environment that sent it (staging and production differ, so it is a body variable, not a static button) | `https://makam.co.id/masuk` |
+
+**Footer:** `Makam.co.id · Pesan otomatis`
+**Buttons:** none
 
 ## Meta approval risks
 
