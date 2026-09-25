@@ -6,12 +6,16 @@ import type { SentryEnv } from "@/lib/env";
  * decisions). Errors go through the Sentry SDK to self-hosted GlitchTip in
  * Jakarta, so events stay on this host; the only data flow out of Indonesia is
  * WhatsApp (Meta, via kirim.dev). Error events still get nothing personal: no
- * request bodies, no phone numbers, no files, no cookies.
+ * request bodies, no phone numbers, no email addresses, no files, no cookies.
  *
  * Shared by the web server, the browser and the worker.
  */
 
 export const PHONE_PLACEHOLDER = "[telepon]";
+export const EMAIL_PLACEHOLDER = "[email]";
+
+/** An email address: local part, @, a domain with at least one dot. */
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
 
 /** One optional space, dot or dash between digit groups. */
 const SEP = String.raw`[\s.-]?`;
@@ -38,8 +42,9 @@ const LANDLINE = String.raw`(?:(?:\+62|${BARE_62})${SEP}\(?|\(?0)[2-79]\d{1,2}\)
  */
 const INDONESIAN_PHONE = new RegExp(`${START}(?:${MOBILE}|${LANDLINE})${END}`, "g");
 
+/** Removes phone numbers and email addresses. Emails first, so their digits are never read as a number. */
 export function scrubText(text: string): string {
-  return text.replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER);
+  return text.replace(EMAIL, EMAIL_PLACEHOLDER).replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER);
 }
 
 const MAX_DEPTH = 8;
