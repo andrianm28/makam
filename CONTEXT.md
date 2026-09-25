@@ -80,6 +80,10 @@ _Avoid_: Kode kavling
 The person who places an order on the platform (usually a family member).
 _Avoid_: Customer, pembeli, user
 
+**Akun**:
+The identity on makam.co.id keyed by one WhatsApp number (+62), which can hold several roles: Pemesan by default, plus staff roles by invitation.
+_Avoid_: User, pengguna (as a domain term)
+
 **Almarhum**:
 The deceased person who is (or will be) buried in a Petak Makam.
 _Avoid_: Jenazah (as the record), mendiang

@@ -325,6 +325,8 @@ Core entities at a glance (details in each module):
 1. **Identity & Access**
    - The account is keyed by one WhatsApp number (ADR 0003).
    - OTP request and verify, with WhatsApp first. The OTP at Kirim creates or logs into the account.
+   - Only Indonesian (+62) WhatsApp numbers in v1 (decision 2026-09-25): a number from any other country is refused with "Gunakan nomor WhatsApp Indonesia (+62)." and gets no Akun.
+   - The login OTP is sent by this module directly through the WhatsAppSender port, not through Notifications (decision 2026-09-25): it must arrive at once, background retries would only confuse, and the code is sensitive. So an OTP creates no message-log entry and is never retried automatically; when WhatsApp refuses it the Pemesan sees "gagal kirim" and may try again at once (the failed send does not count against the OTP limits).
    - OTP fallback after about 60 s: "Kirim lewat email" sends the same kind of OTP through EmailSender (SES) to the email on the number's existing account. An email typed on the same screen for a number with no account yet does not count, since it would prove the email, not the number. With no email on record there is no fallback: the screen points to the CS WhatsApp number (Pengaturan Operator). There is no SMS. Admin Platform TOTP is unchanged.
    - Roles: Pemesan (implicit), Admin Lokasi (many-to-many with Lokasi Mitra, all equal), Admin Platform (TOTP required), Petugas Lapangan, Mitra Jasa. One account can hold many roles.
    - Staff are invite-only, and every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff account has the email OTP fallback. The first Admin Platform is seeded from the CLI with its phone number and email; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
@@ -518,10 +520,11 @@ Core entities at a glance (details in each module):
     - The Antrean Lokasi has rows only: no Ambil claims, tiers or Bertugas, and Catatan Internal stay hidden from Admin Lokasi. The Admin Platform Antrean has Catatan Internal threads, a counter strip and the Laporan.
 15. **Notifications**
     - One module decides recipient, channel, template and timing for every domain event. It sends through the pg-boss worker.
+    - Exception: the WhatsApp login OTP does not go through this module. Identity & Access sends it directly through WhatsAppSender (decision 2026-09-25), so it creates no message-log entry, is never retried automatically and raises no Antrean row; the Pemesan sees "gagal kirim" and can retry.
     - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access). Email also carries the login OTP fallback (Identity & Access). There is no SMS channel.
     - Reminders to families go out 08:00–20:00 WIB. Transactional messages and new-order alerts go out at any hour.
     - Retries: 3 with backoff. After that, document messages go to email if possible, then a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the Antrean.
-    - Every message is logged with its status on its order.
+    - Every message is logged with its status on its order (the login OTP excepted, see above).
     - The OTP uses Meta's authentication template and arrives only on the phone (not WhatsApp Web or Desktop).
     - A new Saat Duka order alerts every Admin Lokasi of the Lokasi and the Kontak Siaga by WhatsApp + web push at any hour, and again if still unconfirmed after 1 h of Jam Operasional.
     - Reminder schedule:
