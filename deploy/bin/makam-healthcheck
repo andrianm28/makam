@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# makam-healthcheck: local watchdog, run every minute by makam-<env>-health.timer.
+#
+#   makam-healthcheck https://dev.makam.co.id/api/health
+#
+# Goes through nginx and TLS like the external monitor does. A failure (no
+# answer, non-200, or "ok" not true: DB down or stale worker heartbeat) is
+# logged to the journal at priority err with tag makam-health, and the unit
+# exits non-zero, so `systemctl --failed` and
+# `journalctl -t makam-health -p err` show it. This is not an alarm: it cannot
+# page anyone, and it dies with the host. The external monitor is the alarm
+# (docs/ops/runbook.md, "Uptime alarm").
+set -uo pipefail
+
+URL=${1:?usage: makam-healthcheck <url>}
+body=$(curl -sS -m 10 -w '\n%{http_code}' "$URL" 2>&1)
+code=${body##*$'\n'}
+body=${body%$'\n'*}
+
+if [ "$code" = 200 ] && printf '%s' "$body" | jq -e '.ok == true' > /dev/null 2>&1; then
+  exit 0
+fi
+logger -p user.err -t makam-health "UNHEALTHY $URL http=$code body=$(printf '%s' "$body" | head -c 300)"
+echo "UNHEALTHY $URL http=$code body=$(printf '%s' "$body" | head -c 300)" >&2
+exit 1

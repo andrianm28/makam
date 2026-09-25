@@ -1,0 +1,11 @@
+# Local watchdog for staging: logs failures to the journal (tag makam-health). Not the uptime alarm.
+[Unit]
+Description=Check https://dev.makam.co.id/api/health
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-healthcheck https://dev.makam.co.id/api/health

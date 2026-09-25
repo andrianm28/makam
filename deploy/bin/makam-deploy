@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# makam-deploy: pull-based deploy of a v1 compose project on this host.
+#
+# Run every 2 minutes by makam-<env>-deploy.timer (as ubuntu, which holds the
+# ghcr read:packages login), or by hand for a rollback. No inbound SSH key and
+# no GitHub secret: the host polls ghcr for the image CI pushed from `main`.
+#
+#   makam-deploy --env staging                  follow :latest (what the timer runs)
+#   makam-deploy --env staging --tag sha-<git>  deploy / roll back to an exact tag
+#   makam-deploy --env staging --tag X --local  use a local image, no pull (tests)
+#   makam-deploy --env staging --force          redeploy even if already current
+#
+# Order, and what a failure leaves running:
+#   1. pull the image           fails -> nothing touched
+#   2. run --rm migrate         fails -> nothing restarted; old web/worker keep running
+#   3. up -d --wait             fails -> exit 1; roll back with --tag <previous>
+#   4. /api/health must be 200  fails -> exit 2 (deployed, but unhealthy)
+#
+# Files under $MAKAM_ROOT/<env>/ (see docs/ops/runbook.md):
+#   compose.yml     copy of docker-compose.prod.yml (installed by deploy/install-host.sh)
+#   <env>.env       secrets + settings, mode 0600, never in the repo
+#   deployed.env    MAKAM_TAG / MAKAM_RELEASE of the running release (written after success)
+#   deploy.log      one line per step
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+TAG=""
+LOCAL=0
+FORCE=0
+
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --tag) TAG=${2:?}; shift 2 ;;
+    --local) LOCAL=1; shift ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+PROJECT="makam-$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+DEPLOYED_FILE="$DIR/deployed.env"
+LOG="$DIR/deploy.log"
+[ -r "$ENV_FILE" ] || { echo "missing $ENV_FILE" >&2; exit 78; }
+[ -r "$DIR/compose.yml" ] || { echo "missing $DIR/compose.yml" >&2; exit 78; }
+
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
+IMAGE=$(setting MAKAM_IMAGE); IMAGE=${IMAGE:-ghcr.io/andrianm28/makam}
+WEB_PORT=$(setting MAKAM_WEB_PORT)
+: "${WEB_PORT:?MAKAM_WEB_PORT missing from $ENV_FILE}"
+
+log() {
+  local line
+  line="$(date -Is) [$PROJECT] $*"
+  echo "$line"
+  echo "$line" >> "$LOG"
+}
+
+# One deploy at a time; a timer tick during a deploy just exits.
+exec 9> "$DIR/.deploy.lock"
+if ! flock -n 9; then
+  echo "another deploy of $PROJECT is running; skipping"
+  exit 0
+fi
+
+touch "$DEPLOYED_FILE"
+compose() {
+  docker compose -p "$PROJECT" -f "$DIR/compose.yml" --env-file "$ENV_FILE" --env-file "$DEPLOYED_FILE" "$@"
+}
+current_tag() { sed -n 's/^MAKAM_TAG=//p' "$DEPLOYED_FILE" | tail -n 1; }
+revision_of() { docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1" 2>/dev/null || true; }
+
+# 1. Resolve and pull the target image.
+if [ -z "$TAG" ]; then
+  if ! docker pull -q "$IMAGE:latest" > /dev/null; then
+    log "ERROR pull $IMAGE:latest failed; nothing changed"
+    exit 1
+  fi
+  REV=$(revision_of "$IMAGE:latest")
+  [ -n "$REV" ] || { log "ERROR $IMAGE:latest has no revision label"; exit 1; }
+  TAG="sha-$REV"
+  # CI pushes sha-<commit> alongside latest; deploy the immutable tag.
+  if ! docker pull -q "$IMAGE:$TAG" > /dev/null; then
+    log "ERROR pull $IMAGE:$TAG failed; nothing changed"
+    exit 1
+  fi
+  if [ "$(docker image inspect -f '{{.Id}}' "$IMAGE:latest")" != "$(docker image inspect -f '{{.Id}}' "$IMAGE:$TAG")" ]; then
+    log "ERROR $IMAGE:latest and :$TAG differ; nothing changed"
+    exit 1
+  fi
+elif [ "$LOCAL" = 1 ]; then
+  docker image inspect "$IMAGE:$TAG" > /dev/null 2>&1 || { log "ERROR local image $IMAGE:$TAG not found"; exit 1; }
+else
+  if ! docker pull -q "$IMAGE:$TAG" > /dev/null; then
+    log "ERROR pull $IMAGE:$TAG failed; nothing changed"
+    exit 1
+  fi
+fi
+REV=$(revision_of "$IMAGE:$TAG")
+PREVIOUS=$(current_tag)
+
+running() { [ -n "$(compose ps --status running -q "$1" 2>/dev/null)" ]; }
+if [ "$FORCE" = 0 ] && [ "$TAG" = "$PREVIOUS" ] && running web && running worker; then
+  echo "$PROJECT already on $TAG"
+  exit 0
+fi
+
+log "deploy $IMAGE:$TAG (revision ${REV:-unknown}); running: ${PREVIOUS:-none}"
+export MAKAM_TAG="$TAG" MAKAM_RELEASE="${REV:-$TAG}"
+
+# 2. Migrate with the new image. web/worker are not touched unless this succeeds.
+if ! compose run --rm --quiet-pull migrate >> "$LOG" 2>&1; then
+  log "ERROR migrate failed for $TAG; web/worker left running ${PREVIOUS:-(none)}; see $LOG"
+  exit 1
+fi
+log "migrate ok"
+
+# 3. Restart web and worker on the new image.
+if ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
+  log "ERROR up failed for $TAG; roll back with: makam-deploy --env $ENV_NAME --tag ${PREVIOUS:-<previous>}"
+  exit 1
+fi
+printf 'MAKAM_TAG=%s\nMAKAM_RELEASE=%s\nPREVIOUS_TAG=%s\nDEPLOYED_AT=%s\n' \
+  "$TAG" "${REV:-$TAG}" "$PREVIOUS" "$(date -Is)" > "$DEPLOYED_FILE"
+log "web and worker up on $TAG"
+
+# 4. Health: DB reachable and a fresh worker heartbeat (first beat takes ~90 s).
+for _ in $(seq 1 36); do
+  if curl -fs -m 5 -o /dev/null "http://127.0.0.1:$WEB_PORT/api/health"; then
+    log "healthy on $TAG"
+    # Keep the five newest sha-* tags of this image; never touches other images.
+    { docker image ls "$IMAGE" --format '{{.Tag}}' | grep '^sha-' | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
+      | tail -n +4 | while read -r old; do docker image rm "$IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
+    exit 0
+  fi
+  sleep 5
+done
+log "ERROR $TAG deployed but /api/health is not 200 after 180 s; roll back with: makam-deploy --env $ENV_NAME --tag ${PREVIOUS:-<previous>}"
+exit 2

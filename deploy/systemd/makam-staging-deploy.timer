@@ -1,0 +1,11 @@
+# Polls ghcr every 2 minutes for a new ghcr.io/andrianm28/makam:latest (pushed by CI on main).
+[Unit]
+Description=Poll ghcr for a new makam-staging image
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target
