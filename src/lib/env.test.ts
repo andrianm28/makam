@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserSentryEnvironment, readPublicSentryEnv, showsStagingBanner, readRuntimeEnv, readSentryEnv } from "./env";
+import { browserSentryEnvironment, readPublicSentryEnv, readRuntimeEnv, readSentryEnv, showsStagingBanner } from "./env";
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
