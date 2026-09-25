@@ -53,7 +53,7 @@ export type SeedResult =
  * later staff member comes by Undangan Staf.
  */
 export async function seedFirstAdminPlatform(
-  deps: { db: Database; clock: Clock },
+  deps: { db: Database; clock: Clock; audit: AuditLog },
   input: { phoneNumber: string; email: string },
 ): Promise<SeedResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -94,6 +94,15 @@ export async function seedFirstAdminPlatform(
       });
     }
     await tx.insert(identityStaffRole).values({ accountId, role: "admin_platform", grantedAt: now });
+    await deps.audit.record(tx, {
+      // No one is signed in at the seed: the entry names the new Akun, acting as the seed CLI.
+      actor: { accountId, role: "seed_cli" },
+      action: "staf.seed_admin_platform",
+      entity: { kind: "akun", id: accountId },
+      before: null,
+      after: { phoneNumber, email, roles: ["admin_platform"] },
+      reason: null,
+    });
     return { ok: true, account: { id: accountId, phoneNumber } } as const;
   });
 }

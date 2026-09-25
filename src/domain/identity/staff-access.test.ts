@@ -30,6 +30,23 @@ describe("seeding the first Admin Platform", () => {
     ]);
   });
 
+  it("records an Entri Audit for the seeded Admin Platform", async () => {
+    const { identity, audit } = identityOnTestDatabase(db);
+
+    const seeded = await identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+    if (!seeded.ok) throw new Error(seeded.reason);
+
+    expect(await audit.entriesAbout({ kind: "akun", id: seeded.account.id })).toEqual([
+      expect.objectContaining({
+        at: wib("2026-10-01 09:00"),
+        actor: { accountId: seeded.account.id, role: "seed_cli" },
+        action: "staf.seed_admin_platform",
+        before: null,
+        after: { phoneNumber: "+6281111111111", email: "admin@makam.co.id", roles: ["admin_platform"] },
+      }),
+    ]);
+  });
+
   it("is refused once an Admin Platform exists: every later one comes by Undangan Staf", async () => {
     const { identity } = identityOnTestDatabase(db);
     await identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });

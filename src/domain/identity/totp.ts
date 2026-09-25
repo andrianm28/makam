@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Role, TotpStatus } from "./authorize";
 import { identitySession, identityTotp } from "./schema";
@@ -30,6 +31,7 @@ export interface TotpDeps {
   secret: string;
   /** 32 bytes, base64 (TOTP_ENCRYPTION_KEY). */
   totpEncryptionKey: string;
+  audit: AuditLog;
 }
 
 /** Where a session of an Akun with these roles stands on TOTP. */
@@ -136,24 +138,36 @@ export async function passTotp(
     return { ok: false, reason: "kode_salah" };
   }
 
-  // Accept each step's code once: the step must be newer than the last one used.
-  const [used] = await deps.db
-    .update(identityTotp)
-    .set({ lastUsedStep: matched, confirmedAt: totp.confirmedAt ?? now })
-    .where(
-      and(
-        eq(identityTotp.accountId, session.accountId),
-        or(isNull(identityTotp.lastUsedStep), lt(identityTotp.lastUsedStep, matched)),
-      ),
-    )
-    .returning({ accountId: identityTotp.accountId });
-  if (!used) return { ok: false, reason: "kode_sudah_dipakai" };
+  return deps.db.transaction(async (tx) => {
+    // Accept each step's code once: the step must be newer than the last one used.
+    const [used] = await tx
+      .update(identityTotp)
+      .set({ lastUsedStep: matched, confirmedAt: totp.confirmedAt ?? now })
+      .where(
+        and(
+          eq(identityTotp.accountId, session.accountId),
+          or(isNull(identityTotp.lastUsedStep), lt(identityTotp.lastUsedStep, matched)),
+        ),
+      )
+      .returning({ accountId: identityTotp.accountId });
+    if (!used) return { ok: false, reason: "kode_sudah_dipakai" } as const;
 
-  await deps.db
-    .update(identitySession)
-    .set({ totpPassedAt: now, updatedAt: now })
-    .where(eq(identitySession.token, session.token));
-  return { ok: true };
+    await tx
+      .update(identitySession)
+      .set({ totpPassedAt: now, updatedAt: now })
+      .where(eq(identitySession.token, session.token));
+    if (!totp.confirmedAt) {
+      await deps.audit.record(tx, {
+        actor: { accountId: session.accountId, role: "admin_platform" },
+        action: "akun.totp_daftar",
+        entity: { kind: "akun", id: session.accountId },
+        before: { totpEnrolled: false },
+        after: { totpEnrolled: true },
+        reason: null,
+      });
+    }
+    return { ok: true } as const;
+  });
 }
 
 /** The step within the window whose code equals `code`, or null. */

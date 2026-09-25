@@ -64,7 +64,7 @@ export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
         .select()
         .from(auditEntry)
         .where(and(eq(auditEntry.entityKind, entity.kind), eq(auditEntry.entityId, entity.id)))
-        .orderBy(asc(auditEntry.at), asc(auditEntry.id));
+        .orderBy(asc(auditEntry.at), asc(auditEntry.seq));
       return rows.map(toEntry);
     },
   };

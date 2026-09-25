@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigserial, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Owned by the audit module: one row per Entri Audit. Rows are only ever
@@ -9,6 +9,8 @@ export const auditEntry = pgTable(
   "audit_entry",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** Write order, so entries at the same Clock time keep the order they were recorded in. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
     /** The Akun that did the write. Not a foreign key: the Audit Log outlives any account change. */
     actorAccountId: text("actor_account_id").notNull(),
@@ -21,8 +23,5 @@ export const auditEntry = pgTable(
     after: jsonb("after"),
     reason: text("reason"),
   },
-  (table) => [
-    index("audit_entry_entity_idx").on(table.entityKind, table.entityId, table.at),
-    index("audit_entry_at_idx").on(table.at),
-  ],
+  (table) => [index("audit_entry_entity_idx").on(table.entityKind, table.entityId, table.at, table.seq)],
 );

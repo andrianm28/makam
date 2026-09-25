@@ -36,6 +36,25 @@ describe("Audit Log", () => {
     ]);
   });
 
+  it("entries written at the same Clock time come back in the order they were written", async () => {
+    const audit = createAuditLog({ db, clock: new FakeClock(wib("2026-10-01 09:00")) });
+    const numbers = Array.from({ length: 20 }, (_, index) => `+62811${index.toString().padStart(8, "0")}`);
+
+    for (const phoneNumber of numbers) {
+      await audit.record(db, {
+        actor: { accountId: "akun-admin", role: "admin_platform" },
+        action: "akun.pindah_nomor",
+        entity: { kind: "akun", id: "akun-pemesan" },
+        before: null,
+        after: { phoneNumber },
+        reason: "uji",
+      });
+    }
+
+    const entries = await audit.entriesAbout({ kind: "akun", id: "akun-pemesan" });
+    expect(entries.map((entry) => entry.after?.phoneNumber)).toEqual(numbers);
+  });
+
   it("an Entri Audit written in a transaction that rolls back is not kept", async () => {
     const audit = createAuditLog({ db, clock: new FakeClock(wib("2026-10-01 09:00")) });
 

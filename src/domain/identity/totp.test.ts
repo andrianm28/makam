@@ -50,6 +50,21 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     expect(await identity.actorFromCookies(cookies)).toMatchObject({ totp: "lolos", roles: ["pemesan", "admin_platform"] });
   });
 
+  it("completing TOTP enrolment is audited on the Akun; the secret is not in the Entri Audit", async () => {
+    const { identity, audit, login, secret } = await enrolled();
+
+    const entries = await audit.entriesAbout({ kind: "akun", id: login.account.id });
+    expect(entries.filter((entry) => entry.action === "akun.totp_daftar")).toEqual([
+      expect.objectContaining({
+        actor: { accountId: login.account.id, role: "admin_platform" },
+        before: { totpEnrolled: false },
+        after: { totpEnrolled: true },
+      }),
+    ]);
+    expect(JSON.stringify(entries)).not.toContain(secret);
+    void identity;
+  });
+
   it("a wrong code does not pass TOTP", async () => {
     const { identity, clock, cookies } = await adminPlatformAfterOtp();
     const enrolment = await identity.startTotpEnrolment(cookies);
