@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { LOKASI_MITRA_STATUSES } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminPlatform } from "../../../tests/support/lokasi";
@@ -29,6 +30,63 @@ describe("a new Lokasi Mitra", () => {
         bankAccount: null,
       },
     });
+  });
+});
+
+describe("the status of a Lokasi Mitra", () => {
+  it("is one of Belum Tayang, Terverifikasi, Ditangguhkan and Berhenti; only Belum Tayang is set here (the others by the publish gate and ticket 59)", () => {
+    expect(LOKASI_MITRA_STATUSES).toEqual(["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"]);
+  });
+});
+
+describe("the profile of a Lokasi Mitra", () => {
+  it("Admin Platform records the name, pengelola, address, city, pin, facilities checklist and note, audited", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const created = await newLokasiMitra(setup, admin);
+    expect(created.facilities).toEqual({ checked: [], note: "" });
+    const profile = {
+      name: "Makam Wakaf Al-Ikhlas Cipayung",
+      pengelolaName: "Yayasan Wakaf Al-Ikhlas",
+      address: "Jl. Raya Pondok Rangon No. 12, Cipayung",
+      city: "Kota Jakarta Timur",
+      pin: { lat: -6.3421, lng: 106.9027 },
+      facilities: { checked: ["parkir", "musala", "air_bersih"], note: "Parkir muat 10 mobil" },
+    };
+
+    expect(await setup.lokasi.updateProfile(admin, created.id, profile)).toEqual({ ok: true });
+
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { ...profile, status: "belum_tayang" } });
+    expect((await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: created.id })).at(-1)).toMatchObject({
+      action: "lokasi.ubah_profil",
+      before: { pin: null, city: "Kota Jakarta Timur", facilities: { checked: [], note: "" } },
+      after: profile,
+    });
+  });
+
+  it("refuses a pin outside Indonesia, an unknown facility, or an empty name, address or city", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const created = await newLokasiMitra(setup, admin);
+    const profile = {
+      name: created.name,
+      pengelolaName: created.pengelolaName,
+      address: created.address,
+      city: created.city,
+      pin: { lat: -6.3421, lng: 106.9027 },
+      facilities: { checked: ["parkir"], note: "" },
+    };
+
+    for (const change of [
+      { ...profile, pin: { lat: 51.5, lng: -0.12 } },
+      { ...profile, facilities: { checked: ["kolam_renang"], note: "" } },
+      { ...profile, name: " " },
+      { ...profile, address: "" },
+      { ...profile, city: "" },
+    ]) {
+      expect(await setup.lokasi.updateProfile(admin, created.id, change)).toEqual({ ok: false, reason: "profil_tidak_valid" });
+    }
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pin: null } });
   });
 });
 

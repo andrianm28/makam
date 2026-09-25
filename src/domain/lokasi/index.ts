@@ -27,6 +27,8 @@ import {
   readLokasiMitra,
   setDocumentChecklist,
   setPoliciesAndFlags,
+  updateProfile,
+  type UpdateProfileResult,
   type BankAccount,
   type ChangeBankAccountResult,
   type CreateLokasiMitraResult,
@@ -37,6 +39,7 @@ import {
   type WriteResult,
 } from "./lokasi-mitra";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
+import type { LokasiProfileInput } from "./profile";
 import { lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
 import {
   agreementScanUrl,
@@ -62,7 +65,17 @@ export {
   type LokasiFlags,
   type LokasiPolicies,
 } from "./policies";
+/** Every Lokasi Mitra status: Belum Tayang (set here), Terverifikasi (publish gate, ticket 16), Ditangguhkan and Berhenti (ticket 59). */
+export { lokasiMitraStatuses as LOKASI_MITRA_STATUSES } from "./schema";
+export {
+  lokasiFacilities,
+  lokasiProfileSchema,
+  type LokasiFacility,
+  type LokasiProfile,
+  type LokasiProfileInput,
+} from "./profile";
 export type {
+  UpdateProfileResult,
   BankAccount,
   ChangeBankAccountResult,
   SetPoliciesResult,
@@ -91,6 +104,8 @@ export interface Lokasi {
   createLokasiMitra(by: Actor, input: NewLokasiMitra): Promise<CreateLokasiMitraResult>;
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
+  /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
+  updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput): Promise<UpdateProfileResult>;
   /** Admin Platform replaces the document checklist, audited. */
   setDocumentChecklist(by: Actor, lokasiId: string, input: { documentChecklist: string[] }): Promise<WriteResult>;
   /** Admin Platform sets the policies and flags together, audited; values outside the rules are refused. */
@@ -139,6 +154,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   return {
     createLokasiMitra: (by, input) => createLokasiMitra(deps, by, input),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
+    updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
     setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),
     changeBankAccount: (by, lokasiId, input) => changeBankAccount(deps, by, lokasiId, input),

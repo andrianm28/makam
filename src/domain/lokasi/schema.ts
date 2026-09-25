@@ -1,5 +1,6 @@
 import { date, doublePrecision, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
+import type { LokasiFacility } from "./profile";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -20,6 +21,9 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   pinLat: doublePrecision("pin_lat"),
   pinLng: doublePrecision("pin_lng"),
   status: text("status", { enum: lokasiMitraStatuses }).notNull(),
+  /** Keys of `lokasiFacilities` (./profile.ts), in checklist order. */
+  facilities: jsonb("facilities").$type<LokasiFacility[]>().notNull(),
+  facilitiesNote: text("facilities_note").notNull(),
   /** The account Pencairan go to; set and changed only by Admin Platform. All three are set together or none. */
   bankName: text("bank_name"),
   bankAccountNumber: text("bank_account_number"),

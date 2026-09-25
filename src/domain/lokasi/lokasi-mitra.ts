@@ -18,6 +18,7 @@ import {
   type LokasiFlags,
   type LokasiPolicies,
 } from "./policies";
+import { lokasiProfileSchema, type LokasiFacility, type LokasiProfileInput } from "./profile";
 import { lokasiMitra as lokasiMitraTable, type lokasiMitraStatuses } from "./schema";
 
 export type LokasiMitraStatus = (typeof lokasiMitraStatuses)[number];
@@ -42,6 +43,7 @@ export interface LokasiMitra {
   address: string;
   city: string;
   pin: { lat: number; lng: number } | null;
+  facilities: { checked: LokasiFacility[]; note: string };
   status: LokasiMitraStatus;
   agreement: { signedOn: string | null; scanUploaded: boolean };
   /** Where Pencairan go; only Admin Platform sets it. */
@@ -99,6 +101,8 @@ export async function createLokasiMitra(
         address: input.address.trim(),
         city: input.city.trim(),
         status: "belum_tayang",
+        facilities: [],
+        facilitiesNote: "",
         documentChecklist: [...DEFAULT_DOCUMENT_CHECKLIST],
         policies: DEFAULT_POLICIES,
         flags: DEFAULT_FLAGS,
@@ -187,6 +191,45 @@ export async function setDocumentChecklist(
   }));
 }
 
+export type UpdateProfileResult = WriteResult | { ok: false; reason: "profil_tidak_valid" };
+
+/**
+ * Admin Platform records the profile: name, pengelola, address, city
+ * (kota/kab), map pin, facilities checklist and note. Audited with the profile
+ * before and after.
+ */
+export async function updateProfile(
+  deps: LokasiDeps,
+  by: Actor,
+  lokasiId: string,
+  input: LokasiProfileInput,
+): Promise<UpdateProfileResult> {
+  const parsed = lokasiProfileSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "profil_tidak_valid" };
+  const profile = parsed.data;
+  return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_profil", (row) => ({
+    values: {
+      name: profile.name,
+      pengelolaName: profile.pengelolaName,
+      address: profile.address,
+      city: profile.city,
+      pinLat: profile.pin?.lat ?? null,
+      pinLng: profile.pin?.lng ?? null,
+      facilities: profile.facilities.checked,
+      facilitiesNote: profile.facilities.note,
+    },
+    before: {
+      name: row.name,
+      pengelolaName: row.pengelolaName,
+      address: row.address,
+      city: row.city,
+      pin: pinOf(row),
+      facilities: { checked: row.facilities, note: row.facilitiesNote },
+    },
+    after: { ...profile },
+  }));
+}
+
 export type SetPoliciesResult = WriteResult | { ok: false; reason: "kebijakan_tidak_valid" };
 
 /** Admin Platform sets a Lokasi Mitra's policies and flags together, audited. Values outside the rules are refused. */
@@ -250,6 +293,10 @@ export async function changeBankAccount(
 
 type Row = typeof lokasiMitraTable.$inferSelect;
 
+function pinOf(row: Row): { lat: number; lng: number } | null {
+  return row.pinLat !== null && row.pinLng !== null ? { lat: row.pinLat, lng: row.pinLng } : null;
+}
+
 function bankAccountOf(row: Row): BankAccount | null {
   if (row.bankName === null || row.bankAccountNumber === null || row.bankAccountHolder === null) return null;
   return { bankName: row.bankName, accountNumber: row.bankAccountNumber, accountHolder: row.bankAccountHolder };
@@ -298,7 +345,8 @@ function toLokasiMitra(row: Row): LokasiMitra {
     pengelolaName: row.pengelolaName,
     address: row.address,
     city: row.city,
-    pin: row.pinLat !== null && row.pinLng !== null ? { lat: row.pinLat, lng: row.pinLng } : null,
+    pin: pinOf(row),
+    facilities: { checked: row.facilities, note: row.facilitiesNote },
     status: row.status,
     agreement: { signedOn: row.agreementSignedOn, scanUploaded: row.agreementScanFileKey !== null },
     bankAccount: bankAccountOf(row),
