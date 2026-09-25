@@ -12,7 +12,15 @@ import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { akunResource, authorize, staffRoles, type Actor, type Identity } from "@/domain/identity";
+import {
+  akunResource,
+  staffRoles,
+  writeRefusal,
+  type Actor,
+  type Identity,
+  type StaffRole,
+  type WriteRefusal,
+} from "@/domain/identity";
 import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
@@ -55,8 +63,8 @@ export interface PushDevice {
   enabledAt: Date;
 }
 
-export type EnablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "perangkat_tidak_valid" };
-export type DisablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+export type EnablePushResult = { ok: true } | WriteRefusal | { ok: false; reason: "perangkat_tidak_valid" };
+export type DisablePushResult = { ok: true } | WriteRefusal;
 
 export interface StaffAlert {
   /** The Akun Staf; its WhatsApp number is read from the Akun, never taken from the caller. */
@@ -109,8 +117,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
   return {
     async enablePush(by, input) {
-      const refusal = pushRefusal(by);
-      if (refusal) return refusal;
+      const writer = pushWriter(by);
+      if (!writer.ok) return writer;
       const parsed = pushSubscriptionSchema.safeParse(input.subscription);
       if (!parsed.success) return { ok: false, reason: "perangkat_tidak_valid" };
       const { endpoint, keys } = parsed.data;
@@ -143,7 +151,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           .values({ endpoint, ...device })
           .onConflictDoUpdate({ target: notificationsPushDevice.endpoint, set: device });
         await record({
-          actor: { accountId: by.accountId, role: actingRole(by) },
+          actor: { accountId: by.accountId, role: writer.role },
           action: "akun.push_aktifkan",
           entity: { kind: "akun", id: by.accountId },
           before: { perangkatPush: before },
@@ -155,8 +163,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async disablePush(by, input) {
-      const refusal = pushRefusal(by);
-      if (refusal) return refusal;
+      const writer = pushWriter(by);
+      if (!writer.ok) return writer;
       // Already off, or another Akun's browser: the write is refused (rolled back), so no Entri Audit; push is off either way.
       await deps.audit.staffWrite(db, async (tx, record) => {
         const before = await countDevices(tx, by.accountId);
@@ -168,7 +176,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           .returning({ id: notificationsPushDevice.id });
         if (removed.length === 0) return { ok: false as const };
         await record({
-          actor: { accountId: by.accountId, role: actingRole(by) },
+          actor: { accountId: by.accountId, role: writer.role },
           action: "akun.push_matikan",
           entity: { kind: "akun", id: by.accountId },
           before: { perangkatPush: before },
@@ -244,16 +252,15 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
   };
 }
 
-/** Only an Akun Staf turns push on or off, and only for itself (an Admin Platform after TOTP). */
-function pushRefusal(by: Actor): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
-  const authorization = authorize(by, "akun.push", akunResource(by.accountId));
-  if (authorization.allowed) return null;
-  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+/**
+ * Only an Akun Staf turns push on or off, and only for itself (an Admin
+ * Platform after TOTP). Allowed: the role its Entri Audit names, its first staff role.
+ */
+function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
+  const refusal = writeRefusal(by, "akun.push", akunResource(by.accountId));
+  if (refusal) return refusal;
+  const role = staffRoles.find((held) => by.roles.includes(held));
+  // `akun.push` is allowed only to an Akun holding a staff role, so there is always one.
+  if (!role) return { ok: false, reason: "tidak_berwenang" };
+  return { ok: true, role };
 }
-
-/** The role an Entri Audit names for the Akun's own push setting: its first staff role. */
-function actingRole(by: Actor) {
-  return staffRoles.find((role) => by.roles.includes(role)) ?? "pemesan";
-}
-
-
