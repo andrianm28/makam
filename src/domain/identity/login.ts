@@ -66,3 +66,14 @@ export async function verifyOtp(
     session: { expiresAt: session.session.expiresAt, cookies: sessionCookiesFrom(headers) },
   };
 }
+
+/** The account keyed by this WhatsApp number (any spelling), or null. */
+export async function accountByPhoneNumber(deps: { db: Database }, typed: string): Promise<Account | null> {
+  const normalised = normalisePhoneNumber(typed);
+  if (!normalised.ok) return null;
+  const [row] = await deps.db
+    .select({ id: identityUser.id, phoneNumber: identityUser.phoneNumber })
+    .from(identityUser)
+    .where(eq(identityUser.phoneNumber, normalised.phoneNumber));
+  return row?.phoneNumber ? { id: row.id, phoneNumber: row.phoneNumber } : null;
+}

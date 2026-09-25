@@ -67,6 +67,18 @@ describe("Pemesan OTP login over WhatsApp", () => {
   });
 });
 
+describe("OTP limits", () => {
+  it("a wrong code is refused and creates no account", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+
+    const login = await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(lastCode(whatsapp)) });
+
+    expect(login).toEqual({ ok: false, reason: "kode_salah" });
+    expect(await identity.accountByPhoneNumber("081234567890")).toBeNull();
+  });
+});
+
 describe("Pemesan session", () => {
   it("lasts 90 days on the Clock, then the Pemesan is no longer signed in", async () => {
     const { clock, whatsapp, identity } = setup();
@@ -106,6 +118,11 @@ async function logIn(identity: Identity, whatsapp: FakeWhatsAppSender, phoneNumb
   const login = await identity.verifyOtp({ phoneNumber, code: lastCode(whatsapp) });
   if (!login.ok) throw new Error(`login failed: ${login.reason}`);
   return login;
+}
+
+/** A code that is certainly not `code`. */
+function otherCode(code: string): string {
+  return code === "000000" ? "111111" : "000000";
 }
 
 function lastCode(whatsapp: FakeWhatsAppSender): string {
