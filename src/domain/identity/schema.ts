@@ -34,7 +34,10 @@ export const identityUser = pgTable("identity_user", {
    * Staf); optional for a Pemesan (ticket 27). Carries the email OTP fallback (ticket 60).
    */
   contactEmail: text("email"),
-  /** Set when Admin Platform deactivates the Akun Staf: it can no longer log in. Its history stays. */
+  /**
+   * Set when Admin Platform deactivates the Akun Staf (its staff roles are revoked; it still logs in as a
+   * Pemesan). Cleared when a new Undangan Staf grants it a role again.
+   */
   deactivatedAt: at("deactivated_at"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),

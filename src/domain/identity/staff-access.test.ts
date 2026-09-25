@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
+import { akunResource, authorize, stafMenuResource } from "./index";
 import { identityOnTestDatabase, lastOtpTo, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 
@@ -281,37 +282,40 @@ describe("deactivating an Akun Staf", () => {
     return { ...setup, admin, invite: invited.invite, staff };
   }
 
-  it("ends its sessions and blocks its login", async () => {
-    const { identity, whatsapp, clock, admin, staff } = await withAdminLokasi();
+  it("revokes its staff roles and ends its sessions: the old staff session no longer grants staff access", async () => {
+    const { identity, admin, staff } = await withAdminLokasi();
+    const before = await identity.actorFromCookies(staff.cookies);
+    expect(authorize(before, "staf.menu", stafMenuResource("admin_lokasi"))).toEqual({ allowed: true });
 
     expect(
       await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Keluar dari yayasan" }),
     ).toEqual({ ok: true });
 
-    expect(await identity.actorFromCookies(staff.cookies)).toBeNull();
-    clock.advance({ minutes: 2 });
-    expect(await identity.requestOtp({ phoneNumber: "082222222222" })).toEqual({
-      ok: false,
-      reason: "akun_dinonaktifkan",
-    });
-    expect(whatsapp.sent.filter((message) => message.to === "+6282222222222" && message.template === "kode_verifikasi")).toHaveLength(1);
+    const after = await identity.actorFromCookies(staff.cookies);
+    expect(after).toBeNull();
+    expect(authorize(after, "staf.menu", stafMenuResource("admin_lokasi"))).toMatchObject({ allowed: false });
   });
 
-  it("an OTP sent before the deactivation no longer logs in", async () => {
+  it("a Dinonaktifkan Admin Lokasi can still log in as a Pemesan and open Akun Saya, but not the staff area", async () => {
     const { identity, whatsapp, clock, admin, staff } = await withAdminLokasi();
+    await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Kontrak selesai" });
+
     clock.advance({ minutes: 2 });
-    await identity.requestOtp({ phoneNumber: "082222222222" });
-    const code = lastOtpTo(whatsapp, "+6282222222222");
+    const again = await logInByOtp(identity, whatsapp, "082222222222");
 
-    await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Keluar" });
-
-    expect(await identity.verifyOtp({ phoneNumber: "082222222222", code })).toEqual({
-      ok: false,
-      reason: "akun_dinonaktifkan",
+    expect(again.login).toMatchObject({ accountCreated: false, account: { id: staff.login.account.id }, roles: ["pemesan"] });
+    const actor = await identity.actorFromCookies(again.cookies);
+    expect(actor).toMatchObject({ roles: ["pemesan"], totp: "tidak_perlu" });
+    expect(authorize(actor, "akun.lihat", akunResource(staff.login.account.id))).toEqual({ allowed: true });
+    expect(authorize(actor, "staf.menu", stafMenuResource("admin_lokasi"))).toEqual({
+      allowed: false,
+      reason: "tidak_berwenang",
     });
+    // A Pemesan session again: 90 days.
+    expect(again.login.session.expiresAt).toEqual(wib("2026-12-30 09:02"));
   });
 
-  it("keeps the Akun's history: the same Akun, its roles and its Entri Audit stay, with the deactivation audited", async () => {
+  it("keeps the Akun's history: the same Akun and its Entri Audit stay, with the deactivation audited", async () => {
     const { identity, audit, admin, invite, staff } = await withAdminLokasi();
 
     await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Kontrak selesai" });
@@ -324,7 +328,7 @@ describe("deactivating an Akun Staf", () => {
       accountId: staff.login.account.id,
       phoneNumber: "+6282222222222",
       email: "lokasi@contoh.id",
-      roles: ["admin_lokasi"],
+      roles: [],
       deactivated: true,
     });
     expect(await audit.entriesAbout({ kind: "undangan_staf", id: invite.id })).toHaveLength(1);
@@ -334,7 +338,7 @@ describe("deactivating an Akun Staf", () => {
         actor: { accountId: admin.actor.accountId, role: "admin_platform" },
         action: "staf.nonaktifkan",
         before: { deactivated: false, roles: ["admin_lokasi"] },
-        after: { deactivated: true, roles: ["admin_lokasi"] },
+        after: { deactivated: true, roles: [] },
         reason: "Kontrak selesai",
       }),
     ]);

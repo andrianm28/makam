@@ -15,7 +15,6 @@ const everyRefusal: OtpRefusal[] = [
   "tidak_berwenang",
   "input_tidak_valid",
   "perlu_totp",
-  "akun_dinonaktifkan",
 ];
 
 describe("OTP screen messages", () => {

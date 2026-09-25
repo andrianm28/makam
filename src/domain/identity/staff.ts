@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -115,9 +115,11 @@ export type DeactivateStaffResult =
     };
 
 /**
- * Admin Platform deactivates an Akun Staf (Dinonaktifkan): its sessions end
- * and it can no longer log in. Nothing is deleted: its roles, orders and Entri
- * Audit stay. Audited with the reason.
+ * Admin Platform deactivates an Akun Staf (Dinonaktifkan): every staff role it
+ * holds is revoked and its sessions end, so no session of it grants staff
+ * access. The Akun itself stays: its number still logs in as a Pemesan, and
+ * its orders and Entri Audit remain. A new Undangan Staf can grant a role again.
+ * Audited with the reason.
  */
 export async function deactivateStaff(
   deps: { db: Database; clock: Clock; audit: AuditLog },
@@ -137,39 +139,30 @@ export async function deactivateStaff(
       .where(eq(identityUser.id, input.accountId))
       .for("update");
     const roles = (await rolesOf(tx, input.accountId)).filter((role): role is StaffRole => role !== "pemesan");
+    if (account && roles.length === 0 && account.deactivatedAt) return { ok: false, reason: "sudah_dinonaktifkan" } as const;
     if (!account || roles.length === 0) return { ok: false, reason: "bukan_akun_staf" } as const;
-    if (account.deactivatedAt) return { ok: false, reason: "sudah_dinonaktifkan" } as const;
 
     const now = deps.clock.now();
     await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
+    await tx.delete(identityStaffRole).where(eq(identityStaffRole.accountId, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.nonaktifkan",
       entity: { kind: "akun", id: input.accountId },
       before: { deactivated: false, roles },
-      after: { deactivated: true, roles },
+      after: { deactivated: true, roles: [] },
       reason,
     });
     return { ok: true } as const;
   });
 }
 
-/** True when the number's Akun is Dinonaktifkan. */
-export async function isDeactivatedNumber(db: Database, phoneNumber: string): Promise<boolean> {
-  const [row] = await db
-    .select({ deactivatedAt: identityUser.deactivatedAt })
-    .from(identityUser)
-    .where(eq(identityUser.phoneNumber, phoneNumber));
-  return Boolean(row?.deactivatedAt);
-}
-
-/** Every Akun Staf, active or deactivated, oldest first. */
+/** Every Akun Staf, and every Akun that was one until it was Dinonaktifkan, oldest first. */
 export async function staffAccounts(deps: { db: Database }): Promise<StaffAccount[]> {
   const roles = await deps.db
     .select({ accountId: identityStaffRole.accountId, role: identityStaffRole.role })
     .from(identityStaffRole);
-  if (roles.length === 0) return [];
   const byAccount = new Map<string, Set<StaffRole>>();
   for (const { accountId, role } of roles) {
     byAccount.set(accountId, (byAccount.get(accountId) ?? new Set()).add(role));
@@ -182,13 +175,30 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
       deactivatedAt: identityUser.deactivatedAt,
     })
     .from(identityUser)
-    .where(inArray(identityUser.id, [...byAccount.keys()]))
+    .where(
+      byAccount.size > 0
+        ? or(inArray(identityUser.id, [...byAccount.keys()]), isNotNull(identityUser.deactivatedAt))
+        : isNotNull(identityUser.deactivatedAt),
+    )
     .orderBy(asc(identityUser.createdAt), asc(identityUser.id));
-  return users.map((user) => ({
-    accountId: user.id,
-    phoneNumber: user.phoneNumber ?? "",
-    email: user.email,
-    roles: staffRoles.filter((role) => byAccount.get(user.id)?.has(role)),
-    deactivated: user.deactivatedAt !== null,
-  }));
+  return users.map((user) => {
+    const held = staffRoles.filter((role) => byAccount.get(user.id)?.has(role));
+    return {
+      accountId: user.id,
+      phoneNumber: user.phoneNumber ?? "",
+      email: user.email,
+      roles: held,
+      // Dinonaktifkan until a new Undangan Staf grants a role again.
+      deactivated: held.length === 0,
+    };
+  });
+}
+
+/** True when the number's Akun is Dinonaktifkan. */
+export async function isDeactivatedNumber(db: Database, phoneNumber: string): Promise<boolean> {
+  const [row] = await db
+    .select({ deactivatedAt: identityUser.deactivatedAt })
+    .from(identityUser)
+    .where(eq(identityUser.phoneNumber, phoneNumber));
+  return Boolean(row?.deactivatedAt);
 }
