@@ -9,6 +9,7 @@ await build({
   entryPoints: {
     worker: "src/worker/main.ts",
     migrate: "src/cli/migrate.ts",
+    "seed-admin": "src/cli/seed-admin.ts",
     "sentry-check": "src/cli/sentry-check.ts",
   },
   outdir: "dist",
