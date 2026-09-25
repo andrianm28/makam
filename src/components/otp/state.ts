@@ -84,6 +84,8 @@ export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): stri
       return "Periksa lagi isian Anda.";
     case "email_tidak_valid":
       return "Alamat email tidak valid. Contoh: nama@contoh.id.";
+    case "tanpa_kode_whatsapp":
+      return "Kirim kode lewat WhatsApp dulu. Kode lewat email bisa diminta 1 menit sesudahnya.";
     case "tanpa_email_terverifikasi":
       return "Akun ini belum punya email terverifikasi. Hubungi CS kami lewat WhatsApp.";
     case "email_sudah_dipakai":

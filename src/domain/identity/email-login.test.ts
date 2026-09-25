@@ -418,6 +418,31 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
     expect(login).toMatchObject({ ok: true, accountCreated: false, account });
   });
 
+  it("is refused when no WhatsApp Kode Masuk went to the number in the last 10 minutes, and no email is sent", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, email, clock } = setup;
+    await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    // The WhatsApp login above sent a Kode Masuk; let it age past its 10 minutes.
+    clock.advance({ minutes: 10 });
+    const sends = email.sent.length;
+
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: nextIp() })).toEqual({
+      ok: false,
+      reason: "tanpa_kode_whatsapp",
+    });
+    const sent = await identity.requestOtp({ phoneNumber: "081234567890" });
+    if (!sent.ok) throw new Error(sent.reason);
+    clock.set(new Date(sent.sentAt.getTime() + 10 * 60_000));
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: nextIp() })).toEqual({
+      ok: false,
+      reason: "tanpa_kode_whatsapp",
+    });
+    expect(email.sent).toHaveLength(sends);
+
+    clock.set(new Date(sent.sentAt.getTime() + 10 * 60_000 - 1_000));
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: nextIp() })).toMatchObject({ ok: true });
+  });
+
   it("is refused for a number whose Akun has no Email Terverifikasi, or that has no Akun: the screen points to CS", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, email, clock } = setup;

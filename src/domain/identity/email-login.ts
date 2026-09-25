@@ -9,6 +9,7 @@ import {
   claimIpRequest,
   issueCode,
   lastSentAt,
+  OTP_EXPIRES_AFTER_MS,
   OTP_FALLBACK_AFTER_MS,
   OTP_RESEND_AFTER_MS,
   type LimitRefusal,
@@ -85,6 +86,8 @@ export type RequestEmailFallbackResult =
   | PhoneNumberRejection
   /** The number has no Akun, or its Akun no Email Terverifikasi: the screen points to CS instead. */
   | { ok: false; reason: "tanpa_email_terverifikasi" | "gagal_kirim" }
+  /** No WhatsApp Kode Masuk went to the number in the last 10 minutes: send one first. */
+  | { ok: false; reason: "tanpa_kode_whatsapp" }
   | LimitRefusal;
 
 /**
@@ -103,16 +106,16 @@ export async function requestEmailFallback(
   if (!akun?.verifiedEmail) return { ok: false, reason: "tanpa_email_terverifikasi" };
   const email = akun.verifiedEmail;
 
-  const whatsappSentAt = await lastSentAt(deps.db, {
-    channel: "whatsapp",
-    target: normalised.phoneNumber,
-    purpose: "masuk",
-  });
+  // Offered only while a WhatsApp Kode Masuk to this number is still open: from 60 s after it until it expires.
   const now = deps.clock.now();
-  if (whatsappSentAt) {
-    const retryAt = new Date(whatsappSentAt.getTime() + OTP_FALLBACK_AFTER_MS);
-    if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };
-  }
+  const whatsappSentAt = await lastSentAt(
+    deps.db,
+    { channel: "whatsapp", target: normalised.phoneNumber, purpose: "masuk" },
+    new Date(now.getTime() - OTP_EXPIRES_AFTER_MS),
+  );
+  if (!whatsappSentAt) return { ok: false, reason: "tanpa_kode_whatsapp" };
+  const retryAt = new Date(whatsappSentAt.getTime() + OTP_FALLBACK_AFTER_MS);
+  if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };
   const ip = await claimIpRequest(deps, input.ip);
   if (!ip.ok) return ip;
 

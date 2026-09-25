@@ -309,12 +309,16 @@ export async function checkCode(
   return used.length === 1 ? { ok: true, target: latest.target } : { ok: false, reason: "kode_salah" };
 }
 
-/** When the last code of this kind to `target` was sent, if one was in the send window. */
+/** When the last code of this kind to `target` was sent, if one was sent after `since`. */
 export async function lastSentAt(
   db: Database,
   lookup: { channel: OtpChannel; target: string; purpose: OtpPurpose },
+  since: Date,
 ): Promise<Date | null> {
-  const [row] = await db.select({ at: max(identityOtpRequest.sentAt) }).from(identityOtpRequest).where(lookupWhere(lookup));
+  const [row] = await db
+    .select({ at: max(identityOtpRequest.sentAt) })
+    .from(identityOtpRequest)
+    .where(and(lookupWhere(lookup), gt(identityOtpRequest.sentAt, since)));
   return row?.at ?? null;
 }
 
