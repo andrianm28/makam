@@ -13,7 +13,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) vendor setup | ready-for-human | — |
 | [06](06-operator-facts-and-reference-data.md) | Operator facts and launch reference data | ready-for-human | — |
 | [07](07-production-environment.md) | Staging, GlitchTip, deploy pipeline and uptime alarm | ready-for-agent | 01 |
-| [08](08-whatsapp-otp-login.md) | WhatsApp OTP login and the Pemesan account | ready-for-agent | 01 |
+| [08](08-whatsapp-otp-login.md) | WhatsApp OTP login and the Pemesan account | resolved | 01 |
 | [09](09-staff-access-totp-and-audit-log.md) | Staff access: roles, invites, TOTP and the Audit Log | ready-for-agent | 08 |
 | [10](10-lokasi-mitra-onboarding.md) | Lokasi Mitra onboarding record and Admin Lokasi invites | ready-for-agent | 09 |
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | ready-for-agent | 10 |

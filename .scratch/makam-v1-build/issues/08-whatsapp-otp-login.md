@@ -1,6 +1,6 @@
 # WhatsApp OTP login and the Pemesan account
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 Spec: Domain modules > 1. Identity & Access; stories 26, 98; ADR 0003 (and its 2026-09-25 amendment)
 
@@ -49,3 +49,5 @@ No self-service recovery and no shared family access (spec, Out of Scope).
   - **`guarded()` contract**: `guarded({ action, resource, schema, input, run })` takes no actor. It resolves the actor itself from the request's session cookie (`currentActor()`), so a caller cannot skip or fake authentication; then `authorize`, then Zod, then `run(actor, data)`. It returns `{ ok: false, error: GuardError }` on refusal. An action with no state to return a refusal in (a plain form action like `keluar`) throws `GuardRejected(error)`; `keluar` without a session is refused (`belum_masuk`) rather than redirecting as if it had worked. The Masuk actions are the one exception: they skip authenticate and role check because they are the login (`AGENTS.md`).
   - Also: OTP hashes compared with `crypto.timingSafeEqual`; every Better Auth write (user, session, account, verification; create and update) is stamped with Clock time; `akunResource(accountId)` builds the Akun resource; `phoneNumberInput` (`src/server/phone-number-input.ts`) is the shared Zod field; `otpMessage` takes the typed `OtpRefusal` union and is exhaustive.
   - **Still untested: "an OTP failure creates no Antrean row"**. The queues module is empty, so there is no Antrean to read back. Ticket 17 is asked to add this test once the Antrean exists (see its Comments).
+- 2026-09-25 — Merged to `main`. Two-axis review (mattpocock-skills:code-review) found no hard violations and no wrong behaviour; fixes applied test-first: +62-only numbers, constant-time OTP hash compare, Clock stamps on every Better Auth write, `guarded()` resolves the actor itself, `keluar` proven to go through the guard, exhaustive `otpMessage`, dedup and trimmed exports. Keluar with an ended session redirects to `/masuk?sesi=berakhir` (not an error page). Verified in the main session: lint 0, typecheck 0, build 0, Vitest 139/139, Playwright 3/3 on a fresh stack.
+- Open for ticket 60: whether the email fallback OTP is also sent directly (recommended: yes, same reasons as the WhatsApp OTP).
