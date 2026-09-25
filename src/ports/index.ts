@@ -12,7 +12,6 @@ export type { EmailSender } from "./email-sender";
 export type { FileStore } from "./file-store";
 export type { PaymentProvider } from "./payment-provider";
 export type { PdfRenderer } from "./pdf-renderer";
-export type { SmsSender } from "./sms-sender";
 export type { WebPush } from "./web-push";
 export type { WhatsAppSender } from "./whatsapp-sender";
 
@@ -21,7 +20,6 @@ import type { EmailSender } from "./email-sender";
 import type { FileStore } from "./file-store";
 import type { PaymentProvider } from "./payment-provider";
 import type { PdfRenderer } from "./pdf-renderer";
-import type { SmsSender } from "./sms-sender";
 import type { WebPush } from "./web-push";
 import type { WhatsAppSender } from "./whatsapp-sender";
 
@@ -31,7 +29,6 @@ export interface Adapters {
   payments: PaymentProvider;
   whatsapp: WhatsAppSender;
   email: EmailSender;
-  sms: SmsSender;
   webPush: WebPush;
   files: FileStore;
   pdf: PdfRenderer;

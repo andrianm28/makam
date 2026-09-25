@@ -7,7 +7,6 @@ import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
-import type { SmsSender } from "@/ports/sms-sender";
 import type { WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 
@@ -37,7 +36,6 @@ export function createAdapters(options: AdapterOptions): Adapters {
           payments: notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
           whatsapp: notConfigured<WhatsAppSender>("WhatsAppSender (kirim.dev)"),
           email: notConfigured<EmailSender>("EmailSender (SES)"),
-          sms: notConfigured<SmsSender>("SmsSender (Zenziva)"),
           webPush: notConfigured<WebPush>("WebPush"),
           files: notConfigured<FileStore>("FileStore (S3)"),
           pdf: notConfigured<PdfRenderer>("PdfRenderer"),

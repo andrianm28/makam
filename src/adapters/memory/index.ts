@@ -7,7 +7,6 @@ export {
 } from "./fake-payment-provider";
 export {
   FakeEmailSender,
-  FakeSmsSender,
   FakeWebPush,
   FakeWhatsAppSender,
   type SentWhatsAppTemplate,
@@ -17,13 +16,12 @@ import type { Adapters } from "@/ports";
 import type { Clock } from "@/ports/clock";
 import { FakeFileStore, FakePdfRenderer } from "./fake-files";
 import { FakePaymentProvider } from "./fake-payment-provider";
-import { FakeEmailSender, FakeSmsSender, FakeWebPush, FakeWhatsAppSender } from "./fake-senders";
+import { FakeEmailSender, FakeWebPush, FakeWhatsAppSender } from "./fake-senders";
 
 export interface MemoryAdapters extends Adapters {
   payments: FakePaymentProvider;
   whatsapp: FakeWhatsAppSender;
   email: FakeEmailSender;
-  sms: FakeSmsSender;
   webPush: FakeWebPush;
   files: FakeFileStore;
   pdf: FakePdfRenderer;
@@ -39,7 +37,6 @@ export function createMemoryAdapters<C extends Clock>(
     payments: new FakePaymentProvider({ clock, webhookSecret: options.paymentWebhookSecret }),
     whatsapp: new FakeWhatsAppSender(),
     email: new FakeEmailSender(),
-    sms: new FakeSmsSender(),
     webPush: new FakeWebPush(),
     files: new FakeFileStore({ clock }),
     pdf: new FakePdfRenderer(),

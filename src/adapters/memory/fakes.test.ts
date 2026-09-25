@@ -6,7 +6,6 @@ import {
   FakeFileStore,
   FakePaymentProvider,
   FakePdfRenderer,
-  FakeSmsSender,
   FakeWebPush,
   FakeWhatsAppSender,
 } from "./index";
@@ -126,9 +125,8 @@ describe("fake message senders", () => {
     expect(whatsapp.replies).toEqual([{ to: "+6281234567890", text: "Hubungi CS di 0800..." }]);
   });
 
-  it("the email, SMS and web push fakes record what they were given", async () => {
+  it("the email and web push fakes record what they were given", async () => {
     const email = new FakeEmailSender();
-    const sms = new FakeSmsSender();
     const push = new FakeWebPush();
 
     await email.send({
@@ -137,14 +135,12 @@ describe("fake message senders", () => {
       text: "Terlampir.",
       attachments: [{ filename: "bukti.pdf", contentType: "application/pdf", content: new Uint8Array([1]) }],
     });
-    await sms.send({ to: "+6281234567890", text: "Kode OTP 123456" });
     await push.send({
       subscription: { endpoint: "https://push.example/1", keys: { p256dh: "k", auth: "a" } },
       notification: { title: "Pemesanan baru", body: "Saat Duka menunggu konfirmasi" },
     });
 
     expect(email.sent).toEqual([expect.objectContaining({ subject: "Bukti Pembayaran" })]);
-    expect(sms.sent).toEqual([expect.objectContaining({ text: "Kode OTP 123456" })]);
     expect(push.sent).toEqual([
       expect.objectContaining({ notification: expect.objectContaining({ title: "Pemesanan baru" }) }),
     ]);

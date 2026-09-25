@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { EmailMessage, EmailSender } from "@/ports/email-sender";
-import type { SmsMessage, SmsSender } from "@/ports/sms-sender";
 import type { PushNotification, PushResult, PushSubscription, WebPush } from "@/ports/web-push";
 import type {
   WhatsAppSender,
@@ -54,16 +53,6 @@ export class FakeEmailSender implements EmailSender {
 
   async send(message: EmailMessage): Promise<{ messageId: string }> {
     const messageId = `email-${randomUUID()}`;
-    this.sent.push({ ...message, messageId });
-    return { messageId };
-  }
-}
-
-export class FakeSmsSender implements SmsSender {
-  readonly sent: (SmsMessage & { messageId: string })[] = [];
-
-  async send(message: SmsMessage): Promise<{ messageId: string }> {
-    const messageId = `sms-${randomUUID()}`;
     this.sent.push({ ...message, messageId });
     return { messageId };
   }
