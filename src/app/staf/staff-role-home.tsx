@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { staffRoleLabels, type StaffRole } from "@/domain/identity";
+import type { StaffRole } from "@/domain/identity";
+import { staffRoleLabels } from "./role-labels";
 import { heldStaffRoles, staffMenuActor, staffRoleSlugs } from "@/server/staff-area";
 
 interface MenuItem {

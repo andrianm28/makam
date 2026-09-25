@@ -45,11 +45,12 @@ export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
-export { staffRoleLabels, type InviteStaffResult, type StaffInvite } from "./invites";
+export type { InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
   auditLogResource,
   authorize,
+  needsTotp,
   stafMenuResource,
   stafResource,
   staffRoles,

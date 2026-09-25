@@ -2,13 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { staffRoleLabels, staffRoles, stafResource, type InviteStaffResult } from "@/domain/identity";
+import { staffRoles, stafResource, type InviteStaffResult } from "@/domain/identity";
 import { guarded } from "@/server/guard";
 import { phoneNumberInput } from "@/server/phone-number-input";
+import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
+import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
+import { staffRoleLabels } from "../../role-labels";
 
-export type FormState = { status: "idle" } | { status: "berhasil" | "gagal"; message: string };
 
 const inviteSchema = z.object({
   phoneNumber: phoneNumberInput,
@@ -52,9 +54,8 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
     case "email_tidak_valid":
       return "Email tidak valid.";
     case "nomor_tidak_valid":
-      return "Nomor WhatsApp tidak valid.";
     case "nomor_bukan_indonesia":
-      return "Gunakan nomor WhatsApp Indonesia (+62).";
+      return phoneNumberRefusals[refusal.reason];
     case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refusal.reason);
@@ -86,5 +87,5 @@ export async function nonaktifkanStaf(_previous: FormState, formData: FormData):
     return { status: "gagal", message: messages[deactivated.reason] };
   }
   revalidatePath("/staf/admin-platform/staf");
-  return { status: "berhasil", message: "Akun Staf dinonaktifkan." };
+  return { status: "berhasil", message: "Akun Staf dinonaktifkan: perannya dicabut dan sesinya diakhiri." };
 }

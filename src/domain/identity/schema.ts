@@ -1,4 +1,5 @@
 import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { staffRoles } from "./authorize";
 
 /**
  * Owned by the identity module. Better Auth reads and writes the first four
@@ -50,7 +51,7 @@ export const identityStaffRole = pgTable(
     accountId: text("account_id")
       .notNull()
       .references(() => identityUser.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] }).notNull(),
+    role: text("role", { enum: staffRoles }).notNull(),
     grantedAt: at("granted_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.accountId, table.role] })],
@@ -67,7 +68,7 @@ export const identityStaffInvite = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     phoneNumber: text("phone_number").notNull(),
     email: text("email").notNull(),
-    role: text("role", { enum: ["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] }).notNull(),
+    role: text("role", { enum: staffRoles }).notNull(),
     invitedByAccountId: text("invited_by_account_id").notNull(),
     createdAt: at("created_at").notNull(),
     expiresAt: at("expires_at").notNull(),

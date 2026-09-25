@@ -4,10 +4,11 @@ import { z } from "zod";
 import { KTP_CHECK_MAX_BYTES, stafResource, type MoveAccountResult } from "@/domain/identity";
 import { guarded } from "@/server/guard";
 import { phoneNumberInput } from "@/server/phone-number-input";
+import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
+import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
 
-export type PindahNomorState = { status: "idle" } | { status: "berhasil" | "gagal"; message: string };
 
 const schema = z.object({
   currentPhoneNumber: phoneNumberInput,
@@ -18,7 +19,7 @@ const schema = z.object({
 });
 
 /** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check. */
-export async function pindahNomor(_previous: PindahNomorState, formData: FormData): Promise<PindahNomorState> {
+export async function pindahNomor(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
     action: "akun.pindah_nomor",
     resource: () => stafResource(),
@@ -74,9 +75,8 @@ function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
     case "berkas_gagal_disimpan":
       return "Berkas KTP tidak bisa disimpan: penyimpanan berkas belum tersedia di lingkungan ini (menunggu S3, tiket 60). Nomor belum dipindah.";
     case "nomor_tidak_valid":
-      return "Nomor WhatsApp tidak valid.";
     case "nomor_bukan_indonesia":
-      return "Gunakan nomor WhatsApp Indonesia (+62).";
+      return phoneNumberRefusals[refused.reason];
     case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refused.reason);

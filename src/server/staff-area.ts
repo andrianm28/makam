@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { authorize, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
+import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
 import { currentActor } from "./session";
 
 /** The URL segment of each role's menu in the staff area (`/staf/<slug>`). */
@@ -18,7 +18,7 @@ export function heldStaffRoles(roles: Role[]): StaffRole[] {
 
 /** Where a signed-in actor lands: the TOTP step, the first staff menu, or Akun Saya. */
 export function homeFor(actor: Actor): string {
-  if (actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi") return "/staf/totp";
+  if (needsTotp(actor)) return "/staf/totp";
   const [first] = heldStaffRoles(actor.roles);
   return first ? `/staf/${staffRoleSlugs[first]}` : "/akun";
 }

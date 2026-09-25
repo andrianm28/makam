@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { nonaktifkanStaf, undangStaf, type FormState } from "./actions";
+import type { FormState } from "../../form-state";
+import { nonaktifkanStaf, undangStaf } from "./actions";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";

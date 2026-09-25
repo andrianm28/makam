@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { staffRoleLabels, staffRoles } from "@/domain/identity";
+import { staffRoles } from "@/domain/identity";
+import { staffRoleLabels } from "../../role-labels";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
@@ -53,7 +54,10 @@ export default async function StafAdminPage() {
       <Card>
         <CardHeader>
           <CardTitle>Akun Staf</CardTitle>
-          <CardDescription>Menonaktifkan Akun Staf mengakhiri sesinya dan menutup aksesnya; riwayatnya tetap.</CardDescription>
+          <CardDescription>
+            Menonaktifkan Akun Staf mencabut semua perannya dan mengakhiri sesinya. Nomornya tetap bisa masuk sebagai
+            Pemesan, dan riwayatnya tetap. Untuk memberi peran lagi, kirim Undangan Staf baru.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -70,7 +74,7 @@ export default async function StafAdminPage() {
                 <TableRow key={account.accountId}>
                   <TableCell>{account.phoneNumber}</TableCell>
                   <TableCell>{account.email ?? "–"}</TableCell>
-                  <TableCell>{account.roles.map((role) => staffRoleLabels[role]).join(", ")}</TableCell>
+                  <TableCell>{account.roles.map((role) => staffRoleLabels[role]).join(", ") || "–"}</TableCell>
                   <TableCell>
                     {account.deactivated ? (
                       <Badge variant="secondary">Dinonaktifkan</Badge>

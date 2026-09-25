@@ -13,7 +13,12 @@ export const STAFF_INVITE_EXPIRES_AFTER_MS = 7 * 86_400_000;
 /** The WhatsApp template telling the invitee to log in (listed in whatsapp-templates.md). */
 export const STAFF_INVITE_TEMPLATE = "staf_undangan";
 
-export const staffRoleLabels: Record<StaffRole, string> = {
+/**
+ * The role as the `staf_undangan` template's first parameter names it
+ * (whatsapp-templates.md #43). Message wording, not a screen label: it moves to
+ * the Notifications module with this send (ticket 20).
+ */
+const inviteTemplateRoleNames: Record<StaffRole, string> = {
   admin_platform: "Admin Platform",
   admin_lokasi: "Admin Lokasi",
   petugas_lapangan: "Petugas Lapangan",
@@ -92,7 +97,7 @@ export async function inviteStaff(
       to: phoneNumber,
       template: STAFF_INVITE_TEMPLATE,
       language: "id",
-      parameters: [staffRoleLabels[input.role], `${deps.baseURL}/masuk`],
+      parameters: [inviteTemplateRoleNames[input.role], `${deps.baseURL}/masuk`],
     });
   } catch {
     delivered = false;

@@ -87,6 +87,11 @@ export type Authorization =
 const allowed: Authorization = { allowed: true };
 const denied: Authorization = { allowed: false, reason: "tidak_berwenang" };
 
+/** True while the actor's session must still enrol or pass TOTP before anything else (Admin Platform only). */
+export function needsTotp(actor: Pick<Actor, "totp">): boolean {
+  return actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi";
+}
+
 /** Actions an Akun holding Admin Platform may take before passing TOTP. */
 const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
 
@@ -105,7 +110,7 @@ export function staffWriteRefusal(
 
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
-  if ((actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi") && !beforeTotp.has(action)) {
+  if (needsTotp(actor) && !beforeTotp.has(action)) {
     return { allowed: false, reason: "perlu_totp" };
   }
   const holds = (role: Role) => actor.roles.includes(role);
