@@ -58,7 +58,7 @@ A v1 MVP spec for makam.co.id, ready for `/to-spec`: per-pillar scope, actors an
 
 - **Onboarding existing records**: the one-off Excel import of a Lokasi Mitra's plots and Pemegang Hak. Lifecycle is now settled (Petak Makam / Hak Pakai / Pemakaman); the template waits on the first partner showing how they keep records. Until then plots are entered by hand in the Denah ("Admin Lokasi back office and Petugas Lapangan work"). Not needed before `/to-spec`: the spec states the import requirement and `Perlu Verifikasi`, the template follows the first partner.
 - **Cutover from the old Laravel app**: moving `makam.co.id` from the frozen makam-app beta to v1, and whether any beta data (users, orders, Lokasi) must be carried over. Waits until v1 nears launch; not needed before `/to-spec`.
-- **Content pages**: Tentang Kami (about makam.co.id and PT Jaya Korpora Prima, no YIEM), Cara Kami Bekerja (the homepage trust claims, per "Lokasi terverifikasi and published tariffs"), Pengurusan di TPU DKI (DIY guide + Layanan prices), FAQ, Hubungi Kami. Daftar Lokasi Makam and navigation are settled in "Homepage, search and Akun Saya". No decision left; written directly in the spec.
+- **Content pages**: Tentang Kami (about makam.co.id and PT Jaya Korpora Prima, no YIEM), Cara Kami Bekerja (the homepage trust claims, per "Lokasi terverifikasi and published tariffs"), Pengurusan di TPU DKI (DIY guide + Layanan prices), FAQ, Hubungi Kami. Daftar Lokasi Makam and navigation are settled in "Homepage, search and Akun Saya". No decision left; not needed before `/to-spec`, written directly in the spec.
 
 ## Out of scope
 

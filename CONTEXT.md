@@ -47,16 +47,20 @@ A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it 
 _Avoid_: Makam umum, using TPU for any cemetery
 
 **Makam TPU**:
-The Operator's record of a grave at a DKI TPU that it has filed an IPTM for: the TPU, block and number, Almarhum, Pemegang Hak, and the current IPTM with its expiry. The TPU counterpart of a Hak Pakai as far as the platform is concerned.
+The Operator's record of a grave at a DKI TPU that it has filed an IPTM for: the TPU, block and number, Almarhum, Pemegang Hak with their WhatsApp number, and the current IPTM with its expiry. The TPU counterpart of a Hak Pakai as far as the platform is concerned.
 _Avoid_: TPU plot record, Hak Pakai (for a TPU)
 
 **Petak Makam**:
 A single burial plot inside a Lokasi Makam; the physical unit that is booked and holds Pemakaman. What is extended is its Hak Pakai, not the plot.
 _Avoid_: Makam (ambiguous), kavling (alone), lot
 
+**Makam Keluarga**:
+Every grave a family already holds a right to, as the Pemegang Hak sees them: its Hak Pakai at Lokasi Mitra (single Petak Makam or Kavling Keluarga) and its Makam TPU. The starting point for Perpanjangan, a further burial, Layanan and requests.
+_Avoid_: Kavling Keluarga (for this), makam saya
+
 **Kavling Keluarga**:
 A fixed group of adjacent Petak Makam at a Lokasi Mitra, sold as one indivisible unit under a single Hak Pakai.
-_Avoid_: Kavling (alone), makam keluarga, blok keluarga
+_Avoid_: Kavling (alone), blok keluarga, makam keluarga (that is every grave a family holds, see Makam Keluarga)
 
 **Jenis Makam**:
 A class of Petak Makam at a Lokasi Makam (e.g. by size, block or facilities) with its own price; what a Pemesan chooses before an Admin Lokasi assigns the exact Petak Makam.

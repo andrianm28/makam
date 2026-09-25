@@ -34,3 +34,5 @@ Resolved by grilling with the user (2026-09-25).
 Glossary: added **Wakif**, **Nazhir**, **Pengajuan Wakaf** to `CONTEXT.md`.
 
 **Consistency review** (2026-09-25): "Roles, accounts and access" did not settle Wakif login; it is open in "Homepage, search and Akun Saya".
+
+**Final review** (2026-09-25): the Wakif logs in like everyone else (WhatsApp OTP, phone-keyed account) and follows the Pengajuan Wakaf in the Akun Saya Wakaf tab ("Homepage, search and Akun Saya"). Admin Platform's **notes to the Wakif** (shown there) are separate from internal notes, which stay internal. The Wakif can cancel (`Dibatalkan`) from that tab until Menunggu Ikrar.

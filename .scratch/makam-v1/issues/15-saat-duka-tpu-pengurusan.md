@@ -54,3 +54,5 @@ Decided with the user on 2026-09-25 (all recommendations accepted). Facts from [
 **Amended by "TPU order loose ends"** (2026-09-25): no Bukti Pemesanan at a TPU (item 11); the family's proof is the Bukti Pembayaran, the order page and the IPTM scan. The 2-hour confirmation clock pauses 18:00–06:00 and the screen shows the computed deadline (replaces "by 07:00" in item 5); after hours it shows the CS WhatsApp number ("dibalas mulai pukul 06:00"), not an on-call contact. New filing-only order kind **Pengurusan IPTM** for families who buried on their own, paid before the filing.
 
 **Amended by "Homepage, search and Akun Saya"** (2026-09-25): the "TPU plot record" is named **Makam TPU** in the glossary; it shows in Akun Saya → Makam for the number recorded as its Pemegang Hak.
+
+**Final review** (2026-09-25): Isi Data also takes the **Pemegang Hak's WhatsApp number** (defaulting to the Pemesan's), stored on the Makam TPU: it is what links the Makam TPU to the holder's Akun Saya and receives the IPTM expiry reminders ("TPU order loose ends", "Homepage, search and Akun Saya").
