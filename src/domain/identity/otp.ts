@@ -62,6 +62,8 @@ export type RequestOtpResult =
       resendAt: Date;
       /** When the OTP screen shows its fallback slot. */
       fallbackAt: Date;
+      /** True when the number's Akun has an Email Terverifikasi: the slot offers "Kirim lewat email"; otherwise the CS pointer. */
+      emailFallback: boolean;
     }
   | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" }
   | LimitRefusal;
@@ -114,6 +116,7 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
     expiresAt: issued.expiresAt,
     resendAt: issued.resendAt,
     fallbackAt: new Date(issued.sentAt.getTime() + OTP_FALLBACK_AFTER_MS),
+    emailFallback: Boolean(akun?.verifiedEmail),
   };
 }
 

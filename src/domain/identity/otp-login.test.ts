@@ -166,6 +166,8 @@ describe("OTP limits", () => {
       expiresAt: wib("2026-10-01 09:10"),
       resendAt: wib("2026-10-01 09:01"),
       fallbackAt: wib("2026-10-01 09:01"),
+      // No Akun yet, so no Email Terverifikasi: the slot points to CS.
+      emailFallback: false,
     });
   });
 

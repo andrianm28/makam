@@ -370,6 +370,72 @@ describe("the email of an Undangan Staf", () => {
   });
 });
 
+describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
+  it("is offered only when the number's existing Akun has an Email Terverifikasi", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, clock } = setup;
+    await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    const typedOnly = await logInByOtp(identity, whatsapp, "082222222222");
+    await identity.saveEmail(await actorOf(identity, typedOnly.cookies), { email: "ketik@contoh.id" });
+    clock.advance({ minutes: 1 });
+
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true, emailFallback: true });
+    expect(await identity.requestOtp({ phoneNumber: "082222222222" })).toMatchObject({ ok: true, emailFallback: false });
+    expect(await identity.requestOtp({ phoneNumber: "083333333333" })).toMatchObject({ ok: true, emailFallback: false });
+  });
+
+  it("sends the email Kode Masuk from 60 s after the WhatsApp code, and entering it logs in like the WhatsApp code", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, email, clock } = setup;
+    const { account } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    const sent = await identity.requestOtp({ phoneNumber: "0812-3456-7890" });
+    if (!sent.ok) throw new Error(sent.reason);
+
+    clock.set(new Date(sent.fallbackAt.getTime() - 1_000));
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: IP })).toEqual({
+      ok: false,
+      reason: "tunggu_kirim_ulang",
+      retryAt: sent.fallbackAt,
+    });
+    clock.set(sent.fallbackAt);
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: IP })).toMatchObject({ ok: true });
+    expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
+
+    const login = await identity.verifyOtp({
+      phoneNumber: "081234567890",
+      code: emailCodeTo(email, "sari@contoh.id"),
+      channel: "email",
+    });
+    expect(login).toMatchObject({ ok: true, accountCreated: false, account });
+  });
+
+  it("is refused for a number whose Akun has no Email Terverifikasi, or that has no Akun: the screen points to CS", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email, clock } = setup;
+    const typedOnly = await logInByOtp(identity, whatsapp, "082222222222");
+    await identity.saveEmail(await actorOf(identity, typedOnly.cookies), { email: "ketik@contoh.id" });
+    clock.advance({ minutes: 1 });
+    await identity.requestOtp({ phoneNumber: "082222222222" });
+    await identity.requestOtp({ phoneNumber: "083333333333" });
+    clock.advance({ minutes: 1 });
+
+    expect(await identity.requestEmailFallback({ phoneNumber: "082222222222", ip: IP })).toEqual({
+      ok: false,
+      reason: "tanpa_email_terverifikasi",
+    });
+    expect(await identity.requestEmailFallback({ phoneNumber: "083333333333", ip: "198.51.100.60" })).toEqual({
+      ok: false,
+      reason: "tanpa_email_terverifikasi",
+    });
+    expect(email.sent).toEqual([]);
+    expect(await identity.verifyOtp({ phoneNumber: "083333333333", code: "123456", channel: "email" })).toEqual({
+      ok: false,
+      reason: "kode_salah",
+    });
+    expect(await identity.accountByPhoneNumber("083333333333")).toBeNull();
+  });
+});
+
 describe("when EmailSender refuses (staging and production until ticket 68)", () => {
   it("the email step still gives the same reply, the failure counts against no limit, and it is reported without the address or code", async () => {
     const fake = new FakeEmailSender();

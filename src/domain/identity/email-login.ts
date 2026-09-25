@@ -3,7 +3,17 @@ import type { Database } from "@/db/client";
 import type { EmailSender } from "@/ports/email-sender";
 import { kodeMasukEmailMessage } from "./email-templates";
 import { logInAkun, type LoginDeps, type VerifyOtpResult } from "./login";
-import { akunLockKey, claimIpRequest, issueCode, OTP_RESEND_AFTER_MS, type LimitRefusal } from "./otp";
+import {
+  akunLockKey,
+  akunOfNumber,
+  claimIpRequest,
+  issueCode,
+  lastSentAt,
+  OTP_FALLBACK_AFTER_MS,
+  OTP_RESEND_AFTER_MS,
+  type LimitRefusal,
+} from "./otp";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityUser } from "./schema";
 import { normaliseEmail } from "./staff";
 
@@ -68,6 +78,55 @@ export async function verifyEmailLogin(
     code: input.code,
     mayCreate: false,
   });
+}
+
+export type RequestEmailFallbackResult =
+  | { ok: true; sentAt: Date; resendAt: Date }
+  | PhoneNumberRejection
+  /** The number has no Akun, or its Akun no Email Terverifikasi: the screen points to CS instead. */
+  | { ok: false; reason: "tanpa_email_terverifikasi" | "gagal_kirim" }
+  | LimitRefusal;
+
+/**
+ * "Kirim lewat email" on the WhatsApp code screen: from 60 s after the last
+ * WhatsApp Kode Masuk, sends the email Kode Masuk to the Email Terverifikasi
+ * of the number's existing Akun. The code is then entered on the same screen
+ * (verifyOtp with channel "email").
+ */
+export async function requestEmailFallback(
+  deps: EmailLoginDeps,
+  input: { phoneNumber: string; ip: string },
+): Promise<RequestEmailFallbackResult> {
+  const normalised = normalisePhoneNumber(input.phoneNumber);
+  if (!normalised.ok) return normalised;
+  const akun = await akunOfNumber(deps.db, normalised.phoneNumber);
+  if (!akun?.verifiedEmail) return { ok: false, reason: "tanpa_email_terverifikasi" };
+  const email = akun.verifiedEmail;
+
+  const whatsappSentAt = await lastSentAt(deps.db, {
+    channel: "whatsapp",
+    target: normalised.phoneNumber,
+    purpose: "masuk",
+  });
+  const now = deps.clock.now();
+  if (whatsappSentAt) {
+    const retryAt = new Date(whatsappSentAt.getTime() + OTP_FALLBACK_AFTER_MS);
+    if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };
+  }
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
+
+  const issued = await issueCode(
+    deps,
+    { channel: "email", target: email, purpose: "masuk", lockKey: akunLockKey(akun.id) },
+    (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
+  );
+  if (!issued.ok) {
+    if (issued.reason !== "gagal_kirim") return issued;
+    deps.reportError("email Kode Masuk tidak terkirim", issued.error);
+    return { ok: false, reason: "gagal_kirim" };
+  }
+  return { ok: true, sentAt: issued.sentAt, resendAt: issued.resendAt };
 }
 
 /** The Akun whose Email Terverifikasi this (normalised) email is, or null. */

@@ -28,7 +28,13 @@ import {
   type RequestEmailVerificationResult,
   type SaveEmailResult,
 } from "./email";
-import { requestEmailLogin, verifyEmailLogin, type RequestEmailLoginResult } from "./email-login";
+import {
+  requestEmailFallback,
+  requestEmailLogin,
+  verifyEmailLogin,
+  type RequestEmailFallbackResult,
+  type RequestEmailLoginResult,
+} from "./email-login";
 import { accountByPhoneNumber, LoginProofs, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
@@ -58,7 +64,7 @@ export type { CodeRejection, RequestOtpResult } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
-export type { RequestEmailLoginResult } from "./email-login";
+export type { RequestEmailFallbackResult, RequestEmailLoginResult } from "./email-login";
 export type {
   AccountEmail,
   ConfirmEmailVerificationResult,
@@ -122,8 +128,13 @@ function reportToStderr(event: string, error: unknown): void {
 export interface Identity {
   /** Sends a login OTP to a WhatsApp number (Masuk, and Kirim in the wizards). */
   requestOtp(input: { phoneNumber: string }): Promise<RequestOtpResult>;
-  /** Logs in with the OTP, creating the number's account when it has none. */
-  verifyOtp(input: { phoneNumber: string; code: string }): Promise<VerifyOtpResult>;
+  /**
+   * Logs in with the Kode Masuk: by WhatsApp (creating the number's account when it has none), or with
+   * `channel: "email"` the code "Kirim lewat email" sent to the Akun's Email Terverifikasi.
+   */
+  verifyOtp(input: { phoneNumber: string; code: string; channel?: "whatsapp" | "email" }): Promise<VerifyOtpResult>;
+  /** "Kirim lewat email": 60 s after a WhatsApp code, the email Kode Masuk to the number's Email Terverifikasi. */
+  requestEmailFallback(input: { phoneNumber: string; ip: string }): Promise<RequestEmailFallbackResult>;
   /** The account keyed by this WhatsApp number (any spelling), or null. */
   accountByPhoneNumber(phoneNumber: string): Promise<Account | null>;
   /** The signed-in actor for a request's Cookie header, or null when not signed in. */
@@ -200,6 +211,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
     passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
+    requestEmailFallback: (input) => requestEmailFallback(emailLogin, input),
     requestEmailLogin: (input) => requestEmailLogin(emailLogin, input),
     verifyEmailLogin: (input) => verifyEmailLogin(emailLogin, input),
     accountEmail: (by) => accountEmail(deps, by),

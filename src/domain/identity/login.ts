@@ -59,18 +59,30 @@ export class LoginProofs {
 }
 
 /**
- * A correct WhatsApp Kode Masuk logs into the number's account, creating it
- * first when the number has none (story 26: no sign-up).
+ * A correct Kode Masuk logs into the number's account. By WhatsApp it creates
+ * the account first when the number has none (story 26: no sign-up). With
+ * `channel: "email"` ("Kirim lewat email" on the same screen) the code is the
+ * one sent to the Email Terverifikasi of the number's existing Akun.
  */
 export async function verifyOtp(
   deps: LoginDeps,
-  input: { phoneNumber: string; code: string },
+  input: { phoneNumber: string; code: string; channel?: "whatsapp" | "email" },
 ): Promise<VerifyOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
   const { phoneNumber } = normalised;
 
   const akun = await akunOfNumber(deps.db, phoneNumber);
+  if (input.channel === "email") {
+    if (!akun?.verifiedEmail) return { ok: false, reason: "kode_salah" };
+    return logInAkun(deps, {
+      phoneNumber,
+      lookup: { channel: "email", target: akun.verifiedEmail, purpose: "masuk" },
+      lockKey: akunLockKey(akun.id),
+      code: input.code,
+      mayCreate: false,
+    });
+  }
   return logInAkun(deps, {
     phoneNumber,
     lookup: { channel: "whatsapp", target: phoneNumber, purpose: "masuk" },
