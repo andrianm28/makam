@@ -32,6 +32,17 @@ export async function accountEmail(deps: { db: Database }, by: Actor): Promise<A
   return { email: row?.email ?? null, verified: Boolean(row?.email && row.verifiedAt) };
 }
 
+export type SaveEmailResult = { ok: true; email: string } | { ok: false; reason: "email_tidak_valid" };
+
+/** The profile's email field: stores the typed email on the Akun, unverified. */
+export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: string }): Promise<SaveEmailResult> {
+  const email = normaliseEmail(input.email);
+  if (!email) return { ok: false, reason: "email_tidak_valid" };
+  const now = deps.clock.now();
+  await deps.db.update(identityUser).set({ contactEmail: email, updatedAt: now }).where(eq(identityUser.id, by.accountId));
+  return { ok: true, email };
+}
+
 export type RequestEmailVerificationResult =
   | { ok: true; email: string; sentAt: Date; expiresAt: Date; resendAt: Date }
   | { ok: false; reason: "email_tidak_valid" | "gagal_kirim" }

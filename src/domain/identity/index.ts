@@ -20,10 +20,13 @@ import {
   accountEmail,
   confirmEmailVerification,
   requestEmailVerification,
+  saveEmail,
   type AccountEmail,
   type ConfirmEmailVerificationResult,
   type RequestEmailVerificationResult,
+  type SaveEmailResult,
 } from "./email";
+import { requestEmailLogin, verifyEmailLogin, type RequestEmailLoginResult } from "./email-login";
 import { accountByPhoneNumber, LoginProofs, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
@@ -53,7 +56,13 @@ export type { CodeRejection, RequestOtpResult } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
-export type { AccountEmail, ConfirmEmailVerificationResult, RequestEmailVerificationResult } from "./email";
+export type { RequestEmailLoginResult } from "./email-login";
+export type {
+  AccountEmail,
+  ConfirmEmailVerificationResult,
+  RequestEmailVerificationResult,
+  SaveEmailResult,
+} from "./email";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
@@ -133,8 +142,14 @@ export interface Identity {
   passTotp(by: Actor, code: string): Promise<PassTotpResult>;
   /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
   resetTotp(input: { phoneNumber: string; reason: string }): Promise<ResetTotpResult>;
+  /** Masuk dengan email, step 1: a Kode Masuk to an Email Terverifikasi; the same reply for every email. */
+  requestEmailLogin(input: { email: string; ip: string }): Promise<RequestEmailLoginResult>;
+  /** Masuk dengan email, step 2: logs into the Akun of that Email Terverifikasi; never creates an Akun. */
+  verifyEmailLogin(input: { email: string; code: string }): Promise<VerifyOtpResult>;
   /** The signed-in Akun's email and whether it is its Email Terverifikasi. */
   accountEmail(by: Actor): Promise<AccountEmail>;
+  /** The profile's email field: stores the typed email, unverified. */
+  saveEmail(by: Actor, input: { email: string }): Promise<SaveEmailResult>;
   /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
   requestEmailVerification(by: Actor, input: { email: string; ip: string }): Promise<RequestEmailVerificationResult>;
   /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
@@ -168,7 +183,10 @@ export function createIdentity(deps: IdentityDeps): Identity {
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
     passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
+    requestEmailLogin: (input) => requestEmailLogin({ ...login, email: deps.email }, input),
+    verifyEmailLogin: (input) => verifyEmailLogin({ ...login, email: deps.email }, input),
     accountEmail: (by) => accountEmail(deps, by),
+    saveEmail: (by, input) => saveEmail(deps, by, input),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
   };
