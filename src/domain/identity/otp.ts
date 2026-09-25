@@ -1,5 +1,5 @@
 import { createHmac, randomInt } from "node:crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -13,6 +13,8 @@ export const OTP_TEMPLATE_LANGUAGE = "id";
 export const OTP_LENGTH = 6;
 /** A code works for 10 minutes; the template footer says so (`code_expiration_minutes: 10`). */
 export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
+/** The 5th wrong code burns the OTP; the Pemesan must ask for a new one. */
+export const OTP_MAX_WRONG_ATTEMPTS = 5;
 
 export interface OtpDeps {
   db: Database;
@@ -51,28 +53,51 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   return { ok: true, phoneNumber, sentAt: now, expiresAt };
 }
 
-export type CheckCodeResult = { ok: true } | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" };
+export type CheckCodeResult =
+  | { ok: true }
+  | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" | "terlalu_banyak_percobaan" };
 
-/** Checks a typed code against the number's open OTP; a correct code is used up. */
+/**
+ * Checks a typed code against the number's latest OTP. A correct code is used
+ * up; the `OTP_MAX_WRONG_ATTEMPTS`th wrong code burns it.
+ */
 export async function checkCode(
   deps: OtpDeps,
   input: { phoneNumber: string; code: string },
 ): Promise<CheckCodeResult> {
   const now = deps.clock.now();
-  const [open] = await deps.db
+  const [latest] = await deps.db
     .select()
     .from(identityOtpRequest)
-    .where(and(eq(identityOtpRequest.phoneNumber, input.phoneNumber), isNull(identityOtpRequest.closedAt)))
+    .where(eq(identityOtpRequest.phoneNumber, input.phoneNumber))
     .orderBy(desc(identityOtpRequest.sentAt))
     .limit(1);
-  if (open && open.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "kode_kedaluwarsa" };
-  if (!open || open.codeHash !== hashCode(deps.secret, input.phoneNumber, input.code)) {
-    return { ok: false, reason: "kode_salah" };
+
+  if (!latest) return { ok: false, reason: "kode_salah" };
+  if (latest.closedReason === "terlalu_banyak_percobaan") return { ok: false, reason: "terlalu_banyak_percobaan" };
+  if (latest.closedAt) return { ok: false, reason: "kode_salah" };
+  if (latest.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "kode_kedaluwarsa" };
+
+  const stillOpen = and(eq(identityOtpRequest.id, latest.id), isNull(identityOtpRequest.closedAt));
+
+  if (latest.codeHash !== hashCode(deps.secret, input.phoneNumber, input.code)) {
+    const [counted] = await deps.db
+      .update(identityOtpRequest)
+      .set({ wrongAttempts: sql`${identityOtpRequest.wrongAttempts} + 1` })
+      .where(stillOpen)
+      .returning({ wrongAttempts: identityOtpRequest.wrongAttempts });
+    if (!counted || counted.wrongAttempts < OTP_MAX_WRONG_ATTEMPTS) return { ok: false, reason: "kode_salah" };
+    await deps.db
+      .update(identityOtpRequest)
+      .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan" })
+      .where(stillOpen);
+    return { ok: false, reason: "terlalu_banyak_percobaan" };
   }
+
   const used = await deps.db
     .update(identityOtpRequest)
-    .set({ closedAt: now })
-    .where(and(eq(identityOtpRequest.id, open.id), isNull(identityOtpRequest.closedAt)))
+    .set({ closedAt: now, closedReason: "dipakai" })
+    .where(stillOpen)
     .returning({ id: identityOtpRequest.id });
   return used.length === 1 ? { ok: true } : { ok: false, reason: "kode_salah" };
 }

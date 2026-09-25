@@ -100,8 +100,9 @@ export const identityOtpRequest = pgTable(
     sentAt: at("sent_at").notNull(),
     expiresAt: at("expires_at").notNull(),
     wrongAttempts: integer("wrong_attempts").notNull().default(0),
-    /** Set when the code is used, replaced by a newer one, or burnt by too many wrong attempts. */
+    /** Set when the code is used, or burnt by too many wrong attempts. */
     closedAt: at("closed_at"),
+    closedReason: text("closed_reason", { enum: ["dipakai", "terlalu_banyak_percobaan"] }),
   },
   (table) => [index("identity_otp_request_phone_sent_idx").on(table.phoneNumber, table.sentAt)],
 );

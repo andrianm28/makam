@@ -92,6 +92,39 @@ describe("OTP limits", () => {
     });
   });
 
+  it("5 wrong codes burn the OTP: even the right code is then refused until a new OTP is sent", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(code) })).toEqual({
+        ok: false,
+        reason: "kode_salah",
+      });
+    }
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(code) })).toEqual({
+      ok: false,
+      reason: "terlalu_banyak_percobaan",
+    });
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toEqual({
+      ok: false,
+      reason: "terlalu_banyak_percobaan",
+    });
+  });
+
+  it("4 wrong codes still leave the right code working", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(code) });
+    }
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
+  });
+
   it("a code still works just before its 10 minutes are up", async () => {
     const { clock, whatsapp, identity } = setup();
     await identity.requestOtp({ phoneNumber: "081234567890" });
