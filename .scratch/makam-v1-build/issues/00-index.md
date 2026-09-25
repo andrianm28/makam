@@ -14,7 +14,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | [06](06-operator-facts-and-reference-data.md) | Operator facts and launch reference data | ready-for-human | — |
 | [07](07-production-environment.md) | Staging, GlitchTip, deploy pipeline and uptime alarm | resolved | 01 |
 | [08](08-whatsapp-otp-login.md) | WhatsApp OTP login and the Pemesan account | resolved | 01 |
-| [09](09-staff-access-totp-and-audit-log.md) | Staff access: roles, invites, TOTP and the Audit Log | ready-for-agent | 08 |
+| [09](09-staff-access-totp-and-audit-log.md) | Staff access: roles, invites, TOTP and the Audit Log | resolved | 08 |
 | [10](10-lokasi-mitra-onboarding.md) | Lokasi Mitra onboarding record and Admin Lokasi invites | ready-for-agent | 09 |
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | ready-for-agent | 10 |
 | [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | ready-for-agent | 10 |
@@ -217,4 +217,4 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test | ready-for-agent | 03, 07 |
 | [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64 |
-| [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | ready-for-agent | — |
+| [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
