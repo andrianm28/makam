@@ -39,6 +39,47 @@ const base64Key32 = z
   .refine((value) => Buffer.from(value, "base64").length === 32, "must decode to 32 bytes");
 
 /**
+ * A fixed VAPID key pair and subject: development and test only, where the
+ * fake WebPush sends nothing (generated once with `web-push generate-vapid-keys`).
+ */
+const LOCAL_VAPID_PUBLIC_KEY = "BC_qW4wXMGMGnjLWnznxcJ2eJgsuIZyje3y3GNBPPKosK2tmyeodvkIhHVN07eedoLz2-3raxt5x9ftthpdz5oI";
+const LOCAL_VAPID_PRIVATE_KEY = "_ePH1MZPQEBgQ9idRe19cAhO6_v7NU8maCcgKgB1fOs";
+const LOCAL_VAPID_SUBJECT = "mailto:dev@makam.co.id";
+
+/** Unpadded base64url (RFC 4648 §5), the encoding of VAPID keys. */
+const base64url = z.string().regex(/^[A-Za-z0-9_-]+$/, "must be unpadded base64url");
+
+/** A P-256 public key, uncompressed (65 bytes, first byte 0x04). */
+const vapidPublicKey = base64url.refine((value) => {
+  const bytes = Buffer.from(value, "base64url");
+  return bytes.length === 65 && bytes[0] === 0x04;
+}, "must be an uncompressed P-256 public key (65 bytes)");
+
+/** A P-256 private key (32 bytes). */
+const vapidPrivateKey = base64url.refine(
+  (value) => Buffer.from(value, "base64url").length === 32,
+  "must be a P-256 private key (32 bytes)",
+);
+
+/** Push services want a contact: `mailto:` or an https URL; Apple refuses localhost subjects. */
+const vapidSubject = z.string().refine(
+  (value) =>
+    /^mailto:[^@\s]+@[^@\s]+$/.test(value) ||
+    (value.startsWith("https://") && URL.canParse(value) && new URL(value).hostname !== "localhost"),
+  "must be mailto:<email> or an https URL (not localhost)",
+);
+
+/** Settings staging and production must set; development and test fall back to local values. */
+const liveRequired = [
+  "AUTH_SECRET",
+  "APP_BASE_URL",
+  "TOTP_ENCRYPTION_KEY",
+  "VAPID_PUBLIC_KEY",
+  "VAPID_PRIVATE_KEY",
+  "VAPID_SUBJECT",
+] as const;
+
+/**
  * The EmailSender's SumoPod SMTP relay (ticket 68, ADR 0002 amendment): implicit
  * TLS on 465. Required in staging and production; development and test use the
  * fake EmailSender and need none of it.
@@ -122,16 +163,23 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   APP_BASE_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https?$/ }).optional()),
   /** Encrypts Admin Platform TOTP secrets at rest (AES-256-GCM). Required outside development and test. */
   TOTP_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, base64Key32.optional()),
+  /** Web push (VAPID, RFC 8292): the key pair and contact that sign staff pushes. Required outside development and test. */
+  VAPID_PUBLIC_KEY: z.preprocess(emptyToUndefined, vapidPublicKey.optional()),
+  VAPID_PRIVATE_KEY: z.preprocess(emptyToUndefined, vapidPrivateKey.optional()),
+  VAPID_SUBJECT: z.preprocess(emptyToUndefined, vapidSubject.optional()),
 })
   .superRefine((env, ctx) => {
     requireSmtpOutsideFakes(env, ctx);
     if (usesInMemoryFakes(env.APP_ENV)) return;
-    for (const key of ["AUTH_SECRET", "APP_BASE_URL", "TOTP_ENCRYPTION_KEY"] as const) {
+    for (const key of liveRequired) {
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
     }
   })
   .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, TOTP_ENCRYPTION_KEY, ...env }) => ({
     ...withSmtpSettings(env),
+    VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY ?? LOCAL_VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY ?? LOCAL_VAPID_PRIVATE_KEY,
+    VAPID_SUBJECT: env.VAPID_SUBJECT ?? LOCAL_VAPID_SUBJECT,
     FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
     AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
     APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
