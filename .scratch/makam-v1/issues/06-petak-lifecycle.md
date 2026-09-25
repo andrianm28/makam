@@ -71,3 +71,5 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 **Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): consent for a burial under an existing Hak Pakai is implicit when the logged-in number is the Pemegang Hak's. Otherwise it comes from a WhatsApp Setujui, a verbal consent the Admin Lokasi logs, or heirship proof when the Pemegang Hak has died or cannot be reached (which raises a Ganti Pemegang Hak reminder). A Terencana Petak is already held while the order is `Diajukan`, before the 24 h payment hold; a lapsed hold makes the order `Kedaluwarsa`.
 
 **Amended by "Homepage, search and Akun Saya"** (2026-09-25): the Pemegang Hak can **request** a Ganti Pemegang Hak from Akun Saya (a form that raises an Antrean Lokasi row); the Admin Lokasi still performs it.
+
+**Spec review** (2026-09-25): an unpaid Terencana hold makes the order `Dibatalkan` (reason "batas pembayaran lewat"), not `Kedaluwarsa`, per the Consistency review 2 block of "Lokasi Mitra order lifecycle"; `Kedaluwarsa` is only a Hak Pakai status.
