@@ -24,8 +24,8 @@ export async function aktifkanPush(subscription: unknown): Promise<PushActionRes
     return {
       ok: false,
       message:
-        result.value.reason === "langganan_tidak_valid"
-          ? "Browser ini memberi data push yang tidak dikenali."
+        result.value.reason === "perangkat_tidak_valid"
+          ? "Perangkat ini tidak bisa menjadi Perangkat Push: data push dari browser tidak dikenali."
           : "Anda tidak berwenang melakukan ini.",
     };
   }

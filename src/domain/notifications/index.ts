@@ -52,7 +52,7 @@ export interface PushDevice {
   enabledAt: Date;
 }
 
-export type EnablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "langganan_tidak_valid" };
+export type EnablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "perangkat_tidak_valid" };
 export type DisablePushResult = { ok: true } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
 
 export interface StaffAlert {
@@ -109,7 +109,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       const refusal = pushRefusal(by);
       if (refusal) return refusal;
       const parsed = pushSubscriptionSchema.safeParse(input.subscription);
-      if (!parsed.success) return { ok: false, reason: "langganan_tidak_valid" };
+      if (!parsed.success) return { ok: false, reason: "perangkat_tidak_valid" };
       const { endpoint, keys } = parsed.data;
 
       // The staff page confirms its browser's push on every visit: unchanged, nothing to write.

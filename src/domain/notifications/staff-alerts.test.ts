@@ -346,7 +346,7 @@ describe("Perangkat Push", () => {
     expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
   });
 
-  it("refuses a subscription that is not a browser's (no https push service, or bad keys)", async () => {
+  it("refuses a browser whose push data is not valid (no https push service, or bad keys): perangkat_tidak_valid", async () => {
     const setup = notificationsOnTestDatabase(db);
     const adminLokasi = await signedInStaff(setup, "admin_lokasi");
     const valid = browserPushSubscription();
@@ -358,7 +358,7 @@ describe("Perangkat Push", () => {
     ]) {
       expect(await setup.notifications.enablePush(adminLokasi, { subscription })).toEqual({
         ok: false,
-        reason: "langganan_tidak_valid",
+        reason: "perangkat_tidak_valid",
       });
     }
     expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toEqual([]);
