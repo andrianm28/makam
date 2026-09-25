@@ -1,8 +1,13 @@
 import { getSessionCookie, parseSetCookieHeader } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
+import { and, eq, type SQL } from "drizzle-orm";
+import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import { COOKIE_PREFIX, type MakamAuth } from "./better-auth";
-import type { Actor } from "./authorize";
+import type { Actor, Role } from "./authorize";
+import { identitySession, identityUser } from "./schema";
+import { rolesOf } from "./staff";
+import { totpStatus } from "./totp";
 
 /** A cookie the web layer must set on the response, as Better Auth wrote it. */
 export interface SessionCookie {
@@ -52,19 +57,74 @@ export function sessionCookiesFrom(headers: Headers): SessionCookie[] {
  * checked against the Clock, never the system time.
  */
 export async function actorFromCookies(
-  deps: { auth: MakamAuth; clock: Clock; secret: string },
+  deps: { db: Database; clock: Clock; secret: string },
   cookieHeader: string | null | undefined,
 ): Promise<Actor | null> {
+  const session = await activeSession(deps, cookieHeader);
+  if (!session) return null;
+  const totp = await totpStatus(deps.db, session);
+  return {
+    accountId: session.accountId,
+    phoneNumber: session.phoneNumber,
+    roles: session.roles,
+    totp,
+    sessionId: session.id,
+  };
+}
+
+/** A signed-in session, as the identity module reads it. */
+export interface ActiveSession {
+  id: string;
+  token: string;
+  accountId: string;
+  phoneNumber: string;
+  roles: Role[];
+  createdAt: Date;
+  expiresAt: Date;
+  totpPassedAt: Date | null;
+}
+
+/**
+ * The live session behind a Cookie header: signature valid, not expired on the
+ * Clock, and its account able to log in. Null otherwise.
+ */
+export async function activeSession(
+  deps: { db: Database; clock: Clock; secret: string },
+  cookieHeader: string | null | undefined,
+): Promise<ActiveSession | null> {
   const token = await verifiedSessionToken(deps.secret, cookieHeader);
   if (!token) return null;
+  return liveSession(deps, eq(identitySession.token, token));
+}
 
-  const found = await findSession(deps.auth, token);
-  if (!found) return null;
-  if (found.session.expiresAt.getTime() <= deps.clock.now().getTime()) return null;
+/**
+ * The signed-in actor's own session, still live on the Clock: for writes on
+ * the session itself (TOTP) after `guarded()` resolved the actor. Null when it
+ * has ended since.
+ */
+export async function actorSession(deps: { db: Database; clock: Clock }, actor: Actor): Promise<ActiveSession | null> {
+  return liveSession(deps, and(eq(identitySession.id, actor.sessionId), eq(identitySession.userId, actor.accountId)));
+}
 
-  const phoneNumber = (found.user as { phoneNumber?: string | null }).phoneNumber;
-  if (!phoneNumber) return null;
-  return { accountId: found.user.id, phoneNumber, roles: ["pemesan"] };
+async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | undefined): Promise<ActiveSession | null> {
+  const [row] = await deps.db
+    .select({
+      id: identitySession.id,
+      token: identitySession.token,
+      accountId: identitySession.userId,
+      createdAt: identitySession.createdAt,
+      expiresAt: identitySession.expiresAt,
+      totpPassedAt: identitySession.totpPassedAt,
+      phoneNumber: identityUser.phoneNumber,
+    })
+    .from(identitySession)
+    .innerJoin(identityUser, eq(identityUser.id, identitySession.userId))
+    .where(where);
+  if (!row?.phoneNumber) return null;
+  if (row.expiresAt.getTime() <= deps.clock.now().getTime()) return null;
+
+  const roles = await rolesOf(deps.db, row.accountId);
+  return { ...row, phoneNumber: row.phoneNumber, roles };
 }
 
 /** The session token from a signed `makam.session_token` cookie, if the signature holds. */

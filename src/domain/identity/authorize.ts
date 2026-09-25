@@ -1,12 +1,27 @@
 /**
  * The one authorisation check every Server Action calls (spec, Identity &
- * Access > Roles). Pemesan is the implicit role of every account; ticket 09
- * adds the staff roles (Admin Lokasi, Admin Platform, Petugas Lapangan, Mitra
- * Jasa) and their actions here.
+ * Access > Roles). Pemesan is the implicit role of every account; the staff
+ * roles (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) come by
+ * Undangan Staf. One Akun may hold several.
  */
 
-/** Every account is a Pemesan; staff roles arrive with ticket 09. */
-export type Role = "pemesan";
+export const staffRoles = ["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const;
+export type StaffRole = (typeof staffRoles)[number];
+export type Role = "pemesan" | StaffRole;
+
+/**
+ * Where the signed-in session stands on TOTP. Only an Akun holding Admin
+ * Platform needs it, and then for the whole Akun (spec: the strictest rule).
+ */
+export type TotpStatus =
+  /** The Akun holds no Admin Platform role. */
+  | "tidak_perlu"
+  /** Admin Platform has not enrolled an authenticator yet. */
+  | "perlu_daftar"
+  /** Enrolled, but this session has not passed TOTP yet. */
+  | "perlu_verifikasi"
+  /** This session passed TOTP. */
+  | "lolos";
 
 /** Who is acting: the signed-in account behind a request. */
 export interface Actor {
@@ -14,6 +29,9 @@ export interface Actor {
   /** Canonical E.164 WhatsApp number. */
   phoneNumber: string;
   roles: Role[];
+  totp: TotpStatus;
+  /** The session this actor signed in with (TOTP is passed per session). */
+  sessionId: string;
 }
 
 /** What an actor wants to do. Later tickets add their actions to this list. */
@@ -21,28 +39,93 @@ export type Action =
   /** Open Akun Saya. */
   | "akun.lihat"
   /** Sign out (Keluar). */
-  | "akun.keluar";
+  | "akun.keluar"
+  /** Enrol or pass TOTP on one's own Akun. */
+  | "akun.totp"
+  /** Pindah Nomor: move an Akun to a new WhatsApp number (Admin Platform). */
+  | "akun.pindah_nomor"
+  /** Open one role's menu in the staff area. */
+  | "staf.menu"
+  /** Send an Undangan Staf (Admin Platform). */
+  | "staf.undang"
+  /** Deactivate an Akun Staf (Admin Platform). */
+  | "staf.nonaktifkan"
+  /** Read the whole Audit Log. */
+  | "audit.lihat";
 
 /** What the action is done to. */
-export type Resource = { kind: "akun"; accountId: string };
+export type Resource =
+  | { kind: "akun"; accountId: string }
+  | { kind: "staf" }
+  | { kind: "menu_staf"; role: StaffRole }
+  | { kind: "audit_log" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
   return { kind: "akun", accountId };
 }
 
+/** The staff roster (invites, Akun Staf, Pindah Nomor). */
+export function stafResource(): Resource {
+  return { kind: "staf" };
+}
+
+/** One role's menu in the staff area. */
+export function stafMenuResource(role: StaffRole): Resource {
+  return { kind: "menu_staf", role };
+}
+
+/** The whole Audit Log. The Lokasi-scoped view for Admin Lokasi is ticket 10. */
+export function auditLogResource(): Resource {
+  return { kind: "audit_log" };
+}
+
 export type Authorization =
   | { allowed: true }
-  | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" };
+  | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" | "perlu_totp" };
+
+const allowed: Authorization = { allowed: true };
+const denied: Authorization = { allowed: false, reason: "tidak_berwenang" };
+
+/** True while the actor's session must still enrol or pass TOTP before anything else (Admin Platform only). */
+export function needsTotp(actor: Pick<Actor, "totp">): boolean {
+  return actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi";
+}
+
+/** Actions an Akun holding Admin Platform may take before passing TOTP. */
+const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
+
+/**
+ * The identity module's own check before a staff write (defence in depth
+ * behind `guarded()`): null when `actor` may do `action` on the staff roster.
+ */
+export function staffWriteRefusal(
+  actor: Actor,
+  action: "staf.undang" | "staf.nonaktifkan" | "akun.pindah_nomor",
+): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
+  const authorization = authorize(actor, action, stafResource());
+  if (authorization.allowed) return null;
+  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+}
 
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
+  if (needsTotp(actor) && !beforeTotp.has(action)) {
+    return { allowed: false, reason: "perlu_totp" };
+  }
+  const holds = (role: Role) => actor.roles.includes(role);
 
   switch (action) {
     case "akun.lihat":
     case "akun.keluar":
-      return actor.roles.includes("pemesan") && resource.accountId === actor.accountId
-        ? { allowed: true }
-        : { allowed: false, reason: "tidak_berwenang" };
+    case "akun.totp":
+      return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
+    case "staf.menu":
+      return resource.kind === "menu_staf" && holds(resource.role) ? allowed : denied;
+    case "staf.undang":
+    case "staf.nonaktifkan":
+    case "akun.pindah_nomor":
+    case "audit.lihat":
+      return holds("admin_platform") ? allowed : denied;
   }
 }

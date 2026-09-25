@@ -45,7 +45,7 @@ export async function kirimOtp(_previous: OtpRequestState, formData: FormData): 
   };
 }
 
-/** Checks the OTP; on success stores the session and lands on Akun Saya. */
+/** Checks the OTP; on success stores the session and lands on Akun Saya, or the staff area for staff. */
 export async function masukDenganOtp(_previous: OtpVerifyState, formData: FormData): Promise<OtpVerifyState> {
   const parsed = verifySchema.safeParse({ phoneNumber: formData.get("phoneNumber"), code: formData.get("code") });
   if (!parsed.success) return { status: "gagal", message: "Masukkan 6 angka kode dari WhatsApp." };
@@ -54,7 +54,8 @@ export async function masukDenganOtp(_previous: OtpVerifyState, formData: FormDa
   const result = await identity.verifyOtp(parsed.data);
   if (!result.ok) return { status: "gagal", message: refusalMessage(result, adapters.clock.now()) };
   await setSessionCookies(result.session.cookies);
-  redirect("/akun");
+  // Staff go to the staff area (which holds an Admin Platform at the TOTP step first).
+  redirect(result.roles.some((role) => role !== "pemesan") ? "/staf" : "/akun");
 }
 
 /** The message for an identity refusal, with its wait time when it has one. */

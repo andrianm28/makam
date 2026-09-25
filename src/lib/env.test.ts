@@ -25,7 +25,29 @@ describe("runtime environment", () => {
     expect(env.FAKE_PAYMENT_WEBHOOK_SECRET).toBeUndefined();
   });
 
-  const LIVE_AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id" };
+  const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
+  const LIVE_AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
+
+  it.each(["staging", "production"])("needs TOTP_ENCRYPTION_KEY in %s", (APP_ENV) => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "" })).toThrow(
+      /TOTP_ENCRYPTION_KEY is required/,
+    );
+  });
+
+  it("rejects a TOTP_ENCRYPTION_KEY that is not 32 bytes in base64", () => {
+    const sixteenBytes = Buffer.alloc(16, 1).toString("base64");
+    expect(() =>
+      readRuntimeEnv({ DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: sixteenBytes }),
+    ).toThrow(/TOTP_ENCRYPTION_KEY/);
+    expect(() =>
+      readRuntimeEnv({ DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "not base64!" }),
+    ).toThrow(/TOTP_ENCRYPTION_KEY/);
+  });
+
+  it.each(["development", "test"])("gives %s a local 32-byte TOTP_ENCRYPTION_KEY when unset", (APP_ENV) => {
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, TOTP_ENCRYPTION_KEY: "" });
+    expect(Buffer.from(env.TOTP_ENCRYPTION_KEY, "base64")).toHaveLength(32);
+  });
 
   it.each(["staging", "production"])("needs AUTH_SECRET and APP_BASE_URL in %s", (APP_ENV) => {
     expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV })).toThrow(/AUTH_SECRET[\s\S]*APP_BASE_URL|APP_BASE_URL[\s\S]*AUTH_SECRET/);

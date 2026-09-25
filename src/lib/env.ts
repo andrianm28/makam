@@ -29,6 +29,14 @@ const sentryEnvSchema = z.object({
 /** Development and test only (staging and production must set their own; see superRefine below). */
 const LOCAL_AUTH_SECRET = "makam-local-development-secret-not-for-staging-or-production";
 const LOCAL_BASE_URL = "http://localhost:3000";
+/** A fixed 32-byte key, base64: development and test only. */
+const LOCAL_TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 0x6d).toString("base64");
+
+/** Exactly 32 bytes (an AES-256 key), written in standard base64 (`openssl rand -base64 32`). */
+const base64Key32 = z
+  .string()
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/, "must be base64")
+  .refine((value) => Buffer.from(value, "base64").length === 32, "must decode to 32 bytes");
 
 const runtimeEnvSchema = sentryEnvSchema.extend({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
@@ -46,18 +54,21 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   /** The site's own origin, e.g. https://makam.co.id. Required outside development and test. */
   APP_BASE_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https?$/ }).optional()),
+  /** Encrypts Admin Platform TOTP secrets at rest (AES-256-GCM). Required outside development and test. */
+  TOTP_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, base64Key32.optional()),
 })
   .superRefine((env, ctx) => {
     if (usesInMemoryFakes(env.APP_ENV)) return;
-    for (const key of ["AUTH_SECRET", "APP_BASE_URL"] as const) {
+    for (const key of ["AUTH_SECRET", "APP_BASE_URL", "TOTP_ENCRYPTION_KEY"] as const) {
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
     }
   })
-  .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, ...env }) => ({
+  .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, TOTP_ENCRYPTION_KEY, ...env }) => ({
     ...env,
     FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
     AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
     APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
+    TOTP_ENCRYPTION_KEY: TOTP_ENCRYPTION_KEY ?? LOCAL_TOTP_ENCRYPTION_KEY,
   }));
 
 /**

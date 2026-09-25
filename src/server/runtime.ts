@@ -1,7 +1,9 @@
 import "server-only";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { createIdentity, type Identity } from "@/domain/identity";
+import { composeIdentity } from "@/composition/identity";
+import type { AuditLog } from "@/domain/audit";
+import type { Identity } from "@/domain/identity";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
 
@@ -9,6 +11,7 @@ export interface ServerRuntime {
   env: RuntimeEnv;
   database: DatabaseHandle;
   adapters: Adapters;
+  audit: AuditLog;
   identity: Identity;
 }
 
@@ -31,13 +34,7 @@ export function serverRuntime(): ServerRuntime {
       env,
       database,
       adapters,
-      identity: createIdentity({
-        db: database.db,
-        clock: adapters.clock,
-        whatsapp: adapters.whatsapp,
-        secret: env.AUTH_SECRET,
-        baseURL: env.APP_BASE_URL,
-      }),
+      ...composeIdentity({ env, db: database.db, adapters }),
     };
   }
   return globalForRuntime.__makamRuntime;

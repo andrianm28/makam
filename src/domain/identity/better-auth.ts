@@ -13,6 +13,17 @@ import {
 
 /** A Pemesan session lasts 90 days (spec, Identity & Access > Sessions). */
 export const PEMESAN_SESSION_MS = 90 * 86_400_000;
+/** An Akun Staf without Admin Platform: 30 days (every staff login counts as a trusted device in v1). */
+export const STAFF_SESSION_MS = 30 * 86_400_000;
+/** Any Akun holding Admin Platform, whatever else it holds: 12 hours. */
+export const ADMIN_PLATFORM_SESSION_MS = 12 * 3_600_000;
+
+/** How long a new session of an Akun with these roles lasts: the strictest rule of the roles held. */
+export function sessionLengthMs(roles: readonly string[]): number {
+  if (roles.includes("admin_platform")) return ADMIN_PLATFORM_SESSION_MS;
+  if (roles.some((role) => role !== "pemesan")) return STAFF_SESSION_MS;
+  return PEMESAN_SESSION_MS;
+}
 
 /** Cookie names start with this, e.g. `makam.session_token`. */
 export const COOKIE_PREFIX = "makam";

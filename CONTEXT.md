@@ -84,6 +84,22 @@ _Avoid_: Customer, pembeli, user
 The identity on makam.co.id keyed by one WhatsApp number (+62), which can hold several roles: Pemesan by default, plus staff roles by invitation.
 _Avoid_: User, pengguna (as a domain term)
 
+**Akun Staf**:
+An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); always has an email on record.
+_Avoid_: Admin user, akun admin
+
+**Undangan Staf**:
+Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when that number next logs in by OTP. It is also the only way a Dinonaktifkan Akun holds a staff role again.
+_Avoid_: Invite link, pendaftaran staf
+
+**Dinonaktifkan**:
+Said of a former Akun Staf whose staff roles Admin Platform has taken away: it has no staff access, but still logs in as a Pemesan, and its orders and Entri Audit stay.
+_Avoid_: Dihapus, Ditangguhkan (reserved for a Lokasi Mitra or Mitra Jasa)
+
+**Pindah Nomor**:
+Admin Platform moving an Akun to a new WhatsApp number after checking the holder's KTP, keeping everything recorded on the Akun.
+_Avoid_: Ganti nomor (as self-service), pemulihan akun, Ganti Pemegang Hak
+
 **Almarhum**:
 The deceased person who is (or will be) buried in a Petak Makam.
 _Avoid_: Jenazah (as the record), mendiang
@@ -315,3 +331,11 @@ _Avoid_: Piket, shift, on-call (as the term)
 **Catatan Internal**:
 A staff-only note on an order, job or Antrean row, used to hand work over; never shown to the Pemesan or Mitra Jasa.
 _Avoid_: Komentar, memo
+
+**Audit Log**:
+The Operator's permanent record of every staff write; reads are never in it. Mitra Jasa and Petugas Lapangan never see it.
+_Avoid_: Riwayat, activity log
+
+**Entri Audit**:
+One record in the Audit Log: which Akun did it, under which role, when, to what, the before and after, and the reason.
+_Avoid_: Log (alone), histori

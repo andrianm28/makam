@@ -2,38 +2,79 @@
  * Identity & Access: accounts keyed by one WhatsApp number, OTP, roles, staff invites, sessions.
  *
  * Owns tables: identity_user, identity_session, identity_auth_account,
- * identity_verification (Better Auth's models) and identity_otp_request.
+ * identity_verification (Better Auth's models), identity_otp_request and
+ * identity_staff_role.
+ *
+ * Every staff write here records an Entri Audit through the Audit Log module,
+ * in the same transaction.
  */
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
+import type { FileStore } from "@/ports/file-store";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import type { Actor } from "./authorize";
+import type { Actor, StaffRole } from "./authorize";
 import { createBetterAuth, OtpRejected } from "./better-auth";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
+import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
+import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
+import {
+  deactivateStaff,
+  seedFirstAdminPlatform,
+  staffAccounts,
+  type DeactivateStaffResult,
+  type SeedResult,
+  type StaffAccount,
+} from "./staff";
+import {
+  passTotp,
+  resetTotp,
+  startTotpEnrolment,
+  type PassTotpResult,
+  type ResetTotpResult,
+  type StartTotpEnrolmentResult,
+} from "./totp";
 
-export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+export { normalisePhoneNumber, type PhoneNumberRejection, type PhoneNumberResult } from "./phone-number";
 export type { CodeRejection, RequestOtpResult } from "./otp";
-export { PEMESAN_SESSION_MS } from "./better-auth";
+export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
+export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
+export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
+export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
+export type { InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
+  auditLogResource,
   authorize,
+  needsTotp,
+  stafMenuResource,
+  stafResource,
+  staffRoles,
   type Action,
   type Actor,
   type Authorization,
   type Resource,
   type Role,
+  type StaffRole,
+  type TotpStatus,
 } from "./authorize";
 
 export interface IdentityDeps {
   db: Database;
   clock: Clock;
   whatsapp: WhatsAppSender;
+  /** The private bucket, for the KTP check behind a Pindah Nomor. */
+  files: FileStore;
+  /** Every staff write records an Entri Audit here. */
+  audit: AuditLog;
   /** Signs session cookies and keys the OTP hashes (AUTH_SECRET). */
   secret: string;
+  /** Encrypts TOTP secrets at rest (TOTP_ENCRYPTION_KEY): 32 bytes, base64. */
+  totpEncryptionKey: string;
   /** The site's own origin, e.g. https://makam.co.id. */
   baseURL: string;
 }
@@ -49,6 +90,27 @@ export interface Identity {
   actorFromCookies(cookieHeader: string | null | undefined): Promise<Actor | null>;
   /** Keluar: ends the session behind the Cookie header and names the cookies to clear. */
   endSession(cookieHeader: string | null | undefined): Promise<{ clearCookies: string[] }>;
+  /** The CLI seed: the first Admin Platform (number and email). Refused once one exists. */
+  seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
+  /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
+  staffAccounts(): Promise<StaffAccount[]>;
+  /** Admin Platform sends an Undangan Staf (role, WhatsApp number, required email), audited. */
+  inviteStaff(
+    by: Actor,
+    input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
+  ): Promise<InviteStaffResult>;
+  /** Admin Platform deactivates an Akun Staf (Dinonaktifkan): sessions end, login blocked, history kept; audited. */
+  deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
+  /** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check (FileStore), audited. */
+  moveAccountToNewNumber(by: Actor, input: MoveAccountInput): Promise<MoveAccountResult>;
+  /** Every Undangan Staf not yet accepted and not expired. */
+  openStaffInvites(): Promise<StaffInvite[]>;
+  /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform (the guarded actor). */
+  startTotpEnrolment(by: Actor): Promise<StartTotpEnrolmentResult>;
+  /** Checks an authenticator code for the signed-in Admin Platform's session (the guarded actor's). */
+  passTotp(by: Actor, code: string): Promise<PassTotpResult>;
+  /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
+  resetTotp(input: { phoneNumber: string; reason: string }): Promise<ResetTotpResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -65,9 +127,18 @@ export function createIdentity(deps: IdentityDeps): Identity {
 
   return {
     requestOtp: (input) => requestOtp(deps, input),
-    verifyOtp: (input) => verifyOtp({ auth, db: deps.db }, input),
+    verifyOtp: (input) => verifyOtp({ auth, db: deps.db, clock: deps.clock, audit: deps.audit }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
-    actorFromCookies: (cookieHeader) => actorFromCookies({ auth, clock: deps.clock, secret: deps.secret }, cookieHeader),
+    actorFromCookies: (cookieHeader) => actorFromCookies(deps, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
+    seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
+    staffAccounts: () => staffAccounts(deps),
+    inviteStaff: (by, input) => inviteStaff(deps, by, input),
+    openStaffInvites: () => openStaffInvites(deps),
+    deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
+    moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
+    startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
+    passTotp: (by, code) => passTotp(deps, by, code),
+    resetTotp: (input) => resetTotp(deps, input),
   };
 }

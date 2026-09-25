@@ -1,12 +1,15 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { OtpRejected, type MakamAuth } from "./better-auth";
+import type { AuditLog } from "@/domain/audit";
+import type { Clock } from "@/ports/clock";
+import type { Role } from "./authorize";
+import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
-import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-import { identityUser } from "./schema";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
+import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
-
-type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
+import { acceptOpenInvites } from "./invites";
+import { rolesOf } from "./staff";
 
 export interface Account {
   id: string;
@@ -20,6 +23,8 @@ export type VerifyOtpResult =
       account: Account;
       /** True when this OTP created the account (a number with no account yet). */
       accountCreated: boolean;
+      /** Every role the Akun holds after this login (open Undangan Staf accepted). */
+      roles: Role[];
       session: { expiresAt: Date; cookies: SessionCookie[] };
     }
   | PhoneNumberRejection
@@ -30,7 +35,7 @@ export type VerifyOtpResult =
  * number has none (story 26: no sign-up).
  */
 export async function verifyOtp(
-  deps: { auth: MakamAuth; db: Database },
+  deps: { auth: MakamAuth; db: Database; clock: Clock; audit: AuditLog },
   input: { phoneNumber: string; code: string },
 ): Promise<VerifyOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -59,11 +64,23 @@ export async function verifyOtp(
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
 
+  await acceptOpenInvites(deps, { id: response.user.id, phoneNumber }, response.token);
+  // The session lasts as long as the strictest role the Akun now holds allows.
+  const roles = await rolesOf(deps.db, response.user.id);
+  const lengthMs = sessionLengthMs(roles);
+  const expiresAt = new Date(session.session.createdAt.getTime() + lengthMs);
+  await deps.db.update(identitySession).set({ expiresAt }).where(eq(identitySession.token, response.token));
+  const sessionCookie = (await deps.auth.$context).authCookies.sessionToken.name;
+  const cookies = sessionCookiesFrom(headers).map((cookie) =>
+    cookie.name === sessionCookie ? { ...cookie, maxAge: lengthMs / 1000, expires: undefined } : cookie,
+  );
+
   return {
     ok: true,
     account: { id: response.user.id, phoneNumber },
     accountCreated: !existing,
-    session: { expiresAt: session.session.expiresAt, cookies: sessionCookiesFrom(headers) },
+    roles,
+    session: { expiresAt, cookies },
   };
 }
 

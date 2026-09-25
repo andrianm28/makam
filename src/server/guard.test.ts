@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { akunResource } from "@/domain/identity";
+import { akunResource, stafResource } from "@/domain/identity";
 import { browser } from "../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { testServerRuntime } from "../../tests/support/server-runtime";
@@ -71,6 +71,26 @@ describe("a guarded Server Action", () => {
   it("rejects input that fails its Zod schema", async () => {
     await signIn();
     expect(await signOutOwnAccount({ perangkat: "" })).toEqual({ ok: false, error: "input_tidak_valid" });
+  });
+
+  it("refuses an Admin Platform who has not passed TOTP with perlu_totp, before running anything", async () => {
+    await server.runtime().identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+    const login = await server.logIn("081111111111");
+    browser.store(login.session.cookies);
+    let ran = false;
+
+    const result = await guarded({
+      action: "staf.undang",
+      resource: () => stafResource(),
+      schema,
+      input: { perangkat: "ponsel" },
+      run: async () => {
+        ran = true;
+      },
+    });
+
+    expect(result).toEqual({ ok: false, error: "perlu_totp" });
+    expect(ran).toBe(false);
   });
 
   it("runs the domain call with the signed-in Pemesan and the parsed input", async () => {

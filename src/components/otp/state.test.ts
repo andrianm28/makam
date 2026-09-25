@@ -14,6 +14,7 @@ const everyRefusal: OtpRefusal[] = [
   "belum_masuk",
   "tidak_berwenang",
   "input_tidak_valid",
+  "perlu_totp",
 ];
 
 describe("OTP screen messages", () => {
