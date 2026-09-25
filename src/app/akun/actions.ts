@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { akunResource } from "@/domain/identity";
 import { guarded, GuardRejected } from "@/server/guard";
 import { endCurrentSession } from "@/server/session";
 
@@ -13,7 +14,7 @@ import { endCurrentSession } from "@/server/session";
 export async function keluar(): Promise<void> {
   const result = await guarded({
     action: "akun.keluar",
-    resource: (actor) => ({ kind: "akun", accountId: actor.accountId }),
+    resource: (actor) => akunResource(actor.accountId),
     schema: z.object({}),
     input: {},
     run: () => endCurrentSession(),

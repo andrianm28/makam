@@ -4,21 +4,24 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
   otpMessage,
+  type OtpRefusal,
   type OtpRequestState,
   type OtpVerifyState,
 } from "@/components/otp/state";
+import { phoneNumberInput } from "@/server/phone-number-input";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 
 /*
- * Masuk is how a caller becomes authenticated, so these two actions have no
- * actor to check: they validate with Zod and call the identity module, which
- * enforces every OTP rule.
+ * Masuk is how a caller becomes authenticated, so these two actions skip the
+ * guard's authenticate and role steps (the one exception, noted in AGENTS.md):
+ * they validate with Zod and call the identity module, which enforces every
+ * OTP rule.
  */
 
-const requestSchema = z.object({ phoneNumber: z.string().trim().min(1).max(32) });
+const requestSchema = z.object({ phoneNumber: phoneNumberInput });
 const verifySchema = z.object({
-  phoneNumber: z.string().trim().min(1).max(32),
+  phoneNumber: phoneNumberInput,
   code: z.string().trim().regex(/^\d{6}$/),
 });
 
@@ -31,8 +34,7 @@ export async function kirimOtp(_previous: OtpRequestState, formData: FormData): 
   const result = await identity.requestOtp(parsed.data);
   const now = adapters.clock.now();
   if (!result.ok) {
-    const retryAt = "retryAt" in result ? result.retryAt : undefined;
-    return { status: "gagal", message: otpMessage(result.reason, retryAt, now), phoneNumber: parsed.data.phoneNumber };
+    return { status: "gagal", message: refusalMessage(result, now), phoneNumber: parsed.data.phoneNumber };
   }
   return {
     status: "terkirim",
@@ -50,12 +52,14 @@ export async function masukDenganOtp(_previous: OtpVerifyState, formData: FormDa
 
   const { identity, adapters } = serverRuntime();
   const result = await identity.verifyOtp(parsed.data);
-  if (!result.ok) {
-    const retryAt = "retryAt" in result ? result.retryAt : undefined;
-    return { status: "gagal", message: otpMessage(result.reason, retryAt, adapters.clock.now()) };
-  }
+  if (!result.ok) return { status: "gagal", message: refusalMessage(result, adapters.clock.now()) };
   await setSessionCookies(result.session.cookies);
   redirect("/akun");
+}
+
+/** The message for an identity refusal, with its wait time when it has one. */
+function refusalMessage(refusal: { reason: OtpRefusal; retryAt?: Date }, now: Date): string {
+  return otpMessage(refusal.reason, refusal.retryAt, now);
 }
 
 function secondsUntil(at: Date, now: Date): number {

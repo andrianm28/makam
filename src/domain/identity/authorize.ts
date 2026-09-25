@@ -26,6 +26,11 @@ export type Action =
 /** What the action is done to. */
 export type Resource = { kind: "akun"; accountId: string };
 
+/** The Akun with this id, as the resource of an action. */
+export function akunResource(accountId: string): Resource {
+  return { kind: "akun", accountId };
+}
+
 export type Authorization =
   | { allowed: true }
   | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" };

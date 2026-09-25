@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { akunResource } from "@/domain/identity";
 import { browser } from "../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { testServerRuntime } from "../../tests/support/server-runtime";
@@ -22,7 +23,7 @@ const schema = z.object({ perangkat: z.string().min(1) });
 function signOutOwnAccount(input: unknown) {
   return guarded({
     action: "akun.keluar",
-    resource: (signedIn) => ({ kind: "akun", accountId: signedIn.accountId }),
+    resource: (signedIn) => akunResource(signedIn.accountId),
     schema,
     input,
     run: async (signedIn, data) => `${signedIn.accountId}:${data.perangkat}`,
@@ -46,7 +47,7 @@ describe("a guarded Server Action", () => {
     const result = await guarded({
       actor: forged,
       action: "akun.keluar",
-      resource: () => ({ kind: "akun", accountId: "akun-1" }),
+      resource: () => akunResource("akun-1"),
       schema,
       input: { perangkat: "ponsel" },
       run: async () => "ran",
@@ -59,7 +60,7 @@ describe("a guarded Server Action", () => {
     await signIn();
     const result = await guarded({
       action: "akun.lihat",
-      resource: () => ({ kind: "akun", accountId: "akun-lain" }),
+      resource: () => akunResource("akun-lain"),
       schema,
       input: { perangkat: "ponsel" },
       run: async () => "ran",
