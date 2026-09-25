@@ -19,4 +19,4 @@ Create the AWS account resources in region `ap-southeast-3` (Jakarta) in PT Jaya
 
 ## Notes
 
-Biznet Gio NEO is the local fallback only after a compatibility spike; don't set it up now.
+SES also carries the login OTP fallback ("Kirim lewat email", ticket 60), so production access is needed before launch. Biznet Gio NEO is the local fallback only after a compatibility spike; don't set it up now.

@@ -16,6 +16,6 @@ The Wakaf module end to end. The Wakaf Tanah page explains the process in plain 
 - [ ] Each status change is sent to the Wakif by WhatsApp; a new Pengajuan sends no staff alert and appears as a Tier 3 row.
 - [ ] Wakaf tab: status timeline, dates, notes to the Wakif, the Wakif's uploads and the final AIW / certificate scan.
 - [ ] Internal notes and the Survei Wakaf report are hidden from the Wakif; Admin Lokasi never see Pengajuan Wakaf.
-- [ ] Nazhir list CRUD (name, type, kab/kota, contact, BWI number); Nazhir have no login.
+- [ ] Nazhir list CRUD by Admin Platform in the dashboard (name, type, kab/kota, contact, BWI number), not seeded; Nazhir have no login.
 - [ ] No money of any kind: no Tagihan can be attached to a Pengajuan Wakaf.
 - [ ] Tests: status transitions and the cancel limit; Dirujuk rule; visibility of notes and reports by role.

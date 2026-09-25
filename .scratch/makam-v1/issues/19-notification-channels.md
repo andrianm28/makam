@@ -74,3 +74,5 @@ Decided with the user on 2026-09-25 (grilling). Facts: [research/19-whatsapp-pro
 **Consistency review 2** (2026-09-25): DKI TPU IPTM reminders go **3 months and 1 month** before expiry ("TPU order loose ends"), replacing 60 and 30 days. A Terencana Tagihan gets one reminder ~4 h before its hold expires; other pay-first Tagihan get H-1 and due-day reminders ("Tagihan deadlines and refunds after Pencairan").
 
 **Spec review** (2026-09-25, decided with the user): a new Pengajuan Wakaf sends no staff alert; it appears as a Tier 3 Antrean row ("Admin Platform back-office queue and on-call").
+
+**Amended** (2026-09-25, decided with the user): SMS and Zenziva are removed from v1; the OTP fallback is email via SES for accounts with an email on record; GlitchTip self-hosted replaces Sentry cloud. See ADR 0002 / 0003 amendments and the spec.

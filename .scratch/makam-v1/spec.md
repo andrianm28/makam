@@ -70,7 +70,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 24. As a Pemesan, I want a sticky bottom bar showing "Total semua biaya" that expands to the itemised lines, so that I always know what I'll pay.
 25. As a Pemesan, I want the screen to say nothing is paid now and documents can follow, so that I'm not blocked at a hard moment.
 26. As a Pemesan, I want a WhatsApp OTP at Kirim to verify my number and create my account at the same moment, so that I don't have to sign up.
-27. As a Pemesan, I want a "Kirim lewat SMS" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me.
+27. As a Pemesan whose account has an email, I want a "Kirim lewat email" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me; without an email on my account I want to be pointed to the CS WhatsApp number instead.
 28. As a Pemesan, I want a Nomor Pemesanan and a status timeline straight after Kirim, with the computed confirmation deadline, so that I know when to expect an answer.
 29. As a Pemesan, I want the confirmation to show the assigned Petak Makam, the Admin Lokasi's contact, the document checklist and the payment deadline ("pemakaman tetap berjalan"), so that I know what to bring and that payment won't hold up the burial.
 30. As a Pemesan, I want to upload documents later or bring them on the day, so that paperwork doesn't block the burial.
@@ -240,7 +240,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 167. As an Admin Platform, I want to move a Pemesan's account to a new number after a KTP check, audited, so that a lost phone doesn't lose the history.
 168. As an Admin Platform, I want TOTP on top of the OTP and a 12 h session, so that money actions are protected.
 169. As an Admin Platform, I want to renumber a Petak (audited, the old Nomor Makam kept as a hidden alias that lookups still find), so that mistakes can be fixed without breaking lookups silently.
-170. As an Admin Platform, I want to invite staff and deactivate any staff account, keeping history, so that access stays controlled.
+170. As an Admin Platform, I want to invite staff (WhatsApp number and a required email) and deactivate any staff account, keeping history, so that access stays controlled and every staff account has the email OTP fallback.
 171. As an Admin Platform, I want to read every Mitra Jasa message thread and step in, so that I can protect the family.
 172. As an Admin Platform, I want to phone the family after money messages fail to send, as a row, so that payment information reaches them.
 
@@ -267,6 +267,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 185. As the engineer, I want the payment provider, message senders and file store behind adapter interfaces, so that a second gateway or another WhatsApp provider is an addition, not a rewrite.
 186. As the engineer, I want every deadline and reminder driven by the worker from database state, so that a restart never loses a timer.
 187. As the engineer, I want daily encrypted off-host backups to object storage in Indonesia with restore tests and an external uptime alarm, so that one VPS is an acceptable risk.
+188. As an Admin Platform, I want to enter every reference value (the Operator's legal name, address and contact, the CS WhatsApp number and reply hours, and the prices, TPU list and Nazhir list on their own screens) in the dashboard, so that nothing but the first Admin Platform is seeded and no value needs a deploy.
 
 ## Implementation Decisions
 
@@ -282,10 +283,11 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
   - `web`: `next start`, standalone output.
   - `worker`: pg-boss consumers and schedules.
   - Both import the same domain modules.
-- Production is the `makam-prod` compose project on the Jakarta VPS, with its own Postgres and resource limits. Migrations run as a separate step before restart.
-- CI: GitHub Actions (lint, Vitest, image build), push to ghcr, then `docker compose pull && up -d` on the VPS.
+- Production is the `makam-prod` compose project on the Jakarta VPS (103.92.214.243), with its own Postgres and resource limits. Migrations run as a separate step before restart. The host is shared with other projects: `web` binds to 127.0.0.1 on a port that doesn't clash with 3001, 8081, 8082 or 8083, behind the host's existing nginx with Certbot TLS.
+- v1 is served directly on `makam.co.id` (and `www`), replacing the frozen Laravel app, whose nginx server block today proxies to 127.0.0.1:3001 and 127.0.0.1:8083 and whose SumoPod payments are live. The switch happens in the production deploy, behind a human confirmation gate with a rollback that restores the old server block. `dev.makam.co.id` (127.0.0.1:8081) is left untouched.
+- CI: GitHub Actions in the private repo `github.com/andrianm28/makam` (default branch `main`) (lint, Vitest, image build), push to `ghcr.io/andrianm28/makam`, then `docker compose pull && up -d` on the VPS.
 - Files (KTP, heirship documents, IPTM scans, photo proof, transfer proofs, agreement scans) live in private S3-compatible storage in AWS S3 Jakarta (`ap-southeast-3`) and are served through short-lived signed URLs. Backups are encrypted client-side (pgBackRest `repo-cipher-type` or wal-g libsodium) and stored with the same provider. Biznet Gio NEO is the local storage fallback after a compatibility spike.
-- Sentry with PII scrubbing: no bodies, phone numbers or files. GlitchTip self-host is the fallback if needed (a DSN swap).
+- Error monitoring: **GlitchTip, self-hosted on the same host**, through the Sentry SDK (a DSN swap; Sentry cloud is not used). It runs as its own compose project (Postgres, Redis, web, worker, each with a memory limit; its Redis is GlitchTip's own and does not change the app's no-Redis rule) at `errors.makam.co.id`, behind the host's nginx with a Certbot certificate; the DNS A record for `errors.makam.co.id` → 103.92.214.243 must be added. PII scrubbing: no bodies, phone numbers or files.
 
 ### Adapter ports (each with a real and an in-memory implementation)
 
@@ -298,8 +300,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
   - Sends a template with parameters, including Meta's authentication template with a copy-code button.
   - Reports status (terkirim / dibaca / gagal).
   - Handles the inbound auto-reply that points to the CS number.
-- **EmailSender** (Amazon SES Jakarta): sends document copies and serves as the email fallback.
-- **SmsSender** (Zenziva): OTP fallback only.
+- **EmailSender** (Amazon SES Jakarta): sends document copies, the document-message fallback and the login OTP fallback ("Kirim lewat email"). There is no SMS in v1.
 - **WebPush**: staff alerts, on top of WhatsApp.
 - **FileStore**: upload, signed URL and delete.
 - **PdfRenderer**: turns a document web page into a PDF.
@@ -322,11 +323,12 @@ Core entities at a glance (details in each module):
 
 1. **Identity & Access**
    - The account is keyed by one WhatsApp number (ADR 0003).
-   - OTP request and verify, with WhatsApp first and "Kirim lewat SMS" after about 60 s. The OTP at Kirim creates or logs into the account.
+   - OTP request and verify, with WhatsApp first. The OTP at Kirim creates or logs into the account.
+   - OTP fallback after about 60 s: "Kirim lewat email" sends the same kind of OTP through EmailSender (SES) to the email on the number's existing account. An email typed on the same screen for a number with no account yet does not count, since it would prove the email, not the number. With no email on record there is no fallback: the screen points to the CS WhatsApp number (Pengaturan Operator). There is no SMS. Admin Platform TOTP is unchanged.
    - Roles: Pemesan (implicit), Admin Lokasi (many-to-many with Lokasi Mitra, all equal), Admin Platform (TOTP required), Petugas Lapangan, Mitra Jasa. One account can hold many roles.
-   - Staff are invite-only. The first Admin Platform is seeded from the CLI.
+   - Staff are invite-only, and every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff account has the email OTP fallback. The first Admin Platform is seeded from the CLI with its phone number and email; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
    - Sessions: 90 days for Pemesan, 30 days for staff on a trusted device, 12 h for Admin Platform. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it holds.
-   - Optional email on the account: entered on a "Data & kirim" screen or edited in the Akun Saya profile; used only to send copies of Tagihan / Bukti documents through SES.
+   - Optional email on a Pemesan account (required for staff): entered on a "Data & kirim" screen or edited in the Akun Saya profile; used only to send copies of Tagihan / Bukti documents and the OTP fallback through SES.
    - Account number move by Admin Platform after a KTP check.
    - No self-service recovery and no shared family access.
    - Exposes an authorisation check the Server Actions call. This check also filters what Admin Lokasi, Petugas Lapangan and Mitra Jasa may see: Admin Lokasi never see Pengajuan Wakaf; Wakaf survey reports stay internal to Admin Platform; Mitra Jasa and Petugas Lapangan see no audit log.
@@ -515,7 +517,7 @@ Core entities at a glance (details in each module):
     - The Antrean Lokasi has rows only: no Ambil claims, tiers or Bertugas, and Catatan Internal stay hidden from Admin Lokasi. The Admin Platform Antrean has Catatan Internal threads, a counter strip and the Laporan.
 15. **Notifications**
     - One module decides recipient, channel, template and timing for every domain event. It sends through the pg-boss worker.
-    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, SMS, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access). SMS is used only for OTP.
+    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access). Email also carries the login OTP fallback (Identity & Access). There is no SMS channel.
     - Reminders to families go out 08:00–20:00 WIB. Transactional messages and new-order alerts go out at any hour.
     - Retries: 3 with backoff. After that, document messages go to email if possible, then a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the Antrean.
     - Every message is logged with its status on its order.
@@ -535,7 +537,7 @@ Core entities at a glance (details in each module):
 
       Each Tagihan follows exactly one of the four Tagihan rows, by its kind; rules never stack. All go out within 08:00–20:00 WIB.
 
-    - Inbound WhatsApp messages get an auto-reply pointing to the CS number. There is no inbox.
+    - Inbound WhatsApp messages get an auto-reply pointing to the CS number (from Pengaturan Operator). There is no inbox.
 16. **Scheduler**
     - Worker jobs are thin wrappers around domain **tick functions** that take "now" from the Clock and act on the state due at that time:
       - expire holds and pay-first Tagihan
@@ -551,6 +553,13 @@ Core entities at a glance (details in each module):
       - Potongan ageing (60 days)
       - "Catat Pemakaman" prompts
     - Every tick is idempotent, so running one twice is harmless.
+17. **Pengaturan Operator** (Operator settings)
+    - One Admin Platform–only screen, audited, for the reference values no other screen owns:
+      - the Operator's legal name, registered address and contact (phone, email), used by every Tagihan / Bukti header and the Hubungi Kami page;
+      - the CS WhatsApp number and its reply hours (e.g. "dibalas mulai pukul 06:00"), used by the CS button, the inbound auto-reply, the OTP no-fallback pointer and the night TPU submission text.
+    - An issued Tagihan or Bukti keeps the header values in force when it was issued.
+    - The other reference values live on their owning screens, all entered by Admin Platform in the dashboard and never seeded: Biaya Layanan Platform (Tariffs); DKI Biaya Pengurusan and the DKI TPU list (Tariffs, Lokasi > TPU); DKI Layanan prices and Mitra Jasa rates (Layanan catalog, Tariffs); the Nazhir list (Wakaf); the holiday list (Lokasi > Working days).
+    - Content page copy stays in code.
 
 ### Public site and routing decisions
 
@@ -577,7 +586,7 @@ Core entities at a glance (details in each module):
     - entries to Saat Duka TPU, Perpanjang IPTM and "Sudah dimakamkan? Kami urus IPTM-nya".
   - **Wakaf Tanah**: the process in plain words, the "never land or money" line, and the form.
   - **FAQ**: booking vs Hak Pakai; what is paid when; Pembatalan; Perpanjangan; TPU eligibility; documents; data use.
-  - **Hubungi Kami**: CS WhatsApp and the Operator's address.
+  - **Hubungi Kami**: CS WhatsApp and the Operator's address (values from Pengaturan Operator).
 
 ### Data and privacy decisions
 
@@ -586,7 +595,7 @@ Core entities at a glance (details in each module):
   - Petugas Lapangan: their assigned cases.
   - Mitra Jasa: never.
 - Wakaf survey reports and internal notes stay with Admin Platform. Mitra Jasa and Petugas Lapangan see no audit log.
-- Sentry and WhatsApp (Meta) are the only flows of data out of Indonesia.
+- WhatsApp (Meta) is the only flow of data out of Indonesia. Error monitoring (GlitchTip) is self-hosted on the Jakarta host.
 - Retention and deletion rules are out of scope, but the uploads are treated as personal data.
 
 ## Testing Decisions
@@ -597,7 +606,7 @@ Core entities at a glance (details in each module):
   - Tests are named in glossary terms (e.g. "Saat Duka Tagihan becomes Lewat Jatuh Tempo 3×24 h after the recorded Pemakaman").
 - **The seam (confirmed with the user)**: the public functions of the domain modules, run in **Vitest against a real Postgres** (a test container, migrated fresh, no DB mocks), with:
   - an **injected Clock**, so every deadline, hold, reminder window, working-hours calculation and Keluhan window is tested by moving time;
-  - **in-memory fakes** of PaymentProvider, WhatsAppSender, EmailSender, SmsSender, WebPush, FileStore and PdfRenderer (the fake payment provider can emit signed webhook payloads);
+  - **in-memory fakes** of PaymentProvider, WhatsAppSender, EmailSender, WebPush, FileStore and PdfRenderer (the fake payment provider can emit signed webhook payloads);
   - **scheduler tick functions** called directly with the fake clock, so worker behaviour is tested without pg-boss timing. One smoke test checks the pg-boss wiring.
 - **Modules to cover** (all of them; the heaviest first):
   - **Billing**: due-date rules per Tagihan kind; the earliest-due rule for mixed Tagihan; lapse vs chase; Tidak Tertagih guard (H+30 + a call); manual / direct / Rp 0 payments; Harga Khusus lines; immutability; document numbering; refund Biaya Layanan Platform rules.
@@ -611,7 +620,7 @@ Core entities at a glance (details in each module):
   - **Lokasi**: publish gate, Terencana switch, working-time calculator (Jam Operasional, closures, overnight pauses).
   - **Work Queues**: the right rows appear with the right deadlines and tiers and close themselves; escalation timing.
   - **Notifications**: recipients, the 08:00–20:00 window, retry → email → call row routing by subject.
-  - **Identity & Access**: OTP login creating the account, SMS fallback, role visibility rules, TOTP for Admin Platform, Pemegang Hak OTP skip.
+  - **Identity & Access**: OTP login creating the account, the email OTP fallback (offered only when the account has an email; CS pointer otherwise), required staff email at invite, role visibility rules, TOTP for Admin Platform, Pemegang Hak OTP skip.
   - **Wakaf**: status transitions and Dirujuk.
   - **Field Work**: Selesai gated on uploads, and the auto-created pickup task.
   - **Audit Log**: every staff write logged, and the Admin Lokasi view filter.
@@ -642,15 +651,16 @@ Core entities at a glance (details in each module):
 
 ## Further Notes
 
+- **Cutover** from the frozen Laravel app on `makam.co.id` is no longer deferred: it is the gated nginx switch in the production deploy (see Architecture). Before the switch, the Operator must answer whether any data from the old app (users, orders, Lokasi, payments) is carried over or archived.
 - **Deferred but required later**:
   - **Excel import** of a Lokasi Mitra's existing Petak and Hak Pakai. The requirement and the Perlu Verifikasi behaviour are in this spec. The template is designed with the first partner. Until then the Denah clearing flow is how records get in.
-  - **Cutover** from the frozen Laravel beta on `makam.co.id`, and whether any beta data moves. Decided near launch.
 - **Pre-launch checklist**:
   - These are requirements, not design:
     - Meta Business verification for PT Jaya Korpora Prima (akta, NIB, NPWP).
     - Checking kirim.dev's support for `data_localization_region=ID` before registering the new API number.
-    - Zenziva sender-name registration, started at least a month ahead.
-    - The SES Jakarta domain setup.
+    - The SES Jakarta domain setup, out of the SES sandbox (SES now also carries the login OTP fallback).
+    - The DNS A record `errors.makam.co.id` → 103.92.214.243 and the GlitchTip set-up.
+    - Every reference value entered by Admin Platform in the dashboard (Pengaturan Operator and the owning screens).
     - Every vendor account in PT JKP's name, including the domain registrant.
     - Backup restore test.
     - External uptime alarm.

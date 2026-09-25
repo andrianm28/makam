@@ -1,11 +1,11 @@
-# WhatsApp (Meta + kirim.dev) and SMS (Zenziva) vendor setup
+# WhatsApp (Meta + kirim.dev) vendor setup
 
 Status: ready-for-human
-Spec: Implementation Decisions > Notifications; Adapter ports > WhatsAppSender, SmsSender; Further Notes > Pre-launch checklist; ADR 0003
+Spec: Implementation Decisions > Notifications; Adapter ports > WhatsAppSender; Further Notes > Pre-launch checklist; ADR 0003 (and its 2026-09-25 amendment)
 
 ## What to build
 
-Get the official WhatsApp Business API sending number live through kirim.dev for PT Jaya Korpora Prima, and a registered Zenziva SMS sender name for the OTP fallback. Both have long lead times (Zenziva 3–4 weeks), so start now.
+Get the official WhatsApp Business API sending number live through kirim.dev for PT Jaya Korpora Prima. Meta verification has a long lead time, so start now. There is no SMS vendor in v1: the OTP fallback is email through SES (tickets 03, 60).
 
 ## Acceptance criteria
 
@@ -16,10 +16,8 @@ Get the official WhatsApp Business API sending number live through kirim.dev for
 - [ ] Meta authentication template (copy-code button) approved for the OTP.
 - [ ] Utility templates submitted and approved once ticket 20 publishes the template list (the list lives in the codebase).
 - [ ] kirim.dev API key, webhook URL for status callbacks and inbound messages (`/api/webhooks/whatsapp`), and the webhook secret recorded as secrets.
-- [ ] CS WhatsApp number (the human-answered one) recorded for the inbound auto-reply and the site's CS button.
-- [ ] Zenziva account in PT JKP's name with a registered sender name; API credentials stored as secrets.
 - [ ] Confirm no unofficial QR-paired gateway (Fonnte, Wablas, WAHA) is set up anywhere, even as backup.
 
 ## Notes
 
-Meta bills PT JKP directly per message; kirim.dev is a flat pass-through subscription.
+Meta bills PT JKP directly per message; kirim.dev is a flat pass-through subscription. The CS WhatsApp number (the human-answered one) is entered by Admin Platform in Pengaturan Operator (ticket 63; checklist in ticket 06).

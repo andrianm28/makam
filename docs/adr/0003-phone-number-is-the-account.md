@@ -7,3 +7,7 @@ Every account on makam.co.id is keyed by one WhatsApp number, and a WhatsApp OTP
 - A WhatsApp delivery outage would block every login, so "Notification channels and WhatsApp provider" adds an SMS OTP fallback (a "Kirim lewat SMS" button after about 60 s) for every role.
 - Changing a number is an admin action: the Admin Lokasi changes the number on a Hak Pakai, and Admin Platform moves a Pemesan's account to a new number, each after a KTP check and recorded in the audit log. There is no self-service recovery.
 - One person has one number, so they have one account, which can hold several roles.
+
+## Amendment (2026-09-25)
+
+SMS is removed from v1 (Zenziva is dropped). The first consequence above changes: the OTP fallback after about 60 s is **email OTP through SES** ("Kirim lewat email"), offered only for an account that already has an email on record. Every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff account has the fallback. A Pemesan with no email has no fallback and is pointed to the CS WhatsApp number. The WhatsApp number is still the account and the only identity; the email only carries a code for the account it is recorded on. Admin Platform TOTP is unchanged.

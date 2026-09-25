@@ -6,7 +6,7 @@ Spec: Domain modules > 9. Layanan (Mitra Jasa profile, suspension/ending); 14. W
 
 ## What to build
 
-Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (name must match the KTP or carry an override note), signed arrangement scan, optional emergency contact (no NPWP), and coverage lists (DKI TPUs, Layanan). The Mitra Jasa logs in with OTP, sets Tidak tersedia date ranges and sees their history and payments. Status Aktif / Ditangguhkan / Berhenti with a reason; on suspension or ending, Dijadwalkan jobs are unassigned and in-progress jobs are listed for Admin Platform, notifying the Pemesan only if the target date moves. A "Baru" badge shows until 5 Selesai. A 90-day scorecard (Selesai, Terlambat, Keluhan upheld, declines / Tidak direspons, average Penilaian) supports a monthly Tier 4 review row.
+Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (name must match the KTP or carry an override note), signed arrangement scan, optional emergency contact (no NPWP), and coverage lists (DKI TPUs, Layanan). The Mitra Jasa is invited by WhatsApp number and required email (ticket 09), logs in with OTP, sets Tidak tersedia date ranges and sees their history and payments. Status Aktif / Ditangguhkan / Berhenti with a reason; on suspension or ending, Dijadwalkan jobs are unassigned and in-progress jobs are listed for Admin Platform, notifying the Pemesan only if the target date moves. A "Baru" badge shows until 5 Selesai. A 90-day scorecard (Selesai, Terlambat, Keluhan upheld, declines / Tidak direspons, average Penilaian) supports a monthly Tier 4 review row.
 
 ## Acceptance criteria
 

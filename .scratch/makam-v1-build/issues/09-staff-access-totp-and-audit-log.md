@@ -6,19 +6,19 @@ Spec: Domain modules > 1. Identity & Access; 2. Audit Log; stories 167, 168, 170
 
 ## What to build
 
-Add staff roles to Identity & Access (Admin Lokasi, Admin Platform, Petugas Lapangan, Mitra Jasa; one account may hold many), invite-only staff onboarding, a CLI command that seeds the first Admin Platform, TOTP for Admin Platform on top of the OTP, and the staff area as a separate section of the app with a role switcher. Build the Audit Log module that records every staff write, and use it from the first staff actions here: invite, deactivate, and moving a Pemesan's account to a new number after a KTP check.
+Add staff roles to Identity & Access (Admin Lokasi, Admin Platform, Petugas Lapangan, Mitra Jasa; one account may hold many), invite-only staff onboarding, a CLI command that seeds the first Admin Platform (phone number and email; the only seed), TOTP for Admin Platform on top of the OTP, and the staff area as a separate section of the app with a role switcher. Build the Audit Log module that records every staff write, and use it from the first staff actions here: invite, deactivate, and moving a Pemesan's account to a new number after a KTP check.
 
 ## Acceptance criteria
 
-- [ ] `pnpm seed:admin <phone>` (or equivalent) creates the first Admin Platform; there is no other way to create one without an invite.
-- [ ] Admin Platform can invite staff by WhatsApp number with a role; the invitee logs in by OTP and gets the role.
+- [ ] `pnpm seed:admin <phone> <email>` (or equivalent) creates the first Admin Platform; there is no other way to create one without an invite. No other reference value is seeded (spec: Pengaturan Operator).
+- [ ] Admin Platform can invite staff by WhatsApp number and email with a role; the email is required for every staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) so every staff account has the email OTP fallback (ticket 60); the invitee logs in by OTP and gets the role.
 - [ ] Admin Platform must enrol and pass TOTP after the OTP; its session lasts 12 h. Other staff sessions last 30 days on a trusted device. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it also holds.
 - [ ] Admin Platform can deactivate any staff account; the account's history (orders, audit entries) remains.
 - [ ] The staff area has a role switcher for accounts holding several roles; each role sees only its own menu.
 - [ ] Admin Platform can move a Pemesan's account to a new number after uploading/confirming a KTP check (file via FileStore), audited with the reason.
 - [ ] Every staff write goes through an audit helper recording actor, role, time, entity, before/after and reason; reads are not logged.
 - [ ] The authorisation check denies Mitra Jasa and Petugas Lapangan any audit log read.
-- [ ] Tests: TOTP required for Admin Platform; 12 h vs 30-day session expiry with the fake Clock; an Admin Platform + Admin Lokasi account gets 12 h and TOTP; invite → role granted; deactivation blocks login; account move keeps history; every staff write in this ticket produces an audit entry.
+- [ ] Tests: TOTP required for Admin Platform; 12 h vs 30-day session expiry with the fake Clock; an Admin Platform + Admin Lokasi account gets 12 h and TOTP; invite → role granted; an invite without an email is rejected; deactivation blocks login; account move keeps history; every staff write in this ticket produces an audit entry.
 
 ## Notes
 

@@ -14,11 +14,11 @@ The Pemesan's Saat Duka path, prototype 18 variant D: one decision per screen, a
 - [ ] Only Terverifikasi Lokasi appear; the Lokasi page deep link preselects the Lokasi.
 - [ ] The sticky bar shows "Total semua biaya" and expands to the itemised lines.
 - [ ] Outside Jam Operasional the card shows the confirmation time from the working-time calculator (2 service hours) and the Kontak Siaga's name and number.
-- [ ] Kirim triggers the OTP component (with "Kirim lewat SMS" after ~60 s); on success the account exists and is logged in.
+- [ ] Kirim triggers the OTP component (with the ~60 s fallback, "Kirim lewat email" or the CS pointer, once ticket 60 lands); on success the account exists and is logged in.
 - [ ] The order gets a Nomor Pemesanan `MKM-YYYY-NNNNNN` and status Diajukan; the order page shows the timeline and "dikonfirmasi paling lambat <waktu>".
 - [ ] The Pemegang Hak defaults to the Pemesan and can never be the Almarhum.
 - [ ] Nothing is billed at submission (no Tagihan exists).
-- [ ] "Data & kirim" has an optional email field; it is saved on the Pemesan's account and used only to send copies of Tagihan / Bukti documents via SES (ticket 20).
+- [ ] "Data & kirim" has an optional email field; it is saved on the Pemesan's account and used only to send copies of Tagihan / Bukti documents and the login OTP fallback via SES (tickets 20, 60). An email typed here for a number with no account yet does not enable the OTP fallback at this Kirim.
 - [ ] Tests: domain test for submission (order, Nomor Pemesanan, deadline from Jam Operasional, no Tagihan); list filtering by Tersedia and city; a Playwright pass through both screens with the fake OTP.
 
 ## Notes

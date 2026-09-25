@@ -1,18 +1,18 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-human (02–06), 57 ready-for-agent. Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-human (02–06), 58 ready-for-agent. Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62) are blocked by them.
 
 ## Tickets
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
 | [01](01-walking-skeleton.md) | Walking skeleton: app, worker, CI, test harness | ready-for-agent | — |
-| [02](02-infra-accounts-vps-domain-github-sentry.md) | Infrastructure accounts: VPS, domain, GitHub, Sentry | ready-for-human | — |
+| [02](02-infra-accounts-vps-domain-github-sentry.md) | Infrastructure accounts: VPS, domain, GitHub, GlitchTip | ready-for-human | — |
 | [03](03-aws-s3-and-ses-jakarta.md) | AWS Jakarta: private S3 buckets and SES domain | ready-for-human | — |
 | [04](04-sumopod-merchant-account.md) | SumoPod merchant account for PT Jaya Korpora Prima | ready-for-human | — |
-| [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) and SMS (Zenziva) vendor setup | ready-for-human | — |
+| [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) vendor setup | ready-for-human | — |
 | [06](06-operator-facts-and-reference-data.md) | Operator facts and launch reference data | ready-for-human | — |
-| [07](07-production-environment.md) | Production environment: deploy, backups, uptime alarm | ready-for-agent | 01, 02, 03 |
+| [07](07-production-environment.md) | Production environment: deploy, backups, uptime alarm, cutover on makam.co.id | ready-for-agent | 01, 02, 03 |
 | [08](08-whatsapp-otp-login.md) | WhatsApp OTP login and the Pemesan account | ready-for-agent | 01 |
 | [09](09-staff-access-totp-and-audit-log.md) | Staff access: roles, invites, TOTP and the Audit Log | ready-for-agent | 08 |
 | [10](10-lokasi-mitra-onboarding.md) | Lokasi Mitra onboarding record and Admin Lokasi invites | ready-for-agent | 09 |
@@ -23,7 +23,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
 | [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16 |
-| [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | ready-for-agent | 12 |
+| [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | ready-for-agent | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | ready-for-agent | 18 |
 | [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | ready-for-agent | 09 |
@@ -31,7 +31,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | ready-for-agent | 18, 20, 21, 22 |
 | [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | ready-for-agent | 23 |
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
-| [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | ready-for-agent | 22 |
+| [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | ready-for-agent | 22, 63 |
 | [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | ready-for-agent | 25 |
 | [28](28-bertugas-and-tier-1-escalation.md) | Bertugas, Tier 1 alerts and escalation | ready-for-agent | 21, 24 |
 | [29](29-pay-after-tagihan-chasing.md) | Chasing overdue pay-after Tagihan and Tidak Tertagih | ready-for-agent | 25 |
@@ -49,7 +49,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
 | [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | ready-for-agent | 16, 17 |
-| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43 |
+| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43, 63 |
 | [45](45-tpu-saat-duka-confirmation-and-surat-pengantar.md) | TPU Saat Duka confirmation and Ambil surat pengantar | ready-for-agent | 28, 44 |
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | ready-for-agent | 45 |
 | [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | ready-for-agent | 31, 46 |
@@ -65,9 +65,10 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
-| [60](60-real-aws-adapters.md) | Real FileStore (S3 Jakarta) and EmailSender (SES Jakarta) adapters | ready-for-agent | 03 |
+| [60](60-real-aws-adapters.md) | Real FileStore (S3 Jakarta) and EmailSender (SES Jakarta) adapters, and the email OTP fallback | ready-for-agent | 03, 08, 63 |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
-| [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) and SmsSender (Zenziva) adapters | ready-for-agent | 05, 20 |
+| [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter | ready-for-agent | 05, 20 |
+| [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | ready-for-agent | 09 |
 
 ## Story coverage
 
@@ -99,7 +100,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | 24 | 22 | 87 | 54 | 150 | 10, 12 |
 | 25 | 22 | 88 | 54 | 151 | 16, 15 |
 | 26 | 22, 08 | 89 | 54 | 152 | 59 |
-| 27 | 08, 22 | 90 | 54 | 153 | 15 |
+| 27 | 60, 22 | 90 | 54 | 153 | 15 |
 | 28 | 22 | 91 | 50, 57 | 154 | 49 |
 | 29 | 23 | 92 | 50, 57 | 155 | 55 |
 | 30 | 23 | 93 | 50 | 156 | 56 |
@@ -134,14 +135,14 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | 59 | 41 | 122 | 35 | 185 | 01, 60, 61, 62 |
 | 60 | 41 | 123 | 35 | 186 | 01 (+ every tick ticket) |
 | 61 | 41 | 124 | 41 | 187 | 07 |
-| 62 | 40 | 125 | 38, 39 | | |
+| 62 | 40 | 125 | 38, 39 | 188 | 63, 06 |
 | 63 | 40 | 126 | 39 | | |
 
 ## Implementation Decisions coverage (by spec module)
 
-- Architecture, AGENTS.md, containers, CI, Sentry: 01; production, migrations step, backups, uptime alarm: 07.
-- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore + EmailSender real 60; PaymentProvider real 61; WhatsAppSender + SmsSender real 62.
-- 1 Identity & Access: 08, 09 (account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
+- Architecture, AGENTS.md, containers, CI, Sentry SDK: 01; GlitchTip set-up and DNS: 02; production, migrations step, backups, uptime alarm, GlitchTip test errors, cutover on `makam.co.id`: 07.
+- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore + EmailSender real 60; PaymentProvider real 61; WhatsAppSender real 62. No SmsSender.
+- 1 Identity & Access: 08, 09 (email OTP fallback 60; staff email at invite 09, 10, 55; first Admin Platform seed 09; account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
 - 2 Audit Log: 09; Lokasi view 10.
 - 3 Lokasi: 10 (record, policies, flags), 11 (Jam Operasional, Kontak Siaga, working-time calculator), 16 (publish gate, Terencana switch), 43 (TPU), 59 (Ditangguhkan, Berhenti); late confirmations / declines counted 23, 24.
 - 4 Tariffs: 12; DKI and Retribusi 43; Layanan and Mitra Jasa rates 49.
@@ -157,17 +158,20 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 - 14 Work Queues: Antrean 17, Bertugas 28, Antrean Lokasi 23; each row type in the ticket that owns its state.
 - 15 Notifications: core 20; staff push 21; each event in its owning ticket; real senders 62.
 - 16 Scheduler: tick pattern 01; ticks in 18 (pay-first lapse), 25 (Catat Pemakaman), 28 (escalation, Bertugas auto-off), 29 (overdue reminders), 32 (Potongan ageing), 37 (holds, Masa Pembatalan), 42 (Hak Pakai reminders), 48 (IPTM reminders), 50 (Terlambat), 51 (Keluhan window), 54 (Paket), 55 (scorecard review), 56 (accept deadlines), 59 (Berhenti).
+- 17 Pengaturan Operator: 63; values entered before launch 06.
 - Public site and routing: 26 (home, nav, content), 22 / 36 / 35 (wizards), 34 (hub), 24 (after a Tolak), 10 (Leaflet pin), 43 (Pengurusan di TPU DKI page), 58 (Wakaf page).
 - Data and privacy: 09, 10, 15, 23, 55, 58, 60.
 - Testing: harness 01; Playwright E2E 1 in 25, 2 in 19, 3 in 32.
 
 ## Could not place, contradictory or unclear
 
-Listed, not resolved. Items 1 and 2 are deliberately deferred; item 3 is for awareness only.
+Listed, not resolved. Item 1 is deliberately deferred; item 2 has an open question; item 3 is for awareness only.
 
 1. **Excel import** of existing Petak and Hak Pakai is "a stated requirement" but "not in the first build"; the template waits for the first partner. No ticket. The Perlu Verifikasi behaviour it depends on is in 14, 41 and 50.
-2. **Cutover** from the frozen Laravel beta on `makam.co.id`, and whether any beta data moves, is "decided near launch". No ticket. Ticket 02 asks the human to pick a v1 hostname meanwhile.
+2. **Cutover** from the frozen Laravel app on `makam.co.id` is now in ticket 07 (human gate, rollback). Still open, and must be answered before the switch: must any data from the old app (users, orders, Lokasi, payments) be carried over or archived?
 3. **Decision ticket 19 vs the spec** (the spec wins, recorded for awareness): ticket 19 said a new TPU order alerts every Admin Platform 06:00–18:00 and that every Pencairan sends a notice. The spec routes TPU alerts through Bertugas / Tier 1 escalation, and sends Bukti Pencairan links "by message" like any document.
+4. **GitHub owner vs "every vendor account in PT JKP's name"** (new, 2026-09-25): the repo and ghcr images live under the personal account `andrianm28`, while ticket 02 and the spec's pre-launch checklist require every vendor account in PT JKP's name. Not resolved; ticket 02 keeps the rule.
+5. **Ticket 07 timing vs the cutover** (new, 2026-09-25): 07 is an early ticket (blocked only by 01–03) meant to give later tickets a live environment, but its switch replaces the live Laravel app on `makam.co.id`. Ticket 07 lets the pipeline, backups and GlitchTip land first with no public hostname and holds the switch behind the human gate; until then there is no public v1 environment (and `dev.makam.co.id` is not used).
 
 ## Resolved clarifications (2026-09-25)
 
@@ -188,3 +192,15 @@ Decided by the user and written into the spec and the tickets named.
 13. **Petak renumbering**: old Nomor Makam kept as a hidden alias that lookups still find; never displayed, only in the audit log. Tickets 14, 34.
 14. **Tier 4 "Lokasi revisit" and "publish-gate check" rows**: only after Admin Platform presses "Minta kunjungan ulang" (creating the Kunjungan Verifikasi); no automatic schedule. Tickets 15, 17.
 15. **Request statuses** (Perpanjangan manual path, Pengembalian Hak Pakai, Ganti Pemegang Hak): Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan; Antrean Lokasi row while Diajukan, due 2 working days. Tickets 39, 41.
+
+## Resolved decisions (2026-09-25, infrastructure and settings)
+
+Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and the tickets named.
+
+1. **No SMS in v1** (Zenziva dropped). The OTP fallback after ~60 s is "Kirim lewat email" through SES, only for an account with an email on record; every staff invite requires an email; a Pemesan without one is pointed to the CS WhatsApp number; Admin Platform TOTP unchanged. The fallback lands with the SES adapter (60, needs human ticket 03); login (08) is not blocked by it. This amends clarification 11: the optional email also carries the OTP fallback. Tickets 01, 03, 05, 08, 09, 10, 20, 22, 27, 40, 44, 50, 55, 60, 62.
+2. **Error monitoring is GlitchTip**, self-hosted on this host as its own compose project at `errors.makam.co.id` (DNS A record to 103.92.214.243 still to add); Sentry SDK kept, Sentry cloud dropped. Tickets 02, 07 (and 60, 61, 62 wording).
+3. **v1 deploys directly on `makam.co.id`**, replacing the frozen Laravel app in ticket 07 behind a human confirmation gate, with a rollback and the data carry-over question answered first. `dev.makam.co.id` untouched. Tickets 02, 04, 07.
+4. **GitHub**: `github.com/andrianm28/makam`, private, `main`; images `ghcr.io/andrianm28/makam`. Ticket 02 (repo items done), 07.
+5. **VPS facts**: this host (Jakarta), nginx + Certbot already running; DNS for `makam.co.id` / `www` already correct; `makam-prod` must avoid ports 3001, 8081, 8082, 8083. Ticket 02.
+6. **SumoPod**: the merchant account already exists and is live for the old app; API key and webhook secret must be fetched from the dashboard; v1 registers `https://makam.co.id/api/webhooks/sumopod` and ignores events for payments it didn't create. Tickets 04, 61.
+7. **Reference values are entered by Admin Platform in the dashboard**, never seeded (only the first Admin Platform's phone and email are seeded). New Pengaturan Operator screen for the Operator's legal name, address, contact and the CS WhatsApp number and reply hours. Tickets 06 (now a human checklist), 09, 18, 20, 26, 43, 44, 58, 63.

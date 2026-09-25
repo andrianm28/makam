@@ -6,7 +6,7 @@ Spec: Domain modules > 3. Lokasi; 1. Identity & Access (Admin Lokasi); 2. Audit 
 
 ## What to build
 
-The Lokasi module's Lokasi Mitra record and the Admin Platform onboarding screens: pengelola name, address, pin, city (kota/kab), agreement scan and date, bank account (Admin Platform only), facilities checklist + note, document checklist, policies and flags, and status (starts Belum Tayang). Admin Platform invites Admin Lokasi to a Lokasi (many-to-many, all equal); an account with several Lokasi gets a Lokasi switcher. Build the Leaflet + OpenStreetMap pin component (display and draggable entry, behind a small wrapper so tiles can be swapped) and the first FileStore upload flow (agreement scan, signed URLs). Add the audit log view queried by Lokasi for Admin Lokasi.
+The Lokasi module's Lokasi Mitra record and the Admin Platform onboarding screens: pengelola name, address, pin, city (kota/kab), agreement scan and date, bank account (Admin Platform only), facilities checklist + note, document checklist, policies and flags, and status (starts Belum Tayang). Admin Platform invites Admin Lokasi to a Lokasi by WhatsApp number and required email (ticket 09) (many-to-many, all equal); an account with several Lokasi gets a Lokasi switcher. Build the Leaflet + OpenStreetMap pin component (display and draggable entry, behind a small wrapper so tiles can be swapped) and the first FileStore upload flow (agreement scan, signed URLs). Add the audit log view queried by Lokasi for Admin Lokasi.
 
 ## Acceptance criteria
 

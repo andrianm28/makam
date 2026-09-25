@@ -1,20 +1,18 @@
 # Operator facts and launch reference data
 
 Status: ready-for-human
-Spec: Implementation Decisions > Tariffs (global); Lokasi > TPU; Billing > Documents; Public site > Content pages; Identity & Access (first Admin Platform)
+Spec: Domain modules > 17. Pengaturan Operator; 1. Identity & Access (first Admin Platform); Public site > Content pages; story 188
 
 ## What to build
 
-Collect the business facts and reference data that the code reads from configuration or that Admin Platform enters in the app before launch. Code tickets use placeholders until these arrive.
+A pre-launch checklist for the Operator. Every value below is entered by Admin Platform in the dashboard; nothing is seeded except the first Admin Platform. Content page copy stays in code and only needs sign-off.
 
 ## Acceptance criteria
 
-- [ ] PT Jaya Korpora Prima legal name, registered address and contact (phone, email) for every Tagihan / Bukti header and the Hubungi Kami page.
-- [ ] CS WhatsApp number and its reply hours ("dibalas mulai pukul 06:00").
-- [ ] Biaya Layanan Platform amount (flat, one rate) and its effective date.
-- [ ] DKI Biaya Pengurusan: the burial amount and the filing-only amount.
-- [ ] DKI Layanan variant prices and the Mitra Jasa rate per Layanan variant.
-- [ ] The list of every DKI TPU with name, address, pin and the data source to cite, plus the initial "menerima makam baru" flag for each.
-- [ ] The phone number(s) of the first Admin Platform, to be seeded from the CLI.
-- [ ] The Nazhir list to preload (name, type, kab/kota, contact, BWI number), if any.
+- [ ] First Admin Platform: phone number and email given to the engineer for the CLI seed (ticket 09).
+- [ ] Pengaturan Operator (ticket 63): PT Jaya Korpora Prima legal name, registered address and contact (phone, email); CS WhatsApp number and its reply hours ("dibalas mulai pukul 06:00").
+- [ ] Tariffs (ticket 12): Biaya Layanan Platform amount (flat, one rate) and its effective date.
+- [ ] DKI TPU (ticket 43): the burial and filing-only Biaya Pengurusan; every DKI TPU with name, address, pin, data source and its initial "menerima makam baru" flag.
+- [ ] Layanan (ticket 49): DKI Layanan variant prices and the Mitra Jasa rate per Layanan variant.
+- [ ] Wakaf (ticket 58): the Nazhir list (name, type, kab/kota, contact, BWI number), if any.
 - [ ] Sign-off on the v1 content page copy drafted in ticket 26 (Tentang Kami, Cara Kami Bekerja, FAQ, Hubungi Kami) and the Pengurusan di TPU DKI DIY guide (ticket 43).

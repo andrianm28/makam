@@ -10,7 +10,7 @@ The TPU side of the Lokasi module: every DKI TPU with name, address, pin, data s
 
 ## Acceptance criteria
 
-- [ ] A seed/import command loads the DKI TPU list (from ticket 06 data; sample data until then); every DKI TPU is listed.
+- [ ] Admin Platform adds and edits DKI TPUs (name, address, pin, data source, initial flag) in the dashboard, audited; there is no seed (test fixtures only); every DKI TPU is listed. Admin Platform also enters the two Biaya Pengurusan amounts here (values: ticket 06).
 - [ ] Admin Platform edits the flag; each update stamps the date and is audited; the Tier 4 row appears 14 days after the last update and closes on update.
 - [ ] Biaya Pengurusan (two amounts) and Retribusi Pemda lines are versioned like other tariffs; no Biaya Layanan Platform on TPU quotes.
 - [ ] The TPU page never uses "Terverifikasi"; it shows "TPU resmi Pemprov DKI Jakarta" and the flag with "diperbarui <tanggal>".
