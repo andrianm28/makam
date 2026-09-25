@@ -6,7 +6,7 @@ Spec: Domain modules > 6. Pemesanan (Terencana); 5. Inventory (hold); Public sit
 
 ## What to build
 
-The Terencana wizard: Lokasi (filter by city, all-in price range and facilities; only Lokasi with Terencana switched on) → Petak (the Denah, picking one or more Tersedia Petak or a Kavling Keluarga; occupied, reserved and blocked plots not pickable; a tumpang-only plot tells the Pemesan to contact the Admin Lokasi) → Data & kirim (Calon Penghuni default "untuk saya sendiri", Pemegang Hak, OTP). The headline price covers Harga Hak Pakai + Biaya Layanan Platform, with a separate "Nanti" line for Biaya Pemakaman + Biaya Layanan Platform "sesuai tarif saat pemakaman (saat ini Rp X)". The Syarat Pemesanan Terencana (Masa Pembatalan, later refund %, the right being against the Lokasi Mitra) is shown before Kirim and snapshotted on the order. Submission places a hold on the chosen plots.
+The Terencana wizard: Lokasi (filter by city, all-in price range and facilities; only Lokasi with Terencana switched on) → Petak (the Denah, picking one or more Tersedia Petak or a Kavling Keluarga; occupied, reserved and blocked plots not pickable; a tumpang-only plot tells the Pemesan to contact the Admin Lokasi) → Data & kirim (Calon Penghuni default "untuk saya sendiri", Pemegang Hak, optional email, OTP). The headline price covers Harga Hak Pakai + Biaya Layanan Platform, with a separate "Nanti" line for Biaya Pemakaman + Biaya Layanan Platform "sesuai tarif saat pemakaman (saat ini Rp X)". The Syarat Pemesanan Terencana (Masa Pembatalan, later refund %, the right being against the Lokasi Mitra) is shown before Kirim and snapshotted on the order. Submission places a hold on the chosen plots.
 
 ## Acceptance criteria
 

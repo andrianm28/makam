@@ -16,4 +16,9 @@ Admin Platform confirms a Saat Duka TPU order from a Tier 1 "Konfirmasi TPU Saat
 - [ ] Confirm: status Dikonfirmasi; pay-after Tagihan issued; the Operator bears the loss if unpaid (chased per ticket 29 with no Pencairan involved).
 - [ ] An "Ambil surat pengantar" Tugas Lapangan is created on confirmation; a Tier 2 row appears when it is unassigned or overdue.
 - [ ] Confirmation page and message list: agreed burial time, TPU address, Admin Platform and TPU staff contacts, burial and filing document lists, price lines.
-- [ ] Tests: deadline and escalation timing; Tugas auto-created once (idempotent); Tagihan kind and due; staff contact visible after Ambil.
+- [ ] Setor Retribusi: any Lunas Tagihan with a non-zero Retribusi Pemda line (here or on a filing-only Tagihan, ticket 47) creates a Tier 3 "Setor Retribusi" row due 2 working days after Lunas (Admin Platform calendar, ticket 11); Admin Platform or the Petugas Lapangan records the payment to the Pemda with an uploaded setoran proof, which closes the row (audited). A Rp 0 line creates no row; since every Retribusi is Rp 0 today, only the structure is built.
+- [ ] Tests: deadline and escalation timing; no Setor Retribusi row for Rp 0, a row for a non-zero line that closes on the recorded setoran; Tugas auto-created once (idempotent); Tagihan kind and due; staff contact visible after Ambil.
+
+## Added (2026-09-25)
+
+- [ ] A non-zero Retribusi paid in person by a Petugas Lapangan is recorded through a "Setor Retribusi" Tugas Lapangan; its proof upload closes the Tier 3 row.

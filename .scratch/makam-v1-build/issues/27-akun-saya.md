@@ -15,6 +15,7 @@ Akun Saya for any logged-in number: a Perlu tindakan strip, a Pesanan tab with e
 - [ ] Makam lists every Hak Pakai where the Pemegang Hak number equals the account's number, including Hak Pakai from orders placed by someone else; each shows Lokasi, Petak / Kavling, status, end date, Pemakaman list and documents.
 - [ ] Perlu tindakan shows, where present: unpaid Tagihan; missing documents; an alternative to accept; (later: Perlu Perbaikan, a consent to give) through a registry other tickets add to.
 - [ ] Documents listed in Akun Saya open by their unguessable links.
+- [ ] A profile section lets the user add, change or remove the optional email used only for copies of Tagihan / Bukti documents via SES.
 - [ ] A user sees only their own orders and graves (authorisation check).
 - [ ] Tests: number-matching Makam tab (holder ≠ Pemesan); Perlu tindakan items appear and clear with state; isolation between accounts.
 

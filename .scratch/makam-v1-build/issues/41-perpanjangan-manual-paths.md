@@ -11,9 +11,10 @@ The three document-reviewed paths into Perpanjangan: a Pemegang Hak whose number
 ## Acceptance criteria
 
 - [ ] Each path collects its listed documents via FileStore; the Admin Lokasi sees them only for its Lokasi.
-- [ ] Approve / reject with a reason; approval of the heir path records the Ganti Pemegang Hak (history kept) and of the claim path records the Pemegang Hak; the number change path updates the number (audited).
+- [ ] Request statuses Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan (by the requester before a decision); the Periksa dokumen Perpanjangan row exists while Diajukan, due 2 working days on the Lokasi's Jam Operasional calendar (ticket 11); Perlu Perbaikan shows in Perlu tindakan.
+- [ ] Approve (Disetujui) / reject (Ditolak) with a reason; approval of the heir path records the Ganti Pemegang Hak (history kept) and of the claim path records the Pemegang Hak; the number change path updates the number (audited).
 - [ ] After approval the applicant chooses terms and gets the pay-first Tagihan (ticket 40 rules).
 - [ ] If that Tagihan lapses, a new one can be issued without re-uploading for 30 days from approval; after 30 days a new review is needed.
 - [ ] The same blocks as ticket 40 apply (overdue Tagihan, perpetual, too early, Berakhir, Dibatalkan).
 - [ ] Completing a Perlu Verifikasi Hak Pakai (contact, end date) is part of the review when flagged.
-- [ ] Tests: each path end to end at domain level; 30-day approval validity with the fake Clock; row deadline 2 working days.
+- [ ] Tests: each path end to end at domain level; 30-day approval validity with the fake Clock; row deadline 2 working days; status transitions including the Perlu Perbaikan round trip.

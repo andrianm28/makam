@@ -12,14 +12,14 @@ Add staff roles to Identity & Access (Admin Lokasi, Admin Platform, Petugas Lapa
 
 - [ ] `pnpm seed:admin <phone>` (or equivalent) creates the first Admin Platform; there is no other way to create one without an invite.
 - [ ] Admin Platform can invite staff by WhatsApp number with a role; the invitee logs in by OTP and gets the role.
-- [ ] Admin Platform must enrol and pass TOTP after the OTP; its session lasts 12 h. Other staff sessions last 30 days on a trusted device.
+- [ ] Admin Platform must enrol and pass TOTP after the OTP; its session lasts 12 h. Other staff sessions last 30 days on a trusted device. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it also holds.
 - [ ] Admin Platform can deactivate any staff account; the account's history (orders, audit entries) remains.
 - [ ] The staff area has a role switcher for accounts holding several roles; each role sees only its own menu.
 - [ ] Admin Platform can move a Pemesan's account to a new number after uploading/confirming a KTP check (file via FileStore), audited with the reason.
 - [ ] Every staff write goes through an audit helper recording actor, role, time, entity, before/after and reason; reads are not logged.
 - [ ] The authorisation check denies Mitra Jasa and Petugas Lapangan any audit log read.
-- [ ] Tests: TOTP required for Admin Platform; 12 h vs 30-day session expiry with the fake Clock; invite → role granted; deactivation blocks login; account move keeps history; every staff write in this ticket produces an audit entry.
+- [ ] Tests: TOTP required for Admin Platform; 12 h vs 30-day session expiry with the fake Clock; an Admin Platform + Admin Lokasi account gets 12 h and TOTP; invite → role granted; deactivation blocks login; account move keeps history; every staff write in this ticket produces an audit entry.
 
 ## Notes
 
-The Lokasi-scoped audit view for Admin Lokasi is ticket 10. See `.scratch/makam-v1/issues/11-roles-and-accounts.md` if role details are needed. The spec doesn't say which session length applies to an account holding Admin Platform plus other roles (see 00-index).
+The Lokasi-scoped audit view for Admin Lokasi is ticket 10. See `.scratch/makam-v1/issues/11-roles-and-accounts.md` if role details are needed.

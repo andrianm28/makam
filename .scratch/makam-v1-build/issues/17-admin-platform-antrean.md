@@ -6,7 +6,7 @@ Spec: Domain modules > 14. Work Queues (Antrean); stories 140, 141, 143 (Catatan
 
 ## What to build
 
-The Work Queues module for Admin Platform: the Antrean as a projection of domain state, where each row type is a query plus a deadline rule, rows are never created by hand and close themselves when state moves on. Four tiers, sorted by tier then deadline. Ambil soft claims (visible to all, takeable by anyone, logged), Catatan Internal threads on every row and order, and the counter strip. Deliver it with its first row types: Tier 4 "publish-gate checks" (a Belum Tayang Lokasi with the gate incomplete), "Lokasi revisits" and "other Tugas Lapangan" (unassigned or overdue).
+The Work Queues module for Admin Platform: the Antrean as a projection of domain state, where each row type is a query plus a deadline rule, rows are never created by hand and close themselves when state moves on. Four tiers, sorted by tier then deadline. Ambil soft claims (visible to all, takeable by anyone, logged), Catatan Internal threads on every row and order, and the counter strip. Deliver it with its first row types: Tier 4 "Lokasi revisits" and "publish-gate checks", which appear only after Admin Platform presses "Minta kunjungan ulang" on a Lokasi Mitra (creating the Kunjungan Verifikasi Tugas Lapangan, ticket 15; no automatic schedule in v1), and "other Tugas Lapangan" (unassigned or overdue).
 
 ## Acceptance criteria
 
@@ -15,10 +15,10 @@ The Work Queues module for Admin Platform: the Antrean as a projection of domain
 - [ ] Ambil: any Admin Platform can take a row, including one already taken; each Ambil is logged in the audit log.
 - [ ] Catatan Internal can be added on any row and any order; never shown to the Pemesan, Mitra Jasa or Admin Lokasi.
 - [ ] The counter strip shows Pencairan due, overdue Tagihan, Terlambat jobs, open Keluhan and rows past deadline; counters with no source yet show 0 and are filled by later tickets.
-- [ ] The three Tier 4 row types appear when their state is true and disappear when it's not (e.g. the publish-gate row closes when the Lokasi is published).
+- [ ] The three Tier 4 row types appear when their state is true and disappear when it's not. "Lokasi revisit" is open while a Kunjungan Verifikasi from "Minta kunjungan ulang" is not Selesai; "publish-gate check" is open from that visit's Selesai until Admin Platform records that the Lokasi still meets the publish gate (audited). Neither appears without that button press (no row for a Belum Tayang Lokasi during onboarding).
 - [ ] Tier 3–4 rows never alert.
 - [ ] Tests: rows appear with the right tier and deadline and close themselves; sorting; Ambil logged; Catatan Internal hidden from non–Admin Platform roles.
 
 ## Notes
 
-Bertugas and Tier 1 alerting come in ticket 28. The spec doesn't define the trigger for the Tier 4 "Lokasi revisits" and "publish-gate checks" rows (see 00-index); this ticket takes the reading above.
+Bertugas and Tier 1 alerting come in ticket 28. The Tier 4 revisit trigger was settled on 2026-09-25 (see 00-index); how the two rows split one revisit is this ticket's reading.

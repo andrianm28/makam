@@ -17,9 +17,9 @@ Let the Admin Lokasi clear new Petak blok by blok: Tersedia; Tidak Tersedia with
 - [ ] Availability = count of cleared Tersedia units per Jenis Makam per Lokasi, a Kavling Keluarga counting as one.
 - [ ] The Hak Pakai end date is empty for a perpetual Jenis Makam; otherwise the tenure clock starts at the first Pemakaman and a tumpang doesn't reset it.
 - [ ] The Pemegang Hak is never the Almarhum (validation).
-- [ ] Only Admin Platform renumbers a Petak; renumbering is audited with the old and new number.
-- [ ] Tests: derived Petak / kavling status for each case; Perlu Verifikasi gating; availability counts; tenure clock from the first Pemakaman; renumber restricted and audited.
+- [ ] Only Admin Platform renumbers a Petak; renumbering is audited with the old and new number. The old Nomor Makam is kept as a hidden alias: lookups by it (Perpanjangan, Makam keluarga hub, Admin Lokasi search) still find the Petak; aliases are never displayed, only in the audit log.
+- [ ] Tests: derived Petak / kavling status for each case; Perlu Verifikasi gating; availability counts; tenure clock from the first Pemakaman; renumber restricted and audited; lookup by an old number finds the Petak while showing only the current number.
 
 ## Notes
 
-The "Petak Perlu Verifikasi" Antrean Lokasi row is added in ticket 23 when the Antrean Lokasi exists. Excel import is deferred (Further Notes); this clearing flow is how records get in. How a renumber keeps old lookups working is not specified (see 00-index).
+The "Petak Perlu Verifikasi" Antrean Lokasi row is added in ticket 23 when the Antrean Lokasi exists. Excel import is deferred (Further Notes); this clearing flow is how records get in.

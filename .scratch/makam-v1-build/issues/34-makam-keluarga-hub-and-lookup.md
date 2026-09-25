@@ -10,7 +10,7 @@ The Makam keluarga hub asks "Di mana makamnya?" (Lokasi Mitra / TPU DKI) and own
 
 ## Acceptance criteria
 
-- [ ] Lookup by Lokasi + Nomor Makam, Lokasi + Nomor Kavling, or Lokasi + Almarhum name + year of death.
+- [ ] Lookup by Lokasi + Nomor Makam, Lokasi + Nomor Kavling, or Lokasi + Almarhum name + year of death. A Nomor Makam matches the current number or a hidden alias left by a renumber (ticket 14); results show only the current number.
 - [ ] Results expose only Almarhum names, Nomor Makam / Kavling, Hak Pakai status and end date; no Pemegang Hak name or number anywhere in the response payload.
 - [ ] A match inside a Kavling Keluarga returns the whole kavling (all its Petak).
 - [ ] From a result the hub offers the preselected action (Makamkan di sini, Perpanjang, Layanan), each built by later tickets; heirs of a deceased Pemegang Hak start here.

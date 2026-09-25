@@ -12,7 +12,7 @@ One refund flow for the whole platform. A refund request (from a cancellation, a
 
 - [ ] Biaya Layanan Platform: kept when the Pemesan cancels; refunded when the fault lies with the Lokasi, the Mitra Jasa or the Operator (Terlambat cancellation, Berhenti leftovers).
 - [ ] No money leaves without an Admin Platform approval; approval and transfer are audited.
-- [ ] Tier 3 "refund transfer" row appears on approval with a 2-working-day deadline and closes when the proof is uploaded.
+- [ ] Tier 3 "refund transfer" row appears on approval with a 2-working-day deadline (Admin Platform calendar, ticket 11) and closes when the proof is uploaded.
 - [ ] Bukti Pengembalian Dana `RFD/YYYY/NNNNNN` references the Tagihan, lists the refunded lines, says whether the Biaya Layanan Platform was kept, attaches the transfer proof, and its link is sent to the Pemesan.
 - [ ] The refund's destination bank account is entered by the Pemesan (or recorded by Admin Platform) before transfer.
 - [ ] If the partner's share was already paid out, a Potongan is recorded for that Lokasi Mitra (consumed by ticket 32); goodwill refunds never create a Potongan.
@@ -20,4 +20,4 @@ One refund flow for the whole platform. A refund request (from a cancellation, a
 
 ## Notes
 
-"Working days" for Admin Platform deadlines is not defined in the spec (see 00-index).
+"Working days" are Admin Platform working days: Monday–Friday minus national holidays (ticket 11).

@@ -12,11 +12,7 @@ The payment paths outside the provider. Admin Platform marks a Tagihan paid by h
 
 - [ ] Manual payment requires a proof file; the Bukti Pembayaran shows method Transfer manual or Tunai; audited.
 - [ ] Direct payment: the Bukti Pembayaran reads "diterima oleh Lokasi Mitra X"; it records that no tariff Pencairan is due and a platform-fee Potongan is owed (consumed by ticket 32); reversible by Admin Platform only, audited.
-- [ ] Harga Khusus: Admin Platform only, with a reason; the Tagihan is reissued (never edited) with a negative line; it records whether a partner share was agreed, else the reduction is borne by the Operator (from the Biaya Layanan Platform first, then its own funds).
+- [ ] Harga Khusus: Admin Platform only, with a reason; the Tagihan is reissued (never edited) with a negative line. Admin Platform may enter on the order the partner share (the amount the Lokasi Mitra agreed to bear) with a required note; default 0, in which case the Operator bears the whole reduction (from the Biaya Layanan Platform first, then its own funds). A non-zero partner share lowers that order's Pencairan (ticket 32); audited.
 - [ ] A Rp 0 Tagihan becomes Lunas immediately with method "Tanpa pembayaran (Harga Khusus)".
 - [ ] Each path fires the downstream-effect registry once (e.g. Bukti Pemesanan issued).
-- [ ] Tests: each method's Bukti Pembayaran wording; direct-payment reversal; Harga Khusus reissue and Rp 0 waiver; immutability preserved.
-
-## Notes
-
-How a partner share of a Harga Khusus is agreed and entered is not specified (see 00-index).
+- [ ] Tests: each method's Bukti Pembayaran wording; direct-payment reversal; Harga Khusus reissue and Rp 0 waiver; partner share requires a note and defaults to 0; immutability preserved.

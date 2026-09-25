@@ -17,3 +17,7 @@ IPTM renewal for a Makam TPU. Reminders go to the Pemegang Hak 3 months and 1 mo
 - [ ] PTSP rejections follow ticket 47's rules (fixable → Perlu Perbaikan, no charge; final → full refund).
 - [ ] IPTM Terbit updates the Makam TPU's current IPTM and history.
 - [ ] Tests: reminder timing; the request window; past-grace path; pay-after-check; history update.
+
+## Added (2026-09-25)
+
+- [ ] Optional email field on the order screen (copies of Tagihan / Bukti via SES), as in spec "Booking wizards".

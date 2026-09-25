@@ -16,5 +16,5 @@ The Field Work module: Admin Platform creates and assigns a Tugas Lapangan (subj
 - [ ] A completed Kunjungan Verifikasi updates the Lokasi's pin, visit photos, facilities checklist and "dikunjungi" date.
 - [ ] A completed Cek Denah is recorded on the Lokasi as the input to the Terencana switch (ticket 16).
 - [ ] A Petugas Lapangan sees only the documents of cases assigned to them; no audit log.
-- [ ] Admin Platform can order a Lokasi revisit (a new Kunjungan Verifikasi) ad hoc.
+- [ ] Admin Platform can order a Lokasi revisit ad hoc with a "Minta kunjungan ulang" button on the Lokasi Mitra, which creates a Kunjungan Verifikasi Tugas Lapangan (and the Tier 4 rows of ticket 17); there is no automatic revisit schedule in v1.
 - [ ] Tests: Selesai gated on uploads per type; Kunjungan Verifikasi updates the Lokasi; Petugas visibility limited to assigned cases.

@@ -13,7 +13,11 @@ Spec: Domain modules > 8. Pengurusan (Pengurusan IPTM, payment rule, PTSP reject
 - [ ] Statuses: Dimakamkan → Dokumen Lengkap → Menunggu Pembayaran → IPTM Diajukan → IPTM Terbit, plus Ditolak and Dibatalkan; Perlu Perbaikan loop for fixable rejections.
 - [ ] No Tagihan before the document check passes; the Tagihan lapses (order Dibatalkan) at 3×24 h unpaid.
 - [ ] Ambil surat pengantar Tugas is created only once the Tagihan is Lunas.
-- [ ] Tier 3 rows: document check (1 working day), filing (3 working days after Lunas).
+- [ ] Tier 3 rows: document check (1 working day), filing (3 working days after Lunas), on the Admin Platform calendar (ticket 11).
 - [ ] Fixable rejection → Perlu Perbaikan (shown in Perlu tindakan), refile creates no new Tagihan.
 - [ ] Final rejection → Ditolak with the reason shown; full refund (including Biaya Pengurusan) through ticket 31, Operator-funded.
 - [ ] Tests: pay-first after check; lapse; surat pengantar on Lunas only; Perlu Perbaikan loop without charge; final rejection refund.
+
+## Added (2026-09-25)
+
+- [ ] Optional email field on the order screen (copies of Tagihan / Bukti via SES), as in spec "Booking wizards".

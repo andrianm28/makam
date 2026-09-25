@@ -14,10 +14,10 @@ The TPU side of the Lokasi module: every DKI TPU with name, address, pin, data s
 - [ ] Admin Platform edits the flag; each update stamps the date and is audited; the Tier 4 row appears 14 days after the last update and closes on update.
 - [ ] Biaya Pengurusan (two amounts) and Retribusi Pemda lines are versioned like other tariffs; no Biaya Layanan Platform on TPU quotes.
 - [ ] The TPU page never uses "Terverifikasi"; it shows "TPU resmi Pemprov DKI Jakarta" and the flag with "diperbarui <tanggal>".
-- [ ] Daftar Lokasi includes DKI TPU cards and the type filter covers them.
+- [ ] Daftar Lokasi includes DKI TPU cards and the type filter covers them; a TPU card's "mulai Rp X" is the burial Biaya Pengurusan + Retribusi Pemda (Rp 0 today).
 - [ ] Pengurusan di TPU DKI page: the free DIY guide (TPU on the day → surat pengantar → JakEVO / PTSP, free), the two Biaya Pengurusan amounts, the DKI Layanan price list (from ticket 49 when present), and entries to Saat Duka TPU, Perpanjang IPTM and "Sudah dimakamkan? Kami urus IPTM-nya".
-- [ ] Tests: stale-flag row timing; TPU quote has no platform fee; Retribusi Rp 0 line shown as its own line.
+- [ ] Tests: stale-flag row timing; TPU quote has no platform fee; TPU card "mulai Rp X" = burial Biaya Pengurusan + Retribusi Pemda; Retribusi Rp 0 line shown as its own line.
 
 ## Notes
 
-What "mulai Rp X" means on a TPU card is not specified; a non-zero Retribusi Pemda's pay-on process is not specified (see 00-index).
+A non-zero Retribusi Pemda is paid on to the Pemda from a Tier 3 "Setor Retribusi" row (ticket 45).

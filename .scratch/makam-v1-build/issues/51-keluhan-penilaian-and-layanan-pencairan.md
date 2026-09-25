@@ -11,7 +11,7 @@ After proof is shown to the Pemesan (Admin Lokasi upload at a Lokasi; Admin Plat
 ## Acceptance criteria
 
 - [ ] The window starts when the proof is shown to the Pemesan and lasts 3×24 h; Keluhan after it is refused.
-- [ ] Tier 1 Keluhan row; closes when decided.
+- [ ] Tier 1 Keluhan row: first response due 4 daytime hours after filing, counted only within 06:00–18:00 WIB (ticket 11); closes when decided.
 - [ ] Outcomes: rejected; redo (new proof restarts the shown-proof event); refund (item, via ticket 31; netted as Potongan if already paid out).
 - [ ] Pencairan override with a mandatory note (e.g. half).
 - [ ] Kerjakan ulang row for the Admin Lokasi; closes on new proof.

@@ -17,3 +17,7 @@ A Pemesan orders a Paket Layanan for a grave (sekali, bulanan, 3-bulanan, tahuna
 - [ ] Hak Pakai Berakhir → Paket stopped.
 - [ ] A tariff version effective before a cycle's issue applies to that cycle; the H-7 message mentions the change.
 - [ ] Tests: cycle issue dates per frequency; skip → pause; resume; Hentikan; stop on Berakhir; tariff change on the next cycle.
+
+## Added (2026-09-25)
+
+- [ ] Optional email field on the order screen (copies of Tagihan / Bukti via SES), as in spec "Booking wizards".

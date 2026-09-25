@@ -12,14 +12,14 @@ One module decides recipient, channel, template and timing for every domain even
 
 - [ ] An event → (recipient, channel, template, timing) table in code; templates are listed in one place so they can be submitted to Meta (ticket 05).
 - [ ] Reminders to families go out only 08:00–20:00 WIB (deferred to 08:00 otherwise); transactional messages and new-order alerts go at any hour.
-- [ ] Tagihan reminders: on issue, 24 h before due, on the due day (pay-after); pay-first: H-1 and on the due day; each stops once the Tagihan is Lunas, Dibatalkan or Tidak Tertagih.
+- [ ] Tagihan reminders follow exactly one rule per Tagihan kind, never stacked, all within 08:00–20:00: pay-first Perpanjangan, filing-only Pengurusan and standalone Layanan / non–Saat Duka Layanan at issue, H-1 and on the due day; Pemesanan Terencana one reminder about 4 h before the hold expires (ticket 37); Paket cycle H-7 (issue) and H-1 (ticket 54); pay-after (Saat Duka, burial under an existing Hak Pakai) H+3, H+7, H+14, H+30 (ticket 29). This ticket builds the rule table and the pay-first rule; each stops once the Tagihan is Lunas, Dibatalkan or Tidak Tertagih.
 - [ ] Every outbound message is logged with status terkirim / dibaca / gagal (fed by the sender's status reports) and shown on its order page.
 - [ ] Retries: 3 with backoff; then a document message (Tagihan, Bukti) goes by email if an email is on the order; then a phone-call row. Money subjects (Tagihan, reminders, Bukti Pembayaran, refunds) → a Tier 2 "failed money-message call" row in the Antrean. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the queue.
-- [ ] Email copies of Tagihan and Bukti Pembayaran (and later Bukti Pemesanan) go to the order's email when given.
+- [ ] Email copies of Tagihan and Bukti Pembayaran (and later Bukti Pemesanan) go through SES to the Pemesan's optional email when given (entered on "Data & kirim" or in the Akun Saya profile, tickets 22, 27); the email is used for nothing else.
 - [ ] Inbound WhatsApp gets an auto-reply with the CS number; there is no inbox.
 - [ ] No marketing messages; the Operator pays every message (no per-message charge anywhere).
 - [ ] Tests: recipients per event; the 08:00–20:00 window with the fake Clock; retry → email → call-row routing by subject; the failed-money-message row closes once a staff member logs the call.
 
 ## Notes
 
-Lokasi-work subjects (confirmation, Bukti Pemesanan, Perpanjangan, Hak Pakai expiry, Lokasi Layanan) route to the Antrean Lokasi; that row type is added in ticket 23. The spec's three Tagihan reminder rules overlap (see 00-index).
+Lokasi-work subjects (confirmation, Bukti Pemesanan, Perpanjangan, Hak Pakai expiry, Lokasi Layanan) route to the Antrean Lokasi; that row type is added in ticket 23. Tagihan reminder rules were settled on 2026-09-25 (see 00-index).

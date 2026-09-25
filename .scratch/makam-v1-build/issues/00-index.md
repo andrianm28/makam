@@ -58,10 +58,10 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | [50](50-layanan-order-at-lokasi-mitra.md) | Layanan order at a Lokasi Mitra and Admin Lokasi fulfilment | ready-for-agent | 19, 23, 34, 49 |
 | [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | ready-for-agent | 32, 50 |
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |
-| [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana | ready-for-agent | 37, 50 |
+| [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan | ready-for-agent | 37, 40, 50 |
 | [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | ready-for-agent | 50 |
 | [55](55-mitra-jasa-onboarding-and-status.md) | Mitra Jasa onboarding, availability, status and scorecard | ready-for-agent | 43, 49 |
-| [56](56-tpu-layanan-order-and-mitra-jasa-assignment.md) | TPU Layanan order and Mitra Jasa assignment | ready-for-agent | 50, 55 |
+| [56](56-tpu-layanan-order-and-mitra-jasa-assignment.md) | TPU Layanan order and Mitra Jasa assignment | ready-for-agent | 45, 50, 55 |
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
@@ -95,7 +95,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 | 20 | 22, 11 | 83 | 48 | 146 | 45, 47 |
 | 21 | 22 | 84 | 50 | 147 | 46 |
 | 22 | 22 | 85 | 56 | 148 | 43 |
-| 23 | 53 | 86 | 50 | 149 | 23 |
+| 23 | 53, 56 | 86 | 50 | 149 | 23 |
 | 24 | 22 | 87 | 54 | 150 | 10, 12 |
 | 25 | 22 | 88 | 54 | 151 | 16, 15 |
 | 26 | 22, 08 | 89 | 54 | 152 | 59 |
@@ -163,23 +163,28 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 62 tickets: 5 ready-for-
 
 ## Could not place, contradictory or unclear
 
-Listed, not resolved.
+Listed, not resolved. Items 1 and 2 are deliberately deferred; item 3 is for awareness only.
 
 1. **Excel import** of existing Petak and Hak Pakai is "a stated requirement" but "not in the first build"; the template waits for the first partner. No ticket. The Perlu Verifikasi behaviour it depends on is in 14, 41 and 50.
 2. **Cutover** from the frozen Laravel beta on `makam.co.id`, and whether any beta data moves, is "decided near launch". No ticket. Ticket 02 asks the human to pick a v1 hostname meanwhile.
-3. **Tagihan reminder rules overlap.** The Notifications table has "Tagihan (general): on issue, 24 h before due, on the due day", "Pay-first Tagihan: H-1 and on the due day", "Terencana hold: about 4 h before expiry" and "Paket cycle: H-7 and H-1". It doesn't say whether "general" means pay-after only, or whether a Terencana Tagihan (pay-first, due in 24 h) also gets the H-1 / due-day reminders. Ticket 20 assumes general = pay-after and pay-first = H-1 + due day, with the Terencana and Paket rules replacing them.
-4. **"The last lead-time day"** in the standalone Layanan due rule ("the earlier of 24 h after issue or the last lead-time day") is not defined; presumably target date minus lead time.
-5. **"Working days" for Admin Platform deadlines** (refund transfer and Pencairan in 2, filing-only document check in 1, filing in 3, Wakaf first contact in 3) have no defined calendar: weekends? public holidays? The Admin Platform rota runs 06:00–18:00 every day. Also undefined: which calendar the Admin Lokasi's "2 working days" request rows use (presumably the Lokasi's Jam Operasional), and what "4 daytime hours" means for the Keluhan first response.
-6. **Hari-H Layanan at a DKI TPU Saat Duka.** The due table says "Saat Duka checkout (Lokasi Mitra, DKI TPU), incl. its hari-H Layanan", and the Tidak Tertagih rule mentions a Mitra Jasa at a TPU being paid for hari-H Layanan. But the stories and the TPU wizard only describe hari-H Layanan at a Lokasi Mitra. Mitra Jasa assignment for a burial-day job isn't described either.
-7. **Layanan at a Perpanjangan checkout.** The due table's "Layanan at a non–Saat Duka checkout" and decision ticket 09 ("a Layanan added to a Pemesanan Makam or Perpanjangan checkout shares that order's fee") suggest Perpanjangan checkout offers Layanan, but the spec's Perpanjangan flow never offers it. Ticket 53 covers only the Saat Duka and Terencana checkouts.
-8. **Session length for mixed-role accounts.** Pemesan get 90 days, staff 30 days on a trusted device, Admin Platform 12 h. The spec doesn't say which applies to one account holding Admin Platform plus other roles.
-9. **Non-zero Retribusi Pemda** is "collected at cost and paid on to the Pemda by Admin Platform or the Petugas Lapangan". There is no record, row or document for that pay-on step.
-10. **"TPU nisan variants follow the Pemda rules"**: the rules are not given, so there is nothing concrete to implement (ticket 49).
-11. **"mulai Rp X" on DKI TPU cards** in Daftar Lokasi: the spec doesn't say what X is at a TPU (the Biaya Pengurusan burial amount?).
-12. **Paid TPU Saat Duka order cancelled before filing.** Story 77 says the Tagihan is voided, but not what happens to a payment already made: whether it's refunded and whether the Biaya Pengurusan is kept.
-13. **Pemesan email.** Story 38 relies on "if I gave an email", but the Saat Duka form (story 21) lists only name and WhatsApp, and no screen collects an optional email.
-14. **Harga Khusus partner share**: the spec doesn't say how a partner share is agreed or entered (ticket 30).
-15. **Petak renumbering** is "without breaking lookups silently", but the spec doesn't say whether old numbers stay searchable (alias) or lookups show a notice (ticket 14).
-16. **Tier 4 "Lokasi revisits" and "publish-gate checks" rows** have no defined trigger, while scheduled revisits are out of scope (Admin Platform orders them ad hoc). Ticket 17 reads them as "a revisit Tugas Lapangan open" and "a Belum Tayang Lokasi with the gate incomplete".
-17. **No status lists** are defined for a Lokasi Mitra Perpanjangan request (manual paths), a Pengembalian Hak Pakai request or a Ganti Pemegang Hak request. Tickets 39 and 41 will need to choose them.
-18. **Decision ticket 19 vs the spec** (the spec wins, recorded for awareness): ticket 19 said a new TPU order alerts every Admin Platform 06:00–18:00 and that every Pencairan sends a notice. The spec routes TPU alerts through Bertugas / Tier 1 escalation, and sends Bukti Pencairan links "by message" like any document.
+3. **Decision ticket 19 vs the spec** (the spec wins, recorded for awareness): ticket 19 said a new TPU order alerts every Admin Platform 06:00–18:00 and that every Pencairan sends a notice. The spec routes TPU alerts through Bertugas / Tier 1 escalation, and sends Bukti Pencairan links "by message" like any document.
+
+## Resolved clarifications (2026-09-25)
+
+Decided by the user and written into the spec and the tickets named.
+
+1. **Tagihan reminders**: one rule per Tagihan kind, never stacked, all 08:00–20:00: pay-first (Perpanjangan, filing-only Pengurusan, standalone / non–Saat Duka Layanan) at issue, H-1 and the due day; Terencana once about 4 h before the hold expires; Paket cycle H-7 and H-1; pay-after H+3/7/14/30. The "general" and "24 h before" rules are gone. Tickets 20 (29, 37, 54 already matched).
+2. **Last lead-time day** = target date minus the Layanan's lead time, due 23:59 WIB that day; the due date is the earlier of that and 24 h after issue. Tickets 18, 50.
+3. **Working days**: Admin Platform = Monday–Friday minus national holidays from a list Admin Platform maintains; Admin Lokasi = the Lokasi's Jam Operasional open days minus dated closures; "4 daytime hours" = 4 hours within 06:00–18:00 WIB. Tickets 11, 31, 32, 38, 39, 41, 47, 51.
+4. **Hari-H Layanan at a DKI TPU Saat Duka**: allowed, done by a Mitra Jasa, pay-after on the TPU Saat Duka Tagihan, Dijadwalkan at confirmation; Mitra Jasa Pencairan doesn't wait for the family's payment; the Operator bears a Tidak Tertagih loss. Tickets 56 (now also blocked by 45), 57; notes in 44, 53.
+5. **Layanan at a Perpanjangan checkout**: optional "Tambah Layanan" step before payment, same Tagihan, earliest-due rule. Ticket 53 (now also blocked by 40); note in 40.
+6. **Multi-role sessions**: an account holding Admin Platform gets 12 h with TOTP for the whole account. Ticket 09.
+7. **Non-zero Retribusi Pemda**: Tier 3 "Setor Retribusi" row due 2 working days after Lunas, closed by recording the payment with a setoran proof; no row for Rp 0; structure only in v1. Ticket 45; note in 43.
+8. **TPU nisan variants**: Admin Platform marks Batu Nisan variants "boleh di TPU DKI" by hand; only those are offered at a TPU. Ticket 49.
+9. **"mulai Rp X" on a DKI TPU card** = burial Biaya Pengurusan + Retribusi Pemda. Ticket 43.
+10. **Paid TPU Saat Duka order cancelled before filing**: full refund, except the Biaya Pengurusan is kept at or past Dimakamkan; Admin Platform approves. Ticket 46.
+11. **Optional Pemesan email** on every "Data & kirim" / checkout screen and in the Akun Saya profile, used only for Tagihan / Bukti copies via SES. Tickets 20, 22, 27, 36, 40, 44, 50.
+12. **Harga Khusus partner share**: entered on the order by Admin Platform with a required note, default 0; a non-zero share lowers that order's Pencairan. Tickets 30, 32.
+13. **Petak renumbering**: old Nomor Makam kept as a hidden alias that lookups still find; never displayed, only in the audit log. Tickets 14, 34.
+14. **Tier 4 "Lokasi revisit" and "publish-gate check" rows**: only after Admin Platform presses "Minta kunjungan ulang" (creating the Kunjungan Verifikasi); no automatic schedule. Tickets 15, 17.
+15. **Request statuses** (Perpanjangan manual path, Pengembalian Hak Pakai, Ganti Pemegang Hak): Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan; Antrean Lokasi row while Diajukan, due 2 working days. Tickets 39, 41.

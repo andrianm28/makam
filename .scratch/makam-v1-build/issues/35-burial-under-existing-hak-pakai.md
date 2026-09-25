@@ -19,3 +19,7 @@ Spec: Domain modules > 6. Pemesanan (burial under an existing Hak Pakai, consent
 - [ ] Pencairan: the Biaya Pemakaman item is due when Lunas and the Pemakaman is recorded (trigger registered in Payouts).
 - [ ] Tidak Tertagih on this Tagihan never allows ending the Hak Pakai.
 - [ ] Tests: each consent path and its order; Tolak → Ditolak; tumpang policy checks; released-plot rule; Tagihan and Pencairan trigger; no Bukti Pemesanan.
+
+## Added (2026-09-25)
+
+- [ ] Optional email field on the order screen (copies of Tagihan / Bukti via SES), as in spec "Booking wizards".

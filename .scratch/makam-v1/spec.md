@@ -47,7 +47,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 4. As a visitor, I want a trust strip ("Lokasi terverifikasi · Harga transparan · Bantuan administrasi") linking to a Cara Kami Bekerja page, so that I can check what those claims mean.
 5. As a visitor, I want a WhatsApp CS button on every page, so that I can ask a human at any point.
 6. As a visitor on a phone, I want a menu drawer with the same items as the desktop top bar (Pesan Makam, Makam Keluarga, Layanan, Wakaf Tanah, Daftar Lokasi, Masuk / Akun Saya), so that navigation is the same on every device.
-7. As a visitor, I want a Daftar Lokasi Makam directory of every listed Lokasi Mitra and DKI TPU, filterable by city, type and facilities, with "mulai Rp X" all-in on each card, so that I can browse without starting an order.
+7. As a visitor, I want a Daftar Lokasi Makam directory of every listed Lokasi Mitra and DKI TPU, filterable by city, type and facilities, with "mulai Rp X" all-in on each card (at a DKI TPU, X = the burial Biaya Pengurusan + Retribusi Pemda), so that I can browse without starting an order.
 8. As a visitor, I want every Lokasi Mitra page to show "Terverifikasi Makam.co.id · dikunjungi <bulan tahun>" with a "what we checked" popover, so that I know someone visited it.
 9. As a visitor, I want a Lokasi Mitra page to show every Harga Hak Pakai per Jenis Makam with its tenure, the Biaya Pemakaman (and tumpang amount), Perpanjangan prices, Layanan prices, the Pembatalan policy, the document checklist and "Harga berlaku sejak <tanggal>", all as all-in totals with the parts in small print, so that the price on the page is the price on the Tagihan.
 10. As a visitor, I want to see "Harga baru mulai <tanggal>" when a tariff change is scheduled, so that I'm not surprised.
@@ -64,9 +64,9 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 18. As a Pemesan, I want to see only cards with Tersedia units, each with its count, so that I never pick something that can't be served.
 19. As a Pemesan, I want a TPU section below the Lokasi Mitra cards ("dimakamkan lewat Pengurusan"), listing only TPUs taking new plots, and a type chip Semua / Lokasi Mitra / TPU DKI, so that I can compare both options.
 20. As a Pemesan outside a Lokasi's Jam Operasional, I want the card to say when confirmation will come and show the Kontak Siaga, so that I know whom to call at night.
-21. As a Pemesan, I want to give only my name and WhatsApp and the Almarhum's name and date of death (optionally planned burial time and a placement wish), so that I can submit quickly.
+21. As a Pemesan, I want to give only my name and WhatsApp and the Almarhum's name and date of death (optionally planned burial time, a placement wish and an email for document copies), so that I can submit quickly.
 22. As a Pemesan, I want to name a Pemegang Hak other than me (name + WhatsApp), defaulting to "Saya sendiri", so that the right sits with the right family member.
-23. As a Pemesan, I want to add "bisa hari-H" Layanan (e.g. bunga tabur) for the burial day, billed pay-after on the same Tagihan, so that I can arrange flowers in the same order.
+23. As a Pemesan, I want to add "bisa hari-H" Layanan (e.g. bunga tabur) for the burial day, billed pay-after on the same Tagihan (also at a DKI TPU, where a Mitra Jasa does the work), so that I can arrange flowers in the same order.
 24. As a Pemesan, I want a sticky bottom bar showing "Total semua biaya" that expands to the itemised lines, so that I always know what I'll pay.
 25. As a Pemesan, I want the screen to say nothing is paid now and documents can follow, so that I'm not blocked at a hard moment.
 26. As a Pemesan, I want a WhatsApp OTP at Kirim to verify my number and create my account at the same moment, so that I don't have to sign up.
@@ -132,7 +132,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 74. As a Pemesan, I want to upload the filing documents and a platform-generated Surat Kuasa within 7 days after the burial, so that the Operator can file the IPTM.
 75. As a Pemesan, I want to follow Dimakamkan → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, so that I know where the permit is.
 76. As a Pemesan, I want the IPTM scan sent to me and stored on my Makam TPU even if I haven't paid yet, so that the government permit is never held hostage.
-77. As a Pemesan, I want to cancel before the IPTM is filed and have the Tagihan voided, so that I'm not charged for work not done.
+77. As a Pemesan, I want to cancel before the IPTM is filed and have the Tagihan voided (or, if I already paid, a full refund, except the Biaya Pengurusan once the Operator has arranged the burial with the TPU), so that I'm not charged for work not done.
 78. As a family who buried at a TPU on our own, I want to order Pengurusan IPTM only ("Sudah dimakamkan? Kami urus IPTM-nya"), paid before filing, so that I get the permit without the queue.
 79. As a Makam TPU Pemegang Hak, I want reminders 3 months and 1 month before the IPTM expires, offering Perpanjangan, so that the grave isn't reassigned.
 80. As a Pemegang Hak, I want to request an IPTM Perpanjangan (one 3-year term) from 3 months before expiry, giving the IPTM expiry date, get "Perlu Perbaikan" when a document needs fixing, then pay once documents are checked, so that I never pay for a filing that won't go through.
@@ -234,12 +234,12 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 161. As an Admin Platform, I want to approve every refund and then transfer it by hand with proof, issuing a Bukti Pengembalian Dana, so that money leaves only with a record.
 162. As an Admin Platform, I want one Pencairan row per recipient listing all due items minus Potongan, holding items out with a reason, then transfer, upload proof and issue one Bukti Pencairan, so that payouts are batched and traceable.
 163. As an Admin Platform, I want to mark a Tagihan paid by hand (Transfer manual / Tunai) with proof, so that payments outside SumoPod count.
-164. As an Admin Platform, I want to set a Harga Khusus on an order (shown as a negative line, borne by the Operator from the platform fee first, then its own funds, unless a partner share is recorded), so that hardship cases can be helped openly.
+164. As an Admin Platform, I want to set a Harga Khusus on an order (shown as a negative line, borne by the Operator from the platform fee first, then its own funds, unless I enter on the order the amount the Lokasi Mitra agreed to bear, with a note), so that hardship cases can be helped openly.
 165. As an Admin Platform, I want a monthly Laporan (orders, Rp collected, platform fees, Pencairan, refunds, Tidak Tertagih) exportable as CSV and a weekly list of every outgoing transfer, so that the books can be reviewed without a second approver.
 166. As an Admin Platform, I want to review Pengajuan Wakaf, match a Nazhir from the list, schedule the survey, move statuses and write notes to the Wakif separately from internal notes and the survey report (both hidden from the Wakif), so that wakaf applications move forward.
 167. As an Admin Platform, I want to move a Pemesan's account to a new number after a KTP check, audited, so that a lost phone doesn't lose the history.
 168. As an Admin Platform, I want TOTP on top of the OTP and a 12 h session, so that money actions are protected.
-169. As an Admin Platform, I want to renumber a Petak (audited), so that mistakes can be fixed without breaking lookups silently.
+169. As an Admin Platform, I want to renumber a Petak (audited, the old Nomor Makam kept as a hidden alias that lookups still find), so that mistakes can be fixed without breaking lookups silently.
 170. As an Admin Platform, I want to invite staff and deactivate any staff account, keeping history, so that access stays controlled.
 171. As an Admin Platform, I want to read every Mitra Jasa message thread and step in, so that I can protect the family.
 172. As an Admin Platform, I want to phone the family after money messages fail to send, as a row, so that payment information reaches them.
@@ -325,7 +325,8 @@ Core entities at a glance (details in each module):
    - OTP request and verify, with WhatsApp first and "Kirim lewat SMS" after about 60 s. The OTP at Kirim creates or logs into the account.
    - Roles: Pemesan (implicit), Admin Lokasi (many-to-many with Lokasi Mitra, all equal), Admin Platform (TOTP required), Petugas Lapangan, Mitra Jasa. One account can hold many roles.
    - Staff are invite-only. The first Admin Platform is seeded from the CLI.
-   - Sessions: 90 days for Pemesan, 30 days for staff on a trusted device, 12 h for Admin Platform.
+   - Sessions: 90 days for Pemesan, 30 days for staff on a trusted device, 12 h for Admin Platform. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it holds.
+   - Optional email on the account: entered on a "Data & kirim" screen or edited in the Akun Saya profile; used only to send copies of Tagihan / Bukti documents through SES.
    - Account number move by Admin Platform after a KTP check.
    - No self-service recovery and no shared family access.
    - Exposes an authorisation check the Server Actions call. This check also filters what Admin Lokasi, Petugas Lapangan and Mitra Jasa may see: Admin Lokasi never see Pengajuan Wakaf; Wakaf survey reports stay internal to Admin Platform; Mitra Jasa and Petugas Lapangan see no audit log.
@@ -344,14 +345,15 @@ Core entities at a glance (details in each module):
    - Late confirmations and declines are counted on the Lokasi.
    - **TPU** (DKI only): name, address, pin, data source, "menerima makam baru" flag with last-updated date. Every DKI TPU is listed.
    - **Working-time calculator**: given the Lokasi's Jam Operasional (or the fixed TPU window 06:00–18:00 every day) and a start instant, computes the deadline for N service hours and the next "working day end". Used by confirmation deadlines, the pre-submission promise text and Antrean rows.
+   - **Working days**: an Admin Platform "working day" is Monday–Friday minus Indonesian national holidays, from a holiday list Admin Platform maintains. An Admin Lokasi "working day" (request rows, Terencana confirmation) is an open day of that Lokasi's Jam Operasional, minus its dated closures. "Daytime hours" (the Keluhan first response) count only 06:00–18:00 WIB.
 4. **Tariffs**
    - **Versioned** price books, entered only by Admin Platform, with an effective date that may be in the future. Old versions are never deleted.
    - Lokasi Mitra: per Jenis Makam the Harga Hak Pakai, tenure (Selamanya or N years) and Perpanjangan price per term; per Lokasi the Biaya Pemakaman (+ tumpang amount); per Layanan variant the Lokasi price.
-   - Global: Biaya Layanan Platform (flat, one rate); DKI Biaya Pengurusan (burial amount and filing-only amount); Retribusi Pemda lines (Rp 0 today; a non-zero one is collected at cost and paid on to the Pemda by Admin Platform or the Petugas Lapangan); DKI Layanan variant price; Mitra Jasa rate per Layanan variant.
+   - Global: Biaya Layanan Platform (flat, one rate); DKI Biaya Pengurusan (burial amount and filing-only amount); Retribusi Pemda lines (Rp 0 today; a non-zero one is collected at cost and paid on to the Pemda by Admin Platform or the Petugas Lapangan, recorded with an uploaded setoran proof from a Tier 3 "Setor Retribusi" row (Admin Platform), or, when a Petugas Lapangan pays in person, from a "Setor Retribusi" Tugas Lapangan whose proof upload closes the row; v1 builds only this structure, and a Rp 0 line creates no row); DKI Layanan variant price; Mitra Jasa rate per Layanan variant.
    - Exposes an **all-in price quote** for any line set: parts plus total including one Biaya Layanan Platform per Tagihan where it applies (Lokasi Mitra only). This is used by every listing, card, sticky bar and Tagihan, so the published price equals the Tagihan price.
 5. **Inventory** (Lokasi Mitra only)
    - **Denah**: bloks as rows × columns grids. Each cell is a Petak Makam (Nomor Makam, Jenis Makam) or a path. A Kavling Keluarga (Nomor Kavling) is a fixed group of adjacent cells and can be split only while it has no Hak Pakai. Optional site-plan photo per blok.
-   - A Petak with a Hak Pakai or Pemakaman can't be deleted or moved. Only Admin Platform renumbers it.
+   - A Petak with a Hak Pakai or Pemakaman can't be deleted or moved. Only Admin Platform renumbers it. The old Nomor Makam is kept as a hidden alias: lookups by it (Perpanjangan, the Makam keluarga hub, the Admin Lokasi search) still find the Petak; aliases are never displayed, only recorded in the audit log.
    - **Petak Makam status** is derived: Tersedia / Dipesan / Terisi / Masa Berlaku Habis / Tidak Tersedia (manual, with reason, only without an active Hak Pakai), plus the **Perlu Verifikasi** flag (not assignable or sellable until cleared).
    - Kavling Keluarga status is derived: Tersedia / Dipesan / Terpakai sebagian / Penuh.
    - Availability = count of cleared Tersedia units per Jenis Makam (a Kavling Keluarga counts as one).
@@ -377,6 +379,7 @@ Core entities at a glance (details in each module):
      - Tumpang policy checks. Pay-after Tagihan with Biaya Pemakaman at the day's rate + Biaya Layanan Platform.
      - Cancelling cancels only the order and its Tagihan. No new Bukti Pemesanan.
    - **Requests from the Pemegang Hak**: Pembatalan, Pengembalian Hak Pakai and Ganti Pemegang Hak, each due in 2 working days. Heirs of a deceased Pemegang Hak start from the hub lookup, not the Ganti Pemegang Hak request.
+     - Pembatalan, Pengembalian Hak Pakai and Ganti Pemegang Hak request statuses: Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan (by the requester before a decision). The Antrean Lokasi row exists while Diajukan, due 2 working days (Lokasi calendar).
      - Pembatalan: the Admin Lokasi confirms no Pemakaman, the refund is computed from the snapshot policy (100% within the Masa Pembatalan, else the set %; Biaya Layanan Platform never refunded), then an Admin Platform refund row is created. The refund goes to the Pemesan who paid, to a bank account that Pemesan enters. Not allowed after a Ganti Pemegang Hak.
    - Every Pemesanan Makam gets a **Nomor Pemesanan**.
 7. **Perpanjangan (Lokasi Mitra)**
@@ -386,10 +389,12 @@ Core entities at a glance (details in each module):
      - Manual KTP review.
      - Heir: combined Ganti Pemegang Hak + Perpanjangan.
      - Claim, when no holder is on record.
+   - Manual-path requests (KTP, heir, claim) have statuses Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan (by the requester before a decision); the Periksa dokumen Perpanjangan row exists while Diajukan, due 2 working days (Lokasi calendar).
    - A manual approval stays valid 30 days.
    - Terms 1–K. New end = old end + terms × N, applied automatically on payment.
    - Blocked by an overdue pay-after Tagihan on the Hak Pakai. Not offered for perpetual, too early, Berakhir or Dibatalkan.
    - Pay-first Tagihan due 3×24 h after issue. Bukti Perpanjangan is issued on payment.
+   - An optional "Tambah Layanan" step before payment adds Layanan on the same Tagihan, whose due date is then the earliest of its lines.
 8. **Pengurusan (DKI TPU)**
    - **Order kinds and statuses**:
      - **Saat Duka TPU**: Diajukan → Dikonfirmasi → Dimakamkan (set by Admin Platform after checking with the TPU or the family) → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, plus Dibatalkan.
@@ -400,16 +405,17 @@ Core entities at a glance (details in each module):
    - Two document sets: for the burial (brought) and for the filing (uploaded, due in 7 days after the burial, or 7 days after the order for Pengurusan IPTM).
    - **Surat Kuasa generator**: authority to PT Jaya Korpora Prima, represented by the filing staff member, filled from their account.
    - Payment rule: burial-arranging orders are pay-after (Tagihan at confirmation, due 3×24 h after the burial, chased, Operator bears the loss). Filing-only orders are pay-first after the document check (3×24 h, lapse to Dibatalkan).
+   - A Saat Duka TPU order may add hari-H Layanan, fulfilled by a Mitra Jasa, pay-after on the Saat Duka TPU Tagihan; their Pekerjaan Layanan are Dijadwalkan at confirmation. The Mitra Jasa's Pencairan follows the normal Mitra Jasa rule (Keluhan window closed) without waiting for the family's payment; if the Tagihan is Tidak Tertagih the Operator bears the loss.
    - A fixable PTSP rejection (missing or unclear document, Surat Kuasa problem) goes back to Perlu Perbaikan and is refiled at no charge, also after payment. Final PTSP rejection of filing-only work is refunded in full. Past-grace requests are checked with the TPU before billing.
    - The Perpanjangan TPU form asks for the IPTM expiry date, read off the IPTM photo and corrected by Admin Platform.
-   - Cancellation of a burial order is allowed before filing. The IPTM is handed over regardless of payment.
+   - Cancellation of a burial order is allowed before filing. An unpaid Tagihan is voided. A paid one is refunded in full, except that once the Operator has arranged the burial with the TPU (Dimakamkan or later) the Biaya Pengurusan is kept and only the other lines (e.g. Layanan not yet done) are refunded; Admin Platform approves, as with every refund. The IPTM is handed over regardless of payment.
    - **Makam TPU** record: TPU, blok/nomor, Almarhum(s), Pemegang Hak + WhatsApp, current IPTM scan + expiry, and IPTM history. A tumpang updates the existing record.
    - No Bukti Pemesanan / Perpanjangan at a TPU.
 9. **Layanan**
    - **Catalog**: one global list with fixed-price variants, text fields, minimum lead time, "bisa hari-H" flag, "makes sense on an empty plot" flag and required proof (after photo always; before photo for Pembersihan and Perawatan Rumput & Taman; video for the Laporan).
-   - Each Lokasi switches on Layanan from the list. TPU nisan variants follow the Pemda rules.
+   - Each Lokasi switches on Layanan from the list. Admin Platform marks each Batu Nisan variant "boleh di TPU DKI" by hand; only marked variants are offered at a TPU. Pemda rules are not encoded.
    - **Paket Layanan**: items + frequency (sekali / bulanan / 3-bulanan / tahunan). Price = sum of the place's item prices. Offered only where every item is offered.
-   - **Order**: one order = one grave (a Lokasi Mitra Petak, or a TPU grave description / Makam TPU) with one or more Layanan. Anyone may order for a non-Berakhir grave. Saat Duka checkout offers only hari-H items, which are pay-after on that Tagihan: their Pekerjaan Layanan are Dijadwalkan at the order's confirmation. A Terencana plot with no burial offers only empty-plot items.
+   - **Order**: one order = one grave (a Lokasi Mitra Petak, or a TPU grave description / Makam TPU) with one or more Layanan. Anyone may order for a non-Berakhir grave. Saat Duka checkout (Lokasi Mitra or DKI TPU) offers only hari-H items, which are pay-after on that Tagihan: their Pekerjaan Layanan are Dijadwalkan at the order's confirmation. A Terencana plot with no burial offers only empty-plot items. A Perpanjangan checkout at a Lokasi Mitra offers an optional "Tambah Layanan" step.
    - **Pekerjaan Layanan**:
      - Target date ±2 days.
      - Statuses: Menunggu Pembayaran → Dijadwalkan → Sedang Dikerjakan → (TPU: Menunggu Verifikasi) → Selesai, plus Terlambat (target + 2 days, no proof), Dibatalkan and Keluhan.
@@ -443,7 +449,7 @@ Core entities at a glance (details in each module):
       | Burial under an existing Hak Pakai | pay-after | 3×24 h after the recorded burial |
       | Pemesanan Terencana | pay-first | hold expiry |
       | Perpanjangan (Lokasi Mitra), filing-only Pengurusan | pay-first | 3×24 h after issue |
-      | Standalone Layanan / Layanan at a non–Saat Duka checkout | pay-first | the earlier of 24 h after issue or the last lead-time day |
+      | Standalone Layanan / Layanan at a non–Saat Duka checkout | pay-first | the earlier of 24 h after issue or the last lead-time day (target date minus the Layanan's lead time, at 23:59 WIB; e.g. target the 20th, lead time 3 days → the 17th 23:59) |
       | Paket cycle | pay-first | H-1 |
 
     - **Payment**: SumoPod webhook, or manual (Transfer manual / Tunai by Admin Platform with proof; "Dibayar langsung ke Lokasi Mitra" by the Admin Lokasi with proof, reversible by Admin Platform), or Rp 0 (Harga Khusus waiver, Lunas at once).
@@ -475,9 +481,9 @@ Core entities at a glance (details in each module):
       | Saat Duka Petak and a later burial's Biaya Pemakaman | Lunas **and** Pemakaman recorded |
       | Terencana Hak Pakai | end of the Masa Pembatalan, or the first Pemakaman if sooner |
       | Perpanjangan | on payment |
-      | Layanan (Lokasi Mitra or Mitra Jasa) | Lunas **and** the Keluhan window closes with no Keluhan, a Keluhan is rejected, or the redo proof is shown (hari-H Layanan on a Saat Duka Tagihan included) |
+      | Layanan (Lokasi Mitra or Mitra Jasa) | Lunas **and** the Keluhan window closes with no Keluhan, a Keluhan is rejected, or the redo proof is shown (hari-H Layanan on a Saat Duka Tagihan included; a Mitra Jasa's hari-H Layanan at a TPU does not wait for Lunas) |
 
-    - Amount: the partner's tariff, or the Mitra Jasa rate, unless Admin Platform overrides it after a Keluhan (with a note). A Harga Khusus is borne by the Operator (from the Biaya Layanan Platform first, then its own funds) unless a partner share is recorded.
+    - Amount: the partner's tariff, or the Mitra Jasa rate, unless Admin Platform overrides it after a Keluhan (with a note). A Harga Khusus is borne by the Operator (from the Biaya Layanan Platform first, then its own funds) unless a partner share is recorded: Admin Platform may enter on the order the amount the Lokasi Mitra agreed to bear, with a required note (default 0); a non-zero partner share lowers that order's Pencairan.
     - "Dibayar langsung" means no tariff Pencairan and a platform-fee Potongan.
     - **Potongan**: every amount a Lokasi Mitra owes becomes a negative line with a reason and link. It carries forward. After 60 days or on Berhenti it becomes an offline request that Admin Platform records when paid. Never applied to Mitra Jasa.
     - **Pencairan run**: one row per recipient with due items minus Potongan. Items can be held out with a reason. Admin Platform transfers by hand, uploads the proof and enters the date, which issues one Bukti Pencairan. The Mitra Jasa version shows only job, Layanan, date and rate. Due within 2 working days.
@@ -498,10 +504,10 @@ Core entities at a glance (details in each module):
 14. **Work Queues**
     - **Antrean** (Admin Platform) and **Antrean Lokasi** (per Lokasi Mitra) are **projections of domain state**. Each row type is a query plus a deadline rule. Rows are never created by hand and close when the state moves on.
     - Antrean tiers:
-      - Tier 1: Konfirmasi TPU Saat Duka (2 service hours); Konfirmasi Lokasi terlambat; Saat Duka ditolak (call within 2 h); Keluhan (first response in 4 daytime hours, decided within the window); jobs due today without a Mitra Jasa.
+      - Tier 1: Konfirmasi TPU Saat Duka (2 service hours); Konfirmasi Lokasi terlambat; Saat Duka ditolak (call within 2 h); Keluhan (first response in 4 daytime hours, i.e. 06:00–18:00 WIB, decided within the window); jobs due today without a Mitra Jasa.
       - Tier 2: foto bukti approval (24 h); Terlambat; jobs Tidak direspons / Ditolak / flagged for reassignment; failed money-message calls; unassigned or overdue Ambil surat pengantar.
-      - Tier 3: refund transfers (2 working days after approval); Pencairan (2 working days after due); IPTM filing (7 days); TPU filing-only document check (1 working day) and filing (3 working days after Lunas); past-grace TPU check; Tagihan lewat jatuh tempo; Pengajuan Wakaf (first contact in 3 working days; no alert); Konfirmasi Terencana terlambat; Pembatalan refund approval (2 working days).
-      - Tier 4: TPU flag stale for 14 days; Lokasi revisits; publish-gate checks; Mitra Jasa onboarding; monthly scorecard review; other Tugas Lapangan.
+      - Tier 3: refund transfers (2 working days after approval); Pencairan (2 working days after due); IPTM filing (7 days); TPU filing-only document check (1 working day) and filing (3 working days after Lunas); past-grace TPU check; Tagihan lewat jatuh tempo; Pengajuan Wakaf (first contact in 3 working days; no alert); Konfirmasi Terencana terlambat; Pembatalan refund approval (2 working days); Setor Retribusi (2 working days after Lunas, only for a non-zero Retribusi Pemda line). Admin Platform working days per 3. Lokasi.
+      - Tier 4: TPU flag stale for 14 days; Lokasi revisits and publish-gate checks (only after Admin Platform presses "Minta kunjungan ulang" on a Lokasi Mitra, which creates the Kunjungan Verifikasi Tugas Lapangan; no automatic schedule in v1); Mitra Jasa onboarding; monthly scorecard review; other Tugas Lapangan.
     - Ambil soft claims, Bertugas (who is Bertugas now is shown at the top of the Antrean), and escalation at 30 min and 90 min. Night TPU rows alert at 06:00. Tier 3–4 rows never alert.
     - Antrean Lokasi:
       - Mendesak: Konfirmasi Saat Duka; Layanan due today; Kerjakan ulang.
@@ -509,7 +515,7 @@ Core entities at a glance (details in each module):
     - The Antrean Lokasi has rows only: no Ambil claims, tiers or Bertugas, and Catatan Internal stay hidden from Admin Lokasi. The Admin Platform Antrean has Catatan Internal threads, a counter strip and the Laporan.
 15. **Notifications**
     - One module decides recipient, channel, template and timing for every domain event. It sends through the pg-boss worker.
-    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, SMS, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when an email is on the order. SMS is used only for OTP.
+    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, SMS, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access). SMS is used only for OTP.
     - Reminders to families go out 08:00–20:00 WIB. Transactional messages and new-order alerts go out at any hour.
     - Retries: 3 with backoff. After that, document messages go to email if possible, then a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the Antrean.
     - Every message is logged with its status on its order.
@@ -519,14 +525,15 @@ Core entities at a glance (details in each module):
 
       | Reminder | When |
       |---|---|
-      | Tagihan (general) | on issue, 24 h before due, on the due day |
-      | Pay-first Tagihan | H-1 and on the due day |
-      | Terencana hold | about 4 h before expiry |
-      | Overdue pay-after Tagihan | H+3, H+7, H+14, H+30 |
-      | Paket cycle | H-7 and H-1 |
+      | Pay-first Tagihan: Perpanjangan, filing-only Pengurusan, standalone Layanan / Layanan at a non–Saat Duka checkout | on issue, H-1 and on the due day |
+      | Pemesanan Terencana Tagihan | once, about 4 h before the hold expires |
+      | Paket cycle Tagihan | H-7 (on issue) and H-1 |
+      | Pay-after Tagihan: Saat Duka (Lokasi Mitra, DKI TPU), burial under an existing Hak Pakai | H+3, H+7, H+14, H+30 |
       | Hak Pakai end (to the Pemegang Hak and the Admin Lokasi) | 60, 30 and 7 days before, then weekly in the masa tenggang |
       | IPTM expiry | 3 months and 1 month before |
       | Admin Lokasi push on an overdue Tagihan | H+1 and on Tidak Tertagih |
+
+      Each Tagihan follows exactly one of the four Tagihan rows, by its kind; rules never stack. All go out within 08:00–20:00 WIB.
 
     - Inbound WhatsApp messages get an auto-reply pointing to the CS number. There is no inbox.
 16. **Scheduler**
@@ -552,6 +559,7 @@ Core entities at a glance (details in each module):
   - Saat Duka: Pilih makam → Data & kirim.
   - Terencana: Lokasi → Petak → Data & kirim.
   - Burial under an existing Hak Pakai: from the Makam keluarga hub → Data & kirim.
+  - An optional email field sits on the "Data & kirim" screen of the Saat Duka and Terencana wizards, the TPU order, the Perpanjangan checkout and the standalone Layanan checkout, and on every other order screen (burial under an existing Hak Pakai, Pengurusan IPTM, Perpanjangan TPU, TPU Layanan order, Paket Layanan order).
   - Lokasi pages deep-link into the wizards with the Lokasi preselected.
 - The **Makam keluarga hub** owns the Lokasi Mitra / TPU branch for tumpang, Perpanjang, Layanan and Pengurusan IPTM. The Perpanjang Makam and Layanan Makam tiles open it with that action preselected. Heirs of a deceased Pemegang Hak start from its lookup. Logged-in users see shortcuts to their Makam tab.
 - **After a Tolak**, the Pilih makam list opens with a banner, the rejecting Lokasi removed and the family's data prefilled.

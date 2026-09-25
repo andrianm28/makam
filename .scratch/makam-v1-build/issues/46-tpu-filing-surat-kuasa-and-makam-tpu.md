@@ -16,10 +16,11 @@ After the burial, Admin Platform sets the Saat Duka TPU order Dimakamkan (after 
 - [ ] Tier 3 IPTM filing row with a 7-day deadline; a Berkas IPTM Tugas Lapangan can be created for originals.
 - [ ] Uploading the IPTM scan + expiry sets IPTM Terbit, sends the scan link to the Pemesan and the Pemegang Hak, and stores it on the Makam TPU regardless of the Tagihan status.
 - [ ] Makam TPU: TPU, blok/nomor, Almarhum(s), Pemegang Hak + WhatsApp, current IPTM scan + expiry, IPTM history; a Tumpang order updates the existing record instead of creating one.
-- [ ] Cancel before IPTM Diajukan → Dibatalkan and the Tagihan Dibatalkan; after filing, cancel is refused.
+- [ ] Cancel before IPTM Diajukan → Dibatalkan; an unpaid Tagihan becomes Dibatalkan; after filing, cancel is refused.
+- [ ] A paid order cancelled before IPTM Diajukan gets a refund request (ticket 31, approved by Admin Platform): the full amount paid, except that at or past Dimakamkan (burial arranged with the TPU) the Biaya Pengurusan is kept and only the other lines (e.g. Layanan not yet done) are refunded.
 - [ ] No Bukti Pemesanan / Perpanjangan is issued at a TPU.
-- [ ] Tests: status sequence; 7-day document window; Makam TPU creation and tumpang update; IPTM handed over while unpaid; cancellation before/after filing.
+- [ ] Tests: status sequence; 7-day document window; Makam TPU creation and tumpang update; IPTM handed over while unpaid; cancellation before/after filing; refund amount of a paid cancellation before vs at/after Dimakamkan.
 
 ## Notes
 
-What happens to a payment already made before a cancellation is not specified (see 00-index).
+Refund of a paid cancellation was settled on 2026-09-25 (see 00-index).

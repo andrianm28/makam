@@ -15,6 +15,6 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
 - [ ] Only approved proof is shown to the Pemesan.
 - [ ] Pay rules: a redo by the same Mitra Jasa after an upheld Keluhan is unpaid and the original Pencairan is released when the redo proof is approved; a redo by another Mitra Jasa is paid at the normal rate and the original Pencairan is cancelled; Terlambat but done → full rate; cancelled for lateness → no Pencairan; reassigned → only the one who does the job is paid.
 - [ ] No Potongan is ever applied to a Mitra Jasa.
-- [ ] A Tidak Tertagih hari-H Layanan at a TPU is still paid to the Mitra Jasa (the Operator bears TPU losses).
+- [ ] A hari-H Layanan on a TPU Saat Duka Tagihan: the Mitra Jasa's Pencairan becomes due under the normal Mitra Jasa rule (Keluhan window closed) without waiting for the family's payment; if the Tagihan is Tidak Tertagih the Mitra Jasa is still paid and the Operator bears the loss.
 - [ ] Mitra Jasa Pencairan view shows only job, Layanan, date and rate.
-- [ ] Tests: each pay rule; approval starts the Keluhan window; Mitra Jasa view fields.
+- [ ] Tests: each pay rule; TPU hari-H Pencairan due while the Tagihan is still unpaid; approval starts the Keluhan window; Mitra Jasa view fields.

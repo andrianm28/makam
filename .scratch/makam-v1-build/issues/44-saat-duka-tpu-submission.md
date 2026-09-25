@@ -16,8 +16,9 @@ Add the TPU section below the Lokasi Mitra cards in Pilih makam ("dimakamkan lew
 - [ ] Tumpang requires a grave description and an IPTM photo and shows the 3-year and consent warnings.
 - [ ] Submission creates a Saat Duka TPU order (Diajukan, Nomor Pemesanan) with a confirmation deadline of 2 service hours on the 06:00–18:00 clock ("paling lambat pukul 08:00" for a 23:00 submission).
 - [ ] Price lines shown: Biaya Pengurusan (burial amount) as a service fee and Retribusi Pemda Rp 0; no Biaya Layanan Platform.
+- [ ] The submission screen has an optional email field, saved on the account and used only for Tagihan / Bukti copies (as ticket 22).
 - [ ] Tests: eligibility blocking; outside-Jakarta documents; deadline on the TPU clock; list filtering by the flag.
 
 ## Notes
 
-Whether hari-H Layanan are offered on a TPU Saat Duka checkout is unclear (see 00-index).
+Hari-H Layanan on a TPU Saat Duka checkout (fulfilled by a Mitra Jasa) are added by ticket 56.

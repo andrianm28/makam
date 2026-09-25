@@ -10,12 +10,12 @@ The Payouts module. Pencairan items become due per order or job via registered t
 
 ## Acceptance criteria
 
-- [ ] Amount = the partner's tariff (or the Mitra Jasa rate), unless Admin Platform overrides it after a Keluhan with a note; a Harga Khusus reduces the Operator's share unless a partner share is recorded.
+- [ ] Amount = the partner's tariff (or the Mitra Jasa rate), unless Admin Platform overrides it after a Keluhan with a note; a Harga Khusus reduces the Operator's share, and a non-zero partner share recorded on the order (ticket 30) lowers that order's Pencairan by that amount.
 - [ ] "Dibayar langsung" produces no tariff Pencairan and a platform-fee Potongan.
 - [ ] A Tidak Tertagih Tagihan produces no Pencairan unless paid later.
 - [ ] Potongan carry forward; after 60 days (tick) or on Berhenti they become an offline request that Admin Platform records when paid; Potongan are never applied to Mitra Jasa.
 - [ ] Pencairan run: one row per recipient; hold-out with reason; transfer proof + date issues one Bukti Pencairan `BKP/YYYY/NNNNNN` covering every item and Potongan in it; the recipient gets its link by message.
-- [ ] Tier 3 Pencairan row due 2 working days after the items become due.
+- [ ] Tier 3 Pencairan row due 2 working days (Admin Platform calendar, ticket 11) after the items become due.
 - [ ] The Mitra Jasa version of the Bukti Pencairan shows only job, Layanan, date and rate.
 - [ ] Admin Lokasi view: per-order Pencairan state and its Bukti Pencairan list; nothing from other Lokasi.
 - [ ] Tests: Saat Duka due trigger (Lunas and Pemakaman, in either order); netting and carry-forward; 60-day ageing; batching into one Bukti Pencairan; hold-out; Playwright: a Pencairan run producing a Bukti Pencairan.
