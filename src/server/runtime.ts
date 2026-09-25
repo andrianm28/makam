@@ -1,4 +1,5 @@
 import "server-only";
+import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
@@ -45,6 +46,7 @@ export function serverRuntime(): ServerRuntime {
       webPush: adapters.webPush,
       identity,
       audit,
+      reportError: (error, context) => Sentry.captureException(error, context),
     });
     globalForRuntime.__makamRuntime = {
       env,

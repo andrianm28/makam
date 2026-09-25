@@ -3,23 +3,30 @@ import { FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import type { Actor, StaffRole } from "@/domain/identity";
 import { createNotifications } from "@/domain/notifications";
-import type { PushSubscription } from "@/ports/web-push";
+import type { ReportError } from "@/lib/observability/report-error";
+import type { PushSubscription, WebPush } from "@/ports/web-push";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "./identity";
 
 /** The Notifications module next to identity on the test Postgres, sharing its Clock, Audit Log and fake WhatsApp. */
-export function notificationsOnTestDatabase(db: Database, options: { whatsapp?: WhatsAppSender } = {}) {
+export function notificationsOnTestDatabase(
+  db: Database,
+  options: { whatsapp?: WhatsAppSender; webPush?: WebPush } = {},
+) {
   const setup = identityOnTestDatabase(db);
   const webPush = new FakeWebPush();
+  /** What error monitoring received. */
+  const reported: { error: unknown; context: Parameters<ReportError>[1] }[] = [];
   const notifications = createNotifications({
     db,
     clock: setup.clock,
     whatsapp: options.whatsapp ?? setup.whatsapp,
-    webPush,
+    webPush: options.webPush ?? webPush,
+    reportError: (error, context) => reported.push({ error, context }),
     identity: setup.identity,
     audit: setup.audit,
   });
-  return { ...setup, webPush, notifications };
+  return { ...setup, webPush, notifications, reported };
 }
 
 /** An Akun Staf holding `role`, invited by the first Admin Platform and logged in by OTP. */

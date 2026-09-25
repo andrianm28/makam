@@ -70,10 +70,11 @@ describe("Peringatan Staf", () => {
     expect(webPush.sent).toEqual([]);
   });
 
-  it("still goes by push when the WhatsApp send fails", async () => {
+  it("still goes by push when the WhatsApp send fails, and the failure goes to error monitoring without the number", async () => {
+    const kirimDevDown = new Error("kirim.dev unavailable for +6282222222222");
     const failingWhatsApp = {
       sendTemplate: async () => {
-        throw new Error("kirim.dev unavailable");
+        throw kirimDevDown;
       },
       statusOf: async () => null,
       replyText: async () => ({ messageId: "x" }),
@@ -90,6 +91,34 @@ describe("Peringatan Staf", () => {
 
     expect(sent).toEqual({ ok: true, whatsapp: "gagal", push: { delivered: 1, removed: 0 } });
     expect(withFailingWhatsApp.webPush.sent).toHaveLength(1);
+    expect(withFailingWhatsApp.reported).toHaveLength(1);
+    const [report] = withFailingWhatsApp.reported;
+    expect(report?.error).toBeInstanceOf(Error);
+    expect((report?.error as Error).message).not.toMatch(/82222222222/);
+    expect(JSON.stringify(report?.context)).not.toMatch(/82222222222/);
+    expect(report?.context.tags).toMatchObject({ channel: "whatsapp", template: "staf_saat_duka_baru" });
+  });
+
+  it("a push service that fails keeps the Perangkat Push, and the failure goes to error monitoring", async () => {
+    const setup = notificationsOnTestDatabase(db, {
+      webPush: {
+        send: async () => {
+          throw new Error("push service timed out");
+        },
+      },
+    });
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    await setup.notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+
+    expect(await setup.notifications.sendStaffAlert({ to: { accountId: adminLokasi.accountId }, ...saatDukaBaru })).toEqual({
+      ok: true,
+      whatsapp: "terkirim",
+      push: { delivered: 0, removed: 0 },
+    });
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toHaveLength(1);
+    expect(setup.reported).toEqual([
+      { error: expect.objectContaining({ message: "push service timed out" }), context: { tags: expect.objectContaining({ channel: "push" }) } },
+    ]);
   });
 
   it("is not sent to an Akun that no longer holds a staff role (Dinonaktifkan): no WhatsApp, no push", async () => {

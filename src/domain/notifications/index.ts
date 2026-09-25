@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { akunResource, authorize, staffRoles, type Actor, type Identity } from "@/domain/identity";
+import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
@@ -43,6 +44,8 @@ export interface NotificationsDeps {
   webPush: WebPush;
   /** Who an Akun Staf is and which of its sessions are live: a Perangkat Push lasts as long as its session. */
   identity: Pick<Identity, "staffRecipient">;
+  /** Where a failed send goes (error monitoring), while the outcome is kept. */
+  reportError: ReportError;
   /** Turning push on or off is a staff write: one Entri Audit each. */
   audit: AuditLog;
 }
@@ -200,8 +203,11 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           language: "id",
           parameters: alert.whatsapp.parameters,
         });
-      } catch {
+      } catch (error) {
         whatsapp = "gagal";
+        deps.reportError(scrubbedError(error), {
+          tags: { module: "notifications", channel: "whatsapp", template: alert.whatsapp.template },
+        });
       }
 
       const push = { delivered: 0, removed: 0 };
@@ -218,7 +224,15 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         );
       for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
         const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
-        const result = await deps.webPush.send({ subscription, notification: { ...alert.push, url } }).catch(() => null);
+        const result = await deps.webPush
+          .send({ subscription, notification: { ...alert.push, url } })
+          .catch((error: unknown) => {
+            // Not delivered this time; the Perangkat Push is kept for the next Peringatan Staf.
+            deps.reportError(scrubbedError(error), {
+              tags: { module: "notifications", channel: "push", template: alert.whatsapp.template },
+            });
+            return null;
+          });
         if (result?.delivered) push.delivered++;
         if (result?.subscriptionGone) {
           await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
