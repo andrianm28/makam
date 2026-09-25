@@ -37,6 +37,26 @@ describe("Verifikasi Email in the Akun Saya profile", () => {
   });
 });
 
+describe("Verifikasi Email rules", () => {
+  it("an email already verified on another Akun is refused (email_sudah_dipakai) and nothing changes", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    const other = await logInByOtp(identity, whatsapp, "082222222222");
+    const otherActor = await actorOf(identity, other.cookies);
+    await identity.saveEmail(otherActor, { email: "budi@contoh.id" });
+
+    await identity.requestEmailVerification(otherActor, { email: "sari@contoh.id", ip: "198.51.100.30" });
+    const refused = await identity.confirmEmailVerification(otherActor, { code: emailCodeTo(email, "sari@contoh.id") });
+
+    expect(refused).toEqual({ ok: false, reason: "email_sudah_dipakai" });
+    expect(await identity.accountEmail(otherActor)).toEqual({ email: "budi@contoh.id", verified: false });
+    setup.clock.advance({ minutes: 1 });
+    const { login } = await logInByEmail(setup, "sari@contoh.id");
+    expect(login.account.phoneNumber).toBe("+6281234567890");
+  });
+});
+
 /** A Pemesan logged in by WhatsApp who has verified `address` in the profile. */
 async function pemesanWithEmailTerverifikasi(
   setup: ReturnType<typeof identityOnTestDatabase>,

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -69,7 +69,11 @@ export async function requestEmailVerification(
   return { ok: true, email, sentAt: issued.sentAt, expiresAt: issued.expiresAt, resendAt: issued.resendAt };
 }
 
-export type ConfirmEmailVerificationResult = { ok: true; email: string } | CodeRejection;
+export type ConfirmEmailVerificationResult =
+  | { ok: true; email: string }
+  | CodeRejection
+  /** Another Akun already has this Email Terverifikasi; Admin Platform resolves it through CS. */
+  | { ok: false; reason: "email_sudah_dipakai" };
 
 /**
  * Verifikasi Email, step 2: the code sent in step 1 makes its email the Akun's
@@ -85,9 +89,35 @@ export async function confirmEmailVerification(
   if (!checked.ok) return checked;
   const email = checked.target;
   const now = deps.clock.now();
-  await deps.db
-    .update(identityUser)
-    .set({ contactEmail: email, emailVerifiedAt: now, updatedAt: now })
-    .where(eq(identityUser.id, by.accountId));
+  if (await verifiedOnAnotherAkun(deps.db, email, by.accountId)) return { ok: false, reason: "email_sudah_dipakai" };
+  try {
+    await deps.db
+      .update(identityUser)
+      .set({ contactEmail: email, emailVerifiedAt: now, updatedAt: now })
+      .where(eq(identityUser.id, by.accountId));
+  } catch (error) {
+    // Another Akun verified it in the meantime: the database's unique index refused this one.
+    if (isVerifiedEmailTaken(error)) return { ok: false, reason: "email_sudah_dipakai" };
+    throw error;
+  }
   return { ok: true, email };
+}
+
+async function verifiedOnAnotherAkun(db: Database, email: string, accountId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: identityUser.id })
+    .from(identityUser)
+    .where(and(eq(identityUser.contactEmail, email), isNotNull(identityUser.emailVerifiedAt), ne(identityUser.id, accountId)));
+  return Boolean(row);
+}
+
+/** True for the unique violation of identity_user_verified_email_idx (a verified email belongs to one Akun). */
+function isVerifiedEmailTaken(error: unknown): boolean {
+  let current: unknown = error;
+  while (typeof current === "object" && current !== null) {
+    const { code, constraint, cause } = current as { code?: string; constraint?: string; cause?: unknown };
+    if (code === "23505" && constraint === "identity_user_verified_email_idx") return true;
+    current = cause;
+  }
+  return false;
 }
