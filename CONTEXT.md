@@ -351,3 +351,11 @@ _Avoid_: Log (alone), histori
 **Pengaturan Operator**:
 The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, and the CS WhatsApp number with its reply hours. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
+
+**Peringatan Staf**:
+A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it always goes by WhatsApp, and also by push to each of their Perangkat Push.
+_Avoid_: Notifikasi (alone), alert, reminder (for staff)
+
+**Perangkat Push**:
+One browser or installed staff app on which an Akun Staf has turned on push; an Akun Staf may have several, and one stops counting once its browser no longer accepts pushes.
+_Avoid_: Langganan (reserved sense: Paket Layanan), subscription, token

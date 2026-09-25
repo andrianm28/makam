@@ -1,0 +1,57 @@
+import { createECDH, randomBytes } from "node:crypto";
+import { FakeWebPush } from "@/adapters/memory";
+import type { Database } from "@/db/client";
+import type { Actor, StaffRole } from "@/domain/identity";
+import { createNotifications } from "@/domain/notifications";
+import type { PushSubscription } from "@/ports/web-push";
+import type { WhatsAppSender } from "@/ports/whatsapp-sender";
+import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "./identity";
+
+/** The Notifications module next to identity on the test Postgres, sharing its Clock, Audit Log and fake WhatsApp. */
+export function notificationsOnTestDatabase(db: Database, options: { whatsapp?: WhatsAppSender } = {}) {
+  const setup = identityOnTestDatabase(db);
+  const webPush = new FakeWebPush();
+  const notifications = createNotifications({
+    db,
+    clock: setup.clock,
+    whatsapp: options.whatsapp ?? setup.whatsapp,
+    webPush,
+    audit: setup.audit,
+  });
+  return { ...setup, webPush, notifications };
+}
+
+/** An Akun Staf holding `role`, invited by the first Admin Platform and logged in by OTP. */
+export async function signedInStaff(
+  setup: ReturnType<typeof identityOnTestDatabase>,
+  role: Exclude<StaffRole, "admin_platform">,
+  phoneNumber = "082222222222",
+) {
+  const { actor: admin } = await signedInAdminPlatform(setup);
+  return invitedStaff(setup, admin, role, phoneNumber);
+}
+
+/** An Akun Staf holding `role`, invited by `admin` (a signed-in Admin Platform) and logged in by OTP. */
+export async function invitedStaff(
+  setup: ReturnType<typeof identityOnTestDatabase>,
+  admin: Actor,
+  role: Exclude<StaffRole, "admin_platform">,
+  phoneNumber: string,
+) {
+  const invited = await setup.identity.inviteStaff(admin, { phoneNumber, email: `${role}@contoh.id`, role });
+  if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
+  const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
+  return actorOf(setup.identity, cookies);
+}
+
+let device = 0;
+
+/** What `pushManager.subscribe()` hands the page on one browser: a push service endpoint and the browser's keys. */
+export function browserPushSubscription(): PushSubscription {
+  const ecdh = createECDH("prime256v1");
+  ecdh.generateKeys();
+  return {
+    endpoint: `https://fcm.googleapis.com/fcm/send/perangkat-${++device}-${randomBytes(4).toString("hex")}`,
+    keys: { p256dh: ecdh.getPublicKey("base64url"), auth: randomBytes(16).toString("base64url") },
+  };
+}

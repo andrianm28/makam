@@ -1,0 +1,230 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { actorOf, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
+import {
+  browserPushSubscription,
+  invitedStaff,
+  notificationsOnTestDatabase,
+  signedInStaff,
+} from "../../../tests/support/notifications";
+
+const { db, close } = testDatabase();
+afterAll(close);
+beforeEach(resetDatabase);
+
+/** A new Saat Duka order at a Lokasi Mitra, as ticket 23 will raise it. */
+const saatDukaBaru = {
+  whatsapp: {
+    template: "staf_saat_duka_baru",
+    parameters: ["Taman Makam Contoh", "MKM-2026-000123", "Petak tunggal", "Besok 10:00", "Hari ini 21:00", "Ibu Sari"],
+  },
+  push: {
+    title: "Pemesanan Saat Duka baru",
+    body: "MKM-2026-000123 di Taman Makam Contoh menunggu konfirmasi",
+    url: "/staf/admin-lokasi",
+  },
+};
+
+describe("Peringatan Staf", () => {
+  it("goes by WhatsApp and by push to every Perangkat Push of the Akun Staf", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, whatsapp, webPush } = setup;
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+    const laptop = browserPushSubscription();
+    await notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await notifications.enablePush(adminLokasi, { subscription: laptop });
+
+    const sent = await notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      ...saatDukaBaru,
+    });
+
+    expect(sent).toEqual({ whatsapp: "terkirim", push: { delivered: 2, removed: 0 } });
+    expect(whatsapp.sent.filter((message) => message.template === "staf_saat_duka_baru")).toEqual([
+      expect.objectContaining({ to: "+6282222222222", language: "id", parameters: saatDukaBaru.whatsapp.parameters }),
+    ]);
+    expect(webPush.sent).toHaveLength(2);
+    expect(webPush.sent).toEqual(
+      expect.arrayContaining([
+        { subscription: ponsel, notification: saatDukaBaru.push },
+        { subscription: laptop, notification: saatDukaBaru.push },
+      ]),
+    );
+  });
+
+  it("push never replaces WhatsApp: an Akun Staf without a Perangkat Push still gets the WhatsApp", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, whatsapp, webPush } = setup;
+    const petugas = await signedInStaff(setup, "petugas_lapangan");
+
+    const sent = await notifications.sendStaffAlert({
+      to: { accountId: petugas.accountId, phoneNumber: petugas.phoneNumber },
+      whatsapp: { template: "staf_tugas_lapangan_baru", parameters: ["Kunjungan Verifikasi", "Taman Makam Contoh", "2 Okt"] },
+      push: { title: "Tugas Lapangan baru", body: "Kunjungan Verifikasi, 2 Okt", url: "/staf/petugas-lapangan" },
+    });
+
+    expect(sent).toEqual({ whatsapp: "terkirim", push: { delivered: 0, removed: 0 } });
+    expect(whatsapp.sent.map((message) => message.template)).toContain("staf_tugas_lapangan_baru");
+    expect(webPush.sent).toEqual([]);
+  });
+
+  it("still goes by push when the WhatsApp send fails", async () => {
+    const failingWhatsApp = {
+      sendTemplate: async () => {
+        throw new Error("kirim.dev unavailable");
+      },
+      statusOf: async () => null,
+      replyText: async () => ({ messageId: "x" }),
+    };
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const withFailingWhatsApp = notificationsOnTestDatabase(db, { whatsapp: failingWhatsApp });
+    await withFailingWhatsApp.notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+
+    const sent = await withFailingWhatsApp.notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+      ...saatDukaBaru,
+    });
+
+    expect(sent).toEqual({ whatsapp: "gagal", push: { delivered: 1, removed: 0 } });
+    expect(withFailingWhatsApp.webPush.sent).toHaveLength(1);
+  });
+
+  it("opens only a staff page when tapped: a push naming any other place is refused", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+
+    await expect(
+      setup.notifications.sendStaffAlert({
+        to: { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber },
+        ...saatDukaBaru,
+        push: { ...saatDukaBaru.push, url: "https://contoh.example/staf" },
+      }),
+    ).rejects.toThrow(/staff page/);
+  });
+});
+
+describe("Perangkat Push", () => {
+  it("is removed once its browser reports the subscription gone, and gets no further pushes", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, webPush } = setup;
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const lama = browserPushSubscription();
+    const baru = browserPushSubscription();
+    await notifications.enablePush(adminLokasi, { subscription: lama });
+    await notifications.enablePush(adminLokasi, { subscription: baru });
+    webPush.expireSubscription(lama.endpoint);
+    const to = { accountId: adminLokasi.accountId, phoneNumber: adminLokasi.phoneNumber };
+
+    expect(await notifications.sendStaffAlert({ to, ...saatDukaBaru })).toEqual({
+      whatsapp: "terkirim",
+      push: { delivered: 1, removed: 1 },
+    });
+    expect(await notifications.pushDevices(adminLokasi.accountId)).toEqual([
+      { endpoint: baru.endpoint, enabledAt: expect.any(Date) },
+    ]);
+
+    expect(await notifications.sendStaffAlert({ to, ...saatDukaBaru })).toEqual({
+      whatsapp: "terkirim",
+      push: { delivered: 1, removed: 0 },
+    });
+  });
+
+  it("is one per browser: turning push on again there keeps a single Perangkat Push", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toHaveLength(1);
+  });
+
+  it("moves to the Akun Staf that turns push on in a browser another Akun Staf used before", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
+    const mitraJasa = await invitedStaff(setup, admin, "mitra_jasa", "083333333333");
+    const bersama = browserPushSubscription();
+    await setup.notifications.enablePush(adminLokasi, { subscription: bersama });
+
+    await setup.notifications.enablePush(mitraJasa, { subscription: bersama });
+
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toEqual([]);
+    expect(await setup.notifications.pushDevices(mitraJasa.accountId)).toEqual([
+      { endpoint: bersama.endpoint, enabledAt: expect.any(Date) },
+    ]);
+  });
+
+  it("is turned off for one browser, leaving the Akun Staf's other Perangkat Push", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+    const laptop = browserPushSubscription();
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await setup.notifications.enablePush(adminLokasi, { subscription: laptop });
+
+    expect(await setup.notifications.disablePush(adminLokasi, { endpoint: ponsel.endpoint })).toEqual({ ok: true });
+
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toEqual([
+      { endpoint: laptop.endpoint, enabledAt: expect.any(Date) },
+    ]);
+  });
+
+  it("turning push on and off each records an Entri Audit on the Akun", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await setup.notifications.disablePush(adminLokasi, { endpoint: ponsel.endpoint });
+
+    const entries = await setup.audit.entriesAbout({ kind: "akun", id: adminLokasi.accountId });
+    expect(entries.filter((entry) => entry.action.startsWith("akun.push"))).toEqual([
+      expect.objectContaining({
+        actor: { accountId: adminLokasi.accountId, role: "admin_lokasi" },
+        action: "akun.push_aktifkan",
+        before: { perangkatPush: 0 },
+        after: { perangkatPush: 1 },
+      }),
+      expect.objectContaining({
+        actor: { accountId: adminLokasi.accountId, role: "admin_lokasi" },
+        action: "akun.push_matikan",
+        before: { perangkatPush: 1 },
+        after: { perangkatPush: 0 },
+      }),
+    ]);
+  });
+
+  it("only an Akun Staf turns push on: a Pemesan is refused and nothing is stored", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "084444444444");
+    const pemesan = await actorOf(setup.identity, cookies);
+
+    expect(await setup.notifications.enablePush(pemesan, { subscription: browserPushSubscription() })).toEqual({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+    expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
+  });
+
+  it("refuses a subscription that is not a browser's (no https push service, or bad keys)", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const valid = browserPushSubscription();
+
+    for (const subscription of [
+      { ...valid, endpoint: "http://push.example/1" },
+      { ...valid, keys: { ...valid.keys, p256dh: "c2hvcnQ" } },
+      { ...valid, keys: { ...valid.keys, auth: "" } },
+    ]) {
+      expect(await setup.notifications.enablePush(adminLokasi, { subscription })).toEqual({
+        ok: false,
+        reason: "langganan_tidak_valid",
+      });
+    }
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toEqual([]);
+  });
+});

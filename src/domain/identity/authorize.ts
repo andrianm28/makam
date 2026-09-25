@@ -44,6 +44,8 @@ export type Action =
   | "akun.totp"
   /** Pindah Nomor: move an Akun to a new WhatsApp number (Admin Platform). */
   | "akun.pindah_nomor"
+  /** Turn push on or off for a Perangkat Push of one's own Akun Staf. */
+  | "akun.push"
   /** Open one role's menu in the staff area. */
   | "staf.menu"
   /** Send an Undangan Staf (Admin Platform). */
@@ -131,6 +133,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.keluar":
     case "akun.totp":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
+    case "akun.push":
+      return resource.kind === "akun" && resource.accountId === actor.accountId && staffRoles.some(holds)
+        ? allowed
+        : denied;
     case "staf.menu":
       return resource.kind === "menu_staf" && holds(resource.role) ? allowed : denied;
     case "staf.undang":
