@@ -58,3 +58,5 @@ Perpanjangan at a DKI TPU is left to "TPU order loose ends", which settles what 
 - **Unpaid Layanan**: its Pekerjaan Layanan exists with status Menunggu Pembayaran and becomes **Dibatalkan** when the Tagihan lapses (replaces "no Pekerjaan Layanan created").
 
 **Spec review** (2026-09-25, decided with the user): **hari-H Layanan on a Saat Duka checkout are pay-after** with the rest of that Tagihan: their Pekerjaan Layanan are Dijadwalkan at the order's confirmation; their Pencairan is due only when the Tagihan is Lunas **and** the Keluhan window has closed. If the Tagihan becomes Tidak Tertagih, the fulfiller bears that Layanan's loss like the Petak tariff (a Mitra Jasa at a TPU is still paid by the Operator, which bears TPU losses).
+
+**Spec clarification** (2026-09-25, decided with the user): Layanan added at a Perpanjangan checkout do not shorten the Tagihan's due date; it keeps the Perpanjangan's 3×24 h, and each Layanan's target date must be at least its lead time after that due date.

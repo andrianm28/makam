@@ -394,7 +394,7 @@ Core entities at a glance (details in each module):
    - Terms 1–K. New end = old end + terms × N, applied automatically on payment.
    - Blocked by an overdue pay-after Tagihan on the Hak Pakai. Not offered for perpetual, too early, Berakhir or Dibatalkan.
    - Pay-first Tagihan due 3×24 h after issue. Bukti Perpanjangan is issued on payment.
-   - An optional "Tambah Layanan" step before payment adds Layanan on the same Tagihan, whose due date is then the earliest of its lines.
+   - An optional "Tambah Layanan" step before payment adds Layanan on the same Tagihan, which keeps the Perpanjangan due date (3×24 h); each added Layanan's target date must be at least its lead time after that due date, so adding Layanan never shortens or endangers the Perpanjangan.
 8. **Pengurusan (DKI TPU)**
    - **Order kinds and statuses**:
      - **Saat Duka TPU**: Diajukan → Dikonfirmasi → Dimakamkan (set by Admin Platform after checking with the TPU or the family) → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, plus Dibatalkan.
@@ -438,7 +438,7 @@ Core entities at a glance (details in each module):
       - One per payment moment, immutable. Changes are made by cancelling and reissuing.
       - Addressed to the Pemesan, or to the Pemegang Hak for a Perpanjangan. Anyone may pay.
       - Lines carry provider attribution (the Lokasi Mitra for its tariff lines). A Harga Khusus appears as a negative "Penyesuaian Harga Khusus" line.
-      - Kind: pay-first or pay-after. A Tagihan has one due date, the earliest of its lines. Hari-H Layanan lines on a Saat Duka Tagihan are pay-after and take its due date, so that Tagihan stays pay-after.
+      - Kind: pay-first or pay-after. A Tagihan has one due date, the earliest of its lines. Hari-H Layanan lines on a Saat Duka Tagihan are pay-after and take its due date, so that Tagihan stays pay-after. Layanan added at a Perpanjangan checkout likewise take the Perpanjangan due date (their target dates are constrained instead).
       - Statuses: Belum Dibayar / Lunas / Lewat Jatuh Tempo / Tidak Tertagih / Dibatalkan, plus Dikembalikan sebagian / penuh.
       - Pay-first Tagihan lapse to Dibatalkan at the due date. Pay-after Tagihan become Lewat Jatuh Tempo, with the clock counted from the **recorded** burial date. The printed due date of a Saat Duka Tagihan comes from the planned burial date at confirmation; the Tagihan is not reissued if the recorded date differs.
     - **Due rules by kind**:
