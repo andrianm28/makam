@@ -4,7 +4,7 @@ import { OtpRejected, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 import { identityUser } from "./schema";
-import { sessionCookiesFrom, type SessionCookie } from "./sessions";
+import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
 
 type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
@@ -55,9 +55,8 @@ export async function verifyOtp(
   }
 
   const { response, headers } = result;
-  const context = await deps.auth.$context;
   if (!response.user || !response.token) throw new Error("Better Auth verified the number but made no session");
-  const session = await context.internalAdapter.findSession(response.token);
+  const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
 
   return {

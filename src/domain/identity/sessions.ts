@@ -17,6 +17,12 @@ export interface SessionCookie {
   sameSite?: "lax" | "strict" | "none";
 }
 
+/** The stored session (with its user) behind a session token, or null. */
+export async function findSession(auth: MakamAuth, token: string) {
+  const context = await auth.$context;
+  return context.internalAdapter.findSession(token);
+}
+
 /** Turns Better Auth's Set-Cookie headers into cookies the web layer can set. */
 export function sessionCookiesFrom(headers: Headers): SessionCookie[] {
   const cookies: SessionCookie[] = [];
@@ -52,8 +58,7 @@ export async function actorFromCookies(
   const token = await verifiedSessionToken(deps.secret, cookieHeader);
   if (!token) return null;
 
-  const context = await deps.auth.$context;
-  const found = await context.internalAdapter.findSession(token);
+  const found = await findSession(deps.auth, token);
   if (!found) return null;
   if (found.session.expiresAt.getTime() <= deps.clock.now().getTime()) return null;
 
