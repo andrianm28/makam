@@ -52,6 +52,3 @@ next-env.d.ts
 
 # claude code worktrees
 .claude/worktrees/
-
-# Playwright: signed-in browser state shared between e2e specs
-/e2e/.auth/

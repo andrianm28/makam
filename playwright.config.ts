@@ -16,9 +16,5 @@ export default defineConfig({
     locale: "id-ID",
     timezoneId: "Asia/Jakarta",
   },
-  projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /lokasi\.spec\.ts/ },
-    // Specs that start from the Admin Platform staf.spec seeded (its saved browser state, e2e/support/masuk.ts).
-    { name: "staf-lanjutan", use: { ...devices["Desktop Chrome"] }, testMatch: /lokasi\.spec\.ts/, dependencies: ["chromium"] },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
