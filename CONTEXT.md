@@ -92,6 +92,10 @@ _Avoid_: OTP (alone, in user-facing text), kata sandi, PIN, token
 An email address on an Akun that has been proven by entering a code sent to it; only such an email can receive a Kode Masuk, and it belongs to at most one Akun. An email that has only been typed in (on an order, or on an Undangan Staf) is not an Email Terverifikasi.
 _Avoid_: Email terdaftar, email akun (for an unproven email), login email
 
+**Verifikasi Email**:
+Proving an email for one's own Akun by entering the code sent to it, which makes it the Akun's Email Terverifikasi (replacing any earlier one only then); the code is not a Kode Masuk and logs no one in.
+_Avoid_: Konfirmasi email, aktivasi email, email login
+
 **Akun Staf**:
 An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); always has an email on record, which is not an Email Terverifikasi until proven.
 _Avoid_: Admin user, akun admin
