@@ -16,6 +16,11 @@
 #   3. up -d --wait             fails -> exit 1; roll back with --tag <previous>
 #   4. /api/health must be 200  fails -> exit 2 (deployed, but unhealthy)
 #
+# Refuses to run (exit 78) unless <env>.env names MAKAM_PROJECT=makam-<env> and
+# the matching MAKAM_APP_ENV (staging / production), and refuses any image
+# other than ghcr.io/andrianm28/makam. Pruning only ever untags that
+# repository's sha-<40 hex> tags.
+#
 # Files under $MAKAM_ROOT/<env>/ (see docs/ops/runbook.md):
 #   compose.yml     copy of docker-compose.prod.yml (installed by deploy/install-host.sh)
 #   <env>.env       secrets + settings, mode 0600, never in the repo
@@ -29,7 +34,7 @@ TAG=""
 LOCAL=0
 FORCE=0
 
-usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -42,9 +47,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 case "$ENV_NAME" in
-  staging|prod) ;;
+  staging) APP_ENV_EXPECTED=staging ;;
+  prod) APP_ENV_EXPECTED=production ;;
   *) echo "--env must be staging or prod" >&2; exit 64 ;;
 esac
+
+# The only image this script deploys or prunes.
+ALLOWED_IMAGE=ghcr.io/andrianm28/makam
 
 DIR="$MAKAM_ROOT/$ENV_NAME"
 PROJECT="makam-$ENV_NAME"
@@ -55,7 +64,18 @@ LOG="$DIR/deploy.log"
 [ -r "$DIR/compose.yml" ] || { echo "missing $DIR/compose.yml" >&2; exit 78; }
 
 setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
-IMAGE=$(setting MAKAM_IMAGE); IMAGE=${IMAGE:-ghcr.io/andrianm28/makam}
+refuse() { echo "refusing to deploy: $*" >&2; exit 78; }
+
+# A variable in this process's environment would override the env file in
+# compose's interpolation, so both must agree with the allow-list.
+IMAGE=$(setting MAKAM_IMAGE); IMAGE=${IMAGE:-$ALLOWED_IMAGE}
+[ "$IMAGE" = "$ALLOWED_IMAGE" ] || refuse "MAKAM_IMAGE=$IMAGE in $ENV_FILE; only $ALLOWED_IMAGE is allowed"
+[ "${MAKAM_IMAGE:-$ALLOWED_IMAGE}" = "$ALLOWED_IMAGE" ] || refuse "MAKAM_IMAGE=$MAKAM_IMAGE in the environment; only $ALLOWED_IMAGE is allowed"
+[ "$(setting MAKAM_PROJECT)" = "$PROJECT" ] || refuse "$ENV_FILE must set MAKAM_PROJECT=$PROJECT"
+[ "${MAKAM_PROJECT:-$PROJECT}" = "$PROJECT" ] || refuse "MAKAM_PROJECT=$MAKAM_PROJECT in the environment; expected $PROJECT"
+[ "$(setting MAKAM_APP_ENV)" = "$APP_ENV_EXPECTED" ] || refuse "$ENV_FILE must set MAKAM_APP_ENV=$APP_ENV_EXPECTED"
+[ "${MAKAM_APP_ENV:-$APP_ENV_EXPECTED}" = "$APP_ENV_EXPECTED" ] || refuse "MAKAM_APP_ENV=$MAKAM_APP_ENV in the environment; expected $APP_ENV_EXPECTED"
+export MAKAM_IMAGE="$IMAGE" MAKAM_PROJECT="$PROJECT" MAKAM_APP_ENV="$APP_ENV_EXPECTED"
 WEB_PORT=$(setting MAKAM_WEB_PORT)
 : "${WEB_PORT:?MAKAM_WEB_PORT missing from $ENV_FILE}"
 
@@ -80,20 +100,18 @@ compose() {
 current_tag() { sed -n 's/^MAKAM_TAG=//p' "$DEPLOYED_FILE" | tail -n 1; }
 revision_of() { docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1" 2>/dev/null || true; }
 
+pull() {
+  docker pull -q "$IMAGE:$1" > /dev/null || { log "ERROR pull $IMAGE:$1 failed; nothing changed"; exit 1; }
+}
+
 # 1. Resolve and pull the target image.
 if [ -z "$TAG" ]; then
-  if ! docker pull -q "$IMAGE:latest" > /dev/null; then
-    log "ERROR pull $IMAGE:latest failed; nothing changed"
-    exit 1
-  fi
+  pull latest
   REV=$(revision_of "$IMAGE:latest")
   [ -n "$REV" ] || { log "ERROR $IMAGE:latest has no revision label"; exit 1; }
   TAG="sha-$REV"
   # CI pushes sha-<commit> alongside latest; deploy the immutable tag.
-  if ! docker pull -q "$IMAGE:$TAG" > /dev/null; then
-    log "ERROR pull $IMAGE:$TAG failed; nothing changed"
-    exit 1
-  fi
+  pull "$TAG"
   if [ "$(docker image inspect -f '{{.Id}}' "$IMAGE:latest")" != "$(docker image inspect -f '{{.Id}}' "$IMAGE:$TAG")" ]; then
     log "ERROR $IMAGE:latest and :$TAG differ; nothing changed"
     exit 1
@@ -101,10 +119,7 @@ if [ -z "$TAG" ]; then
 elif [ "$LOCAL" = 1 ]; then
   docker image inspect "$IMAGE:$TAG" > /dev/null 2>&1 || { log "ERROR local image $IMAGE:$TAG not found"; exit 1; }
 else
-  if ! docker pull -q "$IMAGE:$TAG" > /dev/null; then
-    log "ERROR pull $IMAGE:$TAG failed; nothing changed"
-    exit 1
-  fi
+  pull "$TAG"
 fi
 REV=$(revision_of "$IMAGE:$TAG")
 PREVIOUS=$(current_tag)
@@ -138,9 +153,12 @@ log "web and worker up on $TAG"
 for _ in $(seq 1 36); do
   if curl -fs -m 5 -o /dev/null "http://127.0.0.1:$WEB_PORT/api/health"; then
     log "healthy on $TAG"
-    # Keep the five newest sha-* tags of this image; never touches other images.
-    { docker image ls "$IMAGE" --format '{{.Tag}}' | grep '^sha-' | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
-      | tail -n +4 | while read -r old; do docker image rm "$IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
+    # Keep the five newest sha-<commit> tags of the allowed image (the running
+    # one, the previous one and three more); only untags, never another repository.
+    { docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}}' \
+      | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 }' \
+      | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
+      | tail -n +4 | while read -r old; do docker image rm "$ALLOWED_IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
     exit 0
   fi
   sleep 5
