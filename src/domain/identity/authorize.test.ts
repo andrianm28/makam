@@ -3,6 +3,7 @@ import {
   akunResource,
   auditLogResource,
   authorize,
+  pengaturanOperatorResource,
   stafMenuResource,
   stafResource,
   type Actor,
@@ -112,5 +113,19 @@ describe("staff access", () => {
       expect(authorize(notYet, "akun.totp", akunResource("akun-staf"))).toEqual({ allowed: true });
       expect(authorize(notYet, "akun.keluar", akunResource("akun-staf"))).toEqual({ allowed: true });
     }
+  });
+});
+
+describe("who may open the Pengaturan Operator screen", () => {
+  it("only an Admin Platform past TOTP; no other role, not even one holding several", () => {
+    const open = (who: Actor) => authorize(who, "pengaturan_operator.lihat", pengaturanOperatorResource());
+
+    expect(open(adminPlatform)).toEqual({ allowed: true });
+    expect(open(staff(["admin_platform"], "perlu_verifikasi"))).toEqual({ allowed: false, reason: "perlu_totp" });
+    expect(open(staff(["admin_lokasi", "petugas_lapangan", "mitra_jasa"]))).toEqual({
+      allowed: false,
+      reason: "tidak_berwenang",
+    });
+    expect(open(pemesan)).toEqual({ allowed: false, reason: "tidak_berwenang" });
   });
 });

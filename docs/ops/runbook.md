@@ -100,6 +100,11 @@ The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
 and enrols an authenticator app for TOTP at once. There is no self-service
 recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
 
+Before launch, the Admin Platform then enters Pengaturan Operator at
+`/staf/admin-platform/pengaturan-operator` (the Operator's legal name, address,
+phone and email; the CS WhatsApp number and its reply hours; ticket 06). None of
+these has a default, in env or in code.
+
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
 When an Admin Platform loses their authenticator, ops resets it. Confirm who

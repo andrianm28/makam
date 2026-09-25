@@ -51,14 +51,19 @@ export type Action =
   /** Deactivate an Akun Staf (Admin Platform). */
   | "staf.nonaktifkan"
   /** Read the whole Audit Log. */
-  | "audit.lihat";
+  | "audit.lihat"
+  /** Open the Pengaturan Operator edit screen (Admin Platform). */
+  | "pengaturan_operator.lihat"
+  /** Change Pengaturan Operator (Admin Platform). */
+  | "pengaturan_operator.ubah";
 
 /** What the action is done to. */
 export type Resource =
   | { kind: "akun"; accountId: string }
   | { kind: "staf" }
   | { kind: "menu_staf"; role: StaffRole }
-  | { kind: "audit_log" };
+  | { kind: "audit_log" }
+  | { kind: "pengaturan_operator" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -80,6 +85,11 @@ export function auditLogResource(): Resource {
   return { kind: "audit_log" };
 }
 
+/** Pengaturan Operator: the Operator's own reference values. */
+export function pengaturanOperatorResource(): Resource {
+  return { kind: "pengaturan_operator" };
+}
+
 export type Authorization =
   | { allowed: true }
   | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" | "perlu_totp" };
@@ -95,15 +105,16 @@ export function needsTotp(actor: Pick<Actor, "totp">): boolean {
 /** Actions an Akun holding Admin Platform may take before passing TOTP. */
 const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
 
+/** Why a domain module refuses a write the actor may not do. */
+export type WriteRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+
 /**
- * The identity module's own check before a staff write (defence in depth
- * behind `guarded()`): null when `actor` may do `action` on the staff roster.
+ * A domain module's own check before a write (defence in depth behind
+ * `guarded()`): null when `actor` may do `action` on `resource`, else the
+ * refusal to return. A caller that is not signed in is `tidak_berwenang`.
  */
-export function staffWriteRefusal(
-  actor: Actor,
-  action: "staf.undang" | "staf.nonaktifkan" | "akun.pindah_nomor",
-): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
-  const authorization = authorize(actor, action, stafResource());
+export function writeRefusal(actor: Actor, action: Action, resource: Resource): WriteRefusal | null {
+  const authorization = authorize(actor, action, resource);
   if (authorization.allowed) return null;
   return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }
@@ -127,5 +138,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.pindah_nomor":
     case "audit.lihat":
       return holds("admin_platform") ? allowed : denied;
+    case "pengaturan_operator.lihat":
+      // The edit screen: Admin Platform only (the values themselves are public, read by server code).
+      return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
+    case "pengaturan_operator.ubah":
+      return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
   }
 }
