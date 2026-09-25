@@ -36,14 +36,15 @@ SES is dropped from v1. Every email from v1 goes through SumoPod's SMTP relay (`
 - For how this was done for `fundforindonesia.org` (the SumoPod "Custom Domain" tab, the 3 generated records, SPF `include:spf.kirim.email`), see `/home/ubuntu/mail-setup/STATUS.md` and `/home/ubuntu/mail-setup/RELAY-fundforindonesia.md`.
 
 **Human checklist (email):**
-- [ ] In the SumoPod dashboard, "Custom Domain" tab: add `makam.co.id`.
-- [ ] Publish the 3 records it generates, copying the values from the dashboard (they cannot be guessed):
+- [x] In the SumoPod dashboard, "Custom Domain" tab: add `makam.co.id`.
+- [x] Publish the 3 records it generates, copying the values from the dashboard (they cannot be guessed):
   - [ ] the DKIM TXT at `<selector>._domainkey.makam.co.id`;
   - [ ] the SPF TXT at `makam.co.id`: `v=spf1 include:spf.kirim.email ~all`. There is no SPF today. If one is added before this, merge the two into a single SPF record, because a domain may have only one;
   - [ ] the `sumo-verification=…` TXT at `makam.co.id`.
-- [ ] Add DMARC at `_dmarc.makam.co.id`: `v=DMARC1; p=none; rua=mailto:<address>` to start (choose the report address and record it). Tighten to `quarantine` later, once the reports show only SumoPod sending.
+- [x] Add DMARC at `_dmarc.makam.co.id`: `v=DMARC1; p=none; rua=mailto:<address>` to start (choose the report address and record it). Tighten to `quarantine` later, once the reports show only SumoPod sending.
 - [ ] Click "Verify DNS settings" in the dashboard until all 3 show verified.
 - [ ] Provide SMTP credentials for v1, preferably separate from the old app's, and store them on the VPS as `SMTP_USER` / `SMTP_PASSWORD` for staging and production (ticket 68). Never write them in this ticket, the repo or any doc.
 - [ ] Choose and record v1's sender address (e.g. `no-reply@makam.co.id`, as the old app uses, or another address on `makam.co.id`) and display name "Makam.co.id".
 - [ ] Record under `## Comments`: the DKIM selector; the date each record was verified; whether SumoPod offers bounce / complaint reporting; any sending limits on the account; and where SumoPod's relay processes mail (the country of its servers), for the spec's Data and privacy section.
 - [ ] After the records are verified, check whether an email from the old app now passes SPF and DKIM too (it sends from the same domain through the same relay) and record the answer. A DMARC policy stricter than `p=none` must wait until it does.
+- 2026-09-25 — User set up email for `makam.co.id`. Checked from public resolvers (1.1.1.1, 8.8.8.8): SPF `v=spf1 mx include:spf.kirim.email ~all` (single SPF record; `spf.kirim.email` = 103.171.18.0/24, 103.171.19.0/24), `sumo-verification=…` present, DKIM selector **`trx_ke`** at `trx_ke._domainkey.makam.co.id` (RSA 2048-bit key), DMARC `v=DMARC1; p=none; rua=mailto:dmarc@makam.co.id`, MX `10 mail.makam.co.id` → 103.92.214.243 (Stalwart). Still open: dashboard "Verified" status for all three (not checkable from here), v1 SMTP credentials on the VPS, sender address, and a real test send to confirm SPF/DKIM pass in the received headers (after ticket 68, or a manual send).
