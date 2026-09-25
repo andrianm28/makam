@@ -25,6 +25,8 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   bankAccountNumber: text("bank_account_number"),
   bankAccountHolder: text("bank_account_holder"),
   agreementSignedOn: date("agreement_signed_on", { mode: "string" }),
+  /** The agreement scan's key in the private FileStore; read only through a signed URL. */
+  agreementScanFileKey: text("agreement_scan_file_key"),
   /** The documents a family brings for a burial here, in order (editable per Lokasi). */
   documentChecklist: jsonb("document_checklist").$type<string[]>().notNull(),
   /** LokasiPolicies (./policies.ts), validated before every write. */

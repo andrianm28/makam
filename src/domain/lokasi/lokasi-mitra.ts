@@ -259,7 +259,7 @@ function bankAccountOf(row: Row): BankAccount | null {
  * One Admin Platform write on a Lokasi Mitra's record: authorised, locked,
  * changed and audited in one transaction.
  */
-async function writeLokasiMitra(
+export async function writeLokasiMitra(
   deps: LokasiDeps,
   by: Actor,
   lokasiId: string,
@@ -300,7 +300,7 @@ function toLokasiMitra(row: Row): LokasiMitra {
     city: row.city,
     pin: row.pinLat !== null && row.pinLng !== null ? { lat: row.pinLat, lng: row.pinLng } : null,
     status: row.status,
-    agreement: { signedOn: row.agreementSignedOn, scanUploaded: false },
+    agreement: { signedOn: row.agreementSignedOn, scanUploaded: row.agreementScanFileKey !== null },
     bankAccount: bankAccountOf(row),
     documentChecklist: row.documentChecklist,
     policies: row.policies,

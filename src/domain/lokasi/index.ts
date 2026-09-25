@@ -38,7 +38,19 @@ import {
 } from "./lokasi-mitra";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import { lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
+import {
+  agreementScanUrl,
+  uploadAgreement,
+  type AgreementScanUrlResult,
+  type UploadAgreementResult,
+} from "./agreement";
 
+export {
+  AGREEMENT_SCAN_MAX_BYTES,
+  AGREEMENT_SCAN_URL_SECONDS,
+  type AgreementScanUrlResult,
+  type UploadAgreementResult,
+} from "./agreement";
 export type { LokasiAuditLogResult } from "./audit-view";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
@@ -113,6 +125,14 @@ export interface Lokasi {
   lokasiMitraOfAdminLokasi(by: Actor): Promise<LokasiMitraSummary[]>;
   /** This Lokasi Mitra's Audit Log for its Admin Lokasi (and Admin Platform), without Catatan Internal and Antrean claims. */
   auditLog(by: Actor, lokasiId: string): Promise<LokasiAuditLogResult>;
+  /** Admin Platform uploads the agreement scan (FileStore) with its signing date, audited. */
+  uploadAgreement(
+    by: Actor,
+    lokasiId: string,
+    input: { scan: { body: Uint8Array; contentType: string }; signedOn: string },
+  ): Promise<UploadAgreementResult>;
+  /** A 5-minute signed URL to the agreement scan, for Admin Platform or the Lokasi's Admin Lokasi. */
+  agreementScanUrl(by: Actor, lokasiId: string): Promise<AgreementScanUrlResult>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -128,5 +148,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     allLokasiMitra: (by) => allLokasiMitra(deps, by),
     lokasiMitraOfAdminLokasi: (by) => lokasiMitraOfAdminLokasi(deps, by),
     auditLog: (by, lokasiId) => lokasiAuditLog(deps, by, lokasiId),
+    uploadAgreement: (by, lokasiId, input) => uploadAgreement(deps, by, lokasiId, input),
+    agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
   };
 }
