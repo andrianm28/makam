@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -76,40 +76,48 @@ export async function verifyOtp(
   if (input.channel === "email") {
     if (!akun?.verifiedEmail) return { ok: false, reason: "kode_salah" };
     return logInAkun(deps, {
-      phoneNumber,
       lookup: { channel: "email", target: akun.verifiedEmail, purpose: "masuk" },
-      lockKey: akunLockKey(akun.id),
       code: input.code,
-      mayCreate: false,
+      signsIn: (checked) => akunTheEmailCodeWasSentFor(deps.db, checked),
     });
   }
   return logInAkun(deps, {
-    phoneNumber,
-    lookup: { channel: "whatsapp", target: phoneNumber, purpose: "masuk" },
-    lockKey: akun ? akunLockKey(akun.id) : `wa:${phoneNumber}`,
+    lookup: {
+      channel: "whatsapp",
+      target: phoneNumber,
+      purpose: "masuk",
+      lockKey: akun ? akunLockKey(akun.id) : `wa:${phoneNumber}`,
+    },
     code: input.code,
-    mayCreate: true,
+    signsIn: async () => ({ phoneNumber, mayCreate: true }),
   });
 }
 
+/** Whom a correct Kode Masuk signs in: a number, and whether it may create its Akun (WhatsApp only). */
+export type SignsIn = { phoneNumber: string; mayCreate: boolean };
+
 /**
- * Checks the Kode Masuk, then signs the number's Akun in: Better Auth makes
- * the session (and, only when `mayCreate`, the Akun), open Undangan Staf are
- * accepted, and the session gets the strictest length of the roles now held.
+ * Checks the Kode Masuk, then signs in the number `signsIn` names for the
+ * correct code (none: refused as a wrong code). Better Auth makes the session
+ * (and, only when `mayCreate`, the Akun), open Undangan Staf are accepted, and
+ * the session gets the strictest length of the roles now held.
  */
 export async function logInAkun(
   deps: LoginDeps,
-  input: { phoneNumber: string; lookup: CodeLookup; lockKey: string; code: string; mayCreate: boolean },
+  input: { lookup: CodeLookup; code: string; signsIn: (checked: { target: string; lockKey: string }) => Promise<SignsIn | null> },
 ): Promise<VerifyOtpResult> {
-  const checked = await checkCode(deps, { lookup: input.lookup, lockKey: input.lockKey, code: input.code });
+  const checked = await checkCode(deps, { lookup: input.lookup, code: input.code });
   if (!checked.ok) return checked;
-  const { phoneNumber } = input;
+  const signsIn = await input.signsIn(checked);
+  if (!signsIn) return { ok: false, reason: "kode_salah" };
+  const { phoneNumber } = signsIn;
 
   const [existing] = await deps.db
     .select({ id: identityUser.id })
     .from(identityUser)
     .where(eq(identityUser.phoneNumber, phoneNumber));
-  if (!existing && !input.mayCreate) throw new Error("An email Kode Masuk never creates an Akun");
+  // Only a WhatsApp Kode Masuk creates an Akun (ADR 0003).
+  if (!existing && !signsIn.mayCreate) return { ok: false, reason: "kode_salah" };
 
   const { response, headers } = await deps.auth.api.verifyPhoneNumber({
     body: { phoneNumber, code: deps.proofs.issue(phoneNumber) },
@@ -137,6 +145,30 @@ export async function logInAkun(
     roles,
     session: { expiresAt, cookies },
   };
+}
+
+/**
+ * The Akun an email Kode Masuk was sent for (named by the lock key it was sent
+ * under), while `target` is still that Akun's Email Terverifikasi; else null.
+ * It never names a number without an Akun.
+ */
+export async function akunTheEmailCodeWasSentFor(
+  db: Database,
+  checked: { target: string; lockKey: string },
+): Promise<SignsIn | null> {
+  const accountId = checked.lockKey.startsWith("akun:") ? checked.lockKey.slice("akun:".length) : null;
+  if (!accountId) return null;
+  const [row] = await db
+    .select({ phoneNumber: identityUser.phoneNumber })
+    .from(identityUser)
+    .where(
+      and(
+        eq(identityUser.id, accountId),
+        eq(sql`lower(${identityUser.contactEmail})`, checked.target),
+        isNotNull(identityUser.emailVerifiedAt),
+      ),
+    );
+  return row?.phoneNumber ? { phoneNumber: row.phoneNumber, mayCreate: false } : null;
 }
 
 /** The account keyed by this WhatsApp number (any spelling), or null. */

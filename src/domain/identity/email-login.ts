@@ -2,7 +2,7 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { EmailSender } from "@/ports/email-sender";
 import { kodeMasukEmailMessage } from "./email-templates";
-import { logInAkun, type LoginDeps, type VerifyOtpResult } from "./login";
+import { akunTheEmailCodeWasSentFor, logInAkun, type LoginDeps, type VerifyOtpResult } from "./login";
 import {
   akunLockKey,
   akunOfNumber,
@@ -70,14 +70,11 @@ export async function verifyEmailLogin(
   input: { email: string; code: string },
 ): Promise<VerifyOtpResult> {
   const email = normaliseEmail(input.email);
-  const akun = email ? await akunOfVerifiedEmail(deps.db, email) : null;
-  if (!email || !akun) return { ok: false, reason: "kode_salah" };
+  if (!email) return { ok: false, reason: "kode_salah" };
   return logInAkun(deps, {
-    phoneNumber: akun.phoneNumber,
     lookup: { channel: "email", target: email, purpose: "masuk" },
-    lockKey: akunLockKey(akun.id),
     code: input.code,
-    mayCreate: false,
+    signsIn: (checked) => akunTheEmailCodeWasSentFor(deps.db, checked),
   });
 }
 

@@ -252,15 +252,33 @@ describe("Masuk dengan email", () => {
     expect(email.sent).toEqual([]);
   });
 
-  it("never creates an Akun: an email that is no Akun's Email Terverifikasi logs no one in", async () => {
-    const { identity } = identityOnTestDatabase(db);
-    await identity.requestEmailLogin({ email: "baru@contoh.id", ip: IP });
+  it("never creates an Akun: a correct Kode Masuk to an email that is no longer any Akun's Email Terverifikasi logs no one in", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, email } = setup;
+    const { actor } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: nextIp() });
+    const code = emailCodeTo(email, "sari@contoh.id");
+    await identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip: nextIp() });
+    await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "baru@contoh.id") });
 
-    expect(await identity.verifyEmailLogin({ email: "baru@contoh.id", code: "123456" })).toEqual({
-      ok: false,
-      reason: "kode_salah",
-    });
+    expect(await identity.verifyEmailLogin({ email: "sari@contoh.id", code })).toEqual({ ok: false, reason: "kode_salah" });
+    expect(await identity.accountEmail(actor)).toEqual({ email: "baru@contoh.id", verified: true });
     expect(await identity.staffAccounts()).toEqual([]);
+  });
+
+  it("a Kode Masuk opens only the Akun it was sent for, even when another Akun has since verified that email", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    const { actor } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: nextIp() });
+    const code = emailCodeTo(email, "sari@contoh.id");
+    await identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip: nextIp() });
+    await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "baru@contoh.id") });
+    const other = await actorOf(identity, (await logInByOtp(identity, whatsapp, "082222222222")).cookies);
+    await identity.requestEmailVerification(other, { email: "sari@contoh.id", ip: nextIp() });
+    await identity.confirmEmailVerification(other, { code: emailCodeTo(email, "sari@contoh.id") });
+
+    expect(await identity.verifyEmailLogin({ email: "sari@contoh.id", code })).toEqual({ ok: false, reason: "kode_salah" });
   });
 });
 

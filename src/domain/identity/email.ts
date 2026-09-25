@@ -111,7 +111,7 @@ export async function confirmEmailVerification(
   const refusal = ownAkunRefusal(by, "akun.email");
   if (refusal) return refusal;
   const lockKey = akunLockKey(by.accountId);
-  const checked = await checkCode(deps, { lookup: { purpose: "verifikasi_email", lockKey }, lockKey, code: input.code });
+  const checked = await checkCode(deps, { lookup: { purpose: "verifikasi_email", lockKey }, code: input.code });
   if (!checked.ok) return checked;
   const email = checked.target;
 

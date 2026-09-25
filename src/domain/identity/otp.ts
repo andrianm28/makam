@@ -241,26 +241,36 @@ export type CodeRejection =
   | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" | "terlalu_banyak_percobaan" }
   | { ok: false; reason: "terkunci"; retryAt: Date };
 
-export type CheckCodeResult = { ok: true; target: string } | CodeRejection;
+/** A correct code: where it was sent, and the lock key it was checked under. */
+export type CheckCodeResult = { ok: true; target: string; lockKey: string } | CodeRejection;
 
-/** Which code a typed code is checked against: the latest one matching. */
+/**
+ * Which code a typed code is checked against: the latest one matching, and
+ * the lock key its wrong codes count under.
+ */
 export type CodeLookup =
-  | { channel: OtpChannel; target: string; purpose: OtpPurpose }
-  | { purpose: OtpPurpose; lockKey: string };
+  /** The latest code of this kind sent under the lock key (a Verifikasi Email code). */
+  | { purpose: OtpPurpose; lockKey: string }
+  /**
+   * The latest code of this kind to the target, counted under `lockKey`, or
+   * when that is left out under the lock key the code was sent under (an
+   * email Kode Masuk: that names the Akun it was sent for).
+   */
+  | { purpose: OtpPurpose; channel: OtpChannel; target: string; lockKey?: string };
 
 /**
  * Checks a typed code against the latest code matching `lookup`. A correct
  * code is used up; the `OTP_MAX_WRONG_ATTEMPTS`th wrong code burns it; the
- * `OTP_LOCKOUT_WRONG_CODES`th wrong code under `lockKey` within the lockout
- * window locks it.
+ * `OTP_LOCKOUT_WRONG_CODES`th wrong code under the lock key within the
+ * lockout window locks it.
  */
-export async function checkCode(
-  deps: CodeDeps,
-  input: { lookup: CodeLookup; lockKey: string; code: string },
-): Promise<CheckCodeResult> {
+export async function checkCode(deps: CodeDeps, input: { lookup: CodeLookup; code: string }): Promise<CheckCodeResult> {
   const now = deps.clock.now();
-  const locked = await lockedUntil(deps.db, input.lockKey, now);
-  if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
+  const givenLockKey = input.lookup.lockKey;
+  if (givenLockKey) {
+    const locked = await lockedUntil(deps.db, givenLockKey, now);
+    if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
+  }
 
   const [latest] = await deps.db
     .select()
@@ -270,6 +280,11 @@ export async function checkCode(
     .limit(1);
 
   if (!latest) return { ok: false, reason: "kode_salah" };
+  const lockKey = givenLockKey ?? latest.lockKey;
+  if (!givenLockKey) {
+    const locked = await lockedUntil(deps.db, lockKey, now);
+    if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
+  }
   if (latest.closedReason === "terlalu_banyak_percobaan") return { ok: false, reason: "terlalu_banyak_percobaan" };
   if (latest.closedAt) return { ok: false, reason: "kode_salah" };
   if (latest.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "kode_kedaluwarsa" };
@@ -284,11 +299,11 @@ export async function checkCode(
       .returning({ wrongAttempts: identityOtpRequest.wrongAttempts });
     if (!counted) return { ok: false, reason: "kode_salah" };
 
-    if ((await recentWrongCodes(deps.db, input.lockKey, now)) >= OTP_LOCKOUT_WRONG_CODES) {
+    if ((await recentWrongCodes(deps.db, lockKey, now)) >= OTP_LOCKOUT_WRONG_CODES) {
       const retryAt = new Date(now.getTime() + OTP_LOCKOUT_MS);
       await deps.db
         .update(identityOtpRequest)
-        .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan", lockedUntil: retryAt, lockKey: input.lockKey })
+        .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan", lockedUntil: retryAt, lockKey })
         .where(eq(identityOtpRequest.id, latest.id));
       return { ok: false, reason: "terkunci", retryAt };
     }
@@ -306,7 +321,7 @@ export async function checkCode(
     .set({ closedAt: now, closedReason: "dipakai" })
     .where(stillOpen)
     .returning({ id: identityOtpRequest.id });
-  return used.length === 1 ? { ok: true, target: latest.target } : { ok: false, reason: "kode_salah" };
+  return used.length === 1 ? { ok: true, target: latest.target, lockKey } : { ok: false, reason: "kode_salah" };
 }
 
 /** When the last code of this kind to `target` was sent, if one was sent after `since`. */
@@ -323,7 +338,7 @@ export async function lastSentAt(
 }
 
 function lookupWhere(lookup: CodeLookup): SQL | undefined {
-  return "lockKey" in lookup
+  return !("target" in lookup)
     ? and(eq(identityOtpRequest.purpose, lookup.purpose), eq(identityOtpRequest.lockKey, lookup.lockKey))
     : and(
         eq(identityOtpRequest.channel, lookup.channel),
