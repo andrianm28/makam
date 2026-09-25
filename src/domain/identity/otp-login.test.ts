@@ -156,6 +156,15 @@ describe("OTP limits", () => {
     expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
   });
 
+  it("a Kode Masuk signs in once: the same code again is refused", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toEqual({ ok: false, reason: "kode_salah" });
+  });
+
   it("says when Kirim ulang and the fallback slot open: 60 s after the OTP was sent", async () => {
     const { identity } = setup();
 

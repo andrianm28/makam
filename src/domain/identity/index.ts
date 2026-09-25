@@ -33,7 +33,8 @@ import {
   type RequestEmailFallbackResult,
   type RequestEmailLoginResult,
 } from "./email-login";
-import { accountByPhoneNumber, LoginProofs, verifyOtp, type Account, type VerifyOtpResult } from "./login";
+import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
+import { LoginProofs } from "./login-proofs";
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 import { requestOtp, type RequestOtpResult } from "./otp";

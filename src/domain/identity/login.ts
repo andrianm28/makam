@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -10,6 +9,7 @@ import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number"
 import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
 import { acceptOpenInvites } from "./invites";
+import type { LoginProofs } from "./login-proofs";
 import { rolesOf } from "./staff";
 
 export interface Account {
@@ -39,23 +39,6 @@ export interface LoginDeps {
   secret: string;
   /** One-time proofs handed to Better Auth after the module checked a Kode Masuk (see ./better-auth.ts). */
   proofs: LoginProofs;
-}
-
-/** One-time login proofs, per identity instance: issued by the module, consumed by Better Auth's hook. */
-export class LoginProofs {
-  readonly #open = new Map<string, string>();
-
-  issue(phoneNumber: string): string {
-    const proof = randomBytes(32).toString("hex");
-    this.#open.set(proof, phoneNumber);
-    return proof;
-  }
-
-  consume(phoneNumber: string, proof: string): boolean {
-    const owner = this.#open.get(proof);
-    this.#open.delete(proof);
-    return owner === phoneNumber;
-  }
 }
 
 /**
@@ -119,10 +102,9 @@ export async function logInAkun(
   // Only a WhatsApp Kode Masuk creates an Akun (ADR 0003).
   if (!existing && !signsIn.mayCreate) return { ok: false, reason: "kode_salah" };
 
-  const { response, headers } = await deps.auth.api.verifyPhoneNumber({
-    body: { phoneNumber, code: deps.proofs.issue(phoneNumber) },
-    returnHeaders: true,
-  });
+  const { response, headers } = await deps.proofs.during(phoneNumber, (proof) =>
+    deps.auth.api.verifyPhoneNumber({ body: { phoneNumber, code: proof }, returnHeaders: true }),
+  );
   if (!response.user || !response.token) throw new Error("Better Auth verified the number but made no session");
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
