@@ -10,6 +10,7 @@ A v1 MVP spec for makam.co.id, ready for `/to-spec`: per-pillar scope, actors an
 
 - Source brief: [concept.md](./concept.md) (YIEM concept doc: menus, four user flows, homepage recommendation).
 - Domain language lives in `CONTEXT.md`; use its terms (Lokasi Makam, Petak Makam, Pemesan, Pemegang Hak, Admin Lokasi, Admin YIEM, Pemesanan Saat Duka / Terencana, Layanan, Paket Layanan).
+- **Operator entity (stated by the user, 2026-09-25)**: the whole platform is registered in the name of **PT Jaya Korpora Prima**, as operator and manager of the platform. Decisions below still say "YIEM"; what that means for each role, document and money flow is open in [Operator entity: PT Jaya Korpora Prima and YIEM's role](issues/20-operator-entity.md).
 - Settled at charting:
   - Operating model: mixed. v1 starts with Lokasi Makam YIEM controls or has signed partners; open marketplace later. **Superseded** by "YIEM's current assets and records": YIEM owns no land; v1 = Lokasi Mitra (signed partners, none yet) + TPU DKI (Pengurusan only).
   - Pemesanan Makam covers both Saat Duka and Terencana.
