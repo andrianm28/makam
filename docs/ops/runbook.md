@@ -221,6 +221,9 @@ The site file is ready but not enabled:
 returns 103.92.214.243:
 
 ```bash
+# Refresh it from the repo first (the repo copy has the security headers)
+sudo install -o root -g root -m 0640 deploy/nginx/errors.makam.co.id.conf \
+  /etc/nginx/sites-available/errors.makam.co.id.conf
 sudo ln -s /etc/nginx/sites-available/errors.makam.co.id.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d errors.makam.co.id --non-interactive --agree-tos --redirect
