@@ -4,6 +4,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
 import { readRuntimeEnv } from "@/lib/env";
+import { createOperatorSettings } from "@/domain/operator-settings";
 import { wib } from "@/lib/time/jakarta";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
@@ -23,7 +24,9 @@ export function testServerRuntime() {
     const env = readRuntimeEnv();
     const database = createDatabase(env.DATABASE_URL, { applicationName: "makam-test-web" });
     const adapters = createAdapters({ appEnv: env.APP_ENV, overrides: { clock } });
-    holder.__makamRuntime = { env, database, adapters, ...composeIdentity({ env, db: database.db, adapters }) };
+    const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+    const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
+    holder.__makamRuntime = { env, database, adapters, audit, identity, operatorSettings };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();

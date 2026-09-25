@@ -26,7 +26,7 @@ async function signInAsAdminPlatform() {
   const actor = async () => (await identity.actorFromCookies(browser.cookieHeader()))!;
   const enrolment = await identity.startTotpEnrolment(await actor());
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await identity.passTotp(await actor(), authenticatorCode(enrolment.secret, new Date()));
+  const passed = await identity.passTotp(await actor(), authenticatorCode(enrolment.secret, server.clock.now()));
   if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
 }
 
