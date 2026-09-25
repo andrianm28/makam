@@ -155,7 +155,7 @@ const summaryColumns = {
 
 /** Every Lokasi Mitra, by name, for Admin Platform; nothing for anyone else. */
 export async function allLokasiMitra(deps: LokasiDeps, by: Actor): Promise<LokasiMitraSummary[]> {
-  if (writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource())) return [];
+  if (writeRefusal(by, "lokasi.lihat_semua", semuaLokasiMitraResource())) return [];
   return deps.db.select(summaryColumns).from(lokasiMitraTable).orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
 }
 

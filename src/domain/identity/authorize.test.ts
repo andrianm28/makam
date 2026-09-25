@@ -4,6 +4,8 @@ import {
   auditLogResource,
   authorize,
   pengaturanOperatorResource,
+  lokasiMitraResource,
+  semuaLokasiMitraResource,
   stafMenuResource,
   stafResource,
   type Actor,
@@ -77,6 +79,24 @@ describe("staff access", () => {
       }
       expect(authorize(pemesan, action, stafResource())).toEqual({ allowed: false, reason: "tidak_berwenang" });
     }
+  });
+
+  it("only Admin Platform lists every Lokasi Mitra (lokasi.lihat_semua); an Admin Lokasi, even of one, does not", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+
+    expect(authorize(adminPlatform, "lokasi.lihat_semua", semuaLokasiMitraResource())).toEqual({ allowed: true });
+    for (const actor of [adminLokasi, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
+      expect(authorize(actor, "lokasi.lihat_semua", semuaLokasiMitraResource())).toEqual({
+        allowed: false,
+        reason: "tidak_berwenang",
+      });
+    }
+    // Listing is about the whole list, not one Lokasi Mitra.
+    expect(authorize(adminPlatform, "lokasi.lihat_semua", lokasiMitraResource(lokasiId))).toEqual({
+      allowed: false,
+      reason: "tidak_berwenang",
+    });
   });
 
   it("each role sees only its own menu in the staff area", () => {

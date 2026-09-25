@@ -64,6 +64,8 @@ export type Action =
   | "pengaturan_operator.ubah"
   /** Create a Lokasi Mitra (Admin Platform). */
   | "lokasi.buat"
+  /** List every Lokasi Mitra (Admin Platform). */
+  | "lokasi.lihat_semua"
   /** See one Lokasi Mitra's record. */
   | "lokasi.lihat"
   /** Change a Lokasi Mitra's onboarding record: profile, pin, facilities, documents, policies, flags, agreement (Admin Platform). */
@@ -198,6 +200,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       if (holds("admin_platform")) return allowed;
       // Mitra Jasa and Petugas Lapangan never see the Audit Log; an Admin Lokasi sees only its own Lokasi's view.
       return resource.kind === "audit_log_lokasi" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "lokasi.lihat_semua":
+      return resource.kind === "lokasi_mitra_semua" && holds("admin_platform") ? allowed : denied;
     case "lokasi.lihat":
       // Admin Platform sees every Lokasi Mitra; an Admin Lokasi only the Lokasi it is Admin Lokasi of.
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
