@@ -10,7 +10,7 @@ export class PortNotConfiguredError extends Error {
 
 /**
  * Stands in for a port whose live adapter is not built yet (SumoPod, kirim.dev,
- * SES, web push, S3, PDF arrive in later tickets). Every method call
+ * web push, S3, PDF arrive in later tickets). Every method call
  * rejects, so staging and production fail loudly instead of silently faking a send.
  */
 export function notConfigured<T extends object>(port: string): T {

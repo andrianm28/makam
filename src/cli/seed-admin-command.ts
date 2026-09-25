@@ -36,7 +36,7 @@ export async function seedAdminCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 1, applicationName: "makam-seed-admin" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV });
+      const adapters = createAdapters({ appEnv: env.APP_ENV, smtp: env.smtp });
       const { identity } = composeIdentity({ env, db: database.db, adapters });
       const result = await identity.seedFirstAdminPlatform({ phoneNumber, email });
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };

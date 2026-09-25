@@ -9,6 +9,8 @@ import {
   FakeWhatsAppSender,
 } from "@/adapters/memory";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
+import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
+import type { SmtpSettings } from "@/lib/env";
 import type { Adapters } from "@/ports";
 import { createAdapters } from "./adapters";
 
@@ -59,6 +61,32 @@ describe("composition root", () => {
       ).rejects.toBeInstanceOf(PortNotConfiguredError);
     },
   );
+
+  const SMTP: SmtpSettings = {
+    host: "smtp.sumopod.com",
+    port: 465,
+    user: "v1-user",
+    password: "v1-password",
+    from: { address: "no-reply@makam.co.id", name: "Makam.co.id" },
+  };
+
+  it.each(["staging", "production"] as const)("sends email through the SumoPod SMTP relay in %s", (appEnv) => {
+    expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(SmtpEmailSender);
+  });
+
+  it.each(["staging", "production"] as const)(
+    "without SMTP settings the EmailSender refuses to send in %s, never faking it",
+    async (appEnv) => {
+      const { email } = createAdapters({ appEnv });
+      await expect(email.send({ to: "a@example.test", subject: "x", text: "x" })).rejects.toThrow(
+        /EmailSender \(SumoPod SMTP\)/,
+      );
+    },
+  );
+
+  it.each(["development", "test"] as const)("keeps the fake EmailSender in %s even with SMTP settings", (appEnv) => {
+    expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(FakeEmailSender);
+  });
 
   it("lets a test inject its own Clock and fakes", () => {
     const whatsapp = new FakeWhatsAppSender();
