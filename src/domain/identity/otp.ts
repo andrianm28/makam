@@ -1,4 +1,4 @@
-import { createHmac, randomInt } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gt, isNull, max, sql, sum } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
@@ -149,7 +149,7 @@ export async function checkCode(
 
   const stillOpen = and(eq(identityOtpRequest.id, latest.id), isNull(identityOtpRequest.closedAt));
 
-  if (latest.codeHash !== hashCode(deps.secret, input.phoneNumber, input.code)) {
+  if (!sameHash(latest.codeHash, hashCode(deps.secret, input.phoneNumber, input.code))) {
     const [counted] = await deps.db
       .update(identityOtpRequest)
       .set({ wrongAttempts: sql`${identityOtpRequest.wrongAttempts} + 1` })
@@ -213,6 +213,14 @@ function generateCode(): string {
   return randomInt(0, 10 ** OTP_LENGTH).toString().padStart(OTP_LENGTH, "0");
 }
 
-export function hashCode(secret: string, phoneNumber: string, code: string): string {
+function hashCode(secret: string, phoneNumber: string, code: string): string {
   return createHmac("sha256", secret).update(`${phoneNumber}:${code}`).digest("hex");
+}
+
+/** Compares two hex HMAC-SHA256 digests in constant time. */
+function sameHash(storedHex: string, typedHex: string): boolean {
+  const stored = Buffer.from(storedHex, "hex");
+  const typed = Buffer.from(typedHex, "hex");
+  // Both are SHA-256 digests (32 bytes); timingSafeEqual needs equal lengths.
+  return stored.length === typed.length && timingSafeEqual(stored, typed);
 }

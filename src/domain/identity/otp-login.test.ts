@@ -79,6 +79,20 @@ describe("OTP limits", () => {
     expect(await identity.accountByPhoneNumber("081234567890")).toBeNull();
   });
 
+  it("a wrong code of the same length, one digit off the real one, is still refused", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+    const oneDigitOff = code.slice(0, -1) + ((Number(code.at(-1)) + 1) % 10).toString();
+
+    expect(oneDigitOff).toHaveLength(code.length);
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: oneDigitOff })).toEqual({
+      ok: false,
+      reason: "kode_salah",
+    });
+    expect(await identity.accountByPhoneNumber("081234567890")).toBeNull();
+  });
+
   it("a code expires 10 minutes after it was sent", async () => {
     const { clock, whatsapp, identity } = setup();
     const sent = await identity.requestOtp({ phoneNumber: "081234567890" });
