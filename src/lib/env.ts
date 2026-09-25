@@ -26,6 +26,10 @@ const sentryEnvSchema = z.object({
   SENTRY_RELEASE: z.preprocess(emptyToUndefined, z.string().optional()),
 });
 
+/** Development and test only (staging and production must set their own; see superRefine below). */
+const LOCAL_AUTH_SECRET = "makam-local-development-secret-not-for-staging-or-production";
+const LOCAL_BASE_URL = "http://localhost:3000";
+
 const runtimeEnvSchema = sentryEnvSchema.extend({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
@@ -38,10 +42,23 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
     emptyToUndefined,
     z.string().startsWith("whsec_").optional(),
   ),
-}).transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, ...env }) => ({
-  ...env,
-  FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
-}));
+  /** Signs session cookies and keys OTP hashes. Required outside development and test. */
+  AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
+  /** The site's own origin, e.g. https://makam.co.id. Required outside development and test. */
+  APP_BASE_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https?$/ }).optional()),
+})
+  .superRefine((env, ctx) => {
+    if (usesInMemoryFakes(env.APP_ENV)) return;
+    for (const key of ["AUTH_SECRET", "APP_BASE_URL"] as const) {
+      if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
+    }
+  })
+  .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, ...env }) => ({
+    ...env,
+    FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
+    AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
+    APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
+  }));
 
 /**
  * Browser error monitoring. Next.js inlines NEXT_PUBLIC_* at build time, so the
