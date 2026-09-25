@@ -57,6 +57,7 @@ function maskBankAccount(snapshot: AuditSnapshot): AuditSnapshot {
 function withoutScanFileKey(snapshot: AuditSnapshot): AuditSnapshot {
   const agreement = snapshot?.agreement as Record<string, unknown> | null | undefined;
   if (!agreement) return snapshot;
-  const { scanFileKey: _hidden, ...rest } = agreement;
+  const rest = { ...agreement };
+  delete rest.scanFileKey;
   return { ...snapshot, agreement: rest };
 }
