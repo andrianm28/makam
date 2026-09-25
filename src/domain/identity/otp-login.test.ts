@@ -67,6 +67,40 @@ describe("Pemesan OTP login over WhatsApp", () => {
   });
 });
 
+describe("Pemesan session", () => {
+  it("lasts 90 days on the Clock, then the Pemesan is no longer signed in", async () => {
+    const { clock, whatsapp, identity } = setup();
+    const login = await logIn(identity, whatsapp, "081234567890");
+    const cookies = cookieHeader(login.session.cookies);
+
+    expect(login.session.expiresAt).toEqual(wib("2026-12-30 09:00"));
+
+    clock.set(wib("2026-12-30 08:59"));
+    expect(await identity.actorFromCookies(cookies)).toMatchObject({ accountId: login.account.id });
+
+    clock.set(wib("2026-12-30 09:00"));
+    expect(await identity.actorFromCookies(cookies)).toBeNull();
+  });
+
+  it("the session cookie is kept by the browser for the same 90 days", async () => {
+    const { whatsapp, identity } = setup();
+    const login = await logIn(identity, whatsapp, "081234567890");
+
+    expect(login.session.cookies).toContainEqual(
+      expect.objectContaining({ name: "makam.session_token", maxAge: 90 * 86_400, httpOnly: true }),
+    );
+  });
+
+  it("a forged or missing session cookie signs no one in", async () => {
+    const { whatsapp, identity } = setup();
+    const login = await logIn(identity, whatsapp, "081234567890");
+    const [token] = login.session.cookies.map((cookie) => decodeURIComponent(cookie.value).split(".")[0]);
+
+    expect(await identity.actorFromCookies(null)).toBeNull();
+    expect(await identity.actorFromCookies(`makam.session_token=${token}.forged`)).toBeNull();
+  });
+});
+
 async function logIn(identity: Identity, whatsapp: FakeWhatsAppSender, phoneNumber: string) {
   await identity.requestOtp({ phoneNumber });
   const login = await identity.verifyOtp({ phoneNumber, code: lastCode(whatsapp) });
