@@ -1,7 +1,14 @@
 import { desc, lte, sql, type SQL } from "drizzle-orm";
+import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog, AuditSnapshot } from "@/domain/audit";
-import { authorize, normalisePhoneNumber, pengaturanOperatorResource, type Actor } from "@/domain/identity";
+import {
+  authorize,
+  normalisePhoneNumber,
+  pengaturanOperatorResource,
+  type Actor,
+  type PhoneNumberRejection,
+} from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { operatorSettingsVersion } from "./schema";
 
@@ -25,7 +32,14 @@ export interface ChangeOperatorSettingsInput {
   reason: string | null;
 }
 
-export type ChangeOperatorSettingsResult = { ok: true; settings: OperatorSettingsValues } | { ok: false; reason: string };
+/** The free-text values that must not be blank. */
+type RequiredField = "legalName" | "address" | "phone" | "csReplyHours";
+
+export type ChangeOperatorSettingsResult =
+  | { ok: true; settings: OperatorSettingsValues }
+  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "email_tidak_valid" }
+  | { ok: false; reason: "isian_wajib"; field: RequiredField }
+  | PhoneNumberRejection;
 
 export interface OperatorSettings {
   current(): Promise<OperatorSettingsValues | null>;
@@ -43,24 +57,15 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
       if (!authorization.allowed) {
         return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
       }
-      const phone = normalisePhoneNumber(input.csWhatsApp);
-      if (!phone.ok) return { ok: false, reason: phone.reason };
+      const checked = checkValues(input);
+      if (!checked.ok) return checked;
       return deps.audit.staffWrite(deps.db, async (tx, record) => {
         // One change at a time, so each Entri Audit's "before" is the version it replaced.
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext('operator_settings_version'))`);
         const previous = await latest(tx);
         const [row] = await tx
           .insert(operatorSettingsVersion)
-          .values({
-            inForceFrom: deps.clock.now(),
-            legalName: input.legalName,
-            address: input.address,
-            phone: input.phone,
-            email: input.email,
-            csWhatsApp: phone.phoneNumber,
-            csReplyHours: input.csReplyHours,
-            changedByAccountId: by.accountId,
-          })
+          .values({ ...checked.values, inForceFrom: deps.clock.now(), changedByAccountId: by.accountId })
           .returning();
         const settings = toValues(row);
         await record({
@@ -69,12 +74,34 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
           entity: { kind: "pengaturan_operator", id: "operator" },
           before: previous && auditSnapshot(previous),
           after: auditSnapshot(settings),
-          reason: input.reason,
+          reason: input.reason?.trim() || null,
         });
         return { ok: true as const, settings };
       });
     },
   };
+}
+
+const emailSchema = z.email();
+
+/** The values as kept (trimmed; email lower-cased; CS WhatsApp in +62 form), or why they are refused. */
+function checkValues(
+  input: ChangeOperatorSettingsInput,
+): { ok: true; values: Omit<OperatorSettingsValues, "inForceFrom"> } | Exclude<ChangeOperatorSettingsResult, { ok: true }> {
+  const text = {
+    legalName: input.legalName.trim(),
+    address: input.address.trim(),
+    phone: input.phone.trim(),
+    csReplyHours: input.csReplyHours.trim(),
+  };
+  for (const field of ["legalName", "address", "phone", "csReplyHours"] as const) {
+    if (text[field] === "") return { ok: false, reason: "isian_wajib", field };
+  }
+  const email = input.email.trim().toLowerCase();
+  if (!emailSchema.safeParse(email).success) return { ok: false, reason: "email_tidak_valid" };
+  const csWhatsApp = normalisePhoneNumber(input.csWhatsApp);
+  if (!csWhatsApp.ok) return csWhatsApp;
+  return { ok: true, values: { ...text, email, csWhatsApp: csWhatsApp.phoneNumber } };
 }
 
 /** The last change (optionally among those matching `where`), or null when there is none. */

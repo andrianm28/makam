@@ -126,6 +126,54 @@ describe("Pengaturan Operator", () => {
     ]);
   });
 
+  it("the CS WhatsApp number is refused like an Akun number: malformed, or not an Indonesian number", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+
+    expect(await setup.operatorSettings.change(actor, { ...pengaturan, csWhatsApp: "0811", reason: null })).toEqual({
+      ok: false,
+      reason: "nomor_tidak_valid",
+    });
+    expect(
+      await setup.operatorSettings.change(actor, { ...pengaturan, csWhatsApp: "+6591234567", reason: null }),
+    ).toEqual({ ok: false, reason: "nomor_bukan_indonesia" });
+    expect(await setup.operatorSettings.current()).toBeNull();
+  });
+
+  it("the Operator's email must be an email; it is kept trimmed and lower-cased", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+
+    expect(await setup.operatorSettings.change(actor, { ...pengaturan, email: "halo@", reason: null })).toEqual({
+      ok: false,
+      reason: "email_tidak_valid",
+    });
+    expect(await setup.operatorSettings.current()).toBeNull();
+
+    await setup.operatorSettings.change(actor, { ...pengaturan, email: "  Halo@Makam.co.id ", reason: null });
+    expect(await setup.operatorSettings.current()).toMatchObject({ email: "halo@makam.co.id" });
+  });
+
+  it("every value is required; surrounding spaces are dropped", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+
+    for (const field of ["legalName", "address", "phone", "csReplyHours"] as const) {
+      expect(await setup.operatorSettings.change(actor, { ...pengaturan, [field]: "   ", reason: null })).toEqual({
+        ok: false,
+        reason: "isian_wajib",
+        field,
+      });
+    }
+    expect(await setup.operatorSettings.current()).toBeNull();
+
+    await setup.operatorSettings.change(actor, { ...pengaturan, legalName: "  PT Jaya Korpora Prima  ", reason: "  " });
+    expect(await setup.operatorSettings.current()).toMatchObject({ legalName: "PT Jaya Korpora Prima" });
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toMatchObject([
+      { reason: null },
+    ]);
+  });
+
   it("only Admin Platform may change it: a Pemesan is refused and nothing is kept or audited", async () => {
     const setup = operatorSettingsOnTestDatabase();
     const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "085555555555");
