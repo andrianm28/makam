@@ -286,6 +286,34 @@ describe("Perangkat Push", () => {
     expect(entries.filter((entry) => entry.action === "akun.push_aktifkan")).toHaveLength(1);
   });
 
+  it("turning push off for a browser of another Akun Staf changes nothing and records no Entri Audit", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
+    const mitraJasa = await invitedStaff(setup, admin, "mitra_jasa", "083333333333");
+    const milikAdminLokasi = browserPushSubscription();
+    await setup.notifications.enablePush(adminLokasi, { subscription: milikAdminLokasi });
+
+    expect(await setup.notifications.disablePush(mitraJasa, { endpoint: milikAdminLokasi.endpoint })).toEqual({ ok: true });
+
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toHaveLength(1);
+    const entries = await setup.audit.entriesAbout({ kind: "akun", id: mitraJasa.accountId });
+    expect(entries.filter((entry) => entry.action === "akun.push_matikan")).toEqual([]);
+  });
+
+  it("turning push off again for a browser already off records no second Entri Audit", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+    await setup.notifications.disablePush(adminLokasi, { endpoint: ponsel.endpoint });
+
+    expect(await setup.notifications.disablePush(adminLokasi, { endpoint: ponsel.endpoint })).toEqual({ ok: true });
+
+    const entries = await setup.audit.entriesAbout({ kind: "akun", id: adminLokasi.accountId });
+    expect(entries.filter((entry) => entry.action === "akun.push_matikan")).toHaveLength(1);
+  });
+
   it("only an Akun Staf turns push on: a Pemesan is refused and nothing is stored", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "084444444444");

@@ -153,13 +153,16 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async disablePush(by, input) {
       const refusal = pushRefusal(by);
       if (refusal) return refusal;
-      return deps.audit.staffWrite(db, async (tx, record) => {
+      // Already off, or another Akun's browser: the write is refused (rolled back), so no Entri Audit; push is off either way.
+      await deps.audit.staffWrite(db, async (tx, record) => {
         const before = await countDevices(tx, by.accountId);
-        await tx
+        const removed = await tx
           .delete(notificationsPushDevice)
           .where(
             and(eq(notificationsPushDevice.accountId, by.accountId), eq(notificationsPushDevice.endpoint, input.endpoint)),
-          );
+          )
+          .returning({ id: notificationsPushDevice.id });
+        if (removed.length === 0) return { ok: false as const };
         await record({
           actor: { accountId: by.accountId, role: actingRole(by) },
           action: "akun.push_matikan",
@@ -170,6 +173,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         });
         return { ok: true as const };
       });
+      return { ok: true };
     },
 
     async pushDevices(accountId) {
