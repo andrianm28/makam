@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { hapusEmail, kirimKodeVerifikasi, konfirmasiVerifikasi, simpanEmail } from "@/app/akun/email-actions";
+import { hapusEmail, kirimKodeVerifikasi, konfirmasiVerifikasi } from "@/app/akun/email-actions";
 import { Button } from "@/components/ui/button";
 import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "./state";
 
@@ -22,9 +22,10 @@ function Feedback({ state }: { state: EmailProfileState | { status: "gagal"; mes
 }
 
 /**
- * The Akun's email in Akun Saya and the staff area: save it (unverified),
- * Verifikasi Email with a code sent to it, and (a Pemesan only) remove it.
- * Only an Email Terverifikasi can be used for Masuk dengan email.
+ * The Akun's email in Akun Saya and the staff area. It is added or changed
+ * only through Verifikasi Email (a code to the new address; the old Email
+ * Terverifikasi stays until the code is entered), and a Pemesan may remove it.
+ * An Akun Staf may not remove it.
  */
 export function EmailSection({
   email,
@@ -36,7 +37,6 @@ export function EmailSection({
   /** False for an Akun Staf, which must keep an email. */
   canRemove: boolean;
 }) {
-  const [saved, save, saving] = useActionState(simpanEmail, initialEmailProfileState);
   const [removed, remove, removing] = useActionState(hapusEmail, initialEmailProfileState);
   const [sent, send, sending] = useActionState(kirimKodeVerifikasi, initialEmailRequestState);
   const [confirmed, confirm, confirming] = useActionState(konfirmasiVerifikasi, initialEmailProfileState);
@@ -76,9 +76,6 @@ export function EmailSection({
           <Button type="submit" formAction={send} disabled={sending}>
             {sending ? "Mengirim…" : "Kirim kode verifikasi"}
           </Button>
-          <Button type="submit" variant="outline" formAction={save} disabled={saving}>
-            Simpan tanpa verifikasi
-          </Button>
           {canRemove && email ? (
             <Button type="submit" variant="ghost" formAction={remove} formNoValidate disabled={removing}>
               Hapus email
@@ -86,10 +83,9 @@ export function EmailSection({
           ) : null}
         </div>
         <p className="text-xs text-muted-foreground">
-          Email yang belum terverifikasi hanya dipakai untuk salinan dokumen. Verifikasi untuk bisa masuk dengan email.
-          Email terverifikasi Anda tetap dipakai sampai kode untuk email baru dimasukkan.
+          Email baru disimpan setelah kode verifikasi yang kami kirim ke email itu dimasukkan. Sampai saat itu email
+          terverifikasi Anda yang lama tetap dipakai.
         </p>
-        <Feedback state={saved} />
         <Feedback state={removed} />
         {sent.status === "gagal" ? <Feedback state={sent} /> : null}
       </form>

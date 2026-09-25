@@ -5,7 +5,6 @@ import type {
   RequestEmailLoginResult,
   RequestEmailVerificationResult,
   RequestOtpResult,
-  SaveEmailResult,
   VerifyOtpResult,
 } from "@/domain/identity";
 import type { GuardError } from "@/server/guard";
@@ -50,7 +49,6 @@ export type OtpRefusal =
   | Refusal<RequestEmailFallbackResult>
   | Refusal<RequestEmailVerificationResult>
   | Refusal<ConfirmEmailVerificationResult>
-  | Refusal<SaveEmailResult>
   | Refusal<RemoveEmailResult>
   | GuardError;
 

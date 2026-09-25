@@ -21,12 +21,10 @@ import {
   confirmEmailVerification,
   removeEmail,
   requestEmailVerification,
-  saveEmail,
   type AccountEmail,
   type ConfirmEmailVerificationResult,
   type RemoveEmailResult,
   type RequestEmailVerificationResult,
-  type SaveEmailResult,
 } from "./email";
 import {
   requestEmailFallback,
@@ -70,7 +68,6 @@ export type {
   ConfirmEmailVerificationResult,
   RemoveEmailResult,
   RequestEmailVerificationResult,
-  SaveEmailResult,
 } from "./email";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
@@ -173,8 +170,6 @@ export interface Identity {
   verifyEmailLogin(input: { email: string; code: string }): Promise<VerifyOtpResult>;
   /** The signed-in Akun's email and whether it is its Email Terverifikasi. */
   accountEmail(by: Actor): Promise<AccountEmail>;
-  /** The profile's email field: stores the typed email, unverified. */
-  saveEmail(by: Actor, input: { email: string }): Promise<SaveEmailResult>;
   /** Removes the Akun's email and its verified mark (a Pemesan only: an Akun Staf keeps one). */
   removeEmail(by: Actor): Promise<RemoveEmailResult>;
   /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
@@ -215,7 +210,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     requestEmailLogin: (input) => requestEmailLogin(emailLogin, input),
     verifyEmailLogin: (input) => verifyEmailLogin(emailLogin, input),
     accountEmail: (by) => accountEmail(deps, by),
-    saveEmail: (by, input) => saveEmail(deps, by, input),
     removeEmail: (by) => removeEmail(deps, by),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),

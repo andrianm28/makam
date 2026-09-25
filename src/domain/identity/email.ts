@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import type { AuditAction, AuditLog } from "@/domain/audit";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import { ownAkunRefusal, staffRoles, type Actor } from "./authorize";
@@ -10,9 +10,12 @@ import { identityUser } from "./schema";
 import { normaliseEmail } from "./staff";
 
 /*
- * The Akun's own email: the profile field (Akun Saya, and the staff area for
- * an Akun Staf) and Verifikasi Email. For an Akun Staf every change is a staff
- * write with an Entri Audit; a Pemesan's records none.
+ * The Akun's own email (Akun Saya, and the staff area for an Akun Staf). It is
+ * added or changed only through Verifikasi Email, so the Akun's email is its
+ * Email Terverifikasi unless an Undangan Staf or the seed set it (unverified).
+ * A Pemesan may remove it; an Akun Staf may not (decision, 2026-09-25). For an
+ * Akun Staf a verification is a staff write with an Entri Audit; a Pemesan's
+ * records none.
  */
 
 export interface EmailDeps {
@@ -40,29 +43,6 @@ export async function accountEmail(deps: { db: Database }, by: Actor): Promise<A
 
 /** Refused before TOTP (an Admin Platform), or for anyone but the Akun itself. */
 type OwnAkunRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
-
-export type SaveEmailResult = { ok: true; email: string } | { ok: false; reason: "email_tidak_valid" } | OwnAkunRefusal;
-
-/**
- * The profile's email field: stores the typed email on the Akun, unverified.
- * A different email clears the verified mark; the same email keeps it.
- */
-export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: string }): Promise<SaveEmailResult> {
-  const refusal = ownAkunRefusal(by, "akun.email");
-  if (refusal) return refusal;
-  const email = normaliseEmail(input.email);
-  if (!email) return { ok: false, reason: "email_tidak_valid" };
-  const now = deps.clock.now();
-  await writeAkunEmail<never>(deps, by, "akun.email_ubah", async (tx, before) => {
-    const terverifikasi = before.email === email && before.terverifikasi;
-    await tx
-      .update(identityUser)
-      .set({ contactEmail: email, emailVerifiedAt: terverifikasi ? undefined : null, updatedAt: now })
-      .where(eq(identityUser.id, by.accountId));
-    return { ok: true, after: { email, terverifikasi } } as const;
-  });
-  return { ok: true, email };
-}
 
 export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" } | OwnAkunRefusal;
 
@@ -134,16 +114,9 @@ export async function confirmEmailVerification(
   const checked = await checkCode(deps, { lookup: { purpose: "verifikasi_email", lockKey }, lockKey, code: input.code });
   if (!checked.ok) return checked;
   const email = checked.target;
-  const now = deps.clock.now();
 
   try {
-    await writeAkunEmail<never>(deps, by, "akun.email_verifikasi", async (tx) => {
-      await tx
-        .update(identityUser)
-        .set({ contactEmail: email, emailVerifiedAt: now, updatedAt: now })
-        .where(eq(identityUser.id, by.accountId));
-      return { ok: true, after: { email, terverifikasi: true } } as const;
-    });
+    await markVerified(deps, by, email);
     return { ok: true, email };
   } catch (error) {
     // The database's unique index is the one rule: another Akun has this Email Terverifikasi
@@ -153,43 +126,40 @@ export async function confirmEmailVerification(
   }
 }
 
-type EmailSnapshot = { email: string | null; terverifikasi: boolean };
-
 /**
- * One change to the Akun's email in a transaction. For an Akun Staf it is a
- * staff write: `audit.staffWrite` records `action` with the email before and
- * after (never a code), under the first staff role the Akun holds.
+ * Makes `email` the Akun's Email Terverifikasi in one transaction. For an Akun
+ * Staf it is a staff write: `audit.staffWrite` records `akun.email_verifikasi`
+ * with the email before and after (never a code), under the first staff role
+ * the Akun holds.
  */
-async function writeAkunEmail<R extends { ok: false; reason: string }>(
-  deps: EmailDeps,
-  by: Actor,
-  action: Extract<AuditAction, "akun.email_verifikasi" | "akun.email_ubah">,
-  change: (tx: Database, before: EmailSnapshot) => Promise<{ ok: true; after: EmailSnapshot } | R>,
-): Promise<{ ok: true } | R> {
-  const run = async (tx: Database) => {
+async function markVerified(deps: EmailDeps, by: Actor, email: string): Promise<void> {
+  const now = deps.clock.now();
+  const write = async (tx: Database) => {
     const [row] = await tx
       .select({ email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
       .from(identityUser)
       .where(eq(identityUser.id, by.accountId))
       .for("update");
-    const before = { email: row?.email ?? null, terverifikasi: Boolean(row?.email && row.verifiedAt) };
-    return { before, changed: await change(tx, before) };
+    await tx
+      .update(identityUser)
+      .set({ contactEmail: email, emailVerifiedAt: now, updatedAt: now })
+      .where(eq(identityUser.id, by.accountId));
+    return { email: row?.email ?? null, terverifikasi: Boolean(row?.email && row.verifiedAt) };
   };
 
   const staffRole = staffRoles.find((role) => by.roles.includes(role));
   if (!staffRole) {
-    const { changed } = await deps.db.transaction(run);
-    return changed.ok ? { ok: true } : changed;
+    await deps.db.transaction(write);
+    return;
   }
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const { before, changed } = await run(tx);
-    if (!changed.ok) return changed;
+  await deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const before = await write(tx);
     await record({
       actor: { accountId: by.accountId, role: staffRole },
-      action,
+      action: "akun.email_verifikasi",
       entity: { kind: "akun", id: by.accountId },
       before,
-      after: changed.after,
+      after: { email, terverifikasi: true },
       reason: null,
     });
     return { ok: true } as const;

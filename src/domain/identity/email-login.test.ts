@@ -46,17 +46,15 @@ describe("Verifikasi Email in the Akun Saya profile", () => {
 describe("Verifikasi Email rules", () => {
   it("an email already verified on another Akun is refused (email_sudah_dipakai) and nothing changes", async () => {
     const setup = identityOnTestDatabase(db);
-    const { identity, whatsapp, email } = setup;
+    const { identity, email } = setup;
     await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
-    const other = await logInByOtp(identity, whatsapp, "082222222222");
-    const otherActor = await actorOf(identity, other.cookies);
-    await identity.saveEmail(otherActor, { email: "budi@contoh.id" });
+    const { actor: otherActor } = await pemesanWithEmailTerverifikasi(setup, "082222222222", "budi@contoh.id");
 
     await identity.requestEmailVerification(otherActor, { email: "sari@contoh.id", ip: "198.51.100.30" });
     const refused = await identity.confirmEmailVerification(otherActor, { code: emailCodeTo(email, "sari@contoh.id") });
 
     expect(refused).toEqual({ ok: false, reason: "email_sudah_dipakai" });
-    expect(await identity.accountEmail(otherActor)).toEqual({ email: "budi@contoh.id", verified: false });
+    expect(await identity.accountEmail(otherActor)).toEqual({ email: "budi@contoh.id", verified: true });
     setup.clock.advance({ minutes: 1 });
     const { login } = await logInByEmail(setup, "sari@contoh.id");
     expect(login.account.phoneNumber).toBe("+6281234567890");
@@ -82,23 +80,6 @@ describe("Verifikasi Email rules", () => {
     expect(results).toContainEqual({ ok: false, reason: "email_sudah_dipakai" });
     const emails = [await identity.accountEmail(first), await identity.accountEmail(second)];
     expect(emails.filter((shown) => shown.verified)).toEqual([{ email: "sari@contoh.id", verified: true }]);
-  });
-
-  it("changing the email in the profile clears the verified mark; saving the same email keeps it", async () => {
-    const setup = identityOnTestDatabase(db);
-    const { identity, email } = setup;
-    const { actor } = await pemesanWithEmailTerverifikasi(setup);
-
-    await identity.saveEmail(actor, { email: "SARI@contoh.id " });
-    expect(await identity.accountEmail(actor)).toEqual({ email: "sari@contoh.id", verified: true });
-
-    await identity.saveEmail(actor, { email: "lain@contoh.id" });
-    expect(await identity.accountEmail(actor)).toEqual({ email: "lain@contoh.id", verified: false });
-    const sends = email.sent.length;
-    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.40" });
-    setup.clock.advance({ minutes: 1 });
-    await identity.requestEmailLogin({ email: "lain@contoh.id", ip: "198.51.100.41" });
-    expect(email.sent).toHaveLength(sends);
   });
 
   it("a new login email is proven first (Q9): the old Email Terverifikasi works until the new code is entered", async () => {
@@ -181,26 +162,28 @@ describe("Verifikasi Email in the staff area", () => {
       ok: false,
       reason: "perlu_totp",
     });
-    expect(await identity.saveEmail(beforeTotp, { email: "lain@makam.co.id" })).toEqual({ ok: false, reason: "perlu_totp" });
+    expect(await identity.removeEmail(beforeTotp)).toEqual({ ok: false, reason: "perlu_totp" });
     expect(email.sent).toEqual([]);
     expect(await identity.accountEmail(beforeTotp)).toEqual({ email: "admin@makam.co.id", verified: false });
   });
 
-  it("an Akun Staf changing its email is a staff write too (akun.email_ubah), and the new email is not verified", async () => {
+  it("an Akun Staf changes its email only through Verifikasi Email: the Entri Audit shows the old Email Terverifikasi before, the new one after", async () => {
     const setup = identityOnTestDatabase(db);
-    const { identity, audit } = setup;
+    const { identity, audit, email } = setup;
     const { actor: admin, cookies } = await signedInAdminPlatform(setup);
     await verifyEmailOf(setup, cookies, "admin@makam.co.id");
 
-    expect(await identity.saveEmail(admin, { email: "ops@makam.co.id" })).toEqual({ ok: true, email: "ops@makam.co.id" });
+    await identity.requestEmailVerification(admin, { email: "ops@makam.co.id", ip: nextIp() });
+    expect(await identity.accountEmail(admin)).toEqual({ email: "admin@makam.co.id", verified: true });
+    await identity.confirmEmailVerification(admin, { code: emailCodeTo(email, "ops@makam.co.id") });
 
-    expect(await identity.accountEmail(admin)).toEqual({ email: "ops@makam.co.id", verified: false });
+    expect(await identity.accountEmail(admin)).toEqual({ email: "ops@makam.co.id", verified: true });
     expect((await audit.entriesAbout({ kind: "akun", id: admin.accountId })).at(-1)).toEqual(
       expect.objectContaining({
         actor: { accountId: admin.accountId, role: "admin_platform" },
-        action: "akun.email_ubah",
+        action: "akun.email_verifikasi",
         before: { email: "admin@makam.co.id", terverifikasi: true },
-        after: { email: "ops@makam.co.id", terverifikasi: false },
+        after: { email: "ops@makam.co.id", terverifikasi: true },
       }),
     );
   });
@@ -251,13 +234,11 @@ describe("Masuk dengan email", () => {
     });
   });
 
-  it("an unknown email and an email only typed into the profile get the identical reply, and no email is sent", async () => {
+  it("an unknown email and an Akun's unverified email get the identical reply, and no email is sent", async () => {
     const setup = identityOnTestDatabase(db);
-    const { identity, whatsapp, email, clock } = setup;
-    const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
-    const pemesan = await actorOf(identity, cookies);
-    expect(await identity.saveEmail(pemesan, { email: "Ketik@Contoh.id" })).toEqual({ ok: true, email: "ketik@contoh.id" });
-    expect(await identity.accountEmail(pemesan)).toEqual({ email: "ketik@contoh.id", verified: false });
+    const { identity, email, clock } = setup;
+    // The seed stores the first Admin Platform's email unverified.
+    await identity.seedFirstAdminPlatform({ phoneNumber: "081234567890", email: "Ketik@Contoh.id" });
     const expected = { ok: true, resendAt: new Date(clock.now().getTime() + 60_000) };
 
     expect(await identity.requestEmailLogin({ email: "ketik@contoh.id", ip: IP })).toEqual({
@@ -401,10 +382,10 @@ describe("the email of an Undangan Staf", () => {
 describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
   it("is offered only when the number's existing Akun has an Email Terverifikasi", async () => {
     const setup = identityOnTestDatabase(db);
-    const { identity, whatsapp, clock } = setup;
+    const { identity, clock } = setup;
     await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
-    const typedOnly = await logInByOtp(identity, whatsapp, "082222222222");
-    await identity.saveEmail(await actorOf(identity, typedOnly.cookies), { email: "ketik@contoh.id" });
+    // An Akun whose email is not verified (the seed stores it unverified).
+    await identity.seedFirstAdminPlatform({ phoneNumber: "082222222222", email: "ketik@contoh.id" });
     clock.advance({ minutes: 1 });
 
     expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true, emailFallback: true });
@@ -439,10 +420,8 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
 
   it("is refused for a number whose Akun has no Email Terverifikasi, or that has no Akun: the screen points to CS", async () => {
     const setup = identityOnTestDatabase(db);
-    const { identity, whatsapp, email, clock } = setup;
-    const typedOnly = await logInByOtp(identity, whatsapp, "082222222222");
-    await identity.saveEmail(await actorOf(identity, typedOnly.cookies), { email: "ketik@contoh.id" });
-    clock.advance({ minutes: 1 });
+    const { identity, email, clock } = setup;
+    await identity.seedFirstAdminPlatform({ phoneNumber: "082222222222", email: "ketik@contoh.id" });
     await identity.requestOtp({ phoneNumber: "082222222222" });
     await identity.requestOtp({ phoneNumber: "083333333333" });
     clock.advance({ minutes: 1 });

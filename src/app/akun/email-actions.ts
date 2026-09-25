@@ -19,21 +19,6 @@ import { serverRuntime } from "@/server/runtime";
 const emailInput = z.string().trim().min(3).max(254);
 const codeInput = z.string().trim().regex(/^\d{6}$/);
 
-/** Saves the typed email, unverified (a different email clears the verified mark). */
-export async function simpanEmail(_previous: EmailProfileState, formData: FormData): Promise<EmailProfileState> {
-  const result = await guarded({
-    action: "akun.email",
-    resource: (actor) => akunResource(actor.accountId),
-    schema: z.object({ email: emailInput }),
-    input: { email: formData.get("email") },
-    run: (actor, data) => serverRuntime().identity.saveEmail(actor, data),
-  });
-  if (!result.ok) return failed(result.error);
-  if (!result.value.ok) return failed(result.value.reason);
-  refresh();
-  return { status: "berhasil", message: "Email disimpan. Verifikasi dulu untuk bisa masuk dengan email ini." };
-}
-
 /** Removes the email (a Pemesan only). */
 export async function hapusEmail(): Promise<EmailProfileState> {
   const result = await guarded({

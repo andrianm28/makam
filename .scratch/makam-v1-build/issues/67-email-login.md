@@ -61,6 +61,11 @@ It is built and tested against the in-memory `EmailSender` fake. Real sending in
 - **Q9:** an email typed on an order form never overwrites the Email Terverifikasi; it is used only for that order's document copies. Changing the login email is done in the Akun Saya profile by re-verification: a code goes to the new address, and the old one is replaced only once that code is entered.
 - **Q10:** wrong codes count **per Akun across channels**: 10 wrong Kode Masuk in 60 minutes by WhatsApp or email lock the **Akun** for 60 minutes; per-email and per-IP send limits apply on top. (Amends the per-number lockout of ticket 08.)
 
+## Decisions (2026-09-25, user, after code review)
+
+- **No "Simpan tanpa verifikasi"**: changing the email in Akun Saya (and the staff area) always goes through Verifikasi Email. The old Email Terverifikasi stays in force until the code sent to the new address is entered (Q9). The profile has no way to store an unverified email.
+- **An Akun Staf may not remove its email.** It may only change it through Verifikasi Email. A Pemesan may remove its email.
+
 ## Comments
 
 - 2026-09-25 — Implemented test-first (mattpocock-skills:tdd) on branch `worktree-agent-a23b0df127d52ed75` (not merged, not pushed).
