@@ -49,7 +49,7 @@ The deceased person who is (or will be) buried in a Petak Makam.
 _Avoid_: Jenazah (as the record), mendiang
 
 **Calon Penghuni**:
-The living person for whom a Petak Makam is reserved through a Pemesanan Terencana; becomes the Almarhum once buried.
+The living person a Pemegang Hak names as intended for an unused Petak Makam, usually through a Pemesanan Terencana; a label the Pemegang Hak may change at any time, not a limit on who may be buried there. Becomes the Almarhum once buried.
 _Avoid_: Almarhum (before death), pemilik
 
 **Pemegang Hak**:
@@ -121,6 +121,18 @@ _Avoid_: Bukti booking, receipt, kwitansi
 **Bukti Perpanjangan**:
 The proof of a paid Perpanjangan Makam at a Lokasi Mitra, showing the old and new end dates, issued in the Lokasi Mitra's name; at a TPU the Pemda-issued permit plays this role.
 _Avoid_: Surat perpanjangan, bukti bayar perpanjangan
+
+**Pembatalan**:
+Cancelling a paid Pemesanan Terencana before any Pemakaman, at the Pemegang Hak's request, with a refund under the Lokasi Mitra's policy paid through YIEM; the Hak Pakai becomes Dibatalkan.
+_Avoid_: Refund (as the act), pengembalian (alone)
+
+**Masa Pembatalan**:
+The period after a Pemesanan Terencana is paid, set per Lokasi Mitra, in which a Pembatalan refunds the full tariff.
+_Avoid_: Cooling-off, masa tenggang (that is for expiry)
+
+**Pengembalian Hak Pakai**:
+A Pemegang Hak giving an unused Hak Pakai back to the Lokasi Mitra, which ends it; any compensation is agreed directly between them, never through YIEM.
+_Avoid_: Buyback, jual kembali, Pembatalan
 
 **Ganti Pemegang Hak**:
 Recording a new Pemegang Hak on an existing Hak Pakai (inheritance or sale), keeping the history of earlier holders.

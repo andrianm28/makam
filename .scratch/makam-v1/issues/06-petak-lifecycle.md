@@ -57,3 +57,5 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 **Ganti Pemegang Hak** (inheritance or sale): an Admin Lokasi action on the **same** Hak Pakai, with supporting documents, an optional transfer fee per Lokasi (collected offline in v1) and a history log; no self-serve flow in v1. Terencana transfer rules: "Pemesanan Terencana contract terms". Proving who the Pemegang Hak is: "How Perpanjangan verifies the Pemegang Hak".
 
 **Import**: a Hak Pakai may be imported without the Pemegang Hak's contact details or with an empty end date, flagged `Perlu Verifikasi` until the Admin Lokasi completes it (at the latest at the first Perpanjangan or Layanan on it). An empty end date does not mean perpetual unless the Jenis Makam is perpetual.
+
+**Amended by "Pemesanan Terencana contract terms"** (2026-09-25): the Calon Penghuni is an optional label per Petak Makam (a Kavling Keluarga may list several), which the Pemegang Hak can change freely; it does not limit who may be buried. An unused Hak Pakai can also end by **Pengembalian Hak Pakai** (`Berakhir`, reason "dikembalikan").
