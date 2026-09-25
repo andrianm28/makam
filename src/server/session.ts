@@ -9,6 +9,11 @@ export async function currentActor(): Promise<Actor | null> {
   return serverRuntime().identity.actorFromCookies(cookieHeader);
 }
 
+/** The request's Cookie header, for identity calls that act on the caller's own session (TOTP). */
+export async function currentCookieHeader(): Promise<string | null> {
+  return (await headers()).get("cookie");
+}
+
 /** Stores the session cookies the identity module issued (Server Actions only). */
 export async function setSessionCookies(sessionCookies: SessionCookie[]): Promise<void> {
   const store = await cookies();
