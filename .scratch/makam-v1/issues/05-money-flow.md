@@ -45,3 +45,5 @@ Resolved by grilling with the user (2026-09-25). Decision record: [ADR 0001](../
 **Invoices**: YIEM, as seller of record, issues the invoice the brief requires; its content is graduated to "Invoice and payment proof for the Pemesan". PPN / tax treatment falls under the out-of-scope legal and tax compliance.
 
 **Amended by "Tech stack for a solo engineer with AI agents"** (2026-09-25): the single collecting account is **SumoPod**, not Xendit. SumoPod only withdraws to YIEM's own account, so each Pencairan (same per-order / per-job due rules as above) and each refund is a **manual bank transfer by Admin YIEM**, recorded in the app with the transfer proof. Gateway fees absorbed by YIEM now cover SumoPod fees and bank transfer costs.
+
+**Amended by "Invoice and payment proof for the Pemesan"** (2026-09-25): Pencairan still becomes due per order / job, but Admin YIEM may batch several due Pencairan to one partner into a single transfer, recorded as one Bukti Pencairan. A Harga Khusus is borne by YIEM by default (partner's Pencairan stays the full tariff) unless a partner-agreed lower amount is recorded.

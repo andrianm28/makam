@@ -115,8 +115,12 @@ The identifier of a Pemesanan Makam, given on submission and shown at confirmati
 _Avoid_: Booking ID, kode booking
 
 **Bukti Pemesanan**:
-The proof of a paid Pemesanan Makam, issued once payment settles.
+The proof of the Hak Pakai granted by a paid Pemesanan Makam (Lokasi, Petak Makam, Pemegang Hak, masa Hak Pakai), issued in the Lokasi Mitra's name once payment settles; it carries no amounts.
 _Avoid_: Bukti booking, receipt, kwitansi
+
+**Bukti Perpanjangan**:
+The proof of a paid Perpanjangan Makam at a Lokasi Mitra, showing the old and new end dates, issued in the Lokasi Mitra's name; at a TPU the Pemda-issued permit plays this role.
+_Avoid_: Surat perpanjangan, bukti bayar perpanjangan
 
 **Ganti Pemegang Hak**:
 Recording a new Pemegang Hak on an existing Hak Pakai (inheritance or sale), keeping the history of earlier holders.
@@ -165,6 +169,22 @@ _Avoid_: Biaya gali, ongkos kubur
 **Biaya Layanan Platform**:
 YIEM's own flat fee on a Lokasi Mitra order, shown to the Pemesan as a separate line on top of the Lokasi Mitra's tariff.
 _Avoid_: Komisi, admin fee, markup
+
+**Tagihan**:
+YIEM's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a Paket Layanan cycle); never changed once issued, only cancelled and replaced.
+_Avoid_: Invoice, faktur, nota
+
+**Bukti Pembayaran**:
+YIEM's receipt for a settled Tagihan, a separate document from the Tagihan itself.
+_Avoid_: Kwitansi, receipt, struk
+
+**Bukti Pengembalian Dana**:
+YIEM's record of a refund transfer to a Pemesan, referencing the Tagihan it partly or fully reverses.
+_Avoid_: Nota kredit, refund receipt
+
+**Bukti Pencairan**:
+YIEM's record of one bank transfer to a Lokasi Mitra or Mitra Jasa, listing every Pencairan it covers.
+_Avoid_: Slip payout, settlement report
 
 **Pencairan**:
 YIEM paying out the collected amount for one order or job to the Lokasi Mitra or Mitra Jasa that did the work, once that work is confirmed done.

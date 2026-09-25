@@ -4,6 +4,6 @@ Every account on makam.co.id is keyed by one WhatsApp number, and a WhatsApp OTP
 
 ## Consequences
 
-- A WhatsApp delivery outage blocks every login unless "Notification channels and WhatsApp provider" settles on a fallback channel.
+- A WhatsApp delivery outage would block every login, so "Notification channels and WhatsApp provider" adds an SMS OTP fallback (a "Kirim lewat SMS" button after about 60 s) for every role.
 - Changing a number is an admin action: the Admin Lokasi changes the number on a Hak Pakai, and Admin YIEM moves a Pemesan's account to a new number, each after a KTP check and recorded in the audit log. There is no self-service recovery.
 - One person has one number, so they have one account, which can hold several roles.

@@ -54,3 +54,5 @@ Decided with the user on 2026-09-25 by reacting to a clickable prototype. **Prot
 
 - 2026-09-25: Prototype built: [prototypes/18-booking-flow/index.html](../prototypes/18-booking-flow/index.html) (also a private artifact: https://claude.ai/artifact/F7i4Neh9p7sDLV9tF1HNfU). Three variants: A "Langkah demi langkah" (wizard + sticky total), B "Halaman Lokasi = kasir" (one-page Lokasi checkout + nota), C "Tanya dulu" (triage questions, all-in totals). Awaiting the user's reaction.
 - 2026-09-25: User picked A made shorter (→ variant D), price as in C, split on the home screen; no concerns about the after-hours Saat Duka experience. Prototype moved to branch `prototype/18-booking-flow` (commit 01ef38e). Resolved.
+
+**Amended by "Invoice and payment proof for the Pemesan"** (2026-09-25): the Bukti Pemesanan carries no amounts; the itemised paid amount moves to the separate Bukti Pembayaran.

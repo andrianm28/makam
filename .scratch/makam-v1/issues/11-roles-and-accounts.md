@@ -19,7 +19,7 @@ Decided with the user on 2026-09-25 (grilling). ADR: [0003 A WhatsApp number is 
 **Pemesan: no signup, verify on submit**
 
 - No guest checkout and no signup form. At "Data & kirim" → Kirim, a **WhatsApp OTP** verifies the Pemesan's number and silently creates or logs into an account keyed by that phone number. No password.
-- **WhatsApp OTP is the only login method** in v1 (no Google, no email login). An optional email on the order is only for receiving invoices. What happens when WhatsApp delivery fails is for "Notification channels and WhatsApp provider".
+- **WhatsApp OTP is the only login method** in v1 (no Google, no email login). An optional email on the order is only for receiving invoices. When WhatsApp delivery fails, an SMS OTP fallback applies (settled in "Notification channels and WhatsApp provider").
 - **Akun Saya** shows "Pesanan saya" (orders placed from this number) and "Makam yang saya pegang" (every Hak Pakai whose recorded Pemegang Hak WhatsApp equals the login number, even if someone else ordered it), with Perpanjangan and Layanan actions.
 - When the logged-in number equals the number on the Hak Pakai, the separate Pemegang Hak OTP of "How Perpanjangan verifies the Pemegang Hak" is skipped: the login OTP already proves it.
 - Only the Admin Lokasi can change the WhatsApp number on a Hak Pakai, after a KTP check, audit-logged. The Pemegang Hak cannot change it themselves.

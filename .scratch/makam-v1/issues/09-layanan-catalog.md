@@ -52,3 +52,5 @@ Resolved by grilling with the user (2026-09-25). Terms added to `CONTEXT.md`: La
 - **Terencana / Perpanjangan checkout**: any Layanan may be added, subject to lead time; on a Terencana plot with no Pemakaman yet, only Layanan that make sense on an empty plot (e.g. Pembersihan, Perawatan Rumput & Taman, Laporan Foto) are offered.
 
 **Amended by "Tech stack for a solo engineer with AI agents"** (2026-09-25): no auto-debit in v1 (SumoPod); every recurring cycle is paid through its own invoice.
+
+**Terminology** (2026-09-25): "invoice" above is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan" (one Tagihan per Paket cycle).
