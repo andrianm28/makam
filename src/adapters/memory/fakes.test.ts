@@ -162,6 +162,20 @@ describe("fake FileStore", () => {
     expect(files.stored.has("ktp/1.jpg")).toBe(false);
     await expect(files.signedUrl("ktp/1.jpg", { expiresInSeconds: 300 })).rejects.toThrow();
   });
+
+  it("opens the file a signed URL points to until the URL expires on the Clock, as a browser would", async () => {
+    const now = clock();
+    const files = new FakeFileStore({ clock: now });
+    await files.put({ key: "ktp/1.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
+    const url = await files.signedUrl("ktp/1.jpg", { expiresInSeconds: 300 });
+
+    now.advance({ minutes: 5 });
+    expect(files.open(url)).toEqual({ key: "ktp/1.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
+
+    now.advance({ seconds: 1 });
+    expect(files.open(url)).toBeNull();
+    expect(files.open("https://files.fake.local/ktp/2.jpg?expires=9999999999")).toBeNull();
+  });
 });
 
 describe("fake PdfRenderer", () => {
