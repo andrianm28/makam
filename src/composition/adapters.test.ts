@@ -11,6 +11,7 @@ import {
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import type { SmtpSettings } from "@/lib/env";
+import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import type { Adapters } from "@/ports";
 import { createAdapters } from "./adapters";
 
@@ -86,6 +87,20 @@ describe("composition root", () => {
 
   it.each(["development", "test"] as const)("keeps the fake EmailSender in %s even with SMTP settings", (appEnv) => {
     expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(FakeEmailSender);
+  });
+
+  const VAPID = {
+    publicKey: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+    privateKey: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+    subject: "mailto:ops@makam.co.id",
+  };
+
+  it.each(["staging", "production"] as const)("wires the live VAPID WebPush for staff push in %s", (appEnv) => {
+    expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(VapidWebPush);
+  });
+
+  it.each(["development", "test"] as const)("keeps the fake WebPush in %s, even with VAPID keys", (appEnv) => {
+    expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(FakeWebPush);
   });
 
   it("lets a test inject its own Clock and fakes", () => {

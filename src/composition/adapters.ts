@@ -1,6 +1,7 @@
 import { notConfigured } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import { SystemClock } from "@/adapters/live/system-clock";
+import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import { createMemoryAdapters } from "@/adapters/memory";
 import { usesInMemoryFakes, type AppEnvironment, type SmtpSettings } from "@/lib/env";
 import type { Adapters } from "@/ports";
@@ -17,6 +18,8 @@ export interface AdapterOptions {
   fakePaymentWebhookSecret?: string;
   /** The SumoPod SMTP relay for the live EmailSender (`env.smtp`); ignored in development and test. */
   smtp?: SmtpSettings;
+  /** VAPID key pair and subject for the live WebPush (from the validated env; ignored where fakes run). */
+  vapid?: { publicKey: string; privateKey: string; subject: string };
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
@@ -44,7 +47,7 @@ export function createAdapters(options: AdapterOptions): Adapters {
         email: options.smtp
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
-        webPush: notConfigured<WebPush>("WebPush"),
+        webPush: options.vapid ? new VapidWebPush({ ...options.vapid, clock }) : notConfigured<WebPush>("WebPush"),
         files: notConfigured<FileStore>("FileStore (S3)"),
         pdf: notConfigured<PdfRenderer>("PdfRenderer"),
       };
