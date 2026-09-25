@@ -102,6 +102,9 @@ export async function requestEmailFallback(
 ): Promise<RequestEmailFallbackResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
+  // Counted first, before any lookup, so the IP's limits cover every answer below.
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
   const akun = await akunOfNumber(deps.db, normalised.phoneNumber);
   if (!akun?.verifiedEmail) return { ok: false, reason: "tanpa_email_terverifikasi" };
   const email = akun.verifiedEmail;
@@ -116,8 +119,6 @@ export async function requestEmailFallback(
   if (!whatsappSentAt) return { ok: false, reason: "tanpa_kode_whatsapp" };
   const retryAt = new Date(whatsappSentAt.getTime() + OTP_FALLBACK_AFTER_MS);
   if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };
-  const ip = await claimIpRequest(deps, input.ip);
-  if (!ip.ok) return ip;
 
   const issued = await issueCode(
     deps,

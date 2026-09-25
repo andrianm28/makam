@@ -407,7 +407,7 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
       retryAt: sent.fallbackAt,
     });
     clock.set(sent.fallbackAt);
-    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: IP })).toMatchObject({ ok: true });
+    expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: nextIp() })).toMatchObject({ ok: true });
     expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
 
     const login = await identity.verifyOtp({
@@ -441,6 +441,24 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
 
     clock.set(new Date(sent.sentAt.getTime() + 10 * 60_000 - 1_000));
     expect(await identity.requestEmailFallback({ phoneNumber: "081234567890", ip: nextIp() })).toMatchObject({ ok: true });
+  });
+
+  it("counts against the IP before anything is looked up, so a tanpa_email_terverifikasi answer uses up the IP's 60 s too", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity } = setup;
+    await identity.requestOtp({ phoneNumber: "083333333333" });
+
+    expect(await identity.requestEmailFallback({ phoneNumber: "083333333333", ip: IP })).toMatchObject({
+      reason: "tanpa_email_terverifikasi",
+    });
+    expect(await identity.requestEmailFallback({ phoneNumber: "084444444444", ip: IP })).toMatchObject({
+      ok: false,
+      reason: "tunggu_kirim_ulang",
+    });
+    expect(await identity.requestEmailLogin({ email: "siapa@contoh.id", ip: IP })).toMatchObject({
+      ok: false,
+      reason: "tunggu_kirim_ulang",
+    });
   });
 
   it("is refused for a number whose Akun has no Email Terverifikasi, or that has no Akun: the screen points to CS", async () => {
