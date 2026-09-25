@@ -47,7 +47,11 @@ export type AuditAction =
   /** An Akun Staf turns push on for a Perangkat Push. */
   | "akun.push_aktifkan"
   /** An Akun Staf turns push off for a Perangkat Push. */
-  | "akun.push_matikan";
+  | "akun.push_matikan"
+  /** An Akun Staf verifies its email (Verifikasi Email; never the code). */
+  | "akun.email_verifikasi"
+  /** An Akun Staf changes its email in the profile (the new one is not verified). */
+  | "akun.email_ubah";
 
 export interface NewAuditEntry {
   /** The Akun that did the write, and the role it acted under. */

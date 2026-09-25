@@ -73,6 +73,24 @@ describe("Verifikasi Email rules", () => {
     expect(email.sent).toHaveLength(sends);
   });
 
+  it("a new login email is proven first (Q9): the old Email Terverifikasi works until the new code is entered", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, email } = setup;
+    const { actor } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "lama@contoh.id");
+
+    await identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip: "198.51.100.50" });
+    const newCode = emailCodeTo(email, "baru@contoh.id");
+    expect(await identity.accountEmail(actor)).toEqual({ email: "lama@contoh.id", verified: true });
+    await logInByEmail(setup, "lama@contoh.id");
+
+    expect(await identity.confirmEmailVerification(actor, { code: newCode })).toEqual({ ok: true, email: "baru@contoh.id" });
+    expect(await identity.accountEmail(actor)).toEqual({ email: "baru@contoh.id", verified: true });
+    const sends = email.sent.length;
+    setup.clock.advance({ minutes: 1 });
+    await identity.requestEmailLogin({ email: "lama@contoh.id", ip: "198.51.100.51" });
+    expect(email.sent).toHaveLength(sends);
+  });
+
   it("a Pemesan may remove the email, which clears the mark; an Akun Staf keeps a required email", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, whatsapp } = setup;
@@ -87,6 +105,56 @@ describe("Verifikasi Email rules", () => {
     const staffActor = await actorOf(identity, staff.cookies);
     expect(await identity.removeEmail(staffActor)).toEqual({ ok: false, reason: "email_wajib" });
     expect(await identity.accountEmail(staffActor)).toEqual({ email: "staf@contoh.id", verified: false });
+  });
+});
+
+describe("Verifikasi Email in the staff area", () => {
+  it("is a staff write: it records an Entri Audit (akun.email_verifikasi) without the code; a Pemesan's records none", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, audit, email, clock } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi" });
+    const staff = await logInByOtp(identity, whatsapp, "082222222222");
+    const staffActor = await actorOf(identity, staff.cookies);
+    await identity.requestEmailVerification(staffActor, { email: "staf@contoh.id", ip: IP });
+    const code = emailCodeTo(email, "staf@contoh.id");
+    const verifiedAt = clock.now();
+
+    await identity.confirmEmailVerification(staffActor, { code });
+
+    const entries = await audit.entriesAbout({ kind: "akun", id: staffActor.accountId });
+    expect(entries.at(-1)).toEqual(
+      expect.objectContaining({
+        at: verifiedAt,
+        actor: { accountId: staffActor.accountId, role: "admin_lokasi" },
+        action: "akun.email_verifikasi",
+        before: { email: "staf@contoh.id", terverifikasi: false },
+        after: { email: "staf@contoh.id", terverifikasi: true },
+      }),
+    );
+    expect(JSON.stringify(entries)).not.toContain(code);
+
+    const { actor: pemesan } = await pemesanWithEmailTerverifikasi(setup, "083333333333", "pemesan@contoh.id");
+    expect(await audit.entriesAbout({ kind: "akun", id: pemesan.accountId })).toEqual([]);
+  });
+
+  it("an Akun Staf changing its email is a staff write too (akun.email_ubah), and the new email is not verified", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, audit } = setup;
+    const { actor: admin, cookies } = await signedInAdminPlatform(setup);
+    await verifyEmailOf(setup, cookies, "admin@makam.co.id");
+
+    expect(await identity.saveEmail(admin, { email: "ops@makam.co.id" })).toEqual({ ok: true, email: "ops@makam.co.id" });
+
+    expect(await identity.accountEmail(admin)).toEqual({ email: "ops@makam.co.id", verified: false });
+    expect((await audit.entriesAbout({ kind: "akun", id: admin.accountId })).at(-1)).toEqual(
+      expect.objectContaining({
+        actor: { accountId: admin.accountId, role: "admin_platform" },
+        action: "akun.email_ubah",
+        before: { email: "admin@makam.co.id", terverifikasi: true },
+        after: { email: "ops@makam.co.id", terverifikasi: false },
+      }),
+    );
   });
 });
 
