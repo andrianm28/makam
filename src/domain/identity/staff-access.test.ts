@@ -105,7 +105,8 @@ describe("Undangan Staf", () => {
       }),
     ]);
 
-    const { cookies } = await logInByOtp(identity, whatsapp, INVITEE);
+    const { login, cookies } = await logInByOtp(identity, whatsapp, INVITEE);
+    expect(login.roles).toEqual(["pemesan", "admin_lokasi"]);
     expect(await identity.actorFromCookies(cookies)).toMatchObject({
       phoneNumber: "+6282222222222",
       roles: ["pemesan", "admin_lokasi"],

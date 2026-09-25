@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
+import type { Role } from "./authorize";
 import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
@@ -23,6 +24,8 @@ export type VerifyOtpResult =
       account: Account;
       /** True when this OTP created the account (a number with no account yet). */
       accountCreated: boolean;
+      /** Every role the Akun holds after this login (open Undangan Staf accepted). */
+      roles: Role[];
       session: { expiresAt: Date; cookies: SessionCookie[] };
     }
   | PhoneNumberRejection
@@ -66,7 +69,8 @@ export async function verifyOtp(
 
   await acceptOpenInvites(deps, { id: response.user.id, phoneNumber });
   // The session lasts as long as the strictest role the Akun now holds allows.
-  const lengthMs = sessionLengthMs(await rolesOf(deps.db, response.user.id));
+  const roles = await rolesOf(deps.db, response.user.id);
+  const lengthMs = sessionLengthMs(roles);
   const expiresAt = new Date(session.session.createdAt.getTime() + lengthMs);
   await deps.db.update(identitySession).set({ expiresAt }).where(eq(identitySession.token, response.token));
   const sessionCookie = (await deps.auth.$context).authCookies.sessionToken.name;
@@ -78,6 +82,7 @@ export async function verifyOtp(
     ok: true,
     account: { id: response.user.id, phoneNumber },
     accountCreated: !existing,
+    roles,
     session: { expiresAt, cookies },
   };
 }
