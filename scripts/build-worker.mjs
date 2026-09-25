@@ -12,6 +12,7 @@ await build({
     "seed-admin": "src/cli/seed-admin.ts",
     "reset-totp": "src/cli/reset-totp.ts",
     "sentry-check": "src/cli/sentry-check.ts",
+    "email-check": "src/cli/email-check.ts",
   },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },

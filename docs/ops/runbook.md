@@ -72,6 +72,9 @@ to run unless the first three match `--env`:
 | `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and OTP |
 | `TOTP_ENCRYPTION_KEY` | secret, `openssl rand -base64 32` (exactly 32 bytes) | encrypts Admin Platform TOTP secrets at rest; **required from ticket 09 on**: without it `migrate`, `web` and `worker` refuse to start |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
+| `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
+| `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
 script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
@@ -341,6 +344,29 @@ Images built before this runbook have no `dist/sentry-check.mjs`. In that
 case, build it (`npm run build:worker`), then `docker cp` it into the
 container's `/tmp` and run it from there.
 
+## Test email (SumoPod SMTP, DKIM / SPF / DMARC check)
+
+`dist/email-check.mjs` (from `src/cli/email-check.ts`, `npm run email-check -- <to>`
+in development) sends one real email through the live EmailSender with the
+container's `SMTP_*` / `EMAIL_FROM` settings. It prints the check code and the
+Message-ID (not the address); the subject is `[makam v1] email-check <code>`.
+Send it to an Operator mailbox where the raw headers can be read, e.g.
+`dmarc@makam.co.id` (Stalwart on this host).
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec worker node dist/email-check.mjs dmarc@makam.co.id
+# exit 0: accepted by the relay; 1: "Gagal kirim: ..." (codes only); 78: SMTP settings missing
+```
+
+In the received message's headers, expect `DKIM-Signature: ... d=makam.co.id; s=trx_ke`
+and `Authentication-Results: ... dkim=pass header.d=makam.co.id ... dmarc=pass`.
+SPF passes for SumoPod's own bounce domain (return-path), so DMARC alignment comes
+from DKIM. Images built before ticket 68 have no `dist/email-check.mjs`; build it
+(`npm run build:worker`) and `docker cp` it into the container's `/tmp`, as for
+`sentry-check`.
+
 ## Uptime alarm
 
 The monitor watches `https://dev.makam.co.id/api/health`. That path skips
@@ -389,6 +415,7 @@ Never paste values into the repo, a ticket or chat.
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
 | `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then run `reset-totp` (above) for every Admin Platform with `--alasan "Rotasi TOTP_ENCRYPTION_KEY"`, so each enrols again at its next login. Until it is reset, an Admin Platform cannot pass TOTP under the new key. |
+| `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
 | Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |
@@ -432,8 +459,9 @@ file alone never changes an existing database's password.
 `/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_PROJECT=makam-prod`,
 `MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
 `MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
-`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, and `SENTRY_DSN` from
-`dsn-makam-prod-internal.txt`. Copy the compose file to
+`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, `SENTRY_DSN` from
+`dsn-makam-prod-internal.txt`, and the SumoPod SMTP settings (`SMTP_USER`,
+`SMTP_PASSWORD`, `EMAIL_FROM`; required, see the `staging.env` table). Copy the compose file to
 `/opt/makam-v1/prod/compose.yml` and deploy with
 `makam-deploy --env prod --tag sha-<commit>`. Production should deploy an
 explicit tag rather than follow `:latest` on a timer. Seed the first Admin
