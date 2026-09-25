@@ -2,8 +2,8 @@
  * Identity & Access: accounts keyed by one WhatsApp number, OTP, roles, staff invites, sessions.
  *
  * Owns tables: identity_user, identity_session, identity_auth_account,
- * identity_verification (Better Auth's models), identity_otp_request and
- * identity_staff_role.
+ * identity_verification (Better Auth's models), identity_otp_request,
+ * identity_ip_request, identity_staff_role, identity_staff_invite and identity_totp.
  *
  * Every staff write here records an Entri Audit through the Audit Log module,
  * in the same transaction.
@@ -11,14 +11,23 @@
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
+import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import type { Actor, StaffRole } from "./authorize";
-import { createBetterAuth, OtpRejected } from "./better-auth";
-import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
+import { createBetterAuth } from "./better-auth";
+import {
+  accountEmail,
+  confirmEmailVerification,
+  requestEmailVerification,
+  type AccountEmail,
+  type ConfirmEmailVerificationResult,
+  type RequestEmailVerificationResult,
+} from "./email";
+import { accountByPhoneNumber, LoginProofs, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
-import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
+import { requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
 import {
   deactivateStaff,
@@ -44,6 +53,7 @@ export type { CodeRejection, RequestOtpResult } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
+export type { AccountEmail, ConfirmEmailVerificationResult, RequestEmailVerificationResult } from "./email";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
@@ -72,6 +82,8 @@ export interface IdentityDeps {
   db: Database;
   clock: Clock;
   whatsapp: WhatsAppSender;
+  /** Sends the email Kode Masuk and the Verifikasi Email code (directly, not through Notifications). */
+  email: EmailSender;
   /** The private bucket, for the KTP check behind a Pindah Nomor. */
   files: FileStore;
   /** Every staff write records an Entri Audit here. */
@@ -121,23 +133,28 @@ export interface Identity {
   passTotp(by: Actor, code: string): Promise<PassTotpResult>;
   /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
   resetTotp(input: { phoneNumber: string; reason: string }): Promise<ResetTotpResult>;
+  /** The signed-in Akun's email and whether it is its Email Terverifikasi. */
+  accountEmail(by: Actor): Promise<AccountEmail>;
+  /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
+  requestEmailVerification(by: Actor, input: { email: string; ip: string }): Promise<RequestEmailVerificationResult>;
+  /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
+  confirmEmailVerification(by: Actor, input: { code: string }): Promise<ConfirmEmailVerificationResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
+  const proofs = new LoginProofs();
   const auth = createBetterAuth({
     db: deps.db,
     clock: deps.clock,
     secret: deps.secret,
     baseURL: deps.baseURL,
-    async verifyCode(phoneNumber, code) {
-      const checked = await checkCode(deps, { phoneNumber, code });
-      if (!checked.ok) throw new OtpRejected(checked);
-    },
+    consumeLoginProof: (phoneNumber, proof) => proofs.consume(phoneNumber, proof),
   });
+  const login = { auth, db: deps.db, clock: deps.clock, audit: deps.audit, secret: deps.secret, proofs };
 
   return {
     requestOtp: (input) => requestOtp(deps, input),
-    verifyOtp: (input) => verifyOtp({ auth, db: deps.db, clock: deps.clock, audit: deps.audit }, input),
+    verifyOtp: (input) => verifyOtp(login, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
     actorFromCookies: (cookieHeader) => actorFromCookies(deps, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
@@ -151,5 +168,8 @@ export function createIdentity(deps: IdentityDeps): Identity {
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
     passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
+    accountEmail: (by) => accountEmail(deps, by),
+    requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
+    confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
   };
 }

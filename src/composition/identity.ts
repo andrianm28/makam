@@ -17,6 +17,7 @@ export function composeIdentity(deps: { env: RuntimeEnv; db: Database; adapters:
     db: deps.db,
     clock: deps.adapters.clock,
     whatsapp: deps.adapters.whatsapp,
+    email: deps.adapters.email,
     files: deps.adapters.files,
     audit,
     secret: deps.env.AUTH_SECRET,

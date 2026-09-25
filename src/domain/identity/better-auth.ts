@@ -3,7 +3,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { phoneNumber } from "better-auth/plugins";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
-import type { CodeRejection } from "./otp";
 import {
   identityAuthAccount,
   identitySession,
@@ -28,20 +27,16 @@ export function sessionLengthMs(roles: readonly string[]): number {
 /** Cookie names start with this, e.g. `makam.session_token`. */
 export const COOKIE_PREFIX = "makam";
 
-/** Thrown from Better Auth's verifyOTP hook to carry our rejection back out. */
-export class OtpRejected extends Error {
-  constructor(readonly rejection: CodeRejection) {
-    super(`OTP rejected: ${rejection.reason}`);
-  }
-}
-
 export interface BetterAuthDeps {
   db: Database;
   clock: Clock;
   secret: string;
   baseURL: string;
-  /** Checks the code against identity_otp_request; throws OtpRejected when it fails. */
-  verifyCode(phoneNumber: string, code: string): Promise<void>;
+  /**
+   * True once for a login proof the identity module issued for this number
+   * after it checked a Kode Masuk itself (./login.ts); false for anything else.
+   */
+  consumeLoginProof(phoneNumber: string, proof: string): boolean;
 }
 
 /**
@@ -56,9 +51,11 @@ export interface BetterAuthDeps {
  *   expiresAt with the system time): the module reads them itself and checks
  *   expiry against the Clock (see ./sessions.ts).
  *
- * OTP codes are generated, sent, rate-limited and checked by the module (./otp.ts)
- * against the Clock; Better Auth's phone-number plugin only turns a verified
- * number into a user (created on first login) and a session. Better Auth's own
+ * Kode Masuk (WhatsApp and email) are generated, sent, rate-limited and
+ * checked by the module (./otp.ts) against the Clock. Only then does the module
+ * hand Better Auth's phone-number plugin a one-time login proof for the Akun's
+ * number, which the plugin turns into a user (created on a first WhatsApp
+ * login) and a session. Better Auth's own
  * rate limiter is off: it counts in memory by system time, and Server Actions
  * call `auth.api` directly, which it never sees. Its HTTP handler is not mounted.
  */
@@ -123,10 +120,7 @@ export function createBetterAuth(deps: BetterAuthDeps) {
         sendOTP: () => {
           throw new Error("Login OTPs are sent by the identity module (requestOtp), not by Better Auth.");
         },
-        verifyOTP: async ({ phoneNumber: number, code }) => {
-          await deps.verifyCode(number, code);
-          return true;
-        },
+        verifyOTP: async ({ phoneNumber: number, code }) => deps.consumeLoginProof(number, code),
         signUpOnVerification: {
           getTempEmail: (number) => `${number.replace(/^\+/, "")}@wa.makam.invalid`,
           getTempName: () => "",

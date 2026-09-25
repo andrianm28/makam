@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createAuditLog } from "@/domain/audit";
-import { FakeFileStore } from "@/adapters/memory";
+import { FakeEmailSender, FakeFileStore } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, identityOnTestDatabase, logInByOtp, TEST_AUTH_SECRET } from "../../../tests/support/identity";
@@ -146,6 +146,7 @@ describe("Admin Platform TOTP on top of the OTP", () => {
       db,
       clock,
       whatsapp,
+      email: new FakeEmailSender(),
       files: new FakeFileStore({ clock }),
       audit: createAuditLog({ db, clock }),
       secret: TEST_AUTH_SECRET,

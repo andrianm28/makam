@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { FakeClock, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
+import { FakeClock, FakeEmailSender, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
 import { createAuditLog } from "@/domain/audit";
 import { wib } from "@/lib/time/jakarta";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -16,6 +16,7 @@ function build(clock: FakeClock, whatsapp: WhatsAppSender): Identity {
     db,
     clock,
     whatsapp,
+    email: new FakeEmailSender(),
     files: new FakeFileStore({ clock }),
     audit: createAuditLog({ db, clock }),
     secret: TEST_AUTH_SECRET,

@@ -3,6 +3,7 @@ import { FakeClock } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { createBetterAuth } from "./better-auth";
+import { LoginProofs } from "./login";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -21,9 +22,7 @@ function setup() {
     clock,
     secret: "test-secret-for-identity-tests-0123456789abcdef",
     baseURL: "http://localhost:3000",
-    verifyCode: async () => {
-      throw new Error("not used here");
-    },
+    consumeLoginProof: () => false,
   });
   return { clock, auth };
 }
@@ -93,5 +92,31 @@ describe("every row Better Auth writes carries Clock time, never system time", (
     expect(await context.internalAdapter.findAccountByUserId(user.id)).toEqual([
       expect.objectContaining({ scope: "otp", createdAt: wib("2031-03-01 09:00"), updatedAt: wib("2031-03-03 08:00") }),
     ]);
+  });
+});
+
+describe("Better Auth signs a number in only on the identity module's login proof", () => {
+  function withProofs() {
+    const clock = new FakeClock(wib("2031-03-01 09:00"));
+    const proofs = new LoginProofs();
+    const auth = createBetterAuth({
+      db,
+      clock,
+      secret: "test-secret-for-identity-tests-0123456789abcdef",
+      baseURL: "http://localhost:3000",
+      consumeLoginProof: (phoneNumber, proof) => proofs.consume(phoneNumber, proof),
+    });
+    return { auth, proofs };
+  }
+
+  it("refuses a guessed code, a proof issued for another number, and a proof used twice", async () => {
+    const { auth, proofs } = withProofs();
+    const verify = (code: string) => auth.api.verifyPhoneNumber({ body: { phoneNumber: "+6281234567890", code } });
+
+    await expect(verify("123456")).rejects.toThrow();
+    await expect(verify(proofs.issue("+6289999999999"))).rejects.toThrow();
+    const proof = proofs.issue("+6281234567890");
+    await expect(verify(proof)).resolves.toMatchObject({ status: true });
+    await expect(verify(proof)).rejects.toThrow();
   });
 });
