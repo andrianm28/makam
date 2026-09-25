@@ -37,8 +37,9 @@ export interface BetterAuthDeps {
  * Better Auth as the identity module's account and session engine.
  *
  * Better Auth reads the system time internally and cannot take our Clock, so:
- * - every timestamp it writes (user and session createdAt/updatedAt, session
- *   expiresAt) is replaced from the Clock in the database hooks below;
+ * - every timestamp it writes (createdAt/updatedAt on user, session, account
+ *   and verification, on create and on update, and session expiresAt) is
+ *   replaced from the Clock in the database hooks below;
  * - session refresh is off (it would move expiresAt by the system time);
  * - sessions are never read through `auth.api.getSession` (which compares
  *   expiresAt with the system time): the module reads them itself and checks
@@ -51,7 +52,11 @@ export interface BetterAuthDeps {
  * call `auth.api` directly, which it never sees. Its HTTP handler is not mounted.
  */
 export function createBetterAuth(deps: BetterAuthDeps) {
-  const now = () => deps.clock.now();
+  const stampCreated = <T extends object>(row: T) => {
+    const createdAt = deps.clock.now();
+    return { ...row, createdAt, updatedAt: createdAt };
+  };
+  const stampUpdated = <T extends object>(row: T) => ({ ...row, updatedAt: deps.clock.now() });
 
   return betterAuth({
     appName: "Makam.co.id",
@@ -79,27 +84,27 @@ export function createBetterAuth(deps: BetterAuthDeps) {
     },
     databaseHooks: {
       user: {
-        create: {
-          before: async (user) => ({ data: { ...user, createdAt: now(), updatedAt: now() } }),
-        },
-        update: {
-          before: async (user) => ({ data: { ...user, updatedAt: now() } }),
-        },
+        create: { before: async (user) => ({ data: stampCreated(user) }) },
+        update: { before: async (user) => ({ data: stampUpdated(user) }) },
       },
       session: {
         create: {
           before: async (session) => {
-            const createdAt = now();
+            const stamped = stampCreated(session);
             return {
-              data: {
-                ...session,
-                createdAt,
-                updatedAt: createdAt,
-                expiresAt: new Date(createdAt.getTime() + PEMESAN_SESSION_MS),
-              },
+              data: { ...stamped, expiresAt: new Date(stamped.createdAt.getTime() + PEMESAN_SESSION_MS) },
             };
           },
         },
+        update: { before: async (session) => ({ data: stampUpdated(session) }) },
+      },
+      account: {
+        create: { before: async (account) => ({ data: stampCreated(account) }) },
+        update: { before: async (account) => ({ data: stampUpdated(account) }) },
+      },
+      verification: {
+        create: { before: async (verification) => ({ data: stampCreated(verification) }) },
+        update: { before: async (verification) => ({ data: stampUpdated(verification) }) },
       },
     },
     plugins: [
