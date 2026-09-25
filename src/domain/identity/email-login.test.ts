@@ -62,6 +62,28 @@ describe("Verifikasi Email rules", () => {
     expect(login.account.phoneNumber).toBe("+6281234567890");
   });
 
+  it("two Akun verifying the same email at once: one gets it, the other is refused (email_sudah_dipakai) by the database", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    const first = await actorOf(identity, (await logInByOtp(identity, whatsapp, "081234567890")).cookies);
+    const second = await actorOf(identity, (await logInByOtp(identity, whatsapp, "082222222222")).cookies);
+    await identity.requestEmailVerification(first, { email: "sari@contoh.id", ip: nextIp() });
+    const firstCode = emailCodeTo(email, "sari@contoh.id");
+    setup.clock.advance({ minutes: 1 });
+    await identity.requestEmailVerification(second, { email: "SARI@contoh.id", ip: nextIp() });
+    const secondCode = emailCodeTo(email, "sari@contoh.id");
+
+    const results = await Promise.all([
+      identity.confirmEmailVerification(first, { code: firstCode }),
+      identity.confirmEmailVerification(second, { code: secondCode }),
+    ]);
+
+    expect(results).toContainEqual({ ok: true, email: "sari@contoh.id" });
+    expect(results).toContainEqual({ ok: false, reason: "email_sudah_dipakai" });
+    const emails = [await identity.accountEmail(first), await identity.accountEmail(second)];
+    expect(emails.filter((shown) => shown.verified)).toEqual([{ email: "sari@contoh.id", verified: true }]);
+  });
+
   it("changing the email in the profile clears the verified mark; saving the same email keeps it", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, email } = setup;

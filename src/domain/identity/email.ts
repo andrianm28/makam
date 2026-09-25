@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -137,17 +137,17 @@ export async function confirmEmailVerification(
   const now = deps.clock.now();
 
   try {
-    const written = await writeAkunEmail<{ ok: false; reason: "email_sudah_dipakai" }>(deps, by, "akun.email_verifikasi", async (tx) => {
-      if (await verifiedOnAnotherAkun(tx, email, by.accountId)) return { ok: false, reason: "email_sudah_dipakai" } as const;
+    await writeAkunEmail<never>(deps, by, "akun.email_verifikasi", async (tx) => {
       await tx
         .update(identityUser)
         .set({ contactEmail: email, emailVerifiedAt: now, updatedAt: now })
         .where(eq(identityUser.id, by.accountId));
       return { ok: true, after: { email, terverifikasi: true } } as const;
     });
-    return written.ok ? { ok: true, email } : written;
+    return { ok: true, email };
   } catch (error) {
-    // Another Akun verified it in the meantime: the database's unique index refused this one.
+    // The database's unique index is the one rule: another Akun has this Email Terverifikasi
+    // (already, or it won a race), so this transaction rolled back and nothing changed.
     if (isVerifiedEmailTaken(error)) return { ok: false, reason: "email_sudah_dipakai" };
     throw error;
   }
@@ -194,14 +194,6 @@ async function writeAkunEmail<R extends { ok: false; reason: string }>(
     });
     return { ok: true } as const;
   });
-}
-
-async function verifiedOnAnotherAkun(db: Database, email: string, accountId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: identityUser.id })
-    .from(identityUser)
-    .where(and(eq(identityUser.contactEmail, email), isNotNull(identityUser.emailVerifiedAt), ne(identityUser.id, accountId)));
-  return Boolean(row);
 }
 
 /** True for the unique violation of identity_user_verified_email_idx (a verified email belongs to one Akun). */
