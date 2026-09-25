@@ -32,6 +32,7 @@ export function serverRuntime(): ServerRuntime {
     const adapters = createAdapters({
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
+      smtp: env.smtp,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     globalForRuntime.__makamRuntime = {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { EmailMessage, EmailSender } from "@/ports/email-sender";
+import { EmailSendError, type EmailMessage, type EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushResult, PushSubscription, WebPush } from "@/ports/web-push";
 import type {
   WhatsAppSender,
@@ -48,13 +48,24 @@ export class FakeWhatsAppSender implements WhatsAppSender {
   }
 }
 
+/** Records every email it accepted; tests can make the relay refuse the next sends. */
 export class FakeEmailSender implements EmailSender {
   readonly sent: (EmailMessage & { messageId: string })[] = [];
+  #refuseNext = 0;
 
   async send(message: EmailMessage): Promise<{ messageId: string }> {
-    const messageId = `email-${randomUUID()}`;
+    if (this.#refuseNext > 0) {
+      this.#refuseNext -= 1;
+      throw new EmailSendError("rejected", { code: "EENVELOPE", responseCode: 550 });
+    }
+    const messageId = `<${randomUUID()}@fake.makam.co.id>`;
     this.sent.push({ ...message, messageId });
     return { messageId };
+  }
+
+  /** The next `count` sends are refused, as the relay refusing at send time; nothing is recorded. */
+  failNextSend(count = 1): void {
+    this.#refuseNext += count;
   }
 }
 
