@@ -81,6 +81,11 @@ export function browserSentryEnvironment(hostname: string): AppEnvironment {
   return browserEnvironmentByHost[hostname.toLowerCase()] ?? "development";
 }
 
+/** Whether the page on this host shows the staging banner: only where the host maps to `staging`. */
+export function showsStagingBanner(hostname: string): boolean {
+  return browserSentryEnvironment(hostname) === "staging";
+}
+
 export type SentryEnv = z.infer<typeof sentryEnvSchema>;
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type PublicSentryEnv = z.infer<typeof publicSentryEnvSchema>;

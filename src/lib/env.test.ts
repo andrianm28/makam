@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { browserSentryEnvironment, readPublicSentryEnv, readRuntimeEnv, readSentryEnv } from "./env";
+import { browserSentryEnvironment, readPublicSentryEnv, showsStagingBanner, readRuntimeEnv, readSentryEnv } from "./env";
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
@@ -93,5 +93,21 @@ describe("browser error monitoring environment (from the page's host, since one 
     ["", "development"],
   ])("%s is %s", (hostname, environment) => {
     expect(browserSentryEnvironment(hostname)).toBe(environment);
+  });
+});
+
+describe("staging banner (from the page's host, since statically rendered pages can't read the runtime environment)", () => {
+  it.each([
+    ["dev.makam.co.id", true],
+    ["DEV.MAKAM.CO.ID", true],
+    ["makam.co.id", false],
+    ["www.makam.co.id", false],
+    ["localhost", false],
+    ["127.0.0.1", false],
+    ["beta.makam.co.id", false],
+    ["dev.makam.co.id.evil.example", false],
+    ["", false],
+  ])("on %s the banner shows: %s", (hostname, shown) => {
+    expect(showsStagingBanner(hostname)).toBe(shown);
   });
 });
