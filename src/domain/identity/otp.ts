@@ -1,4 +1,5 @@
 import { createHmac, randomInt } from "node:crypto";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -48,6 +49,31 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   });
 
   return { ok: true, phoneNumber, sentAt: now, expiresAt };
+}
+
+export type CheckCodeResult = { ok: true } | { ok: false; reason: "kode_salah" };
+
+/** Checks a typed code against the number's open OTP; a correct code is used up. */
+export async function checkCode(
+  deps: OtpDeps,
+  input: { phoneNumber: string; code: string },
+): Promise<CheckCodeResult> {
+  const now = deps.clock.now();
+  const [open] = await deps.db
+    .select()
+    .from(identityOtpRequest)
+    .where(and(eq(identityOtpRequest.phoneNumber, input.phoneNumber), isNull(identityOtpRequest.closedAt)))
+    .orderBy(desc(identityOtpRequest.sentAt))
+    .limit(1);
+  if (!open || open.codeHash !== hashCode(deps.secret, input.phoneNumber, input.code)) {
+    return { ok: false, reason: "kode_salah" };
+  }
+  const used = await deps.db
+    .update(identityOtpRequest)
+    .set({ closedAt: now })
+    .where(and(eq(identityOtpRequest.id, open.id), isNull(identityOtpRequest.closedAt)))
+    .returning({ id: identityOtpRequest.id });
+  return used.length === 1 ? { ok: true } : { ok: false, reason: "kode_salah" };
 }
 
 function generateCode(): string {

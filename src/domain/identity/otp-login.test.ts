@@ -30,4 +30,35 @@ describe("Pemesan OTP login over WhatsApp", () => {
     expect(message.copyCode).toMatch(/^\d{6}$/);
     expect(message.parameters).toEqual([message.copyCode]);
   });
+
+  it("a correct OTP for a number with no account creates the Pemesan account and logs it in", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+
+    const login = await identity.verifyOtp({ phoneNumber: "081234567890", code: lastCode(whatsapp) });
+
+    expect(login).toMatchObject({
+      ok: true,
+      accountCreated: true,
+      account: { phoneNumber: "+6281234567890" },
+    });
+    if (!login.ok) throw new Error("login failed");
+    const actor = await identity.actorFromCookies(cookieHeader(login.session.cookies));
+    expect(actor).toEqual({
+      accountId: login.account.id,
+      phoneNumber: "+6281234567890",
+      roles: ["pemesan"],
+    });
+  });
 });
+
+function lastCode(whatsapp: FakeWhatsAppSender): string {
+  const code = whatsapp.sent.at(-1)?.copyCode;
+  if (!code) throw new Error("no OTP was sent");
+  return code;
+}
+
+/** What the browser sends back after storing the session cookies. */
+function cookieHeader(cookies: { name: string; value: string }[]): string {
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+}
