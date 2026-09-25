@@ -1,21 +1,32 @@
-# Production: the `makam-prod` compose project on the Jakarta VPS (ADR 0002).
-# Own Postgres, own network, resource limits per service. Deployment itself is
-# ticket 07; the expected sequence is:
+# The v1 app on the Jakarta VPS (ADR 0002): own Postgres, own network, resource
+# limits per service. One file for both host environments:
 #
-#   docker compose -f docker-compose.prod.yml pull
-#   docker compose -f docker-compose.prod.yml run --rm migrate
-#   docker compose -f docker-compose.prod.yml up -d
+#   makam-staging  dev.makam.co.id  (ticket 07, live now)
+#   makam-prod     makam.co.id      (ticket 65)
 #
-# Secrets come from .env.prod on the host (never committed): POSTGRES_PASSWORD,
-# DATABASE_URL, AUTH_SECRET, APP_BASE_URL (https://makam.co.id), SENTRY_DSN, ...
+# Never run by hand without `-p` and `--env-file`: the host deploy script
+# (deploy/bin/makam-deploy, see docs/ops/runbook.md) does
+#
+#   docker pull ghcr.io/andrianm28/makam:sha-<commit>
+#   docker compose -p makam-staging -f compose.yml --env-file staging.env run --rm migrate
+#                                            # must succeed, or nothing restarts
+#   docker compose ... up -d --wait
+#
+# The env file (on the host only, mode 0600, never committed) supplies both the
+# interpolation variables below and, through MAKAM_ENV_FILE, the app's runtime
+# env: POSTGRES_PASSWORD, DATABASE_URL, AUTH_SECRET, APP_BASE_URL
+# (https://dev.makam.co.id / https://makam.co.id), SENTRY_DSN, MAKAM_APP_ENV,
+# MAKAM_WEB_PORT, ...
 name: makam-prod
 
 x-app: &app
-  # Override with MAKAM_IMAGE / MAKAM_TAG, e.g. to pin a release tag.
+  # MAKAM_TAG is set by the deploy script (sha-<commit>), so a deploy and a
+  # rollback both name an exact image.
   image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}:${MAKAM_TAG:-latest}
-  env_file: .env.prod
+  env_file: ${MAKAM_ENV_FILE:-.env.prod}
   environment:
-    APP_ENV: production
+    APP_ENV: ${MAKAM_APP_ENV:-production}
+    SENTRY_RELEASE: ${MAKAM_RELEASE:-}
     TZ: Asia/Jakarta
   restart: unless-stopped
   logging:
@@ -72,6 +83,19 @@ services:
     ports:
       # Behind the host's reverse proxy; never exposed directly.
       - "127.0.0.1:${MAKAM_WEB_PORT:-3100}:3000"
+    networks: [default, glitchtip]
+    # Liveness only: any HTTP answer from /api/health counts (it is 503 until
+    # the worker's first heartbeat). `up --wait` waits for this.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(()=>process.exit(0),()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +108,7 @@ services:
   worker:
     <<: *app
     command: ["node", "dist/worker.mjs"]
+    networks: [default, glitchtip]
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,6 +117,16 @@ services:
         limits:
           cpus: "0.5"
           memory: 512m
+
+networks:
+  default:
+  # Server-side error events go straight to the GlitchTip compose project on
+  # this host (SENTRY_DSN=http://<key>@glitchtip-web:8000/<id>), not through
+  # nginx. The network belongs to the `glitchtip` project
+  # (deploy/glitchtip/compose.yml); start that first.
+  glitchtip:
+    external: true
+    name: glitchtip_ingest
 
 volumes:
   pgdata:
