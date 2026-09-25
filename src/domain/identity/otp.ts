@@ -5,6 +5,7 @@ import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { normalisePhoneNumber } from "./phone-number";
 import { identityOtpRequest } from "./schema";
+import { isDeactivatedNumber } from "./staff";
 
 /** Meta's authentication template (whatsapp-templates.md #1). */
 export const OTP_TEMPLATE = "kode_verifikasi";
@@ -45,13 +46,15 @@ export type RequestOtpResult =
       /** When the OTP screen shows its fallback slot ("Kirim lewat email", ticket 60). */
       fallbackAt: Date;
     }
-  | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" }
+  | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" | "akun_dinonaktifkan" }
   | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
   const { phoneNumber } = normalised;
+  // A Dinonaktifkan Akun Staf can no longer log in, so it gets no OTP either.
+  if (await isDeactivatedNumber(deps.db, phoneNumber)) return { ok: false, reason: "akun_dinonaktifkan" };
 
   const now = deps.clock.now();
   const code = generateCode();

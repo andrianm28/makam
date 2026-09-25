@@ -52,6 +52,8 @@ export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): stri
       return "Kode sudah kedaluwarsa. Kirim ulang untuk mendapat kode baru.";
     case "terlalu_banyak_percobaan":
       return "Terlalu banyak kode salah. Kirim ulang untuk mendapat kode baru.";
+    case "akun_dinonaktifkan":
+      return "Akun ini sudah dinonaktifkan dan tidak bisa masuk lagi. Hubungi Admin Platform bila ini keliru.";
     case "belum_masuk":
       return "Silakan masuk dulu dengan nomor WhatsApp Anda.";
     case "tidak_berwenang":

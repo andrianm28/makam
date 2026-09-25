@@ -6,7 +6,7 @@ import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 import { identityStaffInvite, identityStaffRole, identityUser } from "./schema";
-import { normaliseEmail } from "./staff";
+import { isDeactivatedNumber, normaliseEmail } from "./staff";
 
 /** An Undangan Staf stays open for 7 days after it is sent. */
 export const STAFF_INVITE_EXPIRES_AFTER_MS = 7 * 86_400_000;
@@ -46,7 +46,7 @@ export type InviteStaffResult =
       delivered: boolean;
     }
   | PhoneNumberRejection
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "email_wajib" | "email_tidak_valid" };
+  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "email_wajib" | "email_tidak_valid" | "akun_dinonaktifkan" };
 
 /**
  * Admin Platform sends an Undangan Staf: a role for a WhatsApp number and a
@@ -68,6 +68,8 @@ export async function inviteStaff(
   if (input.email.trim() === "") return { ok: false, reason: "email_wajib" };
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
+
+  if (await isDeactivatedNumber(deps.db, phoneNumber)) return { ok: false, reason: "akun_dinonaktifkan" };
 
   const now = deps.clock.now();
   const expiresAt = new Date(now.getTime() + STAFF_INVITE_EXPIRES_AFTER_MS);

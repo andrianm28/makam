@@ -19,7 +19,14 @@ import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } f
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
-import { seedFirstAdminPlatform, staffAccounts, type SeedResult, type StaffAccount } from "./staff";
+import {
+  deactivateStaff,
+  seedFirstAdminPlatform,
+  staffAccounts,
+  type DeactivateStaffResult,
+  type SeedResult,
+  type StaffAccount,
+} from "./staff";
 import { passTotp, startTotpEnrolment, type PassTotpResult, type StartTotpEnrolmentResult } from "./totp";
 
 export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
@@ -28,7 +35,7 @@ export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from 
 export type { PassTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
-export type { SeedResult, StaffAccount } from "./staff";
+export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
 export { staffRoleLabels, type InviteStaffResult, type StaffInvite } from "./invites";
 export {
   akunResource,
@@ -82,6 +89,8 @@ export interface Identity {
     by: Actor,
     input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
   ): Promise<InviteStaffResult>;
+  /** Admin Platform deactivates an Akun Staf (Dinonaktifkan): sessions end, login blocked, history kept; audited. */
+  deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
   /** Every Undangan Staf not yet accepted and not expired. */
   openStaffInvites(): Promise<StaffInvite[]>;
   /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform. */
@@ -112,6 +121,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     staffAccounts: () => staffAccounts(deps),
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
     openStaffInvites: () => openStaffInvites(deps),
+    deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
     passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
   };

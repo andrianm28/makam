@@ -26,7 +26,8 @@ export type VerifyOtpResult =
       session: { expiresAt: Date; cookies: SessionCookie[] };
     }
   | PhoneNumberRejection
-  | CodeRejection;
+  | CodeRejection
+  | { ok: false; reason: "akun_dinonaktifkan" };
 
 /**
  * A correct OTP logs into the number's account, creating it first when the
@@ -41,9 +42,10 @@ export async function verifyOtp(
   const { phoneNumber } = normalised;
 
   const [existing] = await deps.db
-    .select({ id: identityUser.id })
+    .select({ id: identityUser.id, deactivatedAt: identityUser.deactivatedAt })
     .from(identityUser)
     .where(eq(identityUser.phoneNumber, phoneNumber));
+  if (existing?.deactivatedAt) return { ok: false, reason: "akun_dinonaktifkan" };
 
   let result;
   try {

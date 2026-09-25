@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import { staffRoles, type Role, type StaffRole } from "./authorize";
+import { staffRoles, staffWriteRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-import { identityStaffRole, identityUser } from "./schema";
+import { identitySession, identityStaffRole, identityUser } from "./schema";
 
 type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
@@ -95,6 +96,63 @@ export async function seedFirstAdminPlatform(
     await tx.insert(identityStaffRole).values({ accountId, role: "admin_platform", grantedAt: now });
     return { ok: true, account: { id: accountId, phoneNumber } } as const;
   });
+}
+
+export type DeactivateStaffResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "tidak_berwenang" | "perlu_totp" | "alasan_wajib" | "bukan_akun_staf" | "akun_sendiri" | "sudah_dinonaktifkan";
+    };
+
+/**
+ * Admin Platform deactivates an Akun Staf (Dinonaktifkan): its sessions end
+ * and it can no longer log in. Nothing is deleted: its roles, orders and Entri
+ * Audit stay. Audited with the reason.
+ */
+export async function deactivateStaff(
+  deps: { db: Database; clock: Clock; audit: AuditLog },
+  by: Actor,
+  input: { accountId: string; reason: string },
+): Promise<DeactivateStaffResult> {
+  const refusal = staffWriteRefusal(by, "staf.nonaktifkan");
+  if (refusal) return refusal;
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, reason: "alasan_wajib" };
+  if (input.accountId === by.accountId) return { ok: false, reason: "akun_sendiri" };
+
+  return deps.db.transaction(async (tx) => {
+    const [account] = await tx
+      .select({ deactivatedAt: identityUser.deactivatedAt })
+      .from(identityUser)
+      .where(eq(identityUser.id, input.accountId))
+      .for("update");
+    const roles = (await rolesOf(tx, input.accountId)).filter((role): role is StaffRole => role !== "pemesan");
+    if (!account || roles.length === 0) return { ok: false, reason: "bukan_akun_staf" } as const;
+    if (account.deactivatedAt) return { ok: false, reason: "sudah_dinonaktifkan" } as const;
+
+    const now = deps.clock.now();
+    await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
+    await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
+    await deps.audit.record(tx, {
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "staf.nonaktifkan",
+      entity: { kind: "akun", id: input.accountId },
+      before: { deactivated: false, roles },
+      after: { deactivated: true, roles },
+      reason,
+    });
+    return { ok: true } as const;
+  });
+}
+
+/** True when the number's Akun is Dinonaktifkan. */
+export async function isDeactivatedNumber(db: Database, phoneNumber: string): Promise<boolean> {
+  const [row] = await db
+    .select({ deactivatedAt: identityUser.deactivatedAt })
+    .from(identityUser)
+    .where(eq(identityUser.phoneNumber, phoneNumber));
+  return Boolean(row?.deactivatedAt);
 }
 
 /** Every Akun Staf, active or deactivated, oldest first. */
