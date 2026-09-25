@@ -1,3 +1,6 @@
+import type { RequestOtpResult, VerifyOtpResult } from "@/domain/identity";
+import type { GuardError } from "@/server/guard";
+
 /**
  * What the OTP Server Actions hand back to the OTP screen. Shared by Masuk and
  * (later) Kirim in the booking wizards.
@@ -22,8 +25,13 @@ export type OtpVerifyState = { status: "idle" } | { status: "gagal"; message: st
 export const initialOtpRequestState: OtpRequestState = { status: "idle" };
 export const initialOtpVerifyState: OtpVerifyState = { status: "idle" };
 
-/** Bahasa Indonesia for every reason the identity module can refuse. */
-export function otpMessage(reason: string, retryAt?: Date, now?: Date): string {
+type Refusal<T> = T extends { ok: false; reason: infer R } ? R : never;
+
+/** Every reason the identity module's OTP login, or the guard, can refuse. */
+export type OtpRefusal = Refusal<RequestOtpResult> | Refusal<VerifyOtpResult> | GuardError;
+
+/** Bahasa Indonesia for every reason the identity module or the guard can refuse. */
+export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): string {
   const wait = retryAt && now ? waitText(retryAt, now) : "";
   switch (reason) {
     case "nomor_tidak_valid":
@@ -44,11 +52,16 @@ export function otpMessage(reason: string, retryAt?: Date, now?: Date): string {
       return "Kode sudah kedaluwarsa. Kirim ulang untuk mendapat kode baru.";
     case "terlalu_banyak_percobaan":
       return "Terlalu banyak kode salah. Kirim ulang untuk mendapat kode baru.";
+    case "belum_masuk":
+      return "Silakan masuk dulu dengan nomor WhatsApp Anda.";
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
     case "input_tidak_valid":
       return "Periksa lagi isian Anda.";
-    default:
-      return "Terjadi kesalahan. Silakan coba lagi.";
   }
+  // Exhaustive: a new refusal reason fails the typecheck here until it has a message.
+  const unhandled: never = reason;
+  throw new Error(`No message for ${String(unhandled)}`);
 }
 
 function waitText(retryAt: Date, now: Date): string {
