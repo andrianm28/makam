@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeClock, FakeWhatsAppSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
+import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { createIdentity, type Identity } from "./index";
 
@@ -135,6 +136,29 @@ describe("OTP limits", () => {
       expiresAt: wib("2026-10-01 09:10"),
       resendAt: wib("2026-10-01 09:01"),
       fallbackAt: wib("2026-10-01 09:01"),
+    });
+  });
+
+  it("when WhatsApp refuses the OTP the Pemesan is told, and may try again at once", async () => {
+    const clock = new FakeClock(wib("2026-10-01 09:00"));
+    const whatsapp = new FakeWhatsAppSender();
+    let down = true;
+    const flaky: WhatsAppSender = {
+      sendTemplate: async (message) => {
+        if (down) throw new Error("kirim.dev unavailable");
+        return whatsapp.sendTemplate(message);
+      },
+      statusOf: (id) => whatsapp.statusOf(id),
+      replyText: (reply) => whatsapp.replyText(reply),
+    };
+    const identity = createIdentity({ db, clock, whatsapp: flaky, secret: AUTH_SECRET, baseURL: "http://localhost:3000" });
+
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toEqual({ ok: false, reason: "gagal_kirim" });
+
+    down = false;
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: lastCode(whatsapp) })).toMatchObject({
+      ok: true,
     });
   });
 

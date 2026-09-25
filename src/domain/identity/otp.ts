@@ -45,7 +45,7 @@ export type RequestOtpResult =
       /** When the OTP screen shows its fallback slot ("Kirim lewat email", ticket 60). */
       fallbackAt: Date;
     }
-  | { ok: false; reason: "nomor_tidak_valid" }
+  | { ok: false; reason: "nomor_tidak_valid" | "gagal_kirim" }
   | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
@@ -57,7 +57,7 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   const code = generateCode();
   const expiresAt = new Date(now.getTime() + OTP_EXPIRES_AFTER_MS);
 
-  const refused = await deps.db.transaction(async (tx) => {
+  const outcome = await deps.db.transaction(async (tx) => {
     // One request at a time per number, so two quick taps cannot both pass the limits.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:${phoneNumber}`}))`);
     const locked = await lockedUntil(tx, phoneNumber, now);
@@ -83,23 +83,28 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
       const retryAt = new Date(oldestCounted.sentAt.getTime() + OTP_SEND_WINDOW_MS);
       return { ok: false, reason: "terlalu_sering", retryAt } as const;
     }
-    await tx.insert(identityOtpRequest).values({
-      phoneNumber,
-      codeHash: hashCode(deps.secret, phoneNumber, code),
-      sentAt: now,
-      expiresAt,
-    });
-    return null;
+    const [created] = await tx
+      .insert(identityOtpRequest)
+      .values({ phoneNumber, codeHash: hashCode(deps.secret, phoneNumber, code), sentAt: now, expiresAt })
+      .returning({ id: identityOtpRequest.id });
+    return { ok: true, id: created.id } as const;
   });
-  if (refused) return refused;
+  if (!outcome.ok) return outcome;
 
-  await deps.whatsapp.sendTemplate({
-    to: phoneNumber,
-    template: OTP_TEMPLATE,
-    language: OTP_TEMPLATE_LANGUAGE,
-    parameters: [code],
-    copyCode: code,
-  });
+  try {
+    await deps.whatsapp.sendTemplate({
+      to: phoneNumber,
+      template: OTP_TEMPLATE,
+      language: OTP_TEMPLATE_LANGUAGE,
+      parameters: [code],
+      copyCode: code,
+    });
+  } catch {
+    // WhatsApp never took the code, so it does not count against the limits.
+    // An OTP failure raises no Antrean row (spec, Notifications): the Pemesan simply tries again.
+    await deps.db.delete(identityOtpRequest).where(eq(identityOtpRequest.id, outcome.id));
+    return { ok: false, reason: "gagal_kirim" };
+  }
 
   return {
     ok: true,
