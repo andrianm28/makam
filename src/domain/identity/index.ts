@@ -1,7 +1,4 @@
 /**
  * Identity & Access: accounts keyed by one WhatsApp number, OTP, roles, staff invites, sessions.
- *
- * Placeholder from the walking skeleton (ticket 01). The module's public
- * functions and its own tables (in ./schema.ts) arrive with its tickets.
  */
-export {};
+export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
