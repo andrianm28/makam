@@ -2,6 +2,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
 import { initialEmailRequestState } from "@/components/email/state";
+import { kirimKodeLewatEmail } from "@/components/otp/actions";
+import { initialEmailFallbackState } from "@/components/otp/state";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { lastEmailCodeTo } from "../../../tests/support/identity";
 import { browser } from "../../../tests/support/next-request";
@@ -114,6 +116,28 @@ describe("Masuk dengan email (Server Actions)", () => {
     expect(String((thrown as { digest: string }).digest)).toContain("/akun");
     expect(await server.runtime().identity.actorFromCookies(browser.cookieHeader())).toMatchObject({
       phoneNumber: "+6281234567890",
+    });
+  });
+});
+
+describe('"Kirim lewat email" (Server Action)', () => {
+  it("shows gagal kirim when EmailSender refuses, and a retry goes out", async () => {
+    await pemesanWithEmailTerverifikasi("081234567890", "sari@contoh.id");
+    const { identity, adapters } = server.runtime();
+    const email = adapters.email as FakeEmailSender;
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    server.clock.advance({ minutes: 1 });
+
+    email.failNextSend();
+    browser.setHeader("x-real-ip", "203.0.113.50");
+    expect(await kirimKodeLewatEmail(initialEmailFallbackState, form({ phoneNumber: "081234567890" }))).toEqual({
+      status: "gagal",
+      message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
+    });
+
+    browser.setHeader("x-real-ip", "203.0.113.51");
+    expect(await kirimKodeLewatEmail(initialEmailFallbackState, form({ phoneNumber: "081234567890" }))).toMatchObject({
+      status: "terkirim",
     });
   });
 });
