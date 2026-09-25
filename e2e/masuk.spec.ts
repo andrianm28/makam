@@ -67,6 +67,6 @@ test("a wrong OTP is refused on the Masuk screen", async ({ page }) => {
   await page.getByRole("button", { name: "Masuk" }).click();
 
   // "000000" is the real code one time in a million; then this lands on Akun Saya instead.
-  await expect(page.getByRole("alert")).toContainText(/Kode salah/);
+  await expect(page.getByText("Kode salah. Periksa lagi kode di WhatsApp Anda.")).toBeVisible();
   await expect(page).toHaveURL(/\/masuk$/);
 });

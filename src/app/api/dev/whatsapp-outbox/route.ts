@@ -1,7 +1,8 @@
 import { connection } from "next/server";
 import { z } from "zod";
-import { FakeWhatsAppSender } from "@/adapters/memory";
+import type { SentWhatsAppTemplate } from "@/adapters/memory";
 import { usesInMemoryFakes } from "@/lib/env";
+import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { serverRuntime } from "@/server/runtime";
 
 const querySchema = z.object({ to: z.string().regex(/^\+\d{8,15}$/) });
@@ -14,7 +15,7 @@ const querySchema = z.object({ to: z.string().regex(/^\+\d{8,15}$/) });
 export async function GET(request: Request) {
   await connection();
   const { env, adapters } = serverRuntime();
-  if (!usesInMemoryFakes(env.APP_ENV) || !(adapters.whatsapp instanceof FakeWhatsAppSender)) {
+  if (!usesInMemoryFakes(env.APP_ENV) || !isRecordingFake(adapters.whatsapp)) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -25,4 +26,13 @@ export async function GET(request: Request) {
     .filter((message) => message.to === parsed.data.to)
     .map(({ template, parameters, copyCode, messageId }) => ({ template, parameters, copyCode, messageId }));
   return Response.json({ messages });
+}
+
+/**
+ * The in-memory FakeWhatsAppSender, recognised by its record of sends. (Not
+ * `instanceof`: the route and the Server Actions may load separate copies of
+ * the class, while the runtime they share is a single one on globalThis.)
+ */
+function isRecordingFake(sender: WhatsAppSender): sender is WhatsAppSender & { sent: SentWhatsAppTemplate[] } {
+  return "sent" in sender && Array.isArray(sender.sent);
 }
