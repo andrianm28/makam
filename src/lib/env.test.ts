@@ -10,6 +10,13 @@ import {
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
+/** A VAPID key pair (web-push generate-vapid-keys), for staging and production cases. */
+const VAPID = {
+  VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+  VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+  VAPID_SUBJECT: "mailto:ops@makam.co.id",
+};
+
 describe("runtime environment", () => {
   it("reads the migrations folder the image sets", () => {
     const env = readRuntimeEnv({ DATABASE_URL, MIGRATIONS_DIR: "/app/drizzle" });
@@ -33,12 +40,6 @@ describe("runtime environment", () => {
   });
 
   const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
-  /** A VAPID key pair (web-push generate-vapid-keys), for staging and production cases. */
-  const VAPID = {
-    VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
-    VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
-    VAPID_SUBJECT: "mailto:ops@makam.co.id",
-  };
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
   const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
   const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP, ...VAPID };
@@ -166,6 +167,7 @@ describe("EmailSender environment (SumoPod SMTP relay)", () => {
       AUTH_SECRET: "s".repeat(32),
       APP_BASE_URL: "https://makam.co.id",
       TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+      ...VAPID,
       ...LIVE_SMTP,
     });
     expect(env.smtp).toMatchObject({ user: "v1-user", from: { address: "no-reply@makam.co.id" } });
