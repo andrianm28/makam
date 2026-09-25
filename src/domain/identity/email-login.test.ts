@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { FakeWhatsAppSender } from "@/adapters/memory";
+import { PortNotConfiguredError } from "@/adapters/live/not-configured";
+import { FakeEmailSender, type FakeWhatsAppSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, emailCodeTo, identityOnTestDatabase, logInByOtp } from "../../../tests/support/identity";
@@ -111,6 +112,44 @@ describe("Masuk dengan email", () => {
 function otherCode(code: string): string {
   return code === "000000" ? "111111" : "000000";
 }
+
+describe("when EmailSender refuses (staging and production until ticket 68)", () => {
+  it("the email step still gives the same reply, the failure counts against no limit, and it is reported without the address or code", async () => {
+    const fake = new FakeEmailSender();
+    let down = true;
+    const reported: string[] = [];
+    const setup = identityOnTestDatabase(db, {
+      email: {
+        send: async (message) => {
+          if (down) throw new PortNotConfiguredError("EmailSender (SumoPod SMTP)");
+          return fake.send(message);
+        },
+      },
+      reportError: (event, error) => reported.push(`${event} ${String(error)}`),
+    });
+    const { identity, whatsapp, clock } = setup;
+    // Verified while the sender still worked.
+    down = false;
+    const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
+    await identity.requestEmailVerification(await actorOf(identity, cookies), { email: "sari@contoh.id", ip: IP });
+    await identity.confirmEmailVerification(await actorOf(identity, cookies), { code: emailCodeTo(fake, "sari@contoh.id") });
+    clock.advance({ minutes: 1 });
+    down = true;
+
+    expect(await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP })).toEqual({
+      ok: true,
+      email: "sari@contoh.id",
+      resendAt: new Date(clock.now().getTime() + 60_000),
+    });
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toContain("PortNotConfiguredError");
+    expect(reported[0]).not.toContain("sari@contoh.id");
+
+    down = false;
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.6" });
+    expect(fake.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
+  });
+});
 
 describe("lockout per Akun across channels (decision Q10)", () => {
   it("10 wrong Kode Masuk in 60 minutes by WhatsApp and email together lock the Akun for 60 minutes on both channels", async () => {

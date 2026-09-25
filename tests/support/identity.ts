@@ -14,7 +14,7 @@ export const TEST_TOTP_KEY = Buffer.alloc(32, 7).toString("base64");
 /** The identity module on the test Postgres with the fake Clock and in-memory fakes. */
 export function identityOnTestDatabase(
   db: Database,
-  options: { files?: FileStore; email?: EmailSender } = {},
+  options: { files?: FileStore; email?: EmailSender; reportError?: (event: string, error: unknown) => void } = {},
 ) {
   const clock = new FakeClock(wib("2026-10-01 09:00"));
   const whatsapp = new FakeWhatsAppSender();
@@ -32,6 +32,7 @@ export function identityOnTestDatabase(
     secret: TEST_AUTH_SECRET,
     totpEncryptionKey: TEST_TOTP_KEY,
     baseURL: "http://localhost:3000",
+    reportError: options.reportError ?? (() => {}),
   });
   return { clock, whatsapp, email: fakeEmail, files: fakeFiles, audit, identity };
 }

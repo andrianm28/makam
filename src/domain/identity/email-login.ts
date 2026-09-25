@@ -9,6 +9,7 @@ import { normaliseEmail } from "./staff";
 
 export interface EmailLoginDeps extends LoginDeps {
   email: EmailSender;
+  reportError: (event: string, error: unknown) => void;
 }
 
 /**
@@ -37,11 +38,14 @@ export async function requestEmailLogin(
 
   const akun = await akunOfVerifiedEmail(deps.db, email);
   if (akun) {
-    await issueCode(
+    const issued = await issueCode(
       deps,
       { channel: "email", target: email, purpose: "masuk", lockKey: akunLockKey(akun.id) },
       (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
     );
+    // Not counted against the limits (issueCode), and not shown: saying "gagal kirim" here would tell
+    // anyone that this email is an Email Terverifikasi.
+    if (!issued.ok && issued.reason === "gagal_kirim") deps.reportError("email Kode Masuk tidak terkirim", issued.error);
   }
   return { ok: true, email, resendAt: new Date(now.getTime() + OTP_RESEND_AFTER_MS) };
 }

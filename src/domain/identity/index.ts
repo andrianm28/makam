@@ -103,6 +103,17 @@ export interface IdentityDeps {
   totpEncryptionKey: string;
   /** The site's own origin, e.g. https://makam.co.id. */
   baseURL: string;
+  /**
+   * Reports a failure the caller is not told about (an email Kode Masuk that
+   * could not be sent, behind the same reply as a sent one). Gets no address
+   * and no code. Default: the event and the error's name on stderr.
+   */
+  reportError?: (event: string, error: unknown) => void;
+}
+
+function reportToStderr(event: string, error: unknown): void {
+  // The name only: an SMTP error message may quote the recipient.
+  console.error(`[identity] ${event}: ${error instanceof Error ? error.name : typeof error}`);
 }
 
 export interface Identity {
@@ -166,6 +177,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     consumeLoginProof: (phoneNumber, proof) => proofs.consume(phoneNumber, proof),
   });
   const login = { auth, db: deps.db, clock: deps.clock, audit: deps.audit, secret: deps.secret, proofs };
+  const emailLogin = { ...login, email: deps.email, reportError: deps.reportError ?? reportToStderr };
 
   return {
     requestOtp: (input) => requestOtp(deps, input),
@@ -183,8 +195,8 @@ export function createIdentity(deps: IdentityDeps): Identity {
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
     passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
-    requestEmailLogin: (input) => requestEmailLogin({ ...login, email: deps.email }, input),
-    verifyEmailLogin: (input) => verifyEmailLogin({ ...login, email: deps.email }, input),
+    requestEmailLogin: (input) => requestEmailLogin(emailLogin, input),
+    verifyEmailLogin: (input) => verifyEmailLogin(emailLogin, input),
     accountEmail: (by) => accountEmail(deps, by),
     saveEmail: (by, input) => saveEmail(deps, by, input),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
