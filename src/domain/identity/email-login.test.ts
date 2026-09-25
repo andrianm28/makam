@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { FakeWhatsAppSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, emailCodeTo, identityOnTestDatabase, logInByOtp } from "../../../tests/support/identity";
@@ -109,6 +110,62 @@ describe("Masuk dengan email", () => {
 /** A code that is certainly not `code`. */
 function otherCode(code: string): string {
   return code === "000000" ? "111111" : "000000";
+}
+
+describe("lockout per Akun across channels (decision Q10)", () => {
+  it("10 wrong Kode Masuk in 60 minutes by WhatsApp and email together lock the Akun for 60 minutes on both channels", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email, clock } = setup;
+    await pemesanWithEmailTerverifikasi(setup);
+
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const whatsappCode = lastWhatsAppCode(whatsapp);
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(whatsappCode) });
+    }
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP });
+    const emailCode = emailCodeTo(email, "sari@contoh.id");
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      await identity.verifyEmailLogin({ email: "sari@contoh.id", code: otherCode(emailCode) });
+    }
+    clock.advance({ minutes: 1 });
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const openCode = lastWhatsAppCode(whatsapp);
+    await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(openCode) });
+    const lockedAt = clock.now();
+
+    expect(await identity.verifyEmailLogin({ email: "sari@contoh.id", code: otherCode(emailCode) })).toEqual({
+      ok: false,
+      reason: "terkunci",
+      retryAt: new Date(lockedAt.getTime() + 60 * 60_000),
+    });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: openCode })).toMatchObject({
+      ok: false,
+      reason: "terkunci",
+    });
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: false, reason: "terkunci" });
+    // A locked-out email gets the same reply as any other, and no code.
+    const sends = email.sent.length;
+    clock.advance({ minutes: 2 });
+    expect(await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.4" })).toEqual({
+      ok: true,
+      email: "sari@contoh.id",
+      resendAt: new Date(clock.now().getTime() + 60_000),
+    });
+    expect(email.sent).toHaveLength(sends);
+
+    clock.set(new Date(lockedAt.getTime() + 60 * 60_000));
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.5" });
+    expect(
+      await identity.verifyEmailLogin({ email: "sari@contoh.id", code: emailCodeTo(email, "sari@contoh.id") }),
+    ).toMatchObject({ ok: true });
+  });
+});
+
+function lastWhatsAppCode(whatsapp: FakeWhatsAppSender): string {
+  const code = whatsapp.sent.at(-1)?.copyCode;
+  if (!code) throw new Error("no WhatsApp code was sent");
+  return code;
 }
 
 describe("email Kode Masuk rules (the WhatsApp values)", () => {

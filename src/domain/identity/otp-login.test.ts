@@ -228,7 +228,9 @@ describe("OTP limits", () => {
     expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
   });
 
-  it("10 wrong codes within 60 minutes lock the number for 60 minutes: no OTP is sent and no code accepted", async () => {
+  // A number with no Akun yet is locked by itself; once it has an Akun, the lock is the Akun's across
+  // WhatsApp and email (decision Q10, ticket 67: email-login.test.ts, "lockout per Akun across channels").
+  it("10 wrong codes within 60 minutes lock a number with no Akun yet for 60 minutes: no OTP is sent and no code accepted", async () => {
     const { clock, whatsapp, identity } = setup();
     const wrongTimes = async (times: number) => {
       const code = lastCode(whatsapp);
