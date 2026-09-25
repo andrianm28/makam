@@ -4,6 +4,8 @@ Type: grilling
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Which channel carries each message the platform sends (WhatsApp, SMS, email, in-app), and through which provider? Messages include: login / Pemegang Hak OTP, Tagihan, Bukti Pembayaran and the other Bukti documents, payment links and reminders before the due date, Perpanjangan reminders before a Hak Pakai expires, Layanan photo reports, new-job alerts to Admin Lokasi (incl. after-hours Saat Duka), Petugas YIEM and Mitra Jasa, and Pencairan notices to partners. Official WhatsApp Business API (direct Meta Cloud API vs an Indonesian BSP) or an unofficial gateway, what happens when a WhatsApp message fails, and who pays per message.

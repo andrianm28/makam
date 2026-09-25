@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 01, 03
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Given the regulation research and YIEM's nazhir status: what exactly does the platform do for Wakaf Tanah in v1 (intake form, uploading documents, statuses shown to the applicant, who reviews it), and where is the line to the offline process? Is YIEM the nazhir receiving the land or only a facilitator?

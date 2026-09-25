@@ -4,6 +4,8 @@ Type: research
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Which Indonesian payment gateways (at least Xendit, Midtrans, DOKU) support split payments or sub-accounts (the platform collects, then pays out to each Lokasi operator), recurring billing (for recurring Paket Layanan), VA/QRIS/e-wallet methods, and onboarding a **yayasan** as the merchant? Compare fees, settlement times, KYC requirements for yayasan and for sub-merchants, and API quality for a solo developer.

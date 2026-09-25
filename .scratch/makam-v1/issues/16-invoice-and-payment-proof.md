@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 05, 08
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 YIEM is the seller of record for every order, and the brief requires an invoice to be issued at checkout and "bukti pembayaran" after payment. What does the Pemesan receive and when: one invoice per order, or separate ones for Petak Makam / Layanan / Pengurusan? Which lines does it show (Lokasi Mitra tariff, Biaya Layanan Platform, Pemda retribusi at cost, harga khusus), in whose name is it issued, and is it the same document as the booking proof (Bukti Booking) and the proof of Perpanjangan? What does a Lokasi Mitra or Mitra Jasa get as a record of each Pencairan?

@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 04
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 A burial often has to happen within 24 hours. What is the commitment time from booking to a confirmed Petak Makam, which documents must be uploaded before versus brought on the day, what happens outside working hours, and do we need a hold on the Petak Makam before payment?

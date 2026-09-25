@@ -4,6 +4,8 @@ Type: research
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Under UU 41/2004, PP 42/2006 and BWI regulations: what does wakaf of land for a cemetery legally require (AIW/PPAIW at KUA, land certificate, nazhir registration)? Can a platform or yayasan that is **not** the nazhir facilitate it, and what can it say or do? What differs between 'wakaf sosial' and 'wakaf keluarga' (wakaf ahli)? Can wakaf land be managed commercially (wakaf produktif) for burial plots? Which steps in the concept doc's six-step flow can be digital and which must be in person?

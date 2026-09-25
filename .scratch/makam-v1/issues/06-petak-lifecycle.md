@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 01, 04
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 What states does a Petak Makam pass through (e.g. tersedia → dipesan → terisi → masa berlaku habis → diperpanjang / dikosongkan), how do Pemesanan Saat Duka and Pemesanan Terencana move it between them, how is tenure counted, and how are tumpang (layered) burials and Petak Makam belonging to families modelled?

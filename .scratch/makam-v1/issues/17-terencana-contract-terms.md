@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 06
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 What does the platform promise and enforce for a paid Pemesanan Terencana before anyone is buried? Can the Pemesan cancel and get a refund (and does the answer change with time, or after YIEM's Pencairan to the Lokasi Mitra)? Can the right be transferred to someone else before use, with which documents and fee (per Lokasi)? Can the Calon Penghuni be changed? What happens when the Calon Penghuni dies and is buried elsewhere: does the Hak Pakai stay, can it be resold or returned to the Lokasi?

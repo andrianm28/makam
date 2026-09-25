@@ -4,6 +4,8 @@ Type: grilling
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 How is the catalog structured: is a Layanan's price set per Lokasi by the Admin Lokasi, or globally by Admin YIEM? Is a Paket Layanan a one-off bundle or a recurring subscription (monthly/yearly)? What proves a Layanan is done (a mandatory photo/video report)? Can a Layanan be ordered for any Petak Makam, or only ones managed on the platform?

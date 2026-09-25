@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 02
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Which stack and hosting (e.g. Next.js + Postgres on a managed platform, Laravel, or a BaaS such as Supabase) best fits one engineer working with AI agents, Indonesian hosting and data-residency needs, and the chosen payment gateway's SDK?

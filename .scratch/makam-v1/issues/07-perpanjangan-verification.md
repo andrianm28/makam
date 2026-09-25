@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 01, 06
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 When someone enters a Nomor Makam or the Almarhum's details, how does the platform prove they are the Pemegang Hak (documents uploaded, checked by Admin Lokasi, matched against imported records)? What if there is no Pemegang Hak on record, or it has passed to an heir?

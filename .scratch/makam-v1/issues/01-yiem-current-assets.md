@@ -4,6 +4,8 @@ Type: task
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 HITL: the user supplies facts only they know. (1) Which Lokasi Makam does YIEM manage or have signed partners for today, and in which cities? Roughly how many Petak Makam each? (2) Is YIEM a nazhir registered with BWI, or does it plan to become one? (3) How does each Lokasi keep its plot and Pemegang Hak records today (paper, Excel, an existing system)? (4) Current official tariffs for booking and Perpanjangan at those Lokasi. Record the answers; later tickets rely on them.

@@ -5,6 +5,8 @@ Status: resolved
 Blocked by: 01, 02, 14
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 Who receives the Pemesan's payment (YIEM, then paid out to the Lokasi operator; or the operator directly), and how does YIEM earn (commission per transaction, markup on Layanan, subscription for operators, or no fee because it is a social mission)? Who is the seller of record, and who handles refunds?

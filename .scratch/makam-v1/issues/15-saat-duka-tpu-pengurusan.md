@@ -4,6 +4,8 @@ Type: grilling
 Status: resolved
 Map: ../map.md
 
+> **Amended by [Operator entity: PT Jaya Korpora Prima and YIEM's role](20-operator-entity.md)** (2026-09-25): read "YIEM" as the Operator (PT Jaya Korpora Prima), "Admin YIEM" as Admin Platform and "Petugas YIEM" as Petugas Lapangan. YIEM itself has left the product.
+
 ## Question
 
 When a family asks makam.co.id to arrange a burial at a DKI TPU (Pengurusan), how does the flow in [concept.md](../concept.md) (Cari Lokasi → Pilih Makam → Isi Data → Konfirmasi → Pembayaran → Bukti) adapt, given that the TPU assigns the plot and the permit is filed on JakEVO (1 working day, government fee Rp 0)?
