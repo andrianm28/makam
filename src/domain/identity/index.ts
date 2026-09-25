@@ -17,6 +17,7 @@ import type { Actor, StaffRole } from "./authorize";
 import { createBetterAuth, OtpRejected } from "./better-auth";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
+import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
 import {
@@ -36,6 +37,7 @@ export type { PassTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
+export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 export { staffRoleLabels, type InviteStaffResult, type StaffInvite } from "./invites";
 export {
   akunResource,
@@ -91,6 +93,8 @@ export interface Identity {
   ): Promise<InviteStaffResult>;
   /** Admin Platform deactivates an Akun Staf (Dinonaktifkan): sessions end, login blocked, history kept; audited. */
   deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
+  /** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check (FileStore), audited. */
+  moveAccountToNewNumber(by: Actor, input: MoveAccountInput): Promise<MoveAccountResult>;
   /** Every Undangan Staf not yet accepted and not expired. */
   openStaffInvites(): Promise<StaffInvite[]>;
   /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform. */
@@ -122,6 +126,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
     openStaffInvites: () => openStaffInvites(deps),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
+    moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
     startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
     passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
   };

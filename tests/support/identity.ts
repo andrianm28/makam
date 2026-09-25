@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import { createAuditLog } from "@/domain/audit";
 import { createIdentity, type Identity } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
+import type { FileStore } from "@/ports/file-store";
 import { authenticatorCode } from "./totp";
 
 export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef";
@@ -10,10 +11,11 @@ export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef
 export const TEST_TOTP_KEY = Buffer.alloc(32, 7).toString("base64");
 
 /** The identity module on the test Postgres with the fake Clock and in-memory fakes. */
-export function identityOnTestDatabase(db: Database, start = wib("2026-10-01 09:00")) {
-  const clock = new FakeClock(start);
+export function identityOnTestDatabase(db: Database, options: { files?: FileStore } = {}) {
+  const clock = new FakeClock(wib("2026-10-01 09:00"));
   const whatsapp = new FakeWhatsAppSender();
-  const files = new FakeFileStore({ clock });
+  const fakeFiles = new FakeFileStore({ clock });
+  const files = options.files ?? fakeFiles;
   const audit = createAuditLog({ db, clock });
   const identity = createIdentity({
     db,
@@ -25,7 +27,7 @@ export function identityOnTestDatabase(db: Database, start = wib("2026-10-01 09:
     totpEncryptionKey: TEST_TOTP_KEY,
     baseURL: "http://localhost:3000",
   });
-  return { clock, whatsapp, files, audit, identity };
+  return { clock, whatsapp, files: fakeFiles, audit, identity };
 }
 
 /**
