@@ -51,7 +51,7 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   return { ok: true, phoneNumber, sentAt: now, expiresAt };
 }
 
-export type CheckCodeResult = { ok: true } | { ok: false; reason: "kode_salah" };
+export type CheckCodeResult = { ok: true } | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" };
 
 /** Checks a typed code against the number's open OTP; a correct code is used up. */
 export async function checkCode(
@@ -65,6 +65,7 @@ export async function checkCode(
     .where(and(eq(identityOtpRequest.phoneNumber, input.phoneNumber), isNull(identityOtpRequest.closedAt)))
     .orderBy(desc(identityOtpRequest.sentAt))
     .limit(1);
+  if (open && open.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "kode_kedaluwarsa" };
   if (!open || open.codeHash !== hashCode(deps.secret, input.phoneNumber, input.code)) {
     return { ok: false, reason: "kode_salah" };
   }

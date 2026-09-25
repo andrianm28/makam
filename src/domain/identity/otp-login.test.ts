@@ -77,6 +77,30 @@ describe("OTP limits", () => {
     expect(login).toEqual({ ok: false, reason: "kode_salah" });
     expect(await identity.accountByPhoneNumber("081234567890")).toBeNull();
   });
+
+  it("a code expires 10 minutes after it was sent", async () => {
+    const { clock, whatsapp, identity } = setup();
+    const sent = await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+    expect(sent).toMatchObject({ ok: true, expiresAt: wib("2026-10-01 09:10") });
+
+    clock.set(wib("2026-10-01 09:10"));
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toEqual({
+      ok: false,
+      reason: "kode_kedaluwarsa",
+    });
+  });
+
+  it("a code still works just before its 10 minutes are up", async () => {
+    const { clock, whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    clock.set(wib("2026-10-01 09:09:59"));
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: lastCode(whatsapp) })).toMatchObject({
+      ok: true,
+    });
+  });
 });
 
 describe("Pemesan session", () => {
