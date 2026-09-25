@@ -19,9 +19,17 @@ export const auditEntry = pgTable(
     action: text("action").notNull(),
     entityKind: text("entity_kind").notNull(),
     entityId: text("entity_id").notNull(),
+    /**
+     * The Lokasi Mitra the write belongs to, when it belongs to one (set by
+     * the writing module), so the Admin Lokasi view can be queried by Lokasi.
+     */
+    lokasiId: text("lokasi_id"),
     before: jsonb("before"),
     after: jsonb("after"),
     reason: text("reason"),
   },
-  (table) => [index("audit_entry_entity_idx").on(table.entityKind, table.entityId, table.at, table.seq)],
+  (table) => [
+    index("audit_entry_entity_idx").on(table.entityKind, table.entityId, table.at, table.seq),
+    index("audit_entry_lokasi_idx").on(table.lokasiId, table.at, table.seq),
+  ],
 );

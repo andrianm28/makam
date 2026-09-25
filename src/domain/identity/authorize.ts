@@ -80,6 +80,7 @@ export type Resource =
   | { kind: "menu_staf"; role: StaffRole }
   | { kind: "audit_log" }
   | { kind: "pengaturan_operator" }
+  | { kind: "audit_log_lokasi"; lokasiId: string }
   | { kind: "lokasi_mitra_semua" }
   | { kind: "lokasi_mitra"; lokasiId: string };
 
@@ -98,7 +99,7 @@ export function stafMenuResource(role: StaffRole): Resource {
   return { kind: "menu_staf", role };
 }
 
-/** The whole Audit Log. The Lokasi-scoped view for Admin Lokasi is ticket 10. */
+/** The whole Audit Log (Admin Platform only). */
 export function auditLogResource(): Resource {
   return { kind: "audit_log" };
 }
@@ -106,6 +107,14 @@ export function auditLogResource(): Resource {
 /** Pengaturan Operator: the Operator's own reference values. */
 export function pengaturanOperatorResource(): Resource {
   return { kind: "pengaturan_operator" };
+}
+
+/**
+ * One Lokasi Mitra's Audit Log, as its Admin Lokasi see it (without Catatan
+ * Internal and Antrean claims): Admin Platform and that Lokasi's Admin Lokasi.
+ */
+export function auditLogLokasiResource(lokasiId: string): Resource {
+  return { kind: "audit_log_lokasi", lokasiId };
 }
 
 /** Every Lokasi Mitra (onboarding a new one, the Admin Platform list). */
@@ -174,7 +183,6 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "staf.undang":
     case "staf.nonaktifkan":
     case "akun.pindah_nomor":
-    case "audit.lihat":
     case "lokasi.buat":
       return holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.lihat":
@@ -182,6 +190,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.ubah":
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
+    case "audit.lihat":
+      if (holds("admin_platform")) return allowed;
+      // Mitra Jasa and Petugas Lapangan never see the Audit Log; an Admin Lokasi sees only its own Lokasi's view.
+      return resource.kind === "audit_log_lokasi" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
     case "lokasi.lihat":
       // Admin Platform sees every Lokasi Mitra; an Admin Lokasi only the Lokasi it is Admin Lokasi of.
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))

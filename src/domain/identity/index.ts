@@ -87,6 +87,7 @@ export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } fr
 export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
+  auditLogLokasiResource,
   auditLogResource,
   authorize,
   lokasiMitraResource,

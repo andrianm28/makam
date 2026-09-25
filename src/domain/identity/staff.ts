@@ -95,6 +95,7 @@ export async function removeAdminLokasi(
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.lepas_admin_lokasi",
       entity: { kind: "akun", id: input.accountId },
+      lokasiId: input.lokasiId,
       before: { lokasiIds: before },
       after: { lokasiIds: before.filter((lokasiId) => lokasiId !== input.lokasiId) },
       reason,

@@ -111,6 +111,7 @@ export async function inviteStaff(
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.undang",
       entity: { kind: "undangan_staf", id: created.id },
+      lokasiId,
       before: null,
       after: { phoneNumber, email, role: input.role, ...(lokasiId ? { lokasiId } : {}), expiresAt: expiresAt.toISOString() },
       reason: input.reason?.trim() || null,
@@ -225,6 +226,7 @@ export async function acceptOpenInvites(
         actor: { accountId: account.id, role: "pemesan" },
         action: "staf.peran_diberikan",
         entity: { kind: "akun", id: account.id },
+        lokasiId: invite.lokasiId,
         before: { roles, email },
         after: {
           roles: granted,

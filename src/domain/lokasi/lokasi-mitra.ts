@@ -111,6 +111,7 @@ export async function createLokasiMitra(
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "lokasi.buat",
       entity: { kind: "lokasi_mitra", id: created.id },
+      lokasiId: created.id,
       before: null,
       after: {
         name: created.name,
@@ -281,6 +282,7 @@ async function writeLokasiMitra(
       actor: { accountId: by.accountId, role: "admin_platform" },
       action,
       entity: { kind: "lokasi_mitra", id: lokasiId },
+      lokasiId,
       before,
       after,
       reason: reason ?? null,

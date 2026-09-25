@@ -37,7 +37,9 @@ import {
   type WriteResult,
 } from "./lokasi-mitra";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
+import { lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
 
+export type { LokasiAuditLogResult } from "./audit-view";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
 export {
@@ -109,6 +111,8 @@ export interface Lokasi {
   allLokasiMitra(by: Actor): Promise<LokasiMitraSummary[]>;
   /** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */
   lokasiMitraOfAdminLokasi(by: Actor): Promise<LokasiMitraSummary[]>;
+  /** This Lokasi Mitra's Audit Log for its Admin Lokasi (and Admin Platform), without Catatan Internal and Antrean claims. */
+  auditLog(by: Actor, lokasiId: string): Promise<LokasiAuditLogResult>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -123,5 +127,6 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     removeAdminLokasi: (by, lokasiId, input) => removeAdminLokasiFromLokasi(deps, by, lokasiId, input),
     allLokasiMitra: (by) => allLokasiMitra(deps, by),
     lokasiMitraOfAdminLokasi: (by) => lokasiMitraOfAdminLokasi(deps, by),
+    auditLog: (by, lokasiId) => lokasiAuditLog(deps, by, lokasiId),
   };
 }
