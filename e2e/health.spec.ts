@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("/health shows the database OK and a fresh worker heartbeat", async ({ page }) => {
+  // The first heartbeat lands at the next minute boundary after the worker starts (up to ~90 s).
+  test.setTimeout(120_000);
   // The worker's first heartbeat lands at the next minute boundary after start,
   // so allow a freshly started stack up to 90 s to report it.
   await expect(async () => {
