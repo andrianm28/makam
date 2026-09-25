@@ -3,7 +3,13 @@ import { PortNotConfiguredError } from "@/adapters/live/not-configured";
 import { FakeEmailSender, type FakeWhatsAppSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, emailCodeTo, identityOnTestDatabase, logInByOtp } from "../../../tests/support/identity";
+import {
+  actorOf,
+  emailCodeTo,
+  identityOnTestDatabase,
+  logInByOtp,
+  signedInAdminPlatform,
+} from "../../../tests/support/identity";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -112,6 +118,116 @@ describe("Masuk dengan email", () => {
 function otherCode(code: string): string {
   return code === "000000" ? "111111" : "000000";
 }
+
+/** Verifikasi Email for a signed-in actor, then 1 minute on so the next send to the address is allowed. */
+async function verifyEmailOf(setup: ReturnType<typeof identityOnTestDatabase>, cookies: string, address: string) {
+  const { identity, email, clock } = setup;
+  const sent = await identity.requestEmailVerification(await actorOf(identity, cookies), { email: address, ip: IP });
+  if (!sent.ok) throw new Error(`Verifikasi Email not sent: ${sent.reason}`);
+  const confirmed = await identity.confirmEmailVerification(await actorOf(identity, cookies), {
+    code: emailCodeTo(email, address),
+  });
+  if (!confirmed.ok) throw new Error(`Verifikasi Email refused: ${confirmed.reason}`);
+  clock.advance({ minutes: 1 });
+}
+
+async function logInByEmail(setup: ReturnType<typeof identityOnTestDatabase>, address: string, ip = "198.51.100.20") {
+  const { identity, email } = setup;
+  const before = email.sent.length;
+  await identity.requestEmailLogin({ email: address, ip });
+  if (email.sent.length === before) throw new Error(`no Kode Masuk was emailed to ${address}`);
+  const login = await identity.verifyEmailLogin({ email: address, code: emailCodeTo(email, address) });
+  if (!login.ok) throw new Error(`email login failed: ${login.reason}`);
+  return { login, cookies: cookieHeader(login.session.cookies) };
+}
+
+describe("staff log in by email", () => {
+  it.each(["admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const)(
+    "a %s with an Email Terverifikasi logs in by email with its roles and the 30-day staff session, no TOTP",
+    async (role) => {
+      const setup = identityOnTestDatabase(db);
+      const { identity, whatsapp, clock } = setup;
+      const { actor: admin } = await signedInAdminPlatform(setup);
+      await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });
+      const byWhatsApp = await logInByOtp(identity, whatsapp, "082222222222");
+      await verifyEmailOf(setup, byWhatsApp.cookies, "staf@contoh.id");
+      const loggedInAt = clock.now();
+
+      const { login, cookies } = await logInByEmail(setup, "staf@contoh.id");
+
+      expect(login.roles).toEqual(["pemesan", role]);
+      expect(login.session.expiresAt).toEqual(new Date(loggedInAt.getTime() + 30 * 86_400_000));
+      expect(await identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", role], totp: "tidak_perlu" });
+    },
+  );
+
+  it("an Admin Platform who logs in by email must still pass TOTP, and the session lasts 12 hours", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, clock } = setup;
+    const { cookies: whatsappSession } = await signedInAdminPlatform(setup);
+    await verifyEmailOf(setup, whatsappSession, "admin@makam.co.id");
+    const loggedInAt = clock.now();
+
+    const { login, cookies } = await logInByEmail(setup, "admin@makam.co.id");
+
+    expect(login.session.expiresAt).toEqual(new Date(loggedInAt.getTime() + 12 * 3_600_000));
+    expect(await identity.actorFromCookies(cookies)).toMatchObject({
+      roles: ["pemesan", "admin_platform"],
+      totp: "perlu_verifikasi",
+    });
+  });
+
+  it("open Undangan Staf for the Akun's number are accepted on an email login, audited, and the Akun's other sessions end", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, audit } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const { account, cookies: otherDevice } = await pemesanWithEmailTerverifikasi(setup, "082222222222", "sari@contoh.id");
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "sari@contoh.id", role: "mitra_jasa" });
+
+    const { login, cookies } = await logInByEmail(setup, "sari@contoh.id");
+
+    expect(login.roles).toEqual(["pemesan", "mitra_jasa"]);
+    expect(await identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", "mitra_jasa"] });
+    expect(await identity.actorFromCookies(otherDevice)).toBeNull();
+    expect(await audit.entriesAbout({ kind: "akun", id: account.id })).toContainEqual(
+      expect.objectContaining({
+        action: "staf.peran_diberikan",
+        actor: { accountId: account.id, role: "pemesan" },
+        after: expect.objectContaining({ roles: ["mitra_jasa"] }),
+      }),
+    );
+  });
+});
+
+describe("the email of an Undangan Staf", () => {
+  it("is not an Email Terverifikasi until the staff member verifies it: no Kode Masuk goes to it before", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi" });
+    const { cookies } = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(await identity.accountEmail(await actorOf(identity, cookies))).toEqual({ email: "staf@contoh.id", verified: false });
+    await identity.requestEmailLogin({ email: "staf@contoh.id", ip: IP });
+    expect(email.sent).toEqual([]);
+
+    await verifyEmailOf(setup, cookies, "staf@contoh.id");
+    expect(await identity.accountEmail(await actorOf(identity, cookies))).toEqual({ email: "staf@contoh.id", verified: true });
+    await logInByEmail(setup, "staf@contoh.id");
+  });
+
+  it("never replaces an Email Terverifikasi the Akun already has", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const { actor } = await pemesanWithEmailTerverifikasi(setup, "082222222222", "sari@contoh.id");
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "kerja@contoh.id", role: "mitra_jasa" });
+
+    await logInByEmail(setup, "sari@contoh.id");
+
+    expect(await identity.accountEmail(actor)).toEqual({ email: "sari@contoh.id", verified: true });
+  });
+});
 
 describe("when EmailSender refuses (staging and production until ticket 68)", () => {
   it("the email step still gives the same reply, the failure counts against no limit, and it is reported without the address or code", async () => {
