@@ -116,8 +116,9 @@ async function latest(db: Database, where?: SQL): Promise<OperatorSettingsValues
 }
 
 /** The values as an Entri Audit keeps them; the entry's own time is when they came into force. */
-function auditSnapshot({ inForceFrom: _inForceFrom, ...values }: OperatorSettingsValues): AuditSnapshot {
-  return values;
+function auditSnapshot(settings: OperatorSettingsValues): AuditSnapshot {
+  const { legalName, address, phone, email, csWhatsApp, csReplyHours } = settings;
+  return { legalName, address, phone, email, csWhatsApp, csReplyHours };
 }
 
 function toValues(row: typeof operatorSettingsVersion.$inferSelect): OperatorSettingsValues {
