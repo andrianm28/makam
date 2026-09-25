@@ -1,31 +1,38 @@
 # The v1 app on the Jakarta VPS (ADR 0002): own Postgres, own network, resource
-# limits per service. One file for both host environments:
+# limits per service.
 #
-#   makam-staging  dev.makam.co.id  (ticket 07, live now)
-#   makam-prod     makam.co.id      (ticket 65)
+# NOT production-only, despite the filename. This one file runs every host
+# environment, and the env file decides which one:
 #
-# Never run by hand without `-p` and `--env-file`: the host deploy script
-# (deploy/bin/makam-deploy, see docs/ops/runbook.md) does
+#   project        env file                          APP_ENV     site
+#   makam-staging  /opt/makam-v1/staging/staging.env  staging     dev.makam.co.id (ticket 07, live)
+#   makam-prod     /opt/makam-v1/prod/prod.env        production  makam.co.id (ticket 65)
+#
+# Nothing here defaults to production. MAKAM_PROJECT, MAKAM_APP_ENV,
+# MAKAM_ENV_FILE, MAKAM_WEB_PORT and MAKAM_TAG have no default, so a command
+# without the env files fails instead of silently becoming makam-prod. The
+# host deploy script (deploy/bin/makam-deploy, see docs/ops/runbook.md) does
 #
 #   docker pull ghcr.io/andrianm28/makam:sha-<commit>
-#   docker compose -p makam-staging -f compose.yml --env-file staging.env run --rm migrate
+#   docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env run --rm migrate
 #                                            # must succeed, or nothing restarts
 #   docker compose ... up -d --wait
 #
 # The env file (on the host only, mode 0600, never committed) supplies both the
 # interpolation variables below and, through MAKAM_ENV_FILE, the app's runtime
-# env: POSTGRES_PASSWORD, DATABASE_URL, AUTH_SECRET, APP_BASE_URL
-# (https://dev.makam.co.id / https://makam.co.id), SENTRY_DSN, MAKAM_APP_ENV,
-# MAKAM_WEB_PORT, ...
-name: makam-prod
+# env: MAKAM_PROJECT, MAKAM_APP_ENV, MAKAM_ENV_FILE, MAKAM_WEB_PORT,
+# POSTGRES_PASSWORD, DATABASE_URL, AUTH_SECRET, APP_BASE_URL
+# (https://dev.makam.co.id / https://makam.co.id), SENTRY_DSN, ...
+# deployed.env (written by the deploy script) supplies MAKAM_TAG and MAKAM_RELEASE.
+name: ${MAKAM_PROJECT:?set MAKAM_PROJECT (makam-staging or makam-prod) in the env file}
 
 x-app: &app
   # MAKAM_TAG is set by the deploy script (sha-<commit>), so a deploy and a
   # rollback both name an exact image.
-  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}:${MAKAM_TAG:-latest}
-  env_file: ${MAKAM_ENV_FILE:-.env.prod}
+  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}:${MAKAM_TAG:?set MAKAM_TAG (deployed.env, or makam-deploy --tag)}
+  env_file: ${MAKAM_ENV_FILE:?set MAKAM_ENV_FILE}
   environment:
-    APP_ENV: ${MAKAM_APP_ENV:-production}
+    APP_ENV: ${MAKAM_APP_ENV:?set MAKAM_APP_ENV}
     SENTRY_RELEASE: ${MAKAM_RELEASE:-}
     TZ: Asia/Jakarta
   restart: unless-stopped
@@ -37,7 +44,8 @@ x-app: &app
 
 services:
   postgres:
-    image: postgres:18
+    # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2), the image running since 2026-09-25.
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
     restart: unless-stopped
     environment:
       POSTGRES_USER: makam
@@ -82,7 +90,7 @@ services:
     command: ["node", "server.js"]
     ports:
       # Behind the host's reverse proxy; never exposed directly.
-      - "127.0.0.1:${MAKAM_WEB_PORT:-3100}:3000"
+      - "127.0.0.1:${MAKAM_WEB_PORT:?set MAKAM_WEB_PORT}:3000"
     networks: [default, glitchtip]
     # Liveness only: any HTTP answer from /api/health counts (it is 503 until
     # the worker's first heartbeat). `up --wait` waits for this.
