@@ -90,6 +90,42 @@ describe("Pengaturan Operator", () => {
     });
   });
 
+  it("each change records an Entri Audit with the values before and after, and the reason", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-02 10:00"));
+    await setup.operatorSettings.change(actor, { ...pengaturan, reason: null });
+    setup.clock.set(wib("2026-10-03 11:00"));
+    await setup.operatorSettings.change(actor, { ...pengaturan, csWhatsApp: "+62 812 0000 1111", reason: "Nomor CS baru" });
+
+    const firstValues = {
+      legalName: "PT Jaya Korpora Prima",
+      address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
+      phone: "(021) 555-0101",
+      email: "halo@makam.co.id",
+      csWhatsApp: "+6281122223333",
+      csReplyHours: "dibalas mulai pukul 06:00",
+    };
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([
+      expect.objectContaining({
+        at: wib("2026-10-02 10:00"),
+        actor: { accountId: actor.accountId, role: "admin_platform" },
+        action: "pengaturan_operator.ubah",
+        before: null,
+        after: firstValues,
+        reason: null,
+      }),
+      expect.objectContaining({
+        at: wib("2026-10-03 11:00"),
+        actor: { accountId: actor.accountId, role: "admin_platform" },
+        action: "pengaturan_operator.ubah",
+        before: firstValues,
+        after: { ...firstValues, csWhatsApp: "+6281200001111" },
+        reason: "Nomor CS baru",
+      }),
+    ]);
+  });
+
   it("only Admin Platform may change it: a Pemesan is refused and nothing is kept or audited", async () => {
     const setup = operatorSettingsOnTestDatabase();
     const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "085555555555");

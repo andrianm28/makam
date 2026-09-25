@@ -1,6 +1,6 @@
-import { desc, lte, type SQL } from "drizzle-orm";
+import { desc, lte, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import type { AuditLog } from "@/domain/audit";
+import type { AuditLog, AuditSnapshot } from "@/domain/audit";
 import { authorize, normalisePhoneNumber, pengaturanOperatorResource, type Actor } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { operatorSettingsVersion } from "./schema";
@@ -46,6 +46,9 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
       const phone = normalisePhoneNumber(input.csWhatsApp);
       if (!phone.ok) return { ok: false, reason: phone.reason };
       return deps.audit.staffWrite(deps.db, async (tx, record) => {
+        // One change at a time, so each Entri Audit's "before" is the version it replaced.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('operator_settings_version'))`);
+        const previous = await latest(tx);
         const [row] = await tx
           .insert(operatorSettingsVersion)
           .values({
@@ -64,8 +67,8 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
           actor: { accountId: by.accountId, role: "admin_platform" },
           action: "pengaturan_operator.ubah",
           entity: { kind: "pengaturan_operator", id: "operator" },
-          before: null,
-          after: { ...settings, inForceFrom: settings.inForceFrom.toISOString() },
+          before: previous && auditSnapshot(previous),
+          after: auditSnapshot(settings),
           reason: input.reason,
         });
         return { ok: true as const, settings };
@@ -83,6 +86,11 @@ async function latest(db: Database, where?: SQL): Promise<OperatorSettingsValues
     .orderBy(desc(operatorSettingsVersion.inForceFrom), desc(operatorSettingsVersion.seq))
     .limit(1);
   return row ? toValues(row) : null;
+}
+
+/** The values as an Entri Audit keeps them; the entry's own time is when they came into force. */
+function auditSnapshot({ inForceFrom: _inForceFrom, ...values }: OperatorSettingsValues): AuditSnapshot {
+  return values;
 }
 
 function toValues(row: typeof operatorSettingsVersion.$inferSelect): OperatorSettingsValues {
