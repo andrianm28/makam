@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Role } from "./authorize";
 import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
@@ -36,7 +37,7 @@ export type VerifyOtpResult =
  * number has none (story 26: no sign-up).
  */
 export async function verifyOtp(
-  deps: { auth: MakamAuth; db: Database; clock: Clock },
+  deps: { auth: MakamAuth; db: Database; clock: Clock; audit: AuditLog },
   input: { phoneNumber: string; code: string },
 ): Promise<VerifyOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);

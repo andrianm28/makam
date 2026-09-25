@@ -3,10 +3,10 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import { staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
+import { staffRoles, staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 import { identityStaffInvite, identityStaffRole, identityUser } from "./schema";
-import { isDeactivatedNumber, normaliseEmail } from "./staff";
+import { isDeactivatedNumber, normaliseEmail, rolesOf } from "./staff";
 
 /** An Undangan Staf stays open for 7 days after it is sent. */
 export const STAFF_INVITE_EXPIRES_AFTER_MS = 7 * 86_400_000;
@@ -122,14 +122,16 @@ export async function openStaffInvites(deps: { db: Database; clock: Clock }): Pr
 
 /**
  * On an OTP login: accepts every open Undangan Staf for the number, granting
- * its role and recording its email on the Akun.
+ * its role (with an Entri Audit per invite, in the same transaction) and
+ * recording its email on the Akun. A Dinonaktifkan Akun holds a staff role
+ * again this way.
  */
 export async function acceptOpenInvites(
-  deps: { db: Database; clock: Clock },
+  deps: { db: Database; clock: Clock; audit: AuditLog },
   account: { id: string; phoneNumber: string },
 ): Promise<void> {
   const now = deps.clock.now();
-  await deps.db.transaction(async (tx) => {
+  await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const open = await tx
       .select()
       .from(identityStaffInvite)
@@ -142,7 +144,15 @@ export async function acceptOpenInvites(
       )
       .orderBy(asc(identityStaffInvite.createdAt))
       .for("update");
-    if (open.length === 0) return;
+    // Nothing to accept: nothing is written.
+    if (open.length === 0) return { ok: false } as const;
+
+    const [user] = await tx
+      .select({ email: identityUser.contactEmail })
+      .from(identityUser)
+      .where(eq(identityUser.id, account.id));
+    let email = user?.email ?? null;
+    let roles = (await rolesOf(tx, account.id)).filter((role): role is StaffRole => role !== "pemesan");
 
     for (const invite of open) {
       await tx
@@ -153,11 +163,23 @@ export async function acceptOpenInvites(
         .update(identityStaffInvite)
         .set({ acceptedAt: now, acceptedAccountId: account.id })
         .where(eq(identityStaffInvite.id, invite.id));
+      const granted = staffRoles.filter((role) => role === invite.role || roles.includes(role));
+      await record({
+        // The invitee's own login accepts the invite; the Admin Platform who sent it is on the staf.undang entry.
+        actor: { accountId: account.id, role: "pemesan" },
+        action: "staf.peran_diberikan",
+        entity: { kind: "akun", id: account.id },
+        before: { roles, email },
+        after: { roles: granted, email: invite.email, undanganStafId: invite.id },
+        reason: null,
+      });
+      roles = granted;
+      email = invite.email;
     }
-    const newest = open[open.length - 1];
     await tx
       .update(identityUser)
-      .set({ contactEmail: newest.email, updatedAt: now })
+      .set({ contactEmail: email, deactivatedAt: null, updatedAt: now })
       .where(eq(identityUser.id, account.id));
+    return { ok: true } as const;
   });
 }

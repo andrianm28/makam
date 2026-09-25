@@ -193,6 +193,44 @@ describe("Undangan Staf", () => {
     ]);
   });
 
+  it("accepting it grants the role with an Entri Audit on the Akun, in the same step as the grant", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const invited = await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "Lokasi@Contoh.id", role: "admin_lokasi" });
+    if (!invited.ok) throw new Error(invited.reason);
+    setup.clock.advance({ hours: 1 });
+
+    const { login } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+
+    expect(await setup.audit.entriesAbout({ kind: "akun", id: login.account.id })).toEqual([
+      expect.objectContaining({
+        at: wib("2026-10-01 10:00"),
+        actor: { accountId: login.account.id, role: "pemesan" },
+        action: "staf.peran_diberikan",
+        before: { roles: [], email: null },
+        after: { roles: ["admin_lokasi"], email: "lokasi@contoh.id", undanganStafId: invited.invite.id },
+        reason: null,
+      }),
+    ]);
+  });
+
+  it("two open invites for one number grant both roles, one Entri Audit per role", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "dua@contoh.id", role: "admin_lokasi" });
+    await setup.identity.inviteStaff(actor, { phoneNumber: INVITEE, email: "dua@contoh.id", role: "petugas_lapangan" });
+
+    const { login } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+
+    const grants = (await setup.audit.entriesAbout({ kind: "akun", id: login.account.id })).filter(
+      (entry) => entry.action === "staf.peran_diberikan",
+    );
+    expect(grants.map((entry) => [entry.before?.roles, entry.after?.roles])).toEqual([
+      [[], ["admin_lokasi"]],
+      [["admin_lokasi"], ["admin_lokasi", "petugas_lapangan"]],
+    ]);
+  });
+
   it("still stands when WhatsApp cannot deliver it: the invitee can log in by OTP all the same", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
@@ -333,6 +371,7 @@ describe("deactivating an Akun Staf", () => {
     });
     expect(await audit.entriesAbout({ kind: "undangan_staf", id: invite.id })).toHaveLength(1);
     expect(await audit.entriesAbout({ kind: "akun", id: staff.login.account.id })).toEqual([
+      expect.objectContaining({ action: "staf.peran_diberikan", after: expect.objectContaining({ roles: ["admin_lokasi"] }) }),
       expect.objectContaining({
         at: wib("2026-10-01 09:00"),
         actor: { accountId: admin.actor.accountId, role: "admin_platform" },

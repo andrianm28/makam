@@ -117,7 +117,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
 
   return {
     requestOtp: (input) => requestOtp(deps, input),
-    verifyOtp: (input) => verifyOtp({ auth, db: deps.db, clock: deps.clock }, input),
+    verifyOtp: (input) => verifyOtp({ auth, db: deps.db, clock: deps.clock, audit: deps.audit }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
     actorFromCookies: (cookieHeader) => actorFromCookies(deps, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),

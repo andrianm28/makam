@@ -108,8 +108,15 @@ describe("Pindah Nomor", () => {
     });
     expect(await setup.audit.entriesAbout({ kind: "undangan_staf", id: invited.invite.id })).toHaveLength(1);
     expect(
-      (await setup.audit.entriesAbout({ kind: "akun", id: staff.login.account.id })).map((entry) => entry.after?.phoneNumber),
-    ).toEqual(["+6286666666666", "+6287777777777"]);
+      (await setup.audit.entriesAbout({ kind: "akun", id: staff.login.account.id })).map((entry) => [
+        entry.action,
+        entry.after?.phoneNumber,
+      ]),
+    ).toEqual([
+      ["staf.peran_diberikan", undefined],
+      ["akun.pindah_nomor", "+6286666666666"],
+      ["akun.pindah_nomor", "+6287777777777"],
+    ]);
   });
 
   it("is refused without a confirmed KTP check, a file, a reason, or when the new number already has an Akun", async () => {
