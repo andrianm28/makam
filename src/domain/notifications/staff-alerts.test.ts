@@ -209,15 +209,20 @@ describe("Perangkat Push", () => {
     });
   });
 
-  it("is one per browser: turning push on again there keeps a single Perangkat Push", async () => {
+  it("is one per browser: turning push on again there with new keys keeps a single Perangkat Push, and pushes use the new keys", async () => {
     const setup = notificationsOnTestDatabase(db);
     const adminLokasi = await signedInStaff(setup, "admin_lokasi");
     const ponsel = browserPushSubscription();
-
+    const kunciBaru = { ...browserPushSubscription(), endpoint: ponsel.endpoint };
     await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
-    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
 
-    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toHaveLength(1);
+    expect(await setup.notifications.enablePush(adminLokasi, { subscription: kunciBaru })).toEqual({ ok: true });
+
+    expect(await setup.notifications.pushDevices(adminLokasi.accountId)).toEqual([
+      { endpoint: ponsel.endpoint, enabledAt: expect.any(Date) },
+    ]);
+    await setup.notifications.sendStaffAlert({ to: { accountId: adminLokasi.accountId }, ...saatDukaBaru });
+    expect(setup.webPush.sent.map((push) => push.subscription)).toEqual([kunciBaru]);
   });
 
   it("moves to the Akun Staf that turns push on in a browser another Akun Staf used before", async () => {
@@ -324,6 +329,19 @@ describe("Perangkat Push", () => {
     expect(await setup.notifications.enablePush(pemesan, { subscription: browserPushSubscription() })).toEqual({
       ok: false,
       reason: "tidak_berwenang",
+    });
+    expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
+  });
+
+  it("an Admin Platform that has not passed TOTP in this session is refused (perlu_totp) and nothing is stored", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+    const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "081111111111");
+    const belumTotp = await actorOf(setup.identity, cookies);
+
+    expect(await setup.notifications.enablePush(belumTotp, { subscription: browserPushSubscription() })).toEqual({
+      ok: false,
+      reason: "perlu_totp",
     });
     expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
   });
