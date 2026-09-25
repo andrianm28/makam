@@ -6,6 +6,7 @@ import { createDatabase } from "@/db/client";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { wib } from "@/lib/time/jakarta";
+import { detachedTasks } from "./identity";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
 
@@ -20,11 +21,12 @@ export function testServerRuntime() {
   process.env.DATABASE_URL = inject("databaseUrl");
   const holder = globalThis as unknown as { __makamRuntime?: ServerRuntime };
   const clock = new FakeClock(wib("2026-10-01 09:00"));
+  const detached = detachedTasks();
   if (!holder.__makamRuntime) {
     const env = readRuntimeEnv();
     const database = createDatabase(env.DATABASE_URL, { applicationName: "makam-test-web" });
     const adapters = createAdapters({ appEnv: env.APP_ENV, overrides: { clock } });
-    const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+    const { audit, identity } = composeIdentity({ env, db: database.db, adapters, runDetached: (task) => detached.run(task) });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     holder.__makamRuntime = { env, database, adapters, audit, identity, operatorSettings };
   }
@@ -37,6 +39,8 @@ export function testServerRuntime() {
     clock,
     whatsapp: () => serverRuntime().adapters.whatsapp as FakeWhatsAppSender,
     email: () => serverRuntime().adapters.email as FakeEmailSender,
+    /** Waits for the identity module's detached tasks (the email step's lookup and send). */
+    settled: () => detached.settled(),
     /** Logs a number in through the identity module and returns the session cookies to store. */
     async logIn(phoneNumber: string) {
       const { identity, adapters } = serverRuntime();

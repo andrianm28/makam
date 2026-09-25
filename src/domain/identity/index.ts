@@ -115,6 +115,12 @@ export interface IdentityDeps {
    * and no code. Default: the event and the error's name on stderr.
    */
   reportError?: (event: string, error: unknown) => void;
+  /**
+   * Starts work the caller must not wait for (the email step's lookup and
+   * send, so its reply takes the same time for every email). The task reports
+   * its own failures. Default: started and not awaited.
+   */
+  runDetached?: (task: () => Promise<void>) => void;
 }
 
 function reportToStderr(event: string, error: unknown): void {
@@ -188,7 +194,12 @@ export function createIdentity(deps: IdentityDeps): Identity {
     consumeLoginProof: (phoneNumber, proof) => proofs.consume(phoneNumber, proof),
   });
   const login = { auth, db: deps.db, clock: deps.clock, audit: deps.audit, secret: deps.secret, proofs };
-  const emailLogin = { ...login, email: deps.email, reportError: deps.reportError ?? reportToStderr };
+  const emailLogin = {
+    ...login,
+    email: deps.email,
+    reportError: deps.reportError ?? reportToStderr,
+    runDetached: deps.runDetached ?? ((task: () => Promise<void>) => void task()),
+  };
 
   return {
     requestOtp: (input) => requestOtp(deps, input),

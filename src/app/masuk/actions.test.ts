@@ -60,6 +60,7 @@ describe("Masuk dengan email (Server Actions)", () => {
     const verified = await kirimKodeEmail(initialEmailRequestState, form({ email: " Sari@Contoh.id " }));
     browser.setHeader("x-real-ip", "203.0.113.11");
     const unknown = await kirimKodeEmail(initialEmailRequestState, form({ email: "siapa@contoh.id" }));
+    await server.settled();
 
     expect(verified).toMatchObject({ status: "terkirim", email: "sari@contoh.id", message: REPLY, resendInSeconds: 60 });
     expect(shapeOf(unknown)).toEqual(shapeOf(verified));
@@ -90,12 +91,14 @@ describe("Masuk dengan email (Server Actions)", () => {
     email.failNextSend();
     browser.setHeader("x-real-ip", "203.0.113.31");
     const refused = await kirimKodeEmail(initialEmailRequestState, form({ email: "sari@contoh.id" }));
+    await server.settled();
 
     expect(shapeOf(refused)).toEqual(shapeOf(normal));
     expect(email.sent).toHaveLength(sends);
     // The refused send counted against no limit of the email: a retry at once goes out.
     browser.setHeader("x-real-ip", "203.0.113.32");
     await kirimKodeEmail(initialEmailRequestState, form({ email: "sari@contoh.id" }));
+    await server.settled();
     expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id" });
   });
 
@@ -104,6 +107,7 @@ describe("Masuk dengan email (Server Actions)", () => {
     const email = server.runtime().adapters.email as FakeEmailSender;
     browser.setHeader("x-real-ip", "203.0.113.40");
     await kirimKodeEmail(initialEmailRequestState, form({ email: "sari@contoh.id" }));
+    await server.settled();
 
     let thrown: unknown;
     try {

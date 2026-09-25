@@ -11,6 +11,24 @@ export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef
 /** 32 bytes, base64: the TOTP secret encryption key used in tests. */
 export const TEST_TOTP_KEY = Buffer.alloc(32, 7).toString("base64");
 
+/**
+ * Runs the identity module's detached tasks (the email step's lookup and send)
+ * at once without the caller waiting, like production; `settled()` waits for
+ * every task started so far.
+ */
+export function detachedTasks() {
+  const pending = new Set<Promise<void>>();
+  return {
+    run(task: () => Promise<void>) {
+      const running = task().finally(() => pending.delete(running));
+      pending.add(running);
+    },
+    async settled() {
+      while (pending.size > 0) await Promise.all([...pending]);
+    },
+  };
+}
+
 /** The identity module on the test Postgres with the fake Clock and in-memory fakes. */
 export function identityOnTestDatabase(
   db: Database,
@@ -22,6 +40,7 @@ export function identityOnTestDatabase(
   const fakeFiles = new FakeFileStore({ clock });
   const files = options.files ?? fakeFiles;
   const audit = createAuditLog({ db, clock });
+  const detached = detachedTasks();
   const identity = createIdentity({
     db,
     clock,
@@ -33,8 +52,9 @@ export function identityOnTestDatabase(
     totpEncryptionKey: TEST_TOTP_KEY,
     baseURL: "http://localhost:3000",
     reportError: options.reportError ?? (() => {}),
+    runDetached: (task) => detached.run(task),
   });
-  return { clock, whatsapp, email: fakeEmail, files: fakeFiles, audit, identity };
+  return { clock, whatsapp, email: fakeEmail, files: fakeFiles, audit, identity, settled: () => detached.settled() };
 }
 
 /**

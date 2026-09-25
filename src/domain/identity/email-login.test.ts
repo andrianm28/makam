@@ -97,6 +97,7 @@ describe("Verifikasi Email rules", () => {
     const sends = email.sent.length;
     setup.clock.advance({ minutes: 1 });
     await identity.requestEmailLogin({ email: "lama@contoh.id", ip: "198.51.100.51" });
+    await setup.settled();
     expect(email.sent).toHaveLength(sends);
   });
 
@@ -219,6 +220,7 @@ describe("Masuk dengan email", () => {
     const sentAt = clock.now();
 
     const reply = await identity.requestEmailLogin({ email: "  SARI@contoh.id", ip: IP });
+    await setup.settled();
 
     expect(reply).toEqual({ ok: true, email: "sari@contoh.id", resendAt: new Date(sentAt.getTime() + 60_000) });
     expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
@@ -245,10 +247,12 @@ describe("Masuk dengan email", () => {
       ...expected,
       email: "ketik@contoh.id",
     });
+    await setup.settled();
     expect(await identity.requestEmailLogin({ email: "siapa@contoh.id", ip: "198.51.100.1" })).toEqual({
       ...expected,
       email: "siapa@contoh.id",
     });
+    await setup.settled();
     expect(email.sent).toEqual([]);
   });
 
@@ -257,6 +261,7 @@ describe("Masuk dengan email", () => {
     const { identity, email } = setup;
     const { actor } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: nextIp() });
+    await setup.settled();
     const code = emailCodeTo(email, "sari@contoh.id");
     await identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip: nextIp() });
     await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "baru@contoh.id") });
@@ -271,6 +276,7 @@ describe("Masuk dengan email", () => {
     const { identity, whatsapp, email } = setup;
     const { actor } = await pemesanWithEmailTerverifikasi(setup, "081234567890", "sari@contoh.id");
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: nextIp() });
+    await setup.settled();
     const code = emailCodeTo(email, "sari@contoh.id");
     await identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip: nextIp() });
     await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "baru@contoh.id") });
@@ -303,6 +309,7 @@ async function logInByEmail(setup: ReturnType<typeof identityOnTestDatabase>, ad
   const { identity, email } = setup;
   const before = email.sent.length;
   await identity.requestEmailLogin({ email: address, ip });
+  await setup.settled();
   if (email.sent.length === before) throw new Error(`no Kode Masuk was emailed to ${address}`);
   const login = await identity.verifyEmailLogin({ email: address, code: emailCodeTo(email, address) });
   if (!login.ok) throw new Error(`email login failed: ${login.reason}`);
@@ -377,6 +384,7 @@ describe("the email of an Undangan Staf", () => {
 
     expect(await identity.accountEmail(await actorOf(identity, cookies))).toEqual({ email: "staf@contoh.id", verified: false });
     await identity.requestEmailLogin({ email: "staf@contoh.id", ip: IP });
+    await setup.settled();
     expect(email.sent).toEqual([]);
 
     await verifyEmailOf(setup, cookies, "staf@contoh.id");
@@ -477,6 +485,7 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
       ok: false,
       reason: "tunggu_kirim_ulang",
     });
+    await setup.settled();
   });
 
   it("is refused for a number whose Akun has no Email Terverifikasi, or that has no Akun: the screen points to CS", async () => {
@@ -532,12 +541,47 @@ describe("when EmailSender refuses (staging and production until ticket 68)", ()
       email: "sari@contoh.id",
       resendAt: new Date(clock.now().getTime() + 60_000),
     });
+    await setup.settled();
     expect(reported).toHaveLength(1);
     expect(reported[0]).toContain("PortNotConfiguredError");
     expect(reported[0]).not.toContain("sari@contoh.id");
 
     down = false;
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.6" });
+    await setup.settled();
+    expect(fake.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
+  });
+});
+
+describe("the email step's timing", () => {
+  it("replies without waiting for the EmailSender, so a verified email takes no longer than an unknown one", async () => {
+    const fake = new FakeEmailSender();
+    let hang = false;
+    let release = () => {};
+    const hanging = new Promise<void>((resolve) => (release = resolve));
+    const setup = identityOnTestDatabase(db, {
+      email: {
+        send: async (message) => {
+          if (hang) await hanging;
+          return fake.send(message);
+        },
+      },
+    });
+    const { identity, whatsapp, clock } = setup;
+    const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
+    await identity.requestEmailVerification(await actorOf(identity, cookies), { email: "sari@contoh.id", ip: nextIp() });
+    await identity.confirmEmailVerification(await actorOf(identity, cookies), { code: emailCodeTo(fake, "sari@contoh.id") });
+    clock.advance({ minutes: 1 });
+    hang = true;
+
+    const reply = await Promise.race([
+      identity.requestEmailLogin({ email: "sari@contoh.id", ip: nextIp() }),
+      new Promise((resolve) => setTimeout(() => resolve("still waiting on the EmailSender"), 2_000)),
+    ]);
+
+    expect(reply).toEqual({ ok: true, email: "sari@contoh.id", resendAt: new Date(clock.now().getTime() + 60_000) });
+    release();
+    await setup.settled();
     expect(fake.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
   });
 });
@@ -554,6 +598,7 @@ describe("lockout per Akun across channels (decision Q10)", () => {
       await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(whatsappCode) });
     }
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP });
+    await setup.settled();
     const emailCode = emailCodeTo(email, "sari@contoh.id");
     for (let attempt = 1; attempt <= 4; attempt++) {
       await identity.verifyEmailLogin({ email: "sari@contoh.id", code: otherCode(emailCode) });
@@ -582,10 +627,12 @@ describe("lockout per Akun across channels (decision Q10)", () => {
       email: "sari@contoh.id",
       resendAt: new Date(clock.now().getTime() + 60_000),
     });
+    await setup.settled();
     expect(email.sent).toHaveLength(sends);
 
     clock.set(new Date(lockedAt.getTime() + 60 * 60_000));
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.5" });
+    await setup.settled();
     expect(
       await identity.verifyEmailLogin({ email: "sari@contoh.id", code: emailCodeTo(email, "sari@contoh.id") }),
     ).toMatchObject({ ok: true });
@@ -605,6 +652,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     await pemesanWithEmailTerverifikasi(setup);
     const sentAt = clock.now();
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP });
+    await setup.settled();
     const code = emailCodeTo(email, "sari@contoh.id");
 
     clock.set(new Date(sentAt.getTime() + 10 * 60_000));
@@ -620,6 +668,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     const { identity, email } = setup;
     await pemesanWithEmailTerverifikasi(setup);
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP });
+    await setup.settled();
     const code = emailCodeTo(email, "sari@contoh.id");
 
     for (let attempt = 1; attempt <= 4; attempt++) {
@@ -644,6 +693,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     await pemesanWithEmailTerverifikasi(setup);
     const start = clock.now();
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: IP });
+    await setup.settled();
     const sends = email.sent.length;
 
     clock.set(new Date(start.getTime() + 59_000));
@@ -652,10 +702,12 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
       email: "sari@contoh.id",
       resendAt: new Date(start.getTime() + 119_000),
     });
+    await setup.settled();
     expect(email.sent).toHaveLength(sends);
 
     clock.set(new Date(start.getTime() + 60_000));
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.3" });
+    await setup.settled();
     expect(email.sent).toHaveLength(sends + 1);
   });
 
@@ -668,6 +720,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, "sari@contoh.id") });
 
     await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.70" });
+    await setup.settled();
 
     expect(email.sent.at(-1)).toMatchObject({ to: "sari@contoh.id", subject: expect.stringContaining("Kode Masuk") });
     expect(await identity.requestEmailVerification(actor, { email: "sari@contoh.id", ip: IP })).toMatchObject({
@@ -681,6 +734,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     const { identity, whatsapp, email } = setup;
     const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
     await identity.requestEmailLogin({ email: "siapa@contoh.id", ip: IP });
+    await setup.settled();
 
     expect(
       await identity.requestEmailVerification(await actorOf(identity, cookies), { email: "sari@contoh.id", ip: IP }),
@@ -696,6 +750,7 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     const before = email.sent.length;
     for (let request = 1; request <= 5; request++) {
       await identity.requestEmailLogin({ email: "sari@contoh.id", ip: `198.51.100.${request}` });
+      await setup.settled();
       clock.advance({ minutes: 2 });
     }
 
@@ -708,16 +763,20 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
     const start = clock.now();
 
     expect(await identity.requestEmailLogin({ email: "satu@contoh.id", ip: IP })).toMatchObject({ ok: true });
+    await setup.settled();
     expect(await identity.requestEmailLogin({ email: "dua@contoh.id", ip: IP })).toEqual({
       ok: false,
       reason: "tunggu_kirim_ulang",
       retryAt: new Date(start.getTime() + 60_000),
     });
+    await setup.settled();
     expect(await identity.requestEmailLogin({ email: "dua@contoh.id", ip: "198.51.100.9" })).toMatchObject({ ok: true });
+    await setup.settled();
 
     for (let request = 2; request <= 5; request++) {
       clock.advance({ minutes: 1 });
       expect(await identity.requestEmailLogin({ email: `ke${request}@contoh.id`, ip: IP })).toMatchObject({ ok: true });
+      await setup.settled();
     }
     clock.advance({ minutes: 1 });
     expect(await identity.requestEmailLogin({ email: "enam@contoh.id", ip: IP })).toEqual({
@@ -725,5 +784,6 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
       reason: "terlalu_sering",
       retryAt: new Date(start.getTime() + 60 * 60_000),
     });
+    await setup.settled();
   });
 });
