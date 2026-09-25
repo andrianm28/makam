@@ -39,9 +39,9 @@ async function lastOtp(request: APIRequestContext, to: string): Promise<string> 
 
 async function masuk(page: Page, request: APIRequestContext, number: { typed: string; canonical: string }) {
   await page.goto("/masuk");
-  await page.getByLabel("Nomor WhatsApp").fill(number.typed);
   // The stack runs on the system Clock: a number that just had an OTP waits up to 60 s for the next one.
   await expect(async () => {
+    await page.getByLabel("Nomor WhatsApp").fill(number.typed);
     await page.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
     await expect(page.getByTestId("otp-phone-number")).toHaveText(number.canonical, { timeout: 3_000 });
   }).toPass({ timeout: 75_000, intervals: [5_000] });
