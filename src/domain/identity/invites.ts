@@ -1,11 +1,11 @@
-import { and, asc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, ne } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffRoles, staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-import { identityStaffInvite, identityStaffRole, identityUser } from "./schema";
+import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
 import { normaliseEmail, rolesOf } from "./staff";
 
 /** An Undangan Staf stays open for 7 days after it is sent. */
@@ -123,10 +123,15 @@ export async function openStaffInvites(deps: { db: Database; clock: Clock }): Pr
  * its role (with an Entri Audit per invite, in the same transaction) and
  * recording its email on the Akun. A Dinonaktifkan Akun holds a staff role
  * again this way.
+ *
+ * The strictest session rule holds for the whole Akun: when a role is newly
+ * granted, every other session of the Akun (other devices, signed in under the
+ * looser rule) ends; only the login's own session, `sessionToken`, stays.
  */
 export async function acceptOpenInvites(
   deps: { db: Database; clock: Clock; audit: AuditLog },
   account: { id: string; phoneNumber: string },
+  sessionToken: string,
 ): Promise<void> {
   const now = deps.clock.now();
   await deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -150,7 +155,8 @@ export async function acceptOpenInvites(
       .from(identityUser)
       .where(eq(identityUser.id, account.id));
     let email = user?.email ?? null;
-    let roles = (await rolesOf(tx, account.id)).filter((role): role is StaffRole => role !== "pemesan");
+    const heldBefore = (await rolesOf(tx, account.id)).filter((role): role is StaffRole => role !== "pemesan");
+    let roles = heldBefore;
 
     for (const invite of open) {
       await tx
@@ -178,6 +184,11 @@ export async function acceptOpenInvites(
       .update(identityUser)
       .set({ contactEmail: email, deactivatedAt: null, updatedAt: now })
       .where(eq(identityUser.id, account.id));
+    if (roles.length > heldBefore.length) {
+      await tx
+        .delete(identitySession)
+        .where(and(eq(identitySession.userId, account.id), ne(identitySession.token, sessionToken)));
+    }
     return { ok: true } as const;
   });
 }

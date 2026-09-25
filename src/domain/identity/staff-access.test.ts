@@ -305,6 +305,40 @@ describe("staff sessions", () => {
     });
     expect(login.session.expiresAt).toEqual(wib("2026-10-01 21:00"));
   });
+
+  it("an Admin Lokasi who accepts an Admin Platform invite on a new login: the session on the other device ends", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, clock } = setup;
+    const { actor } = await signedInAdminPlatform(setup);
+    await identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_lokasi" });
+    const otherDevice = await logInByOtp(identity, whatsapp, "082222222222");
+    expect(await identity.actorFromCookies(otherDevice.cookies)).toMatchObject({ roles: ["pemesan", "admin_lokasi"] });
+
+    await identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "admin_platform" });
+    clock.advance({ minutes: 5 });
+    const newLogin = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(await identity.actorFromCookies(otherDevice.cookies)).toBeNull();
+    expect(await identity.actorFromCookies(newLogin.cookies)).toMatchObject({
+      roles: ["pemesan", "admin_platform", "admin_lokasi"],
+      totp: "perlu_daftar",
+    });
+    expect(newLogin.login.session.expiresAt).toEqual(wib("2026-10-01 21:05"));
+  });
+
+  it("a Pemesan who accepts an Undangan Staf on a new login: the 90-day Pemesan session on the other device ends", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, clock } = setup;
+    const { actor } = await signedInAdminPlatform(setup);
+    const pemesanDevice = await logInByOtp(identity, whatsapp, "082222222222");
+
+    await identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "petugas_lapangan" });
+    clock.advance({ minutes: 5 });
+    const newLogin = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(await identity.actorFromCookies(pemesanDevice.cookies)).toBeNull();
+    expect(await identity.actorFromCookies(newLogin.cookies)).toMatchObject({ roles: ["pemesan", "petugas_lapangan"] });
+  });
 });
 
 describe("deactivating an Akun Staf", () => {

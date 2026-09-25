@@ -66,7 +66,7 @@ export async function verifyOtp(
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
 
-  await acceptOpenInvites(deps, { id: response.user.id, phoneNumber });
+  await acceptOpenInvites(deps, { id: response.user.id, phoneNumber }, response.token);
   // The session lasts as long as the strictest role the Akun now holds allows.
   const roles = await rolesOf(deps.db, response.user.id);
   const lengthMs = sessionLengthMs(roles);
