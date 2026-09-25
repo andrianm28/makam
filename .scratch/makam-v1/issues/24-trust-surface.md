@@ -65,3 +65,5 @@ Resolved by grilling on 2026-09-25; every recommendation was accepted.
 Glossary: added **Terverifikasi**, **Kunjungan Verifikasi**, **Ditangguhkan**, **Berhenti** to `CONTEXT.md`.
 
 **Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): Ditangguhkan blocks only new Hak Pakai; burials under an existing Hak Pakai, Pembatalan, Ganti Pemegang Hak, Pengembalian Hak Pakai and in-flight orders also keep working. Berhenti takes effect on a date set by Admin Platform (default 30 days); until then the Lokasi behaves as Ditangguhkan, Paket Layanan stop issuing cycles, and unfinished Pekerjaan Layanan are refunded in full on that date.
+
+**Consistency review 2** (2026-09-25): the TPU price box shows two Biaya Pengurusan amounts, for a burial and for filing-only work (Perpanjangan, Pengurusan IPTM), per "TPU order loose ends".

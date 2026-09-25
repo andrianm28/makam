@@ -42,3 +42,5 @@ Decided with the user on 2026-09-25 (grilling, all recommendations accepted). Fa
 - Priced and paid as filing-only (above): the filing-only Biaya Pengurusan, Tagihan after the document check, filing on Lunas; final PTSP rejection refunded as for Perpanjangan.
 - Uploads due within **7 days of the order** (not of the burial); after that Admin Platform follows up by hand, as for burial orders.
 - The IPTM scan and expiry go on a TPU plot record, as for any TPU order.
+
+**Consistency review 2** (2026-09-25): the Pengurusan IPTM status list gains `Menunggu Pembayaran` between Dokumen Lengkap and IPTM Diajukan, since it is filing-only and paid before the filing.

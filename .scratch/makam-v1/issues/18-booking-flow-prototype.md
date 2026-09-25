@@ -60,3 +60,5 @@ Decided with the user on 2026-09-25 by reacting to a clickable prototype. **Prot
 **Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan". The search filters (only a city filter here vs the brief's five) are reopened in "Homepage, search and Akun Saya".
 
 **Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the Terencana "Nanti" line covers Biaya Pemakaman + Biaya Layanan Platform, "sesuai tarif saat pemakaman (saat ini Rp X)".
+
+**Consistency review 2** (2026-09-25): a burial under an existing Hak Pakai needs the Pemegang Hak's consent (implicit when logged in with their number, otherwise a WhatsApp Setujui / Tolak or verbal consent recorded by the Admin Lokasi), per "Lokasi Mitra order lifecycle"; the Terencana "Nanti" line includes the Biaya Layanan Platform; an unpaid hold ends the order as Dibatalkan.

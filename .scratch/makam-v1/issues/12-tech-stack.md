@@ -48,3 +48,5 @@ Resolved 2026-09-25 (grilling). Research: [research/12-tech-stack.md](../researc
 **Noted, not decided here**
 - PSE registration via OSS is mandatory before launch (legal compliance, out of scope for this map; see the research).
 - Data leaving Indonesia is limited to scrubbed Sentry events; PP 33/2026 (effective 16 Jan 2027) adds a transfer assessment if that ever grows.
+
+**Consistency review 2** (2026-09-25): the worker's schedules also cover the due dates in "Tagihan deadlines and refunds after Pencairan" (Terencana hold, Perpanjangan 3×24 h, Layanan lead time, H+ reminders for pay-after Tagihan).

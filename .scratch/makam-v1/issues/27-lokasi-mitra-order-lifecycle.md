@@ -81,3 +81,9 @@ The tumpang policy checks from "Petak Makam lifecycle" still apply. An unpaid ea
   - **Open Pekerjaan Layanan** must be finished by the effective date. Any that are not are cancelled with a full refund **including** the Biaya Layanan Platform, since the family is not at fault.
   - **From the effective date** the platform takes no order of any kind for the Lokasi. Existing Hak Pakai stay read-only in Akun Saya with the pengelola's contact and "urus langsung dengan pengelola", covering later burials and Perpanjangan.
   - **Pending Pencairan** for finished work is paid out, net of anything the Lokasi owes back (refunds, Biaya Layanan Platform on direct payments). Held Terencana Pencairan follows "If the Lokasi Mitra partnership ends" in "Pemesanan Terencana contract terms".
+
+**Consistency review 2** (2026-09-25, decided with the user):
+- **Cancelling a burial under an existing Hak Pakai** (§2): only the burial order and its Tagihan are Dibatalkan; the Hak Pakai and the Petak status are untouched.
+- **Selesai for a burial under an existing Hak Pakai**: when the Tagihan is Lunas and the Pemakaman is recorded. The family gets the Bukti Pembayaran and sees the new Pemakaman on the Hak Pakai page in Akun Saya; no new Bukti Pemesanan.
+- **Terencana lapse**: an unpaid hold makes the order **Dibatalkan** (reason "batas pembayaran lewat"), not `Kedaluwarsa`; Kedaluwarsa is reserved for a Hak Pakai past its end date.
+- **Pembatalan and Pengembalian Hak Pakai requests**: the Pemegang Hak asks from Akun Saya ("Homepage, search and Akun Saya"); the request becomes an **Antrean Lokasi** row due within **2 working days**. Pembatalan: the Admin Lokasi confirms no Pemakaman, the platform computes the refund under the Lokasi's policy, and the refund becomes an approval row in Admin Platform's Antrean. Pengembalian Hak Pakai: handled by the Admin Lokasi alone (no money through the platform).

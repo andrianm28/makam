@@ -58,3 +58,5 @@ Resolved by grilling with the user (2026-09-25). New terms in `CONTEXT.md`: Tagi
 **Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): new Tagihan status **Tidak Tertagih** (declared by Admin Platform, from H+30, still payable afterwards). New manual payment method **"Dibayar langsung ke Lokasi Mitra"**, recorded by the Admin Lokasi with proof (Admin Platform can reverse); its Bukti Pembayaran says the money was received by that Lokasi Mitra.
 
 **Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): only pay-after Tagihan (Saat Duka checkout, burial under an existing Hak Pakai) become Lewat Jatuh Tempo / Tidak Tertagih; pay-first Tagihan lapse to Dibatalkan. The Bukti Pencairan lists **Potongan** lines for amounts the Lokasi Mitra owes.
+
+**Consistency review 2** (2026-09-25): there is **no Bukti Pemesanan at a TPU**: a TPU order ends with the Bukti Pembayaran, the order page and the IPTM scan ("TPU order loose ends"); a burial under an existing Hak Pakai gets no new Bukti Pemesanan either. A Tagihan with mixed lines has one due date, the earliest of its lines ("Tagihan deadlines and refunds after Pencairan").

@@ -89,7 +89,7 @@ The legal entity that runs makam.co.id, signs with every partner, collects every
 _Avoid_: YIEM, yayasan, pengelola platform
 
 **Admin Lokasi**:
-Staff of one Lokasi Mitra who manage its plot inventory, verify its Perpanjangan requests, and fulfil its Layanan orders.
+Staff of a Lokasi Mitra who confirm or decline its orders, manage its plot inventory and Denah, verify its Perpanjangan requests, handle Pembatalan and Pengembalian Hak Pakai requests, record Pemakaman, and fulfil its Layanan orders, all through the Antrean Lokasi.
 _Avoid_: Makam admin, pengelola, operator (as a person)
 
 **Admin Platform**:
@@ -147,7 +147,7 @@ Burying another Almarhum in a Petak Makam that already holds one, under the exis
 _Avoid_: Tumpuk, makam susun
 
 **Masa Tenggang**:
-The period after a fixed-term Hak Pakai expires during which a Perpanjangan Makam is still accepted, before the Admin Lokasi may end it.
+The period after a fixed-term Hak Pakai expires during which a Perpanjangan Makam is still accepted, before the Admin Lokasi may end it; for an IPTM, the Pemda's own grace period (3 months in DKI).
 _Avoid_: Grace period, masa toleransi, dispensasi
 
 **Nomor Pemesanan**:
@@ -177,6 +177,10 @@ _Avoid_: Buyback, jual kembali, Pembatalan
 **Ganti Pemegang Hak**:
 Recording a new Pemegang Hak on an existing Hak Pakai (inheritance or sale), keeping the history of earlier holders.
 _Avoid_: Pengalihan, balik nama, transfer
+
+**Pengurusan IPTM**:
+A filing-only Pengurusan for a family that buried at a DKI TPU on their own: the Operator files the new or tumpang IPTM, paid before the filing.
+_Avoid_: Urus izin, Pengurusan (alone, when meaning this order)
 
 **Perpanjangan Makam**:
 Extending a fixed-term Hak Pakai (at a Lokasi Mitra) or a TPU permit by one or more further terms.
@@ -267,7 +271,7 @@ The Operator's record of one bank transfer to a Lokasi Mitra or Mitra Jasa, list
 _Avoid_: Slip payout, settlement report
 
 **Pencairan**:
-The Operator paying out the collected amount for one order or job to the Lokasi Mitra or Mitra Jasa that did the work, once the order is paid and the work is done and no longer open to reversal (for a Pemesanan Terencana after its Masa Pembatalan; for a Pekerjaan Layanan after the Keluhan window).
+The Operator paying out the collected amount for one order or job to the Lokasi Mitra or Mitra Jasa that did the work, once the order is paid and the work is done and no longer open to reversal (for a Saat Duka Petak Makam or a later burial once the Pemakaman is recorded; for a Pemesanan Terencana after its Masa Pembatalan; for a Pekerjaan Layanan after the Keluhan window).
 _Avoid_: Payout, settlement, transfer
 
 **Potongan**:

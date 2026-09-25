@@ -51,3 +51,8 @@ Perpanjangan at a DKI TPU is left to "TPU order loose ends", which settles what 
 - Pencairan due when the Tagihan is Lunas **and** the Pemakaman is recorded (same trigger as a Saat Duka Petak).
 - The Tagihan carries its own **Biaya Layanan Platform** (as "Petak Makam lifecycle" and "Invoice and payment proof for the Pemesan" already say).
 - The Terencana "Nanti" line in the booking flow reads "Biaya Pemakaman + Biaya Layanan Platform, sesuai tarif saat pemakaman (saat ini Rp X)".
+
+**Consistency review 2** (2026-09-25, decided with the user):
+- **Saat Duka Petak Pencairan**: due when the Tagihan is Lunas **and** the Pemakaman is recorded, for a Saat Duka checkout and for a burial under an existing Hak Pakai alike (replaces "on confirmation" in "Money flow and revenue model"). A cancellation before the burial therefore never needs a Potongan.
+- **One due date per Tagihan**: a Tagihan with lines of different kinds (e.g. Perpanjangan + Layanan, Terencana + Layanan) takes the **earliest** due date among its lines; unpaid, the whole Tagihan is Dibatalkan.
+- **Unpaid Layanan**: its Pekerjaan Layanan exists with status Menunggu Pembayaran and becomes **Dibatalkan** when the Tagihan lapses (replaces "no Pekerjaan Layanan created").

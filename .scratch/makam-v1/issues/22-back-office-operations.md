@@ -63,3 +63,5 @@ Resolved 2026-09-25 (grilling). `CONTEXT.md`: new section Operations with **Antr
 **Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): two new Antrean rows. **Saat Duka ditolak** (Tier 1): phone the family within 2 h and help them rebook. **Konfirmasi Terencana terlambat** (Tier 3): a Terencana order not confirmed by the end of the Lokasi's next working day.
 
 **Amended by "Admin Lokasi back office and Petugas Lapangan work"** (2026-09-25): new Antrean rows for Tugas Lapangan: unassigned or overdue Ambil surat pengantar in Tier 2, other Tugas Lapangan in Tier 4. Failed-send calls on Lokasi Mitra orders reach this Antrean only for money messages.
+
+**Consistency review 2** (2026-09-25): new Tier 3 rows from "TPU order loose ends": TPU Perpanjangan / Pengurusan IPTM document check (1 working day from Diajukan) and filing (3 working days from Lunas), plus the lapsed-IPTM check with the TPU before billing. New approval row: a Pembatalan refund forwarded from the Antrean Lokasi ("Lokasi Mitra order lifecycle").

@@ -70,3 +70,5 @@ Decided with the user by grilling on 2026-09-25. Applies to a paid Pemesanan Ter
 - The terms state that the Hak Pakai is a right against the **Lokasi Mitra**, not YIEM (consistent with the Bukti Pemesanan in the partner's name).
 - When a partnership ends: every Pemegang Hak is notified and can download their Bukti Pemesanan, and the Lokasi gets an export of its records. YIEM guarantees no refund.
 - Pencairan still held back is released to the partner, except for Pemesan who cancel within their Masa Pembatalan, who are refunded.
+
+**Consistency review 2** (2026-09-25): the booking flow's "Nanti" line now reads "Biaya Pemakaman + Biaya Layanan Platform, sesuai tarif saat pemakaman (saat ini Rp X)"; a Pembatalan after Pencairan becomes a **Potongan** on the next Pencairan; requests start in Akun Saya and land in the Antrean Lokasi within 2 working days ("Tagihan deadlines and refunds after Pencairan", "Lokasi Mitra order lifecycle").

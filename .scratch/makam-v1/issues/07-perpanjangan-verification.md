@@ -39,3 +39,5 @@ Decided with the user on 2026-09-25 (round 1 drafted by a parallel session, fini
 **Amended by "Roles, accounts and access"** (2026-09-25): the Pemesan logs in with a WhatsApp OTP, so when the logged-in number equals the number on the Hak Pakai the separate Pemegang Hak OTP is skipped. Only the Admin Lokasi can change that number (after a KTP check).
 
 **Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): a Lokasi Mitra Perpanjangan Tagihan is due 3×24 h after issue; unpaid → Dibatalkan with no effect on the Hak Pakai; a manual-path approval stays valid 30 days for a new Tagihan.
+
+**Consistency review 2** (2026-09-25): Perpanjangan at a DKI TPU end to end (price, pay-first, statuses, service levels, rejection and refund, lapsed IPTM) is settled in "TPU order loose ends".
