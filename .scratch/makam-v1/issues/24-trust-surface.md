@@ -63,3 +63,5 @@ Resolved by grilling on 2026-09-25; every recommendation was accepted.
 - Each claim in the trust strip ("Lokasi terverifikasi · Harga transparan · Bantuan proses administrasi") links to a section of a static **"Cara Kami Bekerja"** page (it can live inside Tentang Kami) explaining the checks, the price-equals-Tagihan rule with the Biaya Layanan Platform shown separately, and that the TPU permit is free and families can file it themselves. This is content written in the spec.
 
 Glossary: added **Terverifikasi**, **Kunjungan Verifikasi**, **Ditangguhkan**, **Berhenti** to `CONTEXT.md`.
+
+**Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): Ditangguhkan blocks only new Hak Pakai; burials under an existing Hak Pakai, Pembatalan, Ganti Pemegang Hak, Pengembalian Hak Pakai and in-flight orders also keep working. Berhenti takes effect on a date set by Admin Platform (default 30 days); until then the Lokasi behaves as Ditangguhkan, Paket Layanan stop issuing cycles, and unfinished Pekerjaan Layanan are refunded in full on that date.

@@ -24,3 +24,7 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 7. **Documents**: each Lokasi sets its own document checklist (default: the death certificate from the hospital or Puskesmas, the death report letter from the Lurah or RT/RW, and the KTP and KK of the Almarhum and the Pemesan). Documents can be uploaded later or brought on the day; the Admin Lokasi ticks each one off. Sources: [cemetery-plot-regulation.md §2.6](../research/cemetery-plot-regulation.md).
 
 **Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan".
+
+**Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): the full status list is Diajukan → Dikonfirmasi → Dimakamkan → Selesai, plus Ditolak / Dibatalkan, with the Tagihan status as a separate badge. Before confirming, the Admin Lokasi may offer an alternative or decline.
+
+**Amended by "Admin Lokasi back office and Petugas Lapangan work"** (2026-09-25): operating hours are the Lokasi's **Jam Operasional** (weekly schedule + dated closures, edited by the Admin Lokasi); the on-call contact is its **Kontak Siaga**, which must be one of its Admin Lokasi.

@@ -65,3 +65,7 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 **Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): while a Saat Duka Tagihan is unpaid past its due date, Perpanjangan and Ganti Pemegang Hak are blocked (Layanan and later burials still allowed); once it is Tidak Tertagih the Admin Lokasi may end the Hak Pakai by hand (`Berakhir`, reason "Tagihan tidak tertagih").
 
 **Consistency review** (2026-09-25): the "Notifications" fog is resolved in "Notification channels and WhatsApp provider". "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan".
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the Terencana Tagihan's due date is the hold expiry; unpaid, it becomes Dibatalkan with the hold. A burial under an existing Hak Pakai is billed pay-after (due 3×24 h after the recorded burial, chased like a Saat Duka Tagihan) and is never grounds to end the Hak Pakai.
+
+**Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): consent for a burial under an existing Hak Pakai is implicit when the logged-in number is the Pemegang Hak's. Otherwise it comes from a WhatsApp Setujui, a verbal consent the Admin Lokasi logs, or heirship proof when the Pemegang Hak has died or cannot be reached (which raises a Ganti Pemegang Hak reminder). A Terencana Petak is already held while the order is `Diajukan`, before the 24 h payment hold; a lapsed hold makes the order `Kedaluwarsa`.

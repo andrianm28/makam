@@ -37,3 +37,5 @@ Decided with the user on 2026-09-25 (round 1 drafted by a parallel session, fini
 9. **After issue**: the platform stores the new IPTM scan and expiry against a minimal TPU plot record (TPU + block/number + Almarhum + Pemegang Hak), reused for the next Perpanjangan and for reminders. The Pemesan receives the scan as the "surat bukti perpanjangan resmi".
 
 **Amended by "Roles, accounts and access"** (2026-09-25): the Pemesan logs in with a WhatsApp OTP, so when the logged-in number equals the number on the Hak Pakai the separate Pemegang Hak OTP is skipped. Only the Admin Lokasi can change that number (after a KTP check).
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): a Lokasi Mitra Perpanjangan Tagihan is due 3×24 h after issue; unpaid → Dibatalkan with no effect on the Hak Pakai; a manual-path approval stays valid 30 days for a new Tagihan.

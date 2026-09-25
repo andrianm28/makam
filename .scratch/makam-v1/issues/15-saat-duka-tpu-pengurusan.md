@@ -50,3 +50,5 @@ Decided with the user on 2026-09-25 (all recommendations accepted). Facts from [
 **Checked against the ticket's questions**: what is chosen → 1; who confirms and in what time → 4–5; documents before filing → 7; outside hours / weekends → 5; the pay-after-burial rule → 9.
 
 **Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan". The Bukti Pemesanan issued for a TPU order, the night confirmation deadline (07:00 here vs 08:00 from "Admin Platform back-office queue and on-call") and the after-hours contact are reopened in "TPU order loose ends".
+
+**Amended by "TPU order loose ends"** (2026-09-25): no Bukti Pemesanan at a TPU (item 11); the family's proof is the Bukti Pembayaran, the order page and the IPTM scan. The 2-hour confirmation clock pauses 18:00–06:00 and the screen shows the computed deadline (replaces "by 07:00" in item 5); after hours it shows the CS WhatsApp number ("dibalas mulai pukul 06:00"), not an on-call contact. New filing-only order kind **Pengurusan IPTM** for families who buried on their own, paid before the filing.

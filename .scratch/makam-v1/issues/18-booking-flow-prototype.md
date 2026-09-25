@@ -58,3 +58,5 @@ Decided with the user on 2026-09-25 by reacting to a clickable prototype. **Prot
 **Amended by "Invoice and payment proof for the Pemesan"** (2026-09-25): the Bukti Pemesanan carries no amounts; the itemised paid amount moves to the separate Bukti Pembayaran.
 
 **Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan". The search filters (only a city filter here vs the brief's five) are reopened in "Homepage, search and Akun Saya".
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the Terencana "Nanti" line covers Biaya Pemakaman + Biaya Layanan Platform, "sesuai tarif saat pemakaman (saat ini Rp X)".

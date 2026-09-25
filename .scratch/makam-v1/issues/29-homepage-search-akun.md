@@ -2,7 +2,7 @@
 
 Type: grilling
 Status: open
-Blocked by: 26, 27
+Blocked by: 26
 Map: ../map.md
 
 ## Question

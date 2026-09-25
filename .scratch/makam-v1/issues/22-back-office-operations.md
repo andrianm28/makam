@@ -57,3 +57,9 @@ Resolved 2026-09-25 (grilling). `CONTEXT.md`: new section Operations with **Antr
 
 **Device**
 - Mobile first: the back office is a PWA installed to the home screen (needed for web push on iPhone). Every Tier 1–2 task can be done on a phone (confirmation, assignment, photo review, Keluhan). Pencairan and Laporan may be desktop-first.
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the netted amounts in the Pencairan run are **Potongan**, one general rule for every amount a Lokasi Mitra owes; an unrecovered balance after 60 days (or on Berhenti) becomes an offline request by Admin Platform.
+
+**Amended by [Lokasi Mitra order lifecycle](27-lokasi-mitra-order-lifecycle.md)** (2026-09-25): two new Antrean rows. **Saat Duka ditolak** (Tier 1): phone the family within 2 h and help them rebook. **Konfirmasi Terencana terlambat** (Tier 3): a Terencana order not confirmed by the end of the Lokasi's next working day.
+
+**Amended by "Admin Lokasi back office and Petugas Lapangan work"** (2026-09-25): new Antrean rows for Tugas Lapangan: unassigned or overdue Ambil surat pengantar in Tier 2, other Tugas Lapangan in Tier 4. Failed-send calls on Lokasi Mitra orders reach this Antrean only for money messages.

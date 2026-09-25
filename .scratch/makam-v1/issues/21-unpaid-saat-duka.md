@@ -34,3 +34,5 @@ Resolved by grilling with the user (2026-09-25). New term in `CONTEXT.md`: Tidak
 - **Perpanjangan and Ganti Pemegang Hak are blocked** ("Lunasi Tagihan TGH/… terlebih dahulu", with the payment link).
 - **Layanan orders are allowed** (prepaid anyway). **A later burial under the same Hak Pakai is allowed**; the Admin Lokasi sees a warning banner when confirming it.
 - Once the Tagihan is **Tidak Tertagih**, the Admin Lokasi **may end the Hak Pakai by hand** (`Berakhir`, reason "Tagihan tidak tertagih", mandatory note). Never automatic. The Petak stays `Terisi` until pembongkaran, as for any ended Hak Pakai. At a DKI TPU there is no Hak Pakai to end; the IPTM is handed over regardless.
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the same chasing applies to a burial under an existing Hak Pakai (without the option to end the Hak Pakai); pay-first Tagihan never enter the list. The platform fee owed after "Dibayar langsung" is a **Potongan** under the general netting rule.

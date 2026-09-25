@@ -36,3 +36,5 @@ Resolved 2026-09-25 (grilling). `CONTEXT.md`: Mitra Jasa entry now names its cov
 - **Keluhan upheld → redo**: by the same Mitra Jasa by default, unpaid; the original job's Pencairan is released when the redo proof is approved. If they're Ditangguhkan / Berhenti, or Admin Platform picks someone else, the other Mitra Jasa does the redo at the normal rate and the original Pencairan is cancelled.
 - **Keluhan upheld → refund**: the original Pencairan is cancelled. **Keluhan rejected**: the Pencairan is released as normal. Admin Platform may override the amount with a note (e.g. half).
 - **Terlambat but done**: full rate, counted on the scorecard. Cancelled for lateness with a refund: no Pencairan. Reassigned: only the Mitra Jasa who does the job is paid.
+
+**Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the Keluhan window starts at Admin Platform's approval of the proof (when it is shown to the Pemesan), as stated above; the same Pencairan-after-window rule now applies to Lokasi Mitra Layanan.
