@@ -21,8 +21,27 @@ describe("runtime environment", () => {
   });
 
   it.each(["staging", "production"])("ignores the fake payment webhook secret in %s", (APP_ENV) => {
-    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, FAKE_PAYMENT_WEBHOOK_SECRET });
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, FAKE_PAYMENT_WEBHOOK_SECRET, ...LIVE_AUTH });
     expect(env.FAKE_PAYMENT_WEBHOOK_SECRET).toBeUndefined();
+  });
+
+  const LIVE_AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id" };
+
+  it.each(["staging", "production"])("needs AUTH_SECRET and APP_BASE_URL in %s", (APP_ENV) => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV })).toThrow(/AUTH_SECRET[\s\S]*APP_BASE_URL|APP_BASE_URL[\s\S]*AUTH_SECRET/);
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH })).toMatchObject(LIVE_AUTH);
+  });
+
+  it("rejects an AUTH_SECRET shorter than 32 characters", () => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH, AUTH_SECRET: "short" })).toThrow(
+      /AUTH_SECRET/,
+    );
+  });
+
+  it.each(["development", "test"])("gives %s a local AUTH_SECRET and APP_BASE_URL when unset", (APP_ENV) => {
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, AUTH_SECRET: "", APP_BASE_URL: "" });
+    expect(env.AUTH_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(env.APP_BASE_URL).toBe("http://localhost:3000");
   });
 });
 

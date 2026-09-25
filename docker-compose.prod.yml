@@ -7,7 +7,7 @@
 #   docker compose -f docker-compose.prod.yml up -d
 #
 # Secrets come from .env.prod on the host (never committed): POSTGRES_PASSWORD,
-# DATABASE_URL, SENTRY_DSN, ...
+# DATABASE_URL, AUTH_SECRET, APP_BASE_URL (https://makam.co.id), SENTRY_DSN, ...
 name: makam-prod
 
 x-app: &app

@@ -6,4 +6,5 @@
  * public functions. This file exists so Drizzle (client and drizzle-kit) sees
  * the whole schema in one place.
  */
+export * from "@/domain/identity/schema";
 export * from "@/domain/scheduler/schema";

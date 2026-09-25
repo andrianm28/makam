@@ -15,6 +15,7 @@ x-app: &app
   environment: &app-env
     APP_ENV: development
     DATABASE_URL: postgres://makam:makam@postgres:5432/makam
+    APP_BASE_URL: http://127.0.0.1:${MAKAM_WEB_PORT:-3310}
     SENTRY_DSN: ${SENTRY_DSN:-}
     SENTRY_ENVIRONMENT: local
 

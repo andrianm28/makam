@@ -22,3 +22,7 @@ The Work Queues module for Admin Platform: the Antrean as a projection of domain
 ## Notes
 
 Bertugas and Tier 1 alerting come in ticket 28. The Tier 4 revisit trigger was settled on 2026-09-25 (see 00-index); how the two rows split one revisit is this ticket's reading.
+
+## Comments
+
+- 2026-09-25 — From ticket 08 (WhatsApp OTP login): please add the test "an OTP failure creates no Antrean row" once the Antrean exists. Drive `identity.requestOtp` with a WhatsAppSender that throws (it returns `gagal_kirim`), then read the Antrean and check that no row came from it. The OTP is sent directly through WhatsAppSender, not through Notifications, so nothing should reach a queue. Ticket 08 could not test this because the queues module was still empty.
