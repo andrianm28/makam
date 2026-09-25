@@ -55,8 +55,6 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
       return "Nomor WhatsApp tidak valid.";
     case "nomor_bukan_indonesia":
       return "Gunakan nomor WhatsApp Indonesia (+62).";
-    case "akun_dinonaktifkan":
-      return "Nomor ini milik Akun Staf yang sudah dinonaktifkan.";
     case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refusal.reason);

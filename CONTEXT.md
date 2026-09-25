@@ -89,11 +89,11 @@ An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas L
 _Avoid_: Admin user, akun admin
 
 **Undangan Staf**:
-Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when that number next logs in by OTP.
+Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when that number next logs in by OTP. It is also the only way a Dinonaktifkan Akun holds a staff role again.
 _Avoid_: Invite link, pendaftaran staf
 
 **Dinonaktifkan**:
-Said of an Akun Staf that Admin Platform has shut off: it can no longer log in, while its orders and Entri Audit stay.
+Said of a former Akun Staf whose staff roles Admin Platform has taken away: it has no staff access, but still logs in as a Pemesan, and its orders and Entri Audit stay.
 _Avoid_: Dihapus, Ditangguhkan (reserved for a Lokasi Mitra or Mitra Jasa)
 
 **Pindah Nomor**:

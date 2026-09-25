@@ -7,7 +7,7 @@ import type { Clock } from "@/ports/clock";
 import { staffRoles, staffWriteRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-import { identitySession, identityStaffRole, identityUser } from "./schema";
+import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
 type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
@@ -146,6 +146,8 @@ export async function deactivateStaff(
     await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
     await tx.delete(identityStaffRole).where(eq(identityStaffRole.accountId, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
+    // A TOTP enrolment belongs to the Admin Platform role: if the Akun is invited back, it enrols afresh.
+    await tx.delete(identityTotp).where(eq(identityTotp.accountId, input.accountId));
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.nonaktifkan",
@@ -192,13 +194,4 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
       deactivated: held.length === 0,
     };
   });
-}
-
-/** True when the number's Akun is Dinonaktifkan. */
-export async function isDeactivatedNumber(db: Database, phoneNumber: string): Promise<boolean> {
-  const [row] = await db
-    .select({ deactivatedAt: identityUser.deactivatedAt })
-    .from(identityUser)
-    .where(eq(identityUser.phoneNumber, phoneNumber));
-  return Boolean(row?.deactivatedAt);
 }

@@ -3,6 +3,7 @@ import { wib } from "@/lib/time/jakarta";
 import { akunResource, authorize, stafMenuResource } from "./index";
 import { identityOnTestDatabase, lastOtpTo, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { authenticatorCode } from "../../../tests/support/totp";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -408,12 +409,64 @@ describe("deactivating an Akun Staf", () => {
     expect((await identity.staffAccounts()).every((account) => !account.deactivated)).toBe(true);
   });
 
-  it("a Dinonaktifkan number cannot be invited again", async () => {
-    const { identity, admin, staff } = await withAdminLokasi();
+  it("a Dinonaktifkan number can be invited again: accepting grants the role, and every step is audited", async () => {
+    const { identity, whatsapp, clock, audit, admin, staff } = await withAdminLokasi();
     await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Keluar" });
+    clock.advance({ days: 30 });
 
-    expect(
-      await identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "lokasi@contoh.id", role: "mitra_jasa" }),
-    ).toEqual({ ok: false, reason: "akun_dinonaktifkan" });
+    const reinvited = await identity.inviteStaff(admin.actor, {
+      phoneNumber: "082222222222",
+      email: "kembali@contoh.id",
+      role: "mitra_jasa",
+      reason: "Bergabung lagi sebagai Mitra Jasa",
+    });
+    expect(reinvited).toMatchObject({ ok: true, invite: { role: "mitra_jasa" } });
+    if (!reinvited.ok) throw new Error(reinvited.reason);
+    const again = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(again.login).toMatchObject({ account: { id: staff.login.account.id }, roles: ["pemesan", "mitra_jasa"] });
+    expect(await identity.staffAccounts()).toContainEqual({
+      accountId: staff.login.account.id,
+      phoneNumber: "+6282222222222",
+      email: "kembali@contoh.id",
+      roles: ["mitra_jasa"],
+      deactivated: false,
+    });
+    expect((await audit.entriesAbout({ kind: "akun", id: staff.login.account.id })).map((entry) => entry.action)).toEqual([
+      "staf.peran_diberikan",
+      "staf.nonaktifkan",
+      "staf.peran_diberikan",
+    ]);
+    expect(await audit.entriesAbout({ kind: "undangan_staf", id: reinvited.invite.id })).toEqual([
+      expect.objectContaining({ action: "staf.undang", reason: "Bergabung lagi sebagai Mitra Jasa" }),
+    ]);
+    expect(await audit.entriesAbout({ kind: "akun", id: staff.login.account.id })).toContainEqual(
+      expect.objectContaining({
+        action: "staf.peran_diberikan",
+        before: { roles: [], email: "lokasi@contoh.id" },
+        after: { roles: ["mitra_jasa"], email: "kembali@contoh.id", undanganStafId: reinvited.invite.id },
+      }),
+    );
+  });
+
+  it("a Dinonaktifkan Admin Platform invited back must enrol a new authenticator: deactivation clears its TOTP", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, clock } = setup;
+    const admin = await signedInAdminPlatform(setup);
+    await identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "dua@makam.co.id", role: "admin_platform" });
+    const second = await logInByOtp(identity, whatsapp, "082222222222");
+    const enrolment = await identity.startTotpEnrolment(second.cookies);
+    if (!enrolment.ok) throw new Error(enrolment.reason);
+    expect(await identity.passTotp(second.cookies, authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
+
+    await identity.deactivateStaff(admin.actor, { accountId: second.login.account.id, reason: "Cuti panjang" });
+    clock.advance({ days: 1 });
+    await identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "dua@makam.co.id", role: "admin_platform" });
+    const back = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(await identity.actorFromCookies(back.cookies)).toMatchObject({
+      roles: ["pemesan", "admin_platform"],
+      totp: "perlu_daftar",
+    });
   });
 });
