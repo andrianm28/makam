@@ -217,3 +217,4 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test | ready-for-agent | 03, 07 |
 | [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64 |
+| [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | ready-for-agent | — |
