@@ -36,6 +36,8 @@ export type MoveAccountResult =
         | "alasan_wajib"
         | "nomor_sama"
         | "akun_tidak_ditemukan"
+        /** The Akun is the acting Admin Platform's own. */
+        | "akun_sendiri"
         | "nomor_sudah_dipakai"
         /** The FileStore did not take the KTP check (e.g. no live S3 adapter yet): nothing moved. */
         | "berkas_gagal_disimpan";
@@ -82,6 +84,8 @@ export async function moveAccountToNewNumber(
 
   const account = await accountIdByNumber(deps.db, current.phoneNumber);
   if (!account) return { ok: false, reason: "akun_tidak_ditemukan" };
+  // Another Admin Platform must move this Akun: no one moves their own number past the KTP check.
+  if (account === by.accountId) return { ok: false, reason: "akun_sendiri" };
   if (await accountIdByNumber(deps.db, next.phoneNumber)) return { ok: false, reason: "nomor_sudah_dipakai" };
 
   const ktpCheckFileKey = `ktp-cek/${account}/${randomUUID()}.${extension}`;

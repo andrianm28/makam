@@ -67,6 +67,8 @@ function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
       return "Nomor baru sama dengan nomor lama.";
     case "akun_tidak_ditemukan":
       return "Tidak ada Akun dengan nomor lama itu.";
+    case "akun_sendiri":
+      return "Anda tidak bisa memindahkan nomor Akun Anda sendiri. Minta Admin Platform lain.";
     case "nomor_sudah_dipakai":
       return "Nomor baru sudah dipakai Akun lain.";
     case "berkas_gagal_disimpan":

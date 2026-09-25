@@ -148,6 +148,23 @@ describe("Pindah Nomor", () => {
     expect(await identity.accountByPhoneNumber(OLD)).not.toBeNull();
   });
 
+  it("an Admin Platform cannot move their own Akun to a new number", async () => {
+    const { identity, files, admin } = await pemesanWhoLostTheirPhone();
+
+    expect(
+      await identity.moveAccountToNewNumber(admin.actor, {
+        currentPhoneNumber: "081111111111",
+        newPhoneNumber: NEW,
+        ktpCheck: KTP,
+        ktpChecked: true,
+        reason: "Ganti HP",
+      }),
+    ).toEqual({ ok: false, reason: "akun_sendiri" });
+    expect(await identity.accountByPhoneNumber("081111111111")).toMatchObject({ id: admin.actor.accountId });
+    expect(await identity.actorFromCookies(admin.cookies)).not.toBeNull();
+    expect(files.stored.size).toBe(0);
+  });
+
   it("only an Admin Platform past TOTP may move a number", async () => {
     const { identity, pemesan } = await pemesanWhoLostTheirPhone();
     const notAdmin = await identity.actorFromCookies(pemesan.cookies);

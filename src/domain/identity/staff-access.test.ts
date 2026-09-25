@@ -504,3 +504,20 @@ describe("deactivating an Akun Staf", () => {
     });
   });
 });
+
+describe("reads are not audited", () => {
+  it("reading the Akun Staf, the open Undangan Staf and an entity's Entri Audit records nothing", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { phoneNumber: "082222222222", email: "dua@contoh.id", role: "mitra_jasa" });
+    const before = await setup.audit.allEntries();
+    expect(before.length).toBeGreaterThan(0);
+
+    await setup.identity.staffAccounts();
+    await setup.identity.openStaffInvites();
+    await setup.audit.entriesAbout({ kind: "akun", id: actor.accountId });
+    await setup.identity.actorFromCookies(null);
+
+    expect(await setup.audit.allEntries()).toEqual(before);
+  });
+});
