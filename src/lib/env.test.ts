@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { browserSentryEnvironment, readPublicSentryEnv, readRuntimeEnv, readSentryEnv, showsStagingBanner } from "./env";
+import {
+  browserSentryEnvironment,
+  readEmailEnv,
+  readPublicSentryEnv,
+  readRuntimeEnv,
+  readSentryEnv,
+  showsStagingBanner,
+} from "./env";
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
@@ -26,7 +33,9 @@ describe("runtime environment", () => {
   });
 
   const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
-  const LIVE_AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
+  const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
+  const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
+  const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP };
 
   it.each(["staging", "production"])("needs TOTP_ENCRYPTION_KEY in %s", (APP_ENV) => {
     expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "" })).toThrow(
@@ -51,7 +60,7 @@ describe("runtime environment", () => {
 
   it.each(["staging", "production"])("needs AUTH_SECRET and APP_BASE_URL in %s", (APP_ENV) => {
     expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV })).toThrow(/AUTH_SECRET[\s\S]*APP_BASE_URL|APP_BASE_URL[\s\S]*AUTH_SECRET/);
-    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH })).toMatchObject(LIVE_AUTH);
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH })).toMatchObject(AUTH);
   });
 
   it("rejects an AUTH_SECRET shorter than 32 characters", () => {
@@ -64,6 +73,70 @@ describe("runtime environment", () => {
     const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, AUTH_SECRET: "", APP_BASE_URL: "" });
     expect(env.AUTH_SECRET.length).toBeGreaterThanOrEqual(32);
     expect(env.APP_BASE_URL).toBe("http://localhost:3000");
+  });
+});
+
+describe("EmailSender environment (SumoPod SMTP relay)", () => {
+  const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
+
+  it.each(["staging", "production"])("needs SMTP_USER, SMTP_PASSWORD and EMAIL_FROM in %s", (APP_ENV) => {
+    for (const missing of ["SMTP_USER", "SMTP_PASSWORD", "EMAIL_FROM"] as const) {
+      expect(() => readEmailEnv({ APP_ENV, ...LIVE_SMTP, [missing]: "" })).toThrow(
+        new RegExp(`${missing} is required in ${APP_ENV}`),
+      );
+    }
+  });
+
+  it("defaults to smtp.sumopod.com on port 465 with the display name Makam.co.id", () => {
+    expect(readEmailEnv({ APP_ENV: "production", ...LIVE_SMTP }).smtp).toEqual({
+      host: "smtp.sumopod.com",
+      port: 465,
+      user: "v1-user",
+      password: "v1-password",
+      from: { address: "no-reply@makam.co.id", name: "Makam.co.id" },
+    });
+  });
+
+  it("reads an explicit host, port and display name", () => {
+    const env = readEmailEnv({
+      APP_ENV: "staging",
+      ...LIVE_SMTP,
+      SMTP_HOST: "smtp.example.test",
+      SMTP_PORT: "2465",
+      EMAIL_FROM_NAME: "Makam.co.id (staging)",
+    });
+    expect(env.smtp).toMatchObject({
+      host: "smtp.example.test",
+      port: 2465,
+      from: { address: "no-reply@makam.co.id", name: "Makam.co.id (staging)" },
+    });
+  });
+
+  it("rejects an EMAIL_FROM that is not an email address", () => {
+    expect(() => readEmailEnv({ APP_ENV: "production", ...LIVE_SMTP, EMAIL_FROM: "Makam.co.id" })).toThrow(/EMAIL_FROM/);
+  });
+
+  it.each(["development", "test"])("needs no SMTP settings in %s, where the fake EmailSender is used", (APP_ENV) => {
+    expect(readEmailEnv({ APP_ENV }).smtp).toBeUndefined();
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).smtp).toBeUndefined();
+  });
+
+  it("carries the SMTP settings into the runtime environment", () => {
+    const env = readRuntimeEnv({
+      DATABASE_URL,
+      APP_ENV: "production",
+      AUTH_SECRET: "s".repeat(32),
+      APP_BASE_URL: "https://makam.co.id",
+      TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+      ...LIVE_SMTP,
+    });
+    expect(env.smtp).toMatchObject({ user: "v1-user", from: { address: "no-reply@makam.co.id" } });
+  });
+
+  it("never puts the SMTP password in a validation error", () => {
+    expect(() => readEmailEnv({ APP_ENV: "production", ...LIVE_SMTP, SMTP_PORT: "not-a-port" })).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining("v1-password") }),
+    );
   });
 });
 

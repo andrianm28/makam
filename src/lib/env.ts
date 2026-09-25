@@ -38,7 +38,73 @@ const base64Key32 = z
   .regex(/^[A-Za-z0-9+/]+={0,2}$/, "must be base64")
   .refine((value) => Buffer.from(value, "base64").length === 32, "must decode to 32 bytes");
 
+/**
+ * The EmailSender's SumoPod SMTP relay (ticket 68, ADR 0002 amendment): implicit
+ * TLS on 465. Required in staging and production; development and test use the
+ * fake EmailSender and need none of it.
+ */
+const smtpEnvShape = {
+  SMTP_HOST: z.preprocess(emptyToUndefined, z.string().min(1).default("smtp.sumopod.com")),
+  SMTP_PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(465)),
+  SMTP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+  /** The sender address, e.g. no-reply@makam.co.id. */
+  EMAIL_FROM: z.preprocess(emptyToUndefined, z.email().optional()),
+  EMAIL_FROM_NAME: z.preprocess(emptyToUndefined, z.string().default("Makam.co.id")),
+};
+
+const SMTP_REQUIRED = ["SMTP_USER", "SMTP_PASSWORD", "EMAIL_FROM"] as const;
+
+/** Where and as whom the live EmailSender sends. */
+export interface SmtpSettings {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: { address: string; name: string };
+}
+
+interface SmtpEnvFields {
+  APP_ENV: AppEnvironment;
+  SMTP_HOST: string;
+  SMTP_PORT: number;
+  SMTP_USER?: string;
+  SMTP_PASSWORD?: string;
+  EMAIL_FROM?: string;
+  EMAIL_FROM_NAME: string;
+}
+
+function requireSmtpOutsideFakes(env: SmtpEnvFields, ctx: z.RefinementCtx) {
+  if (usesInMemoryFakes(env.APP_ENV)) return;
+  for (const key of SMTP_REQUIRED) {
+    if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
+  }
+}
+
+/** Folds the SMTP_* / EMAIL_* variables into one `smtp` value; undefined unless all of them are set. */
+function withSmtpSettings<E extends SmtpEnvFields>(env: E) {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM, EMAIL_FROM_NAME, ...rest } = env;
+  const smtp: SmtpSettings | undefined =
+    SMTP_USER && SMTP_PASSWORD && EMAIL_FROM
+      ? {
+          host: SMTP_HOST,
+          port: SMTP_PORT,
+          user: SMTP_USER,
+          password: SMTP_PASSWORD,
+          from: { address: EMAIL_FROM, name: EMAIL_FROM_NAME },
+        }
+      : undefined;
+  return { ...rest, smtp };
+}
+
+/** Only the EmailSender settings, for the `email-check` CLI (needs no database). */
+const emailEnvSchema = z
+  .object({ APP_ENV: z.enum(appEnvironments).default("development"), ...smtpEnvShape })
+  .superRefine(requireSmtpOutsideFakes)
+  .transform(withSmtpSettings);
+
 const runtimeEnvSchema = sentryEnvSchema.extend({
+  ...smtpEnvShape,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -58,13 +124,14 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   TOTP_ENCRYPTION_KEY: z.preprocess(emptyToUndefined, base64Key32.optional()),
 })
   .superRefine((env, ctx) => {
+    requireSmtpOutsideFakes(env, ctx);
     if (usesInMemoryFakes(env.APP_ENV)) return;
     for (const key of ["AUTH_SECRET", "APP_BASE_URL", "TOTP_ENCRYPTION_KEY"] as const) {
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
     }
   })
   .transform(({ FAKE_PAYMENT_WEBHOOK_SECRET, AUTH_SECRET, APP_BASE_URL, TOTP_ENCRYPTION_KEY, ...env }) => ({
-    ...env,
+    ...withSmtpSettings(env),
     FAKE_PAYMENT_WEBHOOK_SECRET: usesInMemoryFakes(env.APP_ENV) ? FAKE_PAYMENT_WEBHOOK_SECRET : undefined,
     AUTH_SECRET: AUTH_SECRET ?? LOCAL_AUTH_SECRET,
     APP_BASE_URL: APP_BASE_URL ?? LOCAL_BASE_URL,
@@ -99,7 +166,8 @@ export function showsStagingBanner(hostname: string): boolean {
 
 export type SentryEnv = z.infer<typeof sentryEnvSchema>;
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
-export type PublicSentryEnv = z.infer<typeof publicSentryEnvSchema>;
+export type EmailEnv = z.infer<typeof emailEnvSchema>;
+export type PublicSentryEnv =z.infer<typeof publicSentryEnvSchema>;
 
 function parseEnv<S extends z.ZodType>(schema: S, source: EnvSource): z.infer<S> {
   const parsed = schema.safeParse(source);
@@ -117,6 +185,11 @@ export function readRuntimeEnv(source: EnvSource = process.env): RuntimeEnv {
 /** Reads and validates only the error-monitoring settings (web server Sentry). */
 export function readSentryEnv(source: EnvSource = process.env): SentryEnv {
   return parseEnv(sentryEnvSchema, source);
+}
+
+/** Reads and validates only the EmailSender settings (the `email-check` CLI). */
+export function readEmailEnv(source: EnvSource = process.env): EmailEnv {
+  return parseEnv(emailEnvSchema, source);
 }
 
 /** Validates the NEXT_PUBLIC_* error-monitoring settings inlined into the browser bundle. */
