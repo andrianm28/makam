@@ -5,7 +5,7 @@ import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import { ownAkunRefusal, staffRoles, type Actor } from "./authorize";
 import { verifikasiEmailMessage } from "./email-templates";
-import { akunLockKey, checkCode, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
+import { akunLockKey, checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { identityUser } from "./schema";
 import { normaliseEmail } from "./staff";
 
@@ -99,6 +99,8 @@ export async function requestEmailVerification(
   if (refusal) return refusal;
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
 
   const issued = await issueCode(
     deps,

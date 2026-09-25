@@ -16,6 +16,12 @@ afterAll(close);
 beforeEach(resetDatabase);
 
 const IP = "203.0.113.7";
+let ipCounter = 0;
+/** A fresh IP (benchmarking range), so a helper's request never meets another's per-IP 60 s wait. */
+function nextIp(): string {
+  ipCounter += 1;
+  return `198.18.${Math.floor(ipCounter / 250)}.${(ipCounter % 250) + 1}`;
+}
 
 describe("Verifikasi Email in the Akun Saya profile", () => {
   it("a code goes to the typed email, and entering it makes that email the Akun's Email Terverifikasi", async () => {
@@ -187,7 +193,7 @@ async function pemesanWithEmailTerverifikasi(
   const { identity, whatsapp, email, clock } = setup;
   const { login, cookies } = await logInByOtp(identity, whatsapp, phoneNumber);
   const actor = await actorOf(identity, cookies);
-  const sent = await identity.requestEmailVerification(actor, { email: address, ip: IP });
+  const sent = await identity.requestEmailVerification(actor, { email: address, ip: nextIp() });
   if (!sent.ok) throw new Error(`Verifikasi Email not sent: ${sent.reason}`);
   const confirmed = await identity.confirmEmailVerification(actor, { code: emailCodeTo(email, address) });
   if (!confirmed.ok) throw new Error(`Verifikasi Email refused: ${confirmed.reason}`);
@@ -263,7 +269,7 @@ function otherCode(code: string): string {
 /** Verifikasi Email for a signed-in actor, then 1 minute on so the next send to the address is allowed. */
 async function verifyEmailOf(setup: ReturnType<typeof identityOnTestDatabase>, cookies: string, address: string) {
   const { identity, email, clock } = setup;
-  const sent = await identity.requestEmailVerification(await actorOf(identity, cookies), { email: address, ip: IP });
+  const sent = await identity.requestEmailVerification(await actorOf(identity, cookies), { email: address, ip: nextIp() });
   if (!sent.ok) throw new Error(`Verifikasi Email not sent: ${sent.reason}`);
   const confirmed = await identity.confirmEmailVerification(await actorOf(identity, cookies), {
     code: emailCodeTo(email, address),
@@ -606,6 +612,18 @@ describe("email Kode Masuk rules (the WhatsApp values)", () => {
       ok: false,
       reason: "tunggu_kirim_ulang",
     });
+  });
+
+  it("per IP: a Verifikasi Email request counts against the IP like the email step of Masuk", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp, email } = setup;
+    const { cookies } = await logInByOtp(identity, whatsapp, "081234567890");
+    await identity.requestEmailLogin({ email: "siapa@contoh.id", ip: IP });
+
+    expect(
+      await identity.requestEmailVerification(await actorOf(identity, cookies), { email: "sari@contoh.id", ip: IP }),
+    ).toMatchObject({ ok: false, reason: "tunggu_kirim_ulang" });
+    expect(email.sent).toEqual([]);
   });
 
   it("per email: at most 5 codes in any 60 minutes", async () => {
