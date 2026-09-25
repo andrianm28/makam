@@ -10,6 +10,7 @@ import {
   OTP_EXPIRES_AFTER_MS,
   OTP_FALLBACK_AFTER_MS,
   OTP_RESEND_AFTER_MS,
+  type IssueCodeResult,
   type LimitRefusal,
 } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
@@ -51,15 +52,9 @@ export async function requestEmailLogin(
   deps.runDetached(async () => {
     try {
       const akun = await akunOfVerifiedEmail(deps.db, email);
-      if (!akun) return;
-      const issued = await issueCode(
-        deps,
-        { channel: "email", target: email, purpose: "masuk", lockKey: akunLockKey(akun.id) },
-        (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
-      );
-      // Not counted against the limits (issueCode), and not shown: saying "gagal kirim" here would tell
-      // anyone that this email is an Email Terverifikasi.
-      if (!issued.ok && issued.reason === "gagal_kirim") deps.reportError("email Kode Masuk tidak terkirim", issued.error);
+      // A failed send is not shown here: saying "gagal kirim" would tell anyone that this email is an
+      // Email Terverifikasi.
+      if (akun) await sendKodeMasukEmail(deps, akun.id, email);
     } catch (error) {
       deps.reportError("email Kode Masuk tidak terkirim", error);
     }
@@ -123,15 +118,22 @@ export async function requestEmailFallback(
   const retryAt = new Date(whatsappSentAt.getTime() + OTP_FALLBACK_AFTER_MS);
   if (now.getTime() < retryAt.getTime()) return { ok: false, reason: "tunggu_kirim_ulang", retryAt };
 
+  const issued = await sendKodeMasukEmail(deps, akun.id, email);
+  if (!issued.ok) return issued.reason === "gagal_kirim" ? { ok: false, reason: "gagal_kirim" } : issued;
+  return { ok: true, sentAt: issued.sentAt, resendAt: issued.resendAt };
+}
+
+/**
+ * Sends the email Kode Masuk to an Akun's Email Terverifikasi under the shared
+ * code rules. A failed send counts against no limit (issueCode) and is
+ * reported without the address or the code.
+ */
+async function sendKodeMasukEmail(deps: EmailLoginDeps, accountId: string, email: string): Promise<IssueCodeResult> {
   const issued = await issueCode(
     deps,
-    { channel: "email", target: email, purpose: "masuk", lockKey: akunLockKey(akun.id) },
+    { channel: "email", target: email, purpose: "masuk", lockKey: akunLockKey(accountId) },
     (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
   );
-  if (!issued.ok) {
-    if (issued.reason !== "gagal_kirim") return issued;
-    deps.reportError("email Kode Masuk tidak terkirim", issued.error);
-    return { ok: false, reason: "gagal_kirim" };
-  }
-  return { ok: true, sentAt: issued.sentAt, resendAt: issued.resendAt };
+  if (!issued.ok && issued.reason === "gagal_kirim") deps.reportError("email Kode Masuk tidak terkirim", issued.error);
+  return issued;
 }

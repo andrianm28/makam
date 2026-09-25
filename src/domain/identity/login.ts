@@ -58,23 +58,18 @@ export async function verifyOtp(
   const { phoneNumber } = normalised;
 
   const akun = await akunOfNumber(deps.db, phoneNumber);
-  if (input.channel === "email") {
-    if (!akun?.verifiedEmail) return { ok: false, reason: "kode_salah" };
-    return logInAkun(deps, {
-      lookup: { channel: "email", target: akun.verifiedEmail, purpose: "masuk" },
-      code: input.code,
-      signsIn: (checked) => akunTheEmailCodeWasSentFor(deps.db, checked),
-    });
-  }
+  const byEmail = input.channel === "email";
+  if (byEmail && !akun?.verifiedEmail) return { ok: false, reason: "kode_salah" };
+  const lookup: CodeLookup =
+    byEmail && akun?.verifiedEmail
+      ? { channel: "email", target: akun.verifiedEmail, purpose: "masuk" }
+      : { channel: "whatsapp", target: phoneNumber, purpose: "masuk", lockKey: numberLockKey(phoneNumber, akun) };
   return logInAkun(deps, {
-    lookup: {
-      channel: "whatsapp",
-      target: phoneNumber,
-      purpose: "masuk",
-      lockKey: numberLockKey(phoneNumber, akun),
-    },
+    lookup,
     code: input.code,
-    signsIn: async () => ({ phoneNumber, mayCreate: true }),
+    signsIn: byEmail
+      ? (checked) => akunTheEmailCodeWasSentFor(deps.db, checked)
+      : async () => ({ phoneNumber, mayCreate: true }),
   });
 }
 
