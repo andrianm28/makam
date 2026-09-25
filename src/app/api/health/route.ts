@@ -8,6 +8,7 @@ export async function GET() {
   return Response.json(
     {
       ok: health.ok,
+      environment: health.environment,
       checkedAt: health.checkedAt.toISOString(),
       database: { ok: health.database.ok },
       worker: health.worker && {

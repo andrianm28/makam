@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readPublicSentryEnv, readRuntimeEnv, readSentryEnv } from "./env";
+import { browserSentryEnvironment, readPublicSentryEnv, readRuntimeEnv, readSentryEnv } from "./env";
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
@@ -64,26 +64,34 @@ describe("error monitoring environment", () => {
   });
 });
 
-describe("browser error monitoring environment (NEXT_PUBLIC_*)", () => {
-  it("is disabled and 'development' when nothing was set at build time", () => {
-    expect(readPublicSentryEnv({ NEXT_PUBLIC_SENTRY_DSN: "", NEXT_PUBLIC_SENTRY_ENVIRONMENT: undefined })).toEqual({
-      NEXT_PUBLIC_SENTRY_ENVIRONMENT: "development",
-    });
+describe("browser error monitoring DSN (NEXT_PUBLIC_*)", () => {
+  it("is disabled when no DSN was set at build time", () => {
+    expect(readPublicSentryEnv({ NEXT_PUBLIC_SENTRY_DSN: "" })).toEqual({});
   });
 
-  it("reads the DSN and environment inlined at build time", () => {
-    expect(
-      readPublicSentryEnv({
-        NEXT_PUBLIC_SENTRY_DSN: "https://k@glitchtip.makam.co.id/2",
-        NEXT_PUBLIC_SENTRY_ENVIRONMENT: "production",
-      }),
-    ).toEqual({
+  it("reads the DSN inlined at build time", () => {
+    expect(readPublicSentryEnv({ NEXT_PUBLIC_SENTRY_DSN: "https://k@glitchtip.makam.co.id/2" })).toEqual({
       NEXT_PUBLIC_SENTRY_DSN: "https://k@glitchtip.makam.co.id/2",
-      NEXT_PUBLIC_SENTRY_ENVIRONMENT: "production",
     });
   });
 
   it("rejects a DSN that is not a URL", () => {
     expect(() => readPublicSentryEnv({ NEXT_PUBLIC_SENTRY_DSN: "glitchtip" })).toThrow(/Invalid environment/);
+  });
+});
+
+describe("browser error monitoring environment (from the page's host, since one image serves staging and production)", () => {
+  it.each([
+    ["dev.makam.co.id", "staging"],
+    ["makam.co.id", "production"],
+    ["www.makam.co.id", "production"],
+    ["MAKAM.CO.ID", "production"],
+    ["localhost", "development"],
+    ["127.0.0.1", "development"],
+    ["beta.makam.co.id", "development"],
+    ["makam.co.id.evil.example", "development"],
+    ["", "development"],
+  ])("%s is %s", (hostname, environment) => {
+    expect(browserSentryEnvironment(hostname)).toBe(environment);
   });
 });

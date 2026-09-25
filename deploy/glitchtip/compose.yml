@@ -1,0 +1,138 @@
+# Self-hosted GlitchTip (ADR 0002 amendment) as its own compose project on the
+# Jakarta VPS. Based on GlitchTip 6's compose.sample.yml
+# (https://glitchtip.com/documentation/install), split into separate web and
+# worker services with a one-shot migrate, and a memory limit on each.
+#
+#   docker compose -p glitchtip -f compose.yml --env-file glitchtip.env up -d
+#
+# The env file lives on the host only (/opt/makam-v1/glitchtip/glitchtip.env,
+# mode 0600): POSTGRES_PASSWORD, SECRET_KEY, GLITCHTIP_DOMAIN, EMAIL_URL, ...
+# Every image is pinned to an exact version and digest (the ones running on
+# 2026-09-25). Upgrade: change the pin here on main (check
+# https://glitchtip.com/blog/ for majors), run deploy/install-host.sh, then
+# `pull`, `run --rm migrate`, `up -d`. See docs/ops/runbook.md.
+name: glitchtip
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-glitchtip: &glitchtip
+  # GlitchTip 6.2.6
+  image: glitchtip/glitchtip:6.2.6@sha256:a3d8eb1b36c1e1603d55ab32711ea3dd8115874742a781a57391a62a16e0dff6
+  env_file: ${GLITCHTIP_ENV_FILE:-glitchtip.env}
+  environment: &glitchtip-env
+    DATABASE_URL: postgres://glitchtip:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/glitchtip
+    VALKEY_URL: redis://valkey:6379/0
+  restart: unless-stopped
+  volumes:
+    - uploads:/code/uploads
+  logging: *logging
+
+services:
+  postgres:
+    # PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2)
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_DB: glitchtip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768m
+    logging: *logging
+
+  valkey:
+    # Valkey 9.1.2
+    image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128m
+    logging: *logging
+
+  migrate:
+    <<: *glitchtip
+    command: ["./bin/run-migrate.sh"]
+    restart: "no"
+    profiles: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
+  web:
+    <<: *glitchtip
+    environment:
+      <<: *glitchtip-env
+      SERVER_ROLE: web
+      # Recycle a granian worker before it nears the container limit.
+      GRANIAN_WORKERS_MAX_RSS: "450"
+    ports:
+      # nginx (errors.makam.co.id) proxies here; never exposed directly.
+      - "127.0.0.1:${GLITCHTIP_WEB_PORT:-8130}:8000"
+    networks:
+      default:
+      ingest:
+        # makam-staging / makam-prod send server events to http://glitchtip-web:8000.
+        aliases: [glitchtip-web]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768m
+
+  worker:
+    <<: *glitchtip
+    environment:
+      <<: *glitchtip-env
+      SERVER_ROLE: worker
+      VTASKS_CONCURRENCY: "4"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
+
+networks:
+  default:
+  ingest:
+    name: glitchtip_ingest
+
+volumes:
+  pg-data:
+  uploads:
