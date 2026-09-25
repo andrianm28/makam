@@ -156,6 +156,27 @@ describe("Peringatan Staf", () => {
   });
 });
 
+describe("Peringatan Staf on the lock screen", () => {
+  it.each([
+    ["a mobile number in the body", { body: "Hubungi Ibu Pemesan di 0812-3456-7890" }],
+    ["a +62 number in the title", { title: "Pemesan +62 812 3456 7890 menunggu" }],
+    ["an email address in the body", { body: "Balas ke sari@contoh.id" }],
+  ])("refuses a push that carries %s: a push shows on the lock screen", async (_, text) => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    await setup.notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+
+    await expect(
+      setup.notifications.sendStaffAlert({
+        to: { accountId: adminLokasi.accountId },
+        ...saatDukaBaru,
+        push: { ...saatDukaBaru.push, ...text },
+      }),
+    ).rejects.toThrow(/lock screen/);
+    expect(setup.webPush.sent).toEqual([]);
+  });
+});
+
 describe("Perangkat Push", () => {
   it("is turned off by Keluar: after Keluar, a Peringatan Staf reaches that browser no more", async () => {
     const setup = notificationsOnTestDatabase(db);

@@ -23,6 +23,7 @@ import {
 } from "@/domain/identity";
 import { base64urlBytes } from "@/lib/base64url";
 import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
+import { scrubText } from "@/lib/observability/scrub";
 import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
@@ -66,7 +67,13 @@ export interface StaffAlert {
   to: { accountId: string };
   /** The approved template (`whatsapp-templates.md`, `staf_*`) and its parameters. */
   whatsapp: { template: string; parameters: string[] };
-  /** What the push shows; `url` is the staff page tapping it opens (`STAFF_AREA_PATH` or under it). */
+  /**
+   * What the push shows; `url` is the staff page tapping it opens
+   * (`STAFF_AREA_PATH` or under it). A push shows on the lock screen, so
+   * `title` and `body` carry no personal data: no names, phone numbers or
+   * emails; name the work by Nomor Pemesanan, Lokasi and kind instead (the
+   * WhatsApp may carry the rest). Phone numbers and emails are refused.
+   */
   push: PushNotification & { url: string };
 }
 
@@ -189,6 +196,11 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async sendStaffAlert(alert) {
+      for (const text of [alert.push.title, alert.push.body]) {
+        if (!lockScreenSafe(text)) {
+          throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
+        }
+      }
       const url = staffPagePath(alert.push.url);
       if (!url) throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
 
@@ -245,6 +257,14 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return { ok: true, whatsapp, push };
     },
   };
+}
+
+/** An email address anywhere in a text. */
+const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+/** Fit for a lock screen: no phone number (as error scrubbing finds them) and no email address. */
+function lockScreenSafe(text: string): boolean {
+  return scrubText(text) === text && !EMAIL.test(text);
 }
 
 /**
