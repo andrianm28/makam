@@ -102,6 +102,97 @@ test("the invitee logs in by OTP, holds both roles, and switches between their m
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
 });
 
+test("the staff area installs as an app, the Admin Lokasi turns push on for this browser, and tapping a push opens its staff page", async ({
+  request,
+}) => {
+  const page = inviteePage;
+  const context = page.context();
+  await context.grantPermissions(["notifications"]);
+  await page.goto("/staf/admin-lokasi");
+
+  // Installable: a manifest scoped to the staff area, with icons for Android and iPhone.
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");
+  const manifest = await (await request.get(manifestHref!)).json();
+  expect(manifest).toMatchObject({ start_url: "/staf", scope: "/staf", display: "standalone" });
+  for (const icon of manifest.icons as { src: string }[]) {
+    expect((await request.get(icon.src)).headers()["content-type"]).toBe("image/png");
+  }
+  const appleIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
+  expect((await request.get(appleIcon!)).ok()).toBe(true);
+  await expect(page.getByText(/iPhone.*hanya.*setelah.*Layar Utama/)).toBeVisible();
+
+  // The service worker controls the staff area.
+  expect(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope)).toMatch(/\/staf$/);
+
+  // Headless Chromium has no push service: this browser's PushManager hands over a subscription as a
+  // real one would (kept across page loads); the server side is the in-memory fake WebPush.
+  await context.addInitScript(() => {
+    const endpoint = "https://fcm.googleapis.com/fcm/send/e2e-perangkat";
+    const subscription = {
+      endpoint,
+      toJSON: () => ({
+        endpoint,
+        keys: {
+          p256dh: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+          auth: "AAECAwQFBgcICQoLDA0ODw",
+        },
+      }),
+      unsubscribe: async () => {
+        localStorage.removeItem("e2e-push");
+        return true;
+      },
+    };
+    PushManager.prototype.subscribe = async () => {
+      localStorage.setItem("e2e-push", "1");
+      return subscription as unknown as PushSubscription;
+    };
+    PushManager.prototype.getSubscription = async () =>
+      (localStorage.getItem("e2e-push") ? subscription : null) as unknown as PushSubscription;
+  });
+  await page.reload();
+  await expect(page.getByText("Push aktif di 0 perangkat untuk Akun ini.")).toBeVisible();
+  await page.getByRole("button", { name: "Aktifkan notifikasi push" }).click();
+  await expect(page.getByText("Notifikasi push aktif di perangkat ini.")).toBeVisible();
+
+  // Stored for the Akun: every page of the staff area now counts this browser.
+  await page.goto("/staf/petugas-lapangan");
+  await expect(page.getByText("Push aktif di 1 perangkat untuk Akun ini.")).toBeVisible();
+  await expect(page.getByText("Notifikasi push aktif di perangkat ini.")).toBeVisible();
+
+  // A push arrives and is tapped: the service worker opens the staff page it names.
+  const worker = context.serviceWorkers().find((sw) => sw.url().endsWith("/sw.js"))!;
+  await worker.evaluate(async () => {
+    // Service worker globals (the page's DOM typings do not include them).
+    const scope = self as unknown as EventTarget & {
+      registration: ServiceWorkerRegistration;
+      PushEvent: new (type: string, init: { data: string }) => Event;
+      ExtendableEvent: new (type: string) => Event;
+    };
+    // Headless Chromium refuses notification permission, so the notification the worker shows is caught here.
+    const shown: { title: string; options?: NotificationOptions }[] = [];
+    scope.registration.showNotification = async (title, options) => void shown.push({ title, options });
+
+    const data = JSON.stringify({ title: "Tugas Lapangan baru", body: "Kunjungan Verifikasi", url: "/staf/petugas-lapangan" });
+    scope.dispatchEvent(new scope.PushEvent("push", { data }));
+    const [notification] = shown;
+    if (notification?.title !== "Tugas Lapangan baru") throw new Error("no notification shown");
+
+    // The staff member taps it.
+    const click = new scope.ExtendableEvent("notificationclick");
+    Object.defineProperty(click, "notification", {
+      value: { ...notification, data: notification.options?.data, close: () => undefined },
+    });
+    scope.dispatchEvent(click);
+  });
+  await expect(page).toHaveURL(/\/staf\/petugas-lapangan$/);
+
+  // Turned off for this browser.
+  await page.getByRole("button", { name: "Matikan notifikasi push" }).click();
+  await expect(page.getByRole("button", { name: "Aktifkan notifikasi push" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Push aktif di 0 perangkat untuk Akun ini.")).toBeVisible();
+});
+
 test("Admin Platform moves a Pemesan's Akun to a new number after a KTP check", async ({ browser, request }) => {
   const oldNumber = coldNumber();
   const newNumber = coldNumber();

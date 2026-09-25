@@ -4,6 +4,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Identity } from "@/domain/identity";
+import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
@@ -14,6 +15,7 @@ export interface ServerRuntime {
   adapters: Adapters;
   audit: AuditLog;
   identity: Identity;
+  notifications: Notifications;
   /** Pengaturan Operator: read through `current()` / `inForceAt()`, never from env or constants. */
   operatorSettings: OperatorSettings;
 }
@@ -36,12 +38,20 @@ export function serverRuntime(): ServerRuntime {
       vapid: { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT },
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+    const notifications = createNotifications({
+      db: database.db,
+      clock: adapters.clock,
+      whatsapp: adapters.whatsapp,
+      webPush: adapters.webPush,
+      audit,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
       adapters,
       audit,
       identity,
+      notifications,
       operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
     };
   }

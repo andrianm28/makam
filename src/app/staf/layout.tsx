@@ -1,12 +1,19 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { keluar } from "@/app/akun/actions";
+import { PushPanel } from "./push-panel";
 
 export const metadata: Metadata = {
   title: "Area Staf | Makam.co.id",
   robots: { index: false, follow: false },
+  // Installable staff app (ticket 21): manifest, iPhone home-screen icon and standalone mode.
+  manifest: "/staf.webmanifest",
+  icons: { apple: "/icons/staf-apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Makam Staf", statusBarStyle: "default" },
 };
+
+export const viewport: Viewport = { themeColor: "#171717" };
 
 /** The staff area: its own section of the app, apart from the public site and Akun Saya. */
 export default function StafLayout({ children }: LayoutProps<"/staf">) {
@@ -29,7 +36,10 @@ export default function StafLayout({ children }: LayoutProps<"/staf">) {
           </div>
         </div>
       </header>
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-6 py-10">{children}</main>
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-6 py-10">
+        <PushPanel />
+        {children}
+      </main>
     </div>
   );
 }
