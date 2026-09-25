@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeClock, FakeWhatsAppSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { createIdentity } from "./index";
+import { createIdentity, type Identity } from "./index";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -50,7 +50,29 @@ describe("Pemesan OTP login over WhatsApp", () => {
       roles: ["pemesan"],
     });
   });
+
+  it("a Pemesan with an account logs into that same account, however the number is written", async () => {
+    const { clock, whatsapp, identity } = setup();
+    const first = await logIn(identity, whatsapp, "081234567890");
+    clock.advance({ days: 3 });
+
+    await identity.requestOtp({ phoneNumber: "+62 812 3456 7890" });
+    const again = await identity.verifyOtp({ phoneNumber: "6281234567890", code: lastCode(whatsapp) });
+
+    expect(again).toMatchObject({ ok: true, accountCreated: false, account: first.account });
+    if (!again.ok) throw new Error("login failed");
+    expect(await identity.actorFromCookies(cookieHeader(again.session.cookies))).toMatchObject({
+      accountId: first.account.id,
+    });
+  });
 });
+
+async function logIn(identity: Identity, whatsapp: FakeWhatsAppSender, phoneNumber: string) {
+  await identity.requestOtp({ phoneNumber });
+  const login = await identity.verifyOtp({ phoneNumber, code: lastCode(whatsapp) });
+  if (!login.ok) throw new Error(`login failed: ${login.reason}`);
+  return login;
+}
 
 function lastCode(whatsapp: FakeWhatsAppSender): string {
   const code = whatsapp.sent.at(-1)?.copyCode;
