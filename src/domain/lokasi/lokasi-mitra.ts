@@ -221,9 +221,14 @@ export async function updateProfile(
   }));
 }
 
-export type SetPoliciesResult = WriteResult | { ok: false; reason: "kebijakan_tidak_valid" };
+export type SetPoliciesResult = WriteResult | { ok: false; reason: "kebijakan_tidak_valid" | "terencana_belum_tersedia" };
 
-/** Admin Platform sets a Lokasi Mitra's policies and flags together, audited. Values outside the rules are refused. */
+/**
+ * Admin Platform sets a Lokasi Mitra's policies and flags together, audited.
+ * Values outside the rules are refused. Pemesanan Terencana stays off for now:
+ * switching it on needs the Denah and a Cek Denah (tickets 13 and 16), so it
+ * is refused (`terencana_belum_tersedia`) until those tickets add the conditions.
+ */
 export async function setPoliciesAndFlags(
   deps: LokasiDeps,
   by: Actor,
@@ -233,6 +238,7 @@ export async function setPoliciesAndFlags(
   const policies = lokasiPoliciesSchema.safeParse(input.policies);
   const flags = lokasiFlagsSchema.safeParse(input.flags);
   if (!policies.success || !flags.success) return { ok: false, reason: "kebijakan_tidak_valid" };
+  if (flags.data.pemesananTerencanaAktif) return { ok: false, reason: "terencana_belum_tersedia" };
   return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_kebijakan", (row) => ({
     values: { policies: policies.data, flags: flags.data },
     before: { policies: row.policies, flags: row.flags },

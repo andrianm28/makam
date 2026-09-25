@@ -237,6 +237,25 @@ describe("the policies and flags of a Lokasi Mitra", () => {
     });
   });
 
+  it("refuse switching Pemesanan Terencana on until Denah and Cek Denah exist (tickets 13 and 16): nothing changes and nothing is audited", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const created = await newLokasiMitra(setup, admin);
+    const entriesBefore = await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: created.id });
+
+    expect(
+      await setup.lokasi.setPoliciesAndFlags(admin, created.id, {
+        policies: created.policies,
+        flags: { ...created.flags, pemesananTerencanaAktif: true },
+      }),
+    ).toEqual({ ok: false, reason: "terencana_belum_tersedia" });
+
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({
+      lokasiMitra: { flags: { pemesananTerencanaAktif: false } },
+    });
+    expect(await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: created.id })).toEqual(entriesBefore);
+  });
+
   it("refuse values outside the rules: a negative period, K below 1, a refund above 100%, tumpang under 2 layers", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

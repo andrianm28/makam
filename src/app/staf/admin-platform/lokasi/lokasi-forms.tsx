@@ -179,11 +179,35 @@ export function DocumentsForm({ lokasiId, documents }: { lokasiId: string; docum
   );
 }
 
-function Checkbox({ label, name, checked }: { label: string; name: string; checked: boolean }) {
+function Checkbox({
+  label,
+  name,
+  checked,
+  lockedNote,
+}: {
+  label: string;
+  name: string;
+  checked: boolean;
+  /** Shown disabled with this note: the flag cannot be changed yet. */
+  lockedNote?: string;
+}) {
+  const noteId = `${name}-catatan`;
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" name={name} value="ya" defaultChecked={checked} />
+    <label className="flex flex-wrap items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        name={name}
+        value="ya"
+        defaultChecked={checked}
+        disabled={lockedNote !== undefined}
+        aria-describedby={lockedNote ? noteId : undefined}
+      />
       {label}
+      {lockedNote ? (
+        <span id={noteId} className="text-muted-foreground">
+          ({lockedNote})
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -216,7 +240,12 @@ export function PoliciesForm({
       </div>
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">Flag</legend>
-        <Checkbox label="Pemesanan Terencana aktif" name="pemesananTerencanaAktif" checked={flags.pemesananTerencanaAktif} />
+        <Checkbox
+          label="Pemesanan Terencana aktif"
+          name="pemesananTerencanaAktif"
+          checked={flags.pemesananTerencanaAktif}
+          lockedNote="Tersedia setelah Denah dan Cek Denah"
+        />
         <Checkbox label="Boleh tumpang" name="tumpangAllowed" checked={flags.tumpang.allowed} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
