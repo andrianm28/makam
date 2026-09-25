@@ -28,3 +28,9 @@ The nginx server block for `makam.co.id` is not changed here; ticket 07 switches
 ## Amended (2026-09-25)
 
 `dev.makam.co.id` becomes v1 staging in ticket 07 (user decision); this ticket still does not change any nginx block. DNS for `dev.makam.co.id` already points to this host. GitHub owner stays the personal account `andrianm28` for now (transfer to a PT JKP organisation later if wanted).
+
+## Remaining from ticket 07 (2026-09-25)
+
+- [ ] DNS A record `errors.makam.co.id` → 103.92.214.243. Then tell the main session, which enables the prepared nginx site, runs Certbot, and switches staging's DSN to the public URL (runbook "GlitchTip" section).
+- [ ] External uptime monitor (e.g. UptimeRobot free) on `https://dev.makam.co.id/api/health`, alerting on non-200 (runbook "Uptime alarm").
+- [ ] Change the GlitchTip superuser password after first login (`/opt/makam-v1/glitchtip/admin-credentials.txt`).

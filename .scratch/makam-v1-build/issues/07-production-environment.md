@@ -1,6 +1,6 @@
 # Staging, GlitchTip, deploy pipeline and uptime alarm
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 Spec: Implementation Decisions > Architecture (staging, CI, error monitoring, uptime); ADR 0002 (and its 2026-09-25 amendment); story 187
 
@@ -51,3 +51,4 @@ Other projects run on this host: never stop, remove or modify containers, networ
   - **Health.** `/api/health` now carries `environment` (the `APP_ENV`), with a route test. It goes live once CI publishes the next image from `main`. Until then, `APP_ENV=staging` was confirmed with `printenv APP_ENV` in web and worker.
   - **Runbook.** Adds a `staging.env` variable table, a Postgres password rotation through `\password` (never in argv or history, scratch file shredded), and a forward-only migrations section.
   - **Verified.** `nginx -t` passed, then reload. `/` → 401. `/api/health` → 200 with a fresh heartbeat. POST `/api/webhooks/sumopod` → 404 from the app (not 401; the route doesn't exist yet). POST `/api/webhooks/sumopod-x` → 401. `/.env` → 403. `makam-deploy` refused a foreign image, a wrong project and a wrong `APP_ENV` (exit 78). `docker compose` without `MAKAM_PROJECT` failed. Lint, typecheck, 149 tests and `next build` pass.
+- 2026-09-25 — Merged to `main` after a two-axis review (mattpocock-skills:code-review) and fixes (ADR 0002 amendment, exact webhook exemption, required APP_ENV / project / port / tag, image allow-list, pinned images, runtime browser Sentry environment, systemd hardening, runbook). Verified in the main session: 401 without auth, `/api/webhooks/sumopod-x` 401, `/.env` 403, `/api/health` 200 with a fresh heartbeat, no failed makam units, no leftover env copies, Vitest 149/149. Resolved for the agent part; the two remaining human items (DNS `errors.makam.co.id`, external uptime monitor) moved to ticket 02.
