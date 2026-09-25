@@ -17,9 +17,11 @@ Ports in use by other projects on this host: 3001, 8081, 8082, 8083 (old
 Laravel app) and more. Check `sudo ss -ltnp` before picking a new one.
 
 Every service has a memory and CPU limit (`docker stats --no-stream` shows
-them). Staging and production use `docker-compose.prod.yml`, and each has its
-own Postgres volume (`makam-staging_pgdata`, `makam-prod_pgdata`). Nothing is
-shared with the old app.
+them). Staging and production both use `docker-compose.prod.yml` (the name is
+historical; the file serves every host environment and has no production
+defaults), and each has its own Postgres volume (`makam-staging_pgdata`,
+`makam-prod_pgdata`). Nothing is shared with the old app. Every image is pinned
+to an exact version and digest in the compose files.
 
 ## Files and secrets on the host
 
@@ -31,7 +33,7 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/bin/makam-deploy` | deploy script (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-healthcheck` | local watchdog (from `deploy/bin/`) |
 | `/opt/makam-v1/staging/compose.yml` | copy of `docker-compose.prod.yml` |
-| `/opt/makam-v1/staging/staging.env` | staging secrets and settings: `POSTGRES_PASSWORD`, `DATABASE_URL`, `AUTH_SECRET`, `APP_BASE_URL`, `SENTRY_DSN`, `MAKAM_WEB_PORT=3110`, ... |
+| `/opt/makam-v1/staging/staging.env` | staging secrets and settings (see below) |
 | `/opt/makam-v1/staging/deployed.env` | tag and release now running, and the previous tag (written by the deploy script) |
 | `/opt/makam-v1/staging/deploy.log` | every deploy step, with migrate output |
 | `/opt/makam-v1/staging-basic-auth.txt` | dev.makam.co.id basic auth user and password |
@@ -43,11 +45,36 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/api-token.txt` | GlitchTip API token (ops scripts) |
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
 | `/etc/systemd/system/makam-staging-{deploy,health}.{service,timer}` | from `deploy/systemd/` |
+| `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
 
 After changing any file under `deploy/` or `docker-compose.prod.yml` on
-`main`, run `deploy/install-host.sh` from an up-to-date checkout of `main`.
-It copies the compose files, scripts and units, and never touches env files
-or nginx.
+`main`, run `deploy/install-host.sh` from an up-to-date, clean checkout of
+`main` (it refuses any other branch or a dirty tree; `--allow-branch` is for
+testing only). It copies the compose files, scripts, units and the nginx proxy
+snippet, runs `nginx -t`, and never touches env files, nginx sites, or reloads
+nginx.
+
+### `staging.env`
+
+The compose file has **no defaults** for the settings that pick an
+environment, so a `docker compose` command without this file fails instead of
+silently running as `makam-prod` or `production`. `makam-deploy` also refuses
+to run unless the first three match `--env`:
+
+| Variable | Staging value | What |
+|---|---|---|
+| `MAKAM_PROJECT` | `makam-staging` | compose project name (`name:` in the compose file) |
+| `MAKAM_APP_ENV` | `staging` | becomes the containers' `APP_ENV` (live adapters, never fakes) |
+| `MAKAM_IMAGE` | `ghcr.io/andrianm28/makam` | the only image `makam-deploy` accepts |
+| `MAKAM_ENV_FILE` | `/opt/makam-v1/staging/staging.env` | this file again, as the containers' `env_file` |
+| `MAKAM_WEB_PORT` | `3110` | web's port on 127.0.0.1 |
+| `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
+| `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and OTP |
+| `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
+
+`MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
+script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
+shows the running `APP_ENV` (`staging`) without any secret.
 
 ## Staging deploy
 
@@ -68,6 +95,12 @@ The script:
 5. waits up to 180 s for `/api/health` to return 200 (DB ok and a fresh
    worker heartbeat) and exits 2 if it doesn't.
 
+Both units are hardened (`NoNewPrivileges`, `PrivateTmp`,
+`ProtectSystem=strict`). The deploy unit can write only `/opt/makam-v1` and
+reads the ghcr login from a read-only home; the health unit sees no home at
+all. A new file the deploy must write outside `/opt/makam-v1` needs a
+`ReadWritePaths=` line in `deploy/systemd/makam-staging-deploy.service`.
+
 The VPS never builds images. It holds no SSH deploy key, and GitHub holds no
 secret for the host. The only credential involved is the host's read-only ghcr
 token. A new commit on `main` is live on staging about 2 minutes after CI
@@ -87,7 +120,7 @@ systemctl list-timers 'makam-*'
 sudo systemctl stop makam-staging-deploy.timer
 sudo systemctl start makam-staging-deploy.timer
 
-# Any other compose command: always both env files
+# Any other compose command: always -p and both env files (without them it fails)
 cd /opt/makam-v1/staging
 docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env ps
 docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env logs -f --tail 100 web worker
@@ -109,10 +142,24 @@ sudo systemctl stop makam-staging-deploy.timer        # otherwise it re-deploys 
 sudo systemctl start makam-staging-deploy.timer
 ```
 
-Migrations are forward-only. Rolling the code back does not undo a
-migration, so migrations must stay compatible with the previous release
-(expand, then contract). If an old image cannot run against the new schema,
-roll forward with a fix instead.
+### Forward-only migrations
+
+Migrations are forward-only: nothing ever runs a "down" migration, and rolling
+the code back does not undo one. So **every migration must be
+backward-compatible for one release**: the previous image must still run
+against the new schema (expand, then contract in a later release; never
+rename or drop a column the running code still reads in the same release).
+
+If `migrate` succeeds but `up` (or the health check) then fails, the database
+is already on the new schema. Either:
+
+- **roll forward**: fix `main` and let the next image deploy, or
+- **redeploy the previous tag** (`makam-deploy --env staging --tag <PREVIOUS_TAG>`),
+  which works only because that image tolerates the new schema. Its own
+  `migrate` step is a no-op, since those migrations are already applied.
+
+Never restore a database backup to undo a migration on a live environment
+without a separate decision: it loses every write since the backup.
 
 ## dev.makam.co.id and its rollback
 
@@ -122,8 +169,11 @@ time. The new block (`deploy/nginx/dev.makam.co.id.conf`) proxies to
 `makam-staging` web on `127.0.0.1:3110`, keeps the Certbot certificate lines
 and the 80 → 443 redirect, and adds HTTP basic auth. These stay open without
 auth: `/.well-known/acme-challenge/` (renewals), `= /api/health` (uptime
-monitor), and `^~ /api/webhooks/sumopod` (SumoPod sandbox; the route checks
-the Svix signature).
+monitor), and `= /api/webhooks/sumopod` (SumoPod sandbox; the route checks
+the Svix signature). Both API exemptions are exact paths: `/api/webhooks/sumopod-x`
+still needs auth, and `/.env`-style dotfiles are denied everywhere. The proxy
+lines live in `/etc/nginx/snippets/makam-staging-proxy.conf`, which the site
+file includes; `install-host.sh` installs it.
 
 The old dev containers (`makam-nonprod-dev-*`) were **not** stopped. They still
 answer on 127.0.0.1:8081, so a rollback is instant.
@@ -140,6 +190,8 @@ sudo nginx -t && sudo systemctl reload nginx
 curl -sI https://dev.makam.co.id/ | head -5            # old app: 200 with an x-correlation-id header
 
 # Re-apply the staging block (from a checkout of this repo)
+sudo install -o root -g root -m 0644 deploy/nginx/makam-staging-proxy.conf \
+  /etc/nginx/snippets/makam-staging-proxy.conf
 sudo install -o root -g root -m 0640 deploy/nginx/dev.makam.co.id.conf \
   /etc/nginx/sites-available/dev.makam.co.id.conf
 sudo nginx -t && sudo systemctl reload nginx
@@ -181,9 +233,11 @@ Certbot reuses the host's existing ACME account. After that:
 - Browser errors: set the GitHub variable `NEXT_PUBLIC_SENTRY_DSN` to the
   public DSN (`/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt`). The DSN
   is public by design. Next.js inlines it at build time, so the next image
-  picks it up. CI currently builds with `NEXT_PUBLIC_SENTRY_ENVIRONMENT=production`,
-  and one image serves both staging and production. So before production
-  (ticket 65), either build per environment or tag browser events at runtime.
+  picks it up. One image serves staging and production, so there is one
+  browser DSN: browser events carry their environment from the page's host
+  at runtime (`dev.makam.co.id` → `staging`, `makam.co.id`/`www` →
+  `production`, anything else → `development`; `browserSentryEnvironment` in
+  `src/lib/env.ts`). Filter by environment in GlitchTip.
 - Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`; SES from
   ticket 03), then restart GlitchTip.
 
@@ -197,8 +251,9 @@ $G logs --tail 100 web worker
 $G restart web worker                                 # restart
 curl -s http://127.0.0.1:8130/_health/                # ok
 
-# Upgrade (read https://glitchtip.com/blog/ first for a new major version)
-#   edit GLITCHTIP_TAG in glitchtip.env if moving to a new major
+# Upgrade (read https://glitchtip.com/blog/ first for a new major version):
+#   change the pinned image (version and digest) in deploy/glitchtip/compose.yml
+#   on main, run deploy/install-host.sh, then:
 $G pull
 $G run --rm migrate                                   # migrations, cache table, partitions
 $G up -d
@@ -281,17 +336,48 @@ Never paste values into the repo, a ticket or chat.
 |---|---|
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
-| Staging Postgres password | `docker exec -it makam-staging-postgres-1 psql -U makam -d makam -c "ALTER USER makam PASSWORD '<new>'"`, then set both `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` in `staging.env`, then `makam-deploy --env staging --force` |
+| Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
-| GlitchTip Postgres password | as for staging, with `docker exec -it glitchtip-postgres-1 psql -U glitchtip -d glitchtip`, then set `POSTGRES_PASSWORD` in `glitchtip.env` and run `$G up -d` |
+| GlitchTip Postgres password | see "Rotating a Postgres password" below |
 | DSN (project key) | GlitchTip UI → project → *Client Keys*: create a new key, put the new DSN (host `glitchtip-web:8000`) in `SENTRY_DSN`, `makam-deploy --env staging --force`, then delete the old key |
 | GlitchTip API token | GlitchTip UI → *Profile → Auth Tokens*: create a new one into `api-token.txt`, delete the old one |
 | ghcr pull token | a new GitHub PAT with only `read:packages`, then `docker login ghcr.io -u andrianm28` as `ubuntu` |
 
+### Rotating a Postgres password
+
+The new password must never be in a command line (visible in `ps` and saved in
+shell history). Use psql's `\password`, which prompts for it and sends it
+already hashed:
+
+```bash
+# Staging (for GlitchTip: glitchtip-postgres-1, -U glitchtip -d glitchtip)
+(umask 077; openssl rand -hex 24 > /opt/makam-v1/staging/.new-pg-password)   # created 0600
+cat /opt/makam-v1/staging/.new-pg-password                      # copy it (terminal only)
+docker exec -it makam-staging-postgres-1 psql -U makam -d makam
+#   makam=# \password makam
+#   Enter new password for user "makam": <paste>
+#   Enter it again: <paste>
+#   makam=# \q
+```
+
+Then edit `staging.env` in an editor (not with `sed -i 's/old/new/'`, which
+puts it in argv): set `POSTGRES_PASSWORD` and the password inside
+`DATABASE_URL`. Run `makam-deploy --env staging --force`, check
+`/api/health`, and destroy the scratch file:
+
+```bash
+shred -u /opt/makam-v1/staging/.new-pg-password
+```
+
+For GlitchTip, set `POSTGRES_PASSWORD` in `glitchtip.env`, then `$G up -d`.
+`POSTGRES_PASSWORD` only seeds a new data directory, so changing it in the env
+file alone never changes an existing database's password.
+
 ## Production (ticket 65)
 
 `docker-compose.prod.yml` is ready for `makam-prod`. Create
-`/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_APP_ENV=production`,
+`/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_PROJECT=makam-prod`,
+`MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
 `MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
 `POSTGRES_PASSWORD` and `AUTH_SECRET`, and `SENTRY_DSN` from
 `dsn-makam-prod-internal.txt`. Copy the compose file to
