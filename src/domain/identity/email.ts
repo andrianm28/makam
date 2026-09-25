@@ -53,7 +53,7 @@ export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: stri
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
   const now = deps.clock.now();
-  const written = await writeAkunEmail(deps, by, "akun.email_ubah", async (tx, before) => {
+  await writeAkunEmail<never>(deps, by, "akun.email_ubah", async (tx, before) => {
     const terverifikasi = before.email === email && before.terverifikasi;
     await tx
       .update(identityUser)
@@ -61,7 +61,7 @@ export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: stri
       .where(eq(identityUser.id, by.accountId));
     return { ok: true, after: { email, terverifikasi } } as const;
   });
-  return written.ok ? { ok: true, email } : written;
+  return { ok: true, email };
 }
 
 export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" } | OwnAkunRefusal;
@@ -135,7 +135,7 @@ export async function confirmEmailVerification(
   const now = deps.clock.now();
 
   try {
-    const written = await writeAkunEmail(deps, by, "akun.email_verifikasi", async (tx) => {
+    const written = await writeAkunEmail<{ ok: false; reason: "email_sudah_dipakai" }>(deps, by, "akun.email_verifikasi", async (tx) => {
       if (await verifiedOnAnotherAkun(tx, email, by.accountId)) return { ok: false, reason: "email_sudah_dipakai" } as const;
       await tx
         .update(identityUser)

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmailSection } from "@/components/email/email-section";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { currentActor } from "@/server/session";
+import { serverRuntime } from "@/server/runtime";
 import { heldStaffRoles } from "@/server/staff-area";
 import { KeluarButton } from "./keluar-button";
 
@@ -13,8 +15,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Akun Saya: an empty shell until ticket 27 fills in the Pemesan's orders,
- * Makam Keluarga and Pengajuan Wakaf.
+ * Akun Saya: the profile's email (Verifikasi Email, ticket 67); the Pemesan's
+ * orders, Makam Keluarga and Pengajuan Wakaf are shells until ticket 27.
  */
 export default async function AkunSayaPage() {
   const actor = await currentActor();
@@ -22,6 +24,7 @@ export default async function AkunSayaPage() {
   const authorization = authorize(actor, "akun.lihat", akunResource(actor.accountId));
   if (!authorization.allowed) redirect(authorization.reason === "perlu_totp" ? "/staf/totp" : "/masuk");
   const isStaff = heldStaffRoles(actor.roles).length > 0;
+  const email = await serverRuntime().identity.accountEmail(actor);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
@@ -42,6 +45,15 @@ export default async function AkunSayaPage() {
         </div>
       </header>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Email</CardTitle>
+          <CardDescription>Untuk salinan dokumen dan, setelah terverifikasi, untuk masuk dengan email.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmailSection email={email.email} verified={email.verified} canRemove={!isStaff} />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>Pesanan</CardTitle>

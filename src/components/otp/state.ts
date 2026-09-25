@@ -34,6 +34,10 @@ export type OtpRequestState =
 export type OtpVerifyState = { status: "idle" } | { status: "gagal"; message: string };
 
 export const initialOtpRequestState: OtpRequestState = { status: "idle" };
+
+/** "Kirim lewat email" in the fallback slot. */
+export type EmailFallbackState = { status: "idle" } | { status: "terkirim"; sentAt: string } | { status: "gagal"; message: string };
+export const initialEmailFallbackState: EmailFallbackState = { status: "idle" };
 export const initialOtpVerifyState: OtpVerifyState = { status: "idle" };
 
 type Refusal<T> = T extends { ok: false; reason: infer R } ? R : never;

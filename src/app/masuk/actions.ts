@@ -105,18 +105,6 @@ export async function masukDenganEmail(_previous: OtpVerifyState, formData: Form
   redirect(landingFor(result.roles));
 }
 
-/** "Kirim lewat email" on the WhatsApp code screen. */
-export async function kirimKodeLewatEmail(_previous: OtpVerifyState, formData: FormData): Promise<OtpVerifyState | { status: "terkirim" }> {
-  const parsed = requestSchema.safeParse({ phoneNumber: formData.get("phoneNumber") });
-  if (!parsed.success) return { status: "gagal", message: otpMessage("nomor_tidak_valid") };
-
-  const { identity, adapters } = serverRuntime();
-  const result = await identity.requestEmailFallback({ phoneNumber: parsed.data.phoneNumber, ip: await clientIp() });
-  if (result.ok) return { status: "terkirim" };
-  if (result.reason === "gagal_kirim") return { status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." };
-  return { status: "gagal", message: refusalMessage(result, adapters.clock.now()) };
-}
-
 /** Staff go to the staff area (which holds an Admin Platform at the TOTP step first); a Pemesan to Akun Saya. */
 function landingFor(roles: Role[]): string {
   return roles.some((role) => role !== "pemesan") ? "/staf" : "/akun";

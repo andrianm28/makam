@@ -43,7 +43,9 @@ async function pemesanWithEmailTerverifikasi(phoneNumber: string, address: strin
 
 /** The reply without what differs by construction (the address typed, the moment it was sent). */
 function shapeOf(state: unknown) {
-  const { email: _email, sentAt: _sentAt, ...rest } = state as { email?: string; sentAt?: string };
+  const rest: Record<string, unknown> = { ...(state as Record<string, unknown>) };
+  delete rest.email;
+  delete rest.sentAt;
   return rest;
 }
 
