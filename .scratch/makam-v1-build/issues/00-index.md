@@ -6,7 +6,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [01](01-walking-skeleton.md) | Walking skeleton: app, worker, CI, test harness | ready-for-agent | — |
+| [01](01-walking-skeleton.md) | Walking skeleton: app, worker, CI, test harness | resolved | — |
 | [02](02-infra-accounts-vps-domain-github-sentry.md) | Infrastructure accounts: VPS, domain, GitHub, GlitchTip | ready-for-human | — |
 | [03](03-aws-s3-and-ses-jakarta.md) | AWS Jakarta: private S3 buckets and SES domain | ready-for-human | — |
 | [04](04-sumopod-merchant-account.md) | SumoPod merchant account for PT Jaya Korpora Prima | ready-for-human | — |

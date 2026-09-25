@@ -1,6 +1,6 @@
 # Walking skeleton: app, worker, CI, test harness
 
-Status: ready-for-agent
+Status: resolved
 Spec: Implementation Decisions > Architecture; Adapter ports; Scheduler; Testing Decisions; stories 185, 186
 
 ## What to build
@@ -13,7 +13,7 @@ Scaffold the fresh TypeScript codebase: a Next.js App Router app (TypeScript str
 - [ ] `docker compose up` locally starts `web`, `worker` and Postgres from one image; `/health` shows DB OK and a worker heartbeat younger than 2 minutes.
 - [ ] Drizzle migrations run as a separate command (`migrate`), not on app start.
 - [ ] A Clock port supplies "now"; all times are Asia/Jakarta; the fake Clock can be set and advanced in tests.
-- [ ] A scheduler pattern exists: worker jobs are thin wrappers around domain tick functions `tick(now)`; ticks are idempotent (running the heartbeat tick twice is harmless); jobs can be enqueued inside the same DB transaction as the data.
+- [ ] A scheduler pattern exists: worker jobs are thin wrappers around domain tick functions `tick(ctx, now)`; ticks are idempotent (running the heartbeat tick twice is harmless); jobs can be enqueued inside the same DB transaction as the data.
 - [ ] Every port has an in-memory fake that records what it received (messages sent, files stored, PDFs rendered); the fake PaymentProvider can emit Svix-signed webhook payloads.
 - [ ] CI on every push: lint, typecheck, Vitest (with a Postgres service), image build; on `main` the image is pushed to ghcr.
 - [ ] Sentry initialised in `web` and `worker` with scrubbing: no request bodies, no phone numbers (Indonesian formats `08…`, `+62…`, `62…`), no files; DSN from env, disabled when unset.
@@ -23,3 +23,9 @@ Scaffold the fresh TypeScript codebase: a Next.js App Router app (TypeScript str
 ## Notes
 
 The frozen Laravel app at `/home/ubuntu/makam-app` is reference for domain behaviour only. Keep the domain folder layout aligned with the spec's module list (identity, audit, lokasi, tariffs, inventory, pemesanan, perpanjangan, pengurusan, layanan, billing, payouts, wakaf, fieldwork, queues, notifications, scheduler).
+
+## Comments
+
+- 2026-09-25 — Done on branch `worktree-agent-a310e9482bdda9637`, merged to `main`. Two-axis review (mattpocock-skills:code-review, Standards + Spec) found: raw env reads bypassing Zod, a system clock in a test, stale Zenziva / "Sentry leaves Indonesia" comments, staging wired to fakes (now wired like production), no ghcr default in the prod compose, landlines slipping past the phone scrubber, a clock and duplication smell in health, and a repeated PgBoss setup. All fixed test-first. `SmsSender` port removed (SMS out of v1). Playwright `/health` gets a 120 s test timeout for the first heartbeat on a fresh stack.
+- Verified in the main session: `npm run lint` exit 0, `tsc --noEmit` exit 0, Vitest 83/83 (real Postgres), Playwright 1/1 on a freshly started `makam-v1-dev` stack (33.9 s), stack torn down. Subagent also ran `next build`, `build:worker`, the image build and `/health` via compose.
+- For 07: deploy = pull → `docker compose -f docker-compose.prod.yml run --rm migrate` → `up -d`; web binds 127.0.0.1:${MAKAM_WEB_PORT:-3100}; wait ~90 s for the first heartbeat; use `/api/health` for the uptime alarm. For 08: Better Auth not installed yet; use `adapters.whatsapp.sendTemplate({ copyCode })`, `adapters.clock`, tables in `src/domain/identity/schema.ts`.

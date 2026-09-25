@@ -1,0 +1,150 @@
+import type { Breadcrumb, ErrorEvent } from "@sentry/core";
+import { describe, expect, it } from "vitest";
+import { scrubBreadcrumb, scrubEvent, scrubText, sentryOptions, serverSentryOptions } from "./scrub";
+
+describe("phone number scrubbing", () => {
+  it.each([
+    ["081234567890", "local 08 format"],
+    ["0812-3456-7890", "local with dashes"],
+    ["0812 3456 7890", "local with spaces"],
+    ["+6281234567890", "international +62"],
+    ["+62 812-3456-7890", "international +62 with separators"],
+    ["6281234567890", "international 62 without plus"],
+    ["62 812 3456 7890", "62 with spaces"],
+  ])("removes %s (%s)", (phone) => {
+    expect(scrubText(`OTP gagal untuk ${phone}, coba lagi`)).toBe(
+      "OTP gagal untuk [telepon], coba lagi",
+    );
+  });
+
+  it.each([
+    ["021 1234 5678", "Jakarta landline with spaces"],
+    ["02112345678", "Jakarta landline without separators"],
+    ["(021) 12345678", "area code in parentheses"],
+    ["(021) 1234-5678", "area code in parentheses, number with a dash"],
+    ["0251-123456", "three-digit area code with a dash"],
+    ["0274.512345", "three-digit area code with a dot"],
+    ["+62 21 1234 5678", "international +62 landline"],
+    ["+622112345678", "international +62 landline without separators"],
+    ["+62 (21) 1234 5678", "international +62, area code in parentheses"],
+    ["62-21-1234-5678", "62 landline with dashes"],
+    ["62 251 123456", "62 with a three-digit area code"],
+  ])("removes the landline %s (%s)", (phone) => {
+    expect(scrubText(`Telepon kantor ${phone}, jam kerja`)).toBe("Telepon kantor [telepon], jam kerja");
+  });
+
+  it("keeps ordinary numbers such as amounts, years and ids", () => {
+    const text = "Tagihan TAG-2026-000123 Rp 7500000 jatuh tempo 2026-10-01";
+    expect(scrubText(text)).toBe(text);
+  });
+
+  it.each([
+    ["Rp 1.500.000", "amount with thousand dots"],
+    ["Rp 12.025.500.000", "large amount whose groups look like an area code"],
+    ["Rp 62.250.000.000", "amount starting with 62"],
+    ["Rp 6221000000", "amount starting with 62, no separators"],
+    ["Rp1.081.234.567", "amount whose groups look like a mobile number"],
+    ["tahun 2026", "year"],
+    ["1945-2026", "year range"],
+    ["MKM-2026-000123", "Nomor Pemesanan"],
+    ["MKM-2026-021234", "Nomor Pemesanan whose serial starts like an area code"],
+    ["2026-10-01T09:00:00.000Z", "ISO timestamp"],
+    ["2026-10-01T09:00:00+07:00", "ISO timestamp with offset"],
+    ["2026-10-01 09.30.15 WIB", "date and time with dots"],
+    ["3f2a0621-1234-5678-9abc-def012345678", "UUID"],
+  ])("leaves %s alone (%s)", (text) => {
+    expect(scrubText(`Catatan: ${text}.`)).toBe(`Catatan: ${text}.`);
+  });
+});
+
+describe("Sentry event scrubbing", () => {
+  it("drops request bodies, cookies and auth headers, and scrubs phone numbers from the URL", () => {
+    const event = scrubEvent({
+      type: undefined,
+      request: {
+        url: "https://makam.co.id/masuk?nomor=081234567890",
+        query_string: "nomor=081234567890",
+        data: { phone: "081234567890", ktp: "3171..." },
+        cookies: { session: "secret" },
+        headers: { cookie: "session=secret", authorization: "Bearer x", "user-agent": "UA" },
+      },
+    } as ErrorEvent);
+
+    expect(event.request?.data).toBeUndefined();
+    expect(event.request?.cookies).toBeUndefined();
+    expect(event.request?.headers).toEqual({ "user-agent": "UA" });
+    expect(event.request?.url).toBe("https://makam.co.id/masuk?nomor=[telepon]");
+    expect(event.request?.query_string).toBe("nomor=[telepon]");
+  });
+
+  it("scrubs phone numbers from messages, exceptions, extra data and tags", () => {
+    const event = scrubEvent({
+      type: undefined,
+      message: "Gagal kirim ke +6281234567890",
+      exception: { values: [{ type: "Error", value: "No account for 0812-3456-7890" }] },
+      extra: { recipient: { phone: "6281234567890" }, list: ["081234567890"] },
+      tags: { phone: "081234567890" },
+      user: { id: "u1", username: "081234567890", ip_address: "1.2.3.4", email: "a@b.c" },
+    } as ErrorEvent);
+
+    expect(event.message).toBe("Gagal kirim ke [telepon]");
+    expect(event.exception?.values?.[0]?.value).toBe("No account for [telepon]");
+    expect(event.extra).toEqual({ recipient: { phone: "[telepon]" }, list: ["[telepon]"] });
+    expect(event.tags).toEqual({ phone: "[telepon]" });
+    expect(event.user).toEqual({ id: "u1" });
+  });
+
+  it("scrubs breadcrumbs and drops their request/response bodies", () => {
+    const crumb = scrubBreadcrumb({
+      category: "fetch",
+      message: "POST /api/otp 081234567890",
+      data: { url: "/api/otp?to=081234567890", body: "{...}", request_body: "x", response_body: "y" },
+    } as Breadcrumb);
+
+    expect(crumb.message).toBe("POST /api/otp [telepon]");
+    expect(crumb.data).toEqual({ url: "/api/otp?to=[telepon]" });
+  });
+});
+
+describe("Sentry options", () => {
+  it("is disabled when no DSN is set", () => {
+    expect(sentryOptions({ dsn: undefined, environment: "development" }).enabled).toBe(false);
+  });
+
+  it("collects no bodies, cookies, user info, query params or local variables, and runs the scrubbers", () => {
+    const options = sentryOptions({ dsn: "https://k@o.ingest.sentry.io/1", environment: "production" });
+    expect(options.enabled).toBe(true);
+    expect(options.dataCollection).toMatchObject({
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
+    });
+    expect(options.attachStacktrace).toBe(true);
+    expect(options.beforeSend).toBeTypeOf("function");
+    expect(options.beforeBreadcrumb).toBeTypeOf("function");
+    expect(options.maxValueLength).toBeLessThanOrEqual(1000);
+  });
+
+  it("builds the web server's and the worker's options from the validated env", () => {
+    const options = serverSentryOptions({
+      APP_ENV: "staging",
+      SENTRY_DSN: "https://k@glitchtip.makam.co.id/1",
+      SENTRY_RELEASE: "abc123",
+    });
+    expect(options).toMatchObject({
+      dsn: "https://k@glitchtip.makam.co.id/1",
+      enabled: true,
+      environment: "staging",
+      release: "abc123",
+    });
+    expect(options.beforeSend).toBeTypeOf("function");
+  });
+
+  it("prefers SENTRY_ENVIRONMENT over APP_ENV", () => {
+    expect(serverSentryOptions({ APP_ENV: "production", SENTRY_ENVIRONMENT: "local" }).environment).toBe("local");
+  });
+});
