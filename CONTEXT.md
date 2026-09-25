@@ -46,6 +46,10 @@ _Avoid_: Berakhir (reserved for a Hak Pakai), putus kontrak
 A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offers Pengurusan and Layanan there.
 _Avoid_: Makam umum, using TPU for any cemetery
 
+**Makam TPU**:
+The Operator's record of a grave at a DKI TPU that it has filed an IPTM for: the TPU, block and number, Almarhum, Pemegang Hak, and the current IPTM with its expiry. The TPU counterpart of a Hak Pakai as far as the platform is concerned.
+_Avoid_: TPU plot record, Hak Pakai (for a TPU)
+
 **Petak Makam**:
 A single burial plot inside a Lokasi Makam; the physical unit that is booked and holds Pemakaman. What is extended is its Hak Pakai, not the plot.
 _Avoid_: Makam (ambiguous), kavling (alone), lot

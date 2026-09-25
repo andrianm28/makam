@@ -62,3 +62,5 @@ Decided with the user on 2026-09-25 by reacting to a clickable prototype. **Prot
 **Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): the Terencana "Nanti" line covers Biaya Pemakaman + Biaya Layanan Platform, "sesuai tarif saat pemakaman (saat ini Rp X)".
 
 **Consistency review 2** (2026-09-25): a burial under an existing Hak Pakai needs the Pemegang Hak's consent (implicit when logged in with their number, otherwise a WhatsApp Setujui / Tolak or verbal consent recorded by the Admin Lokasi), per "Lokasi Mitra order lifecycle"; the Terencana "Nanti" line includes the Biaya Layanan Platform; an unpaid hold ends the order as Dibatalkan.
+
+**Amended by "Homepage, search and Akun Saya"** (2026-09-25): "Sudah punya makam keluarga?" now opens the **Makam keluarga** hub (Lokasi Mitra / TPU DKI → tumpang, Perpanjang, Layanan, Urus IPTM); the Saat Duka Pilih makam list gains a TPU DKI section below the Lokasi Mitra cards and a Semua / Lokasi Mitra / TPU DKI chip; the Terencana Lokasi step adds price-range and facilities filters.

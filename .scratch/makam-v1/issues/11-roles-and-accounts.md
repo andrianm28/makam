@@ -54,3 +54,5 @@ Decided with the user on 2026-09-25 (grilling). ADR: [0003 A WhatsApp number is 
 **Consistency review** (2026-09-25): the message thread closes with the Keluhan window, whose start (photo upload vs Admin Platform approval) is open in "Tagihan deadlines and refunds after Pencairan". Wakif login and Akun Saya contents are open in "Homepage, search and Akun Saya".
 
 **Consistency review 2** (2026-09-25): the Keluhan window (and so the message thread) starts when the proof is shown to the Pemesan: the Admin Lokasi's upload, or Admin Platform's approval at a TPU ("Tagihan deadlines and refunds after Pencairan"). The audit log now covers every staff write, and Admin Lokasi can view their own Lokasi's entries ("Admin Lokasi back office and Petugas Lapangan work").
+
+**Amended by "Homepage, search and Akun Saya"** (2026-09-25): Akun Saya = Perlu tindakan strip + Pesanan / Makam (incl. Makam TPU) / Wakaf tabs; cold Masuk works for any number; the Wakif uses the same WhatsApp OTP account.

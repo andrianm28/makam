@@ -44,3 +44,5 @@ Decided with the user on 2026-09-25 (grilling, all recommendations accepted). Fa
 - The IPTM scan and expiry go on a TPU plot record, as for any TPU order.
 
 **Consistency review 2** (2026-09-25): the Pengurusan IPTM status list gains `Menunggu Pembayaran` between Dokumen Lengkap and IPTM Diajukan, since it is filing-only and paid before the filing.
+
+**Amended by "Homepage, search and Akun Saya"** (2026-09-25): the "TPU plot record" is named **Makam TPU** in the glossary; it shows in Akun Saya → Makam for the number recorded as its Pemegang Hak.

@@ -41,3 +41,5 @@ Decided with the user on 2026-09-25 (round 1 drafted by a parallel session, fini
 **Amended by "Tagihan deadlines and refunds after Pencairan"** (2026-09-25): a Lokasi Mitra Perpanjangan Tagihan is due 3×24 h after issue; unpaid → Dibatalkan with no effect on the Hak Pakai; a manual-path approval stays valid 30 days for a new Tagihan.
 
 **Consistency review 2** (2026-09-25): Perpanjangan at a DKI TPU end to end (price, pay-first, statuses, service levels, rejection and refund, lapsed IPTM) is settled in "TPU order loose ends".
+
+**Amended by "Homepage, search and Akun Saya"** (2026-09-25): the "TPU plot record" is named **Makam TPU** in the glossary; it shows in Akun Saya → Makam for the number recorded as its Pemegang Hak.
