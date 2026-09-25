@@ -3,7 +3,7 @@ import type { Database } from "@/db/client";
 import type { EmailSender } from "@/ports/email-sender";
 import { kodeMasukEmailMessage } from "./email-templates";
 import { logInAkun, type LoginDeps, type VerifyOtpResult } from "./login";
-import { akunLockKey, issueCode, OTP_RESEND_AFTER_MS } from "./otp";
+import { akunLockKey, claimIpRequest, issueCode, OTP_RESEND_AFTER_MS, type LimitRefusal } from "./otp";
 import { identityUser } from "./schema";
 import { normaliseEmail } from "./staff";
 
@@ -17,7 +17,9 @@ export interface EmailLoginDeps extends LoginDeps {
  */
 export type RequestEmailLoginResult =
   | { ok: true; email: string; resendAt: Date }
-  | { ok: false; reason: "email_tidak_valid" };
+  | { ok: false; reason: "email_tidak_valid" }
+  /** The IP's own limits: they depend only on the IP, never on the email typed. */
+  | LimitRefusal;
 
 /**
  * Masuk dengan email, step 1: sends a Kode Masuk when the email is the Email
@@ -30,6 +32,8 @@ export async function requestEmailLogin(
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
   const now = deps.clock.now();
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
 
   const akun = await akunOfVerifiedEmail(deps.db, email);
   if (akun) {
