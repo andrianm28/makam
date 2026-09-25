@@ -50,3 +50,5 @@ Resolved by grilling with the user (2026-09-25). Terms added to `CONTEXT.md`: La
 - **Non-partner private cemeteries**: not supported in v1.
 - **Saat Duka checkout** (Lokasi Mitra or TPU Pengurusan): only Layanan flagged "bisa hari-H" (e.g. bunga tabur, karangan bunga) can be added, targeted at the burial. Other Layanan (nisan, recurring care) are ordered later on the same Petak Makam, reachable from the Bukti Pemesanan.
 - **Terencana / Perpanjangan checkout**: any Layanan may be added, subject to lead time; on a Terencana plot with no Pemakaman yet, only Layanan that make sense on an empty plot (e.g. Pembersihan, Perawatan Rumput & Taman, Laporan Foto) are offered.
+
+**Amended by "Tech stack for a solo engineer with AI agents"** (2026-09-25): no auto-debit in v1 (SumoPod); every recurring cycle is paid through its own invoice.

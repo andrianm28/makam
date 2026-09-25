@@ -1,3 +1,5 @@
 # YIEM collects every payment and pays partners out itself
 
 Every payment on makam.co.id, including a Lokasi Mitra's Petak Makam and Layanan tariffs, lands in YIEM's single Xendit account; YIEM is the seller of record and disburses each Lokasi Mitra and Mitra Jasa amount per order once it is paid and the work is confirmed done. The payment research recommended a gateway split (a Xendit xenPlatform sub-account per Lokasi Mitra, the partner as seller); we chose central collection instead so partners need no gateway KYC or monthly sub-account fee, refunds are decided in one place before money leaves YIEM, and YIEM's income can be a platform fee on top of the partner's tariff. Legal exposure of holding partner funds was deliberately left out of scope (see `.scratch/makam-v1/issues/13-payment-licensing.md`).
+
+**Amended 2026-09-25** ("Tech stack for a solo engineer with AI agents"): the single collecting account is SumoPod, not Xendit. Central collection stands; because SumoPod has no payout API, YIEM pays partners out by manual bank transfer, recorded with proof, until a second gateway is added after v1 launch.

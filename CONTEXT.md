@@ -79,7 +79,7 @@ Booking a Petak Makam; either a Pemesanan Saat Duka or a Pemesanan Terencana.
 _Avoid_: Booking, reservasi
 
 **Pemesanan Saat Duka**:
-A Pemesanan Makam made after a death, for an Almarhum awaiting burial.
+A Pemesanan Makam made after a death, for an Almarhum awaiting burial. At a TPU it is carried out as Pengurusan: the TPU assigns the plot and the burial comes before the IPTM.
 _Avoid_: At-need, pemesanan darurat
 
 **Pemesanan Terencana**:
@@ -119,7 +119,7 @@ Extending a fixed-term Hak Pakai (at a Lokasi Mitra) or a TPU permit by one or m
 _Avoid_: Renewal, sewa ulang
 
 **Pengurusan**:
-YIEM handling a Pemda permit on a family's behalf at a TPU: the burial permit for a Pemesanan Saat Duka, or the IPTM for a Perpanjangan Makam. The Pemda, not YIEM, issues the permit.
+YIEM handling a Pemda permit on a family's behalf at a TPU: arranging the burial with the TPU and then filing the new or tumpang IPTM for a Pemesanan Saat Duka, or filing the IPTM for a Perpanjangan Makam. The Pemda, not YIEM, issues the permit.
 _Avoid_: Calo, jasa urus, fasilitasi (as the name)
 
 ### Services

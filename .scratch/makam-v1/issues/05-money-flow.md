@@ -43,3 +43,5 @@ Resolved by grilling with the user (2026-09-25). Decision record: [ADR 0001](../
 - No keringanan / voucher flow in v1. Admin YIEM handles hardship offline and can set a manual **harga khusus** override on an order.
 
 **Invoices**: YIEM, as seller of record, issues the invoice the brief requires; its content is graduated to "Invoice and payment proof for the Pemesan". PPN / tax treatment falls under the out-of-scope legal and tax compliance.
+
+**Amended by "Tech stack for a solo engineer with AI agents"** (2026-09-25): the single collecting account is **SumoPod**, not Xendit. SumoPod only withdraws to YIEM's own account, so each Pencairan (same per-order / per-job due rules as above) and each refund is a **manual bank transfer by Admin YIEM**, recorded in the app with the transfer proof. Gateway fees absorbed by YIEM now cover SumoPod fees and bank transfer costs.
