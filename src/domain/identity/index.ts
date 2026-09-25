@@ -19,10 +19,12 @@ import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } f
 import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
 import { seedFirstAdminPlatform, staffAccounts, type SeedResult, type StaffAccount } from "./staff";
+import { passTotp, startTotpEnrolment, type PassTotpResult, type StartTotpEnrolmentResult } from "./totp";
 
 export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 export type { CodeRejection, RequestOtpResult } from "./otp";
-export { PEMESAN_SESSION_MS } from "./better-auth";
+export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
+export type { PassTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export type { SeedResult, StaffAccount } from "./staff";
@@ -73,6 +75,10 @@ export interface Identity {
   seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
+  /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform. */
+  startTotpEnrolment(cookieHeader: string | null | undefined): Promise<StartTotpEnrolmentResult>;
+  /** Checks an authenticator code for the signed-in Admin Platform's session. */
+  passTotp(cookieHeader: string | null | undefined, code: string): Promise<PassTotpResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -92,9 +98,11 @@ export function createIdentity(deps: IdentityDeps): Identity {
     verifyOtp: (input) => verifyOtp({ auth, db: deps.db }, input),
     accountByPhoneNumber: (phoneNumber) => accountByPhoneNumber(deps, phoneNumber),
     actorFromCookies: (cookieHeader) =>
-      actorFromCookies({ auth, db: deps.db, clock: deps.clock, secret: deps.secret }, cookieHeader),
+      actorFromCookies(deps, cookieHeader),
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
+    startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
+    passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
   };
 }

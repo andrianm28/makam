@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { OtpRejected, type MakamAuth } from "./better-auth";
+import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-import { identityUser } from "./schema";
+import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
+import { rolesOf } from "./staff";
 
 type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
@@ -59,11 +60,20 @@ export async function verifyOtp(
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
 
+  // The session lasts as long as the strictest role the Akun now holds allows.
+  const lengthMs = sessionLengthMs(await rolesOf(deps.db, response.user.id));
+  const expiresAt = new Date(session.session.createdAt.getTime() + lengthMs);
+  await deps.db.update(identitySession).set({ expiresAt }).where(eq(identitySession.token, response.token));
+  const sessionCookie = (await deps.auth.$context).authCookies.sessionToken.name;
+  const cookies = sessionCookiesFrom(headers).map((cookie) =>
+    cookie.name === sessionCookie ? { ...cookie, maxAge: lengthMs / 1000, expires: undefined } : cookie,
+  );
+
   return {
     ok: true,
     account: { id: response.user.id, phoneNumber },
     accountCreated: !existing,
-    session: { expiresAt: session.session.expiresAt, cookies: sessionCookiesFrom(headers) },
+    session: { expiresAt, cookies },
   };
 }
 

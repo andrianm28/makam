@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Owned by the identity module. Better Auth reads and writes the first four
@@ -65,6 +65,10 @@ export const identitySession = pgTable(
     expiresAt: at("expires_at").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    /** When this session passed TOTP (Admin Platform only). Unknown to Better Auth. */
+    totpPassedAt: at("totp_passed_at"),
+    /** Wrong TOTP codes typed in this session; the 5th ends it. Unknown to Better Auth. */
+    totpWrongAttempts: integer("totp_wrong_attempts").notNull().default(0),
     createdAt: at("created_at").notNull(),
     updatedAt: at("updated_at").notNull(),
   },
@@ -129,3 +133,20 @@ export const identityOtpRequest = pgTable(
   },
   (table) => [index("identity_otp_request_phone_sent_idx").on(table.phoneNumber, table.sentAt)],
 );
+
+/**
+ * The authenticator an Admin Platform enrolled for TOTP. The secret is kept
+ * only encrypted with TOTP_ENCRYPTION_KEY (AES-256-GCM). Until `confirmedAt`
+ * the enrolment is pending and may be restarted.
+ */
+export const identityTotp = pgTable("identity_totp", {
+  accountId: text("account_id")
+    .primaryKey()
+    .references(() => identityUser.id, { onDelete: "cascade" }),
+  secretCiphertext: text("secret_ciphertext").notNull(),
+  createdAt: at("created_at").notNull(),
+  /** Set by the first code that passes: enrolment is then complete. */
+  confirmedAt: at("confirmed_at"),
+  /** The last 30 s step whose code was accepted; that code and older ones are refused (no replay). */
+  lastUsedStep: bigint("last_used_step", { mode: "number" }),
+});

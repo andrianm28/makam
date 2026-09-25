@@ -29,6 +29,13 @@
       "when": 1790337678022,
       "tag": "0003_identity_staff_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790338015400,
+      "tag": "0004_identity_totp",
+      "breakpoints": true
     }
   ]
 }
