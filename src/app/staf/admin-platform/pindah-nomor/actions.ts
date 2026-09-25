@@ -60,7 +60,7 @@ function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
     case "berkas_ktp_wajib":
       return "Unggah foto atau scan KTP.";
     case "berkas_ktp_tidak_didukung":
-      return "Berkas KTP harus JPG, PNG, WebP atau PDF, paling besar 10 MB.";
+      return "Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), paling besar 10 MB.";
     case "alasan_wajib":
       return "Tulis alasannya.";
     case "nomor_sama":

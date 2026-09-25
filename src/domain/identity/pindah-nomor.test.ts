@@ -10,7 +10,9 @@ beforeEach(resetDatabase);
 
 const OLD = "085555555555";
 const NEW = "086666666666";
-const KTP = { body: new TextEncoder().encode("foto KTP"), contentType: "image/jpeg" };
+/** A photo whose bytes start like a JPEG (FF D8 FF). */
+const jpeg = (rest: string) => new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new TextEncoder().encode(rest)]);
+const KTP = { body: jpeg("foto KTP"), contentType: "image/jpeg" };
 
 async function pemesanWhoLostTheirPhone() {
   const setup = identityOnTestDatabase(db);
@@ -146,6 +148,46 @@ describe("Pindah Nomor", () => {
     expect(await move({ newPhoneNumber: OLD })).toEqual({ ok: false, reason: "nomor_sama" });
     expect(await move({ currentPhoneNumber: "089999999999" })).toEqual({ ok: false, reason: "akun_tidak_ditemukan" });
     expect(await identity.accountByPhoneNumber(OLD)).not.toBeNull();
+  });
+
+  it("a KTP check whose bytes are not the declared JPEG, PNG or PDF is refused", async () => {
+    const { identity, files, admin } = await pemesanWhoLostTheirPhone();
+    const move = (ktpCheck: { body: Uint8Array; contentType: string }) =>
+      identity.moveAccountToNewNumber(admin.actor, {
+        currentPhoneNumber: OLD,
+        newPhoneNumber: NEW,
+        ktpCheck,
+        ktpChecked: true,
+        reason: "HP hilang",
+      });
+    const text = new TextEncoder().encode("<html>bukan KTP</html>");
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+    expect(await move({ body: text, contentType: "image/jpeg" })).toEqual({ ok: false, reason: "berkas_ktp_tidak_didukung" });
+    expect(await move({ body: png, contentType: "image/jpeg" })).toEqual({ ok: false, reason: "berkas_ktp_tidak_didukung" });
+    expect(await move({ body: jpeg("x"), contentType: "application/pdf" })).toEqual({
+      ok: false,
+      reason: "berkas_ktp_tidak_didukung",
+    });
+    expect(files.stored.size).toBe(0);
+    expect(await identity.accountByPhoneNumber(OLD)).not.toBeNull();
+  });
+
+  it.each([
+    ["image/png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])],
+    ["application/pdf", new TextEncoder().encode("%PDF-1.7 scan KTP")],
+  ])("a KTP check that really is %s is accepted", async (contentType, body) => {
+    const { identity, admin } = await pemesanWhoLostTheirPhone();
+
+    expect(
+      await identity.moveAccountToNewNumber(admin.actor, {
+        currentPhoneNumber: OLD,
+        newPhoneNumber: NEW,
+        ktpCheck: { body, contentType },
+        ktpChecked: true,
+        reason: "HP hilang",
+      }),
+    ).toMatchObject({ ok: true });
   });
 
   it("an Admin Platform cannot move their own Akun to a new number", async () => {

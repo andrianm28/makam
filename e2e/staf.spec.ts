@@ -148,7 +148,8 @@ test("Admin Platform moves a Pemesan's Akun to a new number after a KTP check", 
   await page.getByLabel("Foto atau scan KTP").setInputFiles({
     name: "ktp.jpg",
     mimeType: "image/jpeg",
-    buffer: Buffer.from("foto KTP"),
+    // A JPEG's first bytes: the identity module checks them against the declared type.
+    buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("foto KTP")]),
   });
   await page.getByLabel("Saya sudah mencocokkan KTP dengan data Akun").check();
   await page.getByLabel("Alasan").fill("HP hilang; KTP cocok dengan data pesanan");
