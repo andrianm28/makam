@@ -357,5 +357,5 @@ A message that tells a staff member about work needing them (a new order, an Ant
 _Avoid_: Notifikasi (alone), alert, reminder (for staff)
 
 **Perangkat Push**:
-One browser or installed staff app on which an Akun Staf has turned on push; an Akun Staf may have several, and one stops counting once its browser no longer accepts pushes.
+One browser or installed staff app on which an Akun Staf has turned on push, for as long as that login lasts: Keluar there, or anything else that ends the login (Dinonaktifkan, a new role granted on another device), turns it off, and so does the browser no longer accepting pushes. An Akun Staf may have several.
 _Avoid_: Langganan (reserved sense: Paket Layanan), subscription, token
