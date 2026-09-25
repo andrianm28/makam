@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
-import { SystemClock } from "@/adapters/live/system-clock";
+import { FakeClock } from "@/adapters/memory/fake-clock";
 import { heartbeatTick, workerHeartbeat } from "@/domain/scheduler";
+import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { createPgBoss } from "./pg-boss";
 import { inTransaction } from "./unit-of-work";
@@ -23,7 +24,10 @@ beforeEach(async () => {
   await boss.deleteAllJobs(QUEUE);
 });
 
-const now = () => new SystemClock().now();
+// The jobs here run immediately (no startAfter), so pg-boss never compares
+// against this clock; only the heartbeat rows see it.
+const clock = new FakeClock(wib("2026-10-01 09:00"));
+const now = () => clock.now();
 
 describe("enqueueing a job in the same transaction as the data", () => {
   it("commits the data and the job together", async () => {
@@ -32,7 +36,7 @@ describe("enqueueing a job in the same transaction as the data", () => {
       await jobs.enqueue(QUEUE, { reason: "committed" });
     });
 
-    expect((await workerHeartbeat({ db }, now())).lastBeatAt).not.toBeNull();
+    expect((await workerHeartbeat({ db }, now())).lastBeatAt).toEqual(wib("2026-10-01 09:00"));
     const [job] = await boss.fetch<{ reason: string }>(QUEUE);
     expect(job?.data).toEqual({ reason: "committed" });
   });
