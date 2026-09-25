@@ -160,6 +160,10 @@ describe("Pengaturan Operator", () => {
       ok: false,
       reason: "email_tidak_valid",
     });
+    expect(await setup.operatorSettings.change(actor, { ...pengaturan, email: "  halo @makam.co.id ", reason: null })).toEqual({
+      ok: false,
+      reason: "email_tidak_valid",
+    });
     expect(await setup.operatorSettings.current()).toBeNull();
 
     await setup.operatorSettings.change(actor, { ...pengaturan, email: "  Halo@Makam.co.id ", reason: null });
@@ -170,7 +174,7 @@ describe("Pengaturan Operator", () => {
     const setup = operatorSettingsOnTestDatabase();
     const { actor } = await signedInAdminPlatform(setup);
 
-    for (const field of ["legalName", "address", "phone", "csReplyHours"] as const) {
+    for (const field of ["legalName", "address", "phone", "email", "csWhatsApp", "csReplyHours"] as const) {
       expect(await setup.operatorSettings.change(actor, { ...pengaturan, [field]: "   ", reason: null })).toEqual({
         ok: false,
         reason: "isian_wajib",

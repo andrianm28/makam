@@ -52,7 +52,7 @@ export interface ChangeOperatorSettingsInput {
 }
 
 /** The free-text values that must not be blank. */
-type RequiredField = "legalName" | "address" | "phone" | "csReplyHours";
+type RequiredField = "legalName" | "address" | "phone" | "email" | "csWhatsApp" | "csReplyHours";
 
 export type ChangeOperatorSettingsResult =
   | { ok: true; settings: OperatorSettingsValues }
@@ -120,8 +120,8 @@ function checkValues(
     phone: input.phone.trim(),
     csReplyHours: input.csReplyHours.trim(),
   };
-  for (const field of ["legalName", "address", "phone", "csReplyHours"] as const) {
-    if (text[field] === "") return { ok: false, reason: "isian_wajib", field };
+  for (const field of ["legalName", "address", "phone", "email", "csWhatsApp", "csReplyHours"] as const) {
+    if (input[field].trim() === "") return { ok: false, reason: "isian_wajib", field };
   }
   const email = input.email.trim().toLowerCase();
   if (!emailSchema.safeParse(email).success) return { ok: false, reason: "email_tidak_valid" };

@@ -52,6 +52,8 @@ const fieldLabels = {
   legalName: "Nama resmi Operator",
   address: "Alamat terdaftar",
   phone: "Telepon Operator",
+  email: "Email Operator",
+  csWhatsApp: "Nomor WhatsApp CS",
   csReplyHours: "Jam balas CS",
 } as const;
 
