@@ -6,10 +6,8 @@ import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import { staffRoles, staffWriteRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
-import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
-
-type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 export interface StaffAccount {
   accountId: string;

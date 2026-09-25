@@ -10,6 +10,9 @@ export type PhoneNumberResult =
   | { ok: true; phoneNumber: string }
   | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" };
 
+/** Why a typed number is refused: part of every result that takes a WhatsApp number. */
+export type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
+
 /** Separators people type inside a number. */
 const SEPARATORS = /[\s\-.()]/g;
 /** An Indonesian mobile number after the country code: 8 then 8 to 11 digits. */

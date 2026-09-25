@@ -1,8 +1,9 @@
 import "server-only";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { createAuditLog, type AuditLog } from "@/domain/audit";
-import { createIdentity, type Identity } from "@/domain/identity";
+import { composeIdentity } from "@/composition/identity";
+import type { AuditLog } from "@/domain/audit";
+import type { Identity } from "@/domain/identity";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
 
@@ -29,22 +30,11 @@ export function serverRuntime(): ServerRuntime {
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
     });
-    const audit = createAuditLog({ db: database.db, clock: adapters.clock });
     globalForRuntime.__makamRuntime = {
       env,
       database,
       adapters,
-      audit,
-      identity: createIdentity({
-        db: database.db,
-        clock: adapters.clock,
-        whatsapp: adapters.whatsapp,
-        files: adapters.files,
-        audit,
-        secret: env.AUTH_SECRET,
-        totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
-        baseURL: env.APP_BASE_URL,
-      }),
+      ...composeIdentity({ env, db: database.db, adapters }),
     };
   }
   return globalForRuntime.__makamRuntime;

@@ -4,7 +4,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffRoles, staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
-import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
 import { normaliseEmail, rolesOf } from "./staff";
 
@@ -35,8 +35,6 @@ export interface InviteDeps {
   audit: AuditLog;
   baseURL: string;
 }
-
-type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 export type InviteStaffResult =
   | {

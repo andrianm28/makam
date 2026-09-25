@@ -28,12 +28,19 @@ import {
   type SeedResult,
   type StaffAccount,
 } from "./staff";
-import { passTotp, startTotpEnrolment, type PassTotpResult, type StartTotpEnrolmentResult } from "./totp";
+import {
+  passTotp,
+  resetTotp,
+  startTotpEnrolment,
+  type PassTotpResult,
+  type ResetTotpResult,
+  type StartTotpEnrolmentResult,
+} from "./totp";
 
-export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+export { normalisePhoneNumber, type PhoneNumberRejection, type PhoneNumberResult } from "./phone-number";
 export type { CodeRejection, RequestOtpResult } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
-export type { PassTotpResult, StartTotpEnrolmentResult } from "./totp";
+export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export type { DeactivateStaffResult, SeedResult, StaffAccount } from "./staff";
@@ -101,6 +108,8 @@ export interface Identity {
   startTotpEnrolment(cookieHeader: string | null | undefined): Promise<StartTotpEnrolmentResult>;
   /** Checks an authenticator code for the signed-in Admin Platform's session. */
   passTotp(cookieHeader: string | null | undefined, code: string): Promise<PassTotpResult>;
+  /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
+  resetTotp(input: { phoneNumber: string; reason: string }): Promise<ResetTotpResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -129,5 +138,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
     startTotpEnrolment: (cookieHeader) => startTotpEnrolment(deps, cookieHeader),
     passTotp: (cookieHeader, code) => passTotp(deps, cookieHeader, code),
+    resetTotp: (input) => resetTotp(deps, input),
   };
 }

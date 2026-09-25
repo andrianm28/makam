@@ -5,13 +5,11 @@ import type { Clock } from "@/ports/clock";
 import type { Role } from "./authorize";
 import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
 import type { CodeRejection } from "./otp";
-import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
 import { acceptOpenInvites } from "./invites";
 import { rolesOf } from "./staff";
-
-type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 export interface Account {
   id: string;

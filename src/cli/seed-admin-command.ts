@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
-import { createAuditLog } from "@/domain/audit";
-import { createIdentity, type SeedResult } from "@/domain/identity";
+import { composeIdentity } from "@/composition/identity";
+import type { SeedResult } from "@/domain/identity";
 import { readRuntimeEnv } from "@/lib/env";
 
 const USAGE = "Pakai: seed:admin <nomor WhatsApp +62> <email>";
@@ -33,17 +33,7 @@ export async function seedAdminCommand(
   const database = createDatabase(env.DATABASE_URL, { max: 1, applicationName: "makam-seed-admin" });
   try {
     const adapters = createAdapters({ appEnv: env.APP_ENV });
-    const audit = createAuditLog({ db: database.db, clock: adapters.clock });
-    const identity = createIdentity({
-      db: database.db,
-      clock: adapters.clock,
-      whatsapp: adapters.whatsapp,
-      files: adapters.files,
-      audit,
-      secret: env.AUTH_SECRET,
-      totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
-      baseURL: env.APP_BASE_URL,
-    });
+    const { identity } = composeIdentity({ env, db: database.db, adapters });
     const result = await identity.seedFirstAdminPlatform({ phoneNumber, email });
     if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };
     return {

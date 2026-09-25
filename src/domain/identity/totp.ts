@@ -4,8 +4,11 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Role, TotpStatus } from "./authorize";
-import { identitySession, identityTotp } from "./schema";
+import type { Account } from "./login";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
+import { identitySession, identityTotp, identityUser } from "./schema";
 import { activeSession } from "./sessions";
+import { rolesOf } from "./staff";
 import { openTotpSecret, sealTotpSecret } from "./totp-secret-box";
 
 /*
@@ -177,6 +180,56 @@ export async function passTotp(
       reason: null,
     });
     return passed;
+  });
+}
+
+export type ResetTotpResult =
+  | { ok: true; account: Account }
+  | PhoneNumberRejection
+  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" | "totp_belum_terdaftar" };
+
+/**
+ * Ops' TOTP reset (`reset-totp` CLI; there is no self-service recovery): clears
+ * the Admin Platform's enrolled authenticator and ends every session of the
+ * Akun, so its next login enrols TOTP again. Audited as `ops_cli` with the
+ * reason; the entry says only that the authenticator was enrolled and is not now.
+ */
+export async function resetTotp(
+  deps: { db: Database; audit: AuditLog },
+  input: { phoneNumber: string; reason: string },
+): Promise<ResetTotpResult> {
+  const normalised = normalisePhoneNumber(input.phoneNumber);
+  if (!normalised.ok) return normalised;
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, reason: "alasan_wajib" };
+
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [user] = await tx
+      .select({ id: identityUser.id })
+      .from(identityUser)
+      .where(eq(identityUser.phoneNumber, normalised.phoneNumber));
+    if (!user || !(await rolesOf(tx, user.id)).includes("admin_platform")) {
+      return { ok: false, reason: "bukan_admin_platform" } as const;
+    }
+    const [enrolled] = await tx
+      .select({ confirmedAt: identityTotp.confirmedAt })
+      .from(identityTotp)
+      .where(eq(identityTotp.accountId, user.id))
+      .for("update");
+    if (!enrolled?.confirmedAt) return { ok: false, reason: "totp_belum_terdaftar" } as const;
+
+    await tx.delete(identityTotp).where(eq(identityTotp.accountId, user.id));
+    await tx.delete(identitySession).where(eq(identitySession.userId, user.id));
+    await record({
+      // No one is signed in: the entry names the Akun reset, acting as the ops CLI.
+      actor: { accountId: user.id, role: "ops_cli" },
+      action: "akun.totp_reset",
+      entity: { kind: "akun", id: user.id },
+      before: { terdaftar: true },
+      after: { terdaftar: false },
+      reason,
+    });
+    return { ok: true, account: { id: user.id, phoneNumber: normalised.phoneNumber } } as const;
   });
 }
 

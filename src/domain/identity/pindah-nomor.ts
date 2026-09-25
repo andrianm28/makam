@@ -6,7 +6,7 @@ import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import { staffWriteRefusal, type Actor } from "./authorize";
 import type { Account } from "./login";
-import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
 import { placeholderEmailFor } from "./staff";
 
@@ -32,8 +32,6 @@ function startsWith(body: Uint8Array, magic: number[]): boolean {
 
 /** The largest KTP check file accepted, 10 MB. */
 export const KTP_CHECK_MAX_BYTES = 10 * 1024 * 1024;
-
-type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 export type MoveAccountResult =
   | { ok: true; account: Account; ktpCheckFileKey: string }

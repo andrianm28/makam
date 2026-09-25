@@ -1,4 +1,4 @@
-// Bundles the non-Next entry points (worker, migrate) into self-contained ESM
+// Bundles the non-Next entry points (worker, migrate, ops CLIs) into self-contained ESM
 // files in dist/, so the runtime image needs no node_modules for them.
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,7 @@ await build({
     worker: "src/worker/main.ts",
     migrate: "src/cli/migrate.ts",
     "seed-admin": "src/cli/seed-admin.ts",
+    "reset-totp": "src/cli/reset-totp.ts",
     "sentry-check": "src/cli/sentry-check.ts",
   },
   outdir: "dist",
