@@ -18,7 +18,7 @@ The Perpanjangan module's direct path. From the hub lookup (or the Makam tab), a
 - [ ] Bukti Perpanjangan `BPP/YYYY/NNNNNN`: Petak Makam, Pemegang Hak, old and new end dates, terms bought; in the Lokasi Mitra's name with the PT JKP header.
 - [ ] A Hak Pakai flagged Perlu Verifikasi must be completed by the Admin Lokasi before the Perpanjangan proceeds.
 - [ ] Pencairan: Perpanjangan item due on payment.
-- [ ] The checkout has an optional email field, saved on the account and used only for Tagihan / Bukti copies and the login OTP fallback (as ticket 22).
+- [ ] The checkout has an optional email field, saved on the account and used only for Tagihan / Bukti copies and, once the Pemesan verifies it, the email Kode Masuk (as ticket 22; verification and email login are ticket 67).
 - [ ] Tests: the open window; each blocking note; end-date arithmetic (early renewal, renewal in masa tenggang, K terms); OTP skip; payer ≠ Pemegang Hak gets no right; lapse to Dibatalkan at 3×24 h.
 
 ## Notes

@@ -290,8 +290,8 @@ Certbot reuses the host's existing ACME account. After that:
   at runtime (`dev.makam.co.id` → `staging`, `makam.co.id`/`www` →
   `production`, anything else → `development`; `browserSentryEnvironment` in
   `src/lib/env.ts`). Filter by environment in GlitchTip.
-- Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`; SES from
-  ticket 03), then restart GlitchTip.
+- Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`, via the
+  SumoPod SMTP relay once ticket 04's email setup is done), then restart GlitchTip.
 
 ## GlitchTip: restart, upgrade, admin
 

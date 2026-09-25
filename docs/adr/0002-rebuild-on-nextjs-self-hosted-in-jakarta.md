@@ -17,3 +17,9 @@ This corrects the last sentence of the amendment above ("`dev.makam.co.id` is un
 ## Amendment (2026-09-25, later): staging is public
 
 `dev.makam.co.id` serves v1 staging **without** HTTP basic auth (user decision). It stays unindexed via `X-Robots-Tag`.
+
+## Amendment (2026-09-25, later): email goes through SumoPod SMTP, SES dropped
+
+- **The app sends every email through the SumoPod SMTP relay** (`smtp.sumopod.com`, port 465, SMTPS), directly from its `EmailSender` adapter: login codes, the email fallback after a WhatsApp code, copies of Tagihan and Bukti, and staff invites. **Amazon SES is dropped from v1.** Why: the frozen Laravel app already sends `no-reply@makam.co.id` through this relay in production, SumoPod is already the Operator's payment vendor, and it removes SES's domain set-up and sandbox exit from the launch path. AWS is now used for S3 only (files and backups). Accepted cost: email deliverability depends on one more SumoPod service and on the domain authentication (DKIM, SPF, DMARC) being published for `makam.co.id`, which today has none.
+- **The self-hosted Stalwart mail server on this host is for human mailboxes only.** The app never sends through it. It is not a fallback relay, because its IP has no sending reputation or rDNS.
+- Email is a flow of personal data (addresses, codes, document copies) to SumoPod; where SumoPod's relay processes it has not been confirmed yet (ticket 04).

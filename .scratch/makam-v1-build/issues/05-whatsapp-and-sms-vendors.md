@@ -5,7 +5,7 @@ Spec: Implementation Decisions > Notifications; Adapter ports > WhatsAppSender; 
 
 ## What to build
 
-Get the official WhatsApp Business API sending number live through kirim.dev for PT Jaya Korpora Prima. Meta verification has a long lead time, so start now. There is no SMS vendor in v1: the OTP fallback is email through SES (tickets 03, 60).
+Get the official WhatsApp Business API sending number live through kirim.dev for PT Jaya Korpora Prima. Meta verification has a long lead time, so start now. There is no SMS vendor in v1: the OTP fallback is email through SES (tickets 03, 60). _Amended 2026-09-25: email goes through the SumoPod SMTP relay (tickets 04, 68), and email login and its fallback are ticket 67; SES is dropped._
 
 ## Acceptance criteria
 

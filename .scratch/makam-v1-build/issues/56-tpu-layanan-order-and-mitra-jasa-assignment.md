@@ -21,4 +21,4 @@ A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfille
 
 ## Added (2026-09-25)
 
-- [ ] Optional email field on the order screen (copies of Tagihan / Bukti via SES), as in spec "Booking wizards".
+- [ ] Optional email field on the order screen (copies of Tagihan / Bukti by email through SumoPod SMTP; SES dropped 2026-09-25), as in spec "Booking wizards".

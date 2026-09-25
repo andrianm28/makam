@@ -28,7 +28,7 @@ The Operator, PT Jaya Korpora Prima, wants to run one trustworthy platform for a
 3. **Layanan Makam**: one global catalog (flowers, headstone, cleaning, grass care, photo/video report) at fixed prices, ordered one-off or as a recurring Paket Layanan. At a Lokasi Mitra the Admin Lokasi does the work; at a TPU a Mitra Jasa does. Every job has in-app photo proof, a Keluhan window and optional Penilaian.
 4. **Wakaf Tanah**: a one-page Pengajuan Wakaf with manual status tracking. The Operator only facilitates and never receives land or money. Every ikrar goes to a Nazhir.
 
-Every family logs in with a WhatsApp OTP, and the account is keyed by phone number. **Akun Saya** shows their orders, every grave they hold (Makam Keluarga) and their Pengajuan Wakaf.
+Every family logs in with a code sent to their WhatsApp, or to their verified email once they have one (decision 2026-09-25), and the account is keyed by phone number; a new account is created only through WhatsApp. **Akun Saya** shows their orders, every grave they hold (Makam Keluarga) and their Pengajuan Wakaf.
 
 The back office has three staff views, all working from self-closing queues:
 - **Admin Platform**: onboarding, TPU work, refunds, Keluhan, chasing, Pencairan, Wakaf, through the Antrean.
@@ -70,7 +70,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 24. As a Pemesan, I want a sticky bottom bar showing "Total semua biaya" that expands to the itemised lines, so that I always know what I'll pay.
 25. As a Pemesan, I want the screen to say nothing is paid now and documents can follow, so that I'm not blocked at a hard moment.
 26. As a Pemesan, I want a WhatsApp OTP at Kirim to verify my number and create my account at the same moment, so that I don't have to sign up.
-27. As a Pemesan whose account has an email, I want a "Kirim lewat email" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me; without an email on my account I want to be pointed to the CS WhatsApp number instead.
+27. As a Pemesan whose account has a verified email, I want a "Kirim lewat email" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me; without a verified email on my account I want to be pointed to the CS WhatsApp number instead. (Amended 2026-09-25: "an email" became "a verified email"; see story 189.)
 28. As a Pemesan, I want a Nomor Pemesanan and a status timeline straight after Kirim, with the computed confirmation deadline, so that I know when to expect an answer.
 29. As a Pemesan, I want the confirmation to show the assigned Petak Makam, the Admin Lokasi's contact, the document checklist and the payment deadline ("pemakaman tetap berjalan"), so that I know what to bring and that payment won't hold up the burial.
 30. As a Pemesan, I want to upload documents later or bring them on the day, so that paperwork doesn't block the burial.
@@ -159,7 +159,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 
 ### Akun Saya
 
-98. As any user, I want Masuk to work cold with just my WhatsApp number, even without orders, so that a Pemegang Hak who never ordered can see their graves.
+98. As any user, I want Masuk to work cold with just my WhatsApp number, even without orders, so that a Pemegang Hak who never ordered can see their graves. (Once my Akun has a verified email I may also use "Masuk dengan email", story 189.)
 99. As a user, I want a Perlu tindakan strip (unpaid Tagihan, missing documents, Perlu Perbaikan, an alternative to accept, a consent to give), so that I see what needs me first.
 100. As a user, I want a Pesanan tab with every order from my number, newest first, each order page holding its Tagihan, Bukti, IPTM scan and actions, so that everything about an order is in one place.
 101. As a Pemegang Hak, I want a Makam tab with every Hak Pakai and Makam TPU recorded on my number (even ones someone else ordered), with Pemakaman, active Paket, past photos and documents, so that I manage my family's graves.
@@ -240,7 +240,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 167. As an Admin Platform, I want to move a Pemesan's account to a new number after a KTP check, audited, so that a lost phone doesn't lose the history.
 168. As an Admin Platform, I want TOTP on top of the OTP and a 12 h session, so that money actions are protected.
 169. As an Admin Platform, I want to renumber a Petak (audited, the old Nomor Makam kept as a hidden alias that lookups still find), so that mistakes can be fixed without breaking lookups silently.
-170. As an Admin Platform, I want to invite staff (WhatsApp number and a required email) and deactivate any staff account, keeping history, so that access stays controlled and every staff account has the email OTP fallback.
+170. As an Admin Platform, I want to invite staff (WhatsApp number and a required email) and deactivate any staff account, keeping history, so that access stays controlled and every staff member has an email they can verify for email login. (Amended 2026-09-25: the invite email is not verified; staff verify it themselves, story 190.)
 171. As an Admin Platform, I want to read every Mitra Jasa message thread and step in, so that I can protect the family.
 172. As an Admin Platform, I want to phone the family after money messages fail to send, as a row, so that payment information reaches them.
 
@@ -268,6 +268,11 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 186. As the engineer, I want every deadline and reminder driven by the worker from database state, so that a restart never loses a timer.
 187. As the engineer, I want daily encrypted off-host backups to object storage in Indonesia with restore tests and an external uptime alarm, so that one VPS is an acceptable risk.
 188. As an Admin Platform, I want to enter every reference value (the Operator's legal name, address and contact, the CS WhatsApp number and reply hours, and the prices, TPU list and Nazhir list on their own screens) in the dashboard, so that nothing but the first Admin Platform is seeded and no value needs a deploy.
+
+### Email login (added 2026-09-25)
+
+189. As a Pemesan or a staff member whose Akun has a verified email, I want "Masuk dengan email" to send a 6-digit code to that email whenever I choose, not only after a WhatsApp problem, so that I can log in without my phone; for an unknown or unverified email I want to see the same reply as for success ("Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim."), so that nobody can learn whose email is registered.
+190. As a Pemesan (in the Akun Saya profile) or a staff member (in the staff area), I want a "Verifikasi email" action that sends a code to my email and marks it verified when I enter it, so that I can use email login; an email already verified on another Akun is refused and I am pointed to CS.
 
 ## Implementation Decisions
 
@@ -301,7 +306,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
   - Sends a template with parameters, including Meta's authentication template with a copy-code button.
   - Reports status (terkirim / dibaca / gagal).
   - Handles the inbound auto-reply that points to the CS number.
-- **EmailSender** (Amazon SES Jakarta): sends document copies, the document-message fallback and the login OTP fallback ("Kirim lewat email"). There is no SMS in v1.
+- **EmailSender** (the **SumoPod SMTP relay**: `smtp.sumopod.com`, port 465, SMTPS, from `makam.co.id`; decision 2026-09-25, ADR 0002 amendment): sends every email: the email Kode Masuk (email login and the "Kirim lewat email" fallback, sent directly by Identity & Access), Tagihan / Bukti copies and the document-message fallback, and Undangan Staf. Amazon SES is not used in v1, and the self-hosted Stalwart mail server on this host is for human mailboxes only, never for the app. There is no SMS in v1.
 - **WebPush**: staff alerts, on top of WhatsApp.
 - **FileStore**: upload, signed URL and delete.
 - **PdfRenderer**: turns a document web page into a PDF.
@@ -324,14 +329,20 @@ Core entities at a glance (details in each module):
 
 1. **Identity & Access**
    - The account is keyed by one WhatsApp number (ADR 0003).
-   - OTP request and verify, with WhatsApp first. The OTP at Kirim creates or logs into the account.
+   - OTP request and verify, with WhatsApp first. The OTP at Kirim creates or logs into the account. A new Akun is created only through the WhatsApp OTP (decision 2026-09-25).
    - Only Indonesian (+62) WhatsApp numbers in v1 (decision 2026-09-25): a number from any other country is refused with "Gunakan nomor WhatsApp Indonesia (+62)." and gets no Akun.
    - The login OTP is sent by this module directly through the WhatsAppSender port, not through Notifications (decision 2026-09-25): it must arrive at once, background retries would only confuse, and the code is sensitive. So an OTP creates no message-log entry and is never retried automatically; when WhatsApp refuses it the Pemesan sees "gagal kirim" and may try again at once (the failed send does not count against the OTP limits).
-   - OTP fallback after about 60 s: "Kirim lewat email" sends the same kind of OTP through EmailSender (SES) to the email on the number's existing account. An email typed on the same screen for a number with no account yet does not count, since it would prove the email, not the number. With no email on record there is no fallback: the screen points to the CS WhatsApp number (Pengaturan Operator). There is no SMS. Admin Platform TOTP is unchanged.
+   - **Email login** (decision 2026-09-25, ADR 0003 amendment): any Akun with an **Email Terverifikasi** (Pemesan and every staff role) may log in with a 6-digit code sent to that email through EmailSender (SumoPod SMTP). It is an equal alternative the user may choose at any time from a "Masuk dengan email" link on Masuk, not only a fallback. An email login never creates an Akun.
+     - Same rules as the WhatsApp OTP: expiry 10 min; the 5th wrong code burns it; resend after 60 s; at most 5 per rolling hour; lockout after 10 wrong codes in 60 min. Limits are counted per email and per IP.
+     - Like the WhatsApp OTP, the email code is sent directly by this module through EmailSender, not through Notifications: no message-log entry, no automatic retries.
+     - Privacy: for an unknown or unverified email, the reply is identical to the success reply: "Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim."
+     - The WhatsApp OTP fallback is part of the same feature: about 60 s after a WhatsApp OTP, "Kirim lewat email" sends the same email code to the Email Terverifikasi of the number's existing Akun. Without one there is no fallback: the screen points to the CS WhatsApp number (Pengaturan Operator). There is no SMS.
+     - An Admin Platform who logs in by email must still pass TOTP; session rules below are unchanged.
+   - **Email Terverifikasi**: an email becomes verified only when a code sent to it is entered, through "Verifikasi email" in the Akun Saya profile or in the staff area, or on the first successful email login. An email that has only been typed in (on a "Data & kirim" screen, in the profile, or by Admin Platform on an Undangan Staf) is not verified, and email login is not offered for it. Changing the email removes the verified mark until the new one is verified. A verified email belongs to at most one Akun: verifying an email already verified on another Akun is refused, and Admin Platform resolves such cases through CS. Verifying an email from the staff area is a staff write and is audited.
    - Roles: Pemesan (implicit), Admin Lokasi (many-to-many with Lokasi Mitra, all equal), Admin Platform (TOTP required), Petugas Lapangan, Mitra Jasa. One account can hold many roles.
-   - Staff are invite-only, and every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff account has the email OTP fallback. The first Admin Platform is seeded from the CLI with its phone number and email; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
+   - Staff are invite-only, and every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff member has an email on record to verify; it is not an Email Terverifikasi until they verify it (decision 2026-09-25). The first Admin Platform is seeded from the CLI with its phone number and email; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
    - Sessions: 90 days for Pemesan, 30 days for staff on a trusted device, 12 h for Admin Platform. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it holds.
-   - Optional email on a Pemesan account (required for staff): entered on a "Data & kirim" screen or edited in the Akun Saya profile; used only to send copies of Tagihan / Bukti documents and the OTP fallback through SES.
+   - Optional email on a Pemesan account (required for staff): entered on a "Data & kirim" screen or edited in the Akun Saya profile; used only to send copies of Tagihan / Bukti documents and, once verified, the email Kode Masuk, all through EmailSender (SumoPod SMTP).
    - Account number move by Admin Platform after a KTP check.
    - No self-service recovery and no shared family access.
    - Exposes an authorisation check the Server Actions call. This check also filters what Admin Lokasi, Petugas Lapangan and Mitra Jasa may see: Admin Lokasi never see Pengajuan Wakaf; Wakaf survey reports stay internal to Admin Platform; Mitra Jasa and Petugas Lapangan see no audit log.
@@ -520,8 +531,8 @@ Core entities at a glance (details in each module):
     - The Antrean Lokasi has rows only: no Ambil claims, tiers or Bertugas, and Catatan Internal stay hidden from Admin Lokasi. The Admin Platform Antrean has Catatan Internal threads, a counter strip and the Laporan.
 15. **Notifications**
     - One module decides recipient, channel, template and timing for every domain event. It sends through the pg-boss worker.
-    - Exception: the WhatsApp login OTP does not go through this module. Identity & Access sends it directly through WhatsAppSender (decision 2026-09-25), so it creates no message-log entry, is never retried automatically and raises no Antrean row; the Pemesan sees "gagal kirim" and can retry.
-    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access). Email also carries the login OTP fallback (Identity & Access). There is no SMS channel.
+    - Exception: the WhatsApp login OTP does not go through this module. Identity & Access sends it directly through WhatsAppSender (decision 2026-09-25), so it creates no message-log entry, is never retried automatically and raises no Antrean row; the Pemesan sees "gagal kirim" and can retry. The same exception covers the email Kode Masuk, sent directly through EmailSender (decision 2026-09-25, later).
+    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access); it need not be verified for copies. Undangan Staf also go by email. Every email goes through EmailSender on the SumoPod SMTP relay (no SES in v1). The email Kode Masuk (email login and the 60 s fallback) is sent by Identity & Access directly, like the WhatsApp OTP. There is no SMS channel.
     - Reminders to families go out 08:00–20:00 WIB. Transactional messages and new-order alerts go out at any hour.
     - Retries: 3 with backoff. After that, document messages go to email if possible, then a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the Antrean.
     - Every message is logged with its status on its order (the login OTP excepted, see above).
@@ -599,7 +610,8 @@ Core entities at a glance (details in each module):
   - Petugas Lapangan: their assigned cases.
   - Mitra Jasa: never.
 - Wakaf survey reports and internal notes stay with Admin Platform. Mitra Jasa and Petugas Lapangan see no audit log.
-- WhatsApp (Meta) is the only flow of data out of Indonesia. Error monitoring (GlitchTip) is self-hosted on the Jakarta host.
+- WhatsApp (Meta) is the only known flow of data out of Indonesia. Error monitoring (GlitchTip) is self-hosted on the Jakarta host.
+- Email (addresses, Kode Masuk, Tagihan / Bukti copies, Undangan Staf) goes through the SumoPod SMTP relay, not AWS SES and not the self-hosted Stalwart. Where SumoPod's relay processes mail is not yet confirmed (ticket 04); until it is, email is not claimed to stay in Indonesia. Files and backups stay in AWS S3 Jakarta.
 - Retention and deletion rules are out of scope, but the uploads are treated as personal data.
 
 ## Testing Decisions
@@ -624,7 +636,7 @@ Core entities at a glance (details in each module):
   - **Lokasi**: publish gate, Terencana switch, working-time calculator (Jam Operasional, closures, overnight pauses).
   - **Work Queues**: the right rows appear with the right deadlines and tiers and close themselves; escalation timing.
   - **Notifications**: recipients, the 08:00–20:00 window, retry → email → call row routing by subject.
-  - **Identity & Access**: OTP login creating the account, the email OTP fallback (offered only when the account has an email; CS pointer otherwise), required staff email at invite, role visibility rules, TOTP for Admin Platform, Pemegang Hak OTP skip.
+  - **Identity & Access**: OTP login creating the account, email login and the email OTP fallback (offered only for an Email Terverifikasi; the same reply for an unknown email; CS pointer otherwise; never creates an Akun), verifying an email and its uniqueness, the email code limits per email and per IP, required staff email at invite, role visibility rules, TOTP for Admin Platform (also after email login), Pemegang Hak OTP skip.
   - **Wakaf**: status transitions and Dirujuk.
   - **Field Work**: Selesai gated on uploads, and the auto-created pickup task.
   - **Audit Log**: every staff write logged, and the Admin Lokasi view filter.
@@ -662,7 +674,7 @@ Core entities at a glance (details in each module):
   - These are requirements, not design:
     - Meta Business verification for PT Jaya Korpora Prima (akta, NIB, NPWP).
     - Checking kirim.dev's support for `data_localization_region=ID` before registering the new API number.
-    - The SES Jakarta domain setup, out of the SES sandbox (SES now also carries the login OTP fallback).
+    - Email sending on the SumoPod SMTP relay (replaces SES, decision 2026-09-25): `makam.co.id` added under SumoPod's "Custom Domain", its DKIM, SPF and `sumo-verification` records published and verified, a DMARC record published, and SMTP credentials for v1 stored (ticket 04). It carries the email Kode Masuk, so it is needed before launch.
     - The DNS A record `errors.makam.co.id` → 103.92.214.243 and the GlitchTip set-up.
     - Every reference value entered by Admin Platform in the dashboard (Pengaturan Operator and the owning screens).
     - Every vendor account in PT JKP's name, including the domain registrant.

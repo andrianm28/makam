@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-human (02–06), 58 ready-for-agent. Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-09-25): 5 resolved (01, 07, 08, 09, 66), 6 ready-for-human (02–06, 65), 57 ready-for-agent. Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -8,8 +8,8 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 |---|---|---|---|
 | [01](01-walking-skeleton.md) | Walking skeleton: app, worker, CI, test harness | resolved | — |
 | [02](02-infra-accounts-vps-domain-github-sentry.md) | Infrastructure accounts: VPS, domain, GitHub, GlitchTip | ready-for-human | — |
-| [03](03-aws-s3-and-ses-jakarta.md) | AWS Jakarta: private S3 buckets and SES domain | ready-for-human | — |
-| [04](04-sumopod-merchant-account.md) | SumoPod merchant account for PT Jaya Korpora Prima | ready-for-human | — |
+| [03](03-aws-s3-jakarta.md) | AWS Jakarta: private S3 buckets (S3 only; SES dropped 2026-09-25) | ready-for-human | — |
+| [04](04-sumopod-merchant-account.md) | SumoPod merchant account and email (SMTP relay, `makam.co.id` domain authentication) for PT Jaya Korpora Prima | ready-for-human | — |
 | [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) vendor setup | ready-for-human | — |
 | [06](06-operator-facts-and-reference-data.md) | Operator facts and launch reference data | ready-for-human | — |
 | [07](07-production-environment.md) | Staging, GlitchTip, deploy pipeline and uptime alarm | resolved | 01 |
@@ -65,10 +65,12 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
-| [60](60-real-aws-adapters.md) | Real FileStore (S3 Jakarta) and EmailSender (SES Jakarta) adapters, and the email OTP fallback | ready-for-agent | 03, 08, 63 |
+| [60](60-real-s3-filestore-adapter.md) | Real FileStore adapter (S3 Jakarta) | ready-for-agent | 03 |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter | ready-for-agent | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | ready-for-agent | 09 |
+| [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | ready-for-agent | 09 |
+| [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | ready-for-agent | 04 |
 
 ## Story coverage
 
@@ -100,7 +102,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | 24 | 22 | 87 | 54 | 150 | 10, 12 |
 | 25 | 22 | 88 | 54 | 151 | 16, 15 |
 | 26 | 22, 08 | 89 | 54 | 152 | 59 |
-| 27 | 60, 22 | 90 | 54 | 153 | 15 |
+| 27 | 67, 22 | 90 | 54 | 153 | 15 |
 | 28 | 22 | 91 | 50, 57 | 154 | 49 |
 | 29 | 23 | 92 | 50, 57 | 155 | 55 |
 | 30 | 23 | 93 | 50 | 156 | 56 |
@@ -117,7 +119,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | 41 | 36 | 104 | 39 | 167 | 09 |
 | 42 | 36 | 105 | 39 | 168 | 09 |
 | 43 | 36 | 106 | 59 | 169 | 14 |
-| 44 | 36 | 107 | 38 | 170 | 09 |
+| 44 | 36 | 107 | 38 | 170 | 09, 67 |
 | 45 | 36 | 108 | 58 | 171 | 52 |
 | 46 | 37 | 109 | 58 | 172 | 20 |
 | 47 | 37 | 110 | 58 | 173 | 15 |
@@ -132,17 +134,18 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 | 56 | 35 | 119 | 25 | 182 | 55 |
 | 57 | 42 | 120 | 23 | 183 | 18, 25, 40 |
 | 58 | 40 | 121 | 37 | 184 | 09 |
-| 59 | 41 | 122 | 35 | 185 | 01, 60, 61, 62 |
+| 59 | 41 | 122 | 35 | 185 | 01, 60, 61, 62, 68 |
 | 60 | 41 | 123 | 35 | 186 | 01 (+ every tick ticket) |
 | 61 | 41 | 124 | 41 | 187 | 07 |
 | 62 | 40 | 125 | 38, 39 | 188 | 63, 06 |
-| 63 | 40 | 126 | 39 | | |
+| 63 | 40 | 126 | 39 | 189 | 67 |
+| | | | | 190 | 67 |
 
 ## Implementation Decisions coverage (by spec module)
 
 - Architecture, AGENTS.md, containers, CI, Sentry SDK: 01; GlitchTip set-up and DNS: 02; production, migrations step, backups, uptime alarm, GlitchTip test errors, cutover on `makam.co.id`: 07.
-- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore + EmailSender real 60; PaymentProvider real 61; WhatsAppSender real 62. No SmsSender.
-- 1 Identity & Access: 08, 09 (email OTP fallback 60; staff email at invite 09, 10, 55; first Admin Platform seed 09; account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
+- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore real 60 (S3); EmailSender real 68 (SumoPod SMTP); PaymentProvider real 61; WhatsAppSender real 62. No SmsSender.
+- 1 Identity & Access: 08, 09 (email login, Email Terverifikasi and the email fallback 67; staff email at invite 09, 10, 55; first Admin Platform seed 09; account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
 - 2 Audit Log: 09; Lokasi view 10.
 - 3 Lokasi: 10 (record, policies, flags), 11 (Jam Operasional, Kontak Siaga, working-time calculator), 16 (publish gate, Terencana switch), 43 (TPU), 59 (Ditangguhkan, Berhenti); late confirmations / declines counted 23, 24.
 - 4 Tariffs: 12; DKI and Retribusi 43; Layanan and Mitra Jasa rates 49.
@@ -156,11 +159,11 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 63 tickets: 5 ready-for-
 - 12 Wakaf: 58.
 - 13 Field Work: 15; Ambil surat pengantar 45, 47; Berkas IPTM 46; Survei Wakaf 58.
 - 14 Work Queues: Antrean 17, Bertugas 28, Antrean Lokasi 23; each row type in the ticket that owns its state.
-- 15 Notifications: core 20; staff push 21; each event in its owning ticket; real senders 62.
+- 15 Notifications: core 20; staff push 21; each event in its owning ticket; real senders 62, 68; the email Kode Masuk is sent outside Notifications (67).
 - 16 Scheduler: tick pattern 01; ticks in 18 (pay-first lapse), 25 (Catat Pemakaman), 28 (escalation, Bertugas auto-off), 29 (overdue reminders), 32 (Potongan ageing), 37 (holds, Masa Pembatalan), 42 (Hak Pakai reminders), 48 (IPTM reminders), 50 (Terlambat), 51 (Keluhan window), 54 (Paket), 55 (scorecard review), 56 (accept deadlines), 59 (Berhenti).
 - 17 Pengaturan Operator: 63; values entered before launch 06.
 - Public site and routing: 26 (home, nav, content), 22 / 36 / 35 (wizards), 34 (hub), 24 (after a Tolak), 10 (Leaflet pin), 43 (Pengurusan di TPU DKI page), 58 (Wakaf page).
-- Data and privacy: 09, 10, 15, 23, 55, 58, 60.
+- Data and privacy: 09, 10, 15, 23, 55, 58, 60; email through SumoPod 04, 68.
 - Testing: harness 01; Playwright E2E 1 in 25, 2 in 19, 3 in 32.
 
 ## Could not place, contradictory or unclear
@@ -187,7 +190,7 @@ Decided by the user and written into the spec and the tickets named.
 8. **TPU nisan variants**: Admin Platform marks Batu Nisan variants "boleh di TPU DKI" by hand; only those are offered at a TPU. Ticket 49.
 9. **"mulai Rp X" on a DKI TPU card** = burial Biaya Pengurusan + Retribusi Pemda. Ticket 43.
 10. **Paid TPU Saat Duka order cancelled before filing**: full refund, except the Biaya Pengurusan is kept at or past Dimakamkan; Admin Platform approves. Ticket 46.
-11. **Optional Pemesan email** on every "Data & kirim" / checkout screen and in the Akun Saya profile, used only for Tagihan / Bukti copies via SES. Tickets 20, 22, 27, 36, 40, 44, 50.
+11. **Optional Pemesan email** on every "Data & kirim" / checkout screen and in the Akun Saya profile, used only for Tagihan / Bukti copies via SES. Tickets 20, 22, 27, 36, 40, 44, 50. _Amended 2026-09-25: SES dropped; copies go through SumoPod SMTP (see Decisions 2026-09-25 (email login))._
 12. **Harga Khusus partner share**: entered on the order by Admin Platform with a required note, default 0; a non-zero share lowers that order's Pencairan. Tickets 30, 32.
 13. **Petak renumbering**: old Nomor Makam kept as a hidden alias that lookups still find; never displayed, only in the audit log. Tickets 14, 34.
 14. **Tier 4 "Lokasi revisit" and "publish-gate check" rows**: only after Admin Platform presses "Minta kunjungan ulang" (creating the Kunjungan Verifikasi); no automatic schedule. Tickets 15, 17.
@@ -197,7 +200,7 @@ Decided by the user and written into the spec and the tickets named.
 
 Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and the tickets named.
 
-1. **No SMS in v1** (Zenziva dropped). The OTP fallback after ~60 s is "Kirim lewat email" through SES, only for an account with an email on record; every staff invite requires an email; a Pemesan without one is pointed to the CS WhatsApp number; Admin Platform TOTP unchanged. The fallback lands with the SES adapter (60, needs human ticket 03); login (08) is not blocked by it. This amends clarification 11: the optional email also carries the OTP fallback. Tickets 01, 03, 05, 08, 09, 10, 20, 22, 27, 40, 44, 50, 55, 60, 62.
+1. **No SMS in v1** (Zenziva dropped). The OTP fallback after ~60 s is "Kirim lewat email" through SES, only for an account with an email on record; every staff invite requires an email; a Pemesan without one is pointed to the CS WhatsApp number; Admin Platform TOTP unchanged. The fallback lands with the SES adapter (60, needs human ticket 03); login (08) is not blocked by it. This amends clarification 11: the optional email also carries the OTP fallback. Tickets 01, 03, 05, 08, 09, 10, 20, 22, 27, 40, 44, 50, 55, 60, 62. _Superseded in part by Decisions 2026-09-25 (email login): SES dropped, the fallback is ticket 67 and needs an Email Terverifikasi._
 2. **Error monitoring is GlitchTip**, self-hosted on this host as its own compose project at `errors.makam.co.id` (DNS A record to 103.92.214.243 still to add); Sentry SDK kept, Sentry cloud dropped. Tickets 02, 07 (and 60, 61, 62 wording).
 3. **v1 deploys directly on `makam.co.id`**, replacing the frozen Laravel app in ticket 07 behind a human confirmation gate, with a rollback and the data carry-over question answered first. `dev.makam.co.id` untouched. Tickets 02, 04, 07.
 4. **GitHub**: `github.com/andrianm28/makam`, private, `main`; images `ghcr.io/andrianm28/makam`. Ticket 02 (repo items done), 07.
@@ -218,3 +221,24 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test | ready-for-agent | 03, 07 |
 | [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64 |
 | [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
+
+## Decisions 2026-09-25 (email login)
+
+Decided by the user and written into CONTEXT.md (Kode Masuk, Email Terverifikasi), ADR 0003 and ADR 0002 (amendments), the spec and the tickets named.
+
+1. **Email login** for any Akun with an **Email Terverifikasi** (Pemesan and every staff role), as an equal alternative to the WhatsApp OTP, chosen at any time from "Masuk dengan email". New Akun are still created only through the WhatsApp OTP, and the WhatsApp number (+62) is still the key. Ticket 67 (notes in 08, 22, 27).
+2. **Code**: 6 digits by email, same rules as the WhatsApp OTP (10 min, 5th wrong burns, resend 60 s, 5 per rolling hour, lockout after 10 wrong in 60 min), counted per email and per IP; sent directly, not through Notifications. Ticket 67 (note in 20).
+3. **Staff** may log in by email; Admin Platform still passes TOTP; sessions unchanged (12 h / 30 days / 90 days). Ticket 67 (note in 09).
+4. **Email goes through the SumoPod SMTP relay** (`smtp.sumopod.com`, 465, SMTPS) from the `EmailSender` adapter. SES is dropped from v1, and the self-hosted Stalwart is for human mailboxes only. AWS is S3 only. Tickets:
+   - 03 is S3 only;
+   - 04 has the human email checklist (Custom Domain, DKIM / SPF / sumo-verification, DMARC, SMTP credentials);
+   - 60 is split: 60 is the S3 FileStore, 68 is the SMTP EmailSender;
+   - notes in 05, 20, 35, 47, 48, 54, 56.
+5. **Verified** only by entering a code sent to the email: "Verifikasi email" in Akun Saya or the staff area (audited for staff), or the first successful email login. A typed email (on an order, or on an Undangan Staf) is not verified. Ticket 67 (notes in 09, 22, 27, 40, 44, 50).
+6. **Privacy**: an unknown or unverified email gets the success reply "Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim." Ticket 67.
+7. **Uniqueness**: a verified email belongs to at most one Akun; a clash is refused and resolved by Admin Platform through CS. Ticket 67.
+8. **The fallback** ("Kirim lewat email" after about 60 s) moves from ticket 60 into 67, with the same code and the same verified-email rule. The login OTP-direct exception covers the email code. Ticket 67 (notes in 08, 22, 63).
+
+Not changed here (outside the files this change may touch):
+- the code comments that still name ticket 60 for the email fallback or say SES (`src/ports/email-sender.ts`, `src/composition/adapters.ts`, `src/domain/identity/{schema,invites,otp}.ts`);
+- `docs/ops/runbook.md`, which still says GlitchTip alerts use SES from ticket 03.

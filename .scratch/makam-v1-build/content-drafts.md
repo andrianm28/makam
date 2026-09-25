@@ -8,7 +8,7 @@ Conventions in this file:
 - Everything inside `{kurung_kurawal}` is a placeholder. Admin Platform sets these in the dashboard or config (ticket 06). They are listed at the end.
 - `<!-- ... -->` comments are for reviewers and are not rendered.
 - `[CATATAN EDITOR: ...]` marks a line that needs a decision before publishing. Remove the note once decided.
-- Login is WhatsApp OTP only. SMS is not mentioned anywhere (removed from v1 on 2026-09-25).
+- Login is by a code sent to WhatsApp, or to a verified email once the account has one (email login, decided 2026-09-25). New accounts are created only through WhatsApp. SMS is not mentioned anywhere (removed from v1 on 2026-09-25).
 - No YIEM, no yayasan mission language. The spec says the legal name appears "only in the footer and document headers", but it also requires Tentang Kami to say PT Jaya Korpora Prima runs the site and Hubungi Kami to give the Operator's address. This draft also uses the name in FAQ 10 (who receives the money) and in the Pengurusan di TPU DKI anti-perantara paragraph (Tagihan resmi atas nama ...). [CATATAN EDITOR: decide whether those two extra uses stay or are reworded to "pengelola Makam.co.id".]
 
 ---
@@ -312,8 +312,8 @@ Tidak. Tanah diwakafkan langsung kepada Nazhir; makam.co.id tidak menerima tanah
 
 **24. Bagaimana cara masuk ke akun saya?**
 
-Cukup dengan nomor WhatsApp. Kami mengirim kode sekali pakai ke WhatsApp Anda. Kode hanya muncul di aplikasi WhatsApp di ponsel, tidak di WhatsApp Web atau Desktop. Tidak ada kata sandi. Akun dibuat otomatis saat Anda pertama kali mengirim pesanan atau masuk, jadi Pemegang Hak yang belum pernah memesan pun bisa melihat makam keluarganya. Satu nomor adalah satu akun, dan akun tidak dapat dibagi dengan anggota keluarga lain. Bila Anda kehilangan nomor lama, hubungi CS. Tim kami dapat memindahkan akun ke nomor baru setelah memeriksa KTP Anda.
-<!-- Spec: Solution (WhatsApp OTP, account keyed by phone); User Stories 26, 98, 167; Domain modules > 1. Identity & Access (no self-service recovery, no shared family access, account move after KTP check); 15. Notifications (OTP only on the phone). SMS fallback deliberately omitted per the 2026-09-25 removal. -->
+Cukup dengan nomor WhatsApp. Kami mengirim kode sekali pakai ke WhatsApp Anda. Kode hanya muncul di aplikasi WhatsApp di ponsel, tidak di WhatsApp Web atau Desktop. Tidak ada kata sandi. Bila email Anda sudah diverifikasi (lewat "Verifikasi email" di profil Akun Saya), Anda juga bisa memilih **Masuk dengan email** kapan saja: kodenya kami kirim ke email itu. Akun dibuat otomatis saat Anda pertama kali mengirim pesanan atau masuk dengan nomor WhatsApp, jadi Pemegang Hak yang belum pernah memesan pun bisa melihat makam keluarganya. Satu nomor adalah satu akun, dan akun tidak dapat dibagi dengan anggota keluarga lain. Bila Anda kehilangan nomor lama, hubungi CS. Tim kami dapat memindahkan akun ke nomor baru setelah memeriksa KTP Anda.
+<!-- Spec: Solution (WhatsApp OTP or verified email, account keyed by phone); User Stories 26, 98, 167, 189, 190; ticket 67 (email login, 2026-09-25); Domain modules > 1. Identity & Access (no self-service recovery, no shared family access, account move after KTP check); 15. Notifications (OTP only on the phone). SMS fallback deliberately omitted per the 2026-09-25 removal. -->
 
 **25. Bagaimana data dan dokumen keluarga saya digunakan?**
 

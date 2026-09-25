@@ -17,5 +17,5 @@ Anyone may order Layanan for a non-Berakhir Petak Makam at a Lokasi Mitra found 
 - [ ] Terlambat tick: target + 2 days with no proof; flagged to the Admin Lokasi (row) and Admin Platform (Tier 2 row).
 - [ ] Cancel until H-1 or until Sedang Dikerjakan: item refunded, Biaya Layanan Platform kept (refund via ticket 31).
 - [ ] A Terlambat job cancelled for lateness: full refund including the Biaya Layanan Platform.
-- [ ] The checkout has an optional email field, saved on the account and used only for Tagihan / Bukti copies and the login OTP fallback (as ticket 22).
+- [ ] The checkout has an optional email field, saved on the account and used only for Tagihan / Bukti copies and, once the Pemesan verifies it, the email Kode Masuk (as ticket 22; verification and email login are ticket 67).
 - [ ] Tests: lead time; due-date rule; scheduling on payment; Terlambat timing; cancellation windows and refund amounts; proof gating.

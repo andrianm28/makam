@@ -6,7 +6,7 @@ Spec: Adapter ports > WhatsAppSender; Domain modules > 15. Notifications; ADR 00
 
 ## What to build
 
-Implement the WhatsAppSender port on kirim.dev (Meta Cloud API pass-through): template sends with parameters, including Meta's authentication template with a copy-code button for the OTP; status reports (terkirim / dibaca / gagal) from the status webhook into the message log; and the inbound-message webhook that triggers the auto-reply pointing to the CS number. There is no SMS adapter in v1; the OTP fallback is email (ticket 60).
+Implement the WhatsAppSender port on kirim.dev (Meta Cloud API pass-through): template sends with parameters, including Meta's authentication template with a copy-code button for the OTP; status reports (terkirim / dibaca / gagal) from the status webhook into the message log; and the inbound-message webhook that triggers the auto-reply pointing to the CS number. There is no SMS adapter in v1; the OTP fallback is email (ticket 67; email login too, decided 2026-09-25).
 
 ## Acceptance criteria
 

@@ -15,10 +15,14 @@ Akun Saya for any logged-in number: a Perlu tindakan strip, a Pesanan tab with e
 - [ ] Makam lists every Hak Pakai where the Pemegang Hak number equals the account's number, including Hak Pakai from orders placed by someone else; each shows Lokasi, Petak / Kavling, status, end date, Pemakaman list and documents.
 - [ ] Perlu tindakan shows, where present: unpaid Tagihan; missing documents; an alternative to accept; (later: Perlu Perbaikan, a consent to give) through a registry other tickets add to.
 - [ ] Documents listed in Akun Saya open by their unguessable links.
-- [ ] A profile section lets the user add, change or remove the optional email used only for copies of Tagihan / Bukti documents and the login OTP fallback via SES (ticket 60).
+- [ ] A profile section lets the user add, change or remove the optional email used only for copies of Tagihan / Bukti documents and the login OTP fallback via SES (ticket 60) (amended below).
 - [ ] A user sees only their own orders and graves (authorisation check).
 - [ ] Tests: number-matching Makam tab (holder ≠ Pemesan); Perlu tindakan items appear and clear with state; isolation between accounts.
 
 ## Notes
 
 Makam TPU items, active Paket, the Wakaf tab and the Pemegang Hak actions are added by tickets 46, 54, 58, 38 and 39. The Berhenti read-only view is ticket 59.
+
+## Amended (2026-09-25, email login)
+
+- The profile email field (add, change, remove) and its "Verifikasi email" action are built in **ticket 67**. This ticket places them in the Akun Saya profile and must not rebuild them. A verified email also gives email login ("Masuk dengan email"), so login is no longer WhatsApp only. Emails go through SumoPod SMTP, not SES.

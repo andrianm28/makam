@@ -81,15 +81,23 @@ The person who places an order on the platform (usually a family member).
 _Avoid_: Customer, pembeli, user
 
 **Akun**:
-The identity on makam.co.id keyed by one WhatsApp number (+62), which can hold several roles: Pemesan by default, plus staff roles by invitation.
+The identity on makam.co.id keyed by one WhatsApp number (+62), which can hold several roles: Pemesan by default, plus staff roles by invitation. It is created only by a Kode Masuk sent to that WhatsApp number; an Email Terverifikasi is a second way into an existing Akun, never a second identity.
 _Avoid_: User, pengguna (as a domain term)
 
+**Kode Masuk**:
+The single-use code that logs a person into an Akun, sent either to the Akun's WhatsApp number or to its Email Terverifikasi; the same rules apply to both.
+_Avoid_: OTP (alone, in user-facing text), kata sandi, PIN, token
+
+**Email Terverifikasi**:
+An email address on an Akun that has been proven by entering a code sent to it; only such an email can receive a Kode Masuk, and it belongs to at most one Akun. An email that has only been typed in (on an order, or on an Undangan Staf) is not an Email Terverifikasi.
+_Avoid_: Email terdaftar, email akun (for an unproven email), login email
+
 **Akun Staf**:
-An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); always has an email on record.
+An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); always has an email on record, which is not an Email Terverifikasi until proven.
 _Avoid_: Admin user, akun admin
 
 **Undangan Staf**:
-Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when that number next logs in by OTP. It is also the only way a Dinonaktifkan Akun holds a staff role again.
+Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when the Akun of that number next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
 _Avoid_: Invite link, pendaftaran staf
 
 **Dinonaktifkan**:

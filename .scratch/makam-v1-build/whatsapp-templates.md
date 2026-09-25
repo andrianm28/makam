@@ -4,7 +4,7 @@ Status: draft, ready to submit to Meta through kirim.dev
 Owner tickets: 05 (submission), 20 (event table), 62 (name and parameter mapping)
 Sources: `../makam-v1/spec.md` (Domain modules 1, 6–12, 15; stories), `../../CONTEXT.md`, `../makam-v1/issues/19-notification-channels.md` and the build tickets listed per template.
 
-WhatsApp Business Account: PT Jaya Korpora Prima. Display name: **Makam.co.id**. All templates use language `id`. There are 43 templates: 1 authentication and 42 utility (#43 `staf_undangan` added by ticket 09). None are marketing. WhatsApp is the only channel for the OTP.
+WhatsApp Business Account: PT Jaya Korpora Prima. Display name: **Makam.co.id**. All templates use language `id`. There are 43 templates: 1 authentication and 42 utility (#43 `staf_undangan` added by ticket 09). None are marketing. The login code goes by WhatsApp, or by email for an Akun with an Email Terverifikasi (ticket 67); the email code is not a WhatsApp template.
 
 ## Summary table
 
@@ -1211,7 +1211,7 @@ Bila Anda tidak mengenal undangan ini, abaikan pesan ini.
 
 ## Rules not mapped or ambiguous
 
-1. **OTP has no second channel.** With WhatsApp as the only OTP channel, a WhatsApp outage blocks every login. The earlier fallback decision in ADR 0003 and the spec and tickets that describe it need updating.
+1. **OTP second channel (resolved 2026-09-25).** An Akun with an Email Terverifikasi can log in by an emailed Kode Masuk (ticket 67), so a WhatsApp outage no longer blocks every login; an Akun without one is pointed to CS.
 2. **OTP expiry** is not chosen (ticket 08). `code_expiration_minutes: 10` is a placeholder.
 3. **Two messages at one event.**
    - Saat Duka and Terencana confirmation also issue the Tagihan, and "Tagihan: when sent" would add a second message. The drafts put the Tagihan link in #2, #3 and #7 and assume `tagihan_terbit` is suppressed for those events.

@@ -51,3 +51,9 @@ No self-service recovery and no shared family access (spec, Out of Scope).
   - **Still untested: "an OTP failure creates no Antrean row"**. The queues module is empty, so there is no Antrean to read back. Ticket 17 is asked to add this test once the Antrean exists (see its Comments).
 - 2026-09-25 — Merged to `main`. Two-axis review (mattpocock-skills:code-review) found no hard violations and no wrong behaviour; fixes applied test-first: +62-only numbers, constant-time OTP hash compare, Clock stamps on every Better Auth write, `guarded()` resolves the actor itself, `keluar` proven to go through the guard, exhaustive `otpMessage`, dedup and trimmed exports. Keluar with an ended session redirects to `/masuk?sesi=berakhir` (not an error page). Verified in the main session: lint 0, typecheck 0, build 0, Vitest 139/139, Playwright 3/3 on a fresh stack.
 - Open for ticket 60: whether the email fallback OTP is also sent directly (recommended: yes, same reasons as the WhatsApp OTP).
+
+## Amended (2026-09-25, email login)
+
+- The WhatsApp OTP is no longer the only login. Any Akun with an Email Terverifikasi may also log in with an email Kode Masuk ("Masuk dengan email") at any time (ADR 0003 amendment). That, and the "Kirim lewat email" fallback in the `fallback` slot, are built in **ticket 67**, not ticket 60 (60 is now the S3 FileStore only). This ticket's WhatsApp path is unchanged, and new Akun are still created only by the WhatsApp OTP.
+- The open question above is answered: the email code is also sent directly by Identity & Access, not through Notifications.
+- The email code uses the same values as the WhatsApp OTP, but counts its limits per email and per IP. The WhatsApp limits here stay per number.

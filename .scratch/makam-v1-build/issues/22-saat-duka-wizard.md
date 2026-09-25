@@ -14,11 +14,11 @@ The Pemesan's Saat Duka path, prototype 18 variant D: one decision per screen, a
 - [ ] Only Terverifikasi Lokasi appear; the Lokasi page deep link preselects the Lokasi.
 - [ ] The sticky bar shows "Total semua biaya" and expands to the itemised lines.
 - [ ] Outside Jam Operasional the card shows the confirmation time from the working-time calculator (2 service hours) and the Kontak Siaga's name and number.
-- [ ] Kirim triggers the OTP component (with the ~60 s fallback, "Kirim lewat email" or the CS pointer, once ticket 60 lands); on success the account exists and is logged in.
+- [ ] Kirim triggers the OTP component (with the ~60 s fallback, "Kirim lewat email" or the CS pointer, from ticket 67); on success the account exists and is logged in.
 - [ ] The order gets a Nomor Pemesanan `MKM-YYYY-NNNNNN` and status Diajukan; the order page shows the timeline and "dikonfirmasi paling lambat <waktu>".
 - [ ] The Pemegang Hak defaults to the Pemesan and can never be the Almarhum.
 - [ ] Nothing is billed at submission (no Tagihan exists).
-- [ ] "Data & kirim" has an optional email field; it is saved on the Pemesan's account and used only to send copies of Tagihan / Bukti documents and the login OTP fallback via SES (tickets 20, 60). An email typed here for a number with no account yet does not enable the OTP fallback at this Kirim.
+- [ ] "Data & kirim" has an optional email field; it is saved on the Pemesan's account and used only to send copies of Tagihan / Bukti documents and the login OTP fallback via SES (tickets 20, 60) (amended below). An email typed here for a number with no account yet does not enable the OTP fallback at this Kirim.
 - [ ] Tests: domain test for submission (order, Nomor Pemesanan, deadline from Jam Operasional, no Tagihan); list filtering by Tersedia and city; a Playwright pass through both screens with the fake OTP.
 
 ## Notes
@@ -28,3 +28,8 @@ The TPU section below the cards is ticket 44; hari-H Layanan at checkout is tick
 ## Amended (2026-09-25, decided with the user)
 
 - [ ] When the OTP cannot be delivered (WhatsApp outage) and the number has no account with an email, the screen shows the CS WhatsApp and phone contact; Admin Platform can submit the Saat Duka order on the family's behalf from the back office (audited, reason "diajukan oleh Admin Platform"), attaching the family's number unverified until their first successful login.
+
+## Amended (2026-09-25, email login)
+
+- The email typed on "Data & kirim" is stored **unverified**. It gets Tagihan / Bukti copies through SumoPod SMTP (SES is dropped), but it never enables the "Kirim lewat email" fallback or email login until the Pemesan verifies it ("Verifikasi email" in Akun Saya, ticket 67). The fallback is offered only for an Email Terverifikasi of the number's existing Akun, and it comes from ticket 67, not ticket 60.
+- In the WhatsApp-outage criterion above, "no account with an email" means "no Akun with an Email Terverifikasi".
