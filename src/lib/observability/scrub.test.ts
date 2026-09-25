@@ -17,9 +17,43 @@ describe("phone number scrubbing", () => {
     );
   });
 
+  it.each([
+    ["021 1234 5678", "Jakarta landline with spaces"],
+    ["02112345678", "Jakarta landline without separators"],
+    ["(021) 12345678", "area code in parentheses"],
+    ["(021) 1234-5678", "area code in parentheses, number with a dash"],
+    ["0251-123456", "three-digit area code with a dash"],
+    ["0274.512345", "three-digit area code with a dot"],
+    ["+62 21 1234 5678", "international +62 landline"],
+    ["+622112345678", "international +62 landline without separators"],
+    ["+62 (21) 1234 5678", "international +62, area code in parentheses"],
+    ["62-21-1234-5678", "62 landline with dashes"],
+    ["62 251 123456", "62 with a three-digit area code"],
+  ])("removes the landline %s (%s)", (phone) => {
+    expect(scrubText(`Telepon kantor ${phone}, jam kerja`)).toBe("Telepon kantor [telepon], jam kerja");
+  });
+
   it("keeps ordinary numbers such as amounts, years and ids", () => {
     const text = "Tagihan TAG-2026-000123 Rp 7500000 jatuh tempo 2026-10-01";
     expect(scrubText(text)).toBe(text);
+  });
+
+  it.each([
+    ["Rp 1.500.000", "amount with thousand dots"],
+    ["Rp 12.025.500.000", "large amount whose groups look like an area code"],
+    ["Rp 62.250.000.000", "amount starting with 62"],
+    ["Rp 6221000000", "amount starting with 62, no separators"],
+    ["Rp1.081.234.567", "amount whose groups look like a mobile number"],
+    ["tahun 2026", "year"],
+    ["1945-2026", "year range"],
+    ["MKM-2026-000123", "Nomor Pemesanan"],
+    ["MKM-2026-021234", "Nomor Pemesanan whose serial starts like an area code"],
+    ["2026-10-01T09:00:00.000Z", "ISO timestamp"],
+    ["2026-10-01T09:00:00+07:00", "ISO timestamp with offset"],
+    ["2026-10-01 09.30.15 WIB", "date and time with dots"],
+    ["3f2a0621-1234-5678-9abc-def012345678", "UUID"],
+  ])("leaves %s alone (%s)", (text) => {
+    expect(scrubText(`Catatan: ${text}.`)).toBe(`Catatan: ${text}.`);
   });
 });
 

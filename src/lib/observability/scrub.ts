@@ -13,12 +13,30 @@ import type { SentryEnv } from "@/lib/env";
 
 export const PHONE_PLACEHOLDER = "[telepon]";
 
+/** One optional space, dot or dash between digit groups. */
+const SEP = String.raw`[\s.-]?`;
 /**
- * Indonesian mobile numbers: 08..., +62 8..., 62 8..., optionally with spaces,
- * dots or dashes between digits. Bounded by non-digits so amounts, years and
- * ids are left alone.
+ * Not glued to a hex digit (UUIDs, hashes), to a digit plus separator (amounts
+ * like 12.025.500, ids like MKM-2026-021234) or to "Rp" (Rp 6221000000).
  */
-const INDONESIAN_PHONE = /(?<!\d)(?:\+?62|0)[\s.-]?8(?:[\s.-]?\d){7,11}(?!\d)/g;
+const START = String.raw`(?<![0-9A-Fa-f]|\d[.,-]|Rp\.?\s?)`;
+const END = String.raw`(?![0-9A-Fa-f]|[.,-]\d)`;
+/** The country code without "+", unless it opens a dotted amount (62.250.000). */
+const BARE_62 = String.raw`(?!62(?:\.\d{3})+(?!\d))62`;
+/** Mobile: 08..., +62 8..., 62 8..., then 7-11 more digits. */
+const MOBILE = String.raw`(?:\+62|${BARE_62}|0)${SEP}8(?:${SEP}\d){7,11}`;
+/**
+ * Landline: a 2-3 digit area code (not 8, which is mobile) after 0, +62 or 62,
+ * optionally in parentheses, then a 5-8 digit subscriber number: 021 1234 5678,
+ * (0251) 123456, +62 21 1234 5678, 62-21-1234-5678.
+ */
+const LANDLINE = String.raw`(?:(?:\+62|${BARE_62})${SEP}\(?|\(?0)[2-79]\d{1,2}\)?${SEP}\d(?:${SEP}\d){4,7}`;
+
+/**
+ * Indonesian phone numbers, mobile and landline, with or without separators.
+ * Amounts, years, Nomor Pemesanan, timestamps and UUIDs are left alone.
+ */
+const INDONESIAN_PHONE = new RegExp(`${START}(?:${MOBILE}|${LANDLINE})${END}`, "g");
 
 export function scrubText(text: string): string {
   return text.replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER);
