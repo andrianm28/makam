@@ -1,64 +1,29 @@
-import { execFileSync } from "node:child_process";
-import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import { authenticatorCode } from "../tests/support/totp";
+import { e2eAdminPlatform, seedE2eAdminPlatform } from "./support/admin-platform";
+import { masuk, startTotpEnrolment, submitTotp } from "./support/masuk";
+import { coldNumber } from "./support/numbers";
+import { outbox } from "./support/whatsapp-outbox";
 
 /*
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
- * the seed CLI makes the first Admin Platform, who logs in by OTP, enrols and
- * passes TOTP, invites an Admin Lokasi (who is also a Petugas Lapangan), and the
- * invitee logs in and switches roles. The seed is refused once an Admin
- * Platform exists, so this file needs a fresh database (`down -v` between runs).
- *
- * The seed runs inside the web container; override with E2E_SEED_ADMIN, e.g.
- * E2E_SEED_ADMIN="npx tsx src/cli/seed-admin.ts" against a local dev server.
+ * the e2e Admin Platform (seeded by the seed CLI, see e2e/support/admin-platform.ts)
+ * logs in by OTP, enrols and passes TOTP, invites an Admin Lokasi (who is also a
+ * Petugas Lapangan), and the invitee logs in and switches roles. The first test
+ * enrols TOTP, so this file needs a stack whose e2e Admin Platform has not
+ * enrolled yet (a fresh one, or `down -v` between runs).
  */
-const SEED_ADMIN = (process.env.E2E_SEED_ADMIN ?? "docker compose -p makam-v1-dev exec -T web node dist/seed-admin.mjs").split(" ");
 
 test.describe.configure({ mode: "serial" });
 
-function coldNumber() {
-  const subscriber = `8${Math.floor(Math.random() * 1e10).toString().padStart(10, "0")}`;
-  return { typed: `0${subscriber}`, canonical: `+62${subscriber}` };
-}
-
-async function outbox(request: APIRequestContext, to: string) {
-  const response = await request.get(`/api/dev/whatsapp-outbox?to=${encodeURIComponent(to)}`);
-  expect(response.ok()).toBe(true);
-  return ((await response.json()) as { messages: { template: string; copyCode?: string; parameters: string[] }[] })
-    .messages;
-}
-
-async function lastOtp(request: APIRequestContext, to: string): Promise<string> {
-  let code: string | undefined;
-  await expect(async () => {
-    code = (await outbox(request, to)).filter((message) => message.template === "kode_verifikasi").at(-1)?.copyCode;
-    expect(code).toMatch(/^\d{6}$/);
-  }).toPass({ timeout: 10_000 });
-  return code!;
-}
-
-async function masuk(page: Page, request: APIRequestContext, number: { typed: string; canonical: string }) {
-  await page.goto("/masuk");
-  // The stack runs on the system Clock: a number that just had an OTP waits up to 60 s for the next one.
-  await expect(async () => {
-    await page.getByLabel("Nomor WhatsApp").fill(number.typed);
-    await page.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
-    await expect(page.getByTestId("otp-phone-number")).toHaveText(number.canonical, { timeout: 3_000 });
-  }).toPass({ timeout: 75_000, intervals: [5_000] });
-  await page.getByLabel("Kode verifikasi").fill(await lastOtp(request, number.canonical));
-  await page.getByRole("button", { name: "Masuk" }).click();
-}
-
-const admin = coldNumber();
+const admin = e2eAdminPlatform;
 const invitee = coldNumber();
 let adminPage: Page;
 /** The invitee's own browser, signed in as Admin Lokasi and Petugas Lapangan. */
 let inviteePage: Page;
 
 test.beforeAll(async ({ browser }: { browser: Browser }) => {
-  const [command, ...args] = SEED_ADMIN;
-  const output = execFileSync(command, [...args, admin.typed, "admin-e2e@makam.co.id"], { encoding: "utf8" });
-  expect(output).toContain(`Admin Platform pertama dibuat: ${admin.canonical}`);
+  seedE2eAdminPlatform();
   adminPage = await (await browser.newContext()).newPage();
 });
 
@@ -75,16 +40,14 @@ test("the seeded Admin Platform logs in by OTP, must enrol TOTP, and passes it w
   await page.goto("/staf/admin-platform");
   await expect(page).toHaveURL(/\/staf\/totp$/);
 
-  await page.getByRole("button", { name: "Daftarkan aplikasi authenticator" }).click();
-  const secret = (await page.getByTestId("totp-secret").textContent())!.replace(/\s/g, "");
+  const secret = await startTotpEnrolment(page);
   expect(secret).toMatch(/^[A-Z2-7]{32}$/);
 
   await page.getByLabel("Kode authenticator").fill("000000" === authenticatorCode(secret, new Date()) ? "111111" : "000000");
   await page.getByRole("button", { name: "Verifikasi" }).click();
   await expect(page.getByText("Kode authenticator salah")).toBeVisible();
 
-  await page.getByLabel("Kode authenticator").fill(authenticatorCode(secret, new Date()));
-  await page.getByRole("button", { name: "Verifikasi" }).click();
+  await submitTotp(page, secret);
 
   await expect(page).toHaveURL(/\/staf\/admin-platform$/);
   await expect(page.getByRole("heading", { name: "Admin Platform" })).toBeVisible();
