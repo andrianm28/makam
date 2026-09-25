@@ -11,7 +11,8 @@
 name: makam-prod
 
 x-app: &app
-  image: ${MAKAM_IMAGE:?set MAKAM_IMAGE, e.g. ghcr.io/<owner>/makam}:${MAKAM_TAG:-latest}
+  # Override with MAKAM_IMAGE / MAKAM_TAG, e.g. to pin a release tag.
+  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}:${MAKAM_TAG:-latest}
   env_file: .env.prod
   environment:
     APP_ENV: production
