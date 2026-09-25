@@ -146,7 +146,7 @@ export interface Lokasi {
     lokasiId: string,
     input: { scan: { body: Uint8Array; contentType: string }; signedOn: string },
   ): Promise<UploadAgreementResult>;
-  /** A 5-minute signed URL to the agreement scan, for Admin Platform or the Lokasi's Admin Lokasi. */
+  /** A 5-minute signed URL to the agreement scan, for Admin Platform only. */
   agreementScanUrl(by: Actor, lokasiId: string): Promise<AgreementScanUrlResult>;
 }
 

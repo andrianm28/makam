@@ -68,6 +68,8 @@ export type Action =
   | "lokasi.lihat"
   /** Change a Lokasi Mitra's onboarding record: profile, pin, facilities, documents, policies, flags, agreement (Admin Platform). */
   | "lokasi.ubah"
+  /** Open a Lokasi Mitra's agreement scan by its signed link (Admin Platform only). */
+  | "lokasi.lihat_perjanjian"
   /** Set or change a Lokasi Mitra's bank account (Admin Platform only). */
   | "lokasi.ubah_rekening"
   /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
@@ -200,6 +202,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
         ? allowed
         : denied;
     case "lokasi.ubah":
+    case "lokasi.lihat_perjanjian":
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;

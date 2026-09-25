@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeFileStore } from "@/adapters/memory";
 import type { FileStore } from "@/ports/file-store";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { logInByOtp } from "../../../tests/support/identity";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
 
 const { db, close } = testDatabase();
@@ -12,7 +13,7 @@ const PDF = new TextEncoder().encode("%PDF-1.7\nperjanjian kerja sama\n%%EOF\n")
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 describe("the agreement scan of a Lokasi Mitra", () => {
-  it("Admin Platform uploads it with the signing date: it is kept in the FileStore, and the upload is audited without the file", async () => {
+  it("Admin Platform uploads it with the signing date: the stored scan opens through its signed link, and the upload is audited without the file", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
@@ -23,39 +24,55 @@ describe("the agreement scan of a Lokasi Mitra", () => {
     });
 
     expect(uploaded).toEqual({ ok: true });
-    const stored = [...setup.files.stored.values()];
-    expect(stored).toHaveLength(1);
-    expect(stored[0]).toMatchObject({ contentType: "application/pdf", body: PDF });
-    expect(stored[0].key).toMatch(new RegExp(`^perjanjian/${lokasiMitra.id}/[0-9a-f-]{36}\\.pdf$`));
+    const link = await setup.lokasi.agreementScanUrl(admin, lokasiMitra.id);
+    if (!link.ok) throw new Error(`no signed link: ${link.reason}`);
+    expect(setup.files.open(link.url)).toMatchObject({ body: PDF, contentType: "application/pdf" });
     expect(await setup.lokasi.lokasiMitra(admin, lokasiMitra.id)).toMatchObject({
       lokasiMitra: { agreement: { signedOn: "2026-09-20", scanUploaded: true } },
     });
-    expect((await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: lokasiMitra.id })).at(-1)).toMatchObject({
+    const entry = (await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: lokasiMitra.id })).at(-1);
+    expect(entry).toMatchObject({
       action: "lokasi.unggah_perjanjian",
-      before: { agreement: { signedOn: null, scanFileKey: null } },
-      after: { agreement: { signedOn: "2026-09-20", scanFileKey: stored[0].key } },
+      before: { agreement: { signedOn: null } },
+      after: { agreement: { signedOn: "2026-09-20" } },
     });
+    expect(JSON.stringify(entry)).not.toContain("perjanjian kerja sama");
   });
 
-  it("is viewed only through a signed URL that expires after 5 minutes, by Admin Platform or the Lokasi's own Admin Lokasi", async () => {
+  it("opens through a signed link that expires 5 minutes later on the Clock; a replaced scan opens the new file", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
-    const lokasiMitra = await newLokasiMitra(setup, admin, "Makam Wakaf Al-Ikhlas");
-    const other = await newLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
+    const lokasiMitra = await newLokasiMitra(setup, admin);
     expect(await setup.lokasi.agreementScanUrl(admin, lokasiMitra.id)).toEqual({ ok: false, reason: "belum_ada_berkas" });
-    await setup.lokasi.uploadAgreement(admin, lokasiMitra.id, { scan: { body: JPEG, contentType: "image/jpeg" }, signedOn: "2026-09-20" });
-    await setup.lokasi.uploadAgreement(admin, other.id, { scan: { body: PDF, contentType: "application/pdf" }, signedOn: "2026-09-21" });
+    await setup.lokasi.uploadAgreement(admin, lokasiMitra.id, { scan: { body: PDF, contentType: "application/pdf" }, signedOn: "2026-09-20" });
+    await setup.lokasi.uploadAgreement(admin, lokasiMitra.id, { scan: { body: JPEG, contentType: "image/jpeg" }, signedOn: "2026-09-21" });
+    const mintedAt = setup.clock.now();
+
+    const link = await setup.lokasi.agreementScanUrl(admin, lokasiMitra.id);
+
+    if (!link.ok) throw new Error(`no signed link: ${link.reason}`);
+    expect(link.expiresAt).toEqual(new Date(mintedAt.getTime() + 5 * 60_000));
+    setup.clock.advance({ minutes: 5 });
+    expect(setup.files.open(link.url)).toMatchObject({ body: JPEG, contentType: "image/jpeg" });
+    setup.clock.advance({ seconds: 1 });
+    expect(setup.files.open(link.url)).toBeNull();
+  });
+
+  it("is Admin Platform only: an Admin Lokasi, even of that Lokasi, and a Pemesan cannot get its signed link", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    await setup.lokasi.uploadAgreement(admin, lokasiMitra.id, { scan: { body: PDF, contentType: "application/pdf" }, signedOn: "2026-09-20" });
     const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
-    const now = setup.clock.now();
+    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "085555555555");
+    const pemesan = await setup.identity.actorFromCookies(cookies);
+    if (!pemesan) throw new Error("not signed in");
 
-    const forAdmin = await setup.lokasi.agreementScanUrl(admin, lokasiMitra.id);
-    const forAdminLokasi = await setup.lokasi.agreementScanUrl(adminLokasi, lokasiMitra.id);
-
-    const expiresAt = new Date(now.getTime() + 5 * 60_000);
-    const [key] = [...setup.files.stored.keys()].filter((stored) => stored.startsWith(`perjanjian/${lokasiMitra.id}/`));
-    expect(forAdmin).toEqual({ ok: true, url: await setup.files.signedUrl(key, { expiresInSeconds: 300 }), expiresAt });
-    expect(forAdminLokasi).toEqual(forAdmin);
-    expect(await setup.lokasi.agreementScanUrl(adminLokasi, other.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
+    expect(await setup.lokasi.agreementScanUrl(adminLokasi, lokasiMitra.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
+    expect(await setup.lokasi.agreementScanUrl(pemesan, lokasiMitra.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
+    expect(await setup.lokasi.lokasiMitra(adminLokasi, lokasiMitra.id)).toMatchObject({
+      lokasiMitra: { agreement: { signedOn: "2026-09-20", scanUploaded: true } },
+    });
   });
 
   it("must be a PDF, JPG or PNG whose bytes match its type, at most 10 MB, with a signing date", async () => {

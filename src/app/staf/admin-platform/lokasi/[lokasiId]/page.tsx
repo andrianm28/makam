@@ -71,7 +71,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/staf/admin
           <p className="text-sm">
             Ditandatangani {lokasiMitra.agreement.signedOn}.{" "}
             <a
-              href={`/staf/lokasi/${lokasiMitra.id}/perjanjian`}
+              href={`/staf/admin-platform/lokasi/${lokasiMitra.id}/perjanjian`}
               target="_blank"
               rel="noreferrer"
               className="underline underline-offset-4"

@@ -62,9 +62,9 @@ export type AgreementScanUrlResult =
   | NotFound
   | { ok: false; reason: "belum_ada_berkas" };
 
-/** A short-lived signed URL (5 minutes) to the agreement scan, for Admin Platform or the Lokasi's Admin Lokasi. */
+/** A short-lived signed URL (5 minutes) to the agreement scan, for Admin Platform only (not the Lokasi's Admin Lokasi). */
 export async function agreementScanUrl(deps: AgreementDeps, by: Actor, lokasiId: string): Promise<AgreementScanUrlResult> {
-  const refusal = writeRefusal(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
+  const refusal = writeRefusal(by, "lokasi.lihat_perjanjian", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   const [row] = await deps.db

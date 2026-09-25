@@ -5,11 +5,11 @@ import { serverRuntime } from "@/server/runtime";
 const paramsSchema = z.object({ lokasiId: z.uuid() });
 
 /**
- * Opens a Lokasi Mitra's agreement scan: for Admin Platform or that Lokasi's
- * Admin Lokasi, a redirect to a 5-minute signed FileStore URL. The file itself
- * never passes through here, and the signed URL is never stored in a page.
+ * Opens a Lokasi Mitra's agreement scan: for Admin Platform only (not the
+ * Lokasi's Admin Lokasi), a redirect to a 5-minute signed FileStore URL. The
+ * file itself never passes through here, and the signed URL is never stored in a page.
  */
-export async function GET(_request: Request, context: RouteContext<"/staf/lokasi/[lokasiId]/perjanjian">) {
+export async function GET(_request: Request, context: RouteContext<"/staf/admin-platform/lokasi/[lokasiId]/perjanjian">) {
   const parsed = paramsSchema.safeParse(await context.params);
   if (!parsed.success) return new Response("Not found", { status: 404 });
   const actor = await currentActor();
