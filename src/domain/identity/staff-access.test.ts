@@ -453,8 +453,8 @@ describe("deactivating an Akun Staf", () => {
         at: wib("2026-10-01 09:00"),
         actor: { accountId: admin.actor.accountId, role: "admin_platform" },
         action: "staf.nonaktifkan",
-        before: { deactivated: false, roles: ["admin_lokasi"] },
-        after: { deactivated: true, roles: [] },
+        before: { deactivated: false, roles: ["admin_lokasi"], lokasiIds: [LOKASI] },
+        after: { deactivated: true, roles: [], lokasiIds: [] },
         reason: "Kontrak selesai",
       }),
     ]);
@@ -523,6 +523,20 @@ describe("deactivating an Akun Staf", () => {
         after: { roles: ["mitra_jasa"], email: "kembali@contoh.id", undanganStafId: reinvited.invite.id },
       }),
     );
+  });
+
+  it("a Dinonaktifkan Admin Lokasi is no longer Admin Lokasi of its Lokasi Mitra, even when invited back to another one", async () => {
+    const { identity, whatsapp, clock, admin, staff } = await withAdminLokasi();
+    const OTHER = "5d1f4c2e-0000-4000-8000-000000000002";
+    await identity.deactivateStaff(admin.actor, { accountId: staff.login.account.id, reason: "Keluar" });
+    expect(await identity.adminLokasiOf(LOKASI)).toEqual([]);
+    clock.advance({ days: 30 });
+
+    await identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "kembali@contoh.id", role: "admin_lokasi", lokasiId: OTHER });
+    const again = await logInByOtp(identity, whatsapp, "082222222222");
+
+    expect(await identity.actorFromCookies(again.cookies)).toMatchObject({ roles: ["pemesan", "admin_lokasi"], lokasiIds: [OTHER] });
+    expect(await identity.adminLokasiOf(LOKASI)).toEqual([]);
   });
 
   it("a Dinonaktifkan Admin Platform invited back must enrol a new authenticator: deactivation clears its TOTP", async () => {

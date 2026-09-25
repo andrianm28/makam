@@ -147,6 +147,11 @@ export function writeRefusal(actor: Actor, action: Action, resource: Resource): 
   return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }
 
+/** True when the actor holds Admin Lokasi and is Admin Lokasi of this Lokasi Mitra. */
+function adminLokasiOf(actor: Actor, lokasiId: string): boolean {
+  return actor.roles.includes("admin_lokasi") && actor.lokasiIds.includes(lokasiId);
+}
+
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
   if (needsTotp(actor) && !beforeTotp.has(action)) {
@@ -178,6 +183,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "pengaturan_operator.ubah":
       return resource.kind === "pengaturan_operator" && holds("admin_platform") ? allowed : denied;
     case "lokasi.lihat":
+      // Admin Platform sees every Lokasi Mitra; an Admin Lokasi only the Lokasi it is Admin Lokasi of.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
     case "lokasi.ubah":
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":

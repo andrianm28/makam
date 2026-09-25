@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog, AuditSnapshot } from "@/domain/audit";
 import {
@@ -135,6 +135,38 @@ export async function readLokasiMitra(deps: LokasiDeps, by: Actor, lokasiId: str
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!row) return { ok: false, reason: "tidak_ditemukan" };
   return { ok: true, lokasiMitra: toLokasiMitra(row) };
+}
+
+/** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher). */
+export interface LokasiMitraSummary {
+  id: string;
+  name: string;
+  city: string;
+  status: LokasiMitraStatus;
+}
+
+const summaryColumns = {
+  id: lokasiMitraTable.id,
+  name: lokasiMitraTable.name,
+  city: lokasiMitraTable.city,
+  status: lokasiMitraTable.status,
+};
+
+/** Every Lokasi Mitra, by name, for Admin Platform; nothing for anyone else. */
+export async function allLokasiMitra(deps: LokasiDeps, by: Actor): Promise<LokasiMitraSummary[]> {
+  if (refusalFor(by, "lokasi.buat", semuaLokasiMitraResource())) return [];
+  return deps.db.select(summaryColumns).from(lokasiMitraTable).orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
+}
+
+/** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */
+export async function lokasiMitraOfAdminLokasi(deps: LokasiDeps, by: Actor): Promise<LokasiMitraSummary[]> {
+  const lokasiIds = by.roles.includes("admin_lokasi") ? by.lokasiIds.filter(isLokasiId) : [];
+  if (lokasiIds.length === 0) return [];
+  return deps.db
+    .select(summaryColumns)
+    .from(lokasiMitraTable)
+    .where(inArray(lokasiMitraTable.id, lokasiIds))
+    .orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
 }
 
 export type WriteResult = { ok: true } | Refusal | NotFound;

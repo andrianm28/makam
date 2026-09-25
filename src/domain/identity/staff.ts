@@ -3,7 +3,7 @@ import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import { staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
+import { authorize, lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
@@ -62,6 +62,45 @@ export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): P
     .where(eq(identityAdminLokasi.lokasiId, lokasiId))
     .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
   return rows.map((row) => ({ accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email }));
+}
+
+export type RemoveAdminLokasiResult =
+  | { ok: true }
+  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "alasan_wajib" | "bukan_admin_lokasi_di_sini" };
+
+/**
+ * Admin Platform removes an Admin Lokasi from one Lokasi Mitra: the Akun keeps
+ * its other Lokasi and its role (Dinonaktifkan is a separate write). Audited
+ * on the Akun with its Lokasi before and after, and the reason.
+ */
+export async function removeAdminLokasi(
+  deps: { db: Database; audit: AuditLog },
+  by: Actor,
+  input: { lokasiId: string; accountId: string; reason: string },
+): Promise<RemoveAdminLokasiResult> {
+  const authorization = authorize(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(input.lokasiId));
+  if (!authorization.allowed) {
+    return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+  }
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, reason: "alasan_wajib" };
+
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const before = await adminLokasiIdsOf(tx, input.accountId);
+    if (!before.includes(input.lokasiId)) return { ok: false, reason: "bukan_admin_lokasi_di_sini" } as const;
+    await tx
+      .delete(identityAdminLokasi)
+      .where(and(eq(identityAdminLokasi.accountId, input.accountId), eq(identityAdminLokasi.lokasiId, input.lokasiId)));
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "staf.lepas_admin_lokasi",
+      entity: { kind: "akun", id: input.accountId },
+      before: { lokasiIds: before },
+      after: { lokasiIds: before.filter((lokasiId) => lokasiId !== input.lokasiId) },
+      reason,
+    });
+    return { ok: true } as const;
+  });
 }
 
 export type SeedResult =
@@ -167,6 +206,9 @@ export async function deactivateStaff(
     const now = deps.clock.now();
     await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
     await tx.delete(identityStaffRole).where(eq(identityStaffRole.accountId, input.accountId));
+    // Its Lokasi Mitra go with the Admin Lokasi role: an invite back names its Lokasi afresh.
+    const lokasiIds = await adminLokasiIdsOf(tx, input.accountId);
+    await tx.delete(identityAdminLokasi).where(eq(identityAdminLokasi.accountId, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
     // A TOTP enrolment belongs to the Admin Platform role: if the Akun is invited back, it enrols afresh.
     await tx.delete(identityTotp).where(eq(identityTotp.accountId, input.accountId));
@@ -174,8 +216,8 @@ export async function deactivateStaff(
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.nonaktifkan",
       entity: { kind: "akun", id: input.accountId },
-      before: { deactivated: false, roles },
-      after: { deactivated: true, roles: [] },
+      before: { deactivated: false, roles, ...(lokasiIds.length > 0 ? { lokasiIds } : {}) },
+      after: { deactivated: true, roles: [], ...(lokasiIds.length > 0 ? { lokasiIds: [] } : {}) },
       reason,
     });
     return { ok: true } as const;

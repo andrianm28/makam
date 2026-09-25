@@ -45,6 +45,8 @@ import {
   staffAccounts,
   staffRecipient,
   adminLokasiOf,
+  removeAdminLokasi,
+  type RemoveAdminLokasiResult,
   type AdminLokasiAccount,
   type DeactivateStaffResult,
   type SeedResult,
@@ -73,7 +75,14 @@ export type {
   RequestEmailVerificationResult,
 } from "./email";
 export type { SessionCookie } from "./sessions";
-export type { AdminLokasiAccount, DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
+export type {
+  AdminLokasiAccount,
+  DeactivateStaffResult,
+  RemoveAdminLokasiResult,
+  SeedResult,
+  StaffAccount,
+  StaffRecipient,
+} from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
@@ -166,6 +175,11 @@ export interface Identity {
   inviteStaff(by: Actor, input: InviteStaffInput): Promise<InviteStaffResult>;
   /** Every Admin Lokasi of one Lokasi Mitra. */
   adminLokasiOf(lokasiId: string): Promise<AdminLokasiAccount[]>;
+  /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra (the Akun keeps its other Lokasi), audited. */
+  removeAdminLokasi(
+    by: Actor,
+    input: { lokasiId: string; accountId: string; reason: string },
+  ): Promise<RemoveAdminLokasiResult>;
   /** Admin Platform deactivates an Akun Staf (Dinonaktifkan): sessions end, login blocked, history kept; audited. */
   deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
   /** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check (FileStore), audited. */
@@ -220,6 +234,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
     adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),
+    removeAdminLokasi: (by, input) => removeAdminLokasi(deps, by, input),
     openStaffInvites: (filter) => openStaffInvites(deps, filter),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
