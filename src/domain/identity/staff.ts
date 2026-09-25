@@ -179,7 +179,8 @@ export type DeactivateStaffResult =
  * holds is revoked and its sessions end, so no session of it grants staff
  * access. The Akun itself stays: its number still logs in as a Pemesan, and
  * its orders and Entri Audit remain. A new Undangan Staf can grant a role again.
- * Audited with the reason.
+ * Audited with the reason: one Entri Audit, or, for an Admin Lokasi, one per
+ * Lokasi Mitra it was Admin Lokasi of (carrying that Lokasi), in the same transaction.
  */
 export async function deactivateStaff(
   deps: { db: Database; clock: Clock; audit: AuditLog },
@@ -211,14 +212,20 @@ export async function deactivateStaff(
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
     // A TOTP enrolment belongs to the Admin Platform role: if the Akun is invited back, it enrols afresh.
     await tx.delete(identityTotp).where(eq(identityTotp.accountId, input.accountId));
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "staf.nonaktifkan",
+    const entry = {
+      actor: { accountId: by.accountId, role: "admin_platform" as const },
+      action: "staf.nonaktifkan" as const,
       entity: { kind: "akun", id: input.accountId },
       before: { deactivated: false, roles, ...(lokasiIds.length > 0 ? { lokasiIds } : {}) },
       after: { deactivated: true, roles: [], ...(lokasiIds.length > 0 ? { lokasiIds: [] } : {}) },
       reason,
-    });
+    };
+    if (lokasiIds.length === 0) {
+      await record(entry);
+    } else {
+      // One entry per Lokasi it was Admin Lokasi of, so that Lokasi's other Admin Lokasi see it in their Audit Log.
+      for (const lokasiId of lokasiIds) await record({ ...entry, lokasiId });
+    }
     return { ok: true } as const;
   });
 }

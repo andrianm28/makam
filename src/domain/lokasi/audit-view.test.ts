@@ -62,6 +62,46 @@ describe("the Audit Log of a Lokasi Mitra, for its Admin Lokasi", () => {
     for (const key of fileKeys) expect(JSON.stringify(log.entries)).not.toContain(key);
   });
 
+  it("shows an Admin Lokasi of that Lokasi being deactivated, so its other Admin Lokasi see it: one Entri Audit per Lokasi it was Admin Lokasi of", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const first = await newLokasiMitra(setup, admin, "Makam Wakaf Al-Ikhlas");
+    const second = await newLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
+    const third = await newLokasiMitra(setup, admin, "Makam Bukit Damai");
+    const leaving = await signedInAdminLokasi(setup, admin, [first.id, second.id], "083333333333");
+    const stayingAtFirst = await signedInAdminLokasi(setup, admin, [first.id], "084444444444");
+    const stayingAtSecond = await signedInAdminLokasi(setup, admin, [second.id], "085555555555");
+    const atThird = await signedInAdminLokasi(setup, admin, [third.id], "086666666666");
+
+    expect(await setup.identity.deactivateStaff(admin, { accountId: leaving.accountId, reason: "Berhenti bekerja" })).toEqual({
+      ok: true,
+    });
+
+    for (const [viewer, lokasiId] of [
+      [stayingAtFirst, first.id],
+      [stayingAtSecond, second.id],
+    ] as const) {
+      const log = await setup.lokasi.auditLog(viewer, lokasiId);
+      if (!log.ok) throw new Error(log.reason);
+      expect(log.entries.filter((entry) => entry.action === "staf.nonaktifkan")).toEqual([
+        expect.objectContaining({
+          actor: { accountId: admin.accountId, role: "admin_platform" },
+          entity: { kind: "akun", id: leaving.accountId },
+          lokasiId,
+          reason: "Berhenti bekerja",
+        }),
+      ]);
+    }
+    const thirdLog = await setup.lokasi.auditLog(atThird, third.id);
+    if (!thirdLog.ok) throw new Error(thirdLog.reason);
+    expect(thirdLog.entries.filter((entry) => entry.action === "staf.nonaktifkan")).toEqual([]);
+    const aboutAkun = await setup.audit.entriesAbout({ kind: "akun", id: leaving.accountId });
+    expect(aboutAkun.filter((entry) => entry.action === "staf.nonaktifkan").map((entry) => entry.lokasiId)).toEqual([
+      first.id,
+      second.id,
+    ]);
+  });
+
   it("is refused for a Lokasi the Admin Lokasi is not Admin Lokasi of; Admin Platform reads any Lokasi's", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
