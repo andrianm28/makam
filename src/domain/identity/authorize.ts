@@ -105,15 +105,16 @@ export function needsTotp(actor: Pick<Actor, "totp">): boolean {
 /** Actions an Akun holding Admin Platform may take before passing TOTP. */
 const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
 
+/** Why a domain module refuses a write the actor may not do. */
+export type WriteRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+
 /**
- * The identity module's own check before a staff write (defence in depth
- * behind `guarded()`): null when `actor` may do `action` on the staff roster.
+ * A domain module's own check before a write (defence in depth behind
+ * `guarded()`): null when `actor` may do `action` on `resource`, else the
+ * refusal to return. A caller that is not signed in is `tidak_berwenang`.
  */
-export function staffWriteRefusal(
-  actor: Actor,
-  action: "staf.undang" | "staf.nonaktifkan" | "akun.pindah_nomor",
-): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
-  const authorization = authorize(actor, action, stafResource());
+export function writeRefusal(actor: Actor, action: Action, resource: Resource): WriteRefusal | null {
+  const authorization = authorize(actor, action, resource);
   if (authorization.allowed) return null;
   return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }

@@ -3,7 +3,7 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import { staffRoles, staffWriteRefusal, type Actor, type StaffRole } from "./authorize";
+import { staffRoles, stafResource, writeRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
 import { normaliseEmail, rolesOf } from "./staff";
@@ -62,7 +62,7 @@ export async function inviteStaff(
   by: Actor,
   input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
 ): Promise<InviteStaffResult> {
-  const refusal = staffWriteRefusal(by, "staf.undang");
+  const refusal = writeRefusal(by, "staf.undang", stafResource());
   if (refusal) return refusal;
 
   const normalised = normalisePhoneNumber(input.phoneNumber);

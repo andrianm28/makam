@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import { staffRoles, staffWriteRefusal, type Actor, type Role, type StaffRole } from "./authorize";
+import { staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
@@ -124,7 +124,7 @@ export async function deactivateStaff(
   by: Actor,
   input: { accountId: string; reason: string },
 ): Promise<DeactivateStaffResult> {
-  const refusal = staffWriteRefusal(by, "staf.nonaktifkan");
+  const refusal = writeRefusal(by, "staf.nonaktifkan", stafResource());
   if (refusal) return refusal;
   const reason = input.reason.trim();
   if (!reason) return { ok: false, reason: "alasan_wajib" };

@@ -4,7 +4,7 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
-import { staffWriteRefusal, type Actor } from "./authorize";
+import { stafResource, writeRefusal, type Actor } from "./authorize";
 import type { Account } from "./login";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
@@ -76,7 +76,7 @@ export async function moveAccountToNewNumber(
   by: Actor,
   input: MoveAccountInput,
 ): Promise<MoveAccountResult> {
-  const refusal = staffWriteRefusal(by, "akun.pindah_nomor");
+  const refusal = writeRefusal(by, "akun.pindah_nomor", stafResource());
   if (refusal) return refusal;
   if (!input.ktpChecked) return { ok: false, reason: "ktp_belum_dicek" };
   if (input.ktpCheck.body.byteLength === 0) return { ok: false, reason: "berkas_ktp_wajib" };

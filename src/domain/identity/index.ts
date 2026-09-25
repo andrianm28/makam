@@ -61,7 +61,9 @@ export {
   type Resource,
   type Role,
   type StaffRole,
+  writeRefusal,
   type TotpStatus,
+  type WriteRefusal,
 } from "./authorize";
 
 export interface IdentityDeps {
