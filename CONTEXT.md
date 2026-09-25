@@ -190,6 +190,10 @@ _Avoid_: Komisi, admin fee, markup
 The Operator's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a Paket Layanan cycle); never changed once issued, only cancelled and replaced.
 _Avoid_: Invoice, faktur, nota
 
+**Tidak Tertagih**:
+A Tagihan the Operator has given up chasing after its due date; it stays payable, but no one is owed a Pencairan for it.
+_Avoid_: Write-off, piutang macet, hangus
+
 **Bukti Pembayaran**:
 The Operator's receipt for a settled Tagihan, a separate document from the Tagihan itself.
 _Avoid_: Kwitansi, receipt, struk

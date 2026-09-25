@@ -54,3 +54,5 @@ Resolved by grilling with the user (2026-09-25). New terms in `CONTEXT.md`: Tagi
 
 - Every document is a web page on an unguessable link with **Unduh PDF**, listed in Akun Saya (or the partner back office), link sent by message (channel per "Notification channels and WhatsApp provider").
 - Sequential number series per document type per year: `TGH/2026/000123` (Tagihan), `BYR/…` (Bukti Pembayaran), `RFD/…` (Bukti Pengembalian Dana), `BKP/…` (Bukti Pencairan); Nomor Pemesanan unchanged.
+
+**Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): new Tagihan status **Tidak Tertagih** (declared by Admin Platform, from H+30, still payable afterwards). New manual payment method **"Dibayar langsung ke Lokasi Mitra"**, recorded by the Admin Lokasi with proof (Admin Platform can reverse); its Bukti Pembayaran says the money was received by that Lokasi Mitra.

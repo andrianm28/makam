@@ -62,3 +62,5 @@ Decided with the user on 2026-09-25 (grilling). Facts: [research/19-whatsapp-pro
 - The worker retries 3 times with backoff. Tagihan, Bukti Pemesanan and Bukti Pembayaran messages then go by email if the order has one. Every final failure is flagged in the back office (Admin Lokasi for Lokasi Mitra orders, otherwise Admin YIEM), and the staff member phones the family.
 - Every outbound message is logged with its status (terkirim / dibaca / gagal) and shown on its order.
 - Failed staff alerts aren't escalated beyond web push and the back-office queue.
+
+**Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): an overdue Tagihan gets further reminders at H+3, H+7, H+14 and H+30 after the due date, then Admin Platform phones the family; the Admin Lokasi gets web push at H+1 and when the Tagihan is declared Tidak Tertagih.
