@@ -161,6 +161,49 @@ describe("OTP limits", () => {
     expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
   });
 
+  it("10 wrong codes within 60 minutes lock the number for 60 minutes: no OTP is sent and no code accepted", async () => {
+    const { clock, whatsapp, identity } = setup();
+    const wrongTimes = async (times: number) => {
+      const code = lastCode(whatsapp);
+      for (let attempt = 1; attempt <= times; attempt++) {
+        await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(code) });
+      }
+    };
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    await wrongTimes(4);
+    clock.advance({ minutes: 1 });
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    await wrongTimes(4);
+    clock.advance({ minutes: 1 });
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const openCode = lastCode(whatsapp);
+    await wrongTimes(1);
+    clock.set(wib("2026-10-01 09:03"));
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: otherCode(openCode) })).toEqual({
+      ok: false,
+      reason: "terkunci",
+      retryAt: wib("2026-10-01 10:03"),
+    });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: openCode })).toEqual({
+      ok: false,
+      reason: "terkunci",
+      retryAt: wib("2026-10-01 10:03"),
+    });
+    clock.set(wib("2026-10-01 10:02:59"));
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toEqual({
+      ok: false,
+      reason: "terkunci",
+      retryAt: wib("2026-10-01 10:03"),
+    });
+
+    clock.set(wib("2026-10-01 10:03"));
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code: lastCode(whatsapp) })).toMatchObject({
+      ok: true,
+    });
+  });
+
   it("only the newest OTP works once a new one is sent", async () => {
     const { clock, whatsapp, identity } = setup();
     await identity.requestOtp({ phoneNumber: "081234567890" });

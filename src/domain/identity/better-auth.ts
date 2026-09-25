@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { phoneNumber } from "better-auth/plugins";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
+import type { CodeRejection } from "./otp";
 import {
   identityAuthAccount,
   identitySession,
@@ -16,10 +17,10 @@ export const PEMESAN_SESSION_MS = 90 * 86_400_000;
 /** Cookie names start with this, e.g. `makam.session_token`. */
 export const COOKIE_PREFIX = "makam";
 
-/** Thrown from Better Auth's verifyOTP hook to carry our reason back out. */
+/** Thrown from Better Auth's verifyOTP hook to carry our rejection back out. */
 export class OtpRejected extends Error {
-  constructor(readonly reason: string) {
-    super(`OTP rejected: ${reason}`);
+  constructor(readonly rejection: CodeRejection) {
+    super(`OTP rejected: ${rejection.reason}`);
   }
 }
 

@@ -103,6 +103,8 @@ export const identityOtpRequest = pgTable(
     /** Set when the code is used, or burnt by too many wrong attempts. */
     closedAt: at("closed_at"),
     closedReason: text("closed_reason", { enum: ["dipakai", "terlalu_banyak_percobaan"] }),
+    /** Set on the OTP whose wrong code locked the number: no OTP is sent and no code accepted until then. */
+    lockedUntil: at("locked_until"),
   },
   (table) => [index("identity_otp_request_phone_sent_idx").on(table.phoneNumber, table.sentAt)],
 );

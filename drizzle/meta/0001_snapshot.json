@@ -1,5 +1,5 @@
 {
-  "id": "e52d50bb-6e0c-4235-9500-cc08dcd986a1",
+  "id": "a9e0bf8b-bbf9-475b-93b9-0b906e9b5b09",
   "prevId": "27ab03e2-1892-4fa9-9cdd-a4695bd9229a",
   "version": "7",
   "dialect": "postgresql",
@@ -176,6 +176,12 @@
         "closed_reason": {
           "name": "closed_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked_until": {
+          "name": "locked_until",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         }

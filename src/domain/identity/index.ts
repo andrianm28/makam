@@ -49,7 +49,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     baseURL: deps.baseURL,
     async verifyCode(phoneNumber, code) {
       const checked = await checkCode(deps, { phoneNumber, code });
-      if (!checked.ok) throw new OtpRejected(checked.reason);
+      if (!checked.ok) throw new OtpRejected(checked);
     },
   });
 

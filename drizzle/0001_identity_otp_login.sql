@@ -22,7 +22,8 @@ CREATE TABLE "identity_otp_request" (
 	"expires_at" timestamp with time zone NOT NULL,
 	"wrong_attempts" integer DEFAULT 0 NOT NULL,
 	"closed_at" timestamp with time zone,
-	"closed_reason" text
+	"closed_reason" text,
+	"locked_until" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "identity_session" (

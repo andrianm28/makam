@@ -1,5 +1,5 @@
 import { createHmac, randomInt } from "node:crypto";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, max, sql, sum } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -20,6 +20,10 @@ export const OTP_RESEND_AFTER_MS = 60_000;
 /** At most 5 OTPs to one number in any rolling 60 minutes. */
 export const OTP_MAX_SENDS_PER_WINDOW = 5;
 export const OTP_SEND_WINDOW_MS = 60 * 60_000;
+/** 10 wrong codes for one number within 60 minutes lock it for 60 minutes: no OTP sent, no code accepted. */
+export const OTP_LOCKOUT_WRONG_CODES = 10;
+export const OTP_LOCKOUT_WINDOW_MS = 60 * 60_000;
+export const OTP_LOCKOUT_MS = 60 * 60_000;
 
 export interface OtpDeps {
   db: Database;
@@ -31,7 +35,7 @@ export interface OtpDeps {
 export type RequestOtpResult =
   | { ok: true; phoneNumber: string; sentAt: Date; expiresAt: Date }
   | { ok: false; reason: "nomor_tidak_valid" }
-  | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering"; retryAt: Date };
+  | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -45,6 +49,8 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   const refused = await deps.db.transaction(async (tx) => {
     // One request at a time per number, so two quick taps cannot both pass the limits.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:${phoneNumber}`}))`);
+    const locked = await lockedUntil(tx, phoneNumber, now);
+    if (locked) return { ok: false, reason: "terkunci", retryAt: locked } as const;
     const recent = await tx
       .select({ sentAt: identityOtpRequest.sentAt })
       .from(identityOtpRequest)
@@ -87,19 +93,25 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
   return { ok: true, phoneNumber, sentAt: now, expiresAt };
 }
 
-export type CheckCodeResult =
-  | { ok: true }
-  | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" | "terlalu_banyak_percobaan" };
+export type CodeRejection =
+  | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" | "terlalu_banyak_percobaan" }
+  | { ok: false; reason: "terkunci"; retryAt: Date };
+
+export type CheckCodeResult = { ok: true } | CodeRejection;
 
 /**
  * Checks a typed code against the number's latest OTP. A correct code is used
- * up; the `OTP_MAX_WRONG_ATTEMPTS`th wrong code burns it.
+ * up; the `OTP_MAX_WRONG_ATTEMPTS`th wrong code burns it; the
+ * `OTP_LOCKOUT_WRONG_CODES`th wrong code within the lockout window locks the number.
  */
 export async function checkCode(
   deps: OtpDeps,
   input: { phoneNumber: string; code: string },
 ): Promise<CheckCodeResult> {
   const now = deps.clock.now();
+  const locked = await lockedUntil(deps.db, input.phoneNumber, now);
+  if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
+
   const [latest] = await deps.db
     .select()
     .from(identityOtpRequest)
@@ -120,7 +132,18 @@ export async function checkCode(
       .set({ wrongAttempts: sql`${identityOtpRequest.wrongAttempts} + 1` })
       .where(stillOpen)
       .returning({ wrongAttempts: identityOtpRequest.wrongAttempts });
-    if (!counted || counted.wrongAttempts < OTP_MAX_WRONG_ATTEMPTS) return { ok: false, reason: "kode_salah" };
+    if (!counted) return { ok: false, reason: "kode_salah" };
+
+    if ((await recentWrongCodes(deps.db, input.phoneNumber, now)) >= OTP_LOCKOUT_WRONG_CODES) {
+      const retryAt = new Date(now.getTime() + OTP_LOCKOUT_MS);
+      await deps.db
+        .update(identityOtpRequest)
+        .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan", lockedUntil: retryAt })
+        .where(eq(identityOtpRequest.id, latest.id));
+      return { ok: false, reason: "terkunci", retryAt };
+    }
+
+    if (counted.wrongAttempts < OTP_MAX_WRONG_ATTEMPTS) return { ok: false, reason: "kode_salah" };
     await deps.db
       .update(identityOtpRequest)
       .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan" })
@@ -134,6 +157,33 @@ export async function checkCode(
     .where(stillOpen)
     .returning({ id: identityOtpRequest.id });
   return used.length === 1 ? { ok: true } : { ok: false, reason: "kode_salah" };
+}
+
+/** When the number's lockout ends, if it is locked at `now`. */
+async function lockedUntil(db: Database, phoneNumber: string, now: Date): Promise<Date | null> {
+  const [row] = await db
+    .select({ until: max(identityOtpRequest.lockedUntil) })
+    .from(identityOtpRequest)
+    .where(and(eq(identityOtpRequest.phoneNumber, phoneNumber), gt(identityOtpRequest.lockedUntil, now)));
+  return row?.until ?? null;
+}
+
+/**
+ * Wrong codes typed for the OTPs sent to the number in the lockout window.
+ * Codes live 10 minutes, so every one of those wrong codes was typed within
+ * the window plus 10 minutes.
+ */
+async function recentWrongCodes(db: Database, phoneNumber: string, now: Date): Promise<number> {
+  const [row] = await db
+    .select({ total: sum(identityOtpRequest.wrongAttempts).mapWith(Number) })
+    .from(identityOtpRequest)
+    .where(
+      and(
+        eq(identityOtpRequest.phoneNumber, phoneNumber),
+        gt(identityOtpRequest.sentAt, new Date(now.getTime() - OTP_LOCKOUT_WINDOW_MS)),
+      ),
+    );
+  return row?.total ?? 0;
 }
 
 function generateCode(): string {

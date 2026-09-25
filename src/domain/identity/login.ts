@@ -1,10 +1,12 @@
-import { APIError } from "better-auth";
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { OtpRejected, type MakamAuth } from "./better-auth";
-import { normalisePhoneNumber } from "./phone-number";
+import type { CodeRejection } from "./otp";
+import { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
 import { identityUser } from "./schema";
 import { sessionCookiesFrom, type SessionCookie } from "./sessions";
+
+type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 export interface Account {
   id: string;
@@ -20,7 +22,8 @@ export type VerifyOtpResult =
       accountCreated: boolean;
       session: { expiresAt: Date; cookies: SessionCookie[] };
     }
-  | { ok: false; reason: string };
+  | PhoneNumberRejection
+  | CodeRejection;
 
 /**
  * A correct OTP logs into the number's account, creating it first when the
@@ -46,10 +49,8 @@ export async function verifyOtp(
       returnHeaders: true,
     });
   } catch (error) {
-    if (error instanceof OtpRejected) return { ok: false, reason: error.reason };
-    if (error instanceof APIError && error.cause instanceof OtpRejected) {
-      return { ok: false, reason: error.cause.reason };
-    }
+    // Better Auth lets the verifyOTP hook's error through unchanged.
+    if (error instanceof OtpRejected) return error.rejection;
     throw error;
   }
 
