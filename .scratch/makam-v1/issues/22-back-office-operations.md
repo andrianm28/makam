@@ -13,3 +13,6 @@ Context from "Roles, accounts and access": one flat, audited Admin Platform role
 ## Comments
 
 - From "Unpaid Saat Duka Tagihan at a Lokasi Mitra" (2026-09-25): the queue must include the **"Tagihan lewat jatuh tempo"** list for every Lokasi Mitra and TPU order (from H+1, call log with outcomes, at least two calls around H+1 and H+14, declare Tidak Tertagih from H+30).
+
+Context from "Lokasi terverifikasi and published tariffs": Admin Platform also runs the Lokasi Mitra publish gate (agreement, Kunjungan Verifikasi, tariffs entered), switches on "Pemesanan Terencana aktif", enters versioned tariff changes with effective dates, orders revisits, and sets a Lokasi Mitra to Ditangguhkan / Berhenti; it also keeps each TPU's "diperbarui <tanggal>" flag date current.
+- From "Mitra Jasa onboarding, service areas and quality" (2026-09-25): Admin Platform also onboards Mitra Jasa (KTP, bank account override, edits TPU / Layanan lists), works the "Tidak direspons" / declined jobs returning after the 12 h accept deadline, reassigns jobs flagged by a Mitra Jasa's Tidak tersedia range or by a suspension, reviews the 90-day scorecard and sets Aktif / Ditangguhkan / Berhenti, decides upheld Keluhan (redo or refund, amount override) and releases or cancels the matching Pencairan.

@@ -14,6 +14,22 @@ _Avoid_: Makam (when meaning the whole cemetery), TPU (as a generic term)
 A Lokasi Makam run by a partner (private, wakaf, yayasan or masjid cemetery) that has signed a partnership with the Operator; the platform holds its Petak Makam and Pemegang Hak records.
 _Avoid_: Mitra (alone), partner makam
 
+**Terverifikasi**:
+Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed; every listed Lokasi Mitra is Terverifikasi. Never said of a TPU, which is shown as an official Pemda cemetery instead.
+_Avoid_: Terdaftar, resmi (for a Lokasi Mitra), using it as a badge some listings lack
+
+**Kunjungan Verifikasi**:
+A Petugas Lapangan's site visit to a Lokasi Mitra confirming its address, map pin, facilities and photos; required before it is listed and repeated whenever Admin Platform asks.
+_Avoid_: Survei (reserved for Wakaf Tanah), audit
+
+**Ditangguhkan**:
+A Lokasi Mitra temporarily taken off the listings by Admin Platform: it takes no new Pemesanan Makam, while its existing Pemegang Hak can still extend and order Layanan. A Mitra Jasa can be Ditangguhkan too: no new jobs until Admin Platform reinstates them.
+_Avoid_: Nonaktif, diblokir
+
+**Berhenti**:
+A Lokasi Mitra whose partnership has ended: off the listings and taking no new orders, Perpanjangan or Layanan; its existing Hak Pakai stay visible to their Pemegang Hak. A Mitra Jasa can be Berhenti too: ended for good, history still visible to them.
+_Avoid_: Berakhir (reserved for a Hak Pakai), putus kontrak
+
 **TPU**:
 A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offers Pengurusan and Layanan there.
 _Avoid_: Makam umum, using TPU for any cemetery
@@ -73,7 +89,7 @@ Operator field staff who carry out Pengurusan that must be done in person.
 _Avoid_: Kurir, staf lapangan
 
 **Mitra Jasa**:
-An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU.
+An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU. Each covers a set of DKI TPUs and a set of Layanan, and is Aktif, Ditangguhkan (no new jobs, reversible) or Berhenti (ended for good).
 _Avoid_: Vendor, tukang (as the role name), Mitra (alone)
 
 **Wakif**:
@@ -171,6 +187,10 @@ _Avoid_: Langganan, bundle
 **Keluhan**:
 A Pemesan's complaint about a finished Pekerjaan Layanan, filed within 3×24 hours of its photo proof and settled by Admin Platform with a redo or a refund.
 _Avoid_: Komplain, dispute, klaim
+
+**Penilaian**:
+A Pemesan's optional 1–5 star rating, with comment, of one finished Pekerjaan Layanan; seen only by Admin Platform.
+_Avoid_: Review, ulasan, rating (as the term)
 
 ### Money
 

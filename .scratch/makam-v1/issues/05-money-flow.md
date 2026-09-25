@@ -53,3 +53,5 @@ Resolved by grilling with the user (2026-09-25). Decision record: [ADR 0001](../
 **Amended by "Pemesanan Terencana contract terms"** (2026-09-25): a Terencana Petak Makam's Pencairan is due when the Lokasi's Masa Pembatalan ends (default 7 days after payment), or at the first Pemakaman if sooner, not at the Admin Lokasi's confirmation. A Pembatalan refund after that window is deducted from the Lokasi Mitra's next Pencairan instead of being settled offline.
 
 **Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): when the family pays a Lokasi Mitra directly (recorded by the Admin Lokasi), no Pencairan is made for the tariff and the Biaya Layanan Platform owed is deducted from the Lokasi's next Pencairan. A Tagihan declared Tidak Tertagih costs the Lokasi its tariff and the Operator its platform fee; neither owes the other.
+
+**Amended by "Mitra Jasa onboarding, service areas and quality"** (2026-09-25): a Mitra Jasa's Pencairan becomes due when the Keluhan window (3×24 h after Admin Platform approves the proof) closes with no Keluhan, not at approval. An upheld Keluhan cancels or holds it (see that ticket).

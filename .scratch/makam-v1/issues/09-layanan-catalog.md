@@ -44,7 +44,7 @@ Resolved by grilling with the user (2026-09-25). Terms added to `CONTEXT.md`: La
 - **TPU assignment**: Admin YIEM assigns each job to a Mitra Jasa by hand; the Mitra Jasa accepts or declines in their app; a decline returns it to Admin YIEM. No auto-dispatch or open job board.
 - **Cancellation by the Pemesan**: until **H-1** before the target date or until "Sedang Dikerjakan", whichever comes first. The item amount is refunded in full; the Biaya Layanan Platform is kept. Admin YIEM approves the refund.
 - **Late**: target date + 2 days without proof → **Terlambat**, flagged to Admin YIEM and the fulfiller. Admin YIEM may reassign (TPU) or cancel with a full refund including the platform fee (the fulfiller's fault).
-- **Keluhan**: the Pemesan may file one within **3×24 h** of the proof. Admin YIEM decides: free redo by the fulfiller, or refund. At a Lokasi Mitra a refund after Pencairan is settled offline with the partner. Mitra Jasa quality control and sanctions stay in the "Mitra Jasa operations" fog.
+- **Keluhan**: the Pemesan may file one within **3×24 h** of the proof. Admin YIEM decides: free redo by the fulfiller, or refund. At a Lokasi Mitra a refund after Pencairan is settled offline with the partner. Mitra Jasa quality control and sanctions: see [Mitra Jasa onboarding, service areas and quality](23-mitra-jasa-operations.md).
 
 **Which graves, who may order**
 - **Lokasi Mitra**: only Petak Makam on the platform, found by Nomor Makam / Nomor Kavling or Almarhum, with the same lookup as Perpanjangan (Pemegang Hak never exposed). **Anyone may order**; no Pemegang Hak check. The Hak Pakai must not be Berakhir.
