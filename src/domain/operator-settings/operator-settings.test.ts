@@ -53,7 +53,7 @@ describe("Pengaturan Operator", () => {
     expect(await setup.operatorSettings.current()).toEqual(expected);
   });
 
-  it("the values in force at an instant are the last change made at or before it, so an issued Tagihan keeps its header", async () => {
+  it("the values in force at an instant are the last change made at or before it", async () => {
     const setup = operatorSettingsOnTestDatabase();
     const { actor } = await signedInAdminPlatform(setup);
     setup.clock.set(wib("2026-10-02 10:00"));
