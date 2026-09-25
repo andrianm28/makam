@@ -8,11 +8,18 @@
  *   vi.mock("next/headers", () => import("<path>/tests/support/next-request"));
  */
 const jar = new Map<string, string>();
+/** Request headers other than Cookie, e.g. the X-Real-IP that nginx sets. */
+const requestHeaders = new Map<string, string>();
 
 export const browser = {
   /** A fresh browser: no cookies. */
   reset(): void {
     jar.clear();
+    requestHeaders.clear();
+  },
+  /** Sends this header with every later request (e.g. `x-real-ip`, as nginx would set it). */
+  setHeader(name: string, value: string): void {
+    requestHeaders.set(name.toLowerCase(), value);
   },
   /** Stores cookies as the browser would after a Set-Cookie. */
   store(cookies: { name: string; value: string }[]): void {
@@ -28,7 +35,9 @@ export const browser = {
 };
 
 export async function headers(): Promise<Headers> {
-  return new Headers(jar.size > 0 ? { cookie: browser.cookieHeader() } : {});
+  const sent = new Headers(Object.fromEntries(requestHeaders));
+  if (jar.size > 0) sent.set("cookie", browser.cookieHeader());
+  return sent;
 }
 
 export async function cookies() {
