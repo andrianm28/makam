@@ -1,0 +1,96 @@
+# Production: the `makam-prod` compose project on the Jakarta VPS (ADR 0002).
+# Own Postgres, own network, resource limits per service. Deployment itself is
+# ticket 07; the expected sequence is:
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Secrets come from .env.prod on the host (never committed): POSTGRES_PASSWORD,
+# DATABASE_URL, SENTRY_DSN, ...
+name: makam-prod
+
+x-app: &app
+  image: ${MAKAM_IMAGE:?set MAKAM_IMAGE, e.g. ghcr.io/<owner>/makam}:${MAKAM_TAG:-latest}
+  env_file: .env.prod
+  environment:
+    APP_ENV: production
+    TZ: Asia/Jakarta
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: makam
+      POSTGRES_DB: makam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      TZ: Asia/Jakarta
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U makam -d makam"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 256m
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  migrate:
+    <<: *app
+    command: ["node", "dist/migrate.mjs"]
+    restart: "no"
+    profiles: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
+  web:
+    <<: *app
+    command: ["node", "server.js"]
+    ports:
+      # Behind the host's reverse proxy; never exposed directly.
+      - "127.0.0.1:${MAKAM_WEB_PORT:-3100}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1g
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
+volumes:
+  pgdata:

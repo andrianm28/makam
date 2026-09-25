@@ -1,0 +1,62 @@
+# Local stack: Postgres + migrate + web + worker, all from one image.
+#
+#   docker compose -p makam-v1-dev up --build -d
+#   curl http://127.0.0.1:${MAKAM_WEB_PORT:-3310}/api/health
+#   docker compose -p makam-v1-dev down -v
+#
+# `migrate` is its own one-shot container that web and worker wait for;
+# neither app migrates on start.
+name: makam-v1-dev
+
+x-app: &app
+  build:
+    context: .
+  image: makam-v1:dev
+  environment: &app-env
+    APP_ENV: development
+    DATABASE_URL: postgres://makam:makam@postgres:5432/makam
+    SENTRY_DSN: ${SENTRY_DSN:-}
+    SENTRY_ENVIRONMENT: local
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: makam
+      POSTGRES_PASSWORD: makam
+      POSTGRES_DB: makam
+      TZ: Asia/Jakarta
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U makam -d makam"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *app
+    command: ["node", "dist/migrate.mjs"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    command: ["node", "server.js"]
+    ports:
+      - "127.0.0.1:${MAKAM_WEB_PORT:-3310}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.mjs"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

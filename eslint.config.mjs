@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated: worker/migrate bundles and test output.
+    "dist/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 
