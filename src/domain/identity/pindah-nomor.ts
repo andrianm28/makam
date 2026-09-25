@@ -91,20 +91,20 @@ export async function moveAccountToNewNumber(
     return { ok: false, reason: "berkas_gagal_disimpan" };
   }
 
-  const moved = await deps.db.transaction(async (tx) => {
+  const moved = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [taken] = await tx
       .select({ id: identityUser.id })
       .from(identityUser)
       .where(eq(identityUser.phoneNumber, next.phoneNumber))
       .for("update");
-    if (taken) return false;
+    if (taken) return { ok: false } as const;
     const now = deps.clock.now();
     await tx
       .update(identityUser)
       .set({ phoneNumber: next.phoneNumber, email: placeholderEmailFor(next.phoneNumber), updatedAt: now })
       .where(eq(identityUser.id, account));
     await tx.delete(identitySession).where(eq(identitySession.userId, account));
-    await deps.audit.record(tx, {
+    await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "akun.pindah_nomor",
       entity: { kind: "akun", id: account },
@@ -112,9 +112,9 @@ export async function moveAccountToNewNumber(
       after: { phoneNumber: next.phoneNumber, ktpCheckFileKey },
       reason,
     });
-    return true;
+    return { ok: true } as const;
   });
-  if (!moved) {
+  if (!moved.ok) {
     await deps.files.delete(ktpCheckFileKey).catch(() => undefined);
     return { ok: false, reason: "nomor_sudah_dipakai" };
   }

@@ -74,12 +74,12 @@ export async function inviteStaff(
   const now = deps.clock.now();
   const expiresAt = new Date(now.getTime() + STAFF_INVITE_EXPIRES_AFTER_MS);
 
-  const outcome = await deps.db.transaction(async (tx) => {
+  const outcome = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [created] = await tx
       .insert(identityStaffInvite)
       .values({ phoneNumber, email, role: input.role, invitedByAccountId: by.accountId, createdAt: now, expiresAt })
       .returning({ id: identityStaffInvite.id });
-    await deps.audit.record(tx, {
+    await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.undang",
       entity: { kind: "undangan_staf", id: created.id },
@@ -87,7 +87,7 @@ export async function inviteStaff(
       after: { phoneNumber, email, role: input.role, expiresAt: expiresAt.toISOString() },
       reason: input.reason?.trim() || null,
     });
-    return { id: created.id };
+    return { ok: true, id: created.id } as const;
   });
 
   let delivered = true;

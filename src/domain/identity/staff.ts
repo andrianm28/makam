@@ -62,7 +62,7 @@ export async function seedFirstAdminPlatform(
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
 
-  return deps.db.transaction(async (tx) => {
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('identity.seed_admin_platform'))`);
     const [existingAdmin] = await tx
       .select({ accountId: identityStaffRole.accountId })
@@ -94,7 +94,7 @@ export async function seedFirstAdminPlatform(
       });
     }
     await tx.insert(identityStaffRole).values({ accountId, role: "admin_platform", grantedAt: now });
-    await deps.audit.record(tx, {
+    await record({
       // No one is signed in at the seed: the entry names the new Akun, acting as the seed CLI.
       actor: { accountId, role: "seed_cli" },
       action: "staf.seed_admin_platform",
@@ -130,7 +130,7 @@ export async function deactivateStaff(
   if (!reason) return { ok: false, reason: "alasan_wajib" };
   if (input.accountId === by.accountId) return { ok: false, reason: "akun_sendiri" };
 
-  return deps.db.transaction(async (tx) => {
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [account] = await tx
       .select({ deactivatedAt: identityUser.deactivatedAt })
       .from(identityUser)
@@ -143,7 +143,7 @@ export async function deactivateStaff(
     const now = deps.clock.now();
     await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
-    await deps.audit.record(tx, {
+    await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.nonaktifkan",
       entity: { kind: "akun", id: input.accountId },

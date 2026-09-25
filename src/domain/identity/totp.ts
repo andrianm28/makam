@@ -138,8 +138,8 @@ export async function passTotp(
     return { ok: false, reason: "kode_salah" };
   }
 
-  return deps.db.transaction(async (tx) => {
-    // Accept each step's code once: the step must be newer than the last one used.
+  // Accept each step's code once: the step must be newer than the last one used; the pass marks the session.
+  const usePassingCode = async (tx: Database) => {
     const [used] = await tx
       .update(identityTotp)
       .set({ lastUsedStep: matched, confirmedAt: totp.confirmedAt ?? now })
@@ -151,22 +151,29 @@ export async function passTotp(
       )
       .returning({ accountId: identityTotp.accountId });
     if (!used) return { ok: false, reason: "kode_sudah_dipakai" } as const;
-
     await tx
       .update(identitySession)
       .set({ totpPassedAt: now, updatedAt: now })
       .where(eq(identitySession.token, session.token));
-    if (!totp.confirmedAt) {
-      await deps.audit.record(tx, {
-        actor: { accountId: session.accountId, role: "admin_platform" },
-        action: "akun.totp_daftar",
-        entity: { kind: "akun", id: session.accountId },
-        before: { totpEnrolled: false },
-        after: { totpEnrolled: true },
-        reason: null,
-      });
-    }
     return { ok: true } as const;
+  };
+
+  // Passing TOTP on an enrolled authenticator is a login step, not a staff write.
+  if (totp.confirmedAt) return deps.db.transaction(usePassingCode);
+
+  // The first passing code completes the enrolment: a staff write on the Akun.
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const passed = await usePassingCode(tx);
+    if (!passed.ok) return passed;
+    await record({
+      actor: { accountId: session.accountId, role: "admin_platform" },
+      action: "akun.totp_daftar",
+      entity: { kind: "akun", id: session.accountId },
+      before: { totpEnrolled: false },
+      after: { totpEnrolled: true },
+      reason: null,
+    });
+    return passed;
   });
 }
 

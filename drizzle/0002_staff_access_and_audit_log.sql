@@ -46,4 +46,10 @@ ALTER TABLE "identity_user" ADD COLUMN "deactivated_at" timestamp with time zone
 ALTER TABLE "identity_staff_role" ADD CONSTRAINT "identity_staff_role_account_id_identity_user_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."identity_user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "identity_totp" ADD CONSTRAINT "identity_totp_account_id_identity_user_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."identity_user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "audit_entry_entity_idx" ON "audit_entry" USING btree ("entity_kind","entity_id","at","seq");--> statement-breakpoint
-CREATE INDEX "identity_staff_invite_phone_idx" ON "identity_staff_invite" USING btree ("phone_number","expires_at");
+CREATE INDEX "identity_staff_invite_phone_idx" ON "identity_staff_invite" USING btree ("phone_number","expires_at");--> statement-breakpoint
+CREATE FUNCTION "audit_entry_append_only"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	RAISE EXCEPTION 'audit_entry is append-only: % is not allowed', TG_OP USING ERRCODE = 'insufficient_privilege';
+END;
+$$;--> statement-breakpoint
+CREATE TRIGGER "audit_entry_no_update_or_delete" BEFORE UPDATE OR DELETE ON "audit_entry" FOR EACH ROW EXECUTE FUNCTION "audit_entry_append_only"();
