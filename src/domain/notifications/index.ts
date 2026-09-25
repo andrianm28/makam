@@ -100,6 +100,15 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       if (!parsed.success) return { ok: false, reason: "langganan_tidak_valid" };
       const { endpoint, keys } = parsed.data;
 
+      // The staff page confirms its browser's push on every visit: unchanged, nothing to write.
+      const [current] = await db
+        .select()
+        .from(notificationsPushDevice)
+        .where(eq(notificationsPushDevice.endpoint, endpoint));
+      if (current?.accountId === by.accountId && current.p256dh === keys.p256dh && current.auth === keys.auth) {
+        return { ok: true };
+      }
+
       return deps.audit.staffWrite(db, async (tx, record) => {
         const before = await countDevices(tx, by.accountId);
         await tx

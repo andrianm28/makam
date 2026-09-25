@@ -198,6 +198,18 @@ describe("Perangkat Push", () => {
     ]);
   });
 
+  it("a staff page confirming the same browser's push again writes nothing and records no second Entri Audit", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    const ponsel = browserPushSubscription();
+    await setup.notifications.enablePush(adminLokasi, { subscription: ponsel });
+
+    expect(await setup.notifications.enablePush(adminLokasi, { subscription: ponsel })).toEqual({ ok: true });
+
+    const entries = await setup.audit.entriesAbout({ kind: "akun", id: adminLokasi.accountId });
+    expect(entries.filter((entry) => entry.action === "akun.push_aktifkan")).toHaveLength(1);
+  });
+
   it("only an Akun Staf turns push on: a Pemesan is refused and nothing is stored", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, "084444444444");
