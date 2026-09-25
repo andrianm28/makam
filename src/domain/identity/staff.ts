@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
-import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import { staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
+import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
@@ -15,14 +15,6 @@ export interface StaffAccount {
   email: string | null;
   roles: StaffRole[];
   deactivated: boolean;
-}
-
-const emailSchema = z.email();
-
-/** The email as stored (trimmed, lower-cased), or null when it is not an email. */
-export function normaliseEmail(typed: string): string | null {
-  const email = typed.trim().toLowerCase();
-  return emailSchema.safeParse(email).success ? email : null;
 }
 
 /** The undeliverable placeholder Better Auth needs as its unique user email. */

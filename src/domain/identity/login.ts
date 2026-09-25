@@ -1,10 +1,12 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Role } from "./authorize";
 import { sessionLengthMs, type MakamAuth } from "./better-auth";
-import { akunLockKey, akunOfNumber, checkCode, type CodeLookup, type CodeRejection } from "./otp";
+import { akunOfNumber, numberOfAkunWithVerifiedEmail } from "./akun-lookup";
+import { accountIdOfLockKey, numberLockKey } from "./lock-key";
+import { checkCode, type CodeLookup, type CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
@@ -69,7 +71,7 @@ export async function verifyOtp(
       channel: "whatsapp",
       target: phoneNumber,
       purpose: "masuk",
-      lockKey: akun ? akunLockKey(akun.id) : `wa:${phoneNumber}`,
+      lockKey: numberLockKey(phoneNumber, akun),
     },
     code: input.code,
     signsIn: async () => ({ phoneNumber, mayCreate: true }),
@@ -138,19 +140,9 @@ export async function akunTheEmailCodeWasSentFor(
   db: Database,
   checked: { target: string; lockKey: string },
 ): Promise<SignsIn | null> {
-  const accountId = checked.lockKey.startsWith("akun:") ? checked.lockKey.slice("akun:".length) : null;
-  if (!accountId) return null;
-  const [row] = await db
-    .select({ phoneNumber: identityUser.phoneNumber })
-    .from(identityUser)
-    .where(
-      and(
-        eq(identityUser.id, accountId),
-        eq(sql`lower(${identityUser.contactEmail})`, checked.target),
-        isNotNull(identityUser.emailVerifiedAt),
-      ),
-    );
-  return row?.phoneNumber ? { phoneNumber: row.phoneNumber, mayCreate: false } : null;
+  const accountId = accountIdOfLockKey(checked.lockKey);
+  const phoneNumber = accountId ? await numberOfAkunWithVerifiedEmail(db, accountId, checked.target) : null;
+  return phoneNumber ? { phoneNumber, mayCreate: false } : null;
 }
 
 /** The account keyed by this WhatsApp number (any spelling), or null. */

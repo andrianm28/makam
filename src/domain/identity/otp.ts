@@ -3,8 +3,10 @@ import { and, desc, eq, gt, isNull, max, sql, sum, type SQL } from "drizzle-orm"
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
+import { akunOfNumber } from "./akun-lookup";
+import { numberLockKey, type LockKey } from "./lock-key";
 import { normalisePhoneNumber } from "./phone-number";
-import { identityIpRequest, identityOtpRequest, identityUser, type otpChannels, type otpPurposes } from "./schema";
+import { identityIpRequest, identityOtpRequest, type otpChannels, type otpPurposes } from "./schema";
 
 /*
  * The code rules shared by every code the identity module sends: a Kode Masuk
@@ -68,21 +70,6 @@ export type RequestOtpResult =
   | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" }
   | LimitRefusal;
 
-/** The lock key of an Akun: its wrong codes on every channel count together. */
-export function akunLockKey(accountId: string): string {
-  return `akun:${accountId}`;
-}
-
-/** The Akun keyed by this canonical number, with its Email Terverifikasi (if any). */
-export async function akunOfNumber(db: Database, phoneNumber: string) {
-  const [row] = await db
-    .select({ id: identityUser.id, email: identityUser.contactEmail, emailVerifiedAt: identityUser.emailVerifiedAt })
-    .from(identityUser)
-    .where(eq(identityUser.phoneNumber, phoneNumber));
-  if (!row) return null;
-  return { id: row.id, verifiedEmail: row.emailVerifiedAt ? row.email : null };
-}
-
 /** Sends a WhatsApp Kode Masuk to a number (Masuk, and Kirim in the wizards). */
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
@@ -96,7 +83,7 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
       channel: "whatsapp",
       target: phoneNumber,
       purpose: "masuk",
-      lockKey: akun ? akunLockKey(akun.id) : `wa:${phoneNumber}`,
+      lockKey: numberLockKey(phoneNumber, akun),
     },
     (code) =>
       deps.whatsapp.sendTemplate({
@@ -124,7 +111,7 @@ export interface CodeRequest {
   channel: OtpChannel;
   target: string;
   purpose: OtpPurpose;
-  lockKey: string;
+  lockKey: LockKey;
 }
 
 export type IssueCodeResult =
@@ -250,13 +237,13 @@ export type CheckCodeResult = { ok: true; target: string; lockKey: string } | Co
  */
 export type CodeLookup =
   /** The latest code of this kind sent under the lock key (a Verifikasi Email code). */
-  | { purpose: OtpPurpose; lockKey: string }
+  | { purpose: OtpPurpose; lockKey: LockKey }
   /**
    * The latest code of this kind to the target, counted under `lockKey`, or
    * when that is left out under the lock key the code was sent under (an
    * email Kode Masuk: that names the Akun it was sent for).
    */
-  | { purpose: OtpPurpose; channel: OtpChannel; target: string; lockKey?: string };
+  | { purpose: OtpPurpose; channel: OtpChannel; target: string; lockKey?: LockKey };
 
 /**
  * Checks a typed code against the latest code matching `lookup`. A correct

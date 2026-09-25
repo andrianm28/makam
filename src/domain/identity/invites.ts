@@ -6,7 +6,8 @@ import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffRoles, stafResource, writeRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
-import { normaliseEmail, rolesOf } from "./staff";
+import { normaliseEmail } from "./email-address";
+import { rolesOf } from "./staff";
 
 /** An Undangan Staf stays open for 7 days after it is sent. */
 export const STAFF_INVITE_EXPIRES_AFTER_MS = 7 * 86_400_000;

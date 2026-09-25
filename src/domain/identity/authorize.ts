@@ -123,19 +123,6 @@ export function writeRefusal(actor: Actor, action: Action, resource: Resource): 
   return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
 }
 
-/**
- * The identity module's own check before a write on the actor's own Akun
- * (defence in depth behind `guarded()`): null when allowed.
- */
-export function ownAkunRefusal(
-  actor: Actor,
-  action: "akun.email",
-): { ok: false; reason: "tidak_berwenang" | "perlu_totp" } | null {
-  const authorization = authorize(actor, action, akunResource(actor.accountId));
-  if (authorization.allowed) return null;
-  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
-}
-
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
   if (needsTotp(actor) && !beforeTotp.has(action)) {

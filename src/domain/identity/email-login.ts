@@ -1,11 +1,9 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
-import type { Database } from "@/db/client";
 import type { EmailSender } from "@/ports/email-sender";
+import { akunOfNumber, akunOfVerifiedEmail } from "./akun-lookup";
 import { kodeMasukEmailMessage } from "./email-templates";
+import { akunLockKey } from "./lock-key";
 import { akunTheEmailCodeWasSentFor, logInAkun, type LoginDeps, type VerifyOtpResult } from "./login";
 import {
-  akunLockKey,
-  akunOfNumber,
   claimIpRequest,
   issueCode,
   lastSentAt,
@@ -15,8 +13,7 @@ import {
   type LimitRefusal,
 } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identityUser } from "./schema";
-import { normaliseEmail } from "./staff";
+import { normaliseEmail } from "./email-address";
 
 export interface EmailLoginDeps extends LoginDeps {
   email: EmailSender;
@@ -137,13 +134,4 @@ export async function requestEmailFallback(
     return { ok: false, reason: "gagal_kirim" };
   }
   return { ok: true, sentAt: issued.sentAt, resendAt: issued.resendAt };
-}
-
-/** The Akun whose Email Terverifikasi this (normalised) email is, or null. */
-async function akunOfVerifiedEmail(db: Database, email: string) {
-  const [row] = await db
-    .select({ id: identityUser.id, phoneNumber: identityUser.phoneNumber })
-    .from(identityUser)
-    .where(and(eq(sql`lower(${identityUser.contactEmail})`, email), isNotNull(identityUser.emailVerifiedAt)));
-  return row?.phoneNumber ? { id: row.id, phoneNumber: row.phoneNumber } : null;
 }
