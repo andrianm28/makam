@@ -1,21 +1,13 @@
-import { PgBoss } from "pg-boss";
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { heartbeatTick, workerHeartbeat } from "@/domain/scheduler";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
-import { PG_BOSS_SCHEMA } from "./migrate";
+import { createPgBoss } from "./pg-boss";
 import { inTransaction } from "./unit-of-work";
 
 const QUEUE = "test.unit-of-work";
 const { db, pool, close } = testDatabase();
-const boss = new PgBoss({
-  connectionString: inject("databaseUrl"),
-  schema: PG_BOSS_SCHEMA,
-  migrate: false,
-  supervise: false,
-  schedule: false,
-  max: 2,
-});
+const boss = createPgBoss({ connectionString: inject("databaseUrl"), max: 2 });
 
 beforeAll(async () => {
   await boss.start();

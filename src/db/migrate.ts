@@ -1,9 +1,7 @@
 import path from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { PgBoss } from "pg-boss";
 import { createDatabase } from "./client";
-
-export const PG_BOSS_SCHEMA = "pgboss";
+import { createPgBoss } from "./pg-boss";
 
 /**
  * Brings a database up to date: the Drizzle migrations in `drizzle/`, then the
@@ -24,15 +22,7 @@ export async function migrateDatabase(
     await handle.close();
   }
 
-  const boss = new PgBoss({
-    connectionString,
-    schema: PG_BOSS_SCHEMA,
-    migrate: true,
-    supervise: false,
-    schedule: false,
-    max: 1,
-    application_name: "makam-migrate",
-  });
+  const boss = createPgBoss({ connectionString, migrate: true, max: 1, applicationName: "makam-migrate" });
   await boss.start();
   await boss.stop({ graceful: false, close: true });
 }

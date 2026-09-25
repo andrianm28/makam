@@ -1,5 +1,5 @@
-import { PgBoss } from "pg-boss";
-import { PG_BOSS_SCHEMA } from "@/db/migrate";
+import type { PgBoss } from "pg-boss";
+import { createPgBoss } from "@/db/pg-boss";
 import type { Database } from "@/db/client";
 import type { ScheduledTick } from "@/domain/scheduler";
 import { JAKARTA_TIME_ZONE } from "@/lib/time/jakarta";
@@ -33,19 +33,12 @@ export interface RunningWorker {
  * here; `migrate` installs them.
  */
 export async function startWorker(options: WorkerOptions): Promise<RunningWorker> {
-  const boss = new PgBoss({
+  const boss = createPgBoss({
     connectionString: options.connectionString,
-    schema: PG_BOSS_SCHEMA,
-    application_name: "makam-worker",
-    migrate: false,
+    applicationName: "makam-worker",
     schedule: true,
     supervise: true,
-    ...(options.schedulerIntervalSeconds
-      ? {
-          cronMonitorIntervalSeconds: options.schedulerIntervalSeconds,
-          cronWorkerIntervalSeconds: options.schedulerIntervalSeconds,
-        }
-      : {}),
+    schedulerIntervalSeconds: options.schedulerIntervalSeconds,
   });
   boss.on("error", (error) => options.onError?.(error, {}));
 
