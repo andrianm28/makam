@@ -40,7 +40,7 @@ import {
 } from "./lokasi-mitra";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiProfileInput } from "./profile";
-import { lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
+import { fullLokasiAuditLog, lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
 import {
   agreementScanUrl,
   uploadAgreement,
@@ -138,8 +138,13 @@ export interface Lokasi {
   allLokasiMitra(by: Actor): Promise<LokasiMitraSummary[]>;
   /** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */
   lokasiMitraOfAdminLokasi(by: Actor): Promise<LokasiMitraSummary[]>;
-  /** This Lokasi Mitra's Audit Log for its Admin Lokasi (and Admin Platform), without Catatan Internal and Antrean claims. */
+  /**
+   * This Lokasi Mitra's Audit Log for its Admin Lokasi (and Admin Platform), without Catatan Internal and Antrean
+   * claims; bank account numbers masked to their last 4 digits and no agreement scan file keys.
+   */
   auditLog(by: Actor, lokasiId: string): Promise<LokasiAuditLogResult>;
+  /** This Lokasi Mitra's whole Audit Log, unfiltered and unmasked (Admin Platform only). */
+  fullAuditLog(by: Actor, lokasiId: string): Promise<LokasiAuditLogResult>;
   /** Admin Platform uploads the agreement scan (FileStore) with its signing date, audited. */
   uploadAgreement(
     by: Actor,
@@ -164,6 +169,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     allLokasiMitra: (by) => allLokasiMitra(deps, by),
     lokasiMitraOfAdminLokasi: (by) => lokasiMitraOfAdminLokasi(deps, by),
     auditLog: (by, lokasiId) => lokasiAuditLog(deps, by, lokasiId),
+    fullAuditLog: (by, lokasiId) => fullLokasiAuditLog(deps, by, lokasiId),
     uploadAgreement: (by, lokasiId, input) => uploadAgreement(deps, by, lokasiId, input),
     agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
   };

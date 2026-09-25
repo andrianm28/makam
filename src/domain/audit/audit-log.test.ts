@@ -152,4 +152,27 @@ describe("the Audit Log of one Lokasi Mitra (the Admin Lokasi view)", () => {
     expect(entries[0]).toMatchObject({ lokasiId: LOKASI, at: wib("2026-10-01 09:00") });
     expect((await audit.allEntries()).length).toBe(6);
   });
+
+  it("unfiltered (Admin Platform's view), holds every entry about that Lokasi, Catatan Internal and Antrean claims included", async () => {
+    const clock = new FakeClock(wib("2026-10-01 09:00"));
+    const audit = createAuditLog({ db, clock });
+    for (const next of [
+      entry("lokasi.buat", LOKASI, "dibuat"),
+      entry("catatan_internal.tulis", LOKASI, "catatan internal"),
+      entry("lokasi.buat", OTHER, "Lokasi lain"),
+      entry("antrean.ambil", LOKASI, "klaim Antrean"),
+    ]) {
+      await audit.staffWrite(db, async (_tx, record) => {
+        await record(next);
+        return { ok: true };
+      });
+      clock.advance({ minutes: 1 });
+    }
+
+    expect((await audit.allEntriesForLokasi(LOKASI)).map((found) => [found.action, found.reason])).toEqual([
+      ["lokasi.buat", "dibuat"],
+      ["catatan_internal.tulis", "catatan internal"],
+      ["antrean.ambil", "klaim Antrean"],
+    ]);
+  });
 });

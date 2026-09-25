@@ -125,6 +125,8 @@ export interface AuditLog {
    * first: every entry about that Lokasi except Catatan Internal and Antrean claims.
    */
   entriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
+  /** Every entry about one Lokasi Mitra, oldest first, nothing hidden (Admin Platform's view). */
+  allEntriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
 }
 
 /** Carries a refusal out of the transaction so that it rolls back. */
@@ -182,6 +184,14 @@ export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
         .select()
         .from(auditEntry)
         .where(and(eq(auditEntry.lokasiId, lokasiId), notInArray(auditEntry.action, [...HIDDEN_FROM_ADMIN_LOKASI])))
+        .orderBy(asc(auditEntry.at), asc(auditEntry.seq));
+      return rows.map(toEntry);
+    },
+    async allEntriesForLokasi(lokasiId) {
+      const rows = await deps.db
+        .select()
+        .from(auditEntry)
+        .where(eq(auditEntry.lokasiId, lokasiId))
         .orderBy(asc(auditEntry.at), asc(auditEntry.seq));
       return rows.map(toEntry);
     },
