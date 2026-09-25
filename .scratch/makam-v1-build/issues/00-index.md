@@ -204,3 +204,11 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 5. **VPS facts**: this host (Jakarta), nginx + Certbot already running; DNS for `makam.co.id` / `www` already correct; `makam-prod` must avoid ports 3001, 8081, 8082, 8083. Ticket 02.
 6. **SumoPod**: the merchant account already exists and is live for the old app; API key and webhook secret must be fetched from the dashboard; v1 registers `https://makam.co.id/api/webhooks/sumopod` and ignores events for payments it didn't create. Tickets 04, 61.
 7. **Reference values are entered by Admin Platform in the dashboard**, never seeded (only the first Admin Platform's phone and email are seeded). New Pengaturan Operator screen for the Operator's legal name, address, contact and the CS WhatsApp number and reply hours. Tickets 06 (now a human checklist), 09, 18, 20, 26, 43, 44, 58, 63.
+
+## Decisions 2026-09-25 (later)
+
+- v1 staging at `dev.makam.co.id` behind basic auth with SumoPod sandbox; live SumoPod on switch day (07, 04, 61).
+- WhatsApp outage for a new family: CS contact + Admin Platform submits the Saat Duka order on their behalf (22).
+- Legal name allowed in footer, documents, Tentang Kami, Hubungi Kami, FAQ payment answer, TPU anti-perantara note (spec Further Notes).
+- GitHub owner stays `andrianm28` for now (02).
+- Drafts: [`../content-drafts.md`](../content-drafts.md), [`../whatsapp-templates.md`](../whatsapp-templates.md); kirim.dev research: [`../research/kirimdev-data-localization.md`](../research/kirimdev-data-localization.md).

@@ -16,3 +16,7 @@ Implement the PaymentProvider port on SumoPod: create a payment (VA / QRIS) for 
 - [ ] Contract tests run the same scenarios as the fake; a sandbox run records one paid webhook end to end.
 - [ ] Amount mismatches between the webhook and the Tagihan are refused and raised to GlitchTip (no PII).
 - [ ] Webhook events that match no v1 Tagihan (e.g. the frozen Laravel app's payments on the same SumoPod account, ticket 04) are acknowledged with 2xx and ignored, logged without bodies.
+
+## Amended (2026-09-25)
+
+- [ ] Configurable per environment: sandbox on staging, live on production (live keys installed on the switch day, ticket 07).

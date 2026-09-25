@@ -24,3 +24,7 @@ Known facts (2026-09-25): the VPS is this host (Jakarta, 103.92.214.243), alread
 ## Notes
 
 The nginx server block for `makam.co.id` is not changed here; ticket 07 switches it behind a human confirmation gate. Do not touch `dev.makam.co.id`. Record the chosen ports and uptime service under `## Comments` so ticket 07 can use them.
+
+## Amended (2026-09-25)
+
+`dev.makam.co.id` becomes v1 staging in ticket 07 (user decision); this ticket still does not change any nginx block. DNS for `dev.makam.co.id` already points to this host. GitHub owner stays the personal account `andrianm28` for now (transfer to a PT JKP organisation later if wanted).

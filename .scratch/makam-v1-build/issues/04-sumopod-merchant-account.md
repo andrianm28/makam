@@ -21,3 +21,7 @@ Configure the single collecting payment account in SumoPod for the Operator, so 
 ## Notes
 
 SumoPod has no payout or refund API; Pencairan and refunds stay manual in v1 (no action needed here). v1 acknowledges and ignores webhook events that match no v1 Tagihan (ticket 61), so events for the old app's payments do no harm.
+
+## Amended (2026-09-25, decided with the user)
+
+- Sandbox credentials are used by staging (`dev.makam.co.id`) until the switch; the webhook-coexistence question is resolved: v1 production registers its live webhook only on the switch day, so the old app's live webhook is never shared or split.

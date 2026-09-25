@@ -24,3 +24,7 @@ The Pemesan's Saat Duka path, prototype 18 variant D: one decision per screen, a
 ## Notes
 
 The TPU section below the cards is ticket 44; hari-H Layanan at checkout is ticket 53; the same optional email field is on the Terencana (36), TPU (44), Perpanjangan (40) and standalone Layanan (50) checkouts and in the Akun Saya profile (27).
+
+## Amended (2026-09-25, decided with the user)
+
+- [ ] When the OTP cannot be delivered (WhatsApp outage) and the number has no account with an email, the screen shows the CS WhatsApp and phone contact; Admin Platform can submit the Saat Duka order on the family's behalf from the back office (audited, reason "diajukan oleh Admin Platform"), attaching the family's number unverified until their first successful login.

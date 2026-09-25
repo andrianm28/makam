@@ -29,3 +29,9 @@ Then switch `makam.co.id` and `www` from the frozen Laravel app to v1 in the hos
 ## Notes
 
 Until the gate is passed, `makam-prod` runs on its local port with no public hostname (v1 does not use `dev.makam.co.id`); the pipeline, backups and GlitchTip can be finished first and the switch done later.
+
+## Amended (2026-09-25, decided with the user)
+
+- [ ] **Staging at `dev.makam.co.id`** (replaces "no public hostname" above): a `makam-staging` compose project served at `dev.makam.co.id` behind HTTP basic auth, with its own database. The current `dev.makam.co.id` block (proxy to 127.0.0.1:8081, the old app's dev environment) is backed up verbatim and replaced **only after the user confirms** at that moment; rollback restores it. The old dev containers are not stopped or removed by this ticket.
+- [ ] Staging uses SumoPod **sandbox** credentials and a sandbox webhook to `https://dev.makam.co.id/api/webhooks/sumopod` (basic auth exempted for that path only).
+- [ ] Production gets the **live** SumoPod key, secret and webhook URL only on the switch day.

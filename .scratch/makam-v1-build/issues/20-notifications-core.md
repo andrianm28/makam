@@ -23,3 +23,7 @@ One module decides recipient, channel, template and timing for every domain even
 ## Notes
 
 Lokasi-work subjects (confirmation, Bukti Pemesanan, Perpanjangan, Hak Pakai expiry, Lokasi Layanan) route to the Antrean Lokasi; that row type is added in ticket 23. Tagihan reminder rules were settled on 2026-09-25 (see 00-index).
+
+## Open template questions (2026-09-25)
+
+Drafted templates: [`../whatsapp-templates.md`](../whatsapp-templates.md) (42: 1 authentication, 41 utility). Settle while building this ticket, before submitting to Meta: OTP expiry (draft says 10 min); whether confirmation carries the Tagihan link instead of a separate `tagihan_terbit`; whether `tagihan_terbit` is transactional (any hour) or a reminder (08:00–20:00); a Terencana hold expiring at night vs the 08:00–20:00 window; the five "implied" templates (keep or drop); recipients for the Pencairan notice, per-Hak-Pakai expiry alerts to Admin Lokasi, and Bukti Pemesanan to a Pemegang Hak who is not the Pemesan; final URL-button routes (changing them later needs re-approval). The draft's note about a WhatsApp-only login is outdated: the email OTP fallback now exists (ticket 60).
