@@ -125,6 +125,19 @@ describe("OTP limits", () => {
     expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
   });
 
+  it("says when Kirim ulang and the fallback slot open: 60 s after the OTP was sent", async () => {
+    const { identity } = setup();
+
+    expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toEqual({
+      ok: true,
+      phoneNumber: "+6281234567890",
+      sentAt: wib("2026-10-01 09:00"),
+      expiresAt: wib("2026-10-01 09:10"),
+      resendAt: wib("2026-10-01 09:01"),
+      fallbackAt: wib("2026-10-01 09:01"),
+    });
+  });
+
   it("a new OTP can be sent 60 s after the last one, not sooner", async () => {
     const { clock, whatsapp, identity } = setup();
     await identity.requestOtp({ phoneNumber: "081234567890" });

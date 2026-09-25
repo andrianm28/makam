@@ -17,6 +17,8 @@ export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
 export const OTP_MAX_WRONG_ATTEMPTS = 5;
 /** "Kirim ulang" opens 60 s after the last OTP to the number, when the fallback slot also appears. */
 export const OTP_RESEND_AFTER_MS = 60_000;
+/** The fallback slot (ticket 60: "Kirim lewat email" or the CS WhatsApp pointer) shows 60 s after the OTP was sent. */
+export const OTP_FALLBACK_AFTER_MS = 60_000;
 /** At most 5 OTPs to one number in any rolling 60 minutes. */
 export const OTP_MAX_SENDS_PER_WINDOW = 5;
 export const OTP_SEND_WINDOW_MS = 60 * 60_000;
@@ -33,7 +35,16 @@ export interface OtpDeps {
 }
 
 export type RequestOtpResult =
-  | { ok: true; phoneNumber: string; sentAt: Date; expiresAt: Date }
+  | {
+      ok: true;
+      phoneNumber: string;
+      sentAt: Date;
+      expiresAt: Date;
+      /** When "Kirim ulang" opens. */
+      resendAt: Date;
+      /** When the OTP screen shows its fallback slot ("Kirim lewat email", ticket 60). */
+      fallbackAt: Date;
+    }
   | { ok: false; reason: "nomor_tidak_valid" }
   | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
@@ -90,7 +101,14 @@ export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }):
     copyCode: code,
   });
 
-  return { ok: true, phoneNumber, sentAt: now, expiresAt };
+  return {
+    ok: true,
+    phoneNumber,
+    sentAt: now,
+    expiresAt,
+    resendAt: new Date(now.getTime() + OTP_RESEND_AFTER_MS),
+    fallbackAt: new Date(now.getTime() + OTP_FALLBACK_AFTER_MS),
+  };
 }
 
 export type CodeRejection =

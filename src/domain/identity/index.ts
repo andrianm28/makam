@@ -14,7 +14,20 @@ import { checkCode, requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies } from "./sessions";
 
 export { normalisePhoneNumber, type PhoneNumberResult } from "./phone-number";
-export { OTP_EXPIRES_AFTER_MS, OTP_LENGTH, type RequestOtpResult } from "./otp";
+export {
+  OTP_EXPIRES_AFTER_MS,
+  OTP_FALLBACK_AFTER_MS,
+  OTP_LENGTH,
+  OTP_LOCKOUT_MS,
+  OTP_LOCKOUT_WINDOW_MS,
+  OTP_LOCKOUT_WRONG_CODES,
+  OTP_MAX_SENDS_PER_WINDOW,
+  OTP_MAX_WRONG_ATTEMPTS,
+  OTP_RESEND_AFTER_MS,
+  OTP_SEND_WINDOW_MS,
+  type CodeRejection,
+  type RequestOtpResult,
+} from "./otp";
 export { PEMESAN_SESSION_MS } from "./better-auth";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
