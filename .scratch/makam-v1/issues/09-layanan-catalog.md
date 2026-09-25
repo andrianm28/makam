@@ -56,3 +56,5 @@ Resolved by grilling with the user (2026-09-25). Terms added to `CONTEXT.md`: La
 **Amended by "Tech stack for a solo engineer with AI agents"** (2026-09-25): no auto-debit in v1 (SumoPod); every recurring cycle is paid through its own invoice.
 
 **Terminology** (2026-09-25): "invoice" above is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan" (one Tagihan per Paket cycle).
+
+**Consistency review** (2026-09-25): the Mitra Jasa's Pencairan is no longer due at Admin Platform's approval but when the Keluhan window closes, per "Mitra Jasa onboarding, service areas and quality" (see also "Money flow and revenue model"). Whether a Lokasi Mitra's Layanan Pencairan also waits, and when the Keluhan window starts, are open in "Tagihan deadlines and refunds after Pencairan". The "Notifications" fog is resolved: see "Notification channels and WhatsApp provider".

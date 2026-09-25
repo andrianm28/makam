@@ -22,3 +22,5 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 5. **Pembayaran**: payment never holds up a burial. The Admin Lokasi's confirmation locks the Petak Makam and issues the invoice straight away; payment is due within a set time after the burial (default 3×24 hours, set per Lokasi). The Lokasi carries the risk of non-payment.
 6. **Bukti Pemesanan**: issued once payment has settled.
 7. **Documents**: each Lokasi sets its own document checklist (default: the death certificate from the hospital or Puskesmas, the death report letter from the Lurah or RT/RW, and the KTP and KK of the Almarhum and the Pemesan). Documents can be uploaded later or brought on the day; the Admin Lokasi ticks each one off. Sources: [cemetery-plot-regulation.md §2.6](../research/cemetery-plot-regulation.md).
+
+**Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan".

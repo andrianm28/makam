@@ -56,3 +56,5 @@ Decided with the user on 2026-09-25 by reacting to a clickable prototype. **Prot
 - 2026-09-25: User picked A made shorter (→ variant D), price as in C, split on the home screen; no concerns about the after-hours Saat Duka experience. Prototype moved to branch `prototype/18-booking-flow` (commit 01ef38e). Resolved.
 
 **Amended by "Invoice and payment proof for the Pemesan"** (2026-09-25): the Bukti Pemesanan carries no amounts; the itemised paid amount moves to the separate Bukti Pembayaran.
+
+**Consistency review** (2026-09-25): "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan". The search filters (only a city filter here vs the brief's five) are reopened in "Homepage, search and Akun Saya".

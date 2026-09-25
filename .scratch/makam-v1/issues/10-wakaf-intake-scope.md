@@ -32,3 +32,5 @@ Resolved by grilling with the user (2026-09-25).
 - **After Selesai**: no automatic link to a Lokasi Mitra. Admin YIEM may later offer the Nazhir a partnership through the normal manual onboarding.
 
 Glossary: added **Wakif**, **Nazhir**, **Pengajuan Wakaf** to `CONTEXT.md`.
+
+**Consistency review** (2026-09-25): "Roles, accounts and access" did not settle Wakif login; it is open in "Homepage, search and Akun Saya".

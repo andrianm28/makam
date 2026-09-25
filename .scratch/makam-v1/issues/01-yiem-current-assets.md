@@ -23,3 +23,5 @@ Resolved by grilling with the user (2026-09-24).
 - **Tariffs**: agreed per Lokasi Mitra in the partnership agreement and shown as fixed prices; for TPU the official Pemda retribusi (IPTM in DKI is currently free) is shown, with YIEM's Pengurusan fee shown separately.
 - **Nazhir / legal**: legal compliance is out of scope for this map (licensing, nazhir status, whether fees may be commercial). Regulatory facts that shape product flow (TPU advance-booking ban, Pemda issues IPTM, wakaf ikrar in person at KUA) still apply as design constraints.
 - **Current record-keeping at partners**: unknown (no partners yet); handled by the import template, see "Onboarding existing records" in the fog.
+
+**Consistency review** (2026-09-25): Mitra Jasa are not paid "on a regular cycle": Pencairan is per job, due when the Keluhan window closes ("Mitra Jasa onboarding, service areas and quality"); Admin Platform may batch due Pencairan into one transfer ("Invoice and payment proof for the Pemesan").

@@ -63,3 +63,5 @@ Decided with the user on 2026-09-25 and checked against [concept.md](../concept.
 **Amended by "Pemesanan Terencana contract terms"** (2026-09-25): the Calon Penghuni is an optional label per Petak Makam (a Kavling Keluarga may list several), which the Pemegang Hak can change freely; it does not limit who may be buried. An unused Hak Pakai can also end by **Pengembalian Hak Pakai** (`Berakhir`, reason "dikembalikan").
 
 **Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): while a Saat Duka Tagihan is unpaid past its due date, Perpanjangan and Ganti Pemegang Hak are blocked (Layanan and later burials still allowed); once it is Tidak Tertagih the Admin Lokasi may end the Hak Pakai by hand (`Berakhir`, reason "Tagihan tidak tertagih").
+
+**Consistency review** (2026-09-25): the "Notifications" fog is resolved in "Notification channels and WhatsApp provider". "invoice" in this ticket is a **Tagihan** in the glossary set by "Invoice and payment proof for the Pemesan".

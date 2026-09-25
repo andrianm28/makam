@@ -66,3 +66,5 @@ Decided with the user on 2026-09-25 (grilling). Facts: [research/19-whatsapp-pro
 **Amended by "Unpaid Saat Duka Tagihan at a Lokasi Mitra"** (2026-09-25): an overdue Tagihan gets further reminders at H+3, H+7, H+14 and H+30 after the due date, then Admin Platform phones the family; the Admin Lokasi gets web push at H+1 and when the Tagihan is declared Tidak Tertagih.
 
 **Amended by "Admin Platform back-office queue and on-call"** (2026-09-25): Tier 1 staff alerts go to the Admin Platform who are Bertugas (everyone if none); a Tier 1 Antrean row not taken within 30 min re-alerts every Admin Platform, and a Konfirmasi TPU Saat Duka still unconfirmed at 90 min alerts everyone again. Night TPU submissions alert at 06:00.
+
+**Consistency review** (2026-09-25): Meta Business verification is for the Operator, **PT Jaya Korpora Prima** (per "Operator entity"), so the document list is a PT's (akta, NIB, NPWP), not a yayasan's. Who phones the family after a final failed send on a Lokasi Mitra order is open in "Admin Lokasi back office and Petugas Lapangan work".

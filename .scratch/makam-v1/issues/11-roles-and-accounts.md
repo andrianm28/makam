@@ -50,3 +50,5 @@ Decided with the user on 2026-09-25 (grilling). ADR: [0003 A WhatsApp number is 
 - Admin Lokasi: the Pemesan's name and WhatsApp, the Almarhum and documents, for their own Lokasi's orders only.
 - Petugas YIEM: the documents of the Pengurusan cases assigned to them.
 - Mitra Jasa: only the job (grave location or description, Layanan, target date, reference photos), never the Pemesan's name or number. They contact the family through a **message thread per Pekerjaan Layanan** (text + photos). The Pemesan is notified by WhatsApp with a link to reply; Admin YIEM can read every thread and step in; the thread closes when the Keluhan window (3×24 h after the photo proof) ends.
+
+**Consistency review** (2026-09-25): the message thread closes with the Keluhan window, whose start (photo upload vs Admin Platform approval) is open in "Tagihan deadlines and refunds after Pencairan". Wakif login and Akun Saya contents are open in "Homepage, search and Akun Saya".
