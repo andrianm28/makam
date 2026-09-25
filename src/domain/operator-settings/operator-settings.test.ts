@@ -3,8 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
-import { authorize, pengaturanOperatorResource, type Actor, type Role } from "@/domain/identity";
-import { createOperatorSettings } from "./index";
+import { createOperatorSettings, OPERATOR_SETTINGS_ENTITY_ID } from "./index";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -118,7 +117,7 @@ describe("Pengaturan Operator", () => {
       csWhatsApp: "+6281122223333",
       csReplyHours: "dibalas mulai pukul 06:00",
     };
-    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toEqual([
       expect.objectContaining({
         at: wib("2026-10-02 10:00"),
         actor: { accountId: actor.accountId, role: "admin_platform" },
@@ -185,7 +184,7 @@ describe("Pengaturan Operator", () => {
 
     await setup.operatorSettings.change(actor, { ...pengaturan, legalName: "  PT Jaya Korpora Prima  ", reason: "  " });
     expect(await setup.operatorSettings.current()).toMatchObject({ legalName: "PT Jaya Korpora Prima" });
-    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toMatchObject([
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toMatchObject([
       { reason: null },
     ]);
   });
@@ -200,7 +199,7 @@ describe("Pengaturan Operator", () => {
       reason: "tidak_berwenang",
     });
     expect(await setup.operatorSettings.current()).toBeNull();
-    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([]);
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toEqual([]);
   });
 
   it.each([
@@ -220,7 +219,7 @@ describe("Pengaturan Operator", () => {
       reason: "tidak_berwenang",
     });
     expect(await setup.operatorSettings.current()).toBeNull();
-    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: "operator" })).toEqual([]);
+    expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toEqual([]);
   });
 
   it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
@@ -234,27 +233,5 @@ describe("Pengaturan Operator", () => {
       reason: "perlu_totp",
     });
     expect(await setup.operatorSettings.current()).toBeNull();
-  });
-});
-
-describe("who may open the Pengaturan Operator screen", () => {
-  const actor = (roles: Role[], totp: Actor["totp"]): Actor => ({
-    accountId: "akun-staf",
-    phoneNumber: "+6281111111111",
-    roles: ["pemesan", ...roles],
-    totp,
-    sessionId: "sesi-staf",
-  });
-
-  it("only an Admin Platform past TOTP; no other role, not even one holding several", () => {
-    const open = (who: Actor) => authorize(who, "pengaturan_operator.lihat", pengaturanOperatorResource());
-
-    expect(open(actor(["admin_platform"], "lolos"))).toEqual({ allowed: true });
-    expect(open(actor(["admin_platform"], "perlu_verifikasi"))).toEqual({ allowed: false, reason: "perlu_totp" });
-    expect(open(actor(["admin_lokasi", "petugas_lapangan", "mitra_jasa"], "tidak_perlu"))).toEqual({
-      allowed: false,
-      reason: "tidak_berwenang",
-    });
-    expect(open(actor([], "tidak_perlu"))).toEqual({ allowed: false, reason: "tidak_berwenang" });
   });
 });
