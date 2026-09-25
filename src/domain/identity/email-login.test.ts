@@ -55,6 +55,39 @@ describe("Verifikasi Email rules", () => {
     const { login } = await logInByEmail(setup, "sari@contoh.id");
     expect(login.account.phoneNumber).toBe("+6281234567890");
   });
+
+  it("changing the email in the profile clears the verified mark; saving the same email keeps it", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, email } = setup;
+    const { actor } = await pemesanWithEmailTerverifikasi(setup);
+
+    await identity.saveEmail(actor, { email: "SARI@contoh.id " });
+    expect(await identity.accountEmail(actor)).toEqual({ email: "sari@contoh.id", verified: true });
+
+    await identity.saveEmail(actor, { email: "lain@contoh.id" });
+    expect(await identity.accountEmail(actor)).toEqual({ email: "lain@contoh.id", verified: false });
+    const sends = email.sent.length;
+    await identity.requestEmailLogin({ email: "sari@contoh.id", ip: "198.51.100.40" });
+    setup.clock.advance({ minutes: 1 });
+    await identity.requestEmailLogin({ email: "lain@contoh.id", ip: "198.51.100.41" });
+    expect(email.sent).toHaveLength(sends);
+  });
+
+  it("a Pemesan may remove the email, which clears the mark; an Akun Staf keeps a required email", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity, whatsapp } = setup;
+    const { actor } = await pemesanWithEmailTerverifikasi(setup);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+
+    expect(await identity.removeEmail(actor)).toEqual({ ok: true });
+    expect(await identity.accountEmail(actor)).toEqual({ email: null, verified: false });
+
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "petugas_lapangan" });
+    const staff = await logInByOtp(identity, whatsapp, "082222222222");
+    const staffActor = await actorOf(identity, staff.cookies);
+    expect(await identity.removeEmail(staffActor)).toEqual({ ok: false, reason: "email_wajib" });
+    expect(await identity.accountEmail(staffActor)).toEqual({ email: "staf@contoh.id", verified: false });
+  });
 });
 
 /** A Pemesan logged in by WhatsApp who has verified `address` in the profile. */

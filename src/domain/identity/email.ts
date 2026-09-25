@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, eq, isNotNull, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -34,13 +34,36 @@ export async function accountEmail(deps: { db: Database }, by: Actor): Promise<A
 
 export type SaveEmailResult = { ok: true; email: string } | { ok: false; reason: "email_tidak_valid" };
 
-/** The profile's email field: stores the typed email on the Akun, unverified. */
+/**
+ * The profile's email field: stores the typed email on the Akun, unverified.
+ * A different email clears the verified mark; the same email keeps it.
+ */
 export async function saveEmail(deps: EmailDeps, by: Actor, input: { email: string }): Promise<SaveEmailResult> {
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
   const now = deps.clock.now();
-  await deps.db.update(identityUser).set({ contactEmail: email, updatedAt: now }).where(eq(identityUser.id, by.accountId));
+  await deps.db
+    .update(identityUser)
+    .set({
+      contactEmail: email,
+      emailVerifiedAt: sql`case when ${identityUser.contactEmail} = ${email} then ${identityUser.emailVerifiedAt} end`,
+      updatedAt: now,
+    })
+    .where(eq(identityUser.id, by.accountId));
   return { ok: true, email };
+}
+
+export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" };
+
+/** Removes the Akun's email and its verified mark. An Akun Staf must keep one. */
+export async function removeEmail(deps: EmailDeps, by: Actor): Promise<RemoveEmailResult> {
+  if (by.roles.some((role) => role !== "pemesan")) return { ok: false, reason: "email_wajib" };
+  const now = deps.clock.now();
+  await deps.db
+    .update(identityUser)
+    .set({ contactEmail: null, emailVerifiedAt: null, updatedAt: now })
+    .where(eq(identityUser.id, by.accountId));
+  return { ok: true };
 }
 
 export type RequestEmailVerificationResult =

@@ -19,10 +19,12 @@ import { createBetterAuth } from "./better-auth";
 import {
   accountEmail,
   confirmEmailVerification,
+  removeEmail,
   requestEmailVerification,
   saveEmail,
   type AccountEmail,
   type ConfirmEmailVerificationResult,
+  type RemoveEmailResult,
   type RequestEmailVerificationResult,
   type SaveEmailResult,
 } from "./email";
@@ -60,6 +62,7 @@ export type { RequestEmailLoginResult } from "./email-login";
 export type {
   AccountEmail,
   ConfirmEmailVerificationResult,
+  RemoveEmailResult,
   RequestEmailVerificationResult,
   SaveEmailResult,
 } from "./email";
@@ -161,6 +164,8 @@ export interface Identity {
   accountEmail(by: Actor): Promise<AccountEmail>;
   /** The profile's email field: stores the typed email, unverified. */
   saveEmail(by: Actor, input: { email: string }): Promise<SaveEmailResult>;
+  /** Removes the Akun's email and its verified mark (a Pemesan only: an Akun Staf keeps one). */
+  removeEmail(by: Actor): Promise<RemoveEmailResult>;
   /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
   requestEmailVerification(by: Actor, input: { email: string; ip: string }): Promise<RequestEmailVerificationResult>;
   /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
@@ -199,6 +204,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     verifyEmailLogin: (input) => verifyEmailLogin(emailLogin, input),
     accountEmail: (by) => accountEmail(deps, by),
     saveEmail: (by, input) => saveEmail(deps, by, input),
+    removeEmail: (by) => removeEmail(deps, by),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
   };
