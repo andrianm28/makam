@@ -98,7 +98,33 @@ Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
 The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
 (staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
 and enrols an authenticator app for TOTP at once. There is no self-service
-recovery of a lost authenticator; see "Rotating secrets" for resetting TOTP.
+recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
+
+## Resetting an Admin Platform's TOTP (`reset-totp`)
+
+When an Admin Platform loses their authenticator, ops resets it. Confirm who
+is asking first (a call to the number on record, or another Admin Platform
+vouching), then:
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec web node dist/reset-totp.mjs 0812xxxxxxxx --alasan "HP hilang; dikonfirmasi lewat telepon oleh <nama>"
+# [reset-totp] TOTP Admin Platform +62812xxxxxxxx direset dan semua sesinya diakhiri. ...
+```
+
+It clears that Admin Platform's enrolled authenticator and ends every session
+of the Akun, so the next login by OTP must enrol a new authenticator. It
+records an Entri Audit (actor role `ops_cli`, action `akun.totp_reset`, the
+reason, before/after `terdaftar: true` → `false`; never the secret). Exit 0
+reset; exit 1 refused (the number is not an Admin Platform, the reason is
+empty, nothing is enrolled, or the database could not be reached: the message
+names only the error code); exit 2 prints the usage. Locally:
+`npm run reset-totp -- 0812xxxxxxxx --alasan "..."` (with `DATABASE_URL`).
+
+Never delete from `identity_totp` or `identity_session` by hand: that leaves no
+Entri Audit. The Audit Log itself is append-only (the database refuses
+`UPDATE` and `DELETE` on `audit_entry`).
 
 ## Staging deploy
 
@@ -363,7 +389,7 @@ Never paste values into the repo, a ticket or chat.
 |---|---|
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
-| `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then clear the enrolments so each Admin Platform enrols again at its next login: `docker exec -it makam-staging-postgres-1 psql -U makam -d makam -c 'delete from identity_totp;'`. The same `delete ... where account_id = '<akun id>'` resets one Admin Platform who lost their authenticator (record who asked and why). |
+| `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then run `reset-totp` (above) for every Admin Platform with `--alasan "Rotasi TOTP_ENCRYPTION_KEY"`, so each enrols again at its next login. Until it is reset, an Admin Platform cannot pass TOTP under the new key. |
 | Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |

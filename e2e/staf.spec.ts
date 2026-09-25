@@ -40,8 +40,11 @@ async function lastOtp(request: APIRequestContext, to: string): Promise<string> 
 async function masuk(page: Page, request: APIRequestContext, number: { typed: string; canonical: string }) {
   await page.goto("/masuk");
   await page.getByLabel("Nomor WhatsApp").fill(number.typed);
-  await page.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
-  await expect(page.getByTestId("otp-phone-number")).toHaveText(number.canonical);
+  // The stack runs on the system Clock: a number that just had an OTP waits up to 60 s for the next one.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
+    await expect(page.getByTestId("otp-phone-number")).toHaveText(number.canonical, { timeout: 3_000 });
+  }).toPass({ timeout: 75_000, intervals: [5_000] });
   await page.getByLabel("Kode verifikasi").fill(await lastOtp(request, number.canonical));
   await page.getByRole("button", { name: "Masuk" }).click();
 }
@@ -49,6 +52,8 @@ async function masuk(page: Page, request: APIRequestContext, number: { typed: st
 const admin = coldNumber();
 const invitee = coldNumber();
 let adminPage: Page;
+/** The invitee's own browser, signed in as Admin Lokasi and Petugas Lapangan. */
+let inviteePage: Page;
 
 test.beforeAll(async ({ browser }: { browser: Browser }) => {
   const [command, ...args] = SEED_ADMIN;
@@ -111,6 +116,7 @@ test("Admin Platform invites an Admin Lokasi who is also a Petugas Lapangan; the
 
 test("the invitee logs in by OTP, holds both roles, and switches between their menus", async ({ browser, request }) => {
   const page = await (await browser.newContext()).newPage();
+  inviteePage = page;
   await masuk(page, request, invitee);
 
   await expect(page).toHaveURL(/\/staf\/admin-lokasi$/);
@@ -163,7 +169,15 @@ test("Admin Platform moves a Pemesan's Akun to a new number after a KTP check", 
   await expect(pemesan.getByTestId("akun-phone-number")).toHaveText(newNumber.canonical);
 });
 
-test("Admin Platform deactivates the invitee: their login is refused", async ({ browser }) => {
+test("Admin Platform deactivates the invitee: staff access ends, but the number still logs in as a Pemesan", async ({
+  browser,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const staffPage = inviteePage;
+  await staffPage.goto("/staf/admin-lokasi");
+  await expect(staffPage.getByRole("navigation", { name: "Menu Admin Lokasi" })).toBeVisible();
+
   const page = adminPage;
   await page.goto("/staf/admin-platform/staf");
   const row = page.getByRole("row", { name: new RegExp(invitee.canonical.replace("+", "\\+")) });
@@ -171,9 +185,42 @@ test("Admin Platform deactivates the invitee: their login is refused", async ({ 
   await row.getByRole("button", { name: "Nonaktifkan" }).click();
   await expect(row).toContainText("Dinonaktifkan");
 
-  const other = await (await browser.newContext()).newPage();
-  await other.goto("/masuk");
-  await other.getByLabel("Nomor WhatsApp").fill(invitee.typed);
-  await other.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
-  await expect(other.getByText("Akun ini sudah dinonaktifkan")).toBeVisible();
+  // The staff session on the other device no longer grants staff access.
+  await staffPage.goto("/staf/admin-lokasi");
+  await expect(staffPage).toHaveURL(/\/masuk/);
+
+  // The number logs in again as a Pemesan: Akun Saya opens, the staff area does not.
+  const pemesan = await (await browser.newContext()).newPage();
+  await masuk(pemesan, request, invitee);
+  await expect(pemesan).toHaveURL(/\/akun$/);
+  await expect(pemesan.getByTestId("akun-phone-number")).toHaveText(invitee.canonical);
+  await pemesan.goto("/staf");
+  await expect(pemesan).toHaveURL(/\/akun$/);
+  await pemesan.goto("/staf/admin-lokasi");
+  await expect(pemesan).not.toHaveURL(/\/staf\/admin-lokasi/);
+  await expect(pemesan.getByRole("navigation", { name: "Menu Admin Lokasi" })).toHaveCount(0);
+});
+
+test("Admin Platform invites the Dinonaktifkan number again: its next login holds the role again", async ({
+  browser,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  const page = adminPage;
+  await page.goto("/staf/admin-platform/staf");
+  await page.getByLabel("Nomor WhatsApp").fill(invitee.typed);
+  await page.getByLabel("Email").fill("kembali-e2e@contoh.id");
+  await page.getByLabel("Peran").selectOption({ label: "Mitra Jasa" });
+  await page.getByRole("button", { name: "Kirim undangan" }).click();
+  await expect(page.getByRole("status")).toContainText(`Undangan Mitra Jasa terkirim ke ${invitee.canonical}`);
+
+  const staffPage = await (await browser.newContext()).newPage();
+  await masuk(staffPage, request, invitee);
+  await expect(staffPage).toHaveURL(/\/staf\/mitra-jasa$/);
+  await expect(staffPage.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
+
+  await page.reload();
+  const row = page.getByRole("row", { name: new RegExp(invitee.canonical.replace("+", "\\+")) });
+  await expect(row).toContainText("Mitra Jasa");
+  await expect(row).not.toContainText("Dinonaktifkan");
 });
