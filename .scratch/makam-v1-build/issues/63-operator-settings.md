@@ -1,6 +1,6 @@
 # Pengaturan Operator (Operator settings)
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 09
 Spec: Domain modules > 17. Pengaturan Operator; 1. Identity & Access (first Admin Platform is the only seed); Billing > Documents (header); Public site > Content pages (Hubungi Kami); 15. Notifications (inbound auto-reply); stories 5, 72, 183, 188
 
@@ -53,3 +53,4 @@ One Admin Platform–only "Pengaturan Operator" screen for the reference values 
   - New tests: Admin Lokasi, Petugas Lapangan and Mitra Jasa are each refused `change()` with nothing kept or audited; a blank email (and CS WhatsApp) is `isian_wajib`, a non-blank malformed email `email_tidak_valid`. "Who may open the screen" moved to identity's `authorize.test.ts`. `authorize()` has separate `lihat` / `ubah` cases.
   - Refactors: identity exports `writeRefusal(actor, action, resource)` (replaces the unexported `staffWriteRefusal`); the six values come from `operatorSettingsFields` everywhere (types, check, `toValues`, audit snapshot, form values, page, action schema); `OPERATOR_SETTINGS_ENTITY_ID`; lock key `operator_settings.change`; the action reuses `guarded()`'s parsed input.
   - **Verification**: lint 0, typecheck 0, Vitest 26 files / 266 tests (exit 0), `next build` 0, `build:worker` 0, Playwright 17/17 in one run on one fresh `makam-t63` stack (port 3324), then `down -v`. A second seed against that stack reuses the e2e Admin Platform (`fresh: false`). The first `npm test` attempt and the first stack build failed with "No space left on device" (the host disk is shared and was full); both passed on rerun, no code change.
+- 2026-09-25 — Merged to `main` after a two-axis review (mattpocock-skills:code-review) and fixes (unrequested Playwright smoke removed, shared e2e helpers with an idempotent e2e Admin Platform seed, ticket 18 snapshot hand-off corrected, write-path tests for every staff role, consistent `isian_wajib`, one value list, exported `writeRefusal`). Verified in the main session: lint 0, typecheck 0, Vitest 266/266.
