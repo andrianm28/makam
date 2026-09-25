@@ -47,6 +47,23 @@ describe("Admin Lokasi of a Lokasi Mitra", () => {
     expect(await setup.lokasi.adminLokasiOf(adminLokasi, other.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
   });
 
+  it("an Admin Lokasi's view of its Lokasi Mitra holds no bank account; Admin Platform's does", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const bankAccount = { bankName: "BSI", accountNumber: "7123456789", accountHolder: "Yayasan Al-Ikhlas" };
+    await setup.lokasi.changeBankAccount(admin, lokasiMitra.id, { ...bankAccount, reason: null });
+    const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
+
+    const forAdminLokasi = await setup.lokasi.lokasiMitra(adminLokasi, lokasiMitra.id);
+    const forAdmin = await setup.lokasi.lokasiMitra(admin, lokasiMitra.id);
+
+    if (!forAdminLokasi.ok) throw new Error(forAdminLokasi.reason);
+    expect(forAdminLokasi.lokasiMitra).not.toHaveProperty("bankAccount");
+    expect(JSON.stringify(forAdminLokasi)).not.toContain("7123456789");
+    expect(forAdmin).toMatchObject({ ok: true, lokasiMitra: { bankAccount } });
+  });
+
   it("an Admin Lokasi of several Lokasi Mitra gets exactly those for the Lokasi switcher, by name; Admin Platform gets every Lokasi Mitra", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

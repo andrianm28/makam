@@ -45,8 +45,11 @@ export interface LokasiMitra {
   facilities: { checked: LokasiFacility[]; note: string };
   status: LokasiMitraStatus;
   agreement: { signedOn: string | null; scanUploaded: boolean };
-  /** Where Pencairan go; only Admin Platform sets it. */
-  bankAccount: BankAccount | null;
+  /**
+   * Where Pencairan go (null until set). Admin Platform only: it sets it, and
+   * only its reads carry it; an Admin Lokasi's read has no `bankAccount`.
+   */
+  bankAccount?: BankAccount | null;
   documentChecklist: string[];
   policies: LokasiPolicies;
   flags: LokasiFlags;
@@ -123,14 +126,16 @@ export async function createLokasiMitra(
 
 export type LokasiMitraResult = { ok: true; lokasiMitra: LokasiMitra } | WriteRefusal | NotFound;
 
-/** One Lokasi Mitra's record, for an actor allowed to see it. */
+/** One Lokasi Mitra's record, for an actor allowed to see it; the bank account only for Admin Platform. */
 export async function readLokasiMitra(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<LokasiMitraResult> {
   const refusal = writeRefusal(by, "lokasi.lihat", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!row) return { ok: false, reason: "tidak_ditemukan" };
-  return { ok: true, lokasiMitra: toLokasiMitra(row) };
+  const lokasiMitra = toLokasiMitra(row);
+  if (writeRefusal(by, "lokasi.lihat_rekening", lokasiMitraResource(lokasiId))) delete lokasiMitra.bankAccount;
+  return { ok: true, lokasiMitra };
 }
 
 /** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher). */
