@@ -13,3 +13,7 @@ This corrects the last sentence of the amendment above ("`dev.makam.co.id` is un
 
 - **`dev.makam.co.id` now serves v1 staging** (compose project `makam-staging`) behind HTTP basic auth, replacing the frozen Laravel app's dev environment there, as the user approved on 2026-09-25. The old block (proxy to 127.0.0.1:8081) is backed up verbatim on the host and the old dev containers keep running, so the rollback is an nginx restore and reload (`docs/ops/runbook.md`). Only `/api/health` (uptime monitor) and `/api/webhooks/sumopod` (Svix-signed) skip basic auth.
 - **Deploys are pull-based, not pushed by CI.** CI builds and pushes `ghcr.io/andrianm28/makam` (`latest` and `sha-<commit>`, from `main` only, after the checks pass) and never connects to the VPS. On the host, a systemd timer runs `makam-deploy`, which pulls the image with a read-only `read:packages` token, runs `migrate`, and runs `up` only if the migration succeeded. We chose this over CI deploying over SSH because it keeps no deploy key or host secret in GitHub and needs no inbound access to the shared machine. Accepted cost: a deploy lands up to about 2 minutes after the image is pushed, and a failed deploy shows up in the host's journal and `deploy.log` rather than in the CI run. Production (ticket 65) deploys an explicit tag with the same script instead of following the timer.
+
+## Amendment (2026-09-25, later): staging is public
+
+`dev.makam.co.id` serves v1 staging **without** HTTP basic auth (user decision). It stays unindexed via `X-Robots-Tag`.
