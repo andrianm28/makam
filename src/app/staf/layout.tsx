@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { keluar } from "@/app/akun/actions";
+import { KeluarButton } from "@/app/akun/keluar-button";
 import { PushPanel } from "./push-panel";
 
 export const metadata: Metadata = {
@@ -28,11 +27,7 @@ export default function StafLayout({ children }: LayoutProps<"/staf">) {
             <Link href="/akun" className="text-sm underline underline-offset-4">
               Akun Saya
             </Link>
-            <form action={keluar}>
-              <Button type="submit" variant="outline" size="sm">
-                Keluar
-              </Button>
-            </form>
+            <KeluarButton size="sm" />
           </div>
         </div>
       </header>

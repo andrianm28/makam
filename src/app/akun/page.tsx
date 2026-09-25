@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { currentActor } from "@/server/session";
 import { heldStaffRoles } from "@/server/staff-area";
-import { keluar } from "./actions";
+import { KeluarButton } from "./keluar-button";
 
 export const metadata: Metadata = {
   title: "Akun Saya | Makam.co.id",
@@ -39,11 +38,7 @@ export default async function AkunSayaPage() {
               Area staf
             </Link>
           ) : null}
-          <form action={keluar}>
-            <Button type="submit" variant="outline">
-              Keluar
-            </Button>
-          </form>
+          <KeluarButton />
         </div>
       </header>
 

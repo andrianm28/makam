@@ -1,10 +1,10 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { STAFF_AREA_PATH } from "@/lib/staff-area-path";
 import { aktifkanPush, matikanPush } from "./push-actions";
-
 
 /** Chromium's install prompt event (not in the DOM typings). */
 interface BeforeInstallPromptEvent extends Event {
@@ -74,22 +74,11 @@ export function PushPanelClient({ vapidPublicKey, knownEndpoints }: { vapidPubli
       const subscription = await registration.pushManager.getSubscription();
       if (cancelled) return;
       setChecked("siap");
-      // A browser drops its subscription when notification permission is revoked, so a subscription means push is on.
-      if (!subscription) {
-        setEndpoint(null);
-        return;
-      }
-      // This browser has push, but the Akun does not know it yet (another Akun Staf used it, or the browser renewed it).
-      if (!known.split("\n").includes(subscription.endpoint)) {
-        const result = await aktifkanPush(subscription.toJSON());
-        if (cancelled) return;
-        if (!result.ok) {
-          setEndpoint(null);
-          return;
-        }
-      }
-      setEndpoint(subscription.endpoint);
-    })().catch(() => {
+      // Push is on here only if this browser has a subscription and the Akun has it as a live Perangkat Push:
+      // one left from an ended session (Keluar, another Akun Staf) stays off until turned on again.
+      setEndpoint(subscription && known.split("\n").includes(subscription.endpoint) ? subscription.endpoint : null);
+    })().catch((error: unknown) => {
+      Sentry.captureException(error, { tags: { step: "push_check" } });
       if (!cancelled) setChecked("gagal");
     });
     return () => {
@@ -123,7 +112,8 @@ export function PushPanelClient({ vapidPublicKey, knownEndpoints }: { vapidPubli
         return;
       }
       setEndpoint(subscription.endpoint);
-    } catch {
+    } catch (error) {
+      Sentry.captureException(error, { tags: { step: "push_aktifkan" } });
       setMessage("Notifikasi push tidak bisa diaktifkan di browser ini.");
     } finally {
       setBusy(false);
