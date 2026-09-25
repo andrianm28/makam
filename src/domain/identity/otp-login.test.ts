@@ -49,6 +49,7 @@ describe("Pemesan OTP login over WhatsApp", () => {
       accountId: login.account.id,
       phoneNumber: "+6281234567890",
       roles: ["pemesan"],
+      totp: "tidak_perlu",
     });
   });
 

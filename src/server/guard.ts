@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { authorize, type Action, type Actor, type Resource } from "@/domain/identity";
 import { currentActor } from "./session";
 
-export type GuardError = "belum_masuk" | "tidak_berwenang" | "input_tidak_valid";
+export type GuardError = "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid";
 
 export type Guarded<R> = { ok: true; value: R } | { ok: false; error: GuardError };
 

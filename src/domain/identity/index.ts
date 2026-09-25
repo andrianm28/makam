@@ -20,12 +20,18 @@ export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
 export {
   akunResource,
+  auditLogResource,
   authorize,
+  stafMenuResource,
+  stafResource,
+  staffRoles,
   type Action,
   type Actor,
   type Authorization,
   type Resource,
   type Role,
+  type StaffRole,
+  type TotpStatus,
 } from "./authorize";
 
 export interface IdentityDeps {

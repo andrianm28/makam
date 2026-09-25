@@ -64,7 +64,7 @@ export async function actorFromCookies(
 
   const phoneNumber = (found.user as { phoneNumber?: string | null }).phoneNumber;
   if (!phoneNumber) return null;
-  return { accountId: found.user.id, phoneNumber, roles: ["pemesan"] };
+  return { accountId: found.user.id, phoneNumber, roles: ["pemesan"], totp: "tidak_perlu" };
 }
 
 /** The session token from a signed `makam.session_token` cookie, if the signature holds. */
