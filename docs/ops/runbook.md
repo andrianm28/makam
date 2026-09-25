@@ -71,6 +71,8 @@ to run unless the first three match `--env`:
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
 | `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and OTP |
 | `TOTP_ENCRYPTION_KEY` | secret, `openssl rand -base64 32` (exactly 32 bytes) | encrypts Admin Platform TOTP secrets at rest; **required from ticket 09 on**: without it `migrate`, `web` and `worker` refuse to start |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
+| `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
 | `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
@@ -421,6 +423,7 @@ Never paste values into the repo, a ticket or chat.
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
 | `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then run `reset-totp` (above) for every Admin Platform with `--alasan "Rotasi TOTP_ENCRYPTION_KEY"`, so each enrols again at its next login. Until it is reset, an Admin Platform cannot pass TOTP under the new key. |
 | `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. WhatsApp is unaffected. |
 | Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |
@@ -464,9 +467,10 @@ file alone never changes an existing database's password.
 `/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_PROJECT=makam-prod`,
 `MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
 `MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
-`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, `SENTRY_DSN` from
-`dsn-makam-prod-internal.txt`, and the SumoPod SMTP settings (`SMTP_USER`,
-`SMTP_PASSWORD`, `EMAIL_FROM`; required, see the `staging.env` table). Copy the compose file to
+`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, a VAPID pair with
+`VAPID_SUBJECT`, `SENTRY_DSN` from `dsn-makam-prod-internal.txt`, and the
+SumoPod SMTP settings (`SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`; required, see
+the `staging.env` table). Copy the compose file to
 `/opt/makam-v1/prod/compose.yml` and deploy with
 `makam-deploy --env prod --tag sha-<commit>`. Production should deploy an
 explicit tag rather than follow `:latest` on a timer. Seed the first Admin
