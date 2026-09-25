@@ -14,8 +14,12 @@ describe("WhatsApp number normalisation (one number, one account)", () => {
     expect(normalisePhoneNumber(typed)).toEqual({ ok: true, phoneNumber: "+6281234567890" });
   });
 
-  it("keeps a number from another country written with its + prefix", () => {
-    expect(normalisePhoneNumber("+60 12-345 6789")).toEqual({ ok: true, phoneNumber: "+60123456789" });
+  it.each([
+    ["+65 9123 4567", "Singapore"],
+    ["+60 12-345 6789", "Malaysia"],
+    ["+1 415 555 2671", "the United States"],
+  ])("refuses %s: v1 takes only Indonesian (+62) WhatsApp numbers (%s)", (typed) => {
+    expect(normalisePhoneNumber(typed)).toEqual({ ok: false, reason: "nomor_bukan_indonesia" });
   });
 
   it.each([

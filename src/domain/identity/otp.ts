@@ -45,7 +45,7 @@ export type RequestOtpResult =
       /** When the OTP screen shows its fallback slot ("Kirim lewat email", ticket 60). */
       fallbackAt: Date;
     }
-  | { ok: false; reason: "nomor_tidak_valid" | "gagal_kirim" }
+  | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" }
   | { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
 export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {

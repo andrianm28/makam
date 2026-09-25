@@ -28,6 +28,8 @@ export function otpMessage(reason: string, retryAt?: Date, now?: Date): string {
   switch (reason) {
     case "nomor_tidak_valid":
       return "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890.";
+    case "nomor_bukan_indonesia":
+      return "Gunakan nomor WhatsApp Indonesia (+62).";
     case "tunggu_kirim_ulang":
       return `Kode baru bisa dikirim ${wait || "sebentar lagi"}.`;
     case "terlalu_sering":
