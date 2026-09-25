@@ -31,7 +31,7 @@ export {
 export { PEMESAN_SESSION_MS } from "./better-auth";
 export type { Account, VerifyOtpResult } from "./login";
 export type { SessionCookie } from "./sessions";
-export type { Actor, Role } from "./authorize";
+export { authorize, type Action, type Actor, type Authorization, type Resource, type Role } from "./authorize";
 
 export interface IdentityDeps {
   db: Database;
