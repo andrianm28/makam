@@ -233,3 +233,17 @@ _Avoid_: Payout, settlement, transfer
 **Harga Khusus**:
 A price set by hand by Admin Platform on a single order, replacing the normal price for a family in hardship.
 _Avoid_: Diskon, voucher, keringanan (as the record)
+
+### Operations
+
+**Antrean**:
+The Admin Platform's single list of open work, one row per task that an order, job, payment or Lokasi currently needs; a row closes itself when that thing's state moves on.
+_Avoid_: Inbox, tiket, to-do
+
+**Bertugas**:
+An Admin Platform who has marked themselves on duty and so receives urgent alerts; the rota behind it lives outside the platform.
+_Avoid_: Piket, shift, on-call (as the term)
+
+**Catatan Internal**:
+A staff-only note on an order, job or Antrean row, used to hand work over; never shown to the Pemesan or Mitra Jasa.
+_Avoid_: Komentar, memo
