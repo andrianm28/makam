@@ -1,9 +1,11 @@
 import type { Breadcrumb, ErrorEvent, EventHint, Options } from "@sentry/core";
 
 /**
- * PII scrubbing for Sentry (spec: Architecture; Data and privacy decisions).
- * Sentry is one of only two data flows out of Indonesia, so nothing personal
- * goes there: no request bodies, no phone numbers, no files, no cookies.
+ * PII scrubbing for error monitoring (spec: Architecture; Data and privacy
+ * decisions). Errors go through the Sentry SDK to self-hosted GlitchTip in
+ * Jakarta, so events stay on this host; the only data flow out of Indonesia is
+ * WhatsApp (Meta, via kirim.dev). Error events still get nothing personal: no
+ * request bodies, no phone numbers, no files, no cookies.
  *
  * Shared by the web server, the browser and the worker.
  */
