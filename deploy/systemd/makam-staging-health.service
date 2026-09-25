@@ -9,3 +9,9 @@ Type=oneshot
 User=ubuntu
 Group=ubuntu
 ExecStart=/opt/makam-v1/bin/makam-healthcheck https://dev.makam.co.id/api/health
+
+# Hardening. It only runs curl, jq and logger (/dev/log); it writes nothing.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

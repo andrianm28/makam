@@ -10,3 +10,12 @@ User=ubuntu
 Group=ubuntu
 ExecStart=/opt/makam-v1/bin/makam-deploy --env staging
 TimeoutStartSec=15min
+
+# Hardening. It still needs the docker socket (/run/docker.sock, a socket, so a
+# read-only /run does not block it), ~/.docker/config.json for the ghcr login
+# (read-only home is enough) and write access to /opt/makam-v1.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/makam-v1
