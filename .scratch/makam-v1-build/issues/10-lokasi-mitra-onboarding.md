@@ -19,3 +19,8 @@ The Lokasi module's Lokasi Mitra record and the Admin Platform onboarding screen
 - [ ] Admin Lokasi with several Lokasi switch between them; every Admin Lokasi screen is scoped to the current Lokasi.
 - [ ] Admin Lokasi sees the audit log for its Lokasi, including Admin Platform's changes to tariffs, bank account and status, with Catatan Internal and Antrean claims hidden.
 - [ ] Tests: defaults; bank account change restricted to Admin Platform and audited; Admin Lokasi scoping (cannot read another Lokasi); audit view filter.
+
+## Decisions (2026-09-25, user, from review)
+
+- "Pemesanan Terencana aktif" stays locked (shown disabled, refused by the server) until tickets 13 and 16 add the Denah and Cek Denah conditions.
+- The agreement scan is **Admin Platform only**; Admin Lokasi cannot mint its signed link.
