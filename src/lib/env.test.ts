@@ -142,6 +142,20 @@ describe("PdfRenderer environment", () => {
   });
 });
 
+describe("FileStore environment (host disk, ticket 60)", () => {
+  it("defaults FILES_ROOT to the private volume's mount point", () => {
+    expect(readRuntimeEnv({ DATABASE_URL }).FILES_ROOT).toBe("/data/files");
+  });
+
+  it("follows an explicit FILES_ROOT", () => {
+    expect(readRuntimeEnv({ DATABASE_URL, FILES_ROOT: "/mnt/other" }).FILES_ROOT).toBe("/mnt/other");
+  });
+
+  it("refuses a relative FILES_ROOT", () => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, FILES_ROOT: "files" })).toThrow(/FILES_ROOT/);
+  });
+});
+
 describe("EmailSender environment (SumoPod SMTP relay)", () => {
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
 

@@ -46,7 +46,7 @@ const refusalMessages: Record<LokasiRefusal, string> = {
   rekening_tidak_valid: "Isi bank, nomor rekening (angka saja) dan nama pemilik rekening.",
   berkas_tidak_didukung: "Scan perjanjian harus PDF, JPG atau PNG (isi berkas diperiksa), paling besar 10 MB.",
   tanggal_tidak_valid: "Isi tanggal perjanjian.",
-  berkas_gagal_disimpan: "Scan tidak bisa disimpan. Penyimpanan berkas belum tersedia di lingkungan ini. Data perjanjian belum berubah.",
+  berkas_gagal_disimpan: "Scan tidak bisa disimpan. Penyimpanan berkas sedang bermasalah, coba lagi. Data perjanjian belum berubah.",
   email_wajib: "Email wajib diisi untuk setiap staf.",
   email_tidak_valid: "Email tidak valid.",
   lokasi_wajib: "Pilih Lokasi Mitra untuk Admin Lokasi ini.",

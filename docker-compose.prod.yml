@@ -93,6 +93,12 @@ services:
       # Behind the host's reverse proxy; never exposed directly.
       - "127.0.0.1:${MAKAM_WEB_PORT:?set MAKAM_WEB_PORT}:3000"
     networks: [default, glitchtip]
+    volumes:
+      # The FileStore (ticket 60, ADR 0002 beta UAT amendment): private,
+      # makam-only, never mounted into nginx or any other service. Files leave
+      # only through the app's own short-lived signed URLs
+      # (/api/files/[...key]), never a bind mount or a static route.
+      - files:/data/files
     # Liveness only: any HTTP answer from /api/health counts (it is 503 until
     # the worker's first heartbeat). `up --wait` waits for this.
     healthcheck:
@@ -118,6 +124,8 @@ services:
     <<: *app
     command: ["node", "dist/worker.mjs"]
     networks: [default, glitchtip]
+    volumes:
+      - files:/data/files
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,3 +147,7 @@ networks:
 
 volumes:
   pgdata:
+  # The private FileStore (ticket 60): backed up nightly by
+  # deploy/bin/makam-backup-files, kept 7 days on the host alongside the
+  # database's own nightly dump (ticket 64, beta scope).
+  files:

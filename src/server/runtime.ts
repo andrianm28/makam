@@ -52,6 +52,9 @@ export function serverRuntime(): ServerRuntime {
       sumopod: env.sumopod,
       vapid: env.vapid,
       chromiumPath: env.CHROMIUM_PATH,
+      authSecret: env.AUTH_SECRET,
+      filesRoot: env.FILES_ROOT,
+      appBaseUrl: env.APP_BASE_URL,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const reportError: ReportError = (error, context) => Sentry.captureException(error, context);

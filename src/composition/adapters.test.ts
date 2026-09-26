@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import { SystemClock } from "@/adapters/live/system-clock";
 import {
   FakeEmailSender,
@@ -8,6 +11,7 @@ import {
   FakeWebPush,
 } from "@/adapters/memory";
 import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
+import { DiskFileStore } from "@/adapters/live/disk-file-store";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import { SumopodPaymentProvider } from "@/adapters/live/sumopod-payment-provider";
@@ -138,6 +142,52 @@ describe("composition root", () => {
 
   it.each(["development", "test"] as const)("keeps the fake PdfRenderer in %s", (appEnv) => {
     expect(createAdapters({ appEnv }).pdf).toBeInstanceOf(FakePdfRenderer);
+  });
+
+  it.each(["staging", "production"] as const)(
+    "wires the live host-disk FileStore in %s (no more 'not configured')",
+    (appEnv) => {
+      expect(createAdapters({ appEnv, vapid: VAPID }).files).toBeInstanceOf(DiskFileStore);
+    },
+  );
+
+  it.each(["development", "test"] as const)("keeps the fake FileStore in %s, even with disk settings given", (appEnv) => {
+    expect(
+      createAdapters({ appEnv, filesRoot: "/tmp/should-be-ignored", authSecret: "ignored", appBaseUrl: "https://example.test" })
+        .files,
+    ).toBeInstanceOf(FakeFileStore);
+  });
+
+  describe("the live FileStore's wiring", () => {
+    const cleanups: (() => Promise<void>)[] = [];
+    afterEach(async () => {
+      while (cleanups.length) await cleanups.pop()!();
+    });
+    async function tempRoot(): Promise<string> {
+      const root = await mkdtemp(path.join(tmpdir(), "makam-adapters-"));
+      cleanups.push(() => rm(root, { recursive: true, force: true }));
+      return root;
+    }
+
+    it.each(["staging", "production"] as const)(
+      "signs URLs on the given appBaseUrl's origin, from the given root, in %s",
+      async (appEnv) => {
+        const root = await tempRoot();
+        const { files } = createAdapters({
+          appEnv,
+          vapid: VAPID,
+          filesRoot: root,
+          authSecret: "a-test-auth-secret-at-least-32-bytes-long",
+          appBaseUrl: "https://dev.makam.co.id/",
+        });
+
+        await files.put({ key: "a.jpg", body: new Uint8Array([1]), contentType: "image/jpeg" });
+        const url = await files.signedUrl("a.jpg", { expiresInSeconds: 60 });
+
+        expect(new URL(url).origin).toBe("https://dev.makam.co.id");
+        expect(new URL(url).pathname).toBe("/api/files/a.jpg");
+      },
+    );
   });
 
   it("lets a test inject its own Clock and fakes", () => {
