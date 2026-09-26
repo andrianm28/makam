@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Rupiah } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
-import { billingWithOperatorSettings, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
+import { billingWithOperatorSettings, insertOverCapTagihanForTest, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { scheduledTicks } from "@/domain/scheduler";
 import { lapsePayFirstTagihanTick, type IssueTagihanInput, type PaymentEffect, type SettledPayment } from "./index";
@@ -83,6 +83,14 @@ describe("Bayar", () => {
     await lapsePayFirstTagihanTick({ db }, setup.clock.now());
 
     expect(await setup.billing.bayar(tagihan.link)).toEqual({ ok: false, reason: "tagihan_dibatalkan" });
+    expect(setup.payments.created).toEqual([]);
+  });
+
+  it("a Tagihan above the QRIS cap (Rp 10.000.000) can't be paid through Bayar", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const overCap = await insertOverCapTagihanForTest(db, 10_000_001, setup.clock.now());
+
+    expect(await setup.billing.bayar(overCap.link)).toEqual({ ok: false, reason: "melebihi_batas_qris" });
     expect(setup.payments.created).toEqual([]);
   });
 

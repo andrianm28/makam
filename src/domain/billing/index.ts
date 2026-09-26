@@ -58,7 +58,7 @@ export type { PaymentEffect, SettledPayment } from "./settlement";
 export type { NotPayable } from "./settlement";
 export type { BayarResult, PaymentWebhookResult, PembayaranPerluDitinjau, WebhookReviewReason } from "./payment";
 export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
-export { documentLinkSchema, type DocumentHeader, type PaymentMethod } from "./shared";
+export { documentLinkSchema, QRIS_PAYMENT_CAP, withinPaymentCap, type DocumentHeader, type PaymentMethod } from "./shared";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
