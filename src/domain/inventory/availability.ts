@@ -2,7 +2,8 @@
  * Availability (spec, Inventory > Denah): the count of cleared Tersedia units
  * per Jenis Makam of a Lokasi Mitra, a Kavling Keluarga counting as one unit.
  * "Cleared" excludes a Petak still Perlu Verifikasi, even though its derived
- * status (no Hak Pakai yet) is nominally Tersedia.
+ * status (no Hak Pakai yet) is nominally Tersedia, and a Kavling Keluarga any
+ * of whose member Petak is still Perlu Verifikasi.
  */
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
@@ -34,11 +35,14 @@ export async function availability(db: Database, lokasiId: string): Promise<Avai
   }
 
   const membersByKavling = new Map<string, number>();
+  const unclearedKavling = new Set<string>();
   for (const petak of petakRows) {
     if (!petak.kavlingId) continue;
     membersByKavling.set(petak.kavlingId, (membersByKavling.get(petak.kavlingId) ?? 0) + 1);
+    if (petak.perluVerifikasi) unclearedKavling.add(petak.kavlingId);
   }
   for (const kavling of kavlingRows) {
+    if (unclearedKavling.has(kavling.id)) continue;
     const status = deriveKavlingStatus({ hakPakai: forStatus(byKavling.get(kavling.id) ?? null), totalPetak: membersByKavling.get(kavling.id) ?? 0, petakWithPemakaman: 0 });
     if (status === "tersedia") bump(kavling.jenisMakamId);
   }

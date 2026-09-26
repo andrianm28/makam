@@ -242,7 +242,7 @@ describe("clearing a Kavling Keluarga", () => {
     expect(result).toEqual({ ok: false, reason: "petak_bukan_anggota_kavling" });
   });
 
-  it("clearing a Kavling Tersedia clears every member Petak's Perlu Verifikasi", async () => {
+  it("a Kavling Keluarga counts in availability only once cleared Tersedia, which clears every member Petak's Perlu Verifikasi", async () => {
     const setup = inventoryOnTestDatabase(db);
     const fixture = await denahFixture(setup);
     const blok = await newBlok(setup, fixture, { rows: 1, cols: 2 });
@@ -253,8 +253,13 @@ describe("clearing a Kavling Keluarga", () => {
     });
     if (!created.ok) throw new Error("unreachable");
 
+    const availableCount = async () =>
+      (await setup.inventory.asStaff(fixture.adminLokasi).availability(fixture.lokasiMitra.id)).find((row) => row.jenisMakamId === fixture.jenisMakam.id)?.count ?? 0;
+    expect(await availableCount()).toBe(0);
+
     const result = await setup.inventory.clearKavling(fixture.adminLokasi, fixture.lokasiMitra.id, created.kavlingId, { mode: "tersedia" });
     expect(result).toEqual({ ok: true, hakPakaiId: null });
+    expect(await availableCount()).toBe(1);
 
     const denah = await setup.inventory.asStaff(fixture.adminLokasi).blok(fixture.lokasiMitra.id, blok.id);
     expect(denah?.kavling[0]).toMatchObject({ status: "tersedia" });
