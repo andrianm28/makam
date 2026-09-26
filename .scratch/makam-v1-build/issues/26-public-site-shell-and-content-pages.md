@@ -6,7 +6,7 @@ Spec: Public site and routing decisions (Home, Content pages); stories 1, 2, 3, 
 
 ## What to build
 
-The public site's frame and static content: the homepage with the headline "Layanan Pemakaman Lebih Mudah, Jelas, dan Terpercaya.", the Saat Duka hero ("Keluarga baru saja wafat" first) and a separate "Siapkan makam untuk nanti" entry, the tile row (Perpanjang Makam, Layanan Makam, Urus di TPU DKI, Wakaf Tanah), the trust strip ("Lokasi terverifikasi · Harga transparan · Bantuan administrasi") linking to Cara Kami Bekerja, the top bar and the mobile menu drawer with the same items, the WhatsApp CS button on every page, the footer, and the content pages Tentang Kami, Cara Kami Bekerja, FAQ and Hubungi Kami.
+The public site's frame and static content: the homepage with the headline "Urus Pemakaman dengan Tenang, dalam Satu Platform." (brand master message, spec amended 2026-09-26), the Saat Duka hero ("Keluarga baru saja wafat" first) and a separate "Siapkan makam untuk nanti" entry, the tile row (Perpanjang Makam, Layanan Makam, Urus di TPU DKI, Wakaf Tanah), the trust strip ("Lokasi terverifikasi · Harga transparan · Bantuan administrasi") linking to Cara Kami Bekerja, the top bar and the mobile menu drawer with the same items, the WhatsApp CS button on every page, the footer, and the content pages Tentang Kami, Cara Kami Bekerja, FAQ and Hubungi Kami.
 
 ## Acceptance criteria
 
