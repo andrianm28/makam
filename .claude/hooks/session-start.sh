@@ -12,10 +12,17 @@ if [ ! -d node_modules ]; then
 fi
 
 # Docker: Vitest starts a Postgres 18 test container (the image's Postgres 16 is not used).
+# The environment's setup script may already be starting dockerd/containerd: wait for it first,
+# because a second dockerd races it and dies with "timeout waiting for containerd to start".
+if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then
+  if pgrep -x dockerd >/dev/null 2>&1 || pgrep -x containerd >/dev/null 2>&1; then
+    for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
+  fi
+fi
 if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then
   if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=""; fi
-  ($SUDO dockerd >/tmp/makam-dockerd.log 2>&1 &) 
-  for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+  ($SUDO dockerd >/tmp/makam-dockerd.log 2>&1 &)
+  for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && break; sleep 1; done
   docker info >/dev/null 2>&1 || echo "Docker daemon did not start; tests need it (see /tmp/makam-dockerd.log)" >&2
 fi
 # Chromium for the real PdfRenderer test and Playwright: use a system Chrome if present,
@@ -23,7 +30,12 @@ fi
 if [ -z "${CHROMIUM_PATH:-}" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   chrome="$(command -v google-chrome || command -v chromium || true)"
   if [ -z "$chrome" ]; then
-    chrome="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | tail -n 1 || true)"
+    # The cloud image ships Playwright's Chromium under PLAYWRIGHT_BROWSERS_PATH (/opt/pw-browsers);
+    # prefer it, then ~/.cache/ms-playwright; within a directory take the newest version.
+    for dir in ${PLAYWRIGHT_BROWSERS_PATH:+"$PLAYWRIGHT_BROWSERS_PATH"} "$HOME/.cache/ms-playwright"; do
+      chrome="$(ls -d "$dir"/chromium-*/chrome-linux*/chrome 2>/dev/null | sort -V | tail -n 1 || true)"
+      [ -n "$chrome" ] && break
+    done
   fi
   [ -n "$chrome" ] && echo "export CHROMIUM_PATH=\"$chrome\"" >> "$CLAUDE_ENV_FILE"
 fi
