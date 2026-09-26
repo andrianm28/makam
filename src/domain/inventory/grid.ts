@@ -16,6 +16,8 @@ export interface CellRow {
   perluVerifikasi: boolean;
   /** Set once this Petak has ever had a Hak Pakai or Pemakaman (ticket 14); until then always null. */
   firstUsedAt: Date | null;
+  /** The reason an Admin Lokasi manually marked this Petak Tidak Tersedia; only ever set while it has no Hak Pakai. */
+  tidakTersediaReason: string | null;
 }
 
 export interface KavlingRow {
@@ -68,6 +70,7 @@ export async function loadCells(db: Database, blokId: string): Promise<CellRow[]
     kavlingId: row.kavlingId,
     perluVerifikasi: row.perluVerifikasi,
     firstUsedAt: row.firstUsedAt,
+    tidakTersediaReason: row.tidakTersediaReason,
   }));
 }
 

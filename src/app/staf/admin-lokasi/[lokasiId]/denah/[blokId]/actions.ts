@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource, type Actor } from "@/domain/identity";
-import { denahEdges, inventoryPetakKinds } from "@/domain/inventory";
+import { denahEdges, inventoryPetakKinds, kavlingClearingSchema, petakClearingSchema } from "@/domain/inventory";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { denahRefusalMessage } from "../denah-messages";
@@ -138,6 +138,28 @@ export async function removeRowsOrColsAction(input: z.input<typeof removeRowsOrC
     schema: removeRowsOrColsSchema,
     input,
     run: (actor, data) => serverRuntime().inventory.removeRowsOrCols(actor, data.lokasiId, data.blokId, { axis: data.axis, indices: data.indices }),
+  });
+}
+
+const clearPetakSchema = scopeSchema.extend({ petakId: z.uuid(), input: petakClearingSchema });
+
+/** Clears one Petak Makam: Tersedia, Tidak Tersedia (with a reason) or occupied (spec, story 128). */
+export async function clearPetakAction(input: z.input<typeof clearPetakSchema>) {
+  return denahWrite({
+    schema: clearPetakSchema,
+    input,
+    run: (actor, data) => serverRuntime().inventory.clearPetak(actor, data.lokasiId, data.petakId, data.input),
+  });
+}
+
+const clearKavlingSchema = z.object({ lokasiId: z.uuid(), blokId: z.uuid(), kavlingId: z.uuid(), input: kavlingClearingSchema });
+
+/** Clears a whole Kavling Keluarga the same way. */
+export async function clearKavlingAction(input: z.input<typeof clearKavlingSchema>) {
+  return denahWrite({
+    schema: clearKavlingSchema,
+    input,
+    run: (actor, data) => serverRuntime().inventory.clearKavling(actor, data.lokasiId, data.kavlingId, data.input),
   });
 }
 
