@@ -244,3 +244,13 @@ Not changed here (outside the files this change may touch):
 - `docs/ops/runbook.md`, which still says GlitchTip alerts use SES from ticket 03.
 | [69](69-no-ticket-numbers-in-ui-copy.md) | No internal ticket numbers in user-facing copy | resolved | — |
 | [70](70-ops-verify-seeded-email.md) | Ops: mark an Admin Platform's email as Email Terverifikasi from the CLI | resolved | 67 |
+
+## Decisions 2026-09-26 (CI/CD to production)
+
+Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the spec (Architecture, CI/CD). Deploys move from the host's pull timer to GitHub Actions deploy jobs on a self-hosted, outbound-only runner; production promotes the digest already green on staging behind the user's approval; secrets stay on the host; production still waits for ticket 64 and the makam.co.id switch stays in ticket 65.
+
+| # | Title | Status | Blocked by |
+|---|---|---|---|
+| [71](71-ci-e2e-and-image-scan.md) | CI: Playwright critical paths and image scan on every main build | ready-for-agent | 12 |
+| [72](72-deploys-through-github-actions.md) | Deploys through GitHub Actions: self-hosted runner, staging auto-deploy, production promotion | ready-for-agent | 71 |
+| [73](73-image-retention-and-host-disk.md) | Image retention and disk hygiene on the shared host | ready-for-agent | 72 |
