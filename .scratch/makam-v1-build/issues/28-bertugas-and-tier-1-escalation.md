@@ -11,7 +11,7 @@ Admin Platform can switch Bertugas on to receive Tier 1 alerts; who is Bertugas 
 ## Acceptance criteria
 
 - [ ] Bertugas on/off per Admin Platform; the Antrean header lists who is Bertugas now. Switching Bertugas on is refused unless the Admin Platform has at least one active Perangkat Push (ticket 21), with a pointer to turn push on (ADR 0004).
-- [ ] An unanswered Tier 1 alert also raises a call row in the Admin Platform Antrean, so a person phones about it (ADR 0004).
+- [ ] While any Tier 1 row is untaken, a red banner shows in the header of every staff page of every Admin Platform (links to the Antrean); no call row for an unanswered Tier 1 alert (ADR 0004, amended 2026-09-26).
 - [ ] A tick turns Bertugas off at 18:00 WIB or 12 h after it was switched on, whichever comes first; idempotent.
 - [ ] Switching off (by hand) prompts release or a Catatan Internal on each claimed row; auto-off leaves claims and notes the event.
 - [ ] A new Tier 1 row alerts the Bertugas Admin Platform (all Admin Platform if none is Bertugas).
@@ -23,3 +23,4 @@ Admin Platform can switch Bertugas on to receive Tier 1 alerts; who is Bertugas 
 ## Comments
 
 - 2026-09-26 — ADR 0004: Tier 1 alerts are Peringatan Staf by web push + email, not WhatsApp; Bertugas needs at least one active Perangkat Push; an unanswered Tier 1 alert raises a call row (criteria added). Who is called on that row (the Bertugas Admin Platform, or the family) is not settled by ADR 0004; settle it while building.
+- 2026-09-26 — Settled with the user: no call row for an unanswered Tier 1 alert (the platform cannot place calls; whoever missed push and email would miss the row too). Instead the header banner above, plus the existing 30 / 90 min escalation.

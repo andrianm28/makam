@@ -296,3 +296,4 @@ Decided by the user; spec "Release plan". Rilis 1 (go-live): 13–17, 19–33, 3
 |---|---|---|---|
 | [83](83-lean-worktrees-for-four-agents.md) | Lean worktrees: four builder agents on the shared host | ready-for-agent | — |
 
+Also settled 2026-09-26 (user): the Masuk reply is the same for every email (an unknown email creates an Akun once its code is entered); "Telepon Pemesan" is a Tier 2 Admin Platform Antrean row; consent for a burial under an existing Hak Pakai uses a code sent to the recorded email (Rilis 2); an unanswered Tier 1 alert gets a header banner, not a call row (ticket 28).
