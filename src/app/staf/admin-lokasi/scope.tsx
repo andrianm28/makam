@@ -47,7 +47,7 @@ export function LokasiSwitcher({ lokasiMitra, current }: { lokasiMitra: LokasiMi
 export function adminLokasiMenu(lokasiId: string) {
   return [
     { label: "Audit Log", href: `/staf/admin-lokasi/${lokasiId}/audit-log`, description: "Semua perubahan pada Lokasi ini." },
-    { label: "Antrean Lokasi", description: "Segera hadir (tiket 23)." },
-    { label: "Denah", description: "Segera hadir (tiket 13)." },
+    { label: "Antrean Lokasi", description: "Segera hadir." },
+    { label: "Denah", description: "Segera hadir." },
   ];
 }
