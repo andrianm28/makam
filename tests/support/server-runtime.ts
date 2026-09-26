@@ -3,6 +3,7 @@ import { FakeClock, type FakeEmailSender, type FakeWhatsAppSender } from "@/adap
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
+import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { wib } from "@/lib/time/jakarta";
@@ -25,10 +26,25 @@ export function testServerRuntime() {
   if (!holder.__makamRuntime) {
     const env = readRuntimeEnv();
     const database = createDatabase(env.DATABASE_URL, { applicationName: "makam-test-web" });
-    const adapters = createAdapters({ appEnv: env.APP_ENV, overrides: { clock } });
+    const adapters = createAdapters({
+      appEnv: env.APP_ENV,
+      fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
+      smtp: env.smtp,
+      vapid: env.vapid,
+      overrides: { clock },
+    });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters, runDetached: (task) => detached.run(task) });
+    const notifications = createNotifications({
+      db: database.db,
+      clock: adapters.clock,
+      whatsapp: adapters.whatsapp,
+      webPush: adapters.webPush,
+      identity,
+      audit,
+      reportError: () => {},
+    });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-    holder.__makamRuntime = { env, database, adapters, audit, identity, operatorSettings };
+    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, operatorSettings };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();
