@@ -102,7 +102,14 @@ Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
 
 The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
 (staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
-and enrols an authenticator app for TOTP at once. There is no self-service
+and enrols an authenticator app for TOTP at once. Until ticket 62, seed with
+`--email-terverifikasi` instead, so the Admin Platform can log in by email (see
+"Bootstrap: an Admin Platform's Email Terverifikasi" below):
+
+```bash
+$S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id --email-terverifikasi
+# [seed:admin] Admin Platform pertama dibuat: +62812xxxxxxxx (admin@example.co.id, Email Terverifikasi). ...
+``` There is no self-service
 recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
 
 Before launch, the Admin Platform then enters Pengaturan Operator at
@@ -135,6 +142,46 @@ names only the error code); exit 2 prints the usage. Locally:
 Never delete from `identity_totp` or `identity_session` by hand: that leaves no
 Entri Audit. The Audit Log itself is append-only (the database refuses
 `UPDATE` and `DELETE` on `audit_entry`).
+
+## Bootstrap: an Admin Platform's Email Terverifikasi (`verify-email`, `seed:admin --email-terverifikasi`)
+
+**This is the bootstrap path until ticket 62** (the live WhatsApp adapter).
+Before it, no WhatsApp Kode Masuk arrives on staging, and logging in by email
+needs an Email Terverifikasi, which itself needs a login. Anyone who can run
+commands in the `web` container is already fully trusted, so ops may mark an
+**Admin Platform's** email as Email Terverifikasi from the CLI, audited. It is
+never for a Pemesan or any other Akun Staf: they verify their email themselves
+(Verifikasi Email).
+
+For a new install, seed with the flag (see `seed:admin` above). For an Admin
+Platform that already exists (seeded without it), mark the email on record:
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec web node dist/verify-email.mjs 0812xxxxxxxx --alasan "Bootstrap staging sebelum WhatsApp live; oleh <nama>"
+# [verify-email] Email admin@example.co.id milik Admin Platform +62812xxxxxxxx kini Email Terverifikasi. ...
+```
+
+The Admin Platform then chooses "Masuk dengan email" at `/masuk`, enters the
+Kode Masuk sent to that email, and still passes TOTP (enrols it at the first
+login). Neither command logs anyone in or creates any Akun other than the
+seed's own. Each records an Entri Audit: action `akun.email_verifikasi`,
+before/after `terverifikasi: false` → `true`, with the reason; actor role
+`ops_cli` for `verify-email`, `seed_cli` for the seed (its reason is fixed:
+`seed:admin --email-terverifikasi ...`). No code or secret is in it.
+
+`verify-email` exits 0 when marked; exit 1 when refused: the number is not an
+Admin Platform, the reason is empty, the Akun has no email, the email already
+is its Email Terverifikasi, another Akun already has that email as its Email
+Terverifikasi (the database's unique index decides; resolve it through CS
+first), or the database could not be reached (the message names only the error
+code); exit 2 prints the usage. With `--email-terverifikasi`, the seed is
+refused in that last case too, and then creates nothing. Locally:
+`npm run verify-email -- 0812xxxxxxxx --alasan "..."` (with `DATABASE_URL`).
+
+Never set `email_verified_at` by hand: that leaves no Entri Audit and skips
+the Admin-Platform-only rule.
 
 ## Staging deploy
 
