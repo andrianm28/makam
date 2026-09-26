@@ -1,5 +1,5 @@
 {
-  "id": "488cd315-6c63-4fec-9ea3-775ecad4a7af",
+  "id": "c5e64ba1-8829-41aa-b213-682e79c7eeee",
   "prevId": "902bcf75-f5a5-4ea6-92c4-45222ce2c5c7",
   "version": "7",
   "dialect": "postgresql",
@@ -510,7 +510,7 @@
       "checkConstraints": {
         "pembayaran_perlu_ditinjau_reason_check": {
           "name": "pembayaran_perlu_ditinjau_reason_check",
-          "value": "\"pembayaran_perlu_ditinjau\".\"reason\" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'sudah_lunas_dibayar_lagi')"
+          "value": "\"pembayaran_perlu_ditinjau\".\"reason\" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi')"
         },
         "pembayaran_perlu_ditinjau_amount_check": {
           "name": "pembayaran_perlu_ditinjau_amount_check",

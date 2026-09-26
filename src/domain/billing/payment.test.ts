@@ -1,11 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import type { Rupiah } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
-import { billingWithOperatorSettings, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
+import { billingWithOperatorSettings, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { scheduledTicks } from "@/domain/scheduler";
-import { tagihan as tagihanTable } from "./schema";
 import { lapsePayFirstTagihanTick, type IssueTagihanInput, type PaymentEffect, type SettledPayment } from "./index";
 
 const { db, close } = testDatabase();
@@ -120,8 +118,7 @@ describe("Bayar", () => {
       ...terencana,
       moment: { kind: "saat_duka", burialAt: wib("2026-10-01 14:00"), paymentWindowHours: 72 },
     });
-    // Nothing declares Tidak Tertagih yet (the chasing ticket will): set the status the way it will.
-    await db.update(tagihanTable).set({ status: "tidak_tertagih" }).where(eq(tagihanTable.id, tagihan.id));
+    await setTagihanStatusForTest(db, tagihan.id, "tidak_tertagih");
     setup.clock.set(wib("2026-11-15 09:00"));
 
     const payment = await paying(setup, tagihan);
@@ -267,32 +264,93 @@ describe("the payment webhook", () => {
     expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
   });
 
-  it("money received for a lapsed (Dibatalkan) Tagihan does not make it Lunas and is reported for Admin Platform", async () => {
+  it("a pay-first Tagihan paid after its due date, before the lapse tick, is a Pembayaran Perlu Ditinjau, never Lunas", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    // Due at the hold expiry, 2026-10-03 09:00; paid a minute later, and the tick has not run.
+    setup.clock.set(wib("2026-10-03 09:02"));
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-03 09:01") }),
+    );
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "batas_pembayaran_lewat" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(await setup.billing.pembayaranPerluDitinjau()).toEqual([
+      {
+        id: expect.any(String),
+        reason: "batas_pembayaran_lewat",
+        providerPaymentId: payment.providerPaymentId,
+        amount: 5_150_000,
+        channel: "QRIS",
+        paidAt: wib("2026-10-03 09:01"),
+        receivedAt: wib("2026-10-03 09:02"),
+        tagihan: { id: tagihan.id, nomorTagihan: "TGH/2026/000001" },
+      },
+    ]);
+    expect(setup.reportedErrors).toEqual([
+      { error: expect.any(Error), context: { tags: { module: "billing", event: "pembayaran_perlu_ditinjau", reason: "batas_pembayaran_lewat" } } },
+    ]);
+  });
+
+  it("a pay-first Tagihan paid after its due date is a Pembayaran Perlu Ditinjau for being late, also once the tick has cancelled it", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    setup.clock.set(wib("2026-10-03 09:05"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-03 09:01") }),
+    );
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "batas_pembayaran_lewat" });
+  });
+
+  it("a pay-first Tagihan paid before its due date but delivered after the lapse tick is a Pembayaran Perlu Ditinjau", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);
     const payment = await paying(setup, tagihan);
     setup.clock.set(wib("2026-10-03 09:00"));
     await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+    setup.clock.set(wib("2026-10-03 09:03"));
 
-    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-03 08:58") }),
+    );
 
     expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "tagihan_dibatalkan" });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "dibatalkan" });
-    expect(await setup.billing.pembayaranPerluDitinjau()).toEqual([
-      {
-        id: expect.any(String),
-        reason: "tagihan_dibatalkan",
-        providerPaymentId: payment.providerPaymentId,
-        amount: 5_150_000,
-        channel: "QRIS",
-        paidAt: wib("2026-10-03 09:00"),
-        receivedAt: wib("2026-10-03 09:00"),
-        tagihan: { id: tagihan.id, nomorTagihan: "TGH/2026/000001" },
-      },
-    ]);
-    expect(setup.reportedErrors).toEqual([
-      { error: expect.any(Error), context: { tags: { module: "billing", event: "pembayaran_perlu_ditinjau", reason: "tagihan_dibatalkan" } } },
-    ]);
+    expect(await setup.billing.pembayaranPerluDitinjau()).toMatchObject([{ reason: "tagihan_dibatalkan", paidAt: wib("2026-10-03 08:58") }]);
+  });
+
+  it("a pay-first Tagihan paid before its due date and delivered after it, before the lapse tick, is Lunas", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    setup.clock.set(wib("2026-10-03 09:03"));
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-03 08:58") }),
+    );
+
+    expect(received).toMatchObject({ ok: true, outcome: "lunas", bukti: { paidAt: wib("2026-10-03 08:58") } });
+    expect(await setup.billing.pembayaranPerluDitinjau()).toEqual([]);
+  });
+
+  it("a pay-after Tagihan paid long after its due date is Lunas", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup, {
+      ...terencana,
+      moment: { kind: "saat_duka", burialAt: wib("2026-10-01 14:00"), paymentWindowHours: 72 },
+    });
+    setup.clock.set(wib("2026-10-20 10:00"));
+    const payment = await paying(setup, tagihan);
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    expect(received).toMatchObject({ ok: true, outcome: "lunas" });
   });
 
   it("a paid amount that differs from the Tagihan's total does not make it Lunas and is reported", async () => {
@@ -457,5 +515,56 @@ describe("the downstream effects of a payment", () => {
     await issued(setup, { ...terencana, lines: [...terencana.lines, { kind: "penyesuaian_harga_khusus", amount: rp(5_150_000) }] });
 
     expect(methods).toEqual(["tunai", "tanpa_pembayaran"]);
+  });
+});
+
+describe("a manual payment of a pay-first Tagihan", () => {
+  it("paid after its due date is refused, even before the lapse tick, and the Tagihan stays unpaid", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.clock.set(wib("2026-10-03 10:00"));
+
+    const recorded = await setup.billing.recordPayment(tagihan.id, {
+      method: { kind: "transfer_manual" },
+      reference: null,
+      paidAt: wib("2026-10-03 09:30"),
+    });
+
+    expect(recorded).toEqual({ ok: false, reason: "batas_pembayaran_lewat" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+  });
+
+  it("paid before its due date and recorded after it, before the lapse tick, is Lunas with that payment time", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.clock.set(wib("2026-10-03 10:00"));
+
+    const recorded = await setup.billing.recordPayment(tagihan.id, {
+      method: { kind: "transfer_manual" },
+      reference: "TRF-1",
+      paidAt: wib("2026-10-02 15:00"),
+    });
+
+    expect(recorded).toMatchObject({ ok: true, bukti: { paidAt: wib("2026-10-02 15:00"), tagihan: { status: "lunas" } } });
+  });
+
+  it("recorded without a payment time counts as paid now: after the due date it is refused", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.clock.set(wib("2026-10-03 09:01"));
+
+    expect(await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null })).toEqual({
+      ok: false,
+      reason: "batas_pembayaran_lewat",
+    });
+  });
+
+  it("a payment time in the future is refused", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+
+    expect(
+      await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null, paidAt: wib("2026-10-01 12:00") }),
+    ).toEqual({ ok: false, reason: "waktu_pembayaran_tidak_valid" });
   });
 });

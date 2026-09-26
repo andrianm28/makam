@@ -28,7 +28,7 @@ CREATE TABLE "pembayaran_perlu_ditinjau" (
 	"paid_at" timestamp with time zone NOT NULL,
 	"received_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "pembayaran_perlu_ditinjau_event_id_unique" UNIQUE("event_id"),
-	CONSTRAINT "pembayaran_perlu_ditinjau_reason_check" CHECK ("pembayaran_perlu_ditinjau"."reason" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'sudah_lunas_dibayar_lagi')),
+	CONSTRAINT "pembayaran_perlu_ditinjau_reason_check" CHECK ("pembayaran_perlu_ditinjau"."reason" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi')),
 	CONSTRAINT "pembayaran_perlu_ditinjau_amount_check" CHECK ("pembayaran_perlu_ditinjau"."amount" between 0 and 100000000000)
 );
 --> statement-breakpoint

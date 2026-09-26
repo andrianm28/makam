@@ -70,7 +70,9 @@ export type SettleResult =
   | { ok: true; buktiId: string; settled: boolean; reference: string | null }
   | { ok: false; reason: "tidak_ditemukan" }
   /** A Dibatalkan Tagihan (lapsed or replaced) can no longer be paid. */
-  | { ok: false; reason: "tagihan_dibatalkan" };
+  | { ok: false; reason: "tagihan_dibatalkan" }
+  /** Paid after a pay-first Tagihan's due date, when it lapsed. */
+  | { ok: false; reason: "batas_pembayaran_lewat" };
 
 /**
  * Settles a Tagihan in `tx`: it becomes Lunas, gets exactly one Bukti
@@ -95,6 +97,8 @@ export async function settleIn(
       .limit(1);
     return { ok: true, buktiId: existing.id, settled: false, reference: existing.reference };
   }
+  // A pay-first Tagihan lapses at its due date: money paid after it never settles it, whether or not the lapse tick has run.
+  if (row.kind === "pay_first" && payment.paidAt > row.dueAt) return { ok: false, reason: "batas_pembayaran_lewat" };
   if (!PAYABLE.includes(row.status)) return { ok: false, reason: "tagihan_dibatalkan" };
   await tx.update(tagihan).set({ status: "lunas", paidAt: payment.paidAt }).where(eq(tagihan.id, row.id));
   const buktiId = await issueBuktiPembayaranIn(

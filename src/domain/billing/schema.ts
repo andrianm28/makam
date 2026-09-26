@@ -38,6 +38,8 @@ export const reviewReasons = [
   "jumlah_tidak_cocok",
   /** The Tagihan was Dibatalkan (lapsed or replaced) before the money arrived. */
   "tagihan_dibatalkan",
+  /** Paid after a pay-first Tagihan's due date, when it lapsed (whether or not the lapse tick had run). */
+  "batas_pembayaran_lewat",
   /** The Tagihan was already Lunas through another payment: paid twice. */
   "sudah_lunas_dibayar_lagi",
 ] as const;

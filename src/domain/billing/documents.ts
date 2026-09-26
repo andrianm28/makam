@@ -35,6 +35,8 @@ export interface BuktiPembayaran {
 export interface RecordPaymentInput {
   method: PaymentMethod;
   reference: string | null;
+  /** When the money was paid (e.g. the transfer's time on its proof); not in the future. Default: now. */
+  paidAt?: Date;
 }
 
 export type RecordPaymentResult =
@@ -42,11 +44,16 @@ export type RecordPaymentResult =
   | { ok: false; reason: "tidak_ditemukan" }
   /** A Dibatalkan Tagihan (lapsed or replaced) can no longer be paid. */
   | { ok: false; reason: "tagihan_dibatalkan" }
+  /** Paid after a pay-first Tagihan's due date, when it lapsed (whether or not the lapse tick has run). */
+  | { ok: false; reason: "batas_pembayaran_lewat" }
+  /** The payment time is not a time, or is in the future. */
+  | { ok: false; reason: "waktu_pembayaran_tidak_valid" }
   | { ok: false; reason: "baris_tidak_valid" }
   | typeof noHeader;
 
 /**
- * Records the payment of a Tagihan at `now`: it becomes Lunas and gets exactly
+ * Records the payment of a Tagihan, paid at `input.paidAt` (default `now`):
+ * a pay-first Tagihan paid after its due date is refused. It becomes Lunas and gets exactly
  * one Bukti Pembayaran (numbered BYR/…, headed with the Operator's values now
  * in force), and its downstream effects fire in the same transaction.
  * Recording it again returns the same Bukti. The manual and direct payment
@@ -61,10 +68,13 @@ export async function recordPayment(
   const method = paymentMethodSchema.safeParse(input.method);
   if (!method.success) return { ok: false, reason: "baris_tidak_valid" };
   if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
+  const paidAt = z.date().max(now).safeParse(input.paidAt ?? now);
+  if (!paidAt.success) return { ok: false, reason: "waktu_pembayaran_tidak_valid" };
   const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
+  const reference = input.reference?.trim() || null;
   const settled = await refusable(deps.db, (tx) =>
-    settleIn(tx, deps, tagihanId, { method: method.data, reference: input.reference?.trim() || null, header, paidAt: now }, now),
+    settleIn(tx, deps, tagihanId, { method: method.data, reference, header, paidAt: paidAt.data }, now),
   );
   if (!settled.ok) return settled;
   return { ok: true, bukti: await buktiById(deps.db, settled.buktiId) };

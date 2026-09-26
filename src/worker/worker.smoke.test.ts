@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 import { SystemClock } from "@/adapters/live/system-clock";
-import { paymentEffects } from "@/composition/billing";
+import { composeSchedulerContext } from "@/composition/scheduler";
 import { scheduledTicks, workerHeartbeat } from "@/domain/scheduler";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { startWorker, type RunningWorker } from "./runtime";
@@ -31,7 +31,7 @@ describe("pg-boss wiring (smoke)", () => {
 
     worker = await startWorker({
       connectionString: inject("databaseUrl"),
-      context: { db, paymentEffects: paymentEffects(), reportError: () => {} },
+      context: composeSchedulerContext({ db, reportError: () => {} }),
       clock,
       ticks: scheduledTicks,
       // Same registry and wiring as production; only the cadence is faster

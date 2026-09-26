@@ -347,7 +347,7 @@ The Operator's receipt for a settled Tagihan, a separate document from the Tagih
 _Avoid_: Kwitansi, receipt, struk
 
 **Pembayaran Perlu Ditinjau**:
-Money the payment provider reports as paid that Billing could not settle a Tagihan with (the Tagihan was already Dibatalkan, the amount differs, the payment is unknown, or the Tagihan was already Lunas), kept for Admin Platform to resolve, usually by a refund.
+Money the payment provider reports as paid that Billing could not settle a Tagihan with (paid after a pay-first Tagihan's due date, the Tagihan was already Dibatalkan, the amount differs, the payment is unknown, or the Tagihan was already Lunas), kept for Admin Platform to resolve, usually by a refund.
 _Avoid_: Overpayment, unmatched payment, suspense
 
 **Bukti Pengembalian Dana**:

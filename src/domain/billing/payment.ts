@@ -213,7 +213,7 @@ async function actOn(tx: Database, deps: EffectDeps, event: PaymentEvent, header
     },
     now,
   );
-  if (!settled.ok) return review("tagihan_dibatalkan");
+  if (!settled.ok) return review(settled.reason === "batas_pembayaran_lewat" ? "batas_pembayaran_lewat" : "tagihan_dibatalkan");
   if (settled.settled) return { outcome: "lunas", buktiId: settled.buktiId };
   return settled.reference === event.providerPaymentId ? { outcome: "sudah_lunas" } : review("sudah_lunas_dibayar_lagi");
 }

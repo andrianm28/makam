@@ -1,6 +1,8 @@
+import { eq } from "drizzle-orm";
 import { FakePaymentProvider, FakePdfRenderer } from "@/adapters/memory";
 import type { Database } from "@/db/client";
-import { createBilling, type PaymentEffect } from "@/domain/billing";
+import { createBilling, type PaymentEffect, type TagihanStatus } from "@/domain/billing";
+import { tagihan as tagihanTable } from "@/domain/billing/schema";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { identityOnTestDatabase, signedInAdminPlatform } from "./identity";
 
@@ -59,4 +61,13 @@ export async function billingWithOperatorSettings(db: Database, options: Billing
   const changed = await setup.operatorSettings.change(actor, { ...PENGATURAN_OPERATOR, reason: null });
   if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
   return { ...setup, adminPlatform: actor };
+}
+
+/**
+ * Sets a Tagihan's status directly. A stand-in until Tidak Tertagih can be
+ * declared (ticket 29, with Lewat Jatuh Tempo from the chasing rules): that
+ * ticket replaces every use with its public functions.
+ */
+export async function setTagihanStatusForTest(db: Database, tagihanId: string, status: TagihanStatus): Promise<void> {
+  await db.update(tagihanTable).set({ status }).where(eq(tagihanTable.id, tagihanId));
 }
