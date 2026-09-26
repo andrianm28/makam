@@ -25,3 +25,7 @@ The public site's frame and static content: the homepage with the headline "Urus
 ## Notes
 
 Copy needs sign-off from the Operator (ticket 06); placeholders until then.
+
+## Comments
+
+- 2026-09-26 — Decided with the user (spec, "Home" and "imagery"): **prototype first** (after ticket 74 merges) covering the homepage, the Daftar Lokasi card, the Lokasi page and the two Saat Duka wizard screens (tickets 16, 22), desktop and phone, for the user to react to before these tickets are built. Homepage: Forest hero with Lora headline, tagline, Sand "Pesan makam sekarang" (Saat Duka) and the text link "Siapkan makam untuk nanti", beside a warm people photo; four photo tiles; trust strip Dibantu · Jelas · Aman with concrete lines; photographic like kamboja.co.id within the brand guardrails; licensed stock (source and licence recorded) until the Operator's photos exist; the "YIEM" test stays.

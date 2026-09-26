@@ -33,3 +33,7 @@ The TPU section below the cards is ticket 44; hari-H Layanan at checkout is tick
 
 - The email typed on "Data & kirim" is stored **unverified**. It gets Tagihan / Bukti copies through SumoPod SMTP (SES is dropped), but it never enables the "Kirim lewat email" fallback or email login until the Pemesan verifies it ("Verifikasi email" in Akun Saya, ticket 67). The fallback is offered only for an Email Terverifikasi of the number's existing Akun, and it comes from ticket 67, not ticket 60.
 - In the WhatsApp-outage criterion above, "no account with an email" means "no Akun with an Email Terverifikasi".
+
+## Comments
+
+- 2026-09-26 — Decided with the user: variant D of prototype 18 stays the flow; only its styling is new (brand tokens, Plus Jakarta Sans, Forest primary buttons on Ivory, no Lora), settled in the public prototype (ticket 26) before the build.

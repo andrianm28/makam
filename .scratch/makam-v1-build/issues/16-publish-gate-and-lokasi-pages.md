@@ -27,3 +27,7 @@ Layanan prices on the Lokasi page are added by ticket 49; the Ditangguhkan / Ber
 
 - A Lokasi Mitra has **no** Jam Operasional until its Admin Lokasi saves one (no invented default). The publish gate also requires a saved Jam Operasional and a Kontak Siaga, so a confirmation promise is never based on an invented schedule.
 - From ticket 12: `tariffsChecked().changedSinceCheck` exists; decide here whether the gate requires it false.
+
+## Comments
+
+- 2026-09-26 — Decided with the user: the publish gate also requires the tariffs unchanged since their check (`changedSinceCheck` false) at publish time; a later tariff change does not unpublish, it raises an Admin Platform Antrean row "Tarif berubah sejak diperiksa" (ticket 17), and prices always come from `quote()`. Daftar Lokasi card: large rounded card with a Kunjungan Verifikasi photo, name and city, "Terverifikasi · dikunjungi <bulan tahun>" (on every Lokasi Mitra card, so it is not a badge some lack), "mulai Rp X" all-in, up to three facility icons, "Lihat lokasi". Look settled in the public prototype (ticket 26).
