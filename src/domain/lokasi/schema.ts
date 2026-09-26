@@ -40,6 +40,13 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   flags: jsonb("flags").$type<LokasiFlags>().notNull(),
   /** JamOperasional (./working-time.ts), validated before every write; null until set (DEFAULT_JAM_OPERASIONAL applies). */
   jamOperasional: jsonb("jam_operasional").$type<JamOperasional>(),
+  /**
+   * The Kontak Siaga's Akun (identity's id; no foreign key across modules) and
+   * when it was picked. It counts only while that Akun is still Admin Lokasi
+   * here, linked no later than the pick; otherwise a new pick is needed.
+   */
+  kontakSiagaAccountId: text("kontak_siaga_account_id"),
+  kontakSiagaPickedAt: at("kontak_siaga_picked_at"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });

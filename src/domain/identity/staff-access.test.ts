@@ -240,7 +240,7 @@ describe("Undangan Staf", () => {
       lokasiIds: [LOKASI, OTHER],
     });
     expect(await setup.identity.adminLokasiOf(OTHER)).toEqual([
-      { accountId: second.login.account.id, phoneNumber: "+6282222222222", email: "lokasi@contoh.id" },
+      { accountId: second.login.account.id, phoneNumber: "+6282222222222", email: "lokasi@contoh.id", grantedAt: setup.clock.now() },
     ]);
   });
 

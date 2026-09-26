@@ -54,6 +54,14 @@ import {
   type JamOperasionalResult,
   type SetJamOperasionalResult,
 } from "./jam-operasional";
+import {
+  kontakSiagaOf,
+  pickKontakSiaga,
+  readKontakSiaga,
+  type KontakSiaga,
+  type KontakSiagaResult,
+  type PickKontakSiagaResult,
+} from "./kontak-siaga";
 import type { JamOperasional } from "./working-time";
 
 export {
@@ -174,6 +182,12 @@ export interface Lokasi {
   jamOperasional(by: Actor, lokasiId: string): Promise<JamOperasionalResult>;
   /** Its Admin Lokasi (or Admin Platform) sets the Jam Operasional: weekly hours and dated closures, audited. */
   setJamOperasional(by: Actor, lokasiId: string, input: JamOperasional): Promise<SetJamOperasionalResult>;
+  /** This Lokasi Mitra's Kontak Siaga (null until picked, or after its Admin Lokasi was removed), for Admin Platform or its Admin Lokasi. */
+  kontakSiaga(by: Actor, lokasiId: string): Promise<KontakSiagaResult>;
+  /** Its Admin Lokasi (or Admin Platform) picks the Kontak Siaga from the Lokasi's Admin Lokasi, audited. */
+  pickKontakSiaga(by: Actor, lokasiId: string, input: { accountId: string }): Promise<PickKontakSiagaResult>;
+  /** The Kontak Siaga for server code (alerts, the order card): null when a pick is needed. */
+  kontakSiagaOf(lokasiId: string): Promise<KontakSiaga | null>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -196,6 +210,9 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
     jamOperasional: (by, lokasiId) => readJamOperasional(deps, by, lokasiId),
     setJamOperasional: (by, lokasiId, input) => setJamOperasional(deps, by, lokasiId, input),
+    kontakSiaga: (by, lokasiId) => readKontakSiaga(deps, by, lokasiId),
+    pickKontakSiaga: (by, lokasiId, input) => pickKontakSiaga(deps, by, lokasiId, input),
+    kontakSiagaOf: (lokasiId) => kontakSiagaOf(deps, lokasiId),
   };
 }
 export {

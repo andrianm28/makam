@@ -48,12 +48,19 @@ export interface AdminLokasiAccount {
   accountId: string;
   phoneNumber: string;
   email: string | null;
+  /** When this Akun became Admin Lokasi of this Lokasi (a removed and re-invited Akun gets a new time). */
+  grantedAt: Date;
 }
 
 /** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
 export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): Promise<AdminLokasiAccount[]> {
   const rows = await deps.db
-    .select({ accountId: identityUser.id, phoneNumber: identityUser.phoneNumber, email: identityUser.contactEmail })
+    .select({
+      accountId: identityUser.id,
+      phoneNumber: identityUser.phoneNumber,
+      email: identityUser.contactEmail,
+      grantedAt: identityAdminLokasi.grantedAt,
+    })
     .from(identityAdminLokasi)
     .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
     .innerJoin(
@@ -62,7 +69,12 @@ export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): P
     )
     .where(eq(identityAdminLokasi.lokasiId, lokasiId))
     .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
-  return rows.map((row) => ({ accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email }));
+  return rows.map((row) => ({
+    accountId: row.accountId,
+    phoneNumber: row.phoneNumber ?? "",
+    email: row.email,
+    grantedAt: row.grantedAt,
+  }));
 }
 
 export type RemoveAdminLokasiResult =
