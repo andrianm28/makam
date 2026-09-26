@@ -3,7 +3,9 @@ import { FakeClock, type FakeEmailSender, type FakeWhatsAppSender } from "@/adap
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
+import { createBilling } from "@/domain/billing";
 import { createLokasi } from "@/domain/lokasi";
+import { documentPagePath } from "@/lib/document-links";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -48,7 +50,14 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs };
+    const billing = createBilling({
+      db: database.db,
+      clock: adapters.clock,
+      operatorSettings,
+      pdf: adapters.pdf,
+      documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
+    });
+    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs, billing };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();

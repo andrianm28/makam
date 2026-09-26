@@ -119,6 +119,26 @@ describe("runtime environment", () => {
   });
 });
 
+describe("PdfRenderer environment", () => {
+  it("renders with the image's chromium-headless-shell, opening document pages on the web server itself, by default", () => {
+    const env = readRuntimeEnv({ DATABASE_URL });
+    expect(env.CHROMIUM_PATH).toBe("/usr/bin/chromium-headless-shell");
+    expect(env.documentPageOrigin).toBe("http://127.0.0.1:3000");
+  });
+
+  it("follows the web server's PORT, or an explicit DOCUMENT_PAGE_ORIGIN and CHROMIUM_PATH", () => {
+    expect(readRuntimeEnv({ DATABASE_URL, PORT: "3310" }).documentPageOrigin).toBe("http://127.0.0.1:3310");
+    const env = readRuntimeEnv({ DATABASE_URL, DOCUMENT_PAGE_ORIGIN: "http://web:3000/", CHROMIUM_PATH: "/usr/bin/chromium" });
+    expect(env.documentPageOrigin).toBe("http://web:3000");
+    expect(env.CHROMIUM_PATH).toBe("/usr/bin/chromium");
+  });
+
+  it("refuses a relative CHROMIUM_PATH and a DOCUMENT_PAGE_ORIGIN that is no http(s) origin", () => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, CHROMIUM_PATH: "chromium" })).toThrow(/CHROMIUM_PATH/);
+    expect(() => readRuntimeEnv({ DATABASE_URL, DOCUMENT_PAGE_ORIGIN: "file:///tmp" })).toThrow(/DOCUMENT_PAGE_ORIGIN/);
+  });
+});
+
 describe("EmailSender environment (SumoPod SMTP relay)", () => {
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
 

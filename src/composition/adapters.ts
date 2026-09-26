@@ -1,14 +1,14 @@
+import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
 import { notConfigured } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import { createMemoryAdapters } from "@/adapters/memory";
-import { usesInMemoryFakes, type AppEnvironment, type SmtpSettings, type VapidKeys } from "@/lib/env";
+import { DEFAULT_CHROMIUM_PATH, usesInMemoryFakes, type AppEnvironment, type SmtpSettings, type VapidKeys } from "@/lib/env";
 import type { Adapters } from "@/ports";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider } from "@/ports/payment-provider";
-import type { PdfRenderer } from "@/ports/pdf-renderer";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 
 interface CommonAdapterOptions {
@@ -16,6 +16,8 @@ interface CommonAdapterOptions {
   fakePaymentWebhookSecret?: string;
   /** The SumoPod SMTP relay for the live EmailSender (`env.smtp`); ignored in development and test. */
   smtp?: SmtpSettings;
+  /** The headless Chromium the live PdfRenderer runs (`env.CHROMIUM_PATH`); ignored in development and test. */
+  chromiumPath?: string;
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
@@ -56,7 +58,7 @@ export function createAdapters(options: AdapterOptions): Adapters {
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
         webPush: new VapidWebPush({ ...requiredVapid(options), clock }),
         files: notConfigured<FileStore>("FileStore (S3)"),
-        pdf: notConfigured<PdfRenderer>("PdfRenderer"),
+        pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH }),
       };
 
   return { ...base, ...options.overrides };
