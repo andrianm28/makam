@@ -63,6 +63,23 @@ export const tariffGlobalVersion = pgTable(
 );
 
 /**
+ * Owned by the Tariffs module: each time Admin Platform marks a Lokasi Mitra's
+ * tariffs "diperiksa" (checked against the agreement) for the publish gate.
+ * The latest row is the mark in force; rows are never changed or deleted.
+ */
+export const tariffCheck = pgTable(
+  "tariff_check",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    checkedAt: at("checked_at").notNull(),
+    checkedByAccountId: text("checked_by_account_id").notNull(),
+  },
+  (table) => [index("tariff_check_lokasi_idx").on(table.lokasiId, table.seq)],
+);
+
+/**
  * Owned by the Tariffs module: every version of a Lokasi Mitra's Biaya
  * Pemakaman, charged on every Pemakaman there; `biaya_pemakaman_tumpang` is
  * the amount for a tumpang, null when it is the same.

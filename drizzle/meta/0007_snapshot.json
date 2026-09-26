@@ -1,5 +1,5 @@
 {
-  "id": "6d3d0391-bbb1-4ea9-b316-c33874cbbeda",
+  "id": "58f42f3f-1b09-42d6-83b9-fd10df8c40cf",
   "prevId": "e4d2a511-e2af-4f65-8445-7df03d5d0e47",
   "version": "7",
   "dialect": "postgresql",
@@ -1466,6 +1466,72 @@
           "value": "\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman\" >= 0 and (\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" is null or \"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" >= 0)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.tariff_check": {
+      "name": "tariff_check",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_by_account_id": {
+          "name": "checked_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "tariff_check_lokasi_idx": {
+          "name": "tariff_check_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.tariff_global_version": {

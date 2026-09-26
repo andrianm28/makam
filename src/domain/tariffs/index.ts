@@ -4,7 +4,7 @@
  * future; old versions are never changed or deleted.
  *
  * Owns tables: tariff_global_version, tariff_jenis_makam, tariff_jenis_makam_version,
- * tariff_biaya_pemakaman_version.
+ * tariff_biaya_pemakaman_version, tariff_check.
  *
  * Every write is a staff write: it records an Entri Audit through the Audit
  * Log module in the same transaction (with `lokasiId` for a Lokasi Mitra's
@@ -34,6 +34,12 @@ import {
 import { lokasiTariffs, type LokasiTariffs } from "./lokasi-tariffs";
 import { quote, type QuoteLine, type QuoteResult } from "./quote";
 import {
+  markTariffsChecked,
+  tariffsChecked,
+  type MarkTariffsCheckedResult,
+  type TariffsChecked,
+} from "./tariffs-checked";
+import {
   biayaPemakamanVersions,
   setBiayaPemakaman,
   type BiayaPemakamanVersion,
@@ -54,7 +60,10 @@ export type {
   Tenure,
 } from "./jenis-makam";
 export type { JenisMakamPrice, LokasiTariffs, PriceAt } from "./lokasi-tariffs";
-export type { Provider, QuoteLine, QuoteResult, QuotedLine } from "./quote";
+export type { Provider, Quote, QuoteLine, QuoteRefusal, QuoteResult, QuotedLine } from "./quote";
+export type { MarkTariffsCheckedResult, MissingTariff, TariffsChecked } from "./tariffs-checked";
+/** Every global tariff, each its own price book. */
+export { globalTariffKeys as GLOBAL_TARIFF_KEYS } from "./schema";
 export type {
   BiayaPemakaman,
   BiayaPemakamanVersion,
@@ -87,6 +96,10 @@ export interface Tariffs {
   biayaPemakamanHistory(lokasiId: string): Promise<BiayaPemakamanVersion[]>;
   /** The all-in price of a set of lines at `at`: each line priced and attributed, plus the total. */
   quote(lines: readonly QuoteLine[], at: Date): Promise<QuoteResult>;
+  /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" for the publish gate; audited on that Lokasi. */
+  markTariffsChecked(by: Actor, lokasiId: string, input: { reason: string | null }): Promise<MarkTariffsCheckedResult>;
+  /** The latest "tarif diperiksa" mark of a Lokasi Mitra, or null when it was never set. */
+  tariffsChecked(lokasiId: string): Promise<TariffsChecked | null>;
 }
 
 export function createTariffs(deps: TariffDeps): Tariffs {
@@ -101,5 +114,7 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     setBiayaPemakaman: (by, lokasiId, input) => setBiayaPemakaman(deps, by, lokasiId, input),
     biayaPemakamanHistory: (lokasiId) => biayaPemakamanVersions(deps.db, lokasiId),
     quote: (lines, at) => quote(deps.db, lines, at),
+    markTariffsChecked: (by, lokasiId, input) => markTariffsChecked(deps, by, lokasiId, input),
+    tariffsChecked: (lokasiId) => tariffsChecked(deps.db, lokasiId),
   };
 }

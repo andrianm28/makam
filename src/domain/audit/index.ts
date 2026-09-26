@@ -72,6 +72,8 @@ export type AuditAction =
   | "tarif.ubah_jenis_makam"
   /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount). */
   | "tarif.ubah_biaya_pemakaman"
+  /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" (publish gate). */
+  | "tarif.tandai_diperiksa"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */

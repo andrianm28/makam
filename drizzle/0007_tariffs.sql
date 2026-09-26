@@ -11,6 +11,14 @@ CREATE TABLE "tariff_biaya_pemakaman_version" (
 	CONSTRAINT "tariff_biaya_pemakaman_version_amounts_check" CHECK ("tariff_biaya_pemakaman_version"."biaya_pemakaman" >= 0 and ("tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" is null or "tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" >= 0))
 );
 --> statement-breakpoint
+CREATE TABLE "tariff_check" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"seq" bigserial NOT NULL,
+	"lokasi_id" uuid NOT NULL,
+	"checked_at" timestamp with time zone NOT NULL,
+	"checked_by_account_id" text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "tariff_global_version" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"seq" bigserial NOT NULL,
@@ -51,6 +59,7 @@ CREATE TABLE "tariff_jenis_makam_version" (
 --> statement-breakpoint
 ALTER TABLE "tariff_jenis_makam_version" ADD CONSTRAINT "tariff_jenis_makam_version_jenis_makam_id_tariff_jenis_makam_id_fk" FOREIGN KEY ("jenis_makam_id") REFERENCES "public"."tariff_jenis_makam"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "tariff_biaya_pemakaman_version_idx" ON "tariff_biaya_pemakaman_version" USING btree ("lokasi_id","in_force_from","seq");--> statement-breakpoint
+CREATE INDEX "tariff_check_lokasi_idx" ON "tariff_check" USING btree ("lokasi_id","seq");--> statement-breakpoint
 CREATE INDEX "tariff_global_version_key_idx" ON "tariff_global_version" USING btree ("key","in_force_from","seq");--> statement-breakpoint
 CREATE UNIQUE INDEX "tariff_jenis_makam_lokasi_name_idx" ON "tariff_jenis_makam" USING btree ("lokasi_id","name_key");--> statement-breakpoint
 CREATE INDEX "tariff_jenis_makam_version_idx" ON "tariff_jenis_makam_version" USING btree ("jenis_makam_id","in_force_from","seq");--> statement-breakpoint
@@ -61,4 +70,5 @@ END;
 $$;--> statement-breakpoint
 CREATE TRIGGER "tariff_global_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_global_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();--> statement-breakpoint
 CREATE TRIGGER "tariff_jenis_makam_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_jenis_makam_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();--> statement-breakpoint
-CREATE TRIGGER "tariff_biaya_pemakaman_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_biaya_pemakaman_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();
+CREATE TRIGGER "tariff_biaya_pemakaman_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_biaya_pemakaman_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();--> statement-breakpoint
+CREATE TRIGGER "tariff_check_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_check" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();
