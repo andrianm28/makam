@@ -23,6 +23,11 @@ const menus: Record<StaffRole, MenuItem[]> = {
     { label: "Pindah Nomor", href: "/staf/admin-platform/pindah-nomor", description: "Pindahkan Akun ke nomor baru setelah cek KTP." },
     { label: "Antrean", description: "Segera hadir." },
     { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi", description: "Onboarding Lokasi Mitra dan undangan Admin Lokasi." },
+    {
+      label: "Tarif global",
+      href: "/staf/admin-platform/tarif",
+      description: "Biaya Layanan Platform, Biaya Pengurusan dan Retribusi Pemda, per versi dengan tanggal berlaku.",
+    },
   ],
   admin_lokasi: [
     { label: "Antrean Lokasi", description: "Segera hadir." },

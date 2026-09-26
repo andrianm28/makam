@@ -59,6 +59,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/staf/admin
           <Link href={`/staf/admin-platform/lokasi/${lokasiMitra.id}/audit-log`} className="underline underline-offset-4">
             Audit Log Lokasi
           </Link>
+          <Link href={`/staf/admin-platform/lokasi/${lokasiMitra.id}/tarif`} className="underline underline-offset-4">
+            Tarif
+          </Link>
         </div>
       </div>
 
