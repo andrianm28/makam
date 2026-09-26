@@ -279,7 +279,7 @@ A Lokasi Mitra's price for a new Hak Pakai, set per Jenis Makam.
 _Avoid_: Harga makam, harga kavling
 
 **Masa Hak Pakai**:
-How long a Hak Pakai of a Jenis Makam lasts: Selamanya, or a fixed number of years that is also the length of one Perpanjangan Makam term, each term at the Jenis Makam's Perpanjangan price.
+How long a Hak Pakai lasts: Selamanya, or a fixed number of years that is also the length of one Perpanjangan Makam term. A Hak Pakai keeps the Masa Hak Pakai of its Jenis Makam as it was when bought, even if the Jenis Makam's changes later; only a fixed-term Hak Pakai can be extended, each term at the Jenis Makam's Perpanjangan price in force at the time of the Perpanjangan.
 _Avoid_: Tenor, durasi sewa, masa berlaku (alone)
 
 **Tarif**:
