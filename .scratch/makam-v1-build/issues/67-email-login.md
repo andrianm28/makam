@@ -1,6 +1,6 @@
 # Email login, Verifikasi email and the "Kirim lewat email" fallback
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 09
 Spec: Domain modules > 1. Identity & Access (Email login, Email Terverifikasi); 15. Notifications (login-code exception); Adapter ports > EmailSender; Data and privacy; stories 27, 189, 190; ADR 0003 (amendment 2026-09-25, later: email login); CONTEXT.md (Kode Masuk, Email Terverifikasi)
 
@@ -112,3 +112,4 @@ It is built and tested against the in-memory `EmailSender` fake. Real sending in
   - **Env/adapters (ticket 68 landed)**: staging and production send the email Kode Masuk and Verifikasi Email codes through `SmtpEmailSender`. A failed send (`EmailSendError` or `PortNotConfiguredError`) takes the existing gagal-kirim / same-reply paths. The Vitest server runtime now passes `smtp` and `vapid` to `createAdapters` and builds `notifications`, as `serverRuntime()` does.
   - **With ticket 21**: a Masuk dengan email that grants a new role ends the Akun's other sessions, and their Perangkat Push with them. New test in `staff-alerts.test.ts`: only the browser that logged in by email keeps push. Keluar after an email login uses the same `endSession`, so ticket 21's Keluar test covers it.
   - **Verification**: lint 0, typecheck 0, Vitest 37 files / 420 tests (exit 0), `next build` 0, `build:worker` 0. Playwright 19/19 ran in one run on a fresh `makam-t67` stack (port 3321), after which the stack was taken down with `down -v` and the image removed.
+- 2026-09-26 — Merged to `main` after a two-axis review (mattpocock-skills:code-review), fixes (fallback only while a WhatsApp code is open and IP-counted first, a code opens only its own Akun, DB-only case-insensitive uniqueness, detached email step against timing enumeration, `LoginProofs` cleaned up in `finally`, IP-request prune tick, "Simpan tanpa verifikasi" removed, staff may not remove their email) and a rebase onto tickets 21 and 68 (migration 0005, checked on a populated database). Verified in the main session: lint 0, typecheck 0, Vitest 420/420.
