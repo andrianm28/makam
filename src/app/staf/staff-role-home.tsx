@@ -3,7 +3,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import type { StaffRole } from "@/domain/identity";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { staffMenuActor } from "@/server/staff-area";
-import { staffPages } from "./navigation";
+import { staffPages } from "@/lib/staff-navigation";
 
 /** The roles whose home is still this card list (Admin Platform has its own Beranda). */
 type CardHomeRole = Exclude<StaffRole, "admin_platform">;

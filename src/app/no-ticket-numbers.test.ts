@@ -1,7 +1,8 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ticketMentions } from "../../tests/support/copy-scan";
+import { sourceFiles } from "../../tests/support/source-files";
 
 /**
  * Ticket 69: user- and staff-facing copy must never name an internal build
@@ -12,16 +13,6 @@ const APP_DIR = __dirname;
 /** The shared components (the staff shell, the makam compositions) carry copy too. */
 const COMPONENTS_DIR = join(__dirname, "..", "components");
 const SRC_DIR = join(__dirname, "..");
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    if (!/\.(ts|tsx)$/.test(entry.name)) return [];
-    if (/\.test\.(ts|tsx)$/.test(entry.name)) return [];
-    return [full];
-  });
-}
 
 describe("no internal ticket numbers in user-facing copy", () => {
   it("no string or JSX text in a non-test src/app or src/components file names a ticket", () => {

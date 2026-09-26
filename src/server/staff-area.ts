@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { staffRoleHome } from "@/lib/staff-area-path";
+import { staffPalette, type PaletteGroup } from "@/lib/staff-navigation";
+import type { StaffAlertEntry } from "@/domain/notifications";
 import { serverRuntime } from "./runtime";
 import { currentActor } from "./session";
 
@@ -38,6 +40,13 @@ export interface StaffShell {
   account: { email: string; phoneNumber: string | null };
   /** The Lokasi Mitra this Akun works on, by id, so breadcrumbs can name them. */
   lokasiNames: Record<string, string>;
+  /**
+   * The command palette's pages, for each staff role the Akun holds and only
+   * those: what that role may open (an Admin Lokasi only its own Lokasi Mitra).
+   */
+  palette: Partial<Record<StaffRole, PaletteGroup[]>>;
+  /** The Peringatan Staf bell: how many are unread, and the latest. */
+  alerts: { unread: number; latest: StaffAlertEntry[] };
 }
 
 /**
@@ -51,15 +60,27 @@ export async function staffShell(): Promise<StaffShell | null> {
   const held = heldStaffRoles(actor.roles);
   if (held.length === 0) return null;
 
-  const { lokasi } = serverRuntime();
-  const lokasiMitra = held.includes("admin_platform")
-    ? await lokasi.allLokasiMitra(actor)
-    : held.includes("admin_lokasi")
-      ? await lokasi.lokasiMitraOfAdminLokasi(actor)
-      : [];
+  const { lokasi, notifications } = serverRuntime();
+  const [lokasiMitra, alerts] = await Promise.all([
+    held.includes("admin_platform")
+      ? lokasi.allLokasiMitra(actor)
+      : held.includes("admin_lokasi")
+        ? lokasi.lokasiMitraOfAdminLokasi(actor)
+        : Promise.resolve([]),
+    notifications.staffAlerts(actor),
+  ]);
+  // Each role sees only the Lokasi Mitra it may open: all for Admin Platform, its own for Admin Lokasi.
+  const lokasiOf = (role: StaffRole) =>
+    role === "admin_platform"
+      ? lokasiMitra
+      : role === "admin_lokasi"
+        ? lokasiMitra.filter((item) => actor.lokasiIds.includes(item.id))
+        : [];
   return {
     roles: held.map((role) => ({ role, label: staffRoleLabels[role], href: staffRoleHome(role) })),
     account: { email: actor.email, phoneNumber: actor.phoneNumber },
     lokasiNames: Object.fromEntries(lokasiMitra.map((item) => [item.id, item.name])),
+    palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role))])),
+    alerts: alerts.ok ? { unread: alerts.unread, latest: alerts.latest } : { unread: 0, latest: [] },
   };
 }

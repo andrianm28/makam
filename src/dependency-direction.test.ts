@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { sourceFiles } from "../tests/support/source-files";
 
 /**
  * Pages and actions (src/app) build on everything else, never the other way
@@ -10,14 +11,6 @@ import { describe, expect, it } from "vitest";
 const SRC = __dirname;
 const APP = join(SRC, "app");
 const SHARED = ["server", "components", "lib", "domain", "ports", "adapters", "composition", "db", "hooks"];
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
 
 function importsIntoApp(file: string): string[] {
   const specifiers = [...readFileSync(file, "utf8").matchAll(/\bfrom\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g)].map(

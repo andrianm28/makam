@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { sourceFiles } from "../../tests/support/source-files";
 
 /**
  * Ticket 70: marking an Admin Platform's email as Email Terverifikasi without a
@@ -9,15 +10,6 @@ import { describe, expect, it } from "vitest";
  */
 const APP_DIR = __dirname;
 const OPS_ONLY = /\bmarkEmailVerifiedByOps\b/;
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    if (!/\.(ts|tsx)$/.test(entry.name) || full === __filename) return [];
-    return [full];
-  });
-}
 
 describe("the ops-only email verification stays out of the app", () => {
   it("no file under src/app references markEmailVerifiedByOps", () => {
