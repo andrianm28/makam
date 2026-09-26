@@ -78,9 +78,9 @@ jobs:
         id: meta
         with:
           images: ${{ steps.image.outputs.name }}
-          tags: |
-            type=sha,format=long
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+          # Only sha-<commit> here; `latest` (which the staging timer follows) is
+          # added by deploy-gate once e2e and the scan have passed.
+          tags: type=sha,format=long
       - uses: docker/login-action@v3
         if: env.PUSH == 'true'
         with:
@@ -242,9 +242,28 @@ jobs:
     name: Deploy gate (e2e and scan passed)
     runs-on: ubuntu-latest
     needs: [image, e2e, scan]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.image.outputs.image }}
+      REF: ${{ needs.image.outputs.image }}:${{ needs.image.outputs.tag }}@${{ needs.image.outputs.digest }}
     outputs:
       image: ${{ needs.image.outputs.image }}
       tag: ${{ needs.image.outputs.tag }}
       digest: ${{ needs.image.outputs.digest }}
     steps:
-      - run: echo "${{ needs.image.outputs.image }}:${{ needs.image.outputs.tag }}@${{ needs.image.outputs.digest }} passed e2e and the image scan."
+      - run: echo "$REF passed e2e and the image scan."
+      # Until ticket 72 deploys from this workflow, the staging timer follows
+      # `latest`: it moves only to an image that passed the gate, and only on main.
+      - uses: docker/login-action@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+        if: github.ref == 'refs/heads/main'
+      - name: Tag it latest
+        if: github.ref == 'refs/heads/main'
+        run: docker buildx imagetools create --tag "$IMAGE:latest" "$REF"
