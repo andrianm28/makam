@@ -1,0 +1,24 @@
+# gitleaks (CI job "Secrets scan", ticket 71): the default rules, plus the
+# findings we accept. Every allowlist entry says why it is not a secret. Keep
+# entries to single files; never allowlist a directory or a whole rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "LOCAL_VAPID_PRIVATE_KEY: the fixed VAPID pair for development and test only, where the fake WebPush sends nothing; staging and production must set their own (env validation refuses the local one there)"
+paths = ['''^src/lib/env\.ts$''']
+
+[[allowlists]]
+description = "Test fixtures: throwaway VAPID keys, webhook secrets and the RFC 6238 TOTP test secret, used only by Vitest against the in-memory fakes"
+paths = [
+  '''^src/adapters/web-push\.contract\.test\.ts$''',
+  '''^src/composition/adapters\.test\.ts$''',
+  '''^src/lib/env\.test\.ts$''',
+  '''^tests/support/totp\.test\.ts$''',
+]
+
+[[allowlists]]
+description = "History only: a fake web push subscription in an earlier e2e/staf.spec.ts (its auth key is the bytes 0..15), never a real browser's key"
+commits = ["b43ce25c6c67047a25687108eb6583b82aab5bb9"]
+paths = ['''^e2e/staf\.spec\.ts$''']
+condition = "AND"

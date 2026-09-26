@@ -1,0 +1,19 @@
+# CI's e2e stack only (ticket 71), layered over docker-compose.prod.yml:
+#
+#   docker compose -p makam-e2e -f docker-compose.prod.yml -f deploy/ci/compose.e2e.yml --env-file deploy/ci/e2e.env ...
+#
+# - Runs the exact image the build pushed, by digest (E2E_IMAGE_REF =
+#   ghcr.io/andrianm28/makam:sha-<commit>@sha256:...), not a tag.
+# - Replaces the host's GlitchTip network (external there) with a network of
+#   its own, so the runner needs nothing named after the host.
+x-e2e-image: &e2e-image
+  image: ${E2E_IMAGE_REF:?set E2E_IMAGE_REF to the pushed image@digest}
+
+services:
+  migrate: *e2e-image
+  web: *e2e-image
+  worker: *e2e-image
+
+networks:
+  glitchtip: !override
+    name: makam-e2e-glitchtip

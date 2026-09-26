@@ -1,0 +1,33 @@
+# Keeps the pins current (ADR 0002, ticket 71): actions pinned by commit SHA,
+# images by digest, npm by the lockfile. Weekly, grouped to keep the PR count
+# low; every update PR goes through the same CI and review as any other change.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The Dockerfile's node base image.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Postgres, GlitchTip and Valkey in the compose files.
+  - package-ecosystem: docker-compose
+    directories: ["/", "/deploy/glitchtip"]
+    schedule:
+      interval: weekly
