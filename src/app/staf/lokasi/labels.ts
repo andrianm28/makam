@@ -31,6 +31,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "lokasi.ubah_rekening": "Rekening diubah",
   "lokasi.unggah_perjanjian": "Scan perjanjian diunggah",
   "tarif.ubah_global": "Tarif global diubah",
+  "tarif.buat_jenis_makam": "Jenis Makam ditambahkan",
+  "tarif.ubah_jenis_makam": "Tarif Jenis Makam diubah",
   "catatan_internal.tulis": "Catatan Internal",
   "antrean.ambil": "Baris Antrean diambil",
 };

@@ -1,5 +1,5 @@
 {
-  "id": "ba48d6fb-110b-4eca-b087-0dc9eaa13c34",
+  "id": "33886a89-1d12-4f20-99fb-ca7fb486856d",
   "prevId": "e4d2a511-e2af-4f65-8445-7df03d5d0e47",
   "version": "7",
   "dialect": "postgresql",
@@ -1458,6 +1458,215 @@
         "tariff_global_version_amount_check": {
           "name": "tariff_global_version_amount_check",
           "value": "\"tariff_global_version\".\"amount\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.tariff_jenis_makam": {
+      "name": "tariff_jenis_makam",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_account_id": {
+          "name": "created_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "tariff_jenis_makam_lokasi_name_idx": {
+          "name": "tariff_jenis_makam_lokasi_name_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tariff_jenis_makam_version": {
+      "name": "tariff_jenis_makam_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_on": {
+          "name": "effective_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "in_force_from": {
+          "name": "in_force_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entered_at": {
+          "name": "entered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entered_by_account_id": {
+          "name": "entered_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_makam_id": {
+          "name": "jenis_makam_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "harga_hak_pakai": {
+          "name": "harga_hak_pakai",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenure_years": {
+          "name": "tenure_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "harga_perpanjangan": {
+          "name": "harga_perpanjangan",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "tariff_jenis_makam_version_idx": {
+          "name": "tariff_jenis_makam_version_idx",
+          "columns": [
+            {
+              "expression": "jenis_makam_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "in_force_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tariff_jenis_makam_version_jenis_makam_id_tariff_jenis_makam_id_fk": {
+          "name": "tariff_jenis_makam_version_jenis_makam_id_tariff_jenis_makam_id_fk",
+          "tableFrom": "tariff_jenis_makam_version",
+          "tableTo": "tariff_jenis_makam",
+          "columnsFrom": [
+            "jenis_makam_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "tariff_jenis_makam_version_amounts_check": {
+          "name": "tariff_jenis_makam_version_amounts_check",
+          "value": "\"tariff_jenis_makam_version\".\"harga_hak_pakai\" >= 0 and (\"tariff_jenis_makam_version\".\"harga_perpanjangan\" is null or \"tariff_jenis_makam_version\".\"harga_perpanjangan\" >= 0)"
+        },
+        "tariff_jenis_makam_version_tenure_check": {
+          "name": "tariff_jenis_makam_version_tenure_check",
+          "value": "(\"tariff_jenis_makam_version\".\"tenure_years\" is null and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is null) or (\"tariff_jenis_makam_version\".\"tenure_years\" >= 1 and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is not null)"
         }
       },
       "isRLSEnabled": false

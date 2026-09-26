@@ -1,4 +1,16 @@
-import { bigint, bigserial, check, date, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  bigserial,
+  check,
+  date,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
@@ -47,5 +59,55 @@ export const tariffGlobalVersion = pgTable(
   (table) => [
     index("tariff_global_version_key_idx").on(table.key, table.inForceFrom, table.seq),
     check("tariff_global_version_amount_check", sql`${table.amount} >= 0`),
+  ],
+);
+
+/**
+ * Owned by the Tariffs module: a Lokasi Mitra's Jenis Makam, defined by Admin
+ * Platform. Its prices and tenure live in its versions. `lokasi_id` names a
+ * Lokasi Mitra of the Lokasi module (no foreign key across modules).
+ */
+export const tariffJenisMakam = pgTable(
+  "tariff_jenis_makam",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    name: text("name").notNull(),
+    /** The name folded for the one-name-per-Lokasi rule: lower case, single spaces. */
+    nameKey: text("name_key").notNull(),
+    description: text("description").notNull(),
+    createdAt: at("created_at").notNull(),
+    createdByAccountId: text("created_by_account_id").notNull(),
+  },
+  (table) => [uniqueIndex("tariff_jenis_makam_lokasi_name_idx").on(table.lokasiId, table.nameKey)],
+);
+
+/**
+ * Owned by the Tariffs module: every version of a Jenis Makam's tariff: the
+ * Harga Hak Pakai, the tenure (`tenure_years` null = Selamanya) and the
+ * Perpanjangan price per term (set exactly when the tenure is N years).
+ */
+export const tariffJenisMakamVersion = pgTable(
+  "tariff_jenis_makam_version",
+  {
+    ...versionColumns(),
+    jenisMakamId: uuid("jenis_makam_id")
+      .notNull()
+      .references(() => tariffJenisMakam.id),
+    lokasiId: uuid("lokasi_id").notNull(),
+    hargaHakPakai: rupiah("harga_hak_pakai").notNull(),
+    tenureYears: integer("tenure_years"),
+    hargaPerpanjangan: rupiah("harga_perpanjangan"),
+  },
+  (table) => [
+    index("tariff_jenis_makam_version_idx").on(table.jenisMakamId, table.inForceFrom, table.seq),
+    check(
+      "tariff_jenis_makam_version_amounts_check",
+      sql`${table.hargaHakPakai} >= 0 and (${table.hargaPerpanjangan} is null or ${table.hargaPerpanjangan} >= 0)`,
+    ),
+    check(
+      "tariff_jenis_makam_version_tenure_check",
+      sql`(${table.tenureYears} is null and ${table.hargaPerpanjangan} is null) or (${table.tenureYears} >= 1 and ${table.hargaPerpanjangan} is not null)`,
+    ),
   ],
 );

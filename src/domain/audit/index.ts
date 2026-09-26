@@ -66,6 +66,10 @@ export type AuditAction =
   | "lokasi.unggah_perjanjian"
   /** Admin Platform enters a new version of a global tariff (Biaya Layanan Platform, Biaya Pengurusan, Retribusi Pemda). */
   | "tarif.ubah_global"
+  /** Admin Platform defines a Jenis Makam of a Lokasi Mitra with its first tariff version. */
+  | "tarif.buat_jenis_makam"
+  /** Admin Platform enters a new tariff version of a Jenis Makam (Harga Hak Pakai, tenure, Perpanjangan price). */
+  | "tarif.ubah_jenis_makam"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
