@@ -162,8 +162,11 @@ export interface Identity {
   actorFromCookies(cookieHeader: string | null | undefined): Promise<Actor | null>;
   /** Keluar: ends the session behind the Cookie header and names the cookies to clear. */
   endSession(cookieHeader: string | null | undefined): Promise<{ clearCookies: string[] }>;
-  /** The CLI seed: the first Admin Platform (number and email). Refused once one exists. */
-  seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
+  /**
+   * The CLI seed: the first Admin Platform (number and email). Refused once one exists. With
+   * `emailTerverifikasi`, the email is its Email Terverifikasi from the start (audited as seed_cli).
+   */
+  seedFirstAdminPlatform(input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean }): Promise<SeedResult>;
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
   /**

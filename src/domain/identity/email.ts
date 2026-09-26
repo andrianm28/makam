@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog, RecordEntry } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -10,8 +10,7 @@ import { akunLockKey } from "./lock-key";
 import type { Account } from "./login";
 import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identityUser } from "./schema";
-import { rolesOf } from "./staff";
+import { identityStaffRole, identityUser } from "./schema";
 
 /*
  * The Akun's own email (Akun Saya, and the staff area for an Akun Staf). It is
@@ -206,7 +205,13 @@ export async function markEmailVerifiedByOps(
         .select({ id: identityUser.id })
         .from(identityUser)
         .where(eq(identityUser.phoneNumber, phoneNumber));
-      if (!user || !(await rolesOf(tx, user.id)).includes("admin_platform")) {
+      const [adminPlatform] = user
+        ? await tx
+            .select({ accountId: identityStaffRole.accountId })
+            .from(identityStaffRole)
+            .where(and(eq(identityStaffRole.accountId, user.id), eq(identityStaffRole.role, "admin_platform")))
+        : [];
+      if (!user || !adminPlatform) {
         return { ok: false, reason: "bukan_admin_platform" } as const;
       }
       const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
