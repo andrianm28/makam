@@ -14,7 +14,7 @@ import {
   type reviewReasons,
 } from "./schema";
 import { notPayableBecause, settleIn, type EffectDeps } from "./settlement";
-import { currentHeader, documentLinkSchema, type DocumentHeader } from "./shared";
+import { currentHeader, documentLinkSchema, withinPaymentCap, type DocumentHeader } from "./shared";
 
 export interface BayarDeps {
   db: Database;
@@ -30,7 +30,9 @@ export type BayarResult =
   /** Already paid: its Bukti Pembayaran (by link) is shown instead. */
   | { ok: false; reason: "sudah_lunas"; buktiLink: string }
   /** A Dibatalkan Tagihan (lapsed or replaced), or a pay-first one past its due date, can no longer be paid. */
-  | { ok: false; reason: "tagihan_dibatalkan" | "batas_pembayaran_lewat" };
+  | { ok: false; reason: "tagihan_dibatalkan" | "batas_pembayaran_lewat" }
+  /** The Tagihan's total is above the QRIS payment cap (Rp 10.000.000): v1 has no way to pay it. */
+  | { ok: false; reason: "melebihi_batas_qris" };
 
 /**
  * A provider link is reused only while it has at least this long left, so a
@@ -60,6 +62,7 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
       return { ok: false, reason: "sudah_lunas", buktiLink: bukti.link };
     }
     if (notPayable) return { ok: false, reason: notPayable };
+    if (!withinPaymentCap(row.total)) return { ok: false, reason: "melebihi_batas_qris" };
 
     const [valid] = await tx
       .select({ paymentUrl: providerPayment.paymentUrl })

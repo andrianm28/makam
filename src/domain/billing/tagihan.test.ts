@@ -284,3 +284,40 @@ describe("an issued Tagihan is immutable", () => {
     expect(await billing.issueTagihan(saatDukaCheckout())).toMatchObject({ tagihan: { nomorTagihan: "TGH/2026/000002" } });
   });
 });
+
+describe("the QRIS payment cap", () => {
+  /** Bank Indonesia caps QRIS at Rp 10.000.000; v1 takes no order whose Tagihan would exceed it. */
+  const overCapCheckout = (): IssueTagihanInput =>
+    saatDukaCheckout({
+      lines: [{ kind: "harga_hak_pakai", label: "Harga Hak Pakai – Makam Standar", amount: rp(10_000_001), provider: LOKASI }],
+    });
+
+  it("a Tagihan totalling exactly Rp 10.000.000, the QRIS cap, is issued", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+    const checkout = saatDukaCheckout({
+      lines: [{ kind: "harga_hak_pakai", label: "Harga Hak Pakai – Makam Standar", amount: rp(10_000_000), provider: LOKASI }],
+    });
+
+    const issued = await billing.issueTagihan(checkout);
+
+    expect(issued).toMatchObject({ ok: true, tagihan: { total: 10_000_000 } });
+  });
+
+  it("a Tagihan that would total Rp 10.000.001 is refused: v1 takes no order above the QRIS cap", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+
+    expect(await billing.issueTagihan(overCapCheckout())).toEqual({ ok: false, reason: "melebihi_batas_qris" });
+  });
+
+  it("reissuing a Tagihan above the QRIS cap is refused the same way, and the original Tagihan is untouched", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+    const original = await billing.issueTagihan(saatDukaCheckout());
+    if (!original.ok) throw new Error("not issued");
+
+    expect(
+      await billing.reissueTagihan(original.tagihan.id, { lines: overCapCheckout().lines }),
+    ).toEqual({ ok: false, reason: "melebihi_batas_qris" });
+
+    expect(await billing.tagihan(original.tagihan.id)).toEqual(original.tagihan);
+  });
+});

@@ -9,7 +9,7 @@ import { tagihanDue, type DueLine, type PaymentMoment, type TagihanKind } from "
 import { nextDocumentNumber } from "./numbering";
 import { tagihan, tagihanLine, type tagihanStatuses } from "./schema";
 import { issueBuktiPembayaranIn, type EffectDeps } from "./settlement";
-import { currentHeader, headerSchema, newDocumentLink, noHeader, type DocumentHeader } from "./shared";
+import { currentHeader, headerSchema, newDocumentLink, noHeader, withinPaymentCap, type DocumentHeader } from "./shared";
 
 /** Who provides a line: the Lokasi Mitra for its tariff lines (named as it was at issue), the Operator, or the Pemda. */
 export type LineProvider = { kind: "lokasi_mitra"; lokasiId: string; name: string } | { kind: "operator" } | { kind: "pemda" };
@@ -84,6 +84,8 @@ export type IssueRefusal =
   | { ok: false; reason: "harga_khusus_melebihi_total" }
   /** The total would pass Rp 100.000.000.000. */
   | { ok: false; reason: "jumlah_terlalu_besar" }
+  /** The total would pass Rp 10.000.000, the QRIS payment cap: v1 takes no such order. */
+  | { ok: false; reason: "melebihi_batas_qris" }
   /** No Pengaturan Operator yet: a Tagihan cannot be issued without the Operator's header. */
   | { ok: false; reason: "pengaturan_operator_belum_diisi" }
   | PhoneNumberRejection;
@@ -154,6 +156,7 @@ function linesToIssue(lines: readonly NewTagihanLine[]): { ok: true; lines: Tagi
   const total = charged.amount + reduced;
   if (total < 0) return { ok: false, reason: "harga_khusus_melebihi_total" };
   if (total > RUPIAH_MAX) return { ok: false, reason: "jumlah_terlalu_besar" };
+  if (!withinPaymentCap(total)) return { ok: false, reason: "melebihi_batas_qris" };
   return { ok: true, lines: issued, total: total as Rupiah };
 }
 

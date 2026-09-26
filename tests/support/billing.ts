@@ -1,9 +1,11 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { FakePaymentProvider, FakePdfRenderer } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import { createBilling, type PaymentEffect, type TagihanStatus } from "@/domain/billing";
 import { tagihan as tagihanTable } from "@/domain/billing/schema";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import type { Rupiah } from "@/lib/rupiah";
 import { identityOnTestDatabase, signedInAdminPlatform } from "./identity";
 
 /** Pengaturan Operator as Admin Platform would type it before launch (ticket 06). */
@@ -70,4 +72,39 @@ export async function billingWithOperatorSettings(db: Database, options: Billing
  */
 export async function setTagihanStatusForTest(db: Database, tagihanId: string, status: TagihanStatus): Promise<void> {
   await db.update(tagihanTable).set({ status }).where(eq(tagihanTable.id, tagihanId));
+}
+
+/**
+ * Inserts a Tagihan row directly with a total above the QRIS payment cap, to
+ * exercise Bayar's defensive check against one that predates the cap:
+ * `issueTagihan` and `reissueTagihan` already refuse a total above it, and an
+ * issued Tagihan's total is immutable (the migration's trigger refuses any
+ * change to it), so this is otherwise unreachable. A stand-in until a real
+ * such Tagihan can no longer occur even in principle.
+ */
+export async function insertOverCapTagihanForTest(db: Database, total: number, now: Date): Promise<{ id: string; link: string }> {
+  const link = randomBytes(32).toString("base64url");
+  const [row] = await db
+    .insert(tagihanTable)
+    .values({
+      nomor: `TGH/OVERCAP/${randomUUID()}`,
+      link,
+      kind: "pay_after",
+      moment: { kind: "layanan" },
+      issuedAt: now,
+      dueAt: now,
+      addresseeRole: "pemesan",
+      addresseeName: "Overcap Test",
+      addresseePhone: "+6281234567890",
+      addresseeAccountId: null,
+      nomorPemesanan: null,
+      placeName: null,
+      lineCount: 0,
+      total: total as Rupiah,
+      header: { legalName: "Test", address: "Test", phone: "000", email: "test@test.id" },
+      replacesId: null,
+      status: "belum_dibayar",
+    })
+    .returning({ id: tagihanTable.id });
+  return { id: row.id, link };
 }
