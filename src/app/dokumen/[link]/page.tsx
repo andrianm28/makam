@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
-import { documentLinkSchema, type BillingDocument, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import { documentLinkSchema, type BillingDocument, type NotPayable, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
 import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
@@ -54,7 +54,7 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
       </div>
       <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
         {document.type === "tagihan" ? (
-          <TagihanView link={link} tagihan={document.tagihan} payable={document.payable} buktiLink={document.buktiLink} />
+          <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
         ) : (
           <BuktiView bukti={document.bukti} />
         )}
@@ -66,12 +66,12 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
 function TagihanView({
   link,
   tagihan,
-  payable,
+  notPayableBecause,
   buktiLink,
 }: {
   link: string;
   tagihan: Tagihan;
-  payable: boolean;
+  notPayableBecause: NotPayable | null;
   buktiLink: string | null;
 }) {
   return (
@@ -82,6 +82,11 @@ function TagihanView({
           {tagihan.cancelledReason === "diganti" && tagihan.replacedByNomorTagihan
             ? `Tagihan ini sudah dibatalkan dan diganti dengan Tagihan ${tagihan.replacedByNomorTagihan}. Silakan gunakan tagihan yang baru.`
             : "Tagihan ini sudah dibatalkan karena batas pembayarannya lewat, sehingga tidak bisa dibayar lagi."}
+        </p>
+      ) : null}
+      {notPayableBecause === "batas_pembayaran_lewat" ? (
+        <p className="rounded-lg border border-dashed px-4 py-3">
+          Batas pembayaran Tagihan ini sudah lewat, sehingga tidak bisa dibayar lagi.
         </p>
       ) : null}
       <Facts
@@ -95,7 +100,7 @@ function TagihanView({
         ]}
       />
       <Lines lines={tagihan.lines} total={tagihan.total} totalLabel="Total tagihan" />
-      {payable ? <BayarForm link={link} total={tagihan.total} /> : null}
+      {notPayableBecause === null ? <BayarForm link={link} total={tagihan.total} /> : null}
       {buktiLink ? (
         <div className="print:hidden">
           <a href={documentPagePath(buktiLink)} className={buttonVariants({ variant: "outline" })}>

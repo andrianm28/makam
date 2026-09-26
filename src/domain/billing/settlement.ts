@@ -6,6 +6,7 @@
  */
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import type { Rupiah } from "@/lib/rupiah";
 import { nextDocumentNumber } from "./numbering";
 import { buktiPembayaran, paymentEffectFailure, tagihan, type tagihanStatuses } from "./schema";
@@ -36,16 +37,33 @@ export interface PaymentEffect {
   run(tx: Database, payment: SettledPayment): Promise<void>;
 }
 
-/** Where Billing reports what needs a human: a failed downstream effect, money it could not settle. No personal data. */
-export type ReportError = (error: unknown, context: Record<string, unknown>) => void;
-
 export interface EffectDeps {
   paymentEffects?: readonly PaymentEffect[];
+  /** Where Billing reports what needs a human (a failed effect, a Pembayaran Perlu Ditinjau); tags only, nothing personal. */
   reportError?: ReportError;
 }
 
 /** A Tagihan still waiting for its money: Lewat Jatuh Tempo and Tidak Tertagih stay payable. */
 export const PAYABLE: readonly (typeof tagihanStatuses)[number][] = ["belum_dibayar", "lewat_jatuh_tempo", "tidak_tertagih"];
+
+/** Why a Tagihan can't be paid (any more). */
+export type NotPayable =
+  | "sudah_lunas"
+  /** Dibatalkan: lapsed or replaced. */
+  | "tagihan_dibatalkan"
+  /** A pay-first Tagihan at or past its due date: it lapses (the lapse tick may not have run yet). */
+  | "batas_pembayaran_lewat";
+
+/** Why a Tagihan can't be paid at `now`, or null while it can. */
+export function notPayableBecause(
+  tagihan: { status: (typeof tagihanStatuses)[number]; kind: "pay_first" | "pay_after"; dueAt: Date },
+  now: Date,
+): NotPayable | null {
+  if (tagihan.status === "lunas") return "sudah_lunas";
+  if (!PAYABLE.includes(tagihan.status)) return "tagihan_dibatalkan";
+  if (tagihan.kind === "pay_first" && tagihan.dueAt <= now) return "batas_pembayaran_lewat";
+  return null;
+}
 
 export type SettleResult =
   /** `settled` is false when the Tagihan was already Lunas: `buktiId` is then its existing Bukti, `reference` that payment's. */
@@ -155,7 +173,9 @@ export async function runPaymentEffectsIn(tx: Database, deps: EffectDeps, paymen
           target: [paymentEffectFailure.tagihanId, paymentEffectFailure.effect],
           set: { failedAt: now, attempts: sql`${paymentEffectFailure.attempts} + 1`, resolvedAt: null },
         });
-      deps.reportError?.(error, { event: "billing.payment_effect_failed", effect: effect.name, nomorTagihan: payment.nomorTagihan });
+      deps.reportError?.(scrubbedError(error), {
+        tags: { module: "billing", event: "payment_effect_failed", effect: effect.name, nomorTagihan: payment.nomorTagihan },
+      });
     }
   }
 }
@@ -191,7 +211,9 @@ export async function retryFailedPaymentEffects(db: Database, deps: EffectDeps, 
         .update(paymentEffectFailure)
         .set({ failedAt: now, attempts: sql`${paymentEffectFailure.attempts} + 1` })
         .where(key);
-      deps.reportError?.(error, { event: "billing.payment_effect_failed", effect: effect.name, nomorTagihan: payment.nomorTagihan });
+      deps.reportError?.(scrubbedError(error), {
+        tags: { module: "billing", event: "payment_effect_failed", effect: effect.name, nomorTagihan: payment.nomorTagihan },
+      });
     }
   }
   return { resolved, failed };

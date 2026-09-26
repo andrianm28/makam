@@ -346,6 +346,10 @@ _Avoid_: Write-off, piutang macet, hangus
 The Operator's receipt for a settled Tagihan, a separate document from the Tagihan itself.
 _Avoid_: Kwitansi, receipt, struk
 
+**Pembayaran Perlu Ditinjau**:
+Money the payment provider reports as paid that Billing could not settle a Tagihan with (the Tagihan was already Dibatalkan, the amount differs, the payment is unknown, or the Tagihan was already Lunas), kept for Admin Platform to resolve, usually by a refund.
+_Avoid_: Overpayment, unmatched payment, suspense
+
 **Bukti Pengembalian Dana**:
 The Operator's record of a refund transfer to a Pemesan, referencing the Tagihan it partly or fully reverses.
 _Avoid_: Nota kredit, refund receipt

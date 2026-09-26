@@ -19,8 +19,16 @@ describe("seed-tagihan (development and test stacks only)", () => {
     expect(result.exitCode).toBe(0);
     const link = /\/dokumen\/([A-Za-z0-9_-]{43})/.exec(result.output)?.[1];
     expect(link).toBeDefined();
-    const document = await billingOnTestDatabase(db).billing.documentByLink(link!);
-    expect(document).toMatchObject({ type: "tagihan", payable: true, tagihan: { status: "belum_dibayar", total: 150_000 } });
+    // Read as at the moment it was issued (the CLI runs on the system clock).
+    const { billing, clock } = billingOnTestDatabase(db);
+    const issued = await billing.documentByLink(link!);
+    if (issued?.type !== "tagihan") throw new Error("no Tagihan");
+    clock.set(issued.tagihan.issuedAt);
+    expect(await billing.documentByLink(link!)).toMatchObject({
+      type: "tagihan",
+      notPayableBecause: null,
+      tagihan: { status: "belum_dibayar", total: 150_000 },
+    });
   });
 
   it("issues another each time, keeping the Pengaturan Operator entered the first time", async () => {

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { signSvixWebhook, verifySvixWebhook } from "@/adapters/shared/svix";
+import { RUPIAH_MAX } from "@/lib/rupiah";
+import { FAKE_PAYMENT_WEBHOOK_SECRET } from "./fake-payment-secret";
 import type { Clock } from "@/ports/clock";
 import {
   InvalidWebhookError,
@@ -12,9 +14,7 @@ import {
   type WebhookRequest,
 } from "@/ports/payment-provider";
 
-/** A fixed test secret in Svix format. Never used outside fakes. */
-export const FAKE_PAYMENT_WEBHOOK_SECRET =
-  "whsec_" + Buffer.from("makam-fake-payment-webhook-secret").toString("base64");
+export { FAKE_PAYMENT_WEBHOOK_SECRET };
 
 const LINK_VALID_MS = 24 * 60 * 60 * 1000;
 
@@ -23,7 +23,7 @@ const webhookPayload = z.object({
   data: z.object({
     payment_id: z.string(),
     reference: z.string(),
-    amount: z.number().int().nonnegative(),
+    amount: z.number().int().nonnegative().max(RUPIAH_MAX),
     channel: z.string().min(1).max(100).optional(),
     occurred_at: z.iso.datetime({ offset: true }),
   }),

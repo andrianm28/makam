@@ -22,8 +22,9 @@ const svixHeaders = z.object({
 export async function POST(request: Request) {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) return plain("Terlalu besar", 413);
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) return plain("Terlalu besar", 413);
+  // The declared length may be absent (chunked) or wrong: the limit holds while reading.
+  const rawBody = await bodyWithin(request, MAX_BODY_BYTES);
+  if (rawBody === null) return plain("Terlalu besar", 413);
 
   const headers = svixHeaders.safeParse(Object.fromEntries(request.headers));
   if (!headers.success) return plain("Tanda tangan tidak valid", 401);
@@ -31,6 +32,25 @@ export async function POST(request: Request) {
   const received = await serverRuntime().billing.receivePaymentWebhook({ rawBody, headers: headers.data });
   if (!received.ok) return plain("Tanda tangan tidak valid", 401);
   return Response.json({ diterima: true, hasil: received.outcome }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/** The body as text, or null (reading stopped, the rest never read) once it passes `limit` bytes. */
+async function bodyWithin(request: Request, limit: number): Promise<string | null> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function plain(message: string, status: number) {

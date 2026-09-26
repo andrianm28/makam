@@ -1,5 +1,5 @@
 {
-  "id": "e0476cee-1d5a-4a0b-bd42-79b06486f309",
+  "id": "488cd315-6c63-4fec-9ea3-775ecad4a7af",
   "prevId": "902bcf75-f5a5-4ea6-92c4-45222ce2c5c7",
   "version": "7",
   "dialect": "postgresql",
@@ -392,7 +392,131 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "payment_webhook_event_kind_check": {
+          "name": "payment_webhook_event_kind_check",
+          "value": "\"payment_webhook_event\".\"kind\" in ('paid', 'expired', 'failed')"
+        },
+        "payment_webhook_event_outcome_check": {
+          "name": "payment_webhook_event_outcome_check",
+          "value": "\"payment_webhook_event\".\"outcome\" in ('lunas', 'sudah_lunas', 'diabaikan', 'perlu_ditinjau')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pembayaran_perlu_ditinjau": {
+      "name": "pembayaran_perlu_ditinjau",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_payment_id": {
+          "name": "provider_payment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tagihan_id": {
+          "name": "tagihan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pembayaran_perlu_ditinjau_received_idx": {
+          "name": "pembayaran_perlu_ditinjau_received_idx",
+          "columns": [
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pembayaran_perlu_ditinjau_tagihan_id_tagihan_id_fk": {
+          "name": "pembayaran_perlu_ditinjau_tagihan_id_tagihan_id_fk",
+          "tableFrom": "pembayaran_perlu_ditinjau",
+          "tableTo": "tagihan",
+          "columnsFrom": [
+            "tagihan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pembayaran_perlu_ditinjau_event_id_unique": {
+          "name": "pembayaran_perlu_ditinjau_event_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pembayaran_perlu_ditinjau_reason_check": {
+          "name": "pembayaran_perlu_ditinjau_reason_check",
+          "value": "\"pembayaran_perlu_ditinjau\".\"reason\" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'sudah_lunas_dibayar_lagi')"
+        },
+        "pembayaran_perlu_ditinjau_amount_check": {
+          "name": "pembayaran_perlu_ditinjau_amount_check",
+          "value": "\"pembayaran_perlu_ditinjau\".\"amount\" between 0 and 100000000000"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.provider_payment": {

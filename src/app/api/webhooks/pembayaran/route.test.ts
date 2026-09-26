@@ -86,4 +86,25 @@ describe("POST /api/webhooks/pembayaran", () => {
 
     expect(response.status).toBe(413);
   });
+
+  it("a streamed body over the limit is refused while it is read, whatever length it declares", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(16 * 1024));
+    let sent = 0;
+    const endless = () =>
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          sent += 1;
+          controller.enqueue(chunk);
+          if (sent > 1_000) controller.close();
+        },
+      });
+    const streamed = (headers: Record<string, string>) =>
+      POST(new Request("http://localhost/api/webhooks/pembayaran", { method: "POST", headers, body: endless(), duplex: "half" } as RequestInit));
+
+    expect((await streamed({ "content-type": "application/json" })).status).toBe(413);
+    sent = 0;
+    expect((await streamed({ "content-type": "application/json", "content-length": "10" })).status).toBe(413);
+    // Reading stopped at the limit, long before the stream's end.
+    expect(sent).toBeLessThan(10);
+  });
 });

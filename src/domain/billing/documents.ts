@@ -5,7 +5,7 @@ import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import { buktiPembayaran } from "./schema";
-import { PAYABLE, settleIn } from "./settlement";
+import { notPayableBecause, settleIn, type NotPayable } from "./settlement";
 import {
   currentHeader,
   documentLinkSchema,
@@ -97,12 +97,12 @@ async function readBukti(db: Database, where: SQL): Promise<BuktiPembayaran | nu
 
 /** A document page: what an unguessable link shows. */
 export type BillingDocument =
-  /** A Tagihan: whether Bayar is offered on it, and the link of its Bukti Pembayaran once Lunas. */
-  | { type: "tagihan"; tagihan: Tagihan; payable: boolean; buktiLink: string | null }
+  /** A Tagihan: why Bayar is not offered on it (null while it is), and the link of its Bukti Pembayaran once Lunas. */
+  | { type: "tagihan"; tagihan: Tagihan; notPayableBecause: NotPayable | null; buktiLink: string | null }
   | { type: "bukti_pembayaran"; bukti: BuktiPembayaran };
 
 /** The document behind an unguessable link, or null (anything not shaped like a link finds nothing without a lookup). */
-export async function documentByLink(db: Database, link: string): Promise<BillingDocument | null> {
+export async function documentByLink(db: Database, link: string, now: Date): Promise<BillingDocument | null> {
   if (!documentLinkSchema.safeParse(link).success) return null;
   const tagihan = await tagihanByLink(db, link);
   if (tagihan) {
@@ -112,7 +112,7 @@ export async function documentByLink(db: Database, link: string): Promise<Billin
       .where(eq(buktiPembayaran.tagihanId, tagihan.id))
       .orderBy(asc(buktiPembayaran.paidAt))
       .limit(1);
-    return { type: "tagihan", tagihan, payable: PAYABLE.includes(tagihan.status), buktiLink: bukti?.link ?? null };
+    return { type: "tagihan", tagihan, notPayableBecause: notPayableBecause(tagihan, now), buktiLink: bukti?.link ?? null };
   }
   const bukti = await readBukti(db, eq(buktiPembayaran.link, link));
   return bukti && { type: "bukti_pembayaran", bukti };
@@ -131,8 +131,9 @@ export interface DocumentPdf {
 export async function documentPdf(
   deps: { db: Database; pdf: PdfRenderer; documentPageUrl: (link: string) => string },
   link: string,
+  now: Date,
 ): Promise<DocumentPdf | null> {
-  const document = await documentByLink(deps.db, link);
+  const document = await documentByLink(deps.db, link, now);
   if (!document) return null;
   const number = document.type === "tagihan" ? document.tagihan.nomorTagihan : document.bukti.nomorBukti;
   const bytes = await deps.pdf.render({ url: deps.documentPageUrl(link) });

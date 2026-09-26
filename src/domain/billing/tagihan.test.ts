@@ -171,10 +171,10 @@ describe("an issued Tagihan is immutable", () => {
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
+      "pembayaranPerluDitinjau",
       "receivePaymentWebhook",
       "recordPayment",
       "reissueTagihan",
-      "retryFailedPaymentEffects",
       "tagihan",
       "within",
     ]);

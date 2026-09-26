@@ -1,11 +1,10 @@
 import { afterAll, inject } from "vitest";
 import { FakeClock, type FakeEmailSender, type FakeWhatsAppSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
+import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
-import { createBilling } from "@/domain/billing";
 import { createLokasi } from "@/domain/lokasi";
-import { documentPagePath } from "@/lib/document-links";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -50,16 +49,7 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const billing = createBilling({
-      db: database.db,
-      clock: adapters.clock,
-      operatorSettings,
-      pdf: adapters.pdf,
-      documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
-      payments: adapters.payments,
-      publicDocumentUrl: (link) => `${new URL(env.APP_BASE_URL).origin}${documentPagePath(link)}`,
-      reportError: () => {},
-    });
+    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
     holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs, billing };
   }
   afterAll(async () => {

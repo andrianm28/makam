@@ -24,6 +24,26 @@ const rupiah = customType<{ data: Rupiah; driverData: string }>({
   toDriver: (value) => String(value),
 });
 
+/** The PaymentProvider's event kinds (PaymentEventKind). */
+export const paymentEventKinds = ["paid", "expired", "failed"] as const;
+
+/** What Billing did with a webhook event (PaymentWebhookResult's outcomes, less a replay, which is never recorded). */
+export const webhookOutcomes = ["lunas", "sudah_lunas", "diabaikan", "perlu_ditinjau"] as const;
+
+/** Why money reported as paid could not settle a Tagihan (a Pembayaran Perlu Ditinjau). */
+export const reviewReasons = [
+  /** A payment Billing never created through Bayar. */
+  "pembayaran_tidak_dikenal",
+  /** The amount paid is not the Tagihan's total. */
+  "jumlah_tidak_cocok",
+  /** The Tagihan was Dibatalkan (lapsed or replaced) before the money arrived. */
+  "tagihan_dibatalkan",
+  /** The Tagihan was already Lunas through another payment: paid twice. */
+  "sudah_lunas_dibayar_lagi",
+] as const;
+
+const quoted = (values: readonly string[]) => values.map((value) => `'${value}'`).join(", ");
+
 /** The document series numbered per year (spec, Billing > Documents). */
 export const documentSeries = ["TGH", "BYR", "RFD", "BKP", "BPM", "BPP", "MKM"] as const;
 
@@ -183,14 +203,50 @@ export const providerPayment = pgTable(
  * is recognised and changes nothing. Recorded in the transaction that acts on
  * it, so an event whose processing failed is processed again on redelivery.
  */
-export const paymentWebhookEvent = pgTable("payment_webhook_event", {
-  eventId: text("event_id").primaryKey(),
-  kind: text("kind", { enum: ["paid", "expired", "failed"] }).notNull(),
-  providerPaymentId: text("provider_payment_id").notNull(),
-  receivedAt: at("received_at").notNull(),
-  /** What Billing did with it (a PaymentWebhookOutcome). */
-  outcome: text("outcome").notNull(),
-});
+export const paymentWebhookEvent = pgTable(
+  "payment_webhook_event",
+  {
+    eventId: text("event_id").primaryKey(),
+    kind: text("kind", { enum: paymentEventKinds }).notNull(),
+    providerPaymentId: text("provider_payment_id").notNull(),
+    receivedAt: at("received_at").notNull(),
+    /** What Billing did with it. */
+    outcome: text("outcome", { enum: webhookOutcomes }).notNull(),
+  },
+  (table) => [
+    check("payment_webhook_event_kind_check", sql`${table.kind} in (${sql.raw(quoted(paymentEventKinds))})`),
+    check("payment_webhook_event_outcome_check", sql`${table.outcome} in (${sql.raw(quoted(webhookOutcomes))})`),
+  ],
+);
+
+/**
+ * Owned by the Billing module: each Pembayaran Perlu Ditinjau, money the
+ * PaymentProvider reports as paid that Billing could not settle a Tagihan
+ * with. Kept for Admin Platform (the Antrean and refunds read it through
+ * Billing's public query); append-only in this ticket.
+ */
+export const pembayaranPerluDitinjau = pgTable(
+  "pembayaran_perlu_ditinjau",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reason: text("reason", { enum: reviewReasons }).notNull(),
+    /** The webhook event that reported it: one Pembayaran Perlu Ditinjau per event. */
+    eventId: text("event_id").notNull().unique(),
+    providerPaymentId: text("provider_payment_id").notNull(),
+    /** The Tagihan the payment was for, when Billing knows it. */
+    tagihanId: uuid("tagihan_id").references(() => tagihan.id),
+    /** Whole rupiah the provider reports as paid. */
+    amount: rupiah("amount").notNull(),
+    channel: text("channel"),
+    paidAt: at("paid_at").notNull(),
+    receivedAt: at("received_at").notNull(),
+  },
+  (table) => [
+    index("pembayaran_perlu_ditinjau_received_idx").on(table.receivedAt),
+    check("pembayaran_perlu_ditinjau_reason_check", sql`${table.reason} in (${sql.raw(quoted(reviewReasons))})`),
+    check("pembayaran_perlu_ditinjau_amount_check", sql`${table.amount} between 0 and ${sql.raw(String(RUPIAH_MAX))}`),
+  ],
+);
 
 /**
  * Owned by the Billing module: a downstream effect of a payment that failed.

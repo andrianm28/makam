@@ -31,8 +31,16 @@ import {
   type RecordPaymentResult,
 } from "./documents";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
-import { bayar, receivePaymentWebhook, type BayarResult, type PaymentWebhookResult } from "./payment";
-import { retryFailedPaymentEffects, type PaymentEffect, type ReportError } from "./settlement";
+import {
+  bayar,
+  listPembayaranPerluDitinjau,
+  receivePaymentWebhook,
+  type BayarResult,
+  type PaymentWebhookResult,
+  type PembayaranPerluDitinjau,
+} from "./payment";
+import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
+import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
@@ -47,7 +55,8 @@ import {
 
 export type { DocumentType } from "./numbering";
 export type { PaymentEffect, SettledPayment } from "./settlement";
-export type { BayarResult, PaymentWebhookResult, WebhookReviewReason } from "./payment";
+export type { NotPayable } from "./settlement";
+export type { BayarResult, PaymentWebhookResult, PembayaranPerluDitinjau, WebhookReviewReason } from "./payment";
 export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
 export { documentLinkSchema, type DocumentHeader, type PaymentMethod } from "./shared";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
@@ -111,10 +120,10 @@ export interface Billing {
    */
   receivePaymentWebhook(request: WebhookRequest): Promise<PaymentWebhookResult>;
   /**
-   * Runs again every downstream effect of a payment that failed (the payment
-   * itself stood). Idempotent. Returns how many were resolved and how many failed again.
+   * Every Pembayaran Perlu Ditinjau, oldest first: money the PaymentProvider
+   * reported as paid that Billing could not settle a Tagihan with.
    */
-  retryFailedPaymentEffects(): Promise<{ resolved: number; failed: number }>;
+  pembayaranPerluDitinjau(): Promise<PembayaranPerluDitinjau[]>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -141,6 +150,19 @@ export async function lapsePayFirstTagihanTick(ctx: { db: Database }, now: Date)
   await lapseDuePayFirstTagihan(ctx.db, now);
 }
 
+/**
+ * Scheduler tick: runs again every downstream effect of a payment that failed
+ * (the payment itself stood), each in its own transaction, with the effect
+ * registry the worker is composed with. Idempotent: a resolved failure is left
+ * alone, and effects are idempotent themselves.
+ */
+export async function retryFailedPaymentEffectsTick(
+  ctx: { db: Database; paymentEffects: readonly PaymentEffect[]; reportError: ReportError },
+  now: Date,
+): Promise<void> {
+  await retryFailedPaymentEffects(ctx.db, ctx, now);
+}
+
 export function createBilling(deps: BillingDeps): Billing {
   return {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
@@ -149,9 +171,9 @@ export function createBilling(deps: BillingDeps): Billing {
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
-    retryFailedPaymentEffects: () => retryFailedPaymentEffects(deps.db, deps, deps.clock.now()),
-    documentByLink: (link) => documentByLink(deps.db, link),
-    documentPdf: (link) => documentPdf(deps, link),
+    pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
+    documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
+    documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
     within: (tx) => createBilling({ ...deps, db: tx }),

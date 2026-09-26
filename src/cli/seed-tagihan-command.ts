@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createAdapters } from "@/composition/adapters";
+import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
-import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
@@ -50,15 +50,7 @@ export async function seedTagihanCommand(
       const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-      const billing = createBilling({
-        db: database.db,
-        clock: adapters.clock,
-        operatorSettings,
-        pdf: adapters.pdf,
-        payments: adapters.payments,
-        documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
-        publicDocumentUrl: (link) => `${new URL(env.APP_BASE_URL).origin}${documentPagePath(link)}`,
-      });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
 
       if (!(await operatorSettings.current())) {
         const admin = (await identity.staffAccounts()).find(

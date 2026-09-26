@@ -1,11 +1,19 @@
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { InvalidWebhookError, type PaymentEvent, type PaymentProvider, type WebhookRequest } from "@/ports/payment-provider";
 import { buktiById, type BuktiPembayaran } from "./documents";
-import { buktiPembayaran, paymentWebhookEvent, providerPayment, tagihan as tagihanTable } from "./schema";
-import { PAYABLE, settleIn, type EffectDeps } from "./settlement";
+import type { Rupiah } from "@/lib/rupiah";
+import {
+  buktiPembayaran,
+  paymentWebhookEvent,
+  pembayaranPerluDitinjau,
+  providerPayment,
+  tagihan as tagihanTable,
+  type reviewReasons,
+} from "./schema";
+import { notPayableBecause, settleIn, type EffectDeps } from "./settlement";
 import { currentHeader, documentLinkSchema, type DocumentHeader } from "./shared";
 
 export interface BayarDeps {
@@ -21,8 +29,8 @@ export type BayarResult =
   | { ok: false; reason: "tidak_ditemukan" }
   /** Already paid: its Bukti Pembayaran (by link) is shown instead. */
   | { ok: false; reason: "sudah_lunas"; buktiLink: string }
-  /** A Dibatalkan Tagihan (lapsed or replaced) can no longer be paid. */
-  | { ok: false; reason: "tagihan_dibatalkan" };
+  /** A Dibatalkan Tagihan (lapsed or replaced), or a pay-first one past its due date, can no longer be paid. */
+  | { ok: false; reason: "tagihan_dibatalkan" | "batas_pembayaran_lewat" };
 
 /**
  * A provider link is reused only while it has at least this long left, so a
@@ -41,7 +49,8 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
   return refusable<BayarResult>(deps.db, async (tx) => {
     const [row] = await tx.select().from(tagihanTable).where(eq(tagihanTable.link, link)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" };
-    if (row.status === "lunas") {
+    const notPayable = notPayableBecause(row, now);
+    if (notPayable === "sudah_lunas") {
       const [bukti] = await tx
         .select({ link: buktiPembayaran.link })
         .from(buktiPembayaran)
@@ -50,7 +59,7 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
         .limit(1);
       return { ok: false, reason: "sudah_lunas", buktiLink: bukti.link };
     }
-    if (!PAYABLE.includes(row.status)) return { ok: false, reason: "tagihan_dibatalkan" };
+    if (notPayable) return { ok: false, reason: notPayable };
 
     const [valid] = await tx
       .select({ paymentUrl: providerPayment.paymentUrl })
@@ -84,15 +93,7 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
 }
 
 /** Why a paid webhook needs a human: money arrived that Billing could not settle a Tagihan with. */
-export type WebhookReviewReason =
-  /** A payment Billing never created through Bayar. */
-  | "pembayaran_tidak_dikenal"
-  /** The amount paid is not the Tagihan's total. */
-  | "jumlah_tidak_cocok"
-  /** The Tagihan was Dibatalkan (lapsed or replaced) before the money arrived. */
-  | "tagihan_dibatalkan"
-  /** The Tagihan was already Lunas through another payment: paid twice. */
-  | "sudah_lunas_dibayar_lagi";
+export type WebhookReviewReason = (typeof reviewReasons)[number];
 
 export type PaymentWebhookResult =
   /** The Tagihan is now Lunas, with this Bukti Pembayaran. */
@@ -136,18 +137,22 @@ export async function receivePaymentWebhook(deps: WebhookDeps, request: WebhookR
   const header = await currentHeader(deps.operatorSettings);
   if (!header) throw new Error("Pengaturan Operator is missing: a Bukti Pembayaran cannot be issued");
 
-  const result = await deps.db.transaction(async (tx) => {
-    const recorded = await tx
-      .insert(paymentWebhookEvent)
-      .values({ eventId: event.eventId, kind: event.kind, providerPaymentId: event.providerPaymentId, receivedAt: now, outcome: "diproses" })
-      .onConflictDoNothing()
-      .returning({ eventId: paymentWebhookEvent.eventId });
-    if (recorded.length === 0) return { outcome: "sudah_diproses" as const };
-    const acted = await actOn(tx, deps, event, header, now);
-    await tx
-      .update(paymentWebhookEvent)
-      .set({ outcome: acted.outcome === "perlu_ditinjau" ? `perlu_ditinjau:${acted.reason}` : acted.outcome })
+  const result = await deps.db.transaction(async (tx): Promise<Acted | { outcome: "sudah_diproses" }> => {
+    // Deliveries of one event queue here; the first records it, the rest find it recorded.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`billing.webhook:${event.eventId}`}))`);
+    const [seen] = await tx
+      .select({ eventId: paymentWebhookEvent.eventId })
+      .from(paymentWebhookEvent)
       .where(eq(paymentWebhookEvent.eventId, event.eventId));
+    if (seen) return { outcome: "sudah_diproses" };
+    const acted = await actOn(tx, deps, event, header, now);
+    await tx.insert(paymentWebhookEvent).values({
+      eventId: event.eventId,
+      kind: event.kind,
+      providerPaymentId: event.providerPaymentId,
+      receivedAt: now,
+      outcome: acted.outcome,
+    });
     return acted;
   });
 
@@ -155,12 +160,8 @@ export async function receivePaymentWebhook(deps: WebhookDeps, request: WebhookR
     case "lunas":
       return { ok: true, outcome: "lunas", bukti: await buktiById(deps.db, result.buktiId) };
     case "perlu_ditinjau":
-      deps.reportError?.(new Error(`Payment webhook needs review: ${result.reason}`), {
-        event: "billing.payment_needs_review",
-        reason: result.reason,
-        eventId: event.eventId,
-        providerPaymentId: event.providerPaymentId,
-        nomorTagihan: result.nomorTagihan,
+      deps.reportError?.(new Error(`Pembayaran Perlu Ditinjau: ${result.reason}`), {
+        tags: { module: "billing", event: "pembayaran_perlu_ditinjau", reason: result.reason },
       });
       return { ok: true, outcome: "perlu_ditinjau", reason: result.reason };
     default:
@@ -171,17 +172,33 @@ export async function receivePaymentWebhook(deps: WebhookDeps, request: WebhookR
 type Acted =
   | { outcome: "lunas"; buktiId: string }
   | { outcome: "sudah_lunas" | "diabaikan" }
-  | { outcome: "perlu_ditinjau"; reason: WebhookReviewReason; nomorTagihan: string | null };
+  | { outcome: "perlu_ditinjau"; reason: WebhookReviewReason };
 
 async function actOn(tx: Database, deps: EffectDeps, event: PaymentEvent, header: DocumentHeader, now: Date): Promise<Acted> {
   if (event.kind !== "paid") return { outcome: "diabaikan" };
+  const channel = event.channel?.trim().slice(0, 100) || null;
+  // When the payer paid, as the provider reports it (never later than now).
+  const paidAt = event.occurredAt < now ? event.occurredAt : now;
   const [payment] = await tx
-    .select({ tagihanId: providerPayment.tagihanId, amount: providerPayment.amount, nomorTagihan: tagihanTable.nomor })
+    .select({ tagihanId: providerPayment.tagihanId, amount: providerPayment.amount })
     .from(providerPayment)
-    .innerJoin(tagihanTable, eq(tagihanTable.id, providerPayment.tagihanId))
     .where(eq(providerPayment.providerPaymentId, event.providerPaymentId));
-  if (!payment) return { outcome: "perlu_ditinjau", reason: "pembayaran_tidak_dikenal", nomorTagihan: null };
-  const review = (reason: WebhookReviewReason): Acted => ({ outcome: "perlu_ditinjau", reason, nomorTagihan: payment.nomorTagihan });
+
+  /** Records a Pembayaran Perlu Ditinjau: the money stays unsettled for Admin Platform. */
+  const review = async (reason: WebhookReviewReason): Promise<Acted> => {
+    await tx.insert(pembayaranPerluDitinjau).values({
+      reason,
+      eventId: event.eventId,
+      providerPaymentId: event.providerPaymentId,
+      tagihanId: payment?.tagihanId ?? null,
+      amount: event.amountRupiah as Rupiah,
+      channel,
+      paidAt,
+      receivedAt: now,
+    });
+    return { outcome: "perlu_ditinjau", reason };
+  };
+  if (!payment) return review("pembayaran_tidak_dikenal");
   if (event.amountRupiah !== payment.amount) return review("jumlah_tidak_cocok");
 
   const settled = await settleIn(
@@ -189,15 +206,47 @@ async function actOn(tx: Database, deps: EffectDeps, event: PaymentEvent, header
     deps,
     payment.tagihanId,
     {
-      method: { kind: "penyedia_pembayaran", channel: event.channel?.trim().slice(0, 100) || UNNAMED_CHANNEL },
+      method: { kind: "penyedia_pembayaran", channel: channel ?? UNNAMED_CHANNEL },
       reference: event.providerPaymentId,
       header,
-      // When the payer paid, as the provider reports it (never later than now).
-      paidAt: event.occurredAt < now ? event.occurredAt : now,
+      paidAt,
     },
     now,
   );
   if (!settled.ok) return review("tagihan_dibatalkan");
   if (settled.settled) return { outcome: "lunas", buktiId: settled.buktiId };
   return settled.reference === event.providerPaymentId ? { outcome: "sudah_lunas" } : review("sudah_lunas_dibayar_lagi");
+}
+
+/** A Pembayaran Perlu Ditinjau: money reported as paid that Billing could not settle a Tagihan with. */
+export interface PembayaranPerluDitinjau {
+  id: string;
+  reason: WebhookReviewReason;
+  providerPaymentId: string;
+  /** Whole rupiah the provider reports as paid. */
+  amount: Rupiah;
+  channel: string | null;
+  paidAt: Date;
+  receivedAt: Date;
+  /** The Tagihan it was for, when Billing knows it. */
+  tagihan: { id: string; nomorTagihan: string } | null;
+}
+
+/** Every Pembayaran Perlu Ditinjau, oldest first. */
+export async function listPembayaranPerluDitinjau(db: Database): Promise<PembayaranPerluDitinjau[]> {
+  const rows = await db
+    .select({ row: pembayaranPerluDitinjau, nomorTagihan: tagihanTable.nomor })
+    .from(pembayaranPerluDitinjau)
+    .leftJoin(tagihanTable, eq(tagihanTable.id, pembayaranPerluDitinjau.tagihanId))
+    .orderBy(asc(pembayaranPerluDitinjau.receivedAt), asc(pembayaranPerluDitinjau.id));
+  return rows.map(({ row, nomorTagihan }) => ({
+    id: row.id,
+    reason: row.reason,
+    providerPaymentId: row.providerPaymentId,
+    amount: row.amount,
+    channel: row.channel,
+    paidAt: row.paidAt,
+    receivedAt: row.receivedAt,
+    tagihan: row.tagihanId && nomorTagihan ? { id: row.tagihanId, nomorTagihan } : null,
+  }));
 }

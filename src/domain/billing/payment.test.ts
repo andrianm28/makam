@@ -1,8 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import type { Rupiah } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
 import { billingWithOperatorSettings, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { scheduledTicks } from "@/domain/scheduler";
+import { tagihan as tagihanTable } from "./schema";
 import { lapsePayFirstTagihanTick, type IssueTagihanInput, type PaymentEffect, type SettledPayment } from "./index";
 
 const { db, close } = testDatabase();
@@ -85,6 +88,20 @@ describe("Bayar", () => {
     expect(setup.payments.created).toEqual([]);
   });
 
+  it("a pay-first Tagihan past its due date can't be paid, even before the lapse tick has run", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    await setup.billing.bayar(tagihan.link);
+    setup.clock.set(wib("2026-10-03 09:00"));
+
+    expect(await setup.billing.bayar(tagihan.link)).toEqual({ ok: false, reason: "batas_pembayaran_lewat" });
+    expect(setup.payments.created).toHaveLength(1);
+    expect(await setup.billing.documentByLink(tagihan.link)).toMatchObject({
+      tagihan: { status: "belum_dibayar" },
+      notPayableBecause: "batas_pembayaran_lewat",
+    });
+  });
+
   it("a pay-after Tagihan past its due date is never lapsed and stays payable", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup, {
@@ -95,6 +112,23 @@ describe("Bayar", () => {
     await lapsePayFirstTagihanTick({ db }, setup.clock.now());
 
     expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
+  });
+
+  it("a Tidak Tertagih Tagihan stays payable, through Bayar and the webhook", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup, {
+      ...terencana,
+      moment: { kind: "saat_duka", burialAt: wib("2026-10-01 14:00"), paymentWindowHours: 72 },
+    });
+    // Nothing declares Tidak Tertagih yet (the chasing ticket will): set the status the way it will.
+    await db.update(tagihanTable).set({ status: "tidak_tertagih" }).where(eq(tagihanTable.id, tagihan.id));
+    setup.clock.set(wib("2026-11-15 09:00"));
+
+    const payment = await paying(setup, tagihan);
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    expect(received).toMatchObject({ ok: true, outcome: "lunas" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "lunas" });
   });
 
   it("a Lunas Tagihan is not paid twice: Bayar points to its Bukti Pembayaran instead", async () => {
@@ -244,7 +278,21 @@ describe("the payment webhook", () => {
 
     expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "tagihan_dibatalkan" });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "dibatalkan" });
-    expect(setup.reportedErrors).toHaveLength(1);
+    expect(await setup.billing.pembayaranPerluDitinjau()).toEqual([
+      {
+        id: expect.any(String),
+        reason: "tagihan_dibatalkan",
+        providerPaymentId: payment.providerPaymentId,
+        amount: 5_150_000,
+        channel: "QRIS",
+        paidAt: wib("2026-10-03 09:00"),
+        receivedAt: wib("2026-10-03 09:00"),
+        tagihan: { id: tagihan.id, nomorTagihan: "TGH/2026/000001" },
+      },
+    ]);
+    expect(setup.reportedErrors).toEqual([
+      { error: expect.any(Error), context: { tags: { module: "billing", event: "pembayaran_perlu_ditinjau", reason: "tagihan_dibatalkan" } } },
+    ]);
   });
 
   it("a paid amount that differs from the Tagihan's total does not make it Lunas and is reported", async () => {
@@ -258,6 +306,9 @@ describe("the payment webhook", () => {
 
     expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "jumlah_tidak_cocok" });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(await setup.billing.pembayaranPerluDitinjau()).toMatchObject([
+      { reason: "jumlah_tidak_cocok", amount: 5_000_000, tagihan: { nomorTagihan: "TGH/2026/000001" } },
+    ]);
     expect(setup.reportedErrors).toHaveLength(1);
   });
 
@@ -271,6 +322,9 @@ describe("the payment webhook", () => {
 
     expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "pembayaran_tidak_dikenal" });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(await setup.billing.pembayaranPerluDitinjau()).toMatchObject([
+      { reason: "pembayaran_tidak_dikenal", providerPaymentId: foreign.providerPaymentId, amount: 5_150_000, tagihan: null },
+    ]);
     expect(setup.reportedErrors).toHaveLength(1);
   });
 
@@ -286,7 +340,22 @@ describe("the payment webhook", () => {
 
     expect(again).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "sudah_lunas_dibayar_lagi" });
     expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
+    expect(await setup.billing.pembayaranPerluDitinjau()).toMatchObject([
+      { reason: "sudah_lunas_dibayar_lagi", providerPaymentId: old.providerPaymentId, tagihan: { id: tagihan.id } },
+    ]);
     expect(setup.reportedErrors).toHaveLength(1);
+  });
+
+  it("a Pembayaran Perlu Ditinjau delivered twice is recorded once", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    const wrong = setup.payments.webhookFor(payment.providerPaymentId, "paid", { amountRupiah: 1 });
+
+    await setup.billing.receivePaymentWebhook(wrong);
+    expect(await setup.billing.receivePaymentWebhook(wrong)).toEqual({ ok: true, outcome: "sudah_diproses" });
+
+    expect(await setup.billing.pembayaranPerluDitinjau()).toHaveLength(1);
   });
 });
 
@@ -341,10 +410,15 @@ describe("the downstream effects of a payment", () => {
     expect(received).toMatchObject({ ok: true, outcome: "lunas", bukti: { nomorBukti: "BYR/2026/000001" } });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "lunas" });
     expect(await setup.billing.nextDocumentNumber("BPM")).toBe("BPM/2026/000001");
-    expect(setup.reportedErrors).toMatchObject([{ context: { effect: "test.bukti_pemesanan", nomorTagihan: "TGH/2026/000001" } }]);
+    expect(setup.reportedErrors).toEqual([
+      {
+        error: expect.any(Error),
+        context: { tags: { module: "billing", event: "payment_effect_failed", effect: "test.bukti_pemesanan", nomorTagihan: "TGH/2026/000001" } },
+      },
+    ]);
   });
 
-  it("a failed effect is run again until it succeeds, once", async () => {
+  it("the scheduler runs a failed effect again every 10 minutes until it succeeds, once", async () => {
     let failing = true;
     const ran: string[] = [];
     const effect: PaymentEffect = {
@@ -357,11 +431,18 @@ describe("the downstream effects of a payment", () => {
     const setup = await billingWithOperatorSettings(db, { paymentEffects: [effect] });
     const tagihan = await issued(setup);
     await setup.billing.recordPayment(tagihan.id, { method: { kind: "transfer_manual" }, reference: null });
+    const retry = scheduledTicks.find((scheduled) => scheduled.name === "billing.retry_payment_effects");
+    expect(retry?.cron).toBe("*/10 * * * *");
+    const ctx = { db, paymentEffects: [effect], reportError: () => {} };
 
-    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 0, failed: 1 });
+    setup.clock.advance({ minutes: 10 });
+    await retry!.tick(ctx, setup.clock.now());
+    expect(ran).toEqual([]);
     failing = false;
-    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 1, failed: 0 });
-    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 0, failed: 0 });
+    setup.clock.advance({ minutes: 10 });
+    await retry!.tick(ctx, setup.clock.now());
+    await retry!.tick(ctx, setup.clock.now());
+
     expect(ran).toEqual(["TGH/2026/000001"]);
   });
 

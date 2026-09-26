@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Webhook } from "svix";
+import { FAKE_PAYMENT_WEBHOOK_SECRET } from "../src/adapters/memory/fake-payment-secret";
 import { seedE2eAdminPlatform } from "./support/admin-platform";
 
 /*
@@ -16,12 +17,8 @@ import { seedE2eAdminPlatform } from "./support/admin-platform";
  */
 const SEED_TAGIHAN = (process.env.E2E_SEED_TAGIHAN ?? "docker compose -p makam-v1-dev exec -T web node dist/seed-tagihan.mjs").split(" ");
 
-/**
- * The fake PaymentProvider's Svix secret (FAKE_PAYMENT_WEBHOOK_SECRET in
- * src/adapters/memory/fake-payment-provider.ts), unless the stack sets its own.
- */
-const WEBHOOK_SECRET =
-  process.env.E2E_PAYMENT_WEBHOOK_SECRET ?? "whsec_" + Buffer.from("makam-fake-payment-webhook-secret").toString("base64");
+/** The fake PaymentProvider's Svix secret, unless the stack sets its own FAKE_PAYMENT_WEBHOOK_SECRET. */
+const WEBHOOK_SECRET = process.env.E2E_PAYMENT_WEBHOOK_SECRET ?? FAKE_PAYMENT_WEBHOOK_SECRET;
 
 function seedTagihan(): { nomorTagihan: string; path: string } {
   const [command, ...args] = SEED_TAGIHAN;
