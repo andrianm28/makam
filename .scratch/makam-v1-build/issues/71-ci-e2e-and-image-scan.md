@@ -26,7 +26,7 @@ Decided with the user on 2026-09-26. Move the Playwright critical paths off the 
 - [x] An SBOM (SPDX or CycloneDX) is produced for every pushed image and kept as an artifact (or attached to the image).
 - [x] Migration upgrade test: a database migrated to the running release's migrations and seeded with representative data is migrated to the new ones, then the domain tests run; a migration containing destructive DDL (DROP, RENAME, ALTER … SET NOT NULL without a default, type changes) fails CI unless the statement is marked `-- contract: <reason>`.
 - [x] Review fixes: one `ref` output (`image:tag@digest`) instead of rebuilding it in three jobs; the "main only" rule stated once; `MAKAM_TAG` renamed for what it holds; the CI stack no longer depends on the host's GlitchTip network name; `.trivyignore`'s 90-day maximum either enforced by the test or dropped from the docs; the runbook cross-reference fixed.
-- [ ] The first real `main` run after merge is checked (conditions, `latest` retag, gate) and linked in `## Comments`.
+- [x] The first real `main` run after merge is checked (conditions, `latest` retag, gate) and linked in `## Comments`.
 
 ## Comments
 
@@ -66,3 +66,4 @@ Decided with the user on 2026-09-26. Move the Playwright critical paths off the 
   - **Warm `main` run**: about 11 minutes, under 15.
   - **Not done**: the throwaway ghcr tag `ticket-71-gate-test` (package version 1298126273, also tagged `sha-79b38f7…`) could not be deleted: the available token lacks `delete:packages`. Delete it in the package settings (or with a token with that scope). The first real `main` run after merge is left to the orchestrator (last criterion).
 - 2026-09-26 — Re-review after fixes: Standards 0 hard violations, Spec clean (only the "first real main run" criterion open). `MAKAM_TAG` was not renamed; it now holds only the tag and the digest moved to `E2E_IMAGE_REF`, which meets the intent. Merged to main under the user's standing authorization; judgement calls moved to ticket 72. The leftover ghcr tag `ticket-71-gate-test` (version 1298126273) needs `delete:packages` and is handed to the user.
+- 2026-09-26 — First real `main` runs: 28950b9 and ad0c158 failed in the scan ("--skip-db-update cannot be specified on the first run": main had no Trivy cache yet), so the gate held and staging stayed on 5c7e304, as designed. Hotfix 9f20437 (the first vulnerability scan downloads the DB); run 36237301461 then passed every job, `deploy-gate` moved `latest`, and staging deployed sha-9f20437 healthy.
