@@ -7,6 +7,7 @@ import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
+import { createInventory, type Inventory } from "@/domain/inventory";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -29,6 +30,8 @@ export interface ServerRuntime {
   tariffs: Tariffs;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
+  /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga). */
+  inventory: Inventory;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -63,6 +66,7 @@ export function serverRuntime(): ServerRuntime {
     });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
+    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -72,8 +76,9 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
       operatorSettings,
-      tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi }),
+      tariffs,
       billing: composeBilling({ env, db: database.db, adapters, operatorSettings, reportError }),
+      inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
     };
   }
   return globalForRuntime.__makamRuntime;

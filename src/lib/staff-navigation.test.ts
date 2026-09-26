@@ -30,6 +30,7 @@ describe("the staff menu of each role", () => {
     expect(outline(menu)).toEqual([["Lokasi ini", ["Beranda", "Antrean Lokasi", "Denah", "Jam Operasional", "Audit Log"]]]);
     expect(menu[0].items.flatMap((item) => (item.href ? [item.href] : []))).toEqual([
       `/staf/admin-lokasi/${lokasiId}`,
+      `/staf/admin-lokasi/${lokasiId}/denah`,
       `/staf/admin-lokasi/${lokasiId}/jam-operasional`,
       `/staf/admin-lokasi/${lokasiId}/audit-log`,
     ]);

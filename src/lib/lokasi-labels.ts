@@ -42,6 +42,14 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "hari_libur.hapus": "Hari Libur Nasional dihapus",
   "catatan_internal.tulis": "Catatan Internal",
   "antrean.ambil": "Baris Antrean diambil",
+  "denah.buat_blok": "Blok dibuat",
+  "denah.ubah_jenis_sel": "Jenis sel diubah",
+  "denah.atur_jenis_makam": "Jenis Makam diatur",
+  "denah.ubah_nomor": "Nomor Makam diubah",
+  "denah.buat_kavling": "Kavling Keluarga dibuat",
+  "denah.pisahkan_kavling": "Kavling Keluarga dipisahkan",
+  "denah.ubah_baris_kolom": "Baris/kolom Blok diubah",
+  "denah.unggah_foto_blok": "Foto denah Blok diunggah",
 };
 
 /** The role an Entri Audit's actor wrote under. */

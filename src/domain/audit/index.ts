@@ -88,7 +88,23 @@ export type AuditAction =
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
-  | "antrean.ambil";
+  | "antrean.ambil"
+  /** An Admin Lokasi creates a Blok on its Denah (size, numbering pattern, initial Jenis Makam). */
+  | "denah.buat_blok"
+  /** An Admin Lokasi turns selected Denah cells into Petak Makam, Jalan or Bukan Petak. */
+  | "denah.ubah_jenis_sel"
+  /** An Admin Lokasi sets the Jenis Makam of selected Petak Makam. */
+  | "denah.atur_jenis_makam"
+  /** An Admin Lokasi changes a Petak Makam's Nomor Makam, one cell or a bulk renumber. */
+  | "denah.ubah_nomor"
+  /** An Admin Lokasi groups adjacent Petak Makam into a Kavling Keluarga. */
+  | "denah.buat_kavling"
+  /** An Admin Lokasi splits a Kavling Keluarga back into separate Petak Makam. */
+  | "denah.pisahkan_kavling"
+  /** An Admin Lokasi adds or removes a row or column of a Blok's grid. */
+  | "denah.ubah_baris_kolom"
+  /** An Admin Lokasi uploads or replaces a Blok's site-plan photo. */
+  | "denah.unggah_foto_blok";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
