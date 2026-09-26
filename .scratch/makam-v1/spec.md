@@ -637,6 +637,16 @@ Core entities at a glance (details in each module):
 - **Order**: shell, design system and patterns first; existing staff pages migrate onto them; new pages from later tickets (public pages in tickets 22, 26 and 29 included) use them from the start.
 - **Process**: a throwaway clickable prototype (mattpocock-skills:prototype) for the user to react to, restyled to the brand, then tickets on the tracker, each built test-first with the two-axis review.
 
+### Release plan (decided with the user, 2026-09-26)
+
+v1 ships in three releases so the first can go live sooner. Nothing is dropped; later releases follow the same spec.
+
+- **Rilis 1 (go-live)**: Lokasi Mitra Saat Duka and Terencana end to end, with the staff back office, billing, payments, refunds, Pencairan and Laporan, the brand redesign, email as the Akun key, CI/CD, the live adapters (S3, SumoPod payments, SMTP), backups and the `makam.co.id` switch. Tickets 13–17, 19–33, 36–38, 60, 61, 64, 65, 68, 71–83 (plus the resolved foundation).
+- **Rilis 2**: the Makam keluarga hub and Perpanjangan (34, 35, 39–42), Layanan and Mitra Jasa (49–57), Lokasi Ditangguhkan / Berhenti (59).
+- **Rilis 3**: DKI TPU (43–48) and Wakaf Tanah (58).
+- Until their release, the homepage tiles and menu items for Perpanjang Makam, Layanan Makam, Urus di TPU DKI and Wakaf Tanah show "Segera hadir" with the CS link, and the trust strip makes no claim about TPU paperwork. No Hak Pakai exists on the platform at launch (the Excel import is out of scope), so Perpanjangan is not needed in Rilis 1.
+- Next milestone: a family can book Saat Duka on staging (82 → 13–17 → 19–20 → 22–25).
+
 ## Testing Decisions
 
 - **What makes a good test**:
