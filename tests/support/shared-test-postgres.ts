@@ -1,6 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import pg from "pg";
+import { docker, isNoSuchObject } from "../../scripts/lib/docker";
 
 /**
  * One long-running local test Postgres for every worktree on the shared host
@@ -49,13 +48,6 @@ export async function recreateDatabase(serverUrl: string, name: string): Promise
   return url.toString();
 }
 
-const run = promisify(execFile);
-
-async function docker(...args: string[]): Promise<string> {
-  const { stdout } = await run("docker", args);
-  return stdout.trim();
-}
-
 /**
  * Starts `makam-testpg` if it is not running (only when MAKAM_TEST_PG_URL is
  * unset: a server configured elsewhere is not ours to start) and waits until
@@ -65,10 +57,14 @@ async function docker(...args: string[]): Promise<string> {
 export async function ensureSharedTestPostgres(): Promise<string> {
   const serverUrl = sharedTestPostgresUrl();
   if (!process.env.MAKAM_TEST_PG_URL) {
-    const state = await docker("inspect", "-f", "{{.State.Running}}", SHARED_TEST_PG_CONTAINER).catch(() => "missing");
-    if (state === "false") await docker("start", SHARED_TEST_PG_CONTAINER);
+    // A daemon that is down or refuses us fails the run here; only "no such object" means start it.
+    const state = await docker(["inspect", "-f", "{{.State.Running}}", SHARED_TEST_PG_CONTAINER]).catch((error: unknown) => {
+      if (isNoSuchObject(error)) return "missing";
+      throw error;
+    });
+    if (state === "false") await docker(["start", SHARED_TEST_PG_CONTAINER]);
     if (state === "missing") {
-      await docker(
+      await docker([
         "run", "-d",
         "--name", SHARED_TEST_PG_CONTAINER,
         "--label", "makam.role=shared-test-postgres",
@@ -81,7 +77,7 @@ export async function ensureSharedTestPostgres(): Promise<string> {
         "postgres:18",
         "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off",
         "-c", "max_connections=200",
-      ).catch(async (error: unknown) => {
+      ]).catch(async (error: unknown) => {
         // Another worktree started it at the same moment.
         if (!String(error).includes("Conflict")) throw error;
       });

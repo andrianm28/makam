@@ -4,6 +4,9 @@
 #   curl http://127.0.0.1:${MAKAM_WEB_PORT:-3310}/api/health
 #   docker compose -p makam-v1-dev down -v
 #
+# In an agent worktree use `npm run stack -- up --build -d` instead: it runs this
+# file as the worktree's own project and labels the image for `npm run clean`.
+#
 # `migrate` is its own one-shot container that web and worker wait for;
 # neither app migrates on start.
 name: makam-v1-dev
@@ -11,6 +14,8 @@ name: makam-v1-dev
 x-app: &app
   build:
     context: .
+    labels:
+      makam.worktree: ${MAKAM_WORKTREE:-}
   image: makam-v1:${COMPOSE_PROJECT_NAME:-makam-v1-dev}
   environment: &app-env
     APP_ENV: development

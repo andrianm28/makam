@@ -1,9 +1,8 @@
-import path from "node:path";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { TestProject } from "vitest/node";
 import { migrateDatabase } from "../src/db/migrate";
 import { dropDatabase, ensureSharedTestPostgres, recreateDatabase } from "./support/shared-test-postgres";
-import { testDatabaseName } from "./support/worktree";
+import { testDatabaseName } from "../scripts/lib/worktree";
 
 declare module "vitest" {
   export interface ProvidedContext {
@@ -27,7 +26,7 @@ export default async function setup(project: TestProject) {
 
   if (!databaseUrl && process.env.MAKAM_TEST_PG === "shared") {
     const serverUrl = await ensureSharedTestPostgres();
-    const name = testDatabaseName(path.basename(project.config.root));
+    const name = testDatabaseName(project.config.root);
     databaseUrl = await recreateDatabase(serverUrl, name);
     shared = { serverUrl, name };
   }

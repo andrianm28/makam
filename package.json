@@ -13,6 +13,7 @@
     "test:shared": "MAKAM_TEST_PG=shared vitest run",
     "deps": "node scripts/deps.mjs",
     "clean": "tsx scripts/clean.mts",
+    "stack": "tsx scripts/stack.mts",
     "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "migrate": "tsx src/cli/migrate.ts",

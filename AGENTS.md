@@ -50,12 +50,12 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 
 Up to four builder agents share one host's disk with other projects, so each worktree stays lean (about 25 MB of its own beyond the source):
 
-1. **Dependencies**: `npm run deps`, never `npm ci`. It links `node_modules` from the shared store (`~/.cache/makam/deps`, one `npm ci` per lockfile) as hard links. After changing dependencies, `npm install` updates `package-lock.json` as usual; then run `npm run deps` again. `npm run deps -- --prune` drops store entries no worktree's lockfile uses.
+1. **Dependencies**: `npm run deps`, never `npm ci`. It links `node_modules` from the shared store (`~/.cache/makam/deps`, one `npm ci` per lockfile) as hard links to read-only files, so treat everything under `node_modules` as read-only: a tool that edits a package file in place fails with EACCES. To change dependencies, `npm install <pkg>` as usual (it updates `package-lock.json`), then `npm run deps` again. A package that must be rebuilt in place (`npm rebuild`, node-gyp) needs a private copy: `npm ci` in that worktree, at the full ~1 GB cost.
 2. **Tests**: `npm run test:shared` (same arguments as `npm test`). It uses this worktree's own database on the shared `makam-testpg` Postgres (started on first use, data in tmpfs), recreated fresh each run and dropped after. Run one test run per worktree at a time. Plain `npm test` still starts its own container.
-3. **Local stack**, only when a ticket needs to see the running app beyond what CI's e2e covers (e.g. a UI you must look at, a worker job end to end): `docker compose -p makam-$(basename "$PWD") up --build -d`. Take it down as soon as you are done: `docker compose -p makam-$(basename "$PWD") down -v`, then `npm run clean` removes its image.
-4. **When the ticket is done**: `npm run clean`. It removes `.next`, `dist`, `test-results`, the worktree's test database and its local stacks (containers, volumes, `makam-v1:<project>` image).
+3. **Local stack**, only when a ticket needs to see the running app beyond what CI's e2e covers (e.g. a UI you must look at, a worker job end to end): `npm run stack -- up --build -d` runs `docker-compose.yml` as this worktree's own compose project (`npm run stack` prints its name; pick a free port with `MAKAM_WEB_PORT`; for local e2e set `E2E_SEED_ADMIN="npm run -s stack -- exec -T web node dist/seed-admin.mjs"`). Stop it with `npm run clean` as soon as you are done. Use `npm run stack` rather than a plain `docker compose up`, which joins the shared `makam-v1-dev` project that `npm run clean` never touches.
+4. **When the ticket is done**: `npm run clean`. It removes `.next`, `dist`, `test-results`, the worktree's test database and its local stack (containers, volumes, networks, `makam-v1:<project>` image), only what is proven to come from this worktree.
 
-Touch only makam's own Docker objects (`makam-testpg`, your worktree's stack): other projects' containers, images, volumes and worktrees on this host are off limits, so no `docker system prune`, `docker image prune` or `docker volume prune`.
+Touch only makam's own Docker objects (`makam-testpg`, your worktree's stack): other projects' containers, images, volumes and worktrees on this host are off limits, so no `docker system prune`, `docker image prune`, `docker volume prune` or `docker builder prune`.
 
 ## Commands
 
@@ -69,5 +69,5 @@ Touch only makam's own Docker objects (`makam-testpg`, your worktree's stack): o
 | Next.js build | `npm run build` |
 | Worker and migrate bundles | `npm run build:worker` |
 | Migrate a database | `DATABASE_URL=... npm run migrate` |
-| Local stack (Postgres, migrate, web, worker) | `docker compose -p makam-v1-dev up --build -d` |
+| Local stack of this worktree (Postgres, migrate, web, worker) | `npm run stack -- up --build -d` |
 | End-to-end against the local stack (optional; CI runs it on `main`) | `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3310 npm run e2e` |

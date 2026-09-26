@@ -2,59 +2,69 @@
 //
 // - build and test output: .next, dist, test-results, playwright-report, blob-report
 // - its database on the shared test Postgres (makam-testpg), if that is running
-// - its local Docker stacks (containers, volumes, the makam-v1:<project> image):
-//   the one named after the worktree, and any other compose project started from
-//   this directory; never a deployed environment's, never a shared image.
+// - its local Docker stacks: only containers, volumes, networks and makam-v1:*
+//   image tags proven to come from this worktree (see planStackCleanup); never
+//   makam-v1-dev, a deployed environment, or a project also used elsewhere.
 //
 // node_modules stays (it is hard links into the shared store and costs little).
-import { execFile } from "node:child_process";
 import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { docker, lines } from "./lib/docker";
+import { planStackCleanup, testDatabaseName, type DockerInventory } from "./lib/worktree";
 import { dropDatabase, sharedTestPostgresUrl } from "../tests/support/shared-test-postgres";
-import { stackProjectsToClean, testDatabaseName } from "../tests/support/worktree";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const worktree = path.basename(root);
-const run = promisify(execFile);
-
-async function docker(...args: string[]): Promise<string> {
-  const { stdout } = await run("docker", args, { cwd: root });
-  return stdout.trim();
-}
-
-function lines(output: string): string[] {
-  return output.split("\n").map((line) => line.trim()).filter(Boolean);
-}
 
 for (const dir of [".next", "dist", "test-results", "playwright-report", "blob-report", "tsconfig.tsbuildinfo"]) {
   rmSync(path.join(root, dir), { recursive: true, force: true });
 }
 console.log("clean: removed .next, dist, test-results and reports");
 
-const database = testDatabaseName(worktree);
+const database = testDatabaseName(root);
 try {
   await dropDatabase(sharedTestPostgresUrl(), database);
-  console.log(`clean: dropped ${database} on the shared test Postgres`);
+  console.log(`clean: dropped ${database} on the shared test Postgres (if it was there)`);
 } catch {
   console.log("clean: shared test Postgres not reachable; no test database to drop");
 }
 
-const found = lines(
-  await docker("ps", "-a", "--filter", `label=com.docker.compose.project.working_dir=${root}`, "--format", '{{.Label "com.docker.compose.project"}}'),
+const PROJECT = '{{.Label "com.docker.compose.project"}}';
+const WORKTREE = '{{.Label "makam.worktree"}}';
+
+function parse(output: string) {
+  return lines(output).map((line) => {
+    const [id, project, worktree, workingDir] = line.split("\t");
+    return { id, project: project || undefined, worktree: worktree || undefined, workingDir: workingDir || undefined };
+  });
+}
+
+const tags = lines(await docker(["images", "makam-v1", "--format", "{{.Repository}}:{{.Tag}}"])).filter((tag) => !tag.endsWith(":<none>"));
+const inventory: DockerInventory = {
+  containers: parse(
+    await docker(["ps", "-a", "--format", `{{.ID}}\t${PROJECT}\t${WORKTREE}\t{{.Label "com.docker.compose.project.working_dir"}}`]),
+  ),
+  volumes: parse(await docker(["volume", "ls", "--format", `{{.Name}}\t${PROJECT}\t${WORKTREE}`])),
+  networks: parse(await docker(["network", "ls", "--format", `{{.ID}}\t${PROJECT}\t${WORKTREE}`])),
+  images: await Promise.all(
+    tags.map(async (tag) => {
+      const [project, worktree] = (
+        await docker(["image", "inspect", "--format", '{{index .Config.Labels "com.docker.compose.project"}}\t{{index .Config.Labels "makam.worktree"}}', tag])
+      ).split("\t");
+      return { id: tag, project: project || undefined, worktree: worktree || undefined };
+    }),
+  ),
+};
+
+const plan = planStackCleanup(root, inventory);
+if (plan.containers.length > 0) await docker(["rm", "-f", "-v", ...plan.containers]);
+if (plan.volumes.length > 0) await docker(["volume", "rm", ...plan.volumes]);
+if (plan.networks.length > 0) await docker(["network", "rm", ...plan.networks]);
+if (plan.images.length > 0) await docker(["image", "rm", ...plan.images]);
+console.log(
+  `clean: removed ${plan.containers.length} containers, ${plan.volumes.length} volumes, ${plan.networks.length} networks, ${plan.images.length} images (${plan.images.join(", ") || "none"})`,
 );
-for (const project of stackProjectsToClean(worktree, found)) {
-  const containers = lines(await docker("ps", "-aq", "--filter", `label=com.docker.compose.project=${project}`));
-  if (containers.length > 0) await docker("rm", "-f", "-v", ...containers);
-  const volumes = lines(await docker("volume", "ls", "-q", "--filter", `label=com.docker.compose.project=${project}`));
-  if (volumes.length > 0) await docker("volume", "rm", ...volumes);
-  const networks = lines(await docker("network", "ls", "-q", "--filter", `label=com.docker.compose.project=${project}`));
-  if (networks.length > 0) await docker("network", "rm", ...networks);
-  const images = lines(await docker("images", "-q", `makam-v1:${project}`));
-  if (images.length > 0) await docker("image", "rm", `makam-v1:${project}`);
-  if (containers.length + volumes.length + networks.length + images.length > 0) {
-    console.log(`clean: removed stack ${project} (${containers.length} containers, ${volumes.length} volumes, ${images.length} images)`);
-  }
+for (const project of plan.skipped) {
+  console.log(`clean: left ${project} alone (shared or used elsewhere); stop your part of it by hand if you started it`);
 }
 console.log("clean: done");

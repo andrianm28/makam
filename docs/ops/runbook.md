@@ -98,7 +98,8 @@ $S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id
 ```
 
 Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
-`DATABASE_URL`), or `docker compose -p makam-v1-dev exec web node dist/seed-admin.mjs ...`.
+`DATABASE_URL`), or in a worktree's local stack `npm run stack -- exec web node dist/seed-admin.mjs ...`
+(the main checkout's `makam-v1-dev` stack: `docker compose -p makam-v1-dev exec web ...`).
 
 The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
 (staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
@@ -632,11 +633,28 @@ Basic auth on `dev.makam.co.id` was removed at the user's request: staging is re
 ## Builder worktrees on the host (ticket 83)
 
 Agent worktrees share two makam-owned things on the host (AGENTS.md,
-"Worktrees on the shared host"):
+"Worktrees on the shared host"). Neither is used by staging, production or CI.
 
-| What | Where | Safe to remove? |
-|---|---|---|
-| Dependency store | `~/.cache/makam/deps/<platform-node-lockhash>/` | Yes: `npm run deps -- --prune` keeps only entries some worktree's lockfile uses. Worktrees keep working (their `node_modules` are hard links). |
-| Shared test Postgres | container `makam-testpg`, `127.0.0.1:55432`, data in tmpfs | Yes, when no test run is going: `docker rm -f makam-testpg`. The next `npm run test:shared` starts it again. |
+**Dependency store**, `~/.cache/makam/deps/<platform>-<arch>-node<major>-<lockhash>/`
+(`MAKAM_DEPS_STORE` moves it; it must be on the worktrees' filesystem). One
+`npm ci` per lockfile, about 1.1 GB each, files read-only. Each entry lists in
+`users` the worktree roots (of any clone) that linked from it, and each worktree
+names its entry in `node_modules/.makam-deps`. `npm run deps -- --prune` removes
+entries none of their users still links from, and crashed installs; entries
+without a `users` file are kept (delete those by hand). Removing an entry never
+breaks a worktree: its hard links keep the data until the worktree goes.
 
-Neither is used by staging, production or CI.
+**Shared test Postgres**, container `makam-testpg` (`postgres:18`,
+`127.0.0.1:55432`, user and password `makam`, label
+`makam.role=shared-test-postgres`). Data lives in a tmpfs capped at 2 GB, so it
+uses RAM, not disk: about 160 MB idle, plus the test databases in use (tens of
+MB each). It runs with `--restart unless-stopped`, so it comes back after a
+reboot (empty, which is fine: every run recreates its database).
+
+```bash
+docker stats --no-stream makam-testpg      # RAM in use
+docker stop makam-testpg                   # stays stopped, even across reboots, until the next npm run test:shared
+docker rm -f makam-testpg                  # gone; the next npm run test:shared starts a new one
+```
+
+Stop or remove it only when no agent is running `npm run test:shared`.

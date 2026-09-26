@@ -3,7 +3,7 @@
 // copy of that tree made of hard links (its own directories, shared file data).
 // Plain Node with no dependencies: it runs before a worktree has node_modules.
 import { createHash } from "node:crypto";
-import { copyFileSync, linkSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { chmodSync, copyFileSync, linkSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import path from "node:path";
 
 /** Files npm rewrites in place; the worktree gets its own copy instead of a link. */
@@ -40,7 +40,46 @@ function mirror(source, target) {
     const to = path.join(target, entry.name);
     if (entry.isDirectory()) mirror(from, to);
     else if (entry.isSymbolicLink()) symlinkSync(readlinkSync(from), to);
-    else if (COPIED.has(entry.name)) copyFileSync(from, to);
-    else linkSync(from, to);
+    else if (COPIED.has(entry.name)) {
+      copyFileSync(from, to);
+      chmodSync(to, lstatSync(from).mode | 0o200);
+    } else linkSync(from, to);
   }
+}
+
+/**
+ * Makes every regular file under `dir` read-only (a-w), so a tool that tries
+ * to change a shared file in place fails loudly instead of changing it for
+ * every worktree. Directories stay writable, so entries can still be removed.
+ * @param {string} dir
+ */
+export function sealTree(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) sealTree(full);
+    else if (entry.isFile()) chmodSync(full, lstatSync(full).mode & ~0o222);
+  }
+}
+
+/**
+ * @typedef {{ name: string, users: string[] | undefined, complete: boolean, installing: boolean }} StoreEntry
+ */
+
+/**
+ * The store entries `npm run deps -- --prune` removes: finished entries none
+ * of whose recorded users (worktree roots, from any clone) still links from
+ * them, and crashed installs. Entries with no user record are kept.
+ * @param {StoreEntry[]} entries
+ * @param {(root: string) => string | undefined} linkedKey the entry a worktree links from now
+ * @returns {string[]}
+ */
+export function entriesToPrune(entries, linkedKey) {
+  return entries
+    .filter((entry) => {
+      if (entry.installing) return false;
+      if (!entry.complete) return true;
+      if (entry.users === undefined) return false;
+      return !entry.users.some((root) => linkedKey(root) === entry.name);
+    })
+    .map((entry) => entry.name);
 }

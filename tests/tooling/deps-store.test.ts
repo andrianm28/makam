@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { linkTree, storeKey } from "../../scripts/lib/deps-store.mjs";
+import { entriesToPrune, linkTree, sealTree, storeKey } from "../../scripts/lib/deps-store.mjs";
 
 const node22 = { nodeVersion: "v22.23.2", platform: "linux", arch: "x64" };
 
@@ -41,8 +41,18 @@ describe("linking a worktree's node_modules from the store", () => {
     expect(readlinkSync(path.join(target, ".bin", "pkg"))).toBe("../pkg/lib/index.js");
   });
 
+  it("makes the store's files read-only, so no worktree can change them in place", () => {
+    const { store, target } = fixture();
+    sealTree(store);
+    linkTree(store, target);
+
+    expect(() => writeFileSync(path.join(target, "pkg", "lib", "index.js"), "changed")).toThrow(/EACCES|EPERM/);
+    expect(readFileSync(path.join(store, "pkg", "lib", "index.js"), "utf8")).toBe("module.exports = 1;\n");
+  });
+
   it("copies npm's hidden lockfile, which npm rewrites in place, so the store's copy stays intact", () => {
     const { store, target } = fixture();
+    sealTree(store);
     linkTree(store, target);
 
     writeFileSync(path.join(target, ".package-lock.json"), '{"changed":true}\n');
@@ -56,5 +66,52 @@ describe("linking a worktree's node_modules from the store", () => {
 
     expect(() => statSync(path.join(target, "stale"))).toThrow();
     expect(statSync(path.join(target, "pkg", "lib", "index.js")).isFile()).toBe(true);
+  });
+});
+
+describe("pruning the shared dependency store", () => {
+  const worktrees: Record<string, string | undefined> = {
+    "/wt/a": "linux-x64-node22-aaaa",
+    "/wt/b": "linux-x64-node24-bbbb",
+    "/wt/moved-on": "linux-x64-node22-aaaa",
+  };
+  const linkedKey = (root: string) => worktrees[root];
+
+  it("keeps every entry a worktree still links from, whatever Node major that worktree used", () => {
+    const prune = entriesToPrune(
+      [
+        { name: "linux-x64-node22-aaaa", users: ["/wt/a"], complete: true, installing: false },
+        { name: "linux-x64-node24-bbbb", users: ["/wt/b"], complete: true, installing: false },
+      ],
+      linkedKey,
+    );
+    expect(prune).toEqual([]);
+  });
+
+  it("removes an entry once none of the worktrees that linked it still does", () => {
+    const prune = entriesToPrune(
+      [{ name: "linux-x64-node22-old", users: ["/wt/moved-on", "/wt/removed"], complete: true, installing: false }],
+      linkedKey,
+    );
+    expect(prune).toEqual(["linux-x64-node22-old"]);
+  });
+
+  it("keeps entries with no record of who uses them, and installs still running", () => {
+    const prune = entriesToPrune(
+      [
+        { name: "linux-x64-node22-legacy", users: undefined, complete: true, installing: false },
+        { name: "linux-x64-node22-new", users: [], complete: false, installing: true },
+      ],
+      linkedKey,
+    );
+    expect(prune).toEqual([]);
+  });
+
+  it("removes a crashed install (incomplete, nobody installing)", () => {
+    const prune = entriesToPrune(
+      [{ name: "linux-x64-node22-crashed", users: [], complete: false, installing: false }],
+      linkedKey,
+    );
+    expect(prune).toEqual(["linux-x64-node22-crashed"]);
   });
 });
