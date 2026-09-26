@@ -1,6 +1,6 @@
 # No internal ticket numbers in user-facing copy
 
-Status: ready-for-agent
+Status: resolved
 Spec: Public site and routing decisions (copy is for families and staff, not for the build team)
 
 ## What to build
@@ -24,3 +24,4 @@ Implemented test-first. Added `src/app/no-ticket-numbers.test.ts`, a Vitest that
 
 Verified: `npm run lint` (exit 0), `npm run typecheck` (exit 0), `npm test` (468/468 passed, exit 0), `npm run build` (exit 0).
 - 2026-09-26 — Two-axis review (mattpocock-skills:code-review): Spec clean; Standards found two false negatives in the hand-written comment stripper (a regex literal with escaped slashes swallowed the rest of the line; JSX text split across lines was invisible). Replaced with `tests/support/copy-scan.ts` using the TypeScript parser (string/template literals and JSX text only, whitespace-normalised), unit-tested for both cases, comments ignored and `//` in strings safe; the guard was proven to catch a split JSX `tiket 17` before restoring. Verified: lint 0, typecheck 0, Vitest 473/473.
+- 2026-09-26 — Merged to `main`.

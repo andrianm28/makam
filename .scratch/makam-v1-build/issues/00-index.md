@@ -242,4 +242,4 @@ Decided by the user and written into CONTEXT.md (Kode Masuk, Email Terverifikasi
 Not changed here (outside the files this change may touch):
 - the code comments that still name ticket 60 for the email fallback or say SES (`src/ports/email-sender.ts`, `src/composition/adapters.ts`, `src/domain/identity/{schema,invites,otp}.ts`);
 - `docs/ops/runbook.md`, which still says GlitchTip alerts use SES from ticket 03.
-| [69](69-no-ticket-numbers-in-ui-copy.md) | No internal ticket numbers in user-facing copy | ready-for-agent | — |
+| [69](69-no-ticket-numbers-in-ui-copy.md) | No internal ticket numbers in user-facing copy | resolved | — |

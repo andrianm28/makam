@@ -22,3 +22,8 @@ Compute the publish gate (signed agreement + completed Kunjungan Verifikasi + ta
 ## Notes
 
 Layanan prices on the Lokasi page are added by ticket 49; the Ditangguhkan / Berhenti banner by ticket 59.
+
+## Decision (2026-09-26, user, from ticket 11 review)
+
+- A Lokasi Mitra has **no** Jam Operasional until its Admin Lokasi saves one (no invented default). The publish gate also requires a saved Jam Operasional and a Kontak Siaga, so a confirmation promise is never based on an invented schedule.
+- From ticket 12: `tariffsChecked().changedSinceCheck` exists; decide here whether the gate requires it false.
