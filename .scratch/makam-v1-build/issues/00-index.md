@@ -243,3 +243,4 @@ Not changed here (outside the files this change may touch):
 - the code comments that still name ticket 60 for the email fallback or say SES (`src/ports/email-sender.ts`, `src/composition/adapters.ts`, `src/domain/identity/{schema,invites,otp}.ts`);
 - `docs/ops/runbook.md`, which still says GlitchTip alerts use SES from ticket 03.
 | [69](69-no-ticket-numbers-in-ui-copy.md) | No internal ticket numbers in user-facing copy | resolved | — |
+| [70](70-ops-verify-seeded-email.md) | Ops: mark an Admin Platform's email as Email Terverifikasi from the CLI | ready-for-agent | 67 |
