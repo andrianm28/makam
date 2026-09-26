@@ -18,11 +18,11 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [10](10-lokasi-mitra-onboarding.md) | Lokasi Mitra onboarding record and Admin Lokasi invites | resolved | 09 |
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | resolved | 10 |
 | [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | resolved | 10 |
-| [13](13-denah-builder.md) | Denah builder: bloks, Petak Makam and Kavling Keluarga | ready-for-agent | 12 |
+| [13](13-denah-builder.md) | Denah builder: bloks, Petak Makam and Kavling Keluarga | ready-for-agent | 12, 74 |
 | [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | ready-for-agent | 13 |
 | [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
 | [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
-| [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16 |
+| [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
 | [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | ready-for-agent | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | ready-for-agent | 18 |
 | [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18 |
@@ -254,3 +254,18 @@ Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the 
 | [71](71-ci-e2e-and-image-scan.md) | CI: Playwright critical paths and image scan on every main build | ready-for-agent | 12 |
 | [72](72-deploys-through-github-actions.md) | Deploys through GitHub Actions: self-hosted runner, staging auto-deploy, production promotion | ready-for-agent | 71 |
 | [73](73-image-retention-and-host-disk.md) | Image retention and disk hygiene on the shared host | ready-for-agent | 72 |
+
+## Decisions 2026-09-26 (staff redesign on the brand)
+
+Decided by the user with the brand guideline (`docs/brand/`) and the prototype (branch `worktree-agent-aebfc82ebc2eab39d`, 282bcc0), written into the spec ("Staff UI and design system") and CONTEXT.md (TPS). 74 is the foundation; 75–81 only wait for it. Every UI ticket not yet built (13, 17, 18's document pages if not merged first, 22 onwards) builds on 74's tokens, shell and compositions; 13 and 17 are formally blocked by it.
+
+| # | Title | Status | Blocked by |
+|---|---|---|---|
+| [74](74-brand-foundation-and-staff-shell.md) | Brand foundation and the staff shell, with the Admin Platform home | ready-for-agent | — |
+| [75](75-command-palette-and-alert-bell.md) | Command palette (⌘K) and the Peringatan Staf bell | ready-for-agent | 74 |
+| [76](76-lokasi-mitra-list-and-detail-redesign.md) | Lokasi Mitra list and detail on the list and detail patterns | ready-for-agent | 74 |
+| [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74 |
+| [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | ready-for-agent | 74 |
+| [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | ready-for-agent | 74 |
+| [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74 |
+| [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | ready-for-agent | 74 |

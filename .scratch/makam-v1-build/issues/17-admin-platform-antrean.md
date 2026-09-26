@@ -1,7 +1,7 @@
 # Admin Platform Antrean framework
 
 Status: ready-for-agent
-Blocked by: 16
+Blocked by: 16, 74
 Spec: Domain modules > 14. Work Queues (Antrean); stories 140, 141, 143 (Catatan Internal), 144
 
 ## What to build
@@ -26,3 +26,5 @@ Bertugas and Tier 1 alerting come in ticket 28. The Tier 4 revisit trigger was s
 ## Comments
 
 - 2026-09-25 — From ticket 08 (WhatsApp OTP login): please add the test "an OTP failure creates no Antrean row" once the Antrean exists. Drive `identity.requestOtp` with a WhatsAppSender that throws (it returns `gagal_kirim`), then read the Antrean and check that no row came from it. The OTP is sent directly through WhatsAppSender, not through Notifications, so nothing should reach a queue. Ticket 08 could not test this because the queues module was still empty.
+
+- 2026-09-26 — Now also blocked by 74 (user decision): build the UI on the brand design system and staff shell from ticket 74 (spec, "Staff UI and design system").

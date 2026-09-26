@@ -1,7 +1,7 @@
 # Denah builder: bloks, Petak Makam and Kavling Keluarga
 
 Status: ready-for-agent
-Blocked by: 12
+Blocked by: 12, 74
 Spec: Domain modules > 5. Inventory (Denah); story 127
 
 ## What to build
@@ -18,3 +18,7 @@ The Inventory module's Denah and the Admin Lokasi editor: bloks as rows × colum
 - [ ] A site-plan photo can be attached per blok and viewed by signed URL.
 - [ ] All edits are audited.
 - [ ] Tests: adjacency rule for kavling; kavling split blocked once a Hak Pakai exists; no delete/move after use; uniqueness of numbers.
+
+## Comments
+
+- 2026-09-26 — Now also blocked by 74 (user decision): build the UI on the brand design system and staff shell from ticket 74 (spec, "Staff UI and design system").
