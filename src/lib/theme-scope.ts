@@ -10,6 +10,8 @@ const TOTP_PATH = `${STAFF_AREA_PATH}/totp`;
  * where the person's own choice (Terang, Gelap, Ikuti perangkat) applies.
  */
 export function forcedThemeFor(pathname: string): "light" | undefined {
+  // PROTOTYPE, throwaway: the Denah editor prototype stands in for a staff page.
+  if (pathname === "/pratinjau/denah" || pathname.startsWith("/pratinjau/denah/")) return undefined;
   const staffPage = staffPagePath(pathname);
   if (!staffPage || staffPage === TOTP_PATH || staffPage.startsWith(`${TOTP_PATH}/`)) return "light";
   return undefined;
