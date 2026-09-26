@@ -47,7 +47,7 @@ export interface CodeRequest {
   lockKey: LockKey;
 }
 
-export type IssueCodeResult =
+type IssueCodeResult =
   | { ok: true; sentAt: Date; expiresAt: Date; resendAt: Date }
   | LimitRefusal
   | { ok: false; reason: "gagal_kirim"; error: unknown };
@@ -58,7 +58,7 @@ export type IssueCodeResult =
  * to it in the rolling hour. The code is stored only as an HMAC. A send that
  * throws is not counted against the limits.
  */
-export async function issueCode(
+async function issueCode(
   deps: CodeDeps,
   request: CodeRequest,
   deliver: (code: string) => Promise<unknown>,
@@ -113,12 +113,38 @@ export async function issueCode(
   return { ok: true, sentAt: now, expiresAt, resendAt: new Date(now.getTime() + OTP_RESEND_AFTER_MS) };
 }
 
+export type SendEmailCodeResult =
+  | { ok: true; sentAt: Date; expiresAt: Date; resendAt: Date }
+  | LimitRefusal
+  | { ok: false; reason: "gagal_kirim" };
+
+/**
+ * The one way a code goes out by email (a Kode Masuk, a Verifikasi Email
+ * code): the request counts against `ip` first, then the code goes out under
+ * the shared rules. A send the EmailSender refuses counts against no limit,
+ * per email or per IP (the IP request is given back), and is reported under
+ * `failureEvent` without the address or the code.
+ */
+export async function sendEmailCode(
+  deps: CodeDeps & { reportError: (event: string, error: unknown) => void },
+  input: { ip: string; request: CodeRequest; deliver: (code: string) => Promise<unknown>; failureEvent: string },
+): Promise<SendEmailCodeResult> {
+  const requestedAt = deps.clock.now();
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
+  const issued = await issueCode(deps, input.request, input.deliver);
+  if (issued.ok || issued.reason !== "gagal_kirim") return issued;
+  await releaseIpRequest(deps, input.ip, requestedAt);
+  deps.reportError(input.failureEvent, issued.error);
+  return { ok: false, reason: "gagal_kirim" };
+}
+
 /**
  * Counts one request for an emailed code from `ip`, unless the IP is over its
  * limits (60 s between requests, 5 in any rolling hour). Every request counts,
  * whether or not a code goes out.
  */
-export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: true } | LimitRefusal> {
+async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: true } | LimitRefusal> {
   const now = deps.clock.now();
   return deps.db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.ip:${ip}`}))`);
@@ -144,7 +170,7 @@ export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: 
  * no code left after all (the EmailSender refused): a failed send counts
  * against no limit.
  */
-export async function releaseIpRequest(deps: { db: Database }, ip: string, requestedAt: Date): Promise<void> {
+async function releaseIpRequest(deps: { db: Database }, ip: string, requestedAt: Date): Promise<void> {
   const [claimed] = await deps.db
     .select({ id: identityIpRequest.id })
     .from(identityIpRequest)

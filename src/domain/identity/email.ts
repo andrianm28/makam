@@ -7,7 +7,7 @@ import { akunResource, staffRoles, writeRefusal, type Actor, type WriteRefusal }
 import { verifikasiEmailMessage } from "./email-templates";
 import { normaliseEmail } from "./email-address";
 import { akunLockKey } from "./lock-key";
-import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
+import { checkCode, sendEmailCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityUser } from "./schema";
 
@@ -26,6 +26,8 @@ export interface EmailDeps {
   email: EmailSender;
   audit: AuditLog;
   secret: string;
+  /** Reports a code the EmailSender refused; gets no address and no code. */
+  reportError: (event: string, error: unknown) => void;
 }
 
 export type UpdatePhoneNumberResult = { ok: true; phoneNumber: string } | PhoneNumberRejection | WriteRefusal;
@@ -95,16 +97,14 @@ export async function requestEmailVerification(
   if (refusal) return refusal;
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
-  const ip = await claimIpRequest(deps, input.ip);
-  if (!ip.ok) return ip;
-
-  const issued = await issueCode(
-    deps,
-    { target: email, purpose: "verifikasi_email", lockKey: akunLockKey(by.accountId) },
-    (code) => deps.email.send({ to: email, ...verifikasiEmailMessage(code) }),
-  );
-  if (!issued.ok) return issued.reason === "gagal_kirim" ? { ok: false, reason: "gagal_kirim" } : issued;
-  return { ok: true, email, sentAt: issued.sentAt, expiresAt: issued.expiresAt, resendAt: issued.resendAt };
+  const sent = await sendEmailCode(deps, {
+    ip: input.ip,
+    request: { target: email, purpose: "verifikasi_email", lockKey: akunLockKey(by.accountId) },
+    deliver: (code) => deps.email.send({ to: email, ...verifikasiEmailMessage(code) }),
+    failureEvent: "kode Verifikasi Email tidak terkirim",
+  });
+  if (!sent.ok) return sent;
+  return { ok: true, email, sentAt: sent.sentAt, expiresAt: sent.expiresAt, resendAt: sent.resendAt };
 }
 
 export type ConfirmEmailVerificationResult =

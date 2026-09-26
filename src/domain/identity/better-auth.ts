@@ -8,6 +8,7 @@ import {
   identityUser,
   identityVerification,
 } from "./schema";
+import { rolesOf } from "./staff";
 
 /** A Pemesan session lasts 90 days (spec, Identity & Access > Sessions). */
 export const PEMESAN_SESSION_MS = 90 * 86_400_000;
@@ -52,6 +53,11 @@ export interface BetterAuthDeps {
  * session cookie. No Better Auth plugin or endpoint logs anyone in: its HTTP
  * handler is not mounted, and its own rate limiter is off (it counts in memory
  * by system time).
+ *
+ * `better-auth` is pinned to an exact version in package.json: this file and
+ * ./sessions.ts rely on its internals (`internalAdapter`, `authCookies`, the
+ * signed session cookie `token.signature`). Upgrade it on purpose, and keep
+ * better-auth.test.ts green (it reads sessions back through Better Auth itself).
  */
 export function createBetterAuth(deps: BetterAuthDeps) {
   const stampCreated = <T extends object>(row: T) => {
@@ -91,11 +97,12 @@ export function createBetterAuth(deps: BetterAuthDeps) {
       },
       session: {
         create: {
+          // The session is written once, with its expiry already right: the Clock plus the length the
+          // Akun's roles allow (read here, after a login has accepted its open Undangan Staf).
           before: async (session) => {
             const stamped = stampCreated(session);
-            return {
-              data: { ...stamped, expiresAt: new Date(stamped.createdAt.getTime() + PEMESAN_SESSION_MS) },
-            };
+            const lengthMs = sessionLengthMs(await rolesOf(deps.db, session.userId));
+            return { data: { ...stamped, expiresAt: new Date(stamped.createdAt.getTime() + lengthMs) } };
           },
         },
         update: { before: async (session) => ({ data: stampUpdated(session) }) },

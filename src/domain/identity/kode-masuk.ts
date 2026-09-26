@@ -4,13 +4,13 @@ import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import type { Role } from "./authorize";
-import { sessionLengthMs, type MakamAuth } from "./better-auth";
+import type { MakamAuth } from "./better-auth";
 import { akunOfVerifiedEmail, placeholderEmailFor, type Account } from "./akun-lookup";
 import { kodeMasukEmailMessage } from "./email-templates";
 import { normaliseEmail } from "./email-address";
 import { acceptOpenInvites } from "./invites";
 import { emailLockKey } from "./lock-key";
-import { checkCode, claimIpRequest, issueCode, releaseIpRequest, type CodeRejection, type LimitRefusal } from "./otp";
+import { checkCode, sendEmailCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { identityUser } from "./schema";
 import { startSession, type SessionCookie } from "./sessions";
 import { rolesOf } from "./staff";
@@ -45,22 +45,14 @@ export async function requestKodeMasuk(
 ): Promise<RequestKodeMasukResult> {
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
-  const requestedAt = deps.clock.now();
-  const ip = await claimIpRequest(deps, input.ip);
-  if (!ip.ok) return ip;
-
-  const issued = await issueCode(
-    deps,
-    { target: email, purpose: "masuk", lockKey: emailLockKey(email) },
-    (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
-  );
-  if (!issued.ok) {
-    if (issued.reason !== "gagal_kirim") return issued;
-    await releaseIpRequest(deps, input.ip, requestedAt);
-    deps.reportError("Kode Masuk tidak terkirim", issued.error);
-    return { ok: false, reason: "gagal_kirim" };
-  }
-  return { ok: true, email, sentAt: issued.sentAt, expiresAt: issued.expiresAt, resendAt: issued.resendAt };
+  const sent = await sendEmailCode(deps, {
+    ip: input.ip,
+    request: { target: email, purpose: "masuk", lockKey: emailLockKey(email) },
+    deliver: (code) => deps.email.send({ to: email, ...kodeMasukEmailMessage(code) }),
+    failureEvent: "Kode Masuk tidak terkirim",
+  });
+  if (!sent.ok) return sent;
+  return { ok: true, email, sentAt: sent.sentAt, expiresAt: sent.expiresAt, resendAt: sent.resendAt };
 }
 
 export type VerifyKodeMasukResult =
@@ -99,7 +91,7 @@ export async function verifyKodeMasuk(
   // Invites first, so the new session gets the length of the strictest role the Akun now holds.
   await acceptOpenInvites(deps, account);
   const roles = await rolesOf(deps.db, account.id);
-  const { expiresAt, cookies } = await startSession(deps, account.id, sessionLengthMs(roles));
+  const { expiresAt, cookies } = await startSession(deps, account.id);
 
   return { ok: true, account, accountCreated: !existing, roles, session: { expiresAt, cookies } };
 }

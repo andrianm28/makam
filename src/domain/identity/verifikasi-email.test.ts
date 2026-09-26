@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { FakeEmailSender } from "@/adapters/memory";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
   actorOf,
@@ -97,6 +98,25 @@ describe("Verifikasi Email rules", () => {
     expect(results).toContainEqual({ ok: true, email: "sari@contoh.id" });
     expect(results).toContainEqual({ ok: false, reason: "email_sudah_dipakai" });
     expect([first.accountId, second.accountId]).toContain((await identity.accountByEmail("sari@contoh.id"))?.id);
+  });
+});
+
+describe("when the EmailSender refuses a Verifikasi Email code", () => {
+  it("the Akun is told gagal kirim, reported without the address, and a retry at once from the same IP goes out", async () => {
+    const fake = new FakeEmailSender();
+    const reported: string[] = [];
+    const setup = identityOnTestDatabase(db, { email: fake, reportError: (event, error) => reported.push(`${event} ${String(error)}`) });
+    const actor = await actorOf(setup.identity, (await logIn(setup, "sari@contoh.id")).cookies);
+    const ip = nextTestIp();
+    fake.failNextSend();
+
+    expect(await setup.identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip })).toEqual({
+      ok: false,
+      reason: "gagal_kirim",
+    });
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).not.toContain("baru@contoh.id");
+    expect(await setup.identity.requestEmailVerification(actor, { email: "baru@contoh.id", ip })).toMatchObject({ ok: true });
   });
 });
 

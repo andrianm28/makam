@@ -117,25 +117,24 @@ async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | un
 }
 
 /**
- * Starts a session for the Akun, lasting `lengthMs` from the Clock: Better
+ * Starts a session for the Akun, lasting as long as its roles allow from the Clock: Better
  * Auth's internal adapter stores it, and the cookie is signed as Better Auth
  * signs its own session cookie (so `endSession` and `actorFromCookies` read it).
  */
 export async function startSession(
-  deps: { auth: MakamAuth; db: Database; secret: string },
+  deps: { auth: MakamAuth; secret: string },
   accountId: string,
-  lengthMs: number,
 ): Promise<{ token: string; expiresAt: Date; cookies: SessionCookie[] }> {
   const context = await deps.auth.$context;
+  // One write: Better Auth's create hook (./better-auth.ts) sets the expiry from the Clock and the Akun's roles.
   const created = await context.internalAdapter.createSession(accountId);
   if (!created) throw new Error("Better Auth stored no session");
-  const expiresAt = new Date(created.createdAt.getTime() + lengthMs);
-  await deps.db.update(identitySession).set({ expiresAt }).where(eq(identitySession.token, created.token));
+  const { expiresAt, createdAt } = created;
   const { name, attributes } = context.authCookies.sessionToken;
   const cookie: SessionCookie = {
     name,
     value: `${created.token}.${await makeSignature(created.token, deps.secret)}`,
-    maxAge: lengthMs / 1000,
+    maxAge: Math.round((expiresAt.getTime() - createdAt.getTime()) / 1000),
     path: attributes.path,
     domain: attributes.domain,
     httpOnly: attributes.httpOnly,
