@@ -11,7 +11,7 @@ const inputClass =
 function Feedback({ state }: { state: EmailProfileState | { status: "gagal"; message: string } | { status: "idle" } }) {
   if (state.status === "idle") return null;
   return state.status === "berhasil" ? (
-    <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+    <p role="status" className="text-sm text-success-soft-foreground">
       {state.message}
     </p>
   ) : (
@@ -53,7 +53,7 @@ export function EmailSection({
         ) : null}
         <span
           data-testid="akun-email-status"
-          className={verified ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}
+          className={verified ? "text-success-soft-foreground" : "text-muted-foreground"}
         >
           {email ? (verified ? "Terverifikasi" : "Belum terverifikasi") : "Belum ada email"}
         </span>

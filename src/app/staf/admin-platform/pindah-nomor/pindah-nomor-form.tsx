@@ -44,7 +44,7 @@ export function PindahNomorForm() {
         Pindahkan nomor
       </Button>
       {state.status === "berhasil" ? (
-        <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+        <p role="status" className="text-sm text-success-soft-foreground">
           {state.message}
         </p>
       ) : state.status === "gagal" ? (
