@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   addWorkingDays,
-  confirmationPromise,
-  daytimeHoursDeadline, deadline, nextWorkingDayEnd, TPU_SCHEDULE,
+  adminPlatformCalendar,
+  daytimeHoursDeadline,
+  deadline,
+  nextWorkingDayEnd,
+  TPU_SCHEDULE,
   type JamOperasional,
-  type WorkingDayCalendar,
 } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 
@@ -22,7 +24,7 @@ const weekdaysAndSaturdayMorning: JamOperasional = {
     saturday: hours("08:00", "12:00"),
     sunday: closed,
   },
-  closures: [],
+  tanggalTutup: [],
 };
 
 describe("deadline: N service hours inside a Lokasi's Jam Operasional", () => {
@@ -31,9 +33,9 @@ describe("deadline: N service hours inside a Lokasi's Jam Operasional", () => {
     expect(deadline(weekdaysAndSaturdayMorning, wib("2026-10-03 21:00"), 2)).toEqual(wib("2026-10-05 10:00"));
   });
 
-  const withClosure: JamOperasional = {
+  const withTanggalTutup: JamOperasional = {
     ...weekdaysAndSaturdayMorning,
-    closures: [{ date: "2026-10-07", note: "Kerja bakti" }],
+    tanggalTutup: [{ date: "2026-10-07", note: "Kerja bakti" }],
   };
 
   it.each([
@@ -43,18 +45,18 @@ describe("deadline: N service hours inside a Lokasi's Jam Operasional", () => {
     ["a start exactly at close counts from the next opening", weekdaysAndSaturdayMorning, "2026-10-05 16:00", 1, "2026-10-06 09:00"],
     ["a start before opening counts from the opening", weekdaysAndSaturdayMorning, "2026-10-05 05:00", 1, "2026-10-05 09:00"],
     ["the clock pauses over the weekend (Saturday's short hours, closed Sunday)", weekdaysAndSaturdayMorning, "2026-10-02 15:00", 6, "2026-10-05 09:00"],
-    ["the clock pauses on a dated closure", withClosure, "2026-10-06 15:00", 2, "2026-10-08 09:00"],
-    ["a start on a dated closure counts from the next open day", withClosure, "2026-10-07 10:00", 1, "2026-10-08 09:00"],
+    ["the clock pauses on a Tanggal Tutup", withTanggalTutup, "2026-10-06 15:00", 2, "2026-10-08 09:00"],
+    ["a start on a Tanggal Tutup counts from the next open day", withTanggalTutup, "2026-10-07 10:00", 1, "2026-10-08 09:00"],
     ["service hours may run over several open days", weekdaysAndSaturdayMorning, "2026-10-05 08:00", 20, "2026-10-07 12:00"],
   ])("%s", (_case, schedule, start, serviceHours, expected) => {
     expect(deadline(schedule, wib(start), serviceHours)).toEqual(wib(expected));
   });
 });
 
-describe("nextWorkingDayEnd: the end of the Lokasi's next open day", () => {
-  const withClosure: JamOperasional = {
+describe("nextWorkingDayEnd: the end of the Lokasi's next Hari Kerja", () => {
+  const withTanggalTutup: JamOperasional = {
     ...weekdaysAndSaturdayMorning,
-    closures: [{ date: "2026-10-06", note: "Kerja bakti" }],
+    tanggalTutup: [{ date: "2026-10-06", note: "Kerja bakti" }],
   };
 
   it.each([
@@ -62,7 +64,7 @@ describe("nextWorkingDayEnd: the end of the Lokasi's next open day", () => {
     ["before opening on an open day, still the following open day", weekdaysAndSaturdayMorning, "2026-10-05 06:00", "2026-10-06 16:00"],
     ["from Friday, Saturday's short-hours close", weekdaysAndSaturdayMorning, "2026-10-02 10:00", "2026-10-03 12:00"],
     ["from Saturday night, over the closed Sunday, to Monday's close", weekdaysAndSaturdayMorning, "2026-10-03 21:00", "2026-10-05 16:00"],
-    ["over a dated closure", withClosure, "2026-10-05 10:00", "2026-10-07 16:00"],
+    ["over a Tanggal Tutup", withTanggalTutup, "2026-10-05 10:00", "2026-10-07 16:00"],
   ])("%s", (_case, schedule, start, expected) => {
     expect(nextWorkingDayEnd(schedule, wib(start))).toEqual(wib(expected));
   });
@@ -89,58 +91,42 @@ describe("daytime hours (the Keluhan first response): hours counted only within 
   });
 });
 
-describe("addWorkingDays on the Admin Platform calendar: Monday–Friday minus the listed national holidays, ending 23:59 WIB", () => {
-  const adminPlatform: WorkingDayCalendar = {
-    kind: "admin_platform",
-    nationalHolidays: [{ date: "2026-12-25", name: "Hari Raya Natal" }],
-  };
+describe("addWorkingDays on the Admin Platform calendar: Hari Kerja are Monday–Friday that are not a Hari Libur Nasional, ending 23:59 WIB", () => {
+  const adminPlatform = adminPlatformCalendar([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
 
   it.each([
-    ["1 working day from a Monday ends Tuesday 23:59", "2026-10-05 10:00", 1, "2026-10-06 23:59"],
-    ["2 working days from Thursday cross the weekend to Monday 23:59", "2026-10-08 15:00", 2, "2026-10-12 23:59"],
+    ["1 Hari Kerja from a Monday ends Tuesday 23:59", "2026-10-05 10:00", 1, "2026-10-06 23:59"],
+    ["2 Hari Kerja from Thursday cross the weekend to Monday 23:59", "2026-10-08 15:00", 2, "2026-10-12 23:59"],
     ["a start on Saturday counts from Monday", "2026-10-10 09:00", 1, "2026-10-12 23:59"],
     ["a start late at night still counts from the next day", "2026-10-05 23:59", 1, "2026-10-06 23:59"],
-    ["a listed national holiday is skipped (Natal on Friday, then the weekend)", "2026-12-24 09:00", 1, "2026-12-28 23:59"],
-    ["3 working days over a national holiday and a weekend", "2026-12-23 09:00", 3, "2026-12-29 23:59"],
+    ["a listed Hari Libur Nasional is skipped (Natal on Friday, then the weekend)", "2026-12-24 09:00", 1, "2026-12-28 23:59"],
+    ["3 Hari Kerja over a Hari Libur Nasional and a weekend", "2026-12-23 09:00", 3, "2026-12-29 23:59"],
   ])("%s", (_case, start, n, expected) => {
     expect(addWorkingDays(adminPlatform, wib(start), n)).toEqual(wib(expected));
   });
 
-  it("a date not on the holiday list is a working day, even if it is a holiday in real life", () => {
-    const noHolidays: WorkingDayCalendar = { kind: "admin_platform", nationalHolidays: [] };
-    expect(addWorkingDays(noHolidays, wib("2026-12-24 09:00"), 1)).toEqual(wib("2026-12-25 23:59"));
+  it("a date not on the Hari Libur Nasional list is a Hari Kerja, even if it is a holiday in real life", () => {
+    expect(addWorkingDays(adminPlatformCalendar([]), wib("2026-12-24 09:00"), 1)).toEqual(wib("2026-12-25 23:59"));
   });
 });
 
-describe("addWorkingDays on a Lokasi calendar: open days of its Jam Operasional minus its dated closures, ending at its close", () => {
+describe("addWorkingDays on a Lokasi calendar: Hari Kerja are the open days of its Jam Operasional that are not a Tanggal Tutup, ending at its close", () => {
   const closedWednesday: JamOperasional = {
     weekly: { ...weekdaysAndSaturdayMorning.weekly, wednesday: closed },
-    closures: [{ date: "2026-10-09", note: "Haul pendiri" }],
+    tanggalTutup: [{ date: "2026-10-09", note: "Haul pendiri" }],
   };
-  const lokasi: WorkingDayCalendar = { kind: "lokasi", jamOperasional: closedWednesday };
 
   it.each([
-    ["1 working day from Monday ends at Tuesday's close", "2026-10-05 10:00", 1, "2026-10-06 16:00"],
-    ["2 working days from Monday skip the closed Wednesday", "2026-10-05 10:00", 2, "2026-10-08 16:00"],
-    ["2 working days from Wednesday skip the dated closure on Friday, ending at Saturday's short-hours close", "2026-10-07 10:00", 2, "2026-10-10 12:00"],
-    ["3 working days from Thursday skip the closure and the closed Sunday", "2026-10-08 10:00", 3, "2026-10-13 16:00"],
+    ["1 Hari Kerja from Monday ends at Tuesday's close", "2026-10-05 10:00", 1, "2026-10-06 16:00"],
+    ["2 Hari Kerja from Monday skip the closed Wednesday", "2026-10-05 10:00", 2, "2026-10-08 16:00"],
+    ["2 Hari Kerja from Wednesday skip the Tanggal Tutup on Friday, ending at Saturday's short-hours close", "2026-10-07 10:00", 2, "2026-10-10 12:00"],
+    ["3 Hari Kerja from Thursday skip the Tanggal Tutup and the closed Sunday", "2026-10-08 10:00", 3, "2026-10-13 16:00"],
   ])("%s", (_case, start, n, expected) => {
-    expect(addWorkingDays(lokasi, wib(start), n)).toEqual(wib(expected));
+    expect(addWorkingDays(closedWednesday, wib(start), n)).toEqual(wib(expected));
   });
 
-  it("1 working day on a Lokasi calendar is the Lokasi's next working day end", () => {
+  it("1 Hari Kerja on a Lokasi calendar is the Lokasi's next working day end", () => {
     const start = wib("2026-10-07 10:00");
-    expect(addWorkingDays(lokasi, start, 1)).toEqual(nextWorkingDayEnd(closedWednesday, start));
-  });
-});
-
-describe("the pre-submission promise text", () => {
-  it.each([
-    ["a deadline later today names only the time", "2026-10-05 10:00", "2026-10-05 08:30", "dikonfirmasi paling lambat pukul 10:00"],
-    ["a deadline tomorrow says besok", "2026-10-06 08:00", "2026-10-05 23:00", "dikonfirmasi paling lambat besok pukul 08:00"],
-    ["a later deadline names the weekday and date", "2026-10-05 10:00", "2026-10-03 21:00", "dikonfirmasi paling lambat Senin, 5 Oktober pukul 10:00"],
-    ["the time is WIB whatever the instant", "2026-12-31 16:00", "2026-12-31 09:00", "dikonfirmasi paling lambat pukul 16:00"],
-  ])("%s", (_case, due, now, expected) => {
-    expect(confirmationPromise(wib(due), wib(now))).toBe(expected);
+    expect(addWorkingDays(closedWednesday, start, 1)).toEqual(nextWorkingDayEnd(closedWednesday, start));
   });
 });

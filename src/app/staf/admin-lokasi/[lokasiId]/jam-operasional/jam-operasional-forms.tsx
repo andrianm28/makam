@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import type { JamOperasional, KontakSiaga, Weekday } from "@/domain/lokasi";
+import { weekdays, type JamOperasional, type KontakSiaga, type TanggalTutup } from "@/domain/lokasi";
+import { NAMA_HARI } from "@/lib/time/jakarta";
 import type { FormState } from "../../../form-state";
 import { pilihKontakSiaga, simpanJamOperasional } from "./actions";
 
@@ -10,15 +11,8 @@ const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 const idle: FormState = { status: "idle" };
 
-const weekdayLabels: [Weekday, string][] = [
-  ["monday", "Senin"],
-  ["tuesday", "Selasa"],
-  ["wednesday", "Rabu"],
-  ["thursday", "Kamis"],
-  ["friday", "Jumat"],
-  ["saturday", "Sabtu"],
-  ["sunday", "Minggu"],
-];
+/** Each weekday with its Indonesian name (both lists are Monday first). */
+const weekdayLabels = weekdays.map((weekday, index) => [weekday, NAMA_HARI[index]] as const);
 
 function Feedback({ state }: { state: FormState }) {
   if (state.status === "idle") return null;
@@ -33,10 +27,14 @@ function Feedback({ state }: { state: FormState }) {
   );
 }
 
-/** Weekly hours per weekday (a weekday may be closed) and dated closures, one per line. */
+/** The Tanggal Tutup as the textarea shows them: "2026-12-25 Natal", one per line. */
+function tanggalTutupLines(tanggalTutup: TanggalTutup[]): string {
+  return tanggalTutup.map((tutup) => `${tutup.date} ${tutup.note}`.trim()).join("\n");
+}
+
+/** Weekly hours per weekday (a weekday may be closed) and Tanggal Tutup, one per line. */
 export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: string; jamOperasional: JamOperasional }) {
   const [state, action, pending] = useActionState(simpanJamOperasional, idle);
-  const closures = jamOperasional.closures.map((closure) => `${closure.date} ${closure.note}`.trim()).join("\n");
   return (
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="lokasiId" value={lokasiId} />
@@ -67,9 +65,9 @@ export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: str
       <label className="flex flex-col gap-1 text-sm font-medium">
         Tanggal tutup
         <textarea
-          name="closures"
+          name="tanggalTutup"
           rows={5}
-          defaultValue={closures}
+          defaultValue={tanggalTutupLines(jamOperasional.tanggalTutup)}
           placeholder={"2026-12-25 Natal\n2027-03-20 Idul Fitri"}
           className="rounded-lg border border-input bg-background px-3 py-2 font-mono outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         />

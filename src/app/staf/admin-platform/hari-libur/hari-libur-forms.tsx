@@ -22,7 +22,7 @@ function Feedback({ state }: { state: FormState }) {
   );
 }
 
-/** Adds one national holiday to the list. */
+/** Adds one Hari Libur Nasional to the list. */
 export function AddHariLiburForm() {
   const [state, action, pending] = useActionState(tambahHariLibur, idle);
   return (
@@ -45,7 +45,7 @@ export function AddHariLiburForm() {
   );
 }
 
-/** Removes one national holiday from the list. */
+/** Removes one Hari Libur Nasional from the list. */
 export function RemoveHariLiburForm({ date }: { date: string }) {
   const [state, action, pending] = useActionState(hapusHariLibur, idle);
   return (

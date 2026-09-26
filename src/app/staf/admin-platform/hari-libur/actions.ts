@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { hariLiburNasionalResource, type Actor } from "@/domain/identity";
-import type { AddNationalHolidayResult, RemoveNationalHolidayResult } from "@/domain/lokasi";
+import {
+  hariLiburNasionalSchema,
+  tanggalSchema,
+  type AddHariLiburNasionalResult,
+  type RemoveHariLiburNasionalResult,
+} from "@/domain/lokasi";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
@@ -11,7 +16,7 @@ import { guardMessage } from "../../messages";
 
 type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 
-const refusalMessages: Record<Refused<AddNationalHolidayResult | RemoveNationalHolidayResult>, string> = {
+const refusalMessages: Record<Refused<AddHariLiburNasionalResult | RemoveHariLiburNasionalResult>, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
   perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Tanggal ini tidak ada di daftar hari libur nasional.",
@@ -19,7 +24,7 @@ const refusalMessages: Record<Refused<AddNationalHolidayResult | RemoveNationalH
   hari_libur_sudah_ada: "Tanggal ini sudah ada di daftar hari libur nasional.",
 };
 
-async function hariLiburWrite<S extends z.ZodType, R extends AddNationalHolidayResult | RemoveNationalHolidayResult>(options: {
+async function hariLiburWrite<S extends z.ZodType, R extends AddHariLiburNasionalResult | RemoveHariLiburNasionalResult>(options: {
   schema: S;
   input: Record<string, unknown>;
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
@@ -41,24 +46,22 @@ async function hariLiburWrite<S extends z.ZodType, R extends AddNationalHolidayR
   return { status: "berhasil", message: options.saved };
 }
 
-const date = z.string().trim().max(10);
-
-/** Admin Platform adds a national holiday to the Admin Platform working-day calendar. */
+/** Admin Platform adds a Hari Libur Nasional to the list (the Admin Platform Hari Kerja calendar). */
 export async function tambahHariLibur(_previous: FormState, formData: FormData): Promise<FormState> {
   return hariLiburWrite({
-    schema: z.object({ date, name: z.string().trim().max(120) }),
+    schema: hariLiburNasionalSchema,
     input: { date: formData.get("date"), name: formData.get("name") },
-    run: (actor, data) => serverRuntime().lokasi.addNationalHoliday(actor, data),
+    run: (actor, data) => serverRuntime().lokasi.addHariLiburNasional(actor, data),
     saved: "Hari libur nasional ditambahkan.",
   });
 }
 
-/** Admin Platform removes a national holiday from the list. */
+/** Admin Platform removes a Hari Libur Nasional from the list. */
 export async function hapusHariLibur(_previous: FormState, formData: FormData): Promise<FormState> {
   return hariLiburWrite({
-    schema: z.object({ date, reason: z.string().trim().max(500) }),
+    schema: z.object({ date: tanggalSchema, reason: z.string().trim().max(500) }),
     input: { date: formData.get("date"), reason: formData.get("reason") ?? "" },
-    run: (actor, data) => serverRuntime().lokasi.removeNationalHoliday(actor, { date: data.date, reason: data.reason || null }),
+    run: (actor, data) => serverRuntime().lokasi.removeHariLiburNasional(actor, { date: data.date, reason: data.reason || null }),
     saved: "Hari libur nasional dihapus.",
   });
 }

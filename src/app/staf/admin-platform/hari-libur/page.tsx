@@ -5,11 +5,11 @@ import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { AddHariLiburForm, RemoveHariLiburForm } from "./hari-libur-forms";
 
-/** Admin Platform keeps the national holiday list of the Admin Platform working-day calendar. */
+/** Admin Platform keeps the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar. */
 export default async function HariLiburPage() {
   const actor = await staffMenuActor("admin_platform");
   if (!authorize(actor, "hari_libur.ubah", hariLiburNasionalResource()).allowed) redirect("/staf");
-  const holidays = await serverRuntime().lokasi.nationalHolidays();
+  const daftar = await serverRuntime().lokasi.hariLiburNasional();
 
   return (
     <>
@@ -25,16 +25,16 @@ export default async function HariLiburPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <AddHariLiburForm />
-          {holidays.length === 0 ? (
+          {daftar.length === 0 ? (
             <p className="text-sm text-muted-foreground">Belum ada hari libur nasional.</p>
           ) : (
             <ul className="flex flex-col divide-y text-sm">
-              {holidays.map((holiday) => (
-                <li key={holiday.date} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              {daftar.map((libur) => (
+                <li key={libur.date} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>
-                    <span className="font-mono">{holiday.date}</span> · {holiday.name}
+                    <span className="font-mono">{libur.date}</span> · {libur.name}
                   </span>
-                  <RemoveHariLiburForm date={holiday.date} />
+                  <RemoveHariLiburForm date={libur.date} />
                 </li>
               ))}
             </ul>

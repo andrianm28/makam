@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource, type Actor } from "@/domain/identity";
-import { weekdays, type JamOperasional, type PickKontakSiagaResult, type SetJamOperasionalResult } from "@/domain/lokasi";
+import {
+  jamOperasionalSchema,
+  weekdays,
+  type PickKontakSiagaResult,
+  type SetJamOperasionalResult,
+  type TanggalTutup,
+} from "@/domain/lokasi";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../form-state";
@@ -16,7 +22,7 @@ const refusalMessages: Record<Refused<SetJamOperasionalResult | PickKontakSiagaR
   perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Lokasi Mitra ini tidak ditemukan.",
   jam_operasional_tidak_valid:
-    "Periksa lagi Jam Operasional: jam buka harus sebelum jam tutup, minimal satu hari buka, dan setiap tanggal tutup hanya sekali.",
+    "Periksa lagi Jam Operasional: jam buka harus sebelum jam tutup, minimal satu hari buka, dan setiap tanggal tutup hanya sekali (satu tanggal per baris, mis. 2026-12-25 Natal).",
   bukan_admin_lokasi_di_sini: "Kontak Siaga harus salah satu Admin Lokasi di Lokasi ini.",
 };
 
@@ -50,37 +56,44 @@ async function operasionalWrite<S extends z.ZodType<{ lokasiId: string }>>(optio
 }
 
 const lokasiId = z.uuid();
-const clockTime = z.string().trim().max(5);
-const CLOSURE_LINE = /^(\d{4}-\d{2}-\d{2})(?:\s+(.*))?$/;
+const TANGGAL_TUTUP_LINE = /^(\d{4}-\d{2}-\d{2})(?:\s+(.*))?$/;
 
-/** Dated closures typed one per line: "2026-12-25 Natal" (the note is optional); blank lines are dropped. */
-const closureLines = z
+/** Tanggal Tutup typed one per line: "2026-12-25 Natal" (the note is optional); blank lines are dropped. */
+const tanggalTutupLines = z
   .string()
   .max(20_000)
   .transform((text, context) => {
-    const closures: { date: string; note: string }[] = [];
+    const tanggalTutup: TanggalTutup[] = [];
     for (const line of text.split(/\r?\n/).map((typed) => typed.trim())) {
       if (line === "") continue;
-      const match = CLOSURE_LINE.exec(line);
+      const match = TANGGAL_TUTUP_LINE.exec(line);
       if (!match) {
-        context.addIssue({ code: "custom", message: "closure line" });
+        context.addIssue({ code: "custom", message: "satu tanggal per baris" });
         return z.NEVER;
       }
-      closures.push({ date: match[1], note: (match[2] ?? "").trim() });
+      tanggalTutup.push({ date: match[1], note: (match[2] ?? "").trim() });
     }
-    return closures;
+    return tanggalTutup;
   });
 
 /** One weekday's row of the form: ticked when open, with its opening and closing times. */
-const weekdayInput = z.object({ open: z.boolean(), opens: clockTime, closes: clockTime });
+const weekdayRow = z.object({ open: z.boolean(), opens: z.string().trim().max(5), closes: z.string().trim().max(5) });
 
-const jamOperasionalSchema = z.object({
-  lokasiId,
-  closures: closureLines,
-  weekly: z.record(z.enum(weekdays), weekdayInput),
-});
+/** The form as typed, into the domain's `jamOperasionalSchema` (unticked weekdays are closed). */
+const jamOperasionalForm = z
+  .object({ weekly: z.record(z.enum(weekdays), weekdayRow), tanggalTutup: tanggalTutupLines })
+  .transform((form) => ({
+    weekly: Object.fromEntries(
+      weekdays.map((weekday) => {
+        const row = form.weekly[weekday];
+        return [weekday, row.open ? { opens: row.opens, closes: row.closes } : null];
+      }),
+    ),
+    tanggalTutup: form.tanggalTutup,
+  }))
+  .pipe(jamOperasionalSchema);
 
-/** The Admin Lokasi (or Admin Platform) saves the Jam Operasional: weekly hours per weekday and dated closures. */
+/** The Admin Lokasi (or Admin Platform) saves the Jam Operasional: weekly hours per weekday and Tanggal Tutup. */
 export async function simpanJamOperasional(_previous: FormState, formData: FormData): Promise<FormState> {
   const weekly = Object.fromEntries(
     weekdays.map((weekday) => [
@@ -93,20 +106,11 @@ export async function simpanJamOperasional(_previous: FormState, formData: FormD
     ]),
   );
   return operasionalWrite({
-    schema: jamOperasionalSchema,
-    input: { lokasiId: formData.get("lokasiId"), closures: formData.get("closures") ?? "", weekly },
-    run: (actor, data) =>
-      serverRuntime().lokasi.setJamOperasional(actor, data.lokasiId, {
-        weekly: Object.fromEntries(
-          weekdays.map((weekday) => {
-            const day = data.weekly[weekday];
-            return [weekday, day.open ? { opens: day.opens, closes: day.closes } : null];
-          }),
-        ) as JamOperasional["weekly"],
-        closures: data.closures,
-      }),
+    schema: z.object({ lokasiId, jamOperasional: jamOperasionalForm }),
+    input: { lokasiId: formData.get("lokasiId"), jamOperasional: { weekly, tanggalTutup: formData.get("tanggalTutup") ?? "" } },
+    run: (actor, data) => serverRuntime().lokasi.setJamOperasional(actor, data.lokasiId, data.jamOperasional),
     saved: "Jam Operasional tersimpan.",
-    invalidInput: "Periksa lagi isian Anda. Tanggal tutup: satu tanggal per baris, mis. 2026-12-25 Natal.",
+    invalidInput: refusalMessages.jam_operasional_tidak_valid,
   });
 }
 

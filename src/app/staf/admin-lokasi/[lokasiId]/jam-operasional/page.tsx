@@ -5,7 +5,7 @@ import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope, LokasiSwitcher } from "../../scope";
 import { JamOperasionalForm, KontakSiagaForm } from "./jam-operasional-forms";
 
-/** Admin Lokasi: the current Lokasi Mitra's Jam Operasional (weekly hours, dated closures) and its Kontak Siaga. */
+/** Admin Lokasi: the current Lokasi Mitra's Jam Operasional (weekly hours, Tanggal Tutup) and its Kontak Siaga. */
 export default async function JamOperasionalPage({ params }: PageProps<"/staf/admin-lokasi/[lokasiId]/jam-operasional">) {
   const { lokasiId } = await params;
   const { actor, lokasiMitra, current } = await adminLokasiScope(lokasiId);

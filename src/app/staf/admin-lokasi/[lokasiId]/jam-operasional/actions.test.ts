@@ -41,8 +41,8 @@ async function lokasiWithAdminLokasi() {
 const idle = { status: "idle" } as const;
 
 /** The Jam Operasional form as typed: Monday–Friday 08:00–16:00, Saturday 08:00–12:00, Sunday unticked (closed; its times are still sent). */
-function typedHours(lokasiId: string, closures = "") {
-  const fields: Record<string, string> = { lokasiId, closures };
+function typedHours(lokasiId: string, tanggalTutup = "") {
+  const fields: Record<string, string> = { lokasiId, tanggalTutup };
   for (const weekday of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     Object.assign(fields, { [`${weekday}Open`]: "ya", [`${weekday}Opens`]: "08:00", [`${weekday}Closes`]: "16:00" });
   }
@@ -51,7 +51,7 @@ function typedHours(lokasiId: string, closures = "") {
 }
 
 describe("Jam Operasional Server Actions", () => {
-  it("Simpan Jam Operasional: the Admin Lokasi saves weekly hours and dated closures typed one per line", async () => {
+  it("Simpan Jam Operasional: the Admin Lokasi saves weekly hours and Tanggal Tutup typed one per line", async () => {
     const { adminLokasi, lokasiId } = await lokasiWithAdminLokasi();
 
     const state = await simpanJamOperasional(idle, form(typedHours(lokasiId, "2026-12-25 Natal\n\n2026-10-10\n")));
@@ -60,7 +60,7 @@ describe("Jam Operasional Server Actions", () => {
     expect(await server.runtime().lokasi.jamOperasional(adminLokasi, lokasiId)).toMatchObject({
       jamOperasional: {
         weekly: { monday: { opens: "08:00", closes: "16:00" }, saturday: { opens: "08:00", closes: "12:00" }, sunday: null },
-        closures: [
+        tanggalTutup: [
           { date: "2026-10-10", note: "" },
           { date: "2026-12-25", note: "Natal" },
         ],
@@ -68,7 +68,7 @@ describe("Jam Operasional Server Actions", () => {
     });
   });
 
-  it("Simpan Jam Operasional: a closure line without a date, or a close before the opening, is refused with why, and nothing changes", async () => {
+  it("Simpan Jam Operasional: a Tanggal Tutup line without a date, or a close before the opening, is refused with why, and nothing changes", async () => {
     const { adminLokasi, lokasiId } = await lokasiWithAdminLokasi();
 
     expect(await simpanJamOperasional(idle, form(typedHours(lokasiId, "Natal 25 Desember")))).toEqual({

@@ -46,3 +46,52 @@ export function wibDateOf(instant: Date): string {
   const parts = wibParts(instant);
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+const OFFSET_MS = 7 * HOUR_MS;
+
+/** The instant shifted to WIB wall-clock, for reading its UTC fields as WIB fields. */
+function wall(instant: Date): Date {
+  return new Date(instant.getTime() + OFFSET_MS);
+}
+
+/** 00:00 WIB of the day `instant` falls in. */
+export function wibDayStart(instant: Date): Date {
+  return new Date(Math.floor((instant.getTime() + OFFSET_MS) / DAY_MS) * DAY_MS - OFFSET_MS);
+}
+
+/** The same WIB wall-clock time `days` days later (WIB has no daylight saving, so a day is always 24 h). */
+export function addWibDays(instant: Date, days: number): Date {
+  return new Date(instant.getTime() + days * DAY_MS);
+}
+
+/** "2026-10-05": the WIB date of `instant`. */
+export function wibDate(instant: Date): string {
+  return wall(instant).toISOString().slice(0, 10);
+}
+
+/** "09:30": the WIB wall-clock time of `instant`, to the minute. */
+export function wibTime(instant: Date): string {
+  return wall(instant).toISOString().slice(11, 16);
+}
+
+/** The WIB weekday of `instant`: 0 = Monday … 6 = Sunday (the order of `NAMA_HARI`). */
+export function wibWeekdayIndex(instant: Date): number {
+  return (wall(instant).getUTCDay() + 6) % 7;
+}
+
+/** Indonesian weekday names, Monday first. */
+export const NAMA_HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"] as const;
+
+/** Indonesian month names, January first. */
+export const NAMA_BULAN = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+] as const;
+
+/** "Senin, 5 Oktober": the WIB weekday and date of `instant`, in Indonesian. */
+export function formatWibHariTanggal(instant: Date): string {
+  const shifted = wall(instant);
+  return `${NAMA_HARI[wibWeekdayIndex(instant)]}, ${shifted.getUTCDate()} ${NAMA_BULAN[shifted.getUTCMonth()]}`;
+}

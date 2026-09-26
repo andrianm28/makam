@@ -25,8 +25,8 @@ function form(values: Record<string, string>): FormData {
 
 const idle = { status: "idle" } as const;
 
-describe("national holiday Server Actions", () => {
-  it("Tambah hari libur: Admin Platform adds a national holiday; a date already listed is refused with why", async () => {
+describe("Hari Libur Nasional Server Actions", () => {
+  it("Tambah hari libur: Admin Platform adds a Hari Libur Nasional; a date already listed is refused with why", async () => {
     await signInAsAdminPlatform(server);
 
     expect(await tambahHariLibur(idle, form({ date: "2026-12-25", name: "Hari Raya Natal" }))).toEqual({
@@ -37,10 +37,10 @@ describe("national holiday Server Actions", () => {
       status: "gagal",
       message: "Tanggal ini sudah ada di daftar hari libur nasional.",
     });
-    expect(await server.runtime().lokasi.nationalHolidays()).toEqual([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
+    expect(await server.runtime().lokasi.hariLiburNasional()).toEqual([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
   });
 
-  it("Hapus hari libur: Admin Platform removes a national holiday; an Admin Lokasi cannot", async () => {
+  it("Hapus hari libur: Admin Platform removes a Hari Libur Nasional; an Admin Lokasi cannot", async () => {
     const admin = await signInAsAdminPlatform(server);
     await tambahHariLibur(idle, form({ date: "2026-12-25", name: "Hari Raya Natal" }));
     await tambahHariLibur(idle, form({ date: "2026-08-17", name: "Proklamasi Kemerdekaan RI" }));
@@ -62,6 +62,6 @@ describe("national holiday Server Actions", () => {
       message: "Anda tidak berwenang melakukan ini.",
     });
 
-    expect(await server.runtime().lokasi.nationalHolidays()).toEqual([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
+    expect(await server.runtime().lokasi.hariLiburNasional()).toEqual([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
   });
 });

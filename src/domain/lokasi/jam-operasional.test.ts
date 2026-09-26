@@ -9,7 +9,7 @@ beforeEach(resetDatabase);
 
 const open = (opens: string, closes: string) => ({ opens, closes });
 
-/** Tuesday–Sunday 07:00–15:00, closed Monday, closed on 17 August. */
+/** Tuesday–Sunday 07:00–15:00, closed Monday, 17 August a Tanggal Tutup. */
 const typed: JamOperasional = {
   weekly: {
     monday: null,
@@ -20,11 +20,11 @@ const typed: JamOperasional = {
     saturday: open("07:00", "15:00"),
     sunday: open("07:00", "15:00"),
   },
-  closures: [{ date: "2027-08-17", note: "HUT RI" }],
+  tanggalTutup: [{ date: "2027-08-17", note: "HUT RI" }],
 };
 
 describe("Jam Operasional of a Lokasi Mitra", () => {
-  it("a new Lokasi Mitra starts with the default Jam Operasional: Monday–Saturday 08:00–16:00, closed Sunday, no closures", async () => {
+  it("a new Lokasi Mitra starts with the default Jam Operasional: Monday–Saturday 08:00–16:00, closed Sunday, no Tanggal Tutup", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
@@ -39,12 +39,12 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
         saturday: open("08:00", "16:00"),
         sunday: null,
       },
-      closures: [],
+      tanggalTutup: [],
     });
     expect(await setup.lokasi.jamOperasional(admin, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: DEFAULT_JAM_OPERASIONAL });
   });
 
-  it("the Admin Lokasi sets weekly hours per weekday (Monday closed) and dated closures; the change is in its Lokasi's Audit Log", async () => {
+  it("the Admin Lokasi sets weekly hours per weekday (Monday closed) and Tanggal Tutup; the change is in its Lokasi's Audit Log", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
@@ -68,8 +68,8 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
     ["a time that is not HH:MM", { ...typed, weekly: { ...typed.weekly, tuesday: open("7 pagi", "15:00") } }],
     ["a close past 24:00", { ...typed, weekly: { ...typed.weekly, tuesday: open("08:00", "25:00") } }],
     ["every weekday closed", { ...typed, weekly: { monday: null, tuesday: null, wednesday: null, thursday: null, friday: null, saturday: null, sunday: null } }],
-    ["a closure on a date that does not exist", { ...typed, closures: [{ date: "2027-02-30", note: "" }] }],
-    ["the same date closed twice", { ...typed, closures: [{ date: "2027-08-17", note: "" }, { date: "2027-08-17", note: "HUT RI" }] }],
+    ["a Tanggal Tutup on a date that does not exist", { ...typed, tanggalTutup: [{ date: "2027-02-30", note: "" }] }],
+    ["the same Tanggal Tutup twice", { ...typed, tanggalTutup: [{ date: "2027-08-17", note: "" }, { date: "2027-08-17", note: "HUT RI" }] }],
   ])("refuses a Jam Operasional with %s, and nothing changes", async (_case, jamOperasional) => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
@@ -91,7 +91,7 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
     const adminLokasi = await signedInAdminLokasi(setup, admin, [own.id]);
 
     expect(await setup.lokasi.setJamOperasional(adminLokasi, other.id, typed)).toEqual({ ok: false, reason: "tidak_berwenang" });
-    const invalid = { ...typed, closures: [{ date: "bukan tanggal", note: "" }] };
+    const invalid = { ...typed, tanggalTutup: [{ date: "bukan tanggal", note: "" }] };
     expect(await setup.lokasi.setJamOperasional(adminLokasi, other.id, invalid)).toEqual({ ok: false, reason: "tidak_berwenang" });
     expect(await setup.lokasi.jamOperasional(admin, other.id)).toEqual({ ok: true, jamOperasional: DEFAULT_JAM_OPERASIONAL });
     expect(await setup.lokasi.setJamOperasional(admin, other.id, typed)).toEqual({ ok: true });
