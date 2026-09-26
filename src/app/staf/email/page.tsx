@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { EmailSection } from "@/components/email/email-section";
+import { EmailSection } from "@/app/akun/email-section";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { serverRuntime } from "@/server/runtime";

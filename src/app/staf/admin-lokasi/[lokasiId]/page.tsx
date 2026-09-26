@@ -2,9 +2,9 @@ import { PinMap } from "@/components/map/pin-map";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverRuntime } from "@/server/runtime";
-import { lokasiStatusLabels } from "../../lokasi/labels";
+import { lokasiStatusLabels } from "@/lib/lokasi-labels";
 import { StaffRoleHome } from "../../staff-role-home";
-import { adminLokasiMenu, adminLokasiScope, LokasiSwitcher } from "../scope";
+import { adminLokasiScope, LokasiSwitcher } from "../scope";
 
 /** An Admin Lokasi's home for one of its Lokasi Mitra: the Lokasi switcher, the menu, the record at a glance. */
 export default async function AdminLokasiLokasiPage({ params }: PageProps<"/staf/admin-lokasi/[lokasiId]">) {
@@ -14,7 +14,7 @@ export default async function AdminLokasiLokasiPage({ params }: PageProps<"/staf
 
   return (
     <>
-      <StaffRoleHome role="admin_lokasi" title={current.name} menu={adminLokasiMenu(current.id)}>
+      <StaffRoleHome role="admin_lokasi" lokasiId={current.id} title={current.name}>
         <LokasiSwitcher lokasiMitra={lokasiMitra} current={current.id} />
       </StaffRoleHome>
       {read.ok ? (

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { lokasiStatusLabels } from "@/app/staf/lokasi/labels";
+import { lokasiStatusLabels } from "@/lib/lokasi-labels";
 
 /**
  * The one status vocabulary. Every domain status shown to staff maps to a

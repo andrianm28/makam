@@ -9,7 +9,7 @@ import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { staffRoleLabels } from "../../role-labels";
+import { staffRoleLabels } from "@/lib/staff-role-labels";
 
 
 const inviteSchema = z.object({

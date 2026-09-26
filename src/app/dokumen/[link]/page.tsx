@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { cardSurface } from "@/components/ui/card";
 import { documentLinkSchema, type BillingDocument, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
 import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
@@ -41,18 +43,15 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
   const { link, document } = found;
 
   return (
-    <main
-      className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-8 text-sm print:max-w-none print:p-0"
-      // The app's own sans (Geist, loaded by the root layout), so the page and its PDF read the same everywhere.
-      style={{ fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif" }}
-    >
+    // The brand sans (Plus Jakarta Sans, loaded by the root layout), so the page and its PDF read the same everywhere.
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-8 font-sans text-sm print:max-w-none print:p-0">
       <style>{"@page { size: A4; margin: 16mm; }"}</style>
       <div className="flex justify-end print:hidden">
         <a href={documentPdfPath(link)} download className={buttonVariants({ variant: "outline" })}>
           Unduh PDF
         </a>
       </div>
-      <article className="flex flex-col gap-6 rounded-xl border bg-card p-6 text-card-foreground sm:p-10 print:rounded-none print:border-0 print:p-0">
+      <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
         {document.type === "tagihan" ? <TagihanView tagihan={document.tagihan} /> : <BuktiView bukti={document.bukti} />}
       </article>
     </main>

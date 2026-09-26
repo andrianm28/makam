@@ -30,8 +30,8 @@ describe("the Admin Platform Beranda", () => {
     }
 
     expect((await adminPlatformBeranda()).lokasiMitra).toEqual({
+      belum_tayang: 2,
       terverifikasi: 0,
-      belumTayang: 2,
       ditangguhkan: 0,
       berhenti: 0,
     });
@@ -51,18 +51,13 @@ describe("the Admin Platform Beranda", () => {
     expect((await adminPlatformBeranda()).staf).toEqual({ aktif: 2, undanganTerbuka: 1 });
   });
 
-  it("names the next Hari Libur Nasional from today (WIB), today included", async () => {
+  it("names the next Hari Libur Nasional (the rule itself is tested in the Lokasi module)", async () => {
     const admin = await signInAsAdminPlatform(server);
-    const { lokasi } = server.runtime();
     expect((await adminPlatformBeranda()).hariLiburBerikutnya).toBeNull();
 
     // The fake clock stands at 1 October 2026, 09:00 WIB.
-    await lokasi.addHariLiburNasional(admin, { date: "2026-08-17", name: "Proklamasi Kemerdekaan RI" });
-    await lokasi.addHariLiburNasional(admin, { date: "2026-12-25", name: "Hari Raya Natal" });
+    await server.runtime().lokasi.addHariLiburNasional(admin, { date: "2026-12-25", name: "Hari Raya Natal" });
     expect((await adminPlatformBeranda()).hariLiburBerikutnya).toEqual({ date: "2026-12-25", name: "Hari Raya Natal" });
-
-    await lokasi.addHariLiburNasional(admin, { date: "2026-10-01", name: "Hari Kesaktian Pancasila" });
-    expect((await adminPlatformBeranda()).hariLiburBerikutnya).toEqual({ date: "2026-10-01", name: "Hari Kesaktian Pancasila" });
   });
 
   it("says whether Pengaturan Operator has been filled in", async () => {

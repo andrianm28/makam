@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { hapusEmail, kirimKodeVerifikasi, konfirmasiVerifikasi } from "@/app/akun/email-actions";
 import { Button } from "@/components/ui/button";
-import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "./state";
+import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "@/components/email/state";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";

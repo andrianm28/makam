@@ -11,16 +11,32 @@ type Rgb = [number, number, number];
 
 const GLOBALS_CSS = "src/app/globals.css";
 
-/** The custom properties declared directly in one top-level block (`:root` or `.dark`). */
+/** The custom properties declared directly in one top-level block (`:root`, `.dark`, `@theme inline`). */
 function declarations(css: string, selector: string): Map<string, string> {
-  const start = css.search(new RegExp(`(^|\\n)${selector.replace(".", "\\.")}\\s*\\{`));
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const start = source.search(new RegExp(`(^|\\n)${escaped}\\s*\\{`));
   if (start < 0) throw new Error(`no ${selector} block in ${GLOBALS_CSS}`);
-  const open = css.indexOf("{", start);
-  const close = css.indexOf("}", open);
-  const body = css.slice(open + 1, close).replace(/\/\*[\s\S]*?\*\//g, "");
+  const open = source.indexOf("{", start);
+  // The block ends at its own closing brace, not at the first nested one.
+  let depth = 0;
+  let close = open;
+  for (; close < source.length; close++) {
+    if (source[close] === "{") depth++;
+    else if (source[close] === "}" && --depth === 0) break;
+  }
   const tokens = new Map<string, string>();
-  for (const match of body.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) tokens.set(match[1], match[2].trim());
+  for (const match of source.slice(open + 1, close).matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) {
+    tokens.set(match[1], match[2].trim());
+  }
   return tokens;
+}
+
+/** A font token's family stack (`--font-sans` in `@theme inline`), one family per entry. */
+export function fontStack(name: string, css = readFileSync(GLOBALS_CSS, "utf8")): string[] {
+  const value = declarations(css, "@theme inline").get(`font-${name}`);
+  if (!value) throw new Error(`no --font-${name} token`);
+  return value.split(",").map((family) => family.trim());
 }
 
 /** Every token's value in one theme: dark overrides the light (`:root`) values. */

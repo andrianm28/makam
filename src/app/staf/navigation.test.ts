@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { staffRoles, type StaffRole } from "@/domain/identity";
-import { isActiveItem, staffBreadcrumbs, staffMenu, staffPage } from "./navigation";
+import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage } from "./navigation";
 
 /** A menu as its reader sees it: group labels and item labels, in order. */
 function outline(groups: ReturnType<typeof staffMenu>) {
@@ -39,8 +39,8 @@ describe("the staff menu of each role", () => {
     expect(outline(staffMenu("admin_lokasi"))).toEqual([["Lokasi ini", ["Beranda"]]]);
   });
 
-  it("Petugas Lapangan and Mitra Jasa keep their own menus", () => {
-    expect(outline(staffMenu("petugas_lapangan"))).toEqual([["Lapangan", ["Beranda", "Tugas saya"]]]);
+  it("Petugas Lapangan and Mitra Jasa keep their own menus, in the short forms of Tugas Lapangan and Pekerjaan Layanan", () => {
+    expect(outline(staffMenu("petugas_lapangan"))).toEqual([["Lapangan", ["Beranda", "Tugas"]]]);
     expect(outline(staffMenu("mitra_jasa"))).toEqual([["Mitra Jasa", ["Beranda", "Pekerjaan", "Pencairan"]]]);
   });
 
@@ -56,6 +56,13 @@ describe("the staff menu of each role", () => {
     ]);
     expect(linked(staffMenu("petugas_lapangan"))).toEqual(["Beranda"]);
     expect(linked(staffMenu("mitra_jasa"))).toEqual(["Beranda"]);
+  });
+
+  it.each(staffRoles)("every %s menu item says what it is for, and an unbuilt one says it is coming", (role) => {
+    for (const item of staffMenu(role, { lokasiId }).flatMap((group) => group.items)) {
+      expect(item.description, item.label).toMatch(/\S/);
+      if (!item.href) expect(item.description).toBe("Segera hadir.");
+    }
   });
 
   it.each(staffRoles)("every %s menu link opens a page that exists", (role) => {
@@ -115,6 +122,13 @@ describe("where a staff page sits in the menu", () => {
       { label: "Lokasi Mitra", href: `/staf/admin-platform/lokasi/${lokasiId}` },
       { label: "Tarif" },
     ]);
+  });
+
+  it("the shell shows the menu of the page's role only when the Akun holds it; otherwise its first held role", () => {
+    const held: StaffRole[] = ["petugas_lapangan", "mitra_jasa"];
+    expect(menuRole("/staf/mitra-jasa", held)).toBe("mitra_jasa");
+    expect(menuRole("/staf/admin-platform/staf", held)).toBe("petugas_lapangan");
+    expect(menuRole("/staf/email", held)).toBe("petugas_lapangan");
   });
 
   it("an Admin Lokasi page names the Lokasi Mitra it is scoped to", () => {

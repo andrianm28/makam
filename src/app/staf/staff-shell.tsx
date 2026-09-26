@@ -49,7 +49,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { StaffRole } from "@/domain/identity";
 import type { StaffShell as StaffShellData } from "@/server/staff-area";
-import { isActiveItem, staffBreadcrumbs, staffMenu, staffPage, type NavGroup } from "./navigation";
+import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, type NavGroup } from "./navigation";
 
 /**
  * The staff area's frame for every staff role: a collapsible sidebar with the
@@ -68,11 +68,15 @@ export function StaffShell({
 }) {
   const pathname = usePathname();
   const page = staffPage(pathname);
-  // A page every role shares (Email) shows the menu of the first role the Akun holds.
-  const role: StaffRole = page.role ?? shell.roles[0].role;
-  const roleLabel = shell.roles.find((option) => option.role === role)?.label ?? shell.roles[0].label;
-  const menu = staffMenu(role, { lokasiId: page.lokasiId });
-  const roleHome = shell.roles.find((option) => option.role === role)?.href ?? shell.roles[0].href;
+  // Only ever the menu of a role the Akun holds.
+  const role = menuRole(
+    pathname,
+    shell.roles.map((option) => option.role),
+  );
+  const current = shell.roles.find((option) => option.role === role) ?? shell.roles[0];
+  const menu = staffMenu(role, { lokasiId: role === page.role ? page.lokasiId : undefined });
+  const roleLabel = current.label;
+  const roleHome = current.href;
 
   return (
     <TooltipProvider>

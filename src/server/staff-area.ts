@@ -1,12 +1,10 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
-import { staffRoleLabels } from "@/app/staf/role-labels";
-import { staffRoleHome, staffRoleSlugs } from "@/lib/staff-area-path";
+import { staffRoleLabels } from "@/lib/staff-role-labels";
+import { staffRoleHome } from "@/lib/staff-area-path";
 import { serverRuntime } from "./runtime";
 import { currentActor } from "./session";
-
-export { staffRoleSlugs };
 
 /** The staff roles an actor holds, in the fixed order. */
 export function heldStaffRoles(roles: Role[]): StaffRole[] {
@@ -17,7 +15,7 @@ export function heldStaffRoles(roles: Role[]): StaffRole[] {
 export function homeFor(actor: Actor): string {
   if (needsTotp(actor)) return "/staf/totp";
   const [first] = heldStaffRoles(actor.roles);
-  return first ? `/staf/${staffRoleSlugs[first]}` : "/akun";
+  return first ? staffRoleHome(first) : "/akun";
 }
 
 /**

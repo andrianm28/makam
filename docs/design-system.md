@@ -62,7 +62,7 @@ Interim, until the brand designer delivers a vector (SVG) master with one-colour
 
 ## Tokens
 
-All tokens are CSS custom properties with a light value (`:root`) and a dark value (`.dark`), mapped to Tailwind utilities through `@theme inline`. Components use the semantic names (`bg-primary`, `text-success-soft-foreground`), never raw colours or Tailwind palette colours (`text-emerald-700`). `src/app/brand-tokens.test.ts` reads `globals.css` and checks the brand colours, the roles and every contrast pair below, so the tokens and this page can't drift apart silently.
+All tokens are CSS custom properties with a light value (`:root`) and a dark value (`.dark`), mapped to Tailwind utilities through `@theme inline`. Components use the semantic names (`bg-primary`, `text-success-soft-foreground`), never raw colours or Tailwind palette colours (`text-emerald-700`, `bg-black/10`); `src/app/brand-tokens.test.ts` fails on either in `src/app` or `src/components`, and on any hard-coded font family. `src/app/brand-tokens.test.ts` reads `globals.css` and checks the brand colours, the roles and every contrast pair below, so the tokens and this page can't drift apart silently.
 
 ### Brand palette
 
@@ -141,7 +141,7 @@ Charts: `chart-1`…`chart-5` are Forest, Sage, Sand, the info blue and the mute
 
 ### Typography
 
-**Plus Jakarta Sans** (`--font-sans` and `--font-heading` → `--font-plus-jakarta`, loaded with `next/font/google` in `src/app/layout.tsx`) for all UI, staff and public; its fallback is the system sans-serif, never a serif. **Geist Mono** (`--font-mono`, `font-mono`) only for codes someone copies or reads out: Nomor Pemesanan, rekening. **Lora** (`--font-serif`, `font-serif`, not preloaded) only for emotional headlines, quotes and storytelling on the public site; **never in the staff area**. Every table cell uses tabular figures (`td, th` in globals.css), and so do stats and times (`tabular-nums`).
+**Plus Jakarta Sans** (`--font-sans` and `--font-heading` → `--font-plus-jakarta`, loaded with `next/font/google` in `src/app/layout.tsx`) for all UI, staff and public, and for the document pages (Tagihan, Bukti Pembayaran) and so their PDFs; its fallback is the system sans-serif, never a serif. **Geist Mono** (`--font-mono`, `font-mono`) only for codes someone copies or reads out: Nomor Pemesanan, rekening. **Lora** (`--font-serif`, `font-serif`, not preloaded) only for emotional headlines, quotes and storytelling on the public site; **never in the staff area**. Every table cell uses tabular figures (`td, th` in globals.css), and so do stats and times (`tabular-nums`).
 
 | Utility | Size / line | Weight, tracking | Use |
 |---|---|---|---|
@@ -166,7 +166,7 @@ Soft and round, as in the guideline's cards. One base, `--radius: 0.625rem` (10 
 
 ### Shadow
 
-Elevation, not decoration. Resting surfaces (cards, tables, panels) use a 1 px `border` plus a faint Forest-tinted `shadow-xs`, so the off-white card lifts off Ivory without a colour jump. `shadow-md` for menus and popovers, `shadow-lg` for dialogs and sheets. Dark mode uses deeper shadows plus a faint top highlight.
+Elevation, not decoration. Resting surfaces (cards, tables, panels) use a 1 px `border` plus a faint Forest-tinted `shadow-xs`, so the off-white card lifts off Ivory without a colour jump. The shared `cardSurface` (`src/components/ui/card.tsx`) carries this for `Card`, `StatCard` and the document pages, so they never drift apart. The page behind a sheet or dialog dims with the `overlay` token (the Forest ground, faintly; deeper in dark mode). `shadow-md` for menus and popovers, `shadow-lg` for dialogs and sheets. Dark mode uses deeper shadows plus a faint top highlight.
 
 ### Motion
 
@@ -223,7 +223,7 @@ Buttons: one `default` (Forest) button per view, the primary action. `outline` f
 
 ## Status vocabulary
 
-One mapping in `StatusBadge` (`statusVocabulary`, checked by `src/components/makam/status-badge.test.ts`). The label always carries the meaning; the tone and dot only reinforce it. Lokasi Mitra labels come from `src/app/staf/lokasi/labels.ts`.
+One mapping in `StatusBadge` (`statusVocabulary`, checked by `src/components/makam/status-badge.test.ts`). The label always carries the meaning; the tone and dot only reinforce it. Lokasi Mitra labels come from `src/lib/lokasi-labels.ts`, staff role names from `src/lib/staff-role-labels.ts`.
 
 | Key | Label | Tone | Why |
 |---|---|---|---|

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { lokasiStatusLabels } from "../../lokasi/labels";
+import { lokasiStatusLabels } from "@/lib/lokasi-labels";
 import { CreateLokasiForm } from "./lokasi-forms";
 
 /** Admin Platform: every Lokasi Mitra, and the start of a new onboarding record. */

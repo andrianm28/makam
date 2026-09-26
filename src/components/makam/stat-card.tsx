@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cardSurface } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,7 +47,8 @@ export function StatCard({
     </>
   );
   const shared = cn(
-    "flex flex-col gap-1 rounded-xl border border-border bg-card shadow-xs p-5 text-card-foreground",
+    cardSurface,
+    "flex flex-col gap-1 p-5",
     className,
   );
   if (!href) return <div data-slot="stat-card" className={shared}>{body}</div>;

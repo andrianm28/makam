@@ -10,7 +10,7 @@ export default async function AdminLokasiPage() {
   if (first) redirect(`/staf/admin-lokasi/${first.id}`);
 
   return (
-    <StaffRoleHome role="admin_lokasi" menu={[]}>
+    <StaffRoleHome role="admin_lokasi">
       <p className="text-sm text-muted-foreground">
         Akun Anda belum terhubung ke Lokasi Mitra mana pun. Minta Admin Platform mengundang Anda dari halaman Lokasi Mitra-nya.
       </p>

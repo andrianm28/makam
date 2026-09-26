@@ -6,7 +6,7 @@ import { lokasiFacilities } from "@/domain/lokasi";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { lokasiStatusLabels } from "../../../lokasi/labels";
+import { lokasiStatusLabels } from "@/lib/lokasi-labels";
 import {
   AgreementForm,
   BankAccountForm,

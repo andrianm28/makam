@@ -120,6 +120,7 @@
   --color-info-soft-foreground: var(--info-soft-foreground);
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-soft-foreground: var(--neutral-soft-foreground);
+  --color-overlay: var(--overlay);
 
   /* Radius: one base (10px), derived steps. The brand's surfaces are soft and
      round: controls (buttons, inputs) use lg = 10px, cards, tables, dialogs
@@ -240,6 +241,8 @@
   --info-soft-foreground: oklch(0.43 0.065 240);
   --neutral-soft: oklch(0.935 0.01 110);
   --neutral-soft-foreground: oklch(0.42 0.015 140);
+  /* The dim behind a sheet or dialog: the Forest ground, faintly. */
+  --overlay: oklch(0.19 0.02 162 / 0.2);
   --destructive: var(--danger);
 
   /* Antrean tenggat bar: Sage -> Sand/amber -> muted red; full red only once
@@ -326,6 +329,7 @@
   --info-soft-foreground: oklch(0.86 0.05 235);
   --neutral-soft: oklch(0.3 0.018 162);
   --neutral-soft-foreground: oklch(0.84 0.018 150);
+  --overlay: oklch(0.1 0.015 162 / 0.6);
   --destructive: var(--danger);
 
   --deadline-calm: oklch(0.66 0.04 160);

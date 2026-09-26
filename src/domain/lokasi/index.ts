@@ -25,6 +25,7 @@ import {
   createLokasiMitra,
   isTerverifikasi,
   lokasiMitraOfAdminLokasi,
+  lokasiMitraCountsByStatus,
   readLokasiMitra,
   setDocumentChecklist,
   setPoliciesAndFlags,
@@ -34,6 +35,7 @@ import {
   type ChangeBankAccountResult,
   type CreateLokasiMitraResult,
   type LokasiMitraResult,
+  type LokasiMitraStatus,
   type LokasiMitraSummary,
   type NewLokasiMitra,
   type NotFound,
@@ -70,6 +72,7 @@ import type { HariLiburNasional, WorkingTimeResult } from "./working-time";
 import {
   addHariLiburNasional,
   hariLiburNasional,
+  nextHariLiburNasional,
   readAdminPlatformCalendar,
   removeHariLiburNasional,
   type AddHariLiburNasionalResult,
@@ -185,6 +188,8 @@ export interface Lokasi {
   allLokasiMitra(by: Actor): Promise<LokasiMitraSummary[]>;
   /** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */
   lokasiMitraOfAdminLokasi(by: Actor): Promise<LokasiMitraSummary[]>;
+  /** How many Lokasi Mitra are in each status (Admin Platform; all zero for anyone else). */
+  lokasiMitraCountsByStatus(by: Actor): Promise<Record<LokasiMitraStatus, number>>;
   /**
    * This Lokasi Mitra's Audit Log for its Admin Lokasi (and Admin Platform), without Catatan Internal and Antrean
    * claims; bank account numbers masked to their last 4 digits and no agreement scan file keys.
@@ -212,6 +217,8 @@ export interface Lokasi {
   kontakSiagaOf(lokasiId: string): Promise<KontakSiaga | null>;
   /** The Hari Libur Nasional list Admin Platform keeps, by date. */
   hariLiburNasional(): Promise<HariLiburNasional[]>;
+  /** The first Hari Libur Nasional from today (WIB, on the Clock), today included; null when none is ahead. */
+  nextHariLiburNasional(): Promise<HariLiburNasional | null>;
   /** Admin Platform (only) adds a Hari Libur Nasional, audited. */
   addHariLiburNasional(by: Actor, input: HariLiburNasional): Promise<AddHariLiburNasionalResult>;
   /** Admin Platform (only) removes a Hari Libur Nasional, audited. */
@@ -247,6 +254,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     removeAdminLokasi: (by, lokasiId, input) => removeAdminLokasiFromLokasi(deps, by, lokasiId, input),
     allLokasiMitra: (by) => allLokasiMitra(deps, by),
     lokasiMitraOfAdminLokasi: (by) => lokasiMitraOfAdminLokasi(deps, by),
+    lokasiMitraCountsByStatus: (by) => lokasiMitraCountsByStatus(deps, by),
     auditLog: (by, lokasiId) => lokasiAuditLog(deps, by, lokasiId),
     fullAuditLog: (by, lokasiId) => fullLokasiAuditLog(deps, by, lokasiId),
     uploadAgreement: (by, lokasiId, input) => uploadAgreement(deps, by, lokasiId, input),
@@ -257,6 +265,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     pickKontakSiaga: (by, lokasiId, input) => pickKontakSiaga(deps, by, lokasiId, input),
     kontakSiagaOf: (lokasiId) => kontakSiagaOf(deps, lokasiId),
     hariLiburNasional: () => hariLiburNasional(deps),
+    nextHariLiburNasional: () => nextHariLiburNasional(deps),
     addHariLiburNasional: (by, input) => addHariLiburNasional(deps, by, input),
     removeHariLiburNasional: (by, input) => removeHariLiburNasional(deps, by, input),
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),

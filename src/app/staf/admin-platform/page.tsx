@@ -4,21 +4,15 @@ import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
 import { StatCard } from "@/components/makam/stat-card";
 import { buttonVariants } from "@/components/ui/button";
-import { NAMA_BULAN } from "@/lib/time/jakarta";
+import { formatTanggalTanpaTahun } from "@/lib/time/jakarta";
 import { adminPlatformBeranda } from "./beranda";
 
 const AP = "/staf/admin-platform";
 
-/** "25 Desember" from "2026-12-25". */
-function tanggal(date: string): string {
-  const [, month, day] = date.split("-").map(Number);
-  return `${day} ${NAMA_BULAN[month - 1]}`;
-}
-
 /** The Admin Platform Beranda: where things stand across Lokasi Mitra, staf and the Operator's own settings. */
 export default async function AdminPlatformPage() {
   const { lokasiMitra, staf, hariLiburBerikutnya, pengaturanOperatorDiisi } = await adminPlatformBeranda();
-  const totalLokasi = lokasiMitra.terverifikasi + lokasiMitra.belumTayang + lokasiMitra.ditangguhkan + lokasiMitra.berhenti;
+  const totalLokasi = Object.values(lokasiMitra).reduce((sum, count) => sum + count, 0);
 
   return (
     <>
@@ -31,7 +25,7 @@ export default async function AdminPlatformPage() {
         <StatCard
           label="Lokasi Mitra Terverifikasi"
           value={lokasiMitra.terverifikasi}
-          note={`${lokasiMitra.belumTayang} Belum Tayang, ${lokasiMitra.ditangguhkan} Ditangguhkan`}
+          note={`${lokasiMitra.belum_tayang} Belum Tayang, ${lokasiMitra.ditangguhkan} Ditangguhkan`}
           attention={lokasiMitra.ditangguhkan > 0 ? "warning" : undefined}
           href={`${AP}/lokasi`}
         />
@@ -45,7 +39,7 @@ export default async function AdminPlatformPage() {
         />
         <StatCard
           label="Hari Libur Nasional berikutnya"
-          value={hariLiburBerikutnya ? tanggal(hariLiburBerikutnya.date) : "Belum ada"}
+          value={hariLiburBerikutnya ? formatTanggalTanpaTahun(hariLiburBerikutnya.date) : "Belum ada"}
           note={
             hariLiburBerikutnya
               ? `${hariLiburBerikutnya.name}, ${hariLiburBerikutnya.date.slice(0, 4)}`

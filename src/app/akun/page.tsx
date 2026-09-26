@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { EmailSection } from "@/components/email/email-section";
+import { EmailSection } from "./email-section";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { currentActor } from "@/server/session";

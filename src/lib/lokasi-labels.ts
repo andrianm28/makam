@@ -1,6 +1,6 @@
 import type { AuditAction, AuditActorRole } from "@/domain/audit";
 import type { LokasiMitraStatus } from "@/domain/lokasi";
-import { staffRoleLabels } from "../role-labels";
+import { staffRoleLabels } from "./staff-role-labels";
 
 /** How each Lokasi Mitra status is named on screen (CONTEXT.md). */
 export const lokasiStatusLabels: Record<LokasiMitraStatus, string> = {

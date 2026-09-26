@@ -87,8 +87,13 @@ export const NAMA_BULAN = [
 
 /** "1 November 2026" for a WIB calendar date "2026-11-01". */
 export function formatTanggal(date: string): string {
-  const [year, month, day] = date.split("-").map(Number);
-  return `${day} ${NAMA_BULAN[month - 1]} ${year}`;
+  return `${formatTanggalTanpaTahun(date)} ${Number(date.slice(0, 4))}`;
+}
+
+/** "25 Desember" from the WIB calendar date "2026-12-25": for where the year is said beside it. */
+export function formatTanggalTanpaTahun(date: string): string {
+  const [, month, day] = date.split("-").map(Number);
+  return `${day} ${NAMA_BULAN[month - 1]}`;
 }
 
 /** "1 Oktober 2026, 21.00 WIB": the WIB date and time of `instant`, in Indonesian. */

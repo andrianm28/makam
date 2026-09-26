@@ -94,6 +94,26 @@ describe("the Hari Libur Nasional list Admin Platform keeps", () => {
   });
 });
 
+describe("the next Hari Libur Nasional", () => {
+  it("is the first on the list from today (WIB, on the Clock), today included; none when nothing is ahead", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-01 00:30"));
+    expect(await setup.lokasi.nextHariLiburNasional()).toBeNull();
+
+    await setup.lokasi.addHariLiburNasional(admin, { date: "2026-08-17", name: "Proklamasi Kemerdekaan RI" });
+    await setup.lokasi.addHariLiburNasional(admin, natal);
+    expect(await setup.lokasi.nextHariLiburNasional()).toEqual(natal);
+
+    const pancasila = { date: "2026-10-01", name: "Hari Kesaktian Pancasila" };
+    await setup.lokasi.addHariLiburNasional(admin, pancasila);
+    expect(await setup.lokasi.nextHariLiburNasional()).toEqual(pancasila);
+
+    setup.clock.set(wib("2026-12-26 08:00"));
+    expect(await setup.lokasi.nextHariLiburNasional()).toBeNull();
+  });
+});
+
 describe("a Lokasi calendar", () => {
   it("is the Lokasi's Jam Operasional: Hari Kerja are its open days that are not a Tanggal Tutup, ending at its close; a Hari Libur Nasional does not apply", async () => {
     const setup = lokasiOnTestDatabase(db);
