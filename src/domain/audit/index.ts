@@ -104,7 +104,11 @@ export type AuditAction =
   /** An Admin Lokasi adds or removes a row or column of a Blok's grid. */
   | "denah.ubah_baris_kolom"
   /** An Admin Lokasi uploads or replaces a Blok's site-plan photo. */
-  | "denah.unggah_foto_blok";
+  | "denah.unggah_foto_blok"
+  /** An Admin Lokasi clears a newly drawn Petak or Kavling Keluarga: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai, its Pemegang Hak and, when known, its first Pemakaman). */
+  | "denah.bersihkan_petak"
+  /** Admin Platform renumbers a Petak Makam, the old Nomor Makam kept as a hidden alias. */
+  | "petak.nomor_ulang";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

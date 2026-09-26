@@ -93,7 +93,9 @@ export type Action =
   /** See a Lokasi Mitra's Denah (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "denah.lihat"
   /** Build or edit a Lokasi Mitra's Denah: Blok, Petak, Kavling Keluarga, site-plan photo (that Lokasi's Admin Lokasi only). */
-  | "denah.ubah";
+  | "denah.ubah"
+  /** Renumber a Petak Makam, the old Nomor Makam kept as a hidden alias (Admin Platform only). */
+  | "petak.nomor_ulang";
 
 /** What the action is done to. */
 export type Resource =
@@ -259,5 +261,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "denah.ubah":
       // The Denah is built by that Lokasi's own Admin Lokasi (spec, story 127); Admin Platform does not edit it here.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "petak.nomor_ulang":
+      // Only Admin Platform renumbers a Petak (spec, story 169): the Denah's own Admin Lokasi does not.
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
   }
 }

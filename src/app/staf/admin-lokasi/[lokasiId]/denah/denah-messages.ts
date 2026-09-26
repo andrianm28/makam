@@ -51,6 +51,22 @@ export function denahRefusalMessage(reason: string, extra?: Record<string, unkno
       return "Foto harus JPG, PNG atau WebP, paling besar 10 MB.";
     case "penyimpanan_belum_tersedia":
       return "Penyimpanan berkas belum tersedia di lingkungan ini. Foto belum tersimpan.";
+    case "petak_tidak_ditemukan":
+      return "Petak itu tidak ditemukan.";
+    case "bagian_kavling":
+      return "Petak ini bagian dari Kavling Keluarga. Bersihkan kavlingnya, bukan petak ini sendiri.";
+    case "sudah_ada_hak_pakai":
+      return "Petak atau Kavling Keluarga ini sudah punya Hak Pakai.";
+    case "pemegang_hak_wajib":
+      return "Isi nama dan nomor telepon Pemegang Hak, atau pilih \"data menyusul\".";
+    case "nomor_telepon_tidak_valid":
+      return "Nomor telepon Pemegang Hak tidak valid.";
+    case "email_tidak_valid":
+      return "Email Pemegang Hak tidak valid.";
+    case "pemegang_hak_adalah_almarhum":
+      return "Pemegang Hak tidak boleh sama dengan Almarhum.";
+    case "petak_bukan_anggota_kavling":
+      return "Petak itu bukan anggota Kavling Keluarga ini.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     case "perlu_totp":

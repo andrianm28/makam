@@ -1,6 +1,6 @@
 # Petak clearing, derived status and availability
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 13
 Spec: Domain modules > 5. Inventory (Petak status, Kavling status, availability, Hak Pakai basics, Perlu Verifikasi, renumbering); stories 128, 169
 
@@ -27,3 +27,4 @@ The "Petak Perlu Verifikasi" Antrean Lokasi row is added in ticket 23 when the A
 ## Comments
 
 - 2026-09-26 — ADR 0004: the Pemegang Hak record holds a phone number and, when known, an email (not a WhatsApp number). A Hak Pakai shows in the Akun whose Email Terverifikasi equals the recorded email; "data menyusul" may leave both empty (Perlu Verifikasi).
+- 2026-09-26 — Orchestrator, cloud session 3: Two-axis review: Standards clean (migration matches schema); Spec found availability counting a Kavling Keluarga whose members were still Perlu Verifikasi, fixed in 939e3c0 with a test. Follow-ups (judgement calls): make the Petak alias index unique per Lokasi; the audit records hard-code the actor role; Kavling occupied via the UI has no member-Petak picker for the first Pemakaman (domain supports it); Dipesan and Masa Berlaku Habis colours wait for later tickets. CI green. Merged into `main`.

@@ -19,7 +19,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | resolved | 10 |
 | [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | resolved | 10 |
 | [13](13-denah-builder.md) | Denah builder: bloks, Petak Makam and Kavling Keluarga | resolved | 12, 74 |
-| [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | ready-for-agent | 13 |
+| [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | resolved | 13 |
 | [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
 | [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
