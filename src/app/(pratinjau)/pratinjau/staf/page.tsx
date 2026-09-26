@@ -49,7 +49,7 @@ export default function DashboardPratinjau() {
           <h2 id="terlambat-judul" className="text-title-2">
             Pekerjaan Layanan Terlambat
           </h2>
-          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card">
+          <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-xs">
             {pekerjaanTerlambat.map((item) => (
               <li key={item.id} className="flex items-start justify-between gap-3 p-4">
                 <div className="flex min-w-0 flex-col gap-0.5">

@@ -52,7 +52,7 @@ const textClass: Record<Tier, string> = {
  */
 export function AntreanList({ rows }: { rows: AntreanRow[] }) {
   return (
-    <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+    <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-xs">
       {rows.map((row) => {
         const t = tier(row);
         const used = Math.min(1, Math.max(0, 1 - row.sisaMenit / row.jendelaMenit));

@@ -34,7 +34,7 @@ const colourGroups: { title: string; note: string; names: string[] }[] = [
     note: "Lima warna dari Brand Guideline 2026, persis. Token peran di bawah menunjuk ke sini; komponen memakai token peran.",
     names: ["forest", "sage", "sand", "ivory", "charcoal"],
   },
-  { title: "Permukaan", note: "Latar Ivory, kartu putih. Netral hangat kehijauan, bukan abu-abu polos.", names: ["background", "card", "subtle", "muted", "sidebar", "popover"] },
+  { title: "Permukaan", note: "Latar Ivory, kartu putih gading hangat (#FCFAF5), bukan putih murni. Netral hangat kehijauan, bukan abu-abu polos.", names: ["background", "card", "subtle", "muted", "sidebar", "popover"] },
   { title: "Teks dan garis", note: "Teks Charcoal, teks pendukung (≥ 4,5:1 di semua permukaan), garis dan fokus (Forest).", names: ["foreground", "muted-foreground", "border", "border-strong", "input", "ring"] },
   {
     title: "Peran merek",
@@ -80,8 +80,8 @@ const radii = [
   { cls: "rounded-full", name: "full", px: "∞", use: "Avatar, titik status" },
 ];
 const shadows = [
-  { cls: "shadow-xs", name: "xs", use: "Segmen aktif" },
-  { cls: "shadow-sm", name: "sm", use: "Jarang; permukaan diam memakai garis" },
+  { cls: "shadow-xs", name: "xs", use: "Kartu dan tabel (bersama garis), segmen aktif" },
+  { cls: "shadow-sm", name: "sm", use: "Jarang" },
   { cls: "shadow-md", name: "md", use: "Popover, menu" },
   { cls: "shadow-lg", name: "lg", use: "Dialog, sheet" },
 ];
@@ -165,7 +165,7 @@ export default function KatalogPratinjau() {
         description="Sumber utama: MAKAM.CO.ID Brand Guideline (Visual 2026), docs/brand/brand-guideline-visual-2026.pdf. Rasa yang dijaga: tenang, hangat, jelas."
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card shadow-xs p-6">
             <h3 className="text-title-3">Logo sementara</h3>
             <BrandLogo caption="Area Staf" className="[&_img]:h-12" />
             <p className="text-small text-muted-foreground">
@@ -173,7 +173,7 @@ export default function KatalogPratinjau() {
               vektor (SVG) dari desainer merek, beserta versi satu warna dan ikon kecil.
             </p>
           </div>
-          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
+          <div className="flex flex-col gap-4 rounded-xl border border-border bg-card shadow-xs p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-title-3">Suara: hangat, jelas, tidak menghakimi</h3>
               <p className="rounded-md bg-highlight px-2 py-0.5 text-caption font-semibold tracking-[0.06em] text-highlight-foreground">DIBANTU · JELAS · AMAN</p>
@@ -198,7 +198,7 @@ export default function KatalogPratinjau() {
                 <h3 className="text-title-3">{group.title}</h3>
                 <p className="text-small text-muted-foreground">{group.note}</p>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
                 <table className="w-full min-w-[40rem] table-fixed text-small">
                   <colgroup>
                     <col className="w-64" />
@@ -233,7 +233,7 @@ export default function KatalogPratinjau() {
       </Section>
 
       <Section id="tipografi" title="Tipografi" description="Plus Jakarta Sans untuk semua UI. Geist Mono hanya untuk kode yang disalin atau dibacakan orang (Nomor Pemesanan, nomor rekening). Angka di tabel memakai tabular-nums. Lora hanya untuk judul emosional di situs publik, tidak pernah di Area Staf.">
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border rounded-xl border border-border bg-card shadow-xs">
           {typeScale.map((item) => (
             <li key={item.name} className="grid items-baseline gap-2 px-5 py-4 md:grid-cols-[9rem_minmax(0,1fr)_14rem]">
               <code className="font-mono text-caption text-muted-foreground">{item.name}</code>
@@ -289,7 +289,7 @@ export default function KatalogPratinjau() {
       </Section>
 
       <Section id="status" title="StatusBadge" description="Satu kosakata untuk semua status domain. Nada membawa makna: hijau beres, kuning perlu perhatian, merah lewat tenggat, biru menunggu orang lain, netral belum mulai atau sudah berakhir. Tidak ada lencana “Verified Partner”: Terverifikasi adalah syarat tayang, bukan lencana.">
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
           <table className="w-full min-w-[32rem] text-small">
             <thead className="bg-subtle text-caption text-muted-foreground">
               <tr>

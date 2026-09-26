@@ -160,7 +160,7 @@ export function DataTable<TData extends RowData>({
         {densityToggle ? <DensitySwitch value={density} onChange={setDensity} /> : null}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
         <Table>
           <caption className="sr-only">{caption}</caption>
           <TableHeader className="bg-subtle">

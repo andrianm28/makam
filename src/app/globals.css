@@ -184,13 +184,15 @@
   /* Neutrals: warm green-grey (hue 95-150, low chroma), never plain grey. */
   --background: var(--ivory);
   --foreground: var(--charcoal);
-  --card: oklch(1 0 0);
+  /* Warm off-white, not pure white: harmonises with Ivory; border and a
+     faint shadow make cards read as raised. */
+  --card: oklch(0.985 0.007 89);
   --card-foreground: var(--charcoal);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.985 0.007 89);
   --popover-foreground: var(--charcoal);
   --muted: oklch(0.94 0.01 100);
   --muted-foreground: oklch(0.5 0.018 150);
-  --subtle: oklch(0.982 0.005 95);
+  --subtle: oklch(0.976 0.008 92);
   --border: oklch(0.905 0.012 100);
   --border-strong: oklch(0.83 0.015 110);
   --input: oklch(0.86 0.014 110);
@@ -262,7 +264,7 @@
   --sidebar-border: oklch(0.905 0.012 100);
   --sidebar-ring: var(--ring);
 
-  --elevation-xs: 0 1px 1px oklch(0.37 0.044 164 / 0.05);
+  --elevation-xs: 0 1px 2px oklch(0.37 0.044 164 / 0.05);
   --elevation-sm: 0 1px 2px oklch(0.37 0.044 164 / 0.06), 0 1px 3px oklch(0.37 0.044 164 / 0.04);
   --elevation-md: 0 6px 16px -4px oklch(0.37 0.044 164 / 0.1), 0 2px 4px oklch(0.37 0.044 164 / 0.04);
   --elevation-lg: 0 20px 44px -10px oklch(0.37 0.044 164 / 0.18), 0 4px 10px oklch(0.37 0.044 164 / 0.05);

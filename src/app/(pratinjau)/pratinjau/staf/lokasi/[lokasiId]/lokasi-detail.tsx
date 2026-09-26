@@ -117,7 +117,7 @@ export function LokasiDetail({ lokasi, initialTab }: { lokasi: MockLokasi; initi
 
 function Panel({ title, children, action, className }: { title: string; children: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("flex flex-col rounded-xl border border-border bg-card", className)}>
+    <section className={cn("flex flex-col rounded-xl border border-border bg-card shadow-xs", className)}>
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-2">
         <h2 className="text-title-3">{title}</h2>
         {action}
@@ -352,7 +352,7 @@ function AdminLokasiTab({ lokasi }: { lokasi: MockLokasi }) {
 
 function AuditLogTab() {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
       <Table>
         <TableHeader className="bg-subtle">
           <TableRow className="hover:bg-transparent">

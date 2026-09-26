@@ -55,7 +55,7 @@ export function JobList({ rows, noun }: { rows: PekerjaanRow[]; noun: string }) 
             <li
               key={row.id}
               className={cn(
-                "flex flex-col gap-3 rounded-xl border bg-card p-4",
+                "flex flex-col gap-3 rounded-xl border bg-card shadow-xs p-4",
                 row.status === "terlambat" ? "border-danger/40" : "border-border",
               )}
             >

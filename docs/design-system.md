@@ -15,12 +15,12 @@ The primary source is the official **MAKAM.CO.ID Brand Guideline (Visual 2026)**
 | 7 Colour system | The five colours, exactly (Forest, Sage, Sand, Ivory, Charcoal) and their roles. |
 | 8 Typography | Plus Jakarta Sans for all UI; Lora for emotional headlines, public site only. |
 | 10 Iconography | 2px stroke, rounded, minimal: lucide matches. |
-| 11, 15 UI direction, homepage | Generous spacing, clear CTA, calm surfaces, transparent status; soft, rounded white cards on Ivory. |
+| 11, 15 UI direction, homepage | Generous spacing, clear CTA, calm surfaces, transparent status; soft, rounded light cards on Ivory (we use a warm off-white, not pure white; see Roles). |
 | 12 Tone of voice, 17 Do / Don't | The voice and guardrails below. |
 
 ## Principles
 
-1. **Calm before loud.** The people using this handle deaths, burials and money. The interface is quiet and precise, on Ivory with white cards. Colour is spent on meaning (status, deadline, the current place), not on decoration.
+1. **Calm before loud.** The people using this handle deaths, burials and money. The interface is quiet and precise, on Ivory with warm off-white cards. Colour is spent on meaning (status, deadline, the current place), not on decoration.
 2. **Forest leads, Sage supports, Sand is rare.** Forest marks the primary action, the current place (active nav item, selected tab) and keyboard focus. Sage carries supporting elements. Sand is a sparing highlight.
 3. **State says what to do.** Every status, empty list and error explains what it means, its limits and the next step, in `CONTEXT.md` words. Errors don't apologise and are never vague.
 4. **Comfortable by default.** Comfortable density everywhere; a compact option only on dense admin tables. Field screens (Mitra Jasa, Petugas Lapangan) are phone-first, with one full-width 44px action per card.
@@ -76,14 +76,14 @@ The five guideline colours, exact, as raw tokens. Role tokens point at them.
 | `ivory` | `#F7F4ED` | `oklch(0.968 0.010 88)` | Background |
 | `charcoal` | `#303330` | `oklch(0.317 0.007 145)` | Text |
 
-The guideline's proportion (Forest 50 / Sage 25 / Sand 15 / Ivory 7 / Charcoal 3) is for marketing compositions. In the product the Ivory ground and white cards take most of the area, and Forest, Sage and Sand keep their order of prominence.
+The guideline's proportion (Forest 50 / Sage 25 / Sand 15 / Ivory 7 / Charcoal 3) is for marketing compositions. In the product the Ivory ground and off-white cards take most of the area, and Forest, Sage and Sand keep their order of prominence.
 
 ### Roles (light)
 
 | Token | Value | Hex | Use |
 |---|---|---|---|
 | `background` | `var(--ivory)` | `#F7F4ED` | Page |
-| `card` / `popover` | `oklch(1 0 0)` | `#FFFFFF` | Cards, tables, menus, dialogs |
+| `card` / `popover` | `oklch(0.985 0.007 89)` | `#FCFAF5` | Cards, tables, menus, dialogs, sheets. Warm off-white, not pure white: pure white on Ivory read too stark (user, 2026-09-26). Cards read as raised through the border and a faint `shadow-xs`, not through colour alone |
 | `foreground` | `var(--charcoal)` | `#303330` | Text |
 | `primary` (= `brand`) | `var(--forest)` | `#29483A` | Primary button, active nav, selected tab, links |
 | `primary-foreground` | `var(--ivory)` | `#F7F4ED` | Text on Forest |
@@ -99,7 +99,7 @@ The guideline's proportion (Forest 50 / Sage 25 / Sand 15 / Ivory 7 / Charcoal 3
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `subtle` | `oklch(0.982 0.005 95)` `#FAF9F5` | `oklch(0.21 0.02 162)` `#101B15` | Table header, hover |
+| `subtle` | `oklch(0.976 0.008 92)` `#F9F7F1` | `oklch(0.21 0.02 162)` `#101B15` | Table header, hover |
 | `muted` | `oklch(0.94 0.01 100)` `#ECEBE4` | `oklch(0.28 0.022 162)` `#1F2C26` | Tracks, segmented control |
 | `muted-foreground` | `oklch(0.5 0.018 150)` `#5C665E` | `oklch(0.78 0.022 150)` `#AEBCB0` | Secondary text |
 | `border` / `border-strong` / `input` | `oklch(0.905 0.012 100)` `#E1E0D7` / `0.83` / `0.86` L | `oklch(0.9 0.03 150 / 10%)` / 18% / 15% | Lines |
@@ -167,7 +167,7 @@ Softer and rounder, as in the guideline's cards. One base, `--radius: 0.625rem` 
 
 ### Shadow
 
-Elevation, not decoration. Resting surfaces (cards, tables, panels) use a 1px `border`, no shadow. `shadow-xs` for the active segment, `shadow-md` for menus and popovers, `shadow-lg` for dialogs and sheets. Light shadows are tinted Forest; dark mode uses deeper shadows plus a faint top highlight.
+Elevation, not decoration. Resting surfaces (cards, tables, panels) use a 1px `border` plus a faint Forest-tinted `shadow-xs`, so the off-white card lifts off Ivory without a colour jump. `shadow-xs` also marks the active segment; `shadow-md` for menus and popovers, `shadow-lg` for dialogs and sheets. Light shadows are tinted Forest; dark mode uses deeper shadows plus a faint top highlight.
 
 ### Motion
 
@@ -236,7 +236,7 @@ New statuses join this table (and the component) before they appear on a screen.
 ## Accessibility
 
 - **Contrast** (WCAG 2.2 AA, computed from the token values; text ≥ 4.5:1 on every surface it appears on):
-  - Light: Charcoal on Ivory 11.6:1, on white 12.8:1; muted-foreground 5.4 (Ivory), 6.0 (white), 5.0 (muted), 5.2 (sidebar); Ivory on Forest (primary button) 9.2:1; Forest on brand-soft (active nav) 8.3:1, on Ivory 9.2:1; Charcoal on Sage (secondary button) 5.1:1; Forest on Sand (highlight) 6.0:1; sage-strong on Ivory 5.3:1 (plain Sage `#5F7A6C` would be 4.3:1, so it isn't used for text); badge text on its soft background: success 7.0, warning 6.4, danger 6.5, info 7.0, neutral 7.0; text on solids: white on danger 5.2, white on info 4.6, near-white on success 5.0, warning-foreground on warning 5.9.
+  - Light (cards `#FCFAF5`, table header `#F9F7F1`): Charcoal on Ivory 11.6:1, on cards 12.3:1, on the table header 11.9:1; muted-foreground 5.4 (Ivory), 5.7 (cards), 5.6 (table header), 5.0 (muted), 5.2 (sidebar); Ivory on Forest (primary button) 9.2:1; Forest on cards 9.7:1, on brand-soft (active nav) 8.3:1; Charcoal on Sage (secondary button) 5.1:1; Forest on Sand (highlight) 6.0:1; sage-strong 5.3 (Ivory), 5.6 (cards) (plain Sage is 2.3:1 on Ivory and `#5F7A6C` 4.3:1, so neither is used for text); badge text on its soft background: success 7.0, warning 6.4, danger 6.5, info 7.0, neutral 7.0; soft-foreground text directly on cards 7.0–7.8; text on solids: white on danger 5.2, white on info 4.6, near-white on success 5.0, warning-foreground on warning 5.9. White stays only as text on the danger and info solids, where off-white would drop info below 4.5:1.
   - Dark: Ivory on the Forest ground 16.7:1, on cards 15.5:1; muted-foreground 7.3–9.7:1; primary-foreground on light Sage 8.8:1; brand-soft pair 9.7:1; badge pairs 8.3–9.4:1; highlight 9.5:1.
   - Focus ring (solid) vs the page: Forest on Ivory 9.2:1, dark ring 7.6:1. Deadline bars against their track are 1.7–2.7:1 in light mode and are reinforcement only; the words beside them carry the meaning.
 - **Colour is never alone**: statuses carry their label, deadlines carry their words ("Lewat 12 menit"), invalid fields carry a message.
@@ -246,9 +246,16 @@ New statuses join this table (and the component) before they appear on a screen.
 - **Inputs on phones** use 16px text so iOS doesn't zoom.
 - **Reduced motion** is honoured globally.
 
+## Decisions settled (user, 2026-09-26; spec on main b4bed90)
+
+1. **Sand split**: shadcn's `accent` is a light Sand tint (hover and highlighted items); full Sand is the separate `highlight` token, used sparingly.
+2. **Active nav item**: a Sage-tinted background (`brand-soft`) with semibold Forest text, not a solid Forest fill.
+3. **Admin Platform menu groups**: Kerja harian · Lokasi dan harga · Orang · Operator, with Audit Log under Operator.
+4. **Status colours as in the vocabulary**: red only for act-now (Terlambat); Berhenti neutral grey with a hollow dot; Dikonfirmasi green like Lunas; Belum Dibayar amber.
+5. **Catalogue**: becomes a real Admin Platform staff page later; until then it stays the development-only `/pratinjau/staf/katalog`.
+6. **Bottom navigation** for Mitra Jasa and Petugas Lapangan stays as prototyped (Pekerjaan, Pencairan, Peringatan, Akun; 4 max).
+7. **Card surface**: warm off-white `#FCFAF5` instead of pure white in light mode; dark mode unchanged.
+
 ## Open questions (for the user)
 
-1. Sidebar grouping and labels for Admin Platform (Kerja harian / Lokasi dan harga / Orang / Operator).
-2. Status colours: review the tone of each status in the vocabulary (for example whether Belum Dibayar is warning or info before its due date).
-3. Where the catalogue lives for real once the prototype is gone: a staff page for Admin Platform, or development only.
-4. Bottom navigation items for Mitra Jasa and Petugas Lapangan (currently Pekerjaan, Pencairan, Peringatan, Akun; 4 max).
+None at the moment.

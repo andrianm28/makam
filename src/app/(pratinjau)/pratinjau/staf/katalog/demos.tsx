@@ -71,7 +71,7 @@ export function ConfirmDialogDemo() {
 
 export function FormSectionDemo() {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-xl border border-border bg-card shadow-xs p-5">
       <FormSection title="Layanan pelanggan" description="Nomor ini muncul di tombol WhatsApp CS.">
         <Field>
           <FieldLabel htmlFor="demo-jam">Jam balas CS</FieldLabel>
@@ -105,7 +105,7 @@ export function StatesDemo() {
       </div>
       <div className="flex flex-col gap-2">
         <p className="text-small font-medium">Memuat</p>
-        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4" aria-busy="true" aria-label="Memuat">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card shadow-xs p-4" aria-busy="true" aria-label="Memuat">
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-8 w-20" />
           <div className="flex flex-col gap-2 pt-2">
