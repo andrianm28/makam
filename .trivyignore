@@ -1,0 +1,15 @@
+# Accepted exceptions to the image scan (Trivy, .github/workflows/ci.yml, ticket 71).
+#
+# CI fails a `main` build on any CRITICAL vulnerability that has a fix. Accept
+# one here only when it cannot be fixed now (e.g. the fixed base image is not
+# out yet) and it is not reachable in this app, and only for a short time:
+#
+#   # <why it is safe for now, who decided, and the ticket or link to follow>
+#   CVE-YYYY-NNNNN exp:YYYY-MM-DD
+#
+# The reason is the `#` comment directly above the ID; `exp:` is required and
+# at most 90 days out. After that date Trivy stops ignoring it, the scan fails
+# again and the exception must be looked at anew. tests/trivyignore.test.ts
+# checks this format.
+#
+# No exceptions accepted so far.
