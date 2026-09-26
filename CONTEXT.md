@@ -12,7 +12,7 @@ _Avoid_: Makam (when meaning the whole cemetery), TPU (as a generic term)
 
 **Lokasi Mitra**:
 A Lokasi Makam run by a partner (private, wakaf, yayasan or masjid cemetery) that has signed a partnership with the Operator; the platform holds its Petak Makam and Pemegang Hak records.
-_Avoid_: Mitra (alone), partner makam
+_Avoid_: Mitra (alone), partner makam, TPS / Tempat Pemakaman Swasta (marketing copy only, never in the product)
 
 **Terverifikasi**:
 Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed; every listed Lokasi Mitra is Terverifikasi. Never said of a TPU, which is shown as an official Pemda cemetery instead.
