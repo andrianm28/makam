@@ -302,7 +302,8 @@ jobs:
           # The SBOM of the pushed image (CycloneDX).
           trivy --format cyclonedx --output sbom/sbom.cdx.json
           # Every finding, for the record (SARIF).
-          trivy --skip-db-update --ignorefile .trivyignore --format sarif --output trivy/trivy.sarif
+          # The first vulnerability scan downloads (or refreshes) the DB: a cold cache, e.g. the first run on a branch, has none.
+          trivy --ignorefile .trivyignore --format sarif --output trivy/trivy.sarif
           # The gate: any CRITICAL with a fix fails the run (.trivyignore holds the accepted exceptions).
           status=0
           trivy --skip-db-update --ignorefile .trivyignore --severity CRITICAL --ignore-unfixed --exit-code 1 \
