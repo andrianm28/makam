@@ -1,27 +1,27 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { tarifGlobalResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { z } from "zod";
+import type { TariffDeps } from "./deps";
+import { lockGlobalTariff } from "./locks";
 import {
   effectiveDateRefusal,
   effectiveOnSchema,
   rupiahSchema,
   type EffectiveDateRefusal,
-  type Rupiah,
   type InvalidTariff,
+  type Rupiah,
 } from "./money";
 import { globalTariffKeys, tariffGlobalVersion } from "./schema";
-import { inForceAt, inForceFromFor, type VersionTimes } from "./versions";
-import type { TariffDeps } from "./deps";
+import { selectVersions, versionTimesOf, writeVersion, type StoredVersionTimes } from "./version-writes";
+import { inForceAt } from "./versions";
 
 export type GlobalTariffKey = (typeof globalTariffKeys)[number];
 
 /** One version of a global tariff. */
-export interface GlobalTariffVersion extends VersionTimes {
+export interface GlobalTariffVersion extends StoredVersionTimes {
   key: GlobalTariffKey;
   amount: Rupiah;
-  /** When Admin Platform entered it (Clock). */
-  enteredAt: Date;
 }
 
 export interface SetGlobalTariffInput {
@@ -49,46 +49,34 @@ export async function setGlobalTariff(deps: TariffDeps, by: Actor, input: SetGlo
   if (refusal) return refusal;
   const parsed = globalTariffInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "tarif_tidak_valid" };
+  const { key, amount, effectiveOn } = parsed.data;
   const now = deps.clock.now();
-  const lampau = effectiveDateRefusal(input.effectiveOn, now);
+  const lampau = effectiveDateRefusal(effectiveOn, now);
   if (lampau) return lampau;
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    // One entry per price book at a time, so each Entri Audit's "before" is exact.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tariffs.global.${input.key}`}))`);
-    const inForceFrom = inForceFromFor(input.effectiveOn, now);
-    const replaced = inForceAt(await globalTariffVersions(tx, input.key), inForceFrom);
-    const [row] = await tx
-      .insert(tariffGlobalVersion)
-      .values({
-        key: input.key,
-        amount: parsed.data.amount,
-        effectiveOn: input.effectiveOn,
-        inForceFrom,
-        enteredAt: now,
-        enteredByAccountId: by.accountId,
-      })
-      .returning();
-    const version = toVersion(row);
-    await record({
+  return writeVersion(deps, now, (tx) => lockGlobalTariff(tx, key), {
+    effectiveOn,
+    versions: (tx) => globalTariffVersions(tx, key),
+    insert: async (tx, inForceFrom) => {
+      const [row] = await tx
+        .insert(tariffGlobalVersion)
+        .values({ key, amount, effectiveOn, inForceFrom, enteredAt: now, enteredByAccountId: by.accountId })
+        .returning();
+      return toVersion(row);
+    },
+    entry: (replaced, version) => ({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "tarif.ubah_global",
-      entity: { kind: "tarif_global", id: input.key },
+      entity: { kind: "tarif_global", id: key },
       before: replaced && auditSnapshot(replaced),
       after: auditSnapshot(version),
       reason: input.reason?.trim() || null,
-    });
-    return { ok: true as const, version };
+    }),
   });
 }
 
 /** Every version of one global tariff, in entry order. */
-export async function globalTariffVersions(db: Database, key: GlobalTariffKey): Promise<GlobalTariffVersion[]> {
-  const rows = await db
-    .select()
-    .from(tariffGlobalVersion)
-    .where(eq(tariffGlobalVersion.key, key))
-    .orderBy(asc(tariffGlobalVersion.seq));
-  return rows.map(toVersion);
+export function globalTariffVersions(db: Database, key: GlobalTariffKey): Promise<GlobalTariffVersion[]> {
+  return selectVersions(db, tariffGlobalVersion, eq(tariffGlobalVersion.key, key), toVersion);
 }
 
 export async function globalTariff(deps: TariffDeps, key: GlobalTariffKey, at: Date): Promise<GlobalTariffVersion | null> {
@@ -100,12 +88,5 @@ function auditSnapshot(version: GlobalTariffVersion) {
 }
 
 function toVersion(row: typeof tariffGlobalVersion.$inferSelect): GlobalTariffVersion {
-  return {
-    key: row.key,
-    amount: row.amount,
-    effectiveOn: row.effectiveOn,
-    inForceFrom: row.inForceFrom,
-    seq: row.seq,
-    enteredAt: row.enteredAt,
-  };
+  return { key: row.key, amount: row.amount, ...versionTimesOf(row) };
 }

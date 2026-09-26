@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -12,7 +12,16 @@ import {
   type InvalidTariff,
 } from "./money";
 import { tariffJenisMakam, tariffJenisMakamVersion } from "./schema";
-import { inForceAt, inForceFromFor, type VersionTimes } from "./versions";
+import { isUuid } from "./ids";
+import { lockLokasiTariffs } from "./locks";
+import {
+  recordNewVersion,
+  selectVersions,
+  versionTimesOf,
+  writeVersion,
+  type NewVersion,
+  type StoredVersionTimes,
+} from "./version-writes";
 
 /** How long a Hak Pakai of this Jenis Makam lasts: Selamanya, or N whole years (one Perpanjangan term). */
 export type Tenure = { kind: "selamanya" } | { kind: "tahun"; years: number };
@@ -30,12 +39,11 @@ export interface JenisMakamTariff {
   hargaPerpanjangan: number | null;
 }
 
-export interface JenisMakamTariffVersion extends VersionTimes {
+export interface JenisMakamTariffVersion extends StoredVersionTimes {
   hargaHakPakai: Rupiah;
   tenure: Tenure;
   hargaPerpanjangan: Rupiah | null;
   jenisMakamId: string;
-  enteredAt: Date;
 }
 
 /** A Jenis Makam of a Lokasi Mitra: a class of Petak Makam with its own price. */
@@ -128,15 +136,19 @@ export async function createJenisMakam(
       .values({ lokasiId, name, nameKey, description: parsed.data.description, createdAt: now, createdByAccountId: by.accountId })
       .returning();
     const jenisMakam = toJenisMakam(row);
-    const version = await insertVersion(tx, jenisMakam, parsed.data.tariff, by, now);
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "tarif.buat_jenis_makam",
-      entity: { kind: "jenis_makam", id: jenisMakam.id },
-      lokasiId,
-      before: null,
-      after: { name: jenisMakam.name, description: jenisMakam.description, ...versionSnapshot(version) },
-      reason: input.reason?.trim() || null,
+    const version = await recordNewVersion(tx, record, now, {
+      ...newVersionOf(jenisMakam, parsed.data.tariff, by, now),
+      // A new Jenis Makam has no version yet to replace.
+      versions: async () => [],
+      entry: (_replaced, version) => ({
+        actor: { accountId: by.accountId, role: "admin_platform" },
+        action: "tarif.buat_jenis_makam",
+        entity: { kind: "jenis_makam", id: jenisMakam.id },
+        lokasiId,
+        before: null,
+        after: { name: jenisMakam.name, description: jenisMakam.description, ...versionSnapshot(version) },
+        reason: input.reason?.trim() || null,
+      }),
     });
     return { ok: true as const, jenisMakam, version };
   });
@@ -159,12 +171,10 @@ export async function setJenisMakamTariff(
   const lampau = effectiveDateRefusal(parsed.data.effectiveOn, now);
   if (lampau) return lampau;
 
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    await lockLokasiTariffs(tx, jenisMakam.lokasiId);
-    const inForceFrom = inForceFromFor(parsed.data.effectiveOn, now);
-    const replaced = inForceAt(await jenisMakamVersions(tx, jenisMakam.id), inForceFrom);
-    const version = await insertVersion(tx, jenisMakam, parsed.data, by, now);
-    await record({
+  return writeVersion(deps, now, (tx) => lockLokasiTariffs(tx, jenisMakam.lokasiId), {
+    ...newVersionOf(jenisMakam, parsed.data, by, now),
+    versions: (tx) => jenisMakamVersions(tx, jenisMakam.id),
+    entry: (replaced, version) => ({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "tarif.ubah_jenis_makam",
       entity: { kind: "jenis_makam", id: jenisMakam.id },
@@ -172,8 +182,7 @@ export async function setJenisMakamTariff(
       before: replaced && { name: jenisMakam.name, ...versionSnapshot(replaced) },
       after: { name: jenisMakam.name, ...versionSnapshot(version) },
       reason: input.reason?.trim() || null,
-    });
-    return { ok: true as const, version };
+    }),
   });
 }
 
@@ -197,46 +206,36 @@ export async function findJenisMakam(db: Database, jenisMakamId: string): Promis
 /** Every tariff version of one Jenis Makam, in entry order. */
 export async function jenisMakamVersions(db: Database, jenisMakamId: string): Promise<JenisMakamTariffVersion[]> {
   if (!isUuid(jenisMakamId)) return [];
-  const rows = await db
-    .select()
-    .from(tariffJenisMakamVersion)
-    .where(eq(tariffJenisMakamVersion.jenisMakamId, jenisMakamId))
-    .orderBy(asc(tariffJenisMakamVersion.seq));
-  return rows.map(toVersion);
+  return selectVersions(db, tariffJenisMakamVersion, eq(tariffJenisMakamVersion.jenisMakamId, jenisMakamId), toVersion);
 }
 
-/** One tariff entry for a Lokasi Mitra at a time, so each Entri Audit's "before" is exact. */
-export async function lockLokasiTariffs(tx: Database, lokasiId: string): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tariffs.lokasi.${lokasiId}`}))`);
-}
-
-const uuidSchema = z.uuid();
-function isUuid(id: string): boolean {
-  return uuidSchema.safeParse(id).success;
-}
-
-async function insertVersion(
-  tx: Database,
+/** The effective date and insert of a Jenis Makam's new tariff version. */
+function newVersionOf(
   jenisMakam: JenisMakam,
   tariff: z.infer<typeof jenisMakamTariffSchema>,
   by: Actor,
   now: Date,
-): Promise<JenisMakamTariffVersion> {
-  const [row] = await tx
-    .insert(tariffJenisMakamVersion)
-    .values({
-      jenisMakamId: jenisMakam.id,
-      lokasiId: jenisMakam.lokasiId,
-      hargaHakPakai: tariff.hargaHakPakai,
-      tenureYears: tariff.tenure.kind === "tahun" ? tariff.tenure.years : null,
-      hargaPerpanjangan: tariff.hargaPerpanjangan,
-      effectiveOn: tariff.effectiveOn,
-      inForceFrom: inForceFromFor(tariff.effectiveOn, now),
-      enteredAt: now,
-      enteredByAccountId: by.accountId,
-    })
-    .returning();
-  return toVersion(row);
+): Pick<NewVersion<JenisMakamTariffVersion>, "effectiveOn" | "insert"> {
+  return {
+    effectiveOn: tariff.effectiveOn,
+    insert: async (tx, inForceFrom) => {
+      const [row] = await tx
+        .insert(tariffJenisMakamVersion)
+        .values({
+          jenisMakamId: jenisMakam.id,
+          lokasiId: jenisMakam.lokasiId,
+          hargaHakPakai: tariff.hargaHakPakai,
+          tenureYears: tariff.tenure.kind === "tahun" ? tariff.tenure.years : null,
+          hargaPerpanjangan: tariff.hargaPerpanjangan,
+          effectiveOn: tariff.effectiveOn,
+          inForceFrom,
+          enteredAt: now,
+          enteredByAccountId: by.accountId,
+        })
+        .returning();
+      return toVersion(row);
+    },
+  };
 }
 
 function versionSnapshot(version: JenisMakamTariffVersion) {
@@ -258,9 +257,6 @@ function toVersion(row: typeof tariffJenisMakamVersion.$inferSelect): JenisMakam
     hargaHakPakai: row.hargaHakPakai,
     tenure: row.tenureYears === null ? { kind: "selamanya" } : { kind: "tahun", years: row.tenureYears },
     hargaPerpanjangan: row.hargaPerpanjangan,
-    effectiveOn: row.effectiveOn,
-    inForceFrom: row.inForceFrom,
-    seq: row.seq,
-    enteredAt: row.enteredAt,
+    ...versionTimesOf(row),
   };
 }

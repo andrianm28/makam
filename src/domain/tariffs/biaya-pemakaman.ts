@@ -1,9 +1,10 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { TariffDeps } from "./deps";
-import { lockLokasiTariffs } from "./jenis-makam";
+import { isUuid } from "./ids";
+import { lockLokasiTariffs } from "./locks";
 import {
   effectiveDateRefusal,
   effectiveOnSchema,
@@ -13,7 +14,7 @@ import {
   type InvalidTariff,
 } from "./money";
 import { tariffBiayaPemakamanVersion } from "./schema";
-import { inForceAt, inForceFromFor, type VersionTimes } from "./versions";
+import { selectVersions, versionTimesOf, writeVersion, type StoredVersionTimes } from "./version-writes";
 
 /** A Lokasi Mitra's Biaya Pemakaman, whole rupiah. */
 export interface BiayaPemakaman {
@@ -22,11 +23,10 @@ export interface BiayaPemakaman {
   biayaPemakamanTumpang: number | null;
 }
 
-export interface BiayaPemakamanVersion extends VersionTimes {
+export interface BiayaPemakamanVersion extends StoredVersionTimes {
   biayaPemakaman: Rupiah;
   biayaPemakamanTumpang: Rupiah | null;
   lokasiId: string;
-  enteredAt: Date;
 }
 
 export type SetBiayaPemakamanInput = BiayaPemakaman & { effectiveOn: string; reason: string | null };
@@ -60,16 +60,17 @@ export async function setBiayaPemakaman(
   const lokasi = await deps.lokasi.lokasiMitra(by, lokasiId);
   if (!lokasi.ok) return lokasi;
 
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    await lockLokasiTariffs(tx, lokasiId);
-    const inForceFrom = inForceFromFor(parsed.data.effectiveOn, now);
-    const replaced = inForceAt(await biayaPemakamanVersions(tx, lokasiId), inForceFrom);
-    const [row] = await tx
-      .insert(tariffBiayaPemakamanVersion)
-      .values({ lokasiId, ...parsed.data, inForceFrom, enteredAt: now, enteredByAccountId: by.accountId })
-      .returning();
-    const version = toVersion(row);
-    await record({
+  return writeVersion(deps, now, (tx) => lockLokasiTariffs(tx, lokasiId), {
+    effectiveOn: parsed.data.effectiveOn,
+    versions: (tx) => biayaPemakamanVersions(tx, lokasiId),
+    insert: async (tx, inForceFrom) => {
+      const [row] = await tx
+        .insert(tariffBiayaPemakamanVersion)
+        .values({ lokasiId, ...parsed.data, inForceFrom, enteredAt: now, enteredByAccountId: by.accountId })
+        .returning();
+      return toVersion(row);
+    },
+    entry: (replaced, version) => ({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "tarif.ubah_biaya_pemakaman",
       entity: { kind: "biaya_pemakaman", id: lokasiId },
@@ -77,20 +78,14 @@ export async function setBiayaPemakaman(
       before: replaced && snapshot(replaced),
       after: snapshot(version),
       reason: input.reason?.trim() || null,
-    });
-    return { ok: true as const, version };
+    }),
   });
 }
 
 /** Every Biaya Pemakaman version of a Lokasi Mitra, in entry order. */
 export async function biayaPemakamanVersions(db: Database, lokasiId: string): Promise<BiayaPemakamanVersion[]> {
-  if (!z.uuid().safeParse(lokasiId).success) return [];
-  const rows = await db
-    .select()
-    .from(tariffBiayaPemakamanVersion)
-    .where(eq(tariffBiayaPemakamanVersion.lokasiId, lokasiId))
-    .orderBy(asc(tariffBiayaPemakamanVersion.seq));
-  return rows.map(toVersion);
+  if (!isUuid(lokasiId)) return [];
+  return selectVersions(db, tariffBiayaPemakamanVersion, eq(tariffBiayaPemakamanVersion.lokasiId, lokasiId), toVersion);
 }
 
 function snapshot(version: BiayaPemakamanVersion) {
@@ -106,9 +101,6 @@ function toVersion(row: typeof tariffBiayaPemakamanVersion.$inferSelect): BiayaP
     lokasiId: row.lokasiId,
     biayaPemakaman: row.biayaPemakaman,
     biayaPemakamanTumpang: row.biayaPemakamanTumpang,
-    effectiveOn: row.effectiveOn,
-    inForceFrom: row.inForceFrom,
-    seq: row.seq,
-    enteredAt: row.enteredAt,
+    ...versionTimesOf(row),
   };
 }

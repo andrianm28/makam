@@ -3,6 +3,7 @@ import { biayaPemakamanVersions } from "./biaya-pemakaman";
 import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
 import { z } from "zod";
 import { findJenisMakam, jenisMakamVersions, tenureSchema, type JenisMakam, type Tenure } from "./jenis-makam";
+import { idSchema } from "./ids";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
 import { sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
 
@@ -80,7 +81,6 @@ export type QuoteRefusal =
 
 export type QuoteResult = Quote | QuoteRefusal;
 
-const idSchema = z.uuid();
 const quoteLineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("harga_hak_pakai"), jenisMakamId: z.string() }),
   z.object({ kind: z.literal("biaya_pemakaman"), lokasiId: idSchema, tumpang: z.boolean() }),

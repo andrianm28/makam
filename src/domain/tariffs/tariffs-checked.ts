@@ -1,11 +1,12 @@
 import { desc, eq } from "drizzle-orm";
-import { z } from "zod";
 import type { Database } from "@/db/client";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { biayaPemakamanVersions } from "./biaya-pemakaman";
 import type { TariffDeps } from "./deps";
 import { globalTariffVersions } from "./global-tariffs";
-import { jenisMakamOfLokasi, jenisMakamVersions, lockLokasiTariffs } from "./jenis-makam";
+import { isUuid } from "./ids";
+import { jenisMakamOfLokasi, jenisMakamVersions } from "./jenis-makam";
+import { lockLokasiTariffs } from "./locks";
 import { tariffCheck } from "./schema";
 
 /** A Lokasi Mitra's "tarif diperiksa" mark. */
@@ -85,7 +86,7 @@ async function missingTariffs(db: Database, lokasiId: string): Promise<MissingTa
 }
 
 async function latestCheck(db: Database, lokasiId: string) {
-  if (!z.uuid().safeParse(lokasiId).success) return null;
+  if (!isUuid(lokasiId)) return null;
   const [row] = await db
     .select()
     .from(tariffCheck)
