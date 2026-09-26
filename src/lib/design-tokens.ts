@@ -29,7 +29,7 @@ export interface DesignTokens {
 function declarations(css: string, selector: string): Map<string, string> {
   const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const start = source.search(new RegExp(`(^|\\n)${escaped}\\s*\\{`));
+  const start = source.search(new RegExp(`(^|\\n)\\s*${escaped}\\s*\\{`));
   if (start < 0) return new Map();
   const open = source.indexOf("{", start);
   // The block ends at its own closing brace, not at the first nested one.
