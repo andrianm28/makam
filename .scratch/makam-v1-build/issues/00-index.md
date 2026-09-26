@@ -272,7 +272,7 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 | [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | ready-for-agent | 74 |
 | [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | ready-for-agent | 74 |
 | [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74, 82 |
-| [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | ready-for-agent | 74 |
+| [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | resolved | 74 |
 
 ## Decisions 2026-09-26 (WhatsApp out of v1)
 
