@@ -1,6 +1,8 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import type { TestProject } from "vitest/node";
 import { migrateDatabase } from "../src/db/migrate";
+import { dropDatabase, ensureSharedTestPostgres, recreateDatabase } from "./support/shared-test-postgres";
+import { testDatabaseName } from "../scripts/lib/worktree";
 
 declare module "vitest" {
   export interface ProvidedContext {
@@ -9,14 +11,25 @@ declare module "vitest" {
 }
 
 /**
- * Starts one real Postgres for the test run and migrates it fresh.
+ * Gives the test run one real Postgres, migrated fresh:
  *
- * Set TEST_DATABASE_URL to use an existing, empty database instead (CI uses a
- * Postgres service container this way).
+ * - TEST_DATABASE_URL set: that existing, empty database (CI uses a Postgres
+ *   service container this way);
+ * - MAKAM_TEST_PG=shared (`npm run test:shared`): this worktree's own database
+ *   on the shared `makam-testpg` server, recreated now and dropped after;
+ * - otherwise (the default): a Postgres container started for this run.
  */
 export default async function setup(project: TestProject) {
   let container: StartedPostgreSqlContainer | undefined;
+  let shared: { serverUrl: string; name: string } | undefined;
   let databaseUrl = process.env.TEST_DATABASE_URL;
+
+  if (!databaseUrl && process.env.MAKAM_TEST_PG === "shared") {
+    const serverUrl = await ensureSharedTestPostgres();
+    const name = testDatabaseName(project.config.root);
+    databaseUrl = await recreateDatabase(serverUrl, name);
+    shared = { serverUrl, name };
+  }
 
   if (!databaseUrl) {
     container = await new PostgreSqlContainer(
@@ -34,6 +47,7 @@ export default async function setup(project: TestProject) {
   project.provide("databaseUrl", databaseUrl);
 
   return async () => {
+    if (shared) await dropDatabase(shared.serverUrl, shared.name);
     await container?.stop();
   };
 }
