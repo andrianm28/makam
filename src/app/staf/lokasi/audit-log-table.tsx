@@ -1,4 +1,8 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+"use client";
+
+import { FileClockIcon } from "lucide-react";
+import { DataTable, type DataTableColumn } from "@/components/makam/data-table";
+import { EmptyState } from "@/components/makam/empty-state";
 import type { AuditEntry, AuditSnapshot } from "@/domain/audit";
 import { formatWib } from "@/lib/time/jakarta";
 import { auditActionLabels, auditActorLabel } from "@/lib/lokasi-labels";
@@ -11,33 +15,58 @@ function describe(snapshot: AuditSnapshot): string {
     .join("; ");
 }
 
+const columns: DataTableColumn<AuditEntry>[] = [
+  {
+    id: "waktu",
+    accessorFn: (entry) => formatWib(entry.at),
+    header: "Waktu",
+    enableGlobalFilter: false,
+    cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{formatWib(row.original.at)}</span>,
+  },
+  {
+    id: "oleh",
+    accessorFn: (entry) => auditActorLabel(entry.actor.role),
+    header: "Oleh",
+  },
+  {
+    id: "perubahan",
+    accessorFn: (entry) => auditActionLabels[entry.action] ?? entry.action,
+    header: "Perubahan",
+  },
+  {
+    id: "sebelum",
+    accessorFn: (entry) => describe(entry.before),
+    header: "Sebelum",
+    enableGlobalFilter: false,
+    cell: ({ row }) => <span className="block max-w-xs text-small break-words whitespace-normal">{describe(row.original.before)}</span>,
+  },
+  {
+    id: "sesudah",
+    accessorFn: (entry) => describe(entry.after),
+    header: "Sesudah",
+    enableGlobalFilter: false,
+    cell: ({ row }) => <span className="block max-w-xs text-small break-words whitespace-normal">{describe(row.original.after)}</span>,
+  },
+  {
+    id: "alasan",
+    accessorFn: (entry) => entry.reason ?? "",
+    header: "Alasan",
+    cell: ({ row }) => <span className="block whitespace-normal">{row.original.reason ?? "–"}</span>,
+  },
+];
+
 /** One Lokasi Mitra's Audit Log, oldest first (already filtered by the Lokasi module). */
 export function LokasiAuditLogTable({ entries }: { entries: AuditEntry[] }) {
-  if (entries.length === 0) return <p className="text-sm text-muted-foreground">Belum ada Entri Audit.</p>;
   return (
-    <Table aria-label="Audit Log Lokasi">
-      <TableHeader>
-        <TableRow>
-          <TableHead>Waktu</TableHead>
-          <TableHead>Oleh</TableHead>
-          <TableHead>Perubahan</TableHead>
-          <TableHead>Sebelum</TableHead>
-          <TableHead>Sesudah</TableHead>
-          <TableHead>Alasan</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {entries.map((entry) => (
-          <TableRow key={entry.id}>
-            <TableCell className="whitespace-nowrap">{formatWib(entry.at)}</TableCell>
-            <TableCell>{auditActorLabel(entry.actor.role)}</TableCell>
-            <TableCell>{auditActionLabels[entry.action] ?? entry.action}</TableCell>
-            <TableCell className="max-w-xs whitespace-normal break-words text-xs">{describe(entry.before)}</TableCell>
-            <TableCell className="max-w-xs whitespace-normal break-words text-xs">{describe(entry.after)}</TableCell>
-            <TableCell className="whitespace-normal">{entry.reason ?? "–"}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <DataTable
+      caption="Audit Log Lokasi"
+      columns={columns}
+      data={entries}
+      pageSize={15}
+      searchPlaceholder="Cari oleh, perubahan atau alasan"
+      empty={
+        <EmptyState icon={FileClockIcon} title="Belum ada Entri Audit" description="Setiap perubahan pada Lokasi ini akan tercatat di sini." />
+      }
+    />
   );
 }
