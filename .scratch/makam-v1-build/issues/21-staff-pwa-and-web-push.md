@@ -1,6 +1,6 @@
 # Staff PWA install and web push
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 09
 Spec: Implementation Decisions > Architecture (PWA manifest plus web push); Adapter ports > WebPush; Notifications (staff also get web push)
 
@@ -58,3 +58,4 @@ Make the staff area an installable PWA (manifest, icons, service worker) and add
     ```
     One pair for staging only (production gets its own). Without all three, `migrate`, `web` and `worker` refuse to start in staging.
   - Verified on this branch: `npm run lint` exit 0; `npm run typecheck` exit 0; `npm test` exit 0 (32 files, 370 tests); `npm run build` exit 0; `npm run build:worker` exit 0; the whole Playwright suite in one run on one fresh `makam-t21` stack (port 3323, `E2E_SEED_ADMIN="docker compose -p makam-t21 exec -T web node dist/seed-admin.mjs"`): 18 passed, exit 0. Stack torn down with `down -v`, image removed.
+- 2026-09-26 — Merged to `main` after a two-axis review (mattpocock-skills:code-review) and fixes: Perangkat Push tied to its session (Keluar turns push off), deactivation removes devices, no alert to a non-staff Akun, number from the Akun, one `STAFF_AREA_PATH`, `perangkat_tidak_valid`, errors reported scrubbed, one `VapidKeys` type required in staging/production, lock-screen payload guard, Playwright trimmed to manifest + service worker. Verified in the main session on current main: lint 0, typecheck 0, Vitest 370/370. Staging VAPID keys added to staging.env (values not printed).
