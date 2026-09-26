@@ -6,6 +6,7 @@ import type { Clock } from "@/ports/clock";
 import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
+import { markEmailOnRecordVerified, verifiedEmailTakenAsRefusal } from "./email";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
@@ -105,16 +106,22 @@ export async function removeAdminLokasi(
 export type SeedResult =
   | { ok: true; account: Account }
   | PhoneNumberRejection
-  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" };
+  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" | "email_sudah_dipakai" };
+
+/** The reason on the seed's `akun.email_verifikasi` entry (`seed:admin --email-terverifikasi`). */
+const SEED_EMAIL_VERIFIED_REASON = "seed:admin --email-terverifikasi (jalur bootstrap sebelum WhatsApp live)";
 
 /**
  * The CLI seed (`npm run seed:admin`): creates the first Admin Platform with
  * its WhatsApp number and email. Refused once any Admin Platform exists; every
- * later staff member comes by Undangan Staf.
+ * later staff member comes by Undangan Staf. With `emailTerverifikasi`, the
+ * email is its Email Terverifikasi from the start (the bootstrap path before
+ * live WhatsApp), audited as seed_cli in the same transaction; refused, with
+ * nothing created, when another Akun already has that Email Terverifikasi.
  */
 export async function seedFirstAdminPlatform(
   deps: { db: Database; clock: Clock; audit: AuditLog },
-  input: { phoneNumber: string; email: string },
+  input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean },
 ): Promise<SeedResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
@@ -122,6 +129,17 @@ export async function seedFirstAdminPlatform(
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
 
+  return verifiedEmailTakenAsRefusal(() =>
+    createFirstAdminPlatform(deps, { phoneNumber, email, emailTerverifikasi: input.emailTerverifikasi }),
+  );
+}
+
+/** The seed's write, once the number and email are valid; the unique index on Email Terverifikasi may still refuse it. */
+async function createFirstAdminPlatform(
+  deps: { db: Database; clock: Clock; audit: AuditLog },
+  input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean },
+): Promise<SeedResult> {
+  const { phoneNumber, email } = input;
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('identity.seed_admin_platform'))`);
     const [existingAdmin] = await tx
@@ -133,12 +151,19 @@ export async function seedFirstAdminPlatform(
 
     const now = deps.clock.now();
     const [existing] = await tx
-      .select({ id: identityUser.id })
+      .select({ id: identityUser.id, email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
       .from(identityUser)
-      .where(eq(identityUser.phoneNumber, phoneNumber));
+      .where(eq(identityUser.phoneNumber, phoneNumber))
+      .for("update");
     let accountId = existing?.id;
+    // A reused Akun keeps its Email Terverifikasi only when the email stays the same:
+    // a new address is unproven until Verifikasi Email (or the audited mark below).
+    const alreadyVerified = Boolean(existing?.verifiedAt && existing.email?.toLowerCase() === email);
     if (accountId) {
-      await tx.update(identityUser).set({ contactEmail: email, updatedAt: now }).where(eq(identityUser.id, accountId));
+      await tx
+        .update(identityUser)
+        .set({ contactEmail: email, ...(alreadyVerified ? {} : { emailVerifiedAt: null }), updatedAt: now })
+        .where(eq(identityUser.id, accountId));
     } else {
       accountId = randomUUID();
       await tx.insert(identityUser).values({
@@ -163,6 +188,13 @@ export async function seedFirstAdminPlatform(
       after: { phoneNumber, email, roles: ["admin_platform"] },
       reason: null,
     });
+    if (input.emailTerverifikasi && !alreadyVerified) {
+      await markEmailOnRecordVerified(tx, record, deps.clock, {
+        accountId,
+        actorRole: "seed_cli",
+        reason: SEED_EMAIL_VERIFIED_REASON,
+      });
+    }
     return { ok: true, account: { id: accountId, phoneNumber } } as const;
   });
 }

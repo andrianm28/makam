@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import type { AuditLog } from "@/domain/audit";
+import type { AuditLog, RecordEntry } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import { akunResource, staffRoles, writeRefusal, type Actor, type WriteRefusal } from "./authorize";
@@ -162,6 +162,48 @@ async function markVerified(deps: EmailDeps, by: Actor, email: string): Promise<
       reason: null,
     });
     return { ok: true } as const;
+  });
+}
+
+/**
+ * Runs a staff write that may mark an Email Terverifikasi: when the database's
+ * unique index refuses it (another Akun has that Email Terverifikasi, already
+ * or by winning a race), the transaction has rolled back and this is the refusal.
+ */
+export async function verifiedEmailTakenAsRefusal<T>(
+  write: () => Promise<T>,
+): Promise<T | { ok: false; reason: "email_sudah_dipakai" }> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isVerifiedEmailTaken(error)) return { ok: false, reason: "email_sudah_dipakai" };
+    throw error;
+  }
+}
+
+/**
+ * Inside a staff write, with the Akun's row already locked by the caller: makes
+ * the Akun's email on record its Email Terverifikasi and records
+ * `akun.email_verifikasi` (before/after `terverifikasi`, the reason; never a
+ * code). The caller has checked the email is not yet verified. Used by
+ * `verify-email` (ops_cli) and by `seed:admin --email-terverifikasi` (seed_cli).
+ */
+export async function markEmailOnRecordVerified(
+  tx: Database,
+  record: RecordEntry,
+  clock: Clock,
+  input: { accountId: string; actorRole: "ops_cli" | "seed_cli"; reason: string },
+): Promise<void> {
+  const now = clock.now();
+  await tx.update(identityUser).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
+  await record({
+    // No one is signed in: the entry names the Akun, acting as the CLI.
+    actor: { accountId: input.accountId, role: input.actorRole },
+    action: "akun.email_verifikasi",
+    entity: { kind: "akun", id: input.accountId },
+    before: { terverifikasi: false },
+    after: { terverifikasi: true },
+    reason: input.reason,
   });
 }
 

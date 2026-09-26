@@ -109,6 +109,18 @@ export function lastEmailCodeTo(email: FakeEmailSender, to: string): string | un
   return message?.text.match(/\b(\d{6})\b/)?.[1];
 }
 
+/** Logs in by email (Masuk dengan email) with the code the fake EmailSender "sent"; returns the login and its Cookie header. */
+export async function logInByEmail(setup: ReturnType<typeof identityOnTestDatabase>, address: string, ip = "198.51.100.20") {
+  const { identity, email } = setup;
+  const before = email.sent.length;
+  await identity.requestEmailLogin({ email: address, ip });
+  await setup.settled();
+  if (email.sent.length === before) throw new Error(`no Kode Masuk was emailed to ${address}`);
+  const login = await identity.verifyEmailLogin({ email: address, code: emailCodeTo(email, address) });
+  if (!login.ok) throw new Error(`email login failed: ${login.reason}`);
+  return { login, cookies: login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
+}
+
 /** Like lastEmailCodeTo, but throws when no code was sent. */
 export function emailCodeTo(email: FakeEmailSender, to: string): string {
   const code = lastEmailCodeTo(email, to);

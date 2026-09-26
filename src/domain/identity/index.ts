@@ -26,6 +26,7 @@ import {
   type RemoveEmailResult,
   type RequestEmailVerificationResult,
 } from "./email";
+import { markEmailVerifiedByOps, type MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
 import {
   requestEmailFallback,
   requestEmailLogin,
@@ -68,6 +69,7 @@ export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from 
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { RequestEmailFallbackResult, RequestEmailLoginResult } from "./email-login";
+export type { MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
 export type {
   AccountEmail,
   ConfirmEmailVerificationResult,
@@ -160,8 +162,11 @@ export interface Identity {
   actorFromCookies(cookieHeader: string | null | undefined): Promise<Actor | null>;
   /** Keluar: ends the session behind the Cookie header and names the cookies to clear. */
   endSession(cookieHeader: string | null | undefined): Promise<{ clearCookies: string[] }>;
-  /** The CLI seed: the first Admin Platform (number and email). Refused once one exists. */
-  seedFirstAdminPlatform(input: { phoneNumber: string; email: string }): Promise<SeedResult>;
+  /**
+   * The CLI seed: the first Admin Platform (number and email). Refused once one exists. With
+   * `emailTerverifikasi`, the email is its Email Terverifikasi from the start (audited as seed_cli).
+   */
+  seedFirstAdminPlatform(input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean }): Promise<SeedResult>;
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
   /**
@@ -206,6 +211,11 @@ export interface Identity {
   requestEmailVerification(by: Actor, input: { email: string; ip: string }): Promise<RequestEmailVerificationResult>;
   /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
   confirmEmailVerification(by: Actor, input: { code: string }): Promise<ConfirmEmailVerificationResult>;
+  /**
+   * Ops (`verify-email` CLI): marks an existing Admin Platform's email on record as its Email
+   * Terverifikasi, audited as ops_cli with the reason. The bootstrap path before live WhatsApp.
+   */
+  markEmailVerifiedByOps(input: { phoneNumber: string; reason: string }): Promise<MarkEmailVerifiedByOpsResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -250,5 +260,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     removeEmail: (by) => removeEmail(deps, by),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
+    markEmailVerifiedByOps: (input) => markEmailVerifiedByOps(deps, input),
   };
 }
