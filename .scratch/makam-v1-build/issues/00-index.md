@@ -65,7 +65,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
-| [60](60-real-s3-filestore-adapter.md) | Real FileStore adapter (S3 Jakarta) | ready-for-agent | 03 |
+| [60](60-real-s3-filestore-adapter.md) | FileStore on the host disk for v1 (S3 adapter in v2) | ready-for-agent | — |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter — out of v1 (ADR 0004) | wontfix | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
@@ -306,4 +306,12 @@ The user accepted the eight recommendations from the public prototype v2 (Terenc
 | # | Title | Status | Blocked by |
 |---|---|---|---|
 | [84](84-denah-entrance-cell.md) | Pintu Masuk on the Denah | ready-for-agent | 13, 36 |
+
+## Decisions 2026-09-26 (beta UAT push)
+
+The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everything in Rilis 1 kept. ADR 0002 (beta UAT amendment). S3 (03) moves to v2; files use a host-disk FileStore (60, rewritten); backups are nightly local encrypted dumps (64, rescoped); payments use the SumoPod sandbox (04/61); content is dummy stock (06); catalog data comes from the old app (86, non-personal only); the switch (65) now waits on 60, 64, 68 and 86.
+
+| # | Title | Status | Blocked by |
+|---|---|---|---|
+| [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | ready-for-agent | 12 |
 

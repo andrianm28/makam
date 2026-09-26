@@ -48,3 +48,11 @@ This **replaces the previous amendment** ("deploys run from GitHub Actions throu
 - **After deploy**: a Playwright smoke test against `https://dev.makam.co.id` from a hosted runner must pass before promotion; source maps are uploaded to GlitchTip on each build (release-scoped token as a GitHub secret); each deploy creates a GlitchTip release.
 - **Concurrency**: builds may cancel superseded builds; deploy, promotion and rollback run in their own groups and are never cancelled mid-way.
 - Unchanged from the previous amendment: secrets stay on the host, one digest serves both environments (nothing environment-specific baked in), image retention on the host, production not live before ticket 64, the `makam.co.id` switch stays in ticket 65.
+
+## Amendment (2026-09-26, beta UAT)
+
+User decision: v1 goes live as soon as possible as a **beta for UAT on `makam.co.id` itself**, replacing the frozen Laravel app (the switch is still the one-time, human-gated step of ticket 65; the old app's live SumoPod payments stop at the switch). The beta uses the SumoPod **sandbox**, dummy content and free stock photos, and catalog data (cemetery names, addresses, coordinates, photos, prices — never people, orders, payments or phone numbers) imported read-only from the old app.
+
+- **AWS S3 moves to v2.** Until then files live in a **FileStore on the host's disk** (a private, makam-only volume in Jakarta, served through short-lived signed URLs, behind the same port), so data still stays in Indonesia.
+- **Backups for the beta**: a nightly encrypted `pg_dump` kept on the host for 7 days plus the pre-migrate dump; pgBackRest to S3 (ticket 64 as researched) moves to v2. This replaces "production does not go live before ticket 64's off-host backups" for the beta only. Accepted risk: losing the host loses the beta's data; the beta holds no real personal or payment data.
+- v2 brings S3 (files and off-host backups), live payments, more payment gateways (lifting the Rp 10 juta QRIS cap) and the Operator's real content.

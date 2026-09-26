@@ -1,7 +1,7 @@
 # Encrypted Postgres backups to S3 Jakarta and restore test
 
 Status: ready-for-agent
-Blocked by: 03, 07
+Blocked by: 07
 Spec: Implementation Decisions > Architecture (backups); ADR 0002
 
 ## What to build
@@ -42,3 +42,4 @@ Split from ticket 07 on 2026-09-25. Daily client-side-encrypted backups of the `
     6. Who holds the offline cipher passphrases at PT JKP?
   - Sources: https://pgbackrest.org/release.html (v2.55 PG 18, v2.59.1) · https://pgbackrest.org/user-guide.html (encryption, S3 + IAM policy, retention, monitoring, async archive) · https://pgbackrest.org/configuration.html · https://pgbackrest.org/command.html (`--archive-mode`, `--annotation`) · https://pgbackrest.org/ (sponsors) · https://apt.postgresql.org/pub/repos/apt/dists/trixie-pgdg/ · https://github.com/docker-library/postgres/blob/master/18/trixie/Dockerfile · https://github.com/wal-g/wal-g/releases · https://github.com/wal-g/wal-g/pull/2504 · https://github.com/wal-g/wal-g/blob/master/docs/STORAGES.md (libsodium) · https://github.com/wal-g/wal-g/blob/master/docs/PostgreSQL.md (delta, retain ordering) · https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html (Jakarta opt-in) · https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html · https://glitchtip.com/documentation/uptime-monitoring (Heartbeat) · https://uptimerobot.com/pricing/
 - 2026-09-26 — Decided with the user (research recommendations accepted): pgBackRest (not wal-g) inside our own Postgres 18 image built and signed in CI; weekly full, daily differential, WAL archiving with `archive_timeout=300` (≈5 min RPO); retention 35 days prod / 7 days staging; the pre-migrate `pg_dump` stays local plus a release-tagged pgBackRest backup off-host; GlitchTip's Postgres is backed up too; the offline copies of the encryption passphrases are held by Andrian (the user).
+- 2026-09-26 — Rescoped for v1 beta (ADR 0002, beta UAT amendment): a nightly encrypted `pg_dump` of the beta database kept 7 days on the host (plus the pre-migrate dump from ticket 72), with a restore check into a throwaway container weekly; pgBackRest to S3 as researched above moves to v2 (blocked by 03).

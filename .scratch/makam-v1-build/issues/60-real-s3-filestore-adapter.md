@@ -1,7 +1,7 @@
 # Real FileStore adapter (S3 Jakarta)
 
 Status: ready-for-agent
-Blocked by: 03
+Blocked by: —
 Spec: Adapter ports > FileStore; Implementation Decisions > Architecture (files); Data and privacy; ADR 0002
 
 ## What to build
@@ -30,3 +30,4 @@ Implement the FileStore port on AWS S3 in `ap-southeast-3`: upload via presigned
 ## Comments
 
 - 2026-09-26 — ADR 0004: "the Pindah Nomor KTP check" is now the Pemulihan Akun KTP check (ticket 82); same adapter, same key prefix unless 82 renames it.
+- 2026-09-26 — Rewritten by user decision (ADR 0002, beta UAT amendment): for v1, build a **FileStore on the host's disk** (a private makam-only Docker volume, never web-served directly; files served via short-lived signed URLs through the app, same port as the S3 adapter would use, KTP/documents never public), with tests at the port seam and the runbook; it is backed up with the database's nightly dump or its own nightly tar kept 7 days. The S3 adapter moves to v2 (still blocked by 03).
