@@ -8,6 +8,7 @@ import {
   semuaLokasiMitraResource,
   stafMenuResource,
   stafResource,
+  tarifGlobalResource,
   type Actor,
   type Role,
 } from "./index";
@@ -133,6 +134,30 @@ describe("staff access", () => {
       expect(authorize(notYet, "akun.totp", akunResource("akun-staf"))).toEqual({ allowed: true });
       expect(authorize(notYet, "akun.keluar", akunResource("akun-staf"))).toEqual({ allowed: true });
     }
+  });
+});
+
+describe("who may write tariffs (tarif.ubah)", () => {
+  it("only an Admin Platform past TOTP, for a Lokasi Mitra's tariffs and the global ones; never an Admin Lokasi, even of that Lokasi", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+    const write = (who: Actor) => [
+      authorize(who, "tarif.ubah", lokasiMitraResource(lokasiId)),
+      authorize(who, "tarif.ubah", tarifGlobalResource()),
+    ];
+
+    expect(write(adminPlatform)).toEqual([{ allowed: true }, { allowed: true }]);
+    expect(write(staff(["admin_platform"], "perlu_verifikasi"))).toEqual([
+      { allowed: false, reason: "perlu_totp" },
+      { allowed: false, reason: "perlu_totp" },
+    ]);
+    for (const who of [adminLokasi, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
+      expect(write(who)).toEqual([
+        { allowed: false, reason: "tidak_berwenang" },
+        { allowed: false, reason: "tidak_berwenang" },
+      ]);
+    }
+    expect(authorize(adminPlatform, "tarif.ubah", stafResource())).toEqual({ allowed: false, reason: "tidak_berwenang" });
   });
 });
 

@@ -1,7 +1,15 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import type { Actor } from "@/domain/identity";
-import { tariffGlobalVersion, type globalTariffKeys } from "./schema";
+import { tarifGlobalResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { z } from "zod";
+import {
+  effectiveDateRefusal,
+  effectiveOnSchema,
+  rupiahSchema,
+  type EffectiveDateRefusal,
+  type InvalidTariff,
+} from "./money";
+import { globalTariffKeys, tariffGlobalVersion } from "./schema";
 import { inForceAt, inForceFromFor, type VersionTimes } from "./versions";
 import type { TariffDeps } from "./deps";
 
@@ -23,10 +31,26 @@ export interface SetGlobalTariffInput {
   reason: string | null;
 }
 
-export type SetGlobalTariffResult = { ok: true; version: GlobalTariffVersion };
+export type SetGlobalTariffResult =
+  | { ok: true; version: GlobalTariffVersion }
+  | WriteRefusal
+  | InvalidTariff
+  | EffectiveDateRefusal;
+
+const globalTariffInputSchema = z.object({
+  key: z.enum(globalTariffKeys),
+  amount: rupiahSchema,
+  effectiveOn: effectiveOnSchema,
+});
 
 export async function setGlobalTariff(deps: TariffDeps, by: Actor, input: SetGlobalTariffInput): Promise<SetGlobalTariffResult> {
+  // Defence in depth behind guarded(): the module checks the actor itself.
+  const refusal = writeRefusal(by, "tarif.ubah", tarifGlobalResource());
+  if (refusal) return refusal;
+  if (!globalTariffInputSchema.safeParse(input).success) return { ok: false, reason: "tarif_tidak_valid" };
   const now = deps.clock.now();
+  const lampau = effectiveDateRefusal(input.effectiveOn, now);
+  if (lampau) return lampau;
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     // One entry per price book at a time, so each Entri Audit's "before" is exact.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tariffs.global.${input.key}`}))`);

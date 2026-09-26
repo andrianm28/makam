@@ -77,7 +77,9 @@ export type Action =
   /** Set or change a Lokasi Mitra's bank account (Admin Platform only). */
   | "lokasi.ubah_rekening"
   /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
-  | "lokasi.atur_admin_lokasi";
+  | "lokasi.atur_admin_lokasi"
+  /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
+  | "tarif.ubah";
 
 /** What the action is done to. */
 export type Resource =
@@ -88,7 +90,8 @@ export type Resource =
   | { kind: "pengaturan_operator" }
   | { kind: "audit_log_lokasi"; lokasiId: string }
   | { kind: "lokasi_mitra_semua" }
-  | { kind: "lokasi_mitra"; lokasiId: string };
+  | { kind: "lokasi_mitra"; lokasiId: string }
+  | { kind: "tarif_global" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -131,6 +134,11 @@ export function semuaLokasiMitraResource(): Resource {
 /** One Lokasi Mitra's record. */
 export function lokasiMitraResource(lokasiId: string): Resource {
   return { kind: "lokasi_mitra", lokasiId };
+}
+
+/** The global tariffs: Biaya Layanan Platform, DKI Biaya Pengurusan, Retribusi Pemda. */
+export function tarifGlobalResource(): Resource {
+  return { kind: "tarif_global" };
 }
 
 export type Authorization =
@@ -213,5 +221,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
+    case "tarif.ubah":
+      // Only Admin Platform enters tariffs (spec, Identity & Access); an Admin Lokasi only reads them.
+      return (resource.kind === "lokasi_mitra" || resource.kind === "tarif_global") && holds("admin_platform")
+        ? allowed
+        : denied;
   }
 }

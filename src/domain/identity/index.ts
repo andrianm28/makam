@@ -97,6 +97,7 @@ export {
   stafMenuResource,
   stafResource,
   staffRoles,
+  tarifGlobalResource,
   type Action,
   type Actor,
   type Authorization,
