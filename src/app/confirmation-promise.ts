@@ -1,5 +1,5 @@
 import type { WorkingTimeResult } from "@/domain/lokasi";
-import { addWibDays, formatWibHariTanggal, wibDate, wibTime } from "@/lib/time/jakarta";
+import { addWibDays, formatWibHariTanggal, wibDateOf, wibTime } from "@/lib/time/jakarta";
 
 export type ConfirmationPromise = { ok: true; text: string } | Extract<WorkingTimeResult, { ok: false }>;
 
@@ -17,7 +17,7 @@ export function confirmationPromise(due: WorkingTimeResult, now: Date): Confirma
   const endOfDay = wibTime(due.at) === "00:00";
   const day = endOfDay ? addWibDays(due.at, -1) : due.at;
   const time = `pukul ${endOfDay ? "24:00" : wibTime(due.at)}`;
-  if (wibDate(day) === wibDate(now)) return { ok: true, text: `dikonfirmasi paling lambat ${time}` };
-  if (wibDate(day) === wibDate(addWibDays(now, 1))) return { ok: true, text: `dikonfirmasi paling lambat besok ${time}` };
+  if (wibDateOf(day) === wibDateOf(now)) return { ok: true, text: `dikonfirmasi paling lambat ${time}` };
+  if (wibDateOf(day) === wibDateOf(addWibDays(now, 1))) return { ok: true, text: `dikonfirmasi paling lambat besok ${time}` };
   return { ok: true, text: `dikonfirmasi paling lambat ${formatWibHariTanggal(day)} ${time}` };
 }

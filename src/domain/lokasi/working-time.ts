@@ -6,7 +6,7 @@
  * `openWindow` serves them all. Pure: every function takes its start instant.
  * All wall-clock reasoning is WIB (`@/lib/time/jakarta`).
  */
-import { addWibDays, wibDate, wibDayStart, wibWeekdayIndex } from "@/lib/time/jakarta";
+import { addWibDays, wibDateOf, wibDayStart, wibWeekdayIndex } from "@/lib/time/jakarta";
 import { minutesOf, weekdays, type JamOperasional, type OpenHours, type Tanggal, type Weekday } from "./jam-operasional-schema";
 
 const MINUTE = 60_000;
@@ -38,7 +38,7 @@ function hasOpenWeekday(schedule: JamOperasional): boolean {
 function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; closes: number } | null {
   const hours = schedule.weekly[weekdays[wibWeekdayIndex(dayStart)]];
   if (!hours) return null;
-  const date = wibDate(dayStart);
+  const date = wibDateOf(dayStart);
   if (schedule.tanggalTutup.some((tutup) => tutup.date === date)) return null;
   const midnight = dayStart.getTime();
   return { opens: midnight + minutesOf(hours.opens) * MINUTE, closes: midnight + minutesOf(hours.closes) * MINUTE };
