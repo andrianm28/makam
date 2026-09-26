@@ -21,7 +21,12 @@ export type Tenure = { kind: "selamanya" } | { kind: "tahun"; years: number };
 export interface JenisMakamTariff {
   hargaHakPakai: number;
   tenure: Tenure;
-  /** The Perpanjangan price per term of `tenure.years`; null exactly when the tenure is Selamanya. */
+  /**
+   * The Perpanjangan price per term. Required for N years. A Selamanya Jenis
+   * Makam may keep one for the Hak Pakai bought while it was N years: a
+   * Perpanjangan is priced per term of the Hak Pakai's own Masa Hak Pakai at
+   * the price in force then (see `quote`); null when there is none.
+   */
   hargaPerpanjangan: number | null;
 }
 
@@ -68,7 +73,7 @@ export type SetJenisMakamTariffResult =
   | InvalidTariff
   | EffectiveDateRefusal;
 
-const tenureSchema = z.discriminatedUnion("kind", [
+export const tenureSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("selamanya") }),
   z.object({ kind: z.literal("tahun"), years: z.number().int().min(1).max(100) }),
 ]);
@@ -80,7 +85,7 @@ const jenisMakamTariffSchema = z
     hargaPerpanjangan: rupiahSchema.nullable(),
     effectiveOn: effectiveOnSchema,
   })
-  .refine((tariff) => (tariff.tenure.kind === "selamanya") === (tariff.hargaPerpanjangan === null));
+  .refine((tariff) => tariff.tenure.kind === "selamanya" || tariff.hargaPerpanjangan !== null);
 
 const newJenisMakamSchema = z.object({
   name: z.string().trim().min(1).max(120),

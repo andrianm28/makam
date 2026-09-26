@@ -172,7 +172,10 @@ describe("the all-in quote", () => {
     const { lokasiMitra, reguler } = await pricedLokasiMitra(setup);
 
     expect(
-      await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, terms: 2 }], wib("2026-10-05 10:00")),
+      await setup.tariffs.quote(
+        [{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: { kind: "tahun", years: 5 }, terms: 2 }],
+        wib("2026-10-05 10:00"),
+      ),
     ).toMatchObject({
       ok: true,
       lines: [
@@ -258,12 +261,13 @@ describe("the all-in quote", () => {
     expect(
       await setup.tariffs.quote([{ kind: "harga_hak_pakai", jenisMakamId: "5d1f4c2e-0000-4000-8000-00000000abcd" }], at),
     ).toEqual({ ok: false, reason: "tidak_ditemukan" });
-    expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: selamanya.id, terms: 1 }], at)).toEqual({
-      ok: false,
-      reason: "tidak_bisa_diperpanjang",
-    });
+    expect(
+      await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: selamanya.id, tenure: { kind: "selamanya" }, terms: 1 }], at),
+    ).toEqual({ ok: false, reason: "tidak_bisa_diperpanjang" });
     for (const terms of [0, 1.5, -1]) {
-      expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, terms }], at)).toEqual({
+      expect(
+        await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: { kind: "tahun", years: 5 }, terms }], at),
+      ).toEqual({
         ok: false,
         reason: "baris_tidak_valid",
       });
@@ -342,9 +346,102 @@ describe("the all-in quote", () => {
         at,
       ),
     ).toEqual({ ok: false, reason: "jumlah_terlalu_besar" });
-    expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: mausoleum, terms: 2 }], at)).toEqual({
-      ok: false,
-      reason: "jumlah_terlalu_besar",
+    expect(
+      await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: mausoleum, tenure: { kind: "tahun", years: 5 }, terms: 2 }], at),
+    ).toEqual({ ok: false, reason: "jumlah_terlalu_besar" });
+  });
+
+  describe("a Perpanjangan Makam: the term from the Hak Pakai as bought, the price per term in force now", () => {
+    const fiveYears = { kind: "tahun", years: 5 } as const;
+
+    it("the Jenis Makam later becomes 10 years: an existing 5-year Hak Pakai is still extended per 5-year term, at the Perpanjangan price in force now", async () => {
+      const setup = tariffsOnTestDatabase(db);
+      const { admin, reguler } = await pricedLokasiMitra(setup);
+      await setup.tariffs.setJenisMakamTariff(admin, reguler.id, {
+        hargaHakPakai: 12_000_000,
+        tenure: { kind: "tahun", years: 10 },
+        hargaPerpanjangan: 4_000_003,
+        effectiveOn: "2026-11-01",
+        reason: null,
+      });
+
+      expect(
+        await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: fiveYears, terms: 2 }], wib("2026-11-05 10:00")),
+      ).toMatchObject({
+        ok: true,
+        lines: [
+          { kind: "perpanjangan", tenure: fiveYears, terms: 2, amount: 8_000_006, inForceSince: "2026-11-01" },
+          { kind: "biaya_layanan_platform", amount: 150_001 },
+        ],
+        total: 8_150_007,
+      });
+    });
+
+    it("the Jenis Makam later becomes Selamanya: an existing 5-year Hak Pakai is still extended per 5-year term, at the Perpanjangan price in force now", async () => {
+      const setup = tariffsOnTestDatabase(db);
+      const { admin, reguler } = await pricedLokasiMitra(setup);
+      await setup.tariffs.setJenisMakamTariff(admin, reguler.id, {
+        hargaHakPakai: 30_000_000,
+        tenure: { kind: "selamanya" },
+        hargaPerpanjangan: 3_500_000,
+        effectiveOn: "2026-11-01",
+        reason: null,
+      });
+
+      expect(
+        await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: fiveYears, terms: 1 }], wib("2026-11-05 10:00")),
+      ).toMatchObject({
+        ok: true,
+        lines: [{ kind: "perpanjangan", tenure: fiveYears, terms: 1, amount: 3_500_000 }, { kind: "biaya_layanan_platform" }],
+        total: 3_650_001,
+      });
+    });
+
+    it("the scheduled change of a Perpanjangan is the next Perpanjangan price, whatever tenure the Jenis Makam takes then", async () => {
+      const setup = tariffsOnTestDatabase(db);
+      const { admin, reguler } = await pricedLokasiMitra(setup);
+      await setup.tariffs.setJenisMakamTariff(admin, reguler.id, {
+        hargaHakPakai: 30_000_000,
+        tenure: { kind: "selamanya" },
+        hargaPerpanjangan: 3_500_000,
+        effectiveOn: "2026-11-01",
+        reason: null,
+      });
+
+      expect(
+        await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: fiveYears, terms: 1 }], wib("2026-10-05 10:00")),
+      ).toMatchObject({
+        lines: [{ amount: 3_000_001, scheduledChange: { effectiveOn: "2026-11-01", amount: 3_500_000 } }, {}],
+        scheduledChange: { effectiveOn: "2026-11-01", total: 3_650_001 },
+      });
+    });
+
+    it("is refused only when the Hak Pakai itself is Selamanya, even when its Jenis Makam is N years now", async () => {
+      const setup = tariffsOnTestDatabase(db);
+      const { reguler } = await pricedLokasiMitra(setup);
+
+      expect(
+        await setup.tariffs.quote(
+          [{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: { kind: "selamanya" }, terms: 1 }],
+          wib("2026-10-05 10:00"),
+        ),
+      ).toEqual({ ok: false, reason: "tidak_bisa_diperpanjang" });
+    });
+
+    it("has no price when the Jenis Makam in force has no Perpanjangan price (Selamanya without one): tarif_belum_ada", async () => {
+      const setup = tariffsOnTestDatabase(db);
+      const { reguler, admin } = await pricedLokasiMitra(setup);
+      await setup.tariffs.setJenisMakamTariff(admin, reguler.id, {
+        hargaHakPakai: 30_000_000,
+        tenure: { kind: "selamanya" },
+        hargaPerpanjangan: null,
+        effectiveOn: "2026-11-01",
+        reason: null,
+      });
+
+      expect(
+        await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: fiveYears, terms: 1 }], wib("2026-11-05 10:00")),
+      ).toEqual({ ok: false, reason: "tarif_belum_ada", kind: "perpanjangan" });
     });
   });
 });

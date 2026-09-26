@@ -54,7 +54,7 @@ CREATE TABLE "tariff_jenis_makam_version" (
 	"tenure_years" integer,
 	"harga_perpanjangan" bigint,
 	CONSTRAINT "tariff_jenis_makam_version_amounts_check" CHECK ("tariff_jenis_makam_version"."harga_hak_pakai" between 0 and 100000000000 and ("tariff_jenis_makam_version"."harga_perpanjangan" is null or "tariff_jenis_makam_version"."harga_perpanjangan" between 0 and 100000000000)),
-	CONSTRAINT "tariff_jenis_makam_version_tenure_check" CHECK (("tariff_jenis_makam_version"."tenure_years" is null and "tariff_jenis_makam_version"."harga_perpanjangan" is null) or ("tariff_jenis_makam_version"."tenure_years" >= 1 and "tariff_jenis_makam_version"."harga_perpanjangan" is not null))
+	CONSTRAINT "tariff_jenis_makam_version_tenure_check" CHECK ("tariff_jenis_makam_version"."tenure_years" is null or ("tariff_jenis_makam_version"."tenure_years" >= 1 and "tariff_jenis_makam_version"."harga_perpanjangan" is not null))
 );
 --> statement-breakpoint
 ALTER TABLE "tariff_jenis_makam_version" ADD CONSTRAINT "tariff_jenis_makam_version_jenis_makam_id_tariff_jenis_makam_id_fk" FOREIGN KEY ("jenis_makam_id") REFERENCES "public"."tariff_jenis_makam"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

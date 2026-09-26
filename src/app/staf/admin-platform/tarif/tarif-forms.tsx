@@ -77,7 +77,7 @@ export function GlobalTariffForm({ tariffKey, label, today }: { tariffKey: Globa
   );
 }
 
-/** Harga Hak Pakai, tenure (Selamanya or N years) and the Perpanjangan price per term. */
+/** Harga Hak Pakai, tenure (Selamanya or N years) and the Perpanjangan price per term (optional for Selamanya). */
 function JenisMakamTariffFields() {
   const [tenure, setTenure] = useState<"tahun" | "selamanya">("tahun");
   return (
@@ -105,7 +105,13 @@ function JenisMakamTariffFields() {
           <Field label="Jumlah tahun per masa" name="tenureYears" type="number" min={1} max={100} required />
           <RupiahField label="Harga Perpanjangan per masa (Rp)" name="hargaPerpanjangan" required placeholder="3.000.000" />
         </>
-      ) : null}
+      ) : (
+        <RupiahField
+          label="Harga Perpanjangan per masa (Rp, opsional: untuk Hak Pakai yang dibeli saat masih N tahun)"
+          name="hargaPerpanjangan"
+          placeholder="3.000.000"
+        />
+      )}
     </>
   );
 }

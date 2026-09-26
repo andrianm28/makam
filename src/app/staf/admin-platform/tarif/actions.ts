@@ -130,7 +130,13 @@ function tariffOf(data: {
   effectiveOn: string;
 }): { hargaHakPakai: number; tenure: Tenure; hargaPerpanjangan: number | null; effectiveOn: string } {
   if (data.tenure === "selamanya") {
-    return { hargaHakPakai: data.hargaHakPakai, tenure: { kind: "selamanya" }, hargaPerpanjangan: null, effectiveOn: data.effectiveOn };
+    // A Perpanjangan price may stay, for the Hak Pakai bought while this Jenis Makam was N years.
+    return {
+      hargaHakPakai: data.hargaHakPakai,
+      tenure: { kind: "selamanya" },
+      hargaPerpanjangan: data.hargaPerpanjangan,
+      effectiveOn: data.effectiveOn,
+    };
   }
   return {
     hargaHakPakai: data.hargaHakPakai,

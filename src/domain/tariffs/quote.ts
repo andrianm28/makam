@@ -2,7 +2,7 @@ import type { Database } from "@/db/client";
 import { biayaPemakamanVersions } from "./biaya-pemakaman";
 import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
 import { z } from "zod";
-import { findJenisMakam, jenisMakamVersions, type JenisMakam, type Tenure } from "./jenis-makam";
+import { findJenisMakam, jenisMakamVersions, tenureSchema, type JenisMakam, type Tenure } from "./jenis-makam";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
 import { sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
 
@@ -12,8 +12,13 @@ export type QuoteLine =
   | { kind: "harga_hak_pakai"; jenisMakamId: string }
   /** One Pemakaman at this Lokasi Mitra; `tumpang` for one under an existing Hak Pakai on an occupied Petak Makam. */
   | { kind: "biaya_pemakaman"; lokasiId: string; tumpang: boolean }
-  /** A Perpanjangan Makam of a Hak Pakai of this Jenis Makam by `terms` further terms. */
-  | { kind: "perpanjangan"; jenisMakamId: string; terms: number }
+  /**
+   * A Perpanjangan Makam of a Hak Pakai of this Jenis Makam by `terms` further
+   * terms. `tenure` is the Hak Pakai's own Masa Hak Pakai, as snapshotted when
+   * it was bought: it sets the length of a term and whether it can be extended
+   * at all; the price per term is the Jenis Makam's Perpanjangan price in force at `at`.
+   */
+  | { kind: "perpanjangan"; jenisMakamId: string; tenure: Tenure; terms: number }
   /** The Operator's Biaya Pengurusan at a DKI TPU: one that arranges a burial, or filing only. */
   | { kind: "biaya_pengurusan"; pengurusan: "pemakaman" | "berkas" }
   /** A Retribusi Pemda, collected at cost: for an IPTM. */
@@ -64,7 +69,7 @@ export type QuoteRefusal =
   | { ok: false; reason: "baris_tidak_valid" }
   /** A Jenis Makam that does not exist. */
   | { ok: false; reason: "tidak_ditemukan" }
-  /** A Perpanjangan of a Jenis Makam that is Selamanya at that instant. */
+  /** A Perpanjangan of a Hak Pakai that is itself Selamanya. */
   | { ok: false; reason: "tidak_bisa_diperpanjang" }
   /** The lines belong to more than one place (two Lokasi Mitra, or a Lokasi Mitra and a TPU): one Tagihan is one place. */
   | { ok: false; reason: "lokasi_campur" }
@@ -79,7 +84,12 @@ const idSchema = z.uuid();
 const quoteLineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("harga_hak_pakai"), jenisMakamId: z.string() }),
   z.object({ kind: z.literal("biaya_pemakaman"), lokasiId: idSchema, tumpang: z.boolean() }),
-  z.object({ kind: z.literal("perpanjangan"), jenisMakamId: z.string(), terms: z.number().int().min(1).max(100) }),
+  z.object({
+    kind: z.literal("perpanjangan"),
+    jenisMakamId: z.string(),
+    tenure: tenureSchema,
+    terms: z.number().int().min(1).max(100),
+  }),
   z.object({ kind: z.literal("biaya_pengurusan"), pengurusan: z.enum(["pemakaman", "berkas"]) }),
   z.object({ kind: z.literal("retribusi_pemda"), retribusi: z.literal("iptm") }),
 ]);
@@ -238,21 +248,23 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
       const found = await jenisMakamOf(db, line.jenisMakamId);
       if (!found.ok) return found;
       const jenisMakam = found.value;
+      const tenure = line.tenure;
+      if (tenure.kind === "selamanya") return { ok: false, reason: "tidak_bisa_diperpanjang" };
       return fromVersions(
         "perpanjangan",
         await jenisMakamVersions(db, jenisMakam.id),
         at,
         (version) => {
-          if (version.hargaPerpanjangan === null) return { ok: false, reason: "tidak_bisa_diperpanjang" };
+          if (version.hargaPerpanjangan === null) return { ok: false, reason: "tarif_belum_ada", kind: "perpanjangan" };
           const amount = timesRupiah(version.hargaPerpanjangan, line.terms);
           return amount.ok ? priced(amount.amount) : amount;
         },
-        (amount, version, schedule) => ({
+        (amount, _version, schedule) => ({
           kind: "perpanjangan",
           jenisMakamId: jenisMakam.id,
           terms: line.terms,
-          tenure: version.tenure,
-          label: `Perpanjangan – ${jenisMakam.name} (${line.terms} × ${version.tenure.kind === "tahun" ? version.tenure.years : 0} tahun)`,
+          tenure,
+          label: `Perpanjangan – ${jenisMakam.name} (${line.terms} × ${tenure.years} tahun)`,
           amount,
           provider: { kind: "lokasi_mitra", lokasiId: jenisMakam.lokasiId },
           ...schedule,

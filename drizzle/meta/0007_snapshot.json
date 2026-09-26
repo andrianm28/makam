@@ -1,5 +1,5 @@
 {
-  "id": "95b01603-b872-470b-8186-5f0c7200b4ab",
+  "id": "94e003b0-ad32-496d-abc5-3915971925cb",
   "prevId": "e4d2a511-e2af-4f65-8445-7df03d5d0e47",
   "version": "7",
   "dialect": "postgresql",
@@ -1833,7 +1833,7 @@
         },
         "tariff_jenis_makam_version_tenure_check": {
           "name": "tariff_jenis_makam_version_tenure_check",
-          "value": "(\"tariff_jenis_makam_version\".\"tenure_years\" is null and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is null) or (\"tariff_jenis_makam_version\".\"tenure_years\" >= 1 and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is not null)"
+          "value": "\"tariff_jenis_makam_version\".\"tenure_years\" is null or (\"tariff_jenis_makam_version\".\"tenure_years\" >= 1 and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is not null)"
         }
       },
       "isRLSEnabled": false

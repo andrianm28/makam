@@ -134,7 +134,8 @@ export const tariffJenisMakam = pgTable(
 /**
  * Owned by the Tariffs module: every version of a Jenis Makam's tariff: the
  * Harga Hak Pakai, the tenure (`tenure_years` null = Selamanya) and the
- * Perpanjangan price per term (set exactly when the tenure is N years).
+ * Perpanjangan price per term (required for N years; a Selamanya version may
+ * keep one for Hak Pakai bought under an earlier fixed term).
  */
 export const tariffJenisMakamVersion = pgTable(
   "tariff_jenis_makam_version",
@@ -156,7 +157,7 @@ export const tariffJenisMakamVersion = pgTable(
     ),
     check(
       "tariff_jenis_makam_version_tenure_check",
-      sql`(${table.tenureYears} is null and ${table.hargaPerpanjangan} is null) or (${table.tenureYears} >= 1 and ${table.hargaPerpanjangan} is not null)`,
+      sql`${table.tenureYears} is null or (${table.tenureYears} >= 1 and ${table.hargaPerpanjangan} is not null)`,
     ),
   ],
 );

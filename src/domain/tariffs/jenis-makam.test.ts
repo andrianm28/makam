@@ -66,7 +66,7 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
     ]);
   });
 
-  it("a Perpanjangan price is required for N years and refused for Selamanya; N is a whole number of years from 1", async () => {
+  it("a Perpanjangan price is required for N years; N is a whole number of years from 1", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
@@ -74,7 +74,6 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
 
     for (const tariff of [
       { ...reguler.tariff, hargaPerpanjangan: null },
-      { ...keluargaSelamanya.tariff, hargaPerpanjangan: 1_000_000 },
       { ...reguler.tariff, tenure: { kind: "tahun", years: 0 } },
       { ...reguler.tariff, tenure: { kind: "tahun", years: 2.5 } },
       { ...reguler.tariff, hargaHakPakai: 7_500_000.5 },
@@ -172,6 +171,23 @@ describe("a Jenis Makam's tariff versions", () => {
     const at = async (instant: Date) => (await setup.tariffs.lokasiTariffs(lokasiMitra.id, instant)).jenisMakam[0]?.inForce;
     expect(await at(wib("2026-10-31 12:00"))).toMatchObject({ tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000 });
     expect(await at(wib("2026-11-01 12:00"))).toMatchObject({ tenure: { kind: "selamanya" }, hargaPerpanjangan: null });
+  });
+
+  it("a Selamanya Jenis Makam may keep a Perpanjangan price per term, for the Hak Pakai already bought under an earlier fixed term", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const created = await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, reguler);
+    if (!created.ok) throw new Error(created.reason);
+
+    expect(
+      await setup.tariffs.setJenisMakamTariff(admin, created.jenisMakam.id, {
+        ...keluargaSelamanya.tariff,
+        hargaPerpanjangan: 3_500_000,
+        effectiveOn: "2026-11-01",
+        reason: null,
+      }),
+    ).toMatchObject({ ok: true, version: { tenure: { kind: "selamanya" }, hargaPerpanjangan: 3_500_000 } });
   });
 
   it("only Admin Platform enters a version; an unknown Jenis Makam is not found", async () => {

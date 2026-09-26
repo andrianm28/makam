@@ -4,7 +4,7 @@ import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
 import { signInAsAdminLokasi, signInAsAdminPlatform } from "../../../../../tests/support/server-sign-in";
-import { simpanTarifGlobal, tambahJenisMakam } from "./actions";
+import { simpanTarifGlobal, simpanTarifJenisMakam, tambahJenisMakam } from "./actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => import("../../../../../tests/support/next-request"));
@@ -89,4 +89,47 @@ describe("tariff Server Actions", () => {
     });
     expect((await server.runtime().tariffs.lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toHaveLength(1);
   });
+
+  it("Simpan tarif Jenis Makam: a change to Selamanya keeps the Perpanjangan price typed, for the Hak Pakai already bought for N years", async () => {
+    const admin = await signInAsAdminPlatform(server);
+    const lokasiId = await lokasiMitraOf(admin);
+    const created = await server.runtime().tariffs.createJenisMakam(admin, lokasiId, {
+      name: "Reguler",
+      description: "",
+      tariff: { hargaHakPakai: 7_500_000, tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000, effectiveOn: "2026-10-01" },
+      reason: null,
+    });
+    if (!created.ok) throw new Error(created.reason);
+
+    const state = await simpanTarifJenisMakam(
+      idle,
+      form({
+        lokasiId,
+        jenisMakamId: created.jenisMakam.id,
+        hargaHakPakai: "30.000.000",
+        tenure: "selamanya",
+        tenureYears: "",
+        hargaPerpanjangan: "3.500.000",
+        effectiveOn: "2026-11-01",
+        reason: "",
+      }),
+    );
+
+    expect(state).toMatchObject({ status: "berhasil" });
+    expect(await server.runtime().tariffs.jenisMakamTariffHistory(created.jenisMakam.id)).toMatchObject([
+      { tenure: { kind: "tahun", years: 5 } },
+      { tenure: { kind: "selamanya" }, hargaPerpanjangan: 3_500_000 },
+    ]);
+  });
 });
+
+async function lokasiMitraOf(admin: Awaited<ReturnType<typeof signInAsAdminPlatform>>): Promise<string> {
+  const created = await server.runtime().lokasi.createLokasiMitra(admin, {
+    name: "Makam Wakaf Al-Ikhlas",
+    pengelolaName: "Yayasan Al-Ikhlas",
+    address: "Jl. Raya Pondok Rangon No. 1",
+    city: "Kota Jakarta Timur",
+  });
+  if (!created.ok) throw new Error(created.reason);
+  return created.lokasiMitra.id;
+}
