@@ -1,18 +1,28 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { authenticatorCode } from "../../tests/support/totp";
-import type { E2eNumber } from "./numbers";
-import { lastOtp } from "./whatsapp-outbox";
+import { lastEmailCode } from "./email-outbox";
 
-/** Logs a number in on Masuk by WhatsApp OTP; where it lands is up to the caller. */
-export async function masuk(page: Page, request: APIRequestContext, number: E2eNumber) {
+/**
+ * A fresh X-Real-IP for the next request, as the host's nginx would set it:
+ * the stack has no nginx, and the per-IP limit allows one emailed code per
+ * 60 s from one IP.
+ */
+export async function fromNewIp(page: Page) {
+  const ip = `10.${[0, 0, 0].map(() => Math.floor(Math.random() * 254) + 1).join(".")}`;
+  await page.setExtraHTTPHeaders({ "x-real-ip": ip });
+}
+
+/** Logs an email in on Masuk with the Kode Masuk from the fake email outbox; where it lands is up to the caller. */
+export async function masuk(page: Page, request: APIRequestContext, email: string) {
   await page.goto("/masuk");
-  // The stack runs on the system Clock: a number that just had an OTP waits up to 60 s for the next one.
+  // The stack runs on the system Clock: an email that just had a Kode Masuk waits up to 60 s for the next one.
   await expect(async () => {
-    await page.getByLabel("Nomor WhatsApp").fill(number.typed);
-    await page.getByRole("button", { name: "Kirim kode lewat WhatsApp" }).click();
-    await expect(page.getByTestId("otp-phone-number")).toHaveText(number.canonical, { timeout: 3_000 });
+    await fromNewIp(page);
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
+    await expect(page.getByTestId("kode-masuk-email")).toHaveText(email.toLowerCase(), { timeout: 3_000 });
   }).toPass({ timeout: 75_000, intervals: [5_000] });
-  await page.getByLabel("Kode verifikasi").fill(await lastOtp(request, number.canonical));
+  await page.getByLabel("Kode Masuk").fill(await lastEmailCode(request, email.toLowerCase(), "Kode Masuk"));
   await page.getByRole("button", { name: "Masuk" }).click();
 }
 
