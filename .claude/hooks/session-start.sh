@@ -23,7 +23,9 @@ fi
 if [ -z "${CHROMIUM_PATH:-}" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   chrome="$(command -v google-chrome || command -v chromium || true)"
   if [ -z "$chrome" ]; then
-    chrome="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | tail -n 1 || true)"
+    # The cloud image ships Playwright's Chromium under PLAYWRIGHT_BROWSERS_PATH (/opt/pw-browsers).
+    chrome="$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"/chromium-*/chrome-linux*/chrome \
+      "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -n 1 || true)"
   fi
   [ -n "$chrome" ] && echo "export CHROMIUM_PATH=\"$chrome\"" >> "$CLAUDE_ENV_FILE"
 fi
