@@ -18,7 +18,7 @@ describe("a Lokasi Mitra's Biaya Pemakaman", () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
-    expect((await setup.tariffs.lokasiTariffs(lokasiMitra.id, wib("2026-10-01 09:00"))).biayaPemakaman).toEqual({
+    expect((await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 09:00"))).biayaPemakaman).toEqual({
       inForce: null,
       scheduledChange: null,
     });
@@ -36,7 +36,7 @@ describe("a Lokasi Mitra's Biaya Pemakaman", () => {
       reason: "Tarif 2027",
     });
 
-    const at = async (instant: Date) => (await setup.tariffs.lokasiTariffs(lokasiMitra.id, instant)).biayaPemakaman;
+    const at = async (instant: Date) => (await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, instant)).biayaPemakaman;
     expect(await at(wib("2026-12-31 23:59"))).toMatchObject({
       inForce: { biayaPemakaman: 2_000_000, biayaPemakamanTumpang: 1_500_000, effectiveOn: "2026-10-01" },
       scheduledChange: { biayaPemakaman: 2_250_000, biayaPemakamanTumpang: null, effectiveOn: "2027-01-01" },
@@ -45,7 +45,7 @@ describe("a Lokasi Mitra's Biaya Pemakaman", () => {
       inForce: { biayaPemakaman: 2_250_000, biayaPemakamanTumpang: null, effectiveOn: "2027-01-01" },
       scheduledChange: null,
     });
-    expect(await setup.tariffs.biayaPemakamanHistory(lokasiMitra.id)).toHaveLength(2);
+    expect(await setup.tariffs.asStaff(admin).biayaPemakamanHistory(lokasiMitra.id)).toHaveLength(2);
     await expect(db.execute(sql`update tariff_biaya_pemakaman_version set biaya_pemakaman = 1`)).rejects.toThrow();
     await expect(db.execute(sql`delete from tariff_biaya_pemakaman_version`)).rejects.toThrow();
   });
@@ -73,6 +73,6 @@ describe("a Lokasi Mitra's Biaya Pemakaman", () => {
       ok: false,
       reason: "tidak_ditemukan",
     });
-    expect(await setup.tariffs.biayaPemakamanHistory(lokasiMitra.id)).toEqual([]);
+    expect(await setup.tariffs.asStaff(admin).biayaPemakamanHistory(lokasiMitra.id)).toEqual([]);
   });
 });

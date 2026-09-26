@@ -37,14 +37,14 @@ describe("the 'tarif diperiksa' mark of a Lokasi Mitra (publish gate)", () => {
   it("Admin Platform sets it once the tariffs are in; it records who and when, and is audited on that Lokasi", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { admin, lokasiMitra } = await lokasiWithTariffs(setup);
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toBeNull();
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toBeNull();
     setup.clock.set(wib("2026-10-02 11:00"));
 
     expect(await setup.tariffs.markTariffsChecked(admin, lokasiMitra.id, { reason: "Cocok dengan perjanjian" })).toEqual({
       ok: true,
     });
 
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toEqual({
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toEqual({
       checkedAt: wib("2026-10-02 11:00"),
       checkedByAccountId: admin.accountId,
       changedSinceCheck: false,
@@ -74,11 +74,11 @@ describe("the 'tarif diperiksa' mark of a Lokasi Mitra (publish gate)", () => {
       reason: null,
     });
 
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toMatchObject({ changedSinceCheck: true });
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toMatchObject({ changedSinceCheck: true });
 
     setup.clock.set(wib("2026-10-03 09:00"));
     await setup.tariffs.markTariffsChecked(admin, lokasiMitra.id, { reason: null });
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toEqual({
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toEqual({
       checkedAt: wib("2026-10-03 09:00"),
       checkedByAccountId: admin.accountId,
       changedSinceCheck: false,
@@ -95,7 +95,7 @@ describe("the 'tarif diperiksa' mark of a Lokasi Mitra (publish gate)", () => {
       reason: "tarif_belum_lengkap",
       missing: ["jenis_makam", "biaya_pemakaman", "biaya_layanan_platform"],
     });
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toBeNull();
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toBeNull();
   });
 
   it("only Admin Platform sets it: the Lokasi's own Admin Lokasi is refused; an unknown Lokasi Mitra is not found", async () => {
@@ -111,6 +111,6 @@ describe("the 'tarif diperiksa' mark of a Lokasi Mitra (publish gate)", () => {
       ok: false,
       reason: "tidak_ditemukan",
     });
-    expect(await setup.tariffs.tariffsChecked(lokasiMitra.id)).toBeNull();
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toBeNull();
   });
 });

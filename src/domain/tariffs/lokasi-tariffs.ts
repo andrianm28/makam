@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import { biayaPemakamanVersions, type BiayaPemakamanVersion } from "./biaya-pemakaman";
 import { jenisMakamOfLokasi, jenisMakamVersions, type JenisMakam, type JenisMakamTariffVersion } from "./jenis-makam";
+import type { Visibility } from "./reads";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
 
 /** A price as a page shows it: the version in force at an instant, and the next one scheduled after it. */
@@ -25,7 +26,9 @@ export function priceAt<V extends VersionTimes>(versions: readonly V[], at: Date
   return { inForce: inForceAt(versions, at), scheduledChange: nextAfter(versions, at) };
 }
 
-export async function lokasiTariffs(db: Database, lokasiId: string, at: Date): Promise<LokasiTariffs> {
+/** A Lokasi Mitra's tariffs at `at`; none for a Lokasi the reader may not see (as for an unknown one). */
+export async function lokasiTariffs(db: Database, visible: Visibility, lokasiId: string, at: Date): Promise<LokasiTariffs> {
+  if (!(await visible(lokasiId))) return { jenisMakam: [], biayaPemakaman: { inForce: null, scheduledChange: null } };
   const [jenisMakam, biayaPemakaman] = await Promise.all([
     jenisMakamOfLokasi(db, lokasiId),
     biayaPemakamanVersions(db, lokasiId),

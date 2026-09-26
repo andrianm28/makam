@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { JenisMakamPrice, Tariffs } from "@/domain/tariffs";
+import type { JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
 import { formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
@@ -28,8 +28,8 @@ function Section({ id, title, description, children }: { id: string; title: stri
   );
 }
 
-/** The all-in Saat Duka total of a Jenis Makam now, as the Pemesan will see it (Harga Hak Pakai + Biaya Pemakaman + Biaya Layanan Platform). */
-async function saatDukaTotal(tariffs: Tariffs, lokasiId: string, jenisMakamId: string, now: Date): Promise<string> {
+/** The all-in Saat Duka total of a Jenis Makam now, as the Pemesan will see it once the Lokasi is listed (Harga Hak Pakai + Biaya Pemakaman + Biaya Layanan Platform). */
+async function saatDukaTotal(tariffs: StaffTariffReads, lokasiId: string, jenisMakamId: string, now: Date): Promise<string> {
   const quote = await tariffs.quote(
     [
       { kind: "harga_hak_pakai", jenisMakamId },
@@ -65,13 +65,15 @@ function JenisMakamSummary({ jenisMakam }: { jenisMakam: JenisMakamPrice }) {
 export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin-platform/lokasi/[lokasiId]/tarif">) {
   const actor = await staffMenuActor("admin_platform");
   const { lokasiId } = await params;
-  const { lokasi, tariffs, adapters } = serverRuntime();
+  const { lokasi, adapters } = serverRuntime();
   const read = await lokasi.lokasiMitra(actor, lokasiId);
   if (!read.ok) {
     if (read.reason === "tidak_ditemukan") notFound();
     redirect("/staf");
   }
   const lokasiMitra = read.lokasiMitra;
+  // Staff reads: a Lokasi still Belum Tayang is read here, before it is listed.
+  const tariffs = serverRuntime().tariffs.asStaff(actor);
   const now = adapters.clock.now();
   const today = wibDateOf(now);
   const [priced, checked, biayaPemakamanHistory] = await Promise.all([

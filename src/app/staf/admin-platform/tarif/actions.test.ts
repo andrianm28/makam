@@ -78,7 +78,7 @@ describe("tariff Server Actions", () => {
     };
 
     expect(await tambahJenisMakam(idle, form(typed))).toEqual({ status: "berhasil", message: "Jenis Makam Reguler 1 × 2 m ditambahkan." });
-    expect((await server.runtime().tariffs.lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toMatchObject([
+    expect((await server.runtime().tariffs.asStaff(admin).lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toMatchObject([
       { name: "Reguler 1 × 2 m", inForce: { hargaHakPakai: 7_500_000, tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000 } },
     ]);
 
@@ -87,7 +87,7 @@ describe("tariff Server Actions", () => {
       status: "gagal",
       message: "Anda tidak berwenang melakukan ini.",
     });
-    expect((await server.runtime().tariffs.lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toHaveLength(1);
+    expect((await server.runtime().tariffs.asStaff(admin).lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toHaveLength(1);
   });
 
   it("Simpan tarif Jenis Makam: a change to Selamanya keeps the Perpanjangan price typed, for the Hak Pakai already bought for N years", async () => {
@@ -116,7 +116,7 @@ describe("tariff Server Actions", () => {
     );
 
     expect(state).toMatchObject({ status: "berhasil" });
-    expect(await server.runtime().tariffs.jenisMakamTariffHistory(created.jenisMakam.id)).toMatchObject([
+    expect(await server.runtime().tariffs.asStaff(admin).jenisMakamTariffHistory(created.jenisMakam.id)).toMatchObject([
       { tenure: { kind: "tahun", years: 5 } },
       { tenure: { kind: "selamanya" }, hargaPerpanjangan: 3_500_000 },
     ]);

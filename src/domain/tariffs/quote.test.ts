@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { setLokasiMitraStatusForTest } from "../../../tests/support/lokasi";
 import {
   newLokasiMitra,
   signedInAdminPlatform,
@@ -12,14 +13,21 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
+/** A Lokasi Mitra that is Terverifikasi (listed), so public quotes serve it. */
+async function listedLokasiMitra(setup: TariffsSetup, admin: Awaited<ReturnType<typeof signedInAdminPlatform>>["actor"], name?: string) {
+  const lokasiMitra = await newLokasiMitra(setup, admin, name);
+  await setLokasiMitraStatusForTest(db, lokasiMitra.id, "terverifikasi");
+  return lokasiMitra;
+}
+
 /**
- * A Lokasi Mitra with one fixed-term and one perpetual Jenis Makam, its Biaya
+ * A listed Lokasi Mitra with one fixed-term and one perpetual Jenis Makam, its Biaya
  * Pemakaman, and the Biaya Layanan Platform, all in force from 1 October 2026.
  * Odd amounts, so a wrong sum cannot hide behind round numbers.
  */
 async function pricedLokasiMitra(setup: TariffsSetup, name = "Makam Wakaf Al-Ikhlas") {
   const { actor: admin } = await signedInAdminPlatform(setup);
-  const lokasiMitra = await newLokasiMitra(setup, admin, name);
+  const lokasiMitra = await listedLokasiMitra(setup, admin, name);
   const reguler = await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, {
     name: "Reguler",
     description: "",
@@ -227,7 +235,7 @@ describe("the all-in quote", () => {
   it("is refused when a line has no tariff in force at that instant: a future first version, or no Biaya Layanan Platform yet", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
-    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const lokasiMitra = await listedLokasiMitra(setup, admin);
     const created = await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, {
       name: "Reguler",
       description: "",
@@ -282,7 +290,7 @@ describe("the all-in quote", () => {
     const setup = tariffsOnTestDatabase(db);
     const first = await pricedLokasiMitra(setup);
     const { actor: admin } = { actor: first.admin };
-    const second = await newLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
+    const second = await listedLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
     await setup.tariffs.setBiayaPemakaman(admin, second.id, {
       biayaPemakaman: 1_000_000,
       biayaPemakamanTumpang: null,
@@ -310,6 +318,30 @@ describe("the all-in quote", () => {
         at,
       ),
     ).toEqual({ ok: false, reason: "lokasi_campur" });
+  });
+
+  it("a Biaya Pemakaman at an unknown Lokasi Mitra is not found (not 'no tariff yet')", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    await pricedLokasiMitra(setup);
+
+    expect(
+      await setup.tariffs.quote(
+        [{ kind: "biaya_pemakaman", lokasiId: "5d1f4c2e-0000-4000-8000-00000000abcd", tumpang: false }],
+        wib("2026-10-05 10:00"),
+      ),
+    ).toEqual({ ok: false, reason: "tidak_ditemukan" });
+  });
+
+  it("a Retribusi Pemda of Rp 0 is its own Rp 0 line and needs no Setor Retribusi", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin } = await pricedLokasiMitra(setup);
+    await setup.tariffs.setGlobalTariff(admin, { key: "retribusi_pemda_iptm", amount: 0, effectiveOn: "2026-10-01", reason: null });
+
+    expect(await setup.tariffs.quote([{ kind: "retribusi_pemda", retribusi: "iptm" }], wib("2026-10-05 10:00"))).toMatchObject({
+      ok: true,
+      lines: [{ kind: "retribusi_pemda", amount: 0, provider: { kind: "pemda" }, setorRetribusi: false }],
+      total: 0,
+    });
   });
 
   it("a non-zero Retribusi Pemda is collected at cost as its own line and marked for a Setor Retribusi", async () => {

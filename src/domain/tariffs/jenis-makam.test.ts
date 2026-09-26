@@ -44,7 +44,7 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
     await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, keluargaSelamanya);
 
     expect(created).toMatchObject({ ok: true, jenisMakam: { lokasiId: lokasiMitra.id, name: "Reguler 1 × 2 m" } });
-    const tariffs = await setup.tariffs.lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"));
+    const tariffs = await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"));
     expect(tariffs.jenisMakam).toMatchObject([
       {
         name: "Keluarga Selamanya",
@@ -81,7 +81,7 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
       expect(await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, { ...reguler, tariff })).toEqual(refused);
     }
     expect(await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, { ...reguler, name: "   " })).toEqual(refused);
-    expect((await setup.tariffs.lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toEqual([]);
+    expect((await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toEqual([]);
   });
 
   it("two Jenis Makam of one Lokasi Mitra cannot share a name (ignoring case and spaces); another Lokasi may use it", async () => {
@@ -112,7 +112,7 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
       ok: false,
       reason: "tidak_ditemukan",
     });
-    expect((await setup.tariffs.lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toEqual([]);
+    expect((await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toEqual([]);
   });
 });
 
@@ -136,7 +136,7 @@ describe("a Jenis Makam's tariff versions", () => {
     ).toMatchObject({ ok: true });
 
     const priceAt = async (at: Date) =>
-      (await setup.tariffs.lokasiTariffs(lokasiMitra.id, at)).jenisMakam[0];
+      (await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, at)).jenisMakam[0];
     expect(await priceAt(wib("2026-12-31 23:59"))).toMatchObject({
       inForce: { hargaHakPakai: 7_500_000, hargaPerpanjangan: 3_000_000, effectiveOn: "2026-10-01" },
       scheduledChange: { hargaHakPakai: 8_000_000, hargaPerpanjangan: 3_250_000, effectiveOn: "2027-01-01" },
@@ -146,7 +146,7 @@ describe("a Jenis Makam's tariff versions", () => {
       scheduledChange: null,
     });
     expect(await priceAt(wib("2028-06-01 00:00"))).toMatchObject({ inForce: { hargaHakPakai: 8_000_000 } });
-    expect(await setup.tariffs.jenisMakamTariffHistory(created.jenisMakam.id)).toMatchObject([
+    expect(await setup.tariffs.asStaff(admin).jenisMakamTariffHistory(created.jenisMakam.id)).toMatchObject([
       { hargaHakPakai: 7_500_000, effectiveOn: "2026-10-01", enteredAt: wib("2026-10-01 09:00") },
       { hargaHakPakai: 8_000_000, effectiveOn: "2027-01-01", enteredAt: wib("2026-10-15 10:00") },
     ]);
@@ -168,7 +168,7 @@ describe("a Jenis Makam's tariff versions", () => {
       reason: null,
     });
 
-    const at = async (instant: Date) => (await setup.tariffs.lokasiTariffs(lokasiMitra.id, instant)).jenisMakam[0]?.inForce;
+    const at = async (instant: Date) => (await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, instant)).jenisMakam[0]?.inForce;
     expect(await at(wib("2026-10-31 12:00"))).toMatchObject({ tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000 });
     expect(await at(wib("2026-11-01 12:00"))).toMatchObject({ tenure: { kind: "selamanya" }, hargaPerpanjangan: null });
   });
@@ -207,6 +207,6 @@ describe("a Jenis Makam's tariff versions", () => {
       ok: false,
       reason: "tidak_ditemukan",
     });
-    expect(await setup.tariffs.jenisMakamTariffHistory(created.jenisMakam.id)).toHaveLength(1);
+    expect(await setup.tariffs.asStaff(admin).jenisMakamTariffHistory(created.jenisMakam.id)).toHaveLength(1);
   });
 });

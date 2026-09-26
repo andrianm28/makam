@@ -4,6 +4,7 @@ import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
 import { z } from "zod";
 import { findJenisMakam, jenisMakamVersions, tenureSchema, type JenisMakam, type Tenure } from "./jenis-makam";
 import { idSchema } from "./ids";
+import type { Visibility } from "./reads";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
 import { sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
 
@@ -72,7 +73,7 @@ export type QuoteRefusal =
   | { ok: false; reason: "tanpa_baris" }
   /** A line is malformed (e.g. terms not a whole number from 1, or an id that is no id). */
   | { ok: false; reason: "baris_tidak_valid" }
-  /** A Jenis Makam that does not exist. */
+  /** A Jenis Makam or Lokasi Mitra that does not exist, or that this reader may not see (public: not Terverifikasi). */
   | { ok: false; reason: "tidak_ditemukan" }
   /** A Perpanjangan of a Hak Pakai that is itself Selamanya. */
   | { ok: false; reason: "tidak_bisa_diperpanjang" }
@@ -108,16 +109,23 @@ interface Priced {
 /** A step of pricing: its value, or the refusal that ends the quote. */
 type Step<T> = { ok: true; value: T } | QuoteRefusal;
 
-export async function quote(db: Database, lines: readonly QuoteLine[], at: Date): Promise<QuoteResult> {
+/** Prices with the database, serving only the Lokasi Mitra the reader may see. */
+interface Pricing {
+  db: Database;
+  visible: Visibility;
+}
+
+export async function quote(db: Database, visible: Visibility, lines: readonly QuoteLine[], at: Date): Promise<QuoteResult> {
   if (lines.length === 0) return { ok: false, reason: "tanpa_baris" };
   if (!z.array(quoteLineSchema).safeParse(lines).success) return { ok: false, reason: "baris_tidak_valid" };
-  const priced = await priceLines(db, lines, at);
+  const pricing = { db, visible };
+  const priced = await priceLines(pricing, lines, at);
   if (!priced.ok) return priced;
   const quoted = priced.value.map((one) => one.line);
   const total = sumRupiah(quoted.map((line) => line.amount));
   if (!total.ok) return total;
   const inForceSince = priced.value.map((one) => one.since.effectiveOn).reduce((latest, date) => (date > latest ? date : latest));
-  return { ok: true, at, lines: quoted, total: total.amount, inForceSince, scheduledChange: await scheduledTotal(db, lines, priced.value) };
+  return { ok: true, at, lines: quoted, total: total.amount, inForceSince, scheduledChange: await scheduledTotal(pricing, lines, priced.value) };
 }
 
 /**
@@ -125,21 +133,21 @@ export async function quote(db: Database, lines: readonly QuoteLine[], at: Date)
  * when none is scheduled, or when from then these lines cannot be priced at
  * all (e.g. a tariff that is no longer entered, or a total past the maximum).
  */
-async function scheduledTotal(db: Database, lines: readonly QuoteLine[], priced: readonly Priced[]): Promise<Quote["scheduledChange"]> {
+async function scheduledTotal(pricing: Pricing, lines: readonly QuoteLine[], priced: readonly Priced[]): Promise<Quote["scheduledChange"]> {
   const nexts = priced.map((one) => one.next).filter((next): next is VersionTimes => next !== null);
   if (nexts.length === 0) return null;
   const first = nexts.reduce((earliest, next) => (next.inForceFrom < earliest.inForceFrom ? next : earliest));
-  const then = await priceLines(db, lines, first.inForceFrom);
+  const then = await priceLines(pricing, lines, first.inForceFrom);
   if (!then.ok) return null;
   const total = sumRupiah(then.value.map((one) => one.line.amount));
   return total.ok ? { effectiveOn: first.effectiveOn, total: total.amount } : null;
 }
 
 /** Every line priced at `at`, plus one Biaya Layanan Platform when any line is a Lokasi Mitra's. */
-async function priceLines(db: Database, lines: readonly QuoteLine[], at: Date): Promise<Step<Priced[]>> {
+async function priceLines(pricing: Pricing, lines: readonly QuoteLine[], at: Date): Promise<Step<Priced[]>> {
   const priced: Priced[] = [];
   for (const line of lines) {
-    const one = await priceLine(db, line, at);
+    const one = await priceLine(pricing, line, at);
     if (!one.ok) return one;
     priced.push(one.value);
   }
@@ -148,7 +156,7 @@ async function priceLines(db: Database, lines: readonly QuoteLine[], at: Date): 
   if (lokasiIds.size > 1 || (lokasiIds.size === 1 && atTpu)) return { ok: false, reason: "lokasi_campur" };
   // One Biaya Layanan Platform per Tagihan, and only on a Lokasi Mitra order.
   if (lokasiIds.size === 1) {
-    const platform = await globalLine(db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
+    const platform = await globalLine(pricing.db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
       kind: "biaya_layanan_platform",
       amount,
       provider: { kind: "operator" },
@@ -204,15 +212,18 @@ async function globalLine(
   );
 }
 
-async function jenisMakamOf(db: Database, jenisMakamId: string): Promise<Step<JenisMakam>> {
+/** A Jenis Makam of a Lokasi Mitra the reader may see, or tidak_ditemukan. */
+async function jenisMakamOf({ db, visible }: Pricing, jenisMakamId: string): Promise<Step<JenisMakam>> {
   const jenisMakam = await findJenisMakam(db, jenisMakamId);
-  return jenisMakam ? { ok: true, value: jenisMakam } : { ok: false, reason: "tidak_ditemukan" };
+  if (!jenisMakam || !(await visible(jenisMakam.lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
+  return { ok: true, value: jenisMakam };
 }
 
-async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<Priced>> {
+async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<Step<Priced>> {
+  const { db } = pricing;
   switch (line.kind) {
     case "harga_hak_pakai": {
-      const found = await jenisMakamOf(db, line.jenisMakamId);
+      const found = await jenisMakamOf(pricing, line.jenisMakamId);
       if (!found.ok) return found;
       const jenisMakam = found.value;
       return fromVersions(
@@ -232,6 +243,7 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
       );
     }
     case "biaya_pemakaman":
+      if (!(await pricing.visible(line.lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
       return fromVersions(
         "biaya_pemakaman",
         await biayaPemakamanVersions(db, line.lokasiId),
@@ -247,7 +259,7 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
         }),
       );
     case "perpanjangan": {
-      const found = await jenisMakamOf(db, line.jenisMakamId);
+      const found = await jenisMakamOf(pricing, line.jenisMakamId);
       if (!found.ok) return found;
       const jenisMakam = found.value;
       const tenure = line.tenure;
