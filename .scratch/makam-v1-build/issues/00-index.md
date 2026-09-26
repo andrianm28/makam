@@ -286,7 +286,7 @@ Decided by the user and written into ADR 0004 (which supersedes ADR 0003), `CONT
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [82](82-email-is-the-akun-key.md) | Email becomes the Akun key; the WhatsApp channel is removed | ready-for-agent | — |
+| [82](82-email-is-the-akun-key.md) | Email becomes the Akun key; the WhatsApp channel is removed | resolved | — |
 
 ## Release plan (2026-09-26, speeding up v1)
 

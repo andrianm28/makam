@@ -1,6 +1,6 @@
 # Email becomes the Akun key; the WhatsApp channel is removed
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: Domain modules > 1. Identity & Access; Adapter ports (WhatsAppSender removed, EmailSender); 15. Notifications (Kode Masuk exception, channels); 17. Pengaturan Operator (CS WhatsApp for `wa.me` only); Out of Scope; ADR 0004 (supersedes ADR 0003); `CONTEXT.md` (Akun, Kode Masuk, Email Terverifikasi, Undangan Staf, Pemulihan Akun, Peringatan Staf); stories 21, 26, 27, 98, 167, 170, 189, 190, 191, 193
 
@@ -83,3 +83,4 @@ This ticket changes behaviour that is already merged (tickets 08, 09, 21, 63, 67
     - email-login.spec: 6.5 s.
     - staf.spec alone on fresh data: 7 tests, about 21 s. The largest parts are TOTP enrolment (5.4 s) and the staff-shell test from another ticket (4.4 s). No test waits for the resend any more, but staf.spec is still above the 10 s target, so the e2e criterion stays open.
   - Then `npm run clean`.
+- 2026-09-26 — Re-review clean (Standards and Spec). Merged to main under the standing authorization. staf.spec is ~21 s: its remaining tests belong to other tickets; trimming it is left to whoever next touches that file.
