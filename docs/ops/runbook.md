@@ -102,15 +102,22 @@ Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
 
 The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
 (staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
-and enrols an authenticator app for TOTP at once. Until ticket 62, seed with
-`--email-terverifikasi` instead, so the Admin Platform can log in by email (see
-"Bootstrap: an Admin Platform's Email Terverifikasi" below):
+and enrols an authenticator app for TOTP at once. There is no self-service
+recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
+
+Until ticket 62, seed with `--email-terverifikasi` instead, so the Admin
+Platform can log in by email (see "Bootstrap: an Admin Platform's Email
+Terverifikasi" below):
 
 ```bash
 $S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id --email-terverifikasi
 # [seed:admin] Admin Platform pertama dibuat: +62812xxxxxxxx (admin@example.co.id, Email Terverifikasi). ...
-``` There is no self-service
-recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
+```
+
+When the number already has an Akun (someone ordered as a Pemesan with it), the
+seed reuses that Akun and sets the given email. If the email differs from the
+Akun's earlier Email Terverifikasi, it is no longer verified; with
+`--email-terverifikasi` the new email is then marked, audited as described below.
 
 Before launch, the Admin Platform then enters Pengaturan Operator at
 `/staf/admin-platform/pengaturan-operator` (the Operator's legal name, address,
@@ -172,8 +179,8 @@ before/after `terverifikasi: false` → `true`, with the reason; actor role
 `seed:admin --email-terverifikasi ...`). No code or secret is in it.
 
 `verify-email` exits 0 when marked; exit 1 when refused: the number is not an
-Admin Platform, the reason is empty, the Akun has no email, the email already
-is its Email Terverifikasi, another Akun already has that email as its Email
+Admin Platform, the reason is empty, the email already is its Email
+Terverifikasi, another Akun already has that email as its Email
 Terverifikasi (the database's unique index decides; resolve it through CS
 first), or the database could not be reached (the message names only the error
 code); exit 2 prints the usage. With `--email-terverifikasi`, the seed is
