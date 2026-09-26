@@ -221,6 +221,89 @@ describe("the all-in quote", () => {
     ).toMatchObject({ lines: [{ label: "Biaya Pengurusan (hanya berkas)", amount: 750_003 }], total: 750_003 });
   });
 
+  it("is refused when a line has no tariff in force at that instant: a future first version, or no Biaya Layanan Platform yet", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const created = await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, {
+      name: "Reguler",
+      description: "",
+      tariff: { hargaHakPakai: 7_500_000, tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000, effectiveOn: "2026-11-01" },
+      reason: null,
+    });
+    if (!created.ok) throw new Error(created.reason);
+    const hakPakai = [{ kind: "harga_hak_pakai", jenisMakamId: created.jenisMakam.id }] as const;
+
+    expect(await setup.tariffs.quote(hakPakai, wib("2026-10-31 23:59"))).toEqual({
+      ok: false,
+      reason: "tarif_belum_ada",
+      kind: "harga_hak_pakai",
+    });
+    expect(await setup.tariffs.quote(hakPakai, wib("2026-11-01 00:00"))).toEqual({
+      ok: false,
+      reason: "tarif_belum_ada",
+      kind: "biaya_layanan_platform",
+    });
+    expect(
+      await setup.tariffs.quote([{ kind: "biaya_pemakaman", lokasiId: lokasiMitra.id, tumpang: false }], wib("2026-11-01 00:00")),
+    ).toEqual({ ok: false, reason: "tarif_belum_ada", kind: "biaya_pemakaman" });
+  });
+
+  it("is refused for no lines, an unknown Jenis Makam, a Perpanjangan of a Selamanya Jenis Makam, or a number of terms that is not a whole number from 1", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { reguler, selamanya } = await pricedLokasiMitra(setup);
+    const at = wib("2026-10-05 10:00");
+
+    expect(await setup.tariffs.quote([], at)).toEqual({ ok: false, reason: "tanpa_baris" });
+    expect(
+      await setup.tariffs.quote([{ kind: "harga_hak_pakai", jenisMakamId: "5d1f4c2e-0000-4000-8000-00000000abcd" }], at),
+    ).toEqual({ ok: false, reason: "tidak_ditemukan" });
+    expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: selamanya.id, terms: 1 }], at)).toEqual({
+      ok: false,
+      reason: "tidak_bisa_diperpanjang",
+    });
+    for (const terms of [0, 1.5, -1]) {
+      expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, terms }], at)).toEqual({
+        ok: false,
+        reason: "baris_tidak_valid",
+      });
+    }
+  });
+
+  it("is refused when its lines belong to more than one place: two Lokasi Mitra, or a Lokasi Mitra and a TPU (one Tagihan, one place)", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const first = await pricedLokasiMitra(setup);
+    const { actor: admin } = { actor: first.admin };
+    const second = await newLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
+    await setup.tariffs.setBiayaPemakaman(admin, second.id, {
+      biayaPemakaman: 1_000_000,
+      biayaPemakamanTumpang: null,
+      effectiveOn: "2026-10-01",
+      reason: null,
+    });
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_pengurusan_pemakaman", amount: 1_500_000, effectiveOn: "2026-10-01", reason: null });
+    const at = wib("2026-10-05 10:00");
+
+    expect(
+      await setup.tariffs.quote(
+        [
+          { kind: "harga_hak_pakai", jenisMakamId: first.reguler.id },
+          { kind: "biaya_pemakaman", lokasiId: second.id, tumpang: false },
+        ],
+        at,
+      ),
+    ).toEqual({ ok: false, reason: "lokasi_campur" });
+    expect(
+      await setup.tariffs.quote(
+        [
+          { kind: "harga_hak_pakai", jenisMakamId: first.reguler.id },
+          { kind: "biaya_pengurusan", pengurusan: "pemakaman" },
+        ],
+        at,
+      ),
+    ).toEqual({ ok: false, reason: "lokasi_campur" });
+  });
+
   it("a non-zero Retribusi Pemda is collected at cost as its own line and marked for a Setor Retribusi", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { admin } = await pricedLokasiMitra(setup);
