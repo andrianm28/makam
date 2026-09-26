@@ -73,7 +73,7 @@ function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
     case "nomor_sudah_dipakai":
       return "Nomor baru sudah dipakai Akun lain.";
     case "berkas_gagal_disimpan":
-      return "Berkas KTP tidak bisa disimpan: penyimpanan berkas belum tersedia di lingkungan ini (menunggu S3, tiket 60). Nomor belum dipindah.";
+      return "Penyimpanan berkas belum tersedia di lingkungan ini. Nomor belum dipindah.";
     case "nomor_tidak_valid":
     case "nomor_bukan_indonesia":
       return phoneNumberRefusals[refused.reason];

@@ -517,7 +517,7 @@ describe('"Kirim lewat email" after a WhatsApp Kode Masuk', () => {
   });
 });
 
-describe("when EmailSender refuses (staging and production until ticket 68)", () => {
+describe("when EmailSender refuses", () => {
   it("the email step still gives the same reply, the failure counts against no limit, and it is reported without the address or code", async () => {
     const fake = new FakeEmailSender();
     let down = true;

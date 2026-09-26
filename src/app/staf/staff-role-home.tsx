@@ -21,17 +21,17 @@ const menus: Record<StaffRole, MenuItem[]> = {
       description: "Nama resmi, alamat dan kontak Operator; nomor WhatsApp CS dan jam balasnya.",
     },
     { label: "Pindah Nomor", href: "/staf/admin-platform/pindah-nomor", description: "Pindahkan Akun ke nomor baru setelah cek KTP." },
-    { label: "Antrean", description: "Segera hadir (tiket 17)." },
+    { label: "Antrean", description: "Segera hadir." },
     { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi", description: "Onboarding Lokasi Mitra dan undangan Admin Lokasi." },
   ],
   admin_lokasi: [
-    { label: "Antrean Lokasi", description: "Segera hadir (tiket 23)." },
-    { label: "Denah", description: "Segera hadir (tiket 13)." },
+    { label: "Antrean Lokasi", description: "Segera hadir." },
+    { label: "Denah", description: "Segera hadir." },
   ],
-  petugas_lapangan: [{ label: "Tugas saya", description: "Segera hadir (tiket 15)." }],
+  petugas_lapangan: [{ label: "Tugas saya", description: "Segera hadir." }],
   mitra_jasa: [
-    { label: "Pekerjaan", description: "Segera hadir (tiket 56)." },
-    { label: "Pencairan", description: "Segera hadir (tiket 57)." },
+    { label: "Pekerjaan", description: "Segera hadir." },
+    { label: "Pencairan", description: "Segera hadir." },
   ],
 };
 
