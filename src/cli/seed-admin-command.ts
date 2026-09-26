@@ -62,15 +62,10 @@ export async function seedAdminCommand(
       const { identity } = composeIdentity({ env, db: database.db, adapters });
       const result = await identity.seedFirstAdminPlatform({ phoneNumber, email, emailTerverifikasi });
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };
-      if (emailTerverifikasi) {
-        return {
-          exitCode: 0,
-          output: `Admin Platform pertama dibuat: ${result.account.phoneNumber} (${email.toLowerCase()}, Email Terverifikasi). Masuk lewat /masuk dengan email, lalu daftarkan TOTP.`,
-        };
-      }
+      const [label, masuk] = emailTerverifikasi ? [", Email Terverifikasi", "/masuk dengan email"] : ["", "/masuk"];
       return {
         exitCode: 0,
-        output: `Admin Platform pertama dibuat: ${result.account.phoneNumber} (${email.toLowerCase()}). Masuk lewat /masuk, lalu daftarkan TOTP.`,
+        output: `Admin Platform pertama dibuat: ${result.account.phoneNumber} (${email.toLowerCase()}${label}). Masuk lewat ${masuk}, lalu daftarkan TOTP.`,
       };
     } finally {
       await database.close();
