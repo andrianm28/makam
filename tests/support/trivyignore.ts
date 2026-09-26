@@ -2,9 +2,11 @@
  * The policy for `.trivyignore` (ticket 71): every accepted exception to the
  * image scan names its reason in a `#` comment directly above it and an expiry
  * as `exp:YYYY-MM-DD` (Trivy stops ignoring it after that date, so the scan
- * fails again and the exception must be looked at). Returns what breaks it.
+ * fails again and the exception must be looked at), at most 90 days after
+ * `today` (YYYY-MM-DD). Returns what breaks it.
  */
-export function trivyIgnoreProblems(file: string): string[] {
+export function trivyIgnoreProblems(file: string, today: string): string[] {
+  const latest = addDays(today, MAX_DAYS);
   const problems: string[] = [];
   const lines = file.split("\n");
   lines.forEach((raw, index) => {
@@ -17,9 +19,19 @@ export function trivyIgnoreProblems(file: string): string[] {
     if (!expiry) problems.push(`${where} has no expiry (add exp:YYYY-MM-DD)`);
     else if (!isCalendarDate(expiry.slice("exp:".length))) {
       problems.push(`${where} has an invalid expiry ${expiry} (use exp:YYYY-MM-DD)`);
+    } else if (expiry.slice("exp:".length) > latest) {
+      problems.push(`${where} expires more than ${MAX_DAYS} days out (${expiry}; latest allowed ${latest})`);
     }
   });
   return problems;
+}
+
+const MAX_DAYS = 90;
+
+function addDays(date: string, days: number): string {
+  const at = new Date(`${date}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + days);
+  return at.toISOString().slice(0, 10);
 }
 
 function isCalendarDate(value: string): boolean {

@@ -8,7 +8,7 @@
 #   CVE-YYYY-NNNNN exp:YYYY-MM-DD
 #
 # The reason is the `#` comment directly above the ID; `exp:` is required and
-# at most 90 days out. After that date Trivy stops ignoring it, the scan fails
+# at most 90 days out (the test enforces it). After that date Trivy stops ignoring it, the scan fails
 # again and the exception must be looked at anew. tests/trivyignore.test.ts
 # checks this format.
 #
