@@ -198,7 +198,13 @@ test("Pemulihan Akun: Admin Platform moves a Pemesan's Akun to a new Email Terve
   await expect(pemesan.getByTestId("akun-login-email")).toHaveText(newEmail);
 });
 
-test("Admin Platform deactivates the invitee: staff access ends, but the Akun still logs in as a Pemesan", async ({
+/*
+ * One login after the deactivation: the Kode Masuk to one email can be sent
+ * again only 60 s after the last one (the invitee's login above), so this
+ * test waits for it once. That a Dinonaktifkan Akun still logs in as a
+ * Pemesan is covered by the identity module's tests.
+ */
+test("Admin Platform deactivates the invitee, then re-invites it: staff access ends, and the next login holds the role again", async ({
   browser,
   request,
 }) => {
@@ -218,38 +224,20 @@ test("Admin Platform deactivates the invitee: staff access ends, but the Akun st
   await staffPage.goto("/staf/petugas-lapangan");
   await expect(staffPage).toHaveURL(/\/masuk/);
 
-  // The Akun logs in again as a Pemesan: Akun Saya opens, the staff area does not.
-  const pemesan = await (await browser.newContext()).newPage();
-  await masuk(pemesan, request, invitee);
-  await expect(pemesan).toHaveURL(/\/akun$/);
-  await expect(pemesan.getByTestId("akun-login-email")).toHaveText(invitee);
-  await pemesan.goto("/staf");
-  await expect(pemesan).toHaveURL(/\/akun$/);
-  await pemesan.goto("/staf/petugas-lapangan");
-  await expect(pemesan).not.toHaveURL(/\/staf\/petugas-lapangan/);
-  await expect(pemesan.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
-});
-
-test("Admin Platform invites the Dinonaktifkan Akun again: its next login holds the role again", async ({
-  browser,
-  request,
-}) => {
-  test.setTimeout(120_000);
-  const page = adminPage;
-  await page.goto("/staf/admin-platform/staf");
+  // Re-inviting the Dinonaktifkan Akun: its next Kode Masuk login holds the role again.
   await page.getByLabel("Email").fill(invitee);
   await page.getByLabel("Nomor telepon").fill(inviteePhone.typed);
   await page.getByLabel("Peran").selectOption({ label: "Petugas Lapangan" });
   await page.getByRole("button", { name: "Kirim undangan" }).click();
   await expect(page.getByRole("status")).toContainText(`Undangan Petugas Lapangan terkirim ke ${invitee}`);
 
-  const staffPage = await (await browser.newContext()).newPage();
-  await masuk(staffPage, request, invitee);
-  await expect(staffPage).toHaveURL(/\/staf\/petugas-lapangan$/);
-  await expect(staffPage.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
+  const again = await (await browser.newContext()).newPage();
+  await masuk(again, request, invitee);
+  await expect(again).toHaveURL(/\/staf\/petugas-lapangan$/);
+  await expect(again.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
 
   await page.reload();
-  const row = page.getByRole("row", { name: new RegExp(invitee.replace(/[.+]/g, "\\$&")) });
-  await expect(row).toContainText("Petugas Lapangan");
-  await expect(row).not.toContainText("Dinonaktifkan");
+  const reinvited = page.getByRole("row", { name: new RegExp(invitee.replace(/[.+]/g, "\\$&")) });
+  await expect(reinvited).toContainText("Petugas Lapangan");
+  await expect(reinvited).not.toContainText("Dinonaktifkan");
 });
