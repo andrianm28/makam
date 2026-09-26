@@ -149,3 +149,27 @@ describe("the calculator refuses a Lokasi whose Jam Operasional is belum diisi",
     expect(addWorkingDays(null, start, 2)).toEqual(belumDiisi);
   });
 });
+
+describe("a Lokasi open 00:00–24:00 every day", () => {
+  const allDay = { opens: "00:00", closes: "24:00" };
+  const alwaysOpen: JamOperasional = {
+    weekly: {
+      monday: allDay,
+      tuesday: allDay,
+      wednesday: allDay,
+      thursday: allDay,
+      friday: allDay,
+      saturday: allDay,
+      sunday: allDay,
+    },
+    tanggalTutup: [],
+  };
+
+  it("counts service hours across midnight without a pause", () => {
+    expect(deadline(alwaysOpen, wib("2026-10-05 23:00"), 2)).toEqual(at("2026-10-06 01:00"));
+  });
+
+  it("a Hari Kerja closing at 24:00 ends at the end of that day", () => {
+    expect(nextWorkingDayEnd(alwaysOpen, wib("2026-10-05 10:00"))).toEqual(at("2026-10-07 00:00"));
+  });
+});
