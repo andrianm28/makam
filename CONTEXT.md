@@ -34,6 +34,18 @@ _Avoid_: Jam kerja, jam buka (as the setting)
 The Admin Lokasi a family can phone outside a Lokasi Mitra's Jam Operasional; always one of that Lokasi's Admin Lokasi.
 _Avoid_: On-call, kontak darurat, penjaga (as the role)
 
+**Tanggal Tutup**:
+A whole date on which a Lokasi Mitra is closed despite its weekly hours; part of its Jam Operasional.
+_Avoid_: Hari libur (for a Lokasi's own closure), cuti
+
+**Hari Kerja**:
+A day that counts toward an "N hari kerja" deadline: for Admin Platform, Monday–Friday that is not a Hari Libur Nasional; for an Admin Lokasi, an open day of its Lokasi's Jam Operasional that is not a Tanggal Tutup.
+_Avoid_: Working day (in copy), hari aktif, business day
+
+**Hari Libur Nasional**:
+A date on the national holiday list Admin Platform keeps; it is not a Hari Kerja for Admin Platform, and does not close a Lokasi Mitra unless it is also a Tanggal Tutup there.
+_Avoid_: Tanggal merah, cuti bersama (unless listed)
+
 **Kunjungan Verifikasi**:
 A Petugas Lapangan's site visit to a Lokasi Mitra confirming its address, map pin, facilities and photos; required before it is listed and repeated whenever Admin Platform asks.
 _Avoid_: Survei (reserved for Wakaf Tanah), audit
