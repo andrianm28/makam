@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, count, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog, AuditSnapshot } from "@/domain/audit";
 import {
@@ -19,7 +19,7 @@ import {
   type LokasiPolicies,
 } from "./policies";
 import { lokasiProfileSchema, type LokasiFacility, type LokasiProfileInput } from "./profile";
-import { lokasiMitra as lokasiMitraTable, type lokasiMitraStatuses } from "./schema";
+import { lokasiMitra as lokasiMitraTable, lokasiMitraStatuses } from "./schema";
 
 export type LokasiMitraStatus = (typeof lokasiMitraStatuses)[number];
 
@@ -182,6 +182,18 @@ const summaryColumns = {
 export async function allLokasiMitra(deps: LokasiDeps, by: Actor): Promise<LokasiMitraSummary[]> {
   if (writeRefusal(by, "lokasi.lihat_semua", semuaLokasiMitraResource())) return [];
   return deps.db.select(summaryColumns).from(lokasiMitraTable).orderBy(asc(lokasiMitraTable.name), asc(lokasiMitraTable.id));
+}
+
+/** How many Lokasi Mitra are in each status (Admin Platform; all zero for anyone else). */
+export async function lokasiMitraCountsByStatus(deps: LokasiDeps, by: Actor): Promise<Record<LokasiMitraStatus, number>> {
+  const counts = Object.fromEntries(lokasiMitraStatuses.map((status) => [status, 0])) as Record<LokasiMitraStatus, number>;
+  if (writeRefusal(by, "lokasi.lihat_semua", semuaLokasiMitraResource())) return counts;
+  const rows = await deps.db
+    .select({ status: lokasiMitraTable.status, total: count() })
+    .from(lokasiMitraTable)
+    .groupBy(lokasiMitraTable.status);
+  for (const row of rows) counts[row.status] = row.total;
+  return counts;
 }
 
 /** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */

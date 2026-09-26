@@ -6,6 +6,7 @@ import {
   lokasiOnTestDatabase,
   newLokasiMitra,
   setLokasiMitraStatusForTest,
+  signedInAdminLokasi,
   signedInAdminPlatform,
 } from "../../../tests/support/lokasi";
 
@@ -41,6 +42,39 @@ describe("a new Lokasi Mitra", () => {
 describe("the status of a Lokasi Mitra", () => {
   it("is one of Belum Tayang, Terverifikasi, Ditangguhkan and Berhenti; only Belum Tayang is set here (the others by the publish gate and ticket 59)", () => {
     expect(LOKASI_MITRA_STATUSES).toEqual(["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"]);
+  });
+});
+
+describe("how many Lokasi Mitra there are in each status", () => {
+  it("Admin Platform counts every Lokasi Mitra by status; an Admin Lokasi counts none", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    expect(await setup.lokasi.lokasiMitraCountsByStatus(admin)).toEqual({
+      belum_tayang: 0,
+      terverifikasi: 0,
+      ditangguhkan: 0,
+      berhenti: 0,
+    });
+
+    const first = await newLokasiMitra(setup, admin, "Makam Wakaf Al-Ikhlas");
+    await newLokasiMitra(setup, admin, "TPU Keluarga Sentosa");
+    const third = await newLokasiMitra(setup, admin, "Makam Keluarga Damai");
+    await setLokasiMitraStatusForTest(db, first.id, "terverifikasi");
+    await setLokasiMitraStatusForTest(db, third.id, "ditangguhkan");
+
+    expect(await setup.lokasi.lokasiMitraCountsByStatus(admin)).toEqual({
+      belum_tayang: 1,
+      terverifikasi: 1,
+      ditangguhkan: 1,
+      berhenti: 0,
+    });
+    const adminLokasi = await signedInAdminLokasi(setup, admin, [first.id]);
+    expect(await setup.lokasi.lokasiMitraCountsByStatus(adminLokasi)).toEqual({
+      belum_tayang: 0,
+      terverifikasi: 0,
+      ditangguhkan: 0,
+      berhenti: 0,
+    });
   });
 });
 

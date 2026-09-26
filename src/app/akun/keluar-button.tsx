@@ -21,15 +21,16 @@ async function unsubscribeStaffPush(): Promise<void> {
   }
 }
 
-/** Keluar: turns this browser's staff push off, then ends the session. */
+/** Keluar: turns this browser's staff push off, then ends the session (and goes to Masuk). */
+export async function keluarDariBrowserIni(): Promise<void> {
+  await unsubscribeStaffPush();
+  await keluar();
+}
+
+/** The Keluar button (Akun Saya); the staff shell's account menu calls `keluarDariBrowserIni` itself. */
 export function KeluarButton({ size }: { size?: "sm" }) {
   return (
-    <form
-      action={async () => {
-        await unsubscribeStaffPush();
-        await keluar();
-      }}
-    >
+    <form action={keluarDariBrowserIni}>
       <Button type="submit" variant="outline" size={size}>
         Keluar
       </Button>

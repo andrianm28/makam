@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { hapusEmail, kirimKodeVerifikasi, konfirmasiVerifikasi } from "@/app/akun/email-actions";
 import { Button } from "@/components/ui/button";
-import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "./state";
+import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "@/components/email/state";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -11,7 +11,7 @@ const inputClass =
 function Feedback({ state }: { state: EmailProfileState | { status: "gagal"; message: string } | { status: "idle" } }) {
   if (state.status === "idle") return null;
   return state.status === "berhasil" ? (
-    <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+    <p role="status" className="text-sm text-success-soft-foreground">
       {state.message}
     </p>
   ) : (
@@ -53,7 +53,7 @@ export function EmailSection({
         ) : null}
         <span
           data-testid="akun-email-status"
-          className={verified ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}
+          className={verified ? "text-success-soft-foreground" : "text-muted-foreground"}
         >
           {email ? (verified ? "Terverifikasi" : "Belum terverifikasi") : "Belum ada email"}
         </span>

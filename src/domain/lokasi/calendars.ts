@@ -1,5 +1,6 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, gte } from "drizzle-orm";
 import { z } from "zod";
+import { wibDateOf } from "@/lib/time/jakarta";
 import { hariLiburNasionalResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { tanggalSchema, type Tanggal } from "./jam-operasional-schema";
 import { actingRole, type LokasiDeps, type NotFound } from "./lokasi-mitra";
@@ -15,6 +16,17 @@ export async function hariLiburNasional(deps: Pick<LokasiDeps, "db">): Promise<H
     .select({ date: lokasiHariLiburNasional.date, name: lokasiHariLiburNasional.name })
     .from(lokasiHariLiburNasional)
     .orderBy(asc(lokasiHariLiburNasional.date));
+}
+
+/** The first Hari Libur Nasional on the list from today (WIB, on the Clock), today included; null when none is ahead. */
+export async function nextHariLiburNasional(deps: Pick<LokasiDeps, "db" | "clock">): Promise<HariLiburNasional | null> {
+  const [next] = await deps.db
+    .select({ date: lokasiHariLiburNasional.date, name: lokasiHariLiburNasional.name })
+    .from(lokasiHariLiburNasional)
+    .where(gte(lokasiHariLiburNasional.date, wibDateOf(deps.clock.now())))
+    .orderBy(asc(lokasiHariLiburNasional.date))
+    .limit(1);
+  return next ?? null;
 }
 
 /** The Admin Platform Hari Kerja calendar: Monday–Friday minus the Hari Libur Nasional on the list. */

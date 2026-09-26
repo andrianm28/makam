@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AuditEntry, AuditSnapshot } from "@/domain/audit";
 import { formatWib } from "@/lib/time/jakarta";
-import { auditActionLabels, auditActorLabel } from "./labels";
+import { auditActionLabels, auditActorLabel } from "@/lib/lokasi-labels";
 
 /** A snapshot as short readable text: `key: value` pairs, nested values as JSON. */
 function describe(snapshot: AuditSnapshot): string {

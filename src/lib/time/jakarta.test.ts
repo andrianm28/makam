@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTanggal, formatTanggalJam, formatWib, wib, wibDateOf } from "./jakarta";
+import { formatTanggal, formatTanggalJam, formatTanggalTanpaTahun, formatWib, wib, wibDateOf } from "./jakarta";
 
 describe("WIB time", () => {
   it("the WIB calendar date of an instant: 23:30 UTC is already the next day in Jakarta", () => {
@@ -17,6 +17,11 @@ describe("Indonesian dates", () => {
   it("a WIB calendar date reads '1 November 2026'", () => {
     expect(formatTanggal("2026-11-01")).toBe("1 November 2026");
     expect(formatTanggal("2027-01-20")).toBe("20 Januari 2027");
+  });
+
+  it("a WIB calendar date without its year reads '25 Desember' (the year said beside it)", () => {
+    expect(formatTanggalTanpaTahun("2026-12-25")).toBe("25 Desember");
+    expect(formatTanggalTanpaTahun("2027-01-01")).toBe("1 Januari");
   });
 
   it("an instant reads as its WIB date and time: '1 Oktober 2026, 21.00 WIB'", () => {

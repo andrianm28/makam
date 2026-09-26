@@ -19,9 +19,9 @@ interface MapHandle {
   onChange: { current: ((pin: Pin) => void) | undefined };
 }
 
-// A plain CSS dot: Leaflet's default marker images do not survive bundling.
+// A plain CSS dot in the brand colours: Leaflet's default marker images do not survive bundling.
 const PIN_HTML =
-  '<span style="display:block;width:18px;height:18px;border-radius:9999px;background:#dc2626;border:3px solid white;box-shadow:0 0 0 1px #0006"></span>';
+  '<span style="display:block;width:18px;height:18px;border-radius:9999px;background:var(--primary);border:3px solid var(--card);box-shadow:var(--shadow-md)"></span>';
 
 /** Moves (or places, or removes) the handle's marker to `pin`. */
 function placeMarker(handle: MapHandle, pin: Pin | null) {

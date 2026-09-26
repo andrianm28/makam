@@ -42,17 +42,3 @@ export function LokasiSwitcher({ lokasiMitra, current }: { lokasiMitra: LokasiMi
     </nav>
   );
 }
-
-/** The Admin Lokasi menu of one Lokasi Mitra. Items without a page are shells for later tickets. */
-export function adminLokasiMenu(lokasiId: string) {
-  return [
-    { label: "Audit Log", href: `/staf/admin-lokasi/${lokasiId}/audit-log`, description: "Semua perubahan pada Lokasi ini." },
-    {
-      label: "Jam Operasional",
-      href: `/staf/admin-lokasi/${lokasiId}/jam-operasional`,
-      description: "Jam buka mingguan, tanggal tutup dan Kontak Siaga.",
-    },
-    { label: "Antrean Lokasi", description: "Segera hadir." },
-    { label: "Denah", description: "Segera hadir." },
-  ];
-}
