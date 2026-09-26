@@ -168,6 +168,7 @@ describe("the command palette (role visibility on the server)", () => {
         items: [
           { label: "Staf", href: "/staf/admin-platform/staf" },
           { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
+          { label: "Tugas Lapangan", href: "/staf/admin-platform/tugas-lapangan" },
         ],
       },
       { label: "Operator", items: [{ label: "Pengaturan Operator", href: "/staf/admin-platform/pengaturan-operator" }] },
@@ -188,6 +189,6 @@ describe("the command palette (role visibility on the server)", () => {
 
     const shell = await staffShell();
     expect(Object.keys(shell!.palette)).toEqual(["petugas_lapangan", "mitra_jasa"]);
-    expect(hrefs(shell!.palette)).toEqual(["/staf/petugas-lapangan", "/staf/mitra-jasa"]);
+    expect(hrefs(shell!.palette)).toEqual(["/staf/petugas-lapangan", "/staf/petugas-lapangan/tugas", "/staf/mitra-jasa"]);
   });
 });
