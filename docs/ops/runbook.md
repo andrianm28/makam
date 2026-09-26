@@ -69,7 +69,7 @@ to run unless the first three match `--env`:
 | `MAKAM_ENV_FILE` | `/opt/makam-v1/staging/staging.env` | this file again, as the containers' `env_file` |
 | `MAKAM_WEB_PORT` | `3110` | web's port on 127.0.0.1 |
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
-| `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and OTP |
+| `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and Kode Masuk codes |
 | `TOTP_ENCRYPTION_KEY` | secret, `openssl rand -base64 32` (exactly 32 bytes) | encrypts Admin Platform TOTP secrets at rest; **required from ticket 09 on**: without it `migrate`, `web` and `worker` refuse to start |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
@@ -85,108 +85,108 @@ shows the running `APP_ENV` (`staging`) without any secret.
 ## First Admin Platform (`seed:admin`)
 
 The only seed (spec, Pengaturan Operator): it creates the first Admin Platform
-from a WhatsApp number (+62) and an email, and nothing else. It is refused once
+from an email, seeded as its Email Terverifikasi (the Akun's key, ADR 0004),
+and a phone number (+62) as its contact, and nothing else. It is refused once
 any Admin Platform exists; every later staff member, Admin Platform included,
 comes by Undangan Staf from the staff area (`/staf/admin-platform/staf`).
 
 ```bash
 cd /opt/makam-v1/staging
 S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
-$S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id
-# [seed:admin] Admin Platform pertama dibuat: +62812xxxxxxxx (admin@example.co.id). ...
+$S exec web node dist/seed-admin.mjs --email admin@example.co.id --phone 0812xxxxxxxx
+# [seed:admin] Admin Platform pertama dibuat: admin@example.co.id (Email Terverifikasi; telepon +62812xxxxxxxx). ...
 # exit 1 "Ditolak: sudah ada Admin Platform ..." when one exists; exit 2 prints the usage.
 ```
 
-Locally: `npm run seed:admin -- 0812xxxxxxxx admin@example.co.id` (with
-`DATABASE_URL`), or in a worktree's local stack `npm run stack -- exec web node dist/seed-admin.mjs ...`
+Locally: `npm run seed:admin -- --email admin@example.co.id --phone 0812xxxxxxxx`
+(with `DATABASE_URL`), or in a worktree's local stack `npm run stack -- exec web node dist/seed-admin.mjs ...`
 (the main checkout's `makam-v1-dev` stack: `docker compose -p makam-v1-dev exec web ...`).
 
-The seeded Admin Platform then logs in at `/masuk` with the WhatsApp OTP
-(staging needs the live WhatsApp adapter, ticket 62, before any OTP arrives)
-and enrols an authenticator app for TOTP at once. There is no self-service
+The seeded Admin Platform then logs in at `/masuk` with the Kode Masuk sent to
+that email and enrols an authenticator app for TOTP at once. The Kode Masuk
+goes through the live EmailSender (the SumoPod SMTP relay, `SMTP_*` above):
+when the relay refuses, Masuk says the code could not be sent, and nothing
+else happens (run `email-check`, below, to see why). There is no self-service
 recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
 
-Until ticket 62, seed with `--email-terverifikasi` instead, so the Admin
-Platform can log in by email (see "Bootstrap: an Admin Platform's Email
-Terverifikasi" below):
-
-```bash
-$S exec web node dist/seed-admin.mjs 0812xxxxxxxx admin@example.co.id --email-terverifikasi
-# [seed:admin] Admin Platform pertama dibuat: +62812xxxxxxxx (admin@example.co.id, Email Terverifikasi). ...
-```
-
-When the number already has an Akun (someone ordered as a Pemesan with it), the
-seed reuses that Akun and sets the given email. If the email differs from the
-Akun's earlier Email Terverifikasi, it is no longer verified; with
-`--email-terverifikasi` the new email is then marked, audited as described below.
+When an Akun already has that email as its Email Terverifikasi (someone logged
+in with it before), the seed makes that Akun the Admin Platform and records the
+phone number on it. The seed records an Entri Audit (actor role `seed_cli`,
+action `staf.seed_admin_platform`).
 
 Before launch, the Admin Platform then enters Pengaturan Operator at
 `/staf/admin-platform/pengaturan-operator` (the Operator's legal name, address,
-phone and email; the CS WhatsApp number and its reply hours; ticket 06). None of
+phone and email; the CS WhatsApp number, used only for the `wa.me` link of
+"Tidak punya email? Minta bantuan CS", and its reply hours; ticket 06). None of
 these has a default, in env or in code.
 
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
 When an Admin Platform loses their authenticator, ops resets it. Confirm who
-is asking first (a call to the number on record, or another Admin Platform
-vouching), then:
+is asking first (a call to the phone number on record, or another Admin
+Platform vouching), then:
 
 ```bash
 cd /opt/makam-v1/staging
 S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
-$S exec web node dist/reset-totp.mjs 0812xxxxxxxx --alasan "HP hilang; dikonfirmasi lewat telepon oleh <nama>"
-# [reset-totp] TOTP Admin Platform +62812xxxxxxxx direset dan semua sesinya diakhiri. ...
+$S exec web node dist/reset-totp.mjs admin@example.co.id --alasan "HP hilang; dikonfirmasi lewat telepon oleh <nama>"
+# [reset-totp] TOTP Admin Platform admin@example.co.id direset dan semua sesinya diakhiri. ...
 ```
 
-It clears that Admin Platform's enrolled authenticator and ends every session
-of the Akun, so the next login by OTP must enrol a new authenticator. It
-records an Entri Audit (actor role `ops_cli`, action `akun.totp_reset`, the
-reason, before/after `terdaftar: true` → `false`; never the secret). Exit 0
-reset; exit 1 refused (the number is not an Admin Platform, the reason is
-empty, nothing is enrolled, or the database could not be reached: the message
-names only the error code); exit 2 prints the usage. Locally:
-`npm run reset-totp -- 0812xxxxxxxx --alasan "..."` (with `DATABASE_URL`).
+The email is the Admin Platform's Email Terverifikasi. The command clears its
+enrolled authenticator and ends every session of the Akun, so the next Kode
+Masuk login must enrol a new authenticator. It records an Entri Audit (actor
+role `ops_cli`, action `akun.totp_reset`, the reason, before/after
+`terdaftar: true` → `false`; never the secret). Exit 0 reset; exit 1 refused
+(the email is not an Admin Platform's Email Terverifikasi, the reason is empty,
+nothing is enrolled, or the database could not be reached: the message names
+only the error code); exit 2 prints the usage. Locally:
+`npm run reset-totp -- admin@example.co.id --alasan "..."` (with `DATABASE_URL`).
 
 Never delete from `identity_totp` or `identity_session` by hand: that leaves no
 Entri Audit. The Audit Log itself is append-only (the database refuses
 `UPDATE` and `DELETE` on `audit_entry`).
 
-## Bootstrap: an Admin Platform's Email Terverifikasi (`verify-email`, `seed:admin --email-terverifikasi`)
+## Akun from before ADR 0004 (Pemulihan Akun, `verify-email`)
 
-**This is the bootstrap path until ticket 62** (the live WhatsApp adapter).
-Before it, no WhatsApp Kode Masuk arrives on staging, and logging in by email
-needs an Email Terverifikasi, which itself needs a login. Anyone who can run
-commands in the `web` container is already fully trusted, so ops may mark an
-**Admin Platform's** email as Email Terverifikasi from the CLI, audited. It is
-never for a Pemesan or any other Akun Staf: they verify their email themselves
-(Verifikasi Email).
+Migration 0010 (ADR 0004) keys every Akun by its Email Terverifikasi. An Akun
+that had one keeps working. An Akun without one (a WhatsApp number only, or an
+email that was only typed in, e.g. on an Undangan Staf) keeps all its records
+but had its sessions ended and cannot log in: a Kode Masuk to the email typed
+on it makes a separate, new Akun. To give it back to its holder:
 
-For a new install, seed with the flag (see `seed:admin` above). For an Admin
-Platform that already exists (seeded without it), mark the email on record:
+- **Pemulihan Akun** (the normal path): another Admin Platform, at
+  `/staf/admin-platform/pemulihan-akun`, checks the holder's KTP, uploads it,
+  and moves the Akun to an email the holder can open (it may be the email
+  already on record). The staff roster marks such Akun Staf "Perlu Pemulihan
+  Akun". Pemulihan Akun needs the FileStore for the KTP check; until the live
+  S3 adapter is configured it refuses with "Email belum dipindah".
+- **`verify-email`** (break-glass, Admin Platform only): when the Akun is an
+  Admin Platform and no other Admin Platform can do the Pemulihan Akun (the
+  only one, or the FileStore is not live yet), ops marks the email on record as
+  its Email Terverifikasi from the server. Anyone who can run commands in the
+  `web` container is already fully trusted; it is never for a Pemesan or any
+  other Akun Staf.
 
 ```bash
 cd /opt/makam-v1/staging
 S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
-$S exec web node dist/verify-email.mjs 0812xxxxxxxx --alasan "Bootstrap staging sebelum WhatsApp live; oleh <nama>"
-# [verify-email] Email admin@example.co.id milik Admin Platform +62812xxxxxxxx kini Email Terverifikasi. ...
+$S exec web node dist/verify-email.mjs admin@example.co.id --alasan "Admin Platform lama tanpa Email Terverifikasi; oleh <nama>"
+# [verify-email] Email admin@example.co.id kini Email Terverifikasi Admin Platform itu. ...
 ```
 
-The Admin Platform then chooses "Masuk dengan email" at `/masuk`, enters the
-Kode Masuk sent to that email, and still passes TOTP (enrols it at the first
-login). Neither command logs anyone in or creates any Akun other than the
-seed's own. Each records an Entri Audit: action `akun.email_verifikasi`,
-before/after `terverifikasi: false` → `true`, with the reason; actor role
-`ops_cli` for `verify-email`, `seed_cli` for the seed (its reason is fixed:
-`seed:admin --email-terverifikasi ...`). No code or secret is in it.
-
-`verify-email` exits 0 when marked; exit 1 when refused: the number is not an
-Admin Platform, the reason is empty, the email already is its Email
-Terverifikasi, another Akun already has that email as its Email
-Terverifikasi (the database's unique index decides; resolve it through CS
-first), or the database could not be reached (the message names only the error
-code); exit 2 prints the usage. With `--email-terverifikasi`, the seed is
-refused in that last case too, and then creates nothing. Locally:
-`npm run verify-email -- 0812xxxxxxxx --alasan "..."` (with `DATABASE_URL`).
+The Admin Platform then logs in at `/masuk` with a Kode Masuk to that email and
+still passes TOTP. The command logs no one in and creates no Akun. It records
+an Entri Audit: action `akun.email_verifikasi`, actor role `ops_cli`,
+before/after `{ email, terverifikasi: false → true }`, with the reason; no code
+or secret is in it. Exit 0 when marked; exit 1 when refused: no Admin Platform
+has that email on record unverified (it already is an Email Terverifikasi, or
+the Akun is no Admin Platform), the reason is empty, another Akun already has
+that email as its Email Terverifikasi (the database's unique index decides;
+resolve it with a Pemulihan Akun to another email first), or the database could
+not be reached (the message names only the error code); exit 2 prints the
+usage. Locally: `npm run verify-email -- admin@example.co.id --alasan "..."`
+(with `DATABASE_URL`).
 
 Never set `email_verified_at` by hand: that leaves no Entri Audit and skips
 the Admin-Platform-only rule.
@@ -229,7 +229,7 @@ takes about 11 to 12 minutes.
   `deploy/ci/compose.e2e.yml` (the image by digest, a network of its own) and
   its own empty Postgres: `run --rm migrate`, then `up -d --wait`, with
   `deploy/ci/e2e.env` (`APP_ENV=development`, so the in-memory fakes stand in
-  for WhatsApp, email, payments and files). Then `npm run e2e` runs every spec
+  for email, web push, payments and files). Then `npm run e2e` runs every spec
   in `e2e/` against `http://127.0.0.1:3310`, seeding the e2e Admin Platform
   with `seed-admin` inside the web container. On failure the run keeps the
   `e2e-results` artifact (Playwright traces, screenshots, `stack.log` with the
@@ -567,10 +567,10 @@ Never paste values into the repo, a ticket or chat.
 | Secret | Rotate |
 |---|---|
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
-| `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending OTPs become invalid. |
+| `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending Kode Masuk become invalid. |
 | `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then run `reset-totp` (above) for every Admin Platform with `--alasan "Rotasi TOTP_ENCRYPTION_KEY"`, so each enrols again at its next login. Until it is reset, an Admin Platform cannot pass TOTP under the new key. |
 | `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. WhatsApp is unaffected. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. The email copy of each Peringatan Staf is unaffected. |
 | Staging Postgres password | see "Rotating a Postgres password" below |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |
