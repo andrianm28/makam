@@ -46,6 +46,7 @@ export type ClearingResult =
   | { ok: true; hakPakaiId: string | null }
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" }
+  | { ok: false; reason: "petak_tidak_ditemukan" }
   | { ok: false; reason: "bagian_kavling" }
   | { ok: false; reason: "sudah_ada_hak_pakai" }
   | { ok: false; reason: "pemegang_hak_wajib" }
@@ -96,7 +97,8 @@ export async function clearPetak(deps: InventoryDeps, by: Actor, lokasiId: strin
   if (await currentHakPakaiOfPetak(deps.db, petakId)) return { ok: false, reason: "sudah_ada_hak_pakai" };
 
   const now = deps.clock.now();
-  if (parsed.data.mode === "tersedia") {
+  const input = parsed.data;
+  if (input.mode === "tersedia") {
     return deps.audit.staffWrite(deps.db, async (tx, record) => {
       await lockBlok(tx, petak.blokId);
       await tx.update(inventoryPetak).set({ perluVerifikasi: false, tidakTersediaReason: null }).where(eq(inventoryPetak.id, petakId));
@@ -104,16 +106,18 @@ export async function clearPetak(deps: InventoryDeps, by: Actor, lokasiId: strin
       return { ok: true as const, hakPakaiId: null };
     });
   }
-  if (parsed.data.mode === "tidak_tersedia") {
+  if (input.mode === "tidak_tersedia") {
+    const reason = input.reason;
     return deps.audit.staffWrite(deps.db, async (tx, record) => {
       await lockBlok(tx, petak.blokId);
-      await tx.update(inventoryPetak).set({ perluVerifikasi: false, tidakTersediaReason: parsed.data.reason }).where(eq(inventoryPetak.id, petakId));
-      await record(clearingAuditEntry(by, lokasiId, petakId, petak.nomorMakam, { mode: "tidak_tersedia", reason: parsed.data.reason }));
+      await tx.update(inventoryPetak).set({ perluVerifikasi: false, tidakTersediaReason: reason }).where(eq(inventoryPetak.id, petakId));
+      await record(clearingAuditEntry(by, lokasiId, petakId, petak.nomorMakam, { mode: "tidak_tersedia", reason }));
       return { ok: true as const, hakPakaiId: null };
     });
   }
 
-  const occupied = validateOccupied(parsed.data);
+  const dataMenyusul = input.dataMenyusul;
+  const occupied = validateOccupied(input);
   if ("ok" in occupied) return occupied;
   if (!petak.jenisMakamId) return { ok: false, reason: "petak_tidak_ditemukan" };
   const tenure = await tenureOfJenisMakam(deps, by, lokasiId, petak.jenisMakamId);
@@ -126,7 +130,7 @@ export async function clearPetak(deps: InventoryDeps, by: Actor, lokasiId: strin
       petakId,
       kavlingId: null,
       tenure,
-      dataMenyusul: parsed.data.dataMenyusul,
+      dataMenyusul,
       pemegangHak: occupied.pemegangHak,
       pemakaman: occupied.pemakaman ? { ...occupied.pemakaman, petakId } : null,
     });
@@ -134,7 +138,7 @@ export async function clearPetak(deps: InventoryDeps, by: Actor, lokasiId: strin
     await record(
       clearingAuditEntry(by, lokasiId, petakId, petak.nomorMakam, {
         mode: "terisi",
-        dataMenyusul: parsed.data.dataMenyusul,
+        dataMenyusul,
         hakPakaiId,
         almarhum: occupied.pemakaman?.almarhumName ?? null,
       }),
@@ -149,7 +153,6 @@ const kavlingClearingSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("tersedia") }),
   z.object({ mode: z.literal("terisi"), dataMenyusul: z.boolean(), pemegangHak: pemegangHakSchema.optional(), pemakaman: kavlingPemakamanSchema.optional() }),
 ]);
-type KavlingClearingInput = z.infer<typeof kavlingClearingSchema>;
 export { kavlingClearingSchema };
 
 export type ClearKavlingResult = ClearingResult | NotFoundKavling | { ok: false; reason: "petak_bukan_anggota_kavling" };
