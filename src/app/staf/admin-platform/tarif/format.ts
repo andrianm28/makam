@@ -1,12 +1,4 @@
 import type { GlobalTariffKey, Tenure } from "@/domain/tariffs";
-import { JAKARTA_TIME_ZONE } from "@/lib/time/jakarta";
-
-const wibDate = new Intl.DateTimeFormat("en-CA", { timeZone: JAKARTA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
-
-/** The WIB calendar date of an instant, "YYYY-MM-DD" (the earliest effective date a form offers). */
-export function wibDateOf(instant: Date): string {
-  return wibDate.format(instant);
-}
 
 const bulan = [
   "Januari",

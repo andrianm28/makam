@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GLOBAL_TARIFF_KEYS, type GlobalTariffKey } from "@/domain/tariffs";
-import { formatWib } from "@/lib/time/jakarta";
+import { formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { formatRupiah, formatTanggal, globalTariffLabels, wibDateOf } from "./format";
+import { formatRupiah, formatTanggal, globalTariffLabels } from "./format";
 import { GlobalTariffForm } from "./tarif-forms";
 
 const descriptions: Record<GlobalTariffKey, string> = {

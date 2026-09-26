@@ -3,10 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { JenisMakamPrice, Tariffs } from "@/domain/tariffs";
-import { formatWib } from "@/lib/time/jakarta";
+import { formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { formatRupiah, formatTanggal, formatTenure, wibDateOf } from "../../../tarif/format";
+import { formatRupiah, formatTanggal, formatTenure } from "../../../tarif/format";
 import {
   BiayaPemakamanForm,
   JenisMakamTariffForm,

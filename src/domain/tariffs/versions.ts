@@ -1,4 +1,4 @@
-import { JAKARTA_TIME_ZONE, wib } from "@/lib/time/jakarta";
+import { wib } from "@/lib/time/jakarta";
 
 /** What every price-book version carries besides its values. */
 export interface VersionTimes {
@@ -8,18 +8,6 @@ export interface VersionTimes {
   inForceFrom: Date;
   /** Entry order, the tie-break between versions in force from the same instant. */
   seq: number;
-}
-
-const wibDateFormat = new Intl.DateTimeFormat("en-CA", {
-  timeZone: JAKARTA_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-/** The WIB calendar date of an instant, "YYYY-MM-DD". */
-export function wibDateOf(instant: Date): string {
-  return wibDateFormat.format(instant);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { wibDateOf } from "./versions";
+import { wibDateOf } from "@/lib/time/jakarta";
 
 /**
  * An amount of money: whole rupiah, zero or more, never a float. Every sum of
