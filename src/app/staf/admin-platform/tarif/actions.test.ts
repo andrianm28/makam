@@ -4,7 +4,7 @@ import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
 import { signInAsAdminLokasi, signInAsAdminPlatform } from "../../../../../tests/support/server-sign-in";
-import { simpanTarifGlobal, simpanTarifJenisMakam, tambahJenisMakam } from "./actions";
+import { simpanBiayaPemakaman, simpanTarifGlobal, simpanTarifJenisMakam, tambahJenisMakam } from "./actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => import("../../../../../tests/support/next-request"));
@@ -48,7 +48,7 @@ describe("tariff Server Actions", () => {
 
     expect(
       await simpanTarifGlobal(idle, form({ key: "biaya_layanan_platform", amount: "150.000,50", effectiveOn: "2026-11-01", reason: "" })),
-    ).toEqual({ status: "gagal", message: "Isi jumlah dalam rupiah bulat, misalnya 150.000." });
+    ).toEqual({ status: "gagal", message: "Isi jumlah dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya 150.000." });
     expect(
       await simpanTarifGlobal(idle, form({ key: "biaya_layanan_platform", amount: "150.000", effectiveOn: "2026-09-30", reason: "" })),
     ).toEqual({ status: "gagal", message: "Tanggal berlaku tidak boleh sebelum hari ini." });
@@ -120,6 +120,49 @@ describe("tariff Server Actions", () => {
       { tenure: { kind: "tahun", years: 5 } },
       { tenure: { kind: "selamanya" }, hargaPerpanjangan: 3_500_000 },
     ]);
+  });
+
+  it("a field that is not valid is named in the message: the date, the name, the years, each amount", async () => {
+    const admin = await signInAsAdminPlatform(server);
+    const lokasiId = await lokasiMitraOf(admin);
+    const typed = {
+      lokasiId,
+      name: "Reguler",
+      description: "",
+      hargaHakPakai: "7.500.000",
+      tenure: "tahun",
+      tenureYears: "5",
+      hargaPerpanjangan: "3.000.000",
+      effectiveOn: "2026-10-01",
+      reason: "",
+    };
+    const refused = (message: string) => ({ status: "gagal", message });
+
+    expect(
+      await simpanTarifGlobal(idle, form({ key: "biaya_layanan_platform", amount: "150.000", effectiveOn: "2026-02-30", reason: "" })),
+    ).toEqual(refused("Isi tanggal berlaku yang benar."));
+    expect(
+      await simpanTarifGlobal(idle, form({ key: "biaya_layanan_platform", amount: "100.000.000.001", effectiveOn: "2026-11-01", reason: "" })),
+    ).toEqual(refused("Isi jumlah dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya 150.000."));
+    expect(await tambahJenisMakam(idle, form({ ...typed, name: "   " }))).toEqual(refused("Isi nama Jenis Makam (paling banyak 120 huruf)."));
+    for (const tenureYears of ["", "0", "2,5", "101"]) {
+      expect(await tambahJenisMakam(idle, form({ ...typed, tenureYears }))).toEqual(
+        refused("Isi jumlah tahun per masa: bilangan bulat dari 1 sampai 100."),
+      );
+    }
+    expect(await tambahJenisMakam(idle, form({ ...typed, hargaHakPakai: "7,5 juta" }))).toEqual(
+      refused("Isi Harga Hak Pakai dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya 7.500.000."),
+    );
+    expect(await tambahJenisMakam(idle, form({ ...typed, hargaPerpanjangan: "" }))).toEqual(
+      refused("Isi Harga Perpanjangan per masa dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya 3.000.000."),
+    );
+    expect(
+      await simpanBiayaPemakaman(
+        idle,
+        form({ lokasiId, biayaPemakaman: "2.000.000", biayaPemakamanTumpang: "sama", effectiveOn: "2026-10-01", reason: "" }),
+      ),
+    ).toEqual(refused("Isi Biaya Pemakaman tumpang dalam rupiah bulat tanpa sen (kosongkan bila sama), paling banyak Rp 100.000.000.000."));
+    expect((await server.runtime().tariffs.asStaff(admin).lokasiTariffs(lokasiId, wib("2026-10-01 09:00"))).jenisMakam).toEqual([]);
   });
 });
 

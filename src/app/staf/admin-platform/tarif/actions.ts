@@ -43,7 +43,8 @@ function refusalMessage(refusal: TariffRefusal): string {
     case "tidak_ditemukan":
       return "Lokasi Mitra atau Jenis Makam ini tidak ditemukan.";
     case "tarif_tidak_valid":
-      return "Periksa lagi tarifnya: jumlah dalam rupiah bulat, masa tahun minimal 1, dan harga Perpanjangan diisi hanya untuk masa N tahun.";
+      // The form checks each field first; this is the module's own check behind it.
+      return "Tarif ini tidak bisa disimpan: periksa masa Hak Pakai dan harga Perpanjangan untuk masa N tahun.";
     case "tanggal_berlaku_lampau":
       return "Tanggal berlaku tidak boleh sebelum hari ini.";
     case "nama_sudah_ada":
@@ -53,7 +54,32 @@ function refusalMessage(refusal: TariffRefusal): string {
   }
 }
 
-const invalidAmount = "Isi jumlah dalam rupiah bulat, misalnya 150.000.";
+const rupiahBulat = (what: string, example: string) =>
+  `Isi ${what} dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya ${example}.`;
+
+/** What each form field says when it is not valid, in Bahasa Indonesia. */
+const fieldMessages: Record<string, string> = {
+  amount: rupiahBulat("jumlah", "150.000"),
+  hargaHakPakai: rupiahBulat("Harga Hak Pakai", "7.500.000"),
+  hargaPerpanjangan: rupiahBulat("Harga Perpanjangan per masa", "3.000.000"),
+  biayaPemakaman: rupiahBulat("Biaya Pemakaman", "2.000.000"),
+  biayaPemakamanTumpang:
+    "Isi Biaya Pemakaman tumpang dalam rupiah bulat tanpa sen (kosongkan bila sama), paling banyak Rp 100.000.000.000.",
+  effectiveOn: "Isi tanggal berlaku yang benar.",
+  name: "Isi nama Jenis Makam (paling banyak 120 huruf).",
+  description: "Keterangan paling banyak 500 huruf.",
+  tenure: "Pilih masa Hak Pakai: N tahun atau Selamanya.",
+  tenureYears: "Isi jumlah tahun per masa: bilangan bulat dari 1 sampai 100.",
+  reason: "Alasan paling banyak 500 huruf.",
+};
+/** A hidden field (the tariff, the Lokasi, the Jenis Makam) that is not valid: the page is stale or was tampered with. */
+const staleForm = "Formulir ini tidak lengkap. Muat ulang halaman lalu coba lagi.";
+
+/** The message for the first field of `input` that `schema` refuses. */
+function invalidFieldMessage(schema: z.ZodType, input: unknown): string {
+  const field = schema.safeParse(input).error?.issues[0]?.path[0];
+  return (typeof field === "string" && fieldMessages[field]) || staleForm;
+}
 
 /**
  * One tariff form: `guarded()` (the actor, `tarif.ubah` on `resource`, the
@@ -75,7 +101,9 @@ async function tariffWrite<S extends z.ZodType, R extends TariffResult>(options:
     run: async (actor, data) => ({ data, written: await options.run(actor, data) }),
   });
   if (!result.ok) {
-    return { status: "gagal", message: result.error === "input_tidak_valid" ? invalidAmount : guardMessage(result.error) };
+    // guarded() has authenticated and authorised the caller before it validated, so naming the field is safe.
+    if (result.error === "input_tidak_valid") return { status: "gagal", message: invalidFieldMessage(options.schema, options.input) };
+    return { status: "gagal", message: guardMessage(result.error) };
   }
   const { data, written } = result.value;
   if (!written.ok) return { status: "gagal", message: refusalMessage(written as TariffRefusal) };
@@ -116,11 +144,23 @@ export async function simpanTarifGlobal(_previous: FormState, formData: FormData
 const jenisMakamTariffFields = {
   hargaHakPakai: rupiahInput,
   tenure: z.enum(["selamanya", "tahun"]),
-  tenureYears: z.union([z.literal("").transform(() => null), z.coerce.number()]),
+  tenureYears: z.union([z.literal("").transform(() => null), z.string().regex(/^\d{1,3}$/).transform(Number)]),
   hargaPerpanjangan: optionalRupiahInput,
   effectiveOn,
   reason,
 };
+
+/** N years needs its number of years (1–100) and its Perpanjangan price; each missing one is named. */
+function checkTenure(
+  data: { tenure: "selamanya" | "tahun"; tenureYears: number | null; hargaPerpanjangan: number | null },
+  context: z.RefinementCtx,
+) {
+  if (data.tenure !== "tahun") return;
+  if (data.tenureYears === null || data.tenureYears < 1 || data.tenureYears > 100) {
+    context.addIssue({ code: "custom", path: ["tenureYears"], message: "tenureYears" });
+  }
+  if (data.hargaPerpanjangan === null) context.addIssue({ code: "custom", path: ["hargaPerpanjangan"], message: "hargaPerpanjangan" });
+}
 
 function tariffOf(data: {
   hargaHakPakai: number;
@@ -140,7 +180,7 @@ function tariffOf(data: {
   }
   return {
     hargaHakPakai: data.hargaHakPakai,
-    // A missing number of years is refused by the module (tarif_tidak_valid).
+    // checkTenure has made sure N years has its years.
     tenure: { kind: "tahun", years: data.tenureYears ?? 0 },
     hargaPerpanjangan: data.hargaPerpanjangan,
     effectiveOn: data.effectiveOn,
@@ -158,12 +198,14 @@ function jenisMakamTariffInput(formData: FormData) {
   };
 }
 
-const newJenisMakamSchema = z.object({
-  lokasiId: id,
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500),
-  ...jenisMakamTariffFields,
-});
+const newJenisMakamSchema = z
+  .object({
+    lokasiId: id,
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(500),
+    ...jenisMakamTariffFields,
+  })
+  .superRefine(checkTenure);
 
 /** Admin Platform adds a Jenis Makam to a Lokasi Mitra with its first tariff. */
 export async function tambahJenisMakam(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -184,7 +226,7 @@ export async function tambahJenisMakam(_previous: FormState, formData: FormData)
   });
 }
 
-const jenisMakamVersionSchema = z.object({ lokasiId: id, jenisMakamId: id, ...jenisMakamTariffFields });
+const jenisMakamVersionSchema = z.object({ lokasiId: id, jenisMakamId: id, ...jenisMakamTariffFields }).superRefine(checkTenure);
 
 /** Admin Platform enters a new tariff version of a Jenis Makam. */
 export async function simpanTarifJenisMakam(_previous: FormState, formData: FormData): Promise<FormState> {
