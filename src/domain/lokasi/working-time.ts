@@ -14,6 +14,18 @@ const HOUR = 60 * MINUTE;
 /** No search looks further ahead than this: a Jam Operasional has an open weekday and at most a year of Tanggal Tutup. */
 const MAX_DAYS_AHEAD = 3 * 366;
 
+/** The calculator cannot answer for a Lokasi whose Admin Lokasi has not saved its Jam Operasional yet. */
+export type JamOperasionalBelumDiisi = { ok: false; reason: "jam_operasional_belum_diisi" };
+
+/**
+ * A calculator answer: the deadline instant, or why there is none. A Lokasi's
+ * Jam Operasional is null until saved, and every calculator function refuses
+ * it rather than guess a schedule.
+ */
+export type WorkingTimeResult = { ok: true; at: Date } | JamOperasionalBelumDiisi;
+
+const belumDiisi: JamOperasionalBelumDiisi = { ok: false, reason: "jam_operasional_belum_diisi" };
+
 /** The open window of the WIB day starting at `dayStart`, or null when it is closed (weekday closed, or a Tanggal Tutup). */
 function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; closes: number } | null {
   const hours = schedule.weekly[weekdays[wibWeekdayIndex(dayStart)]];
@@ -28,8 +40,9 @@ function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; 
  * The instant `hours` service hours after `start`, counting only open hours:
  * the clock pauses outside them, on closed weekdays and on Tanggal Tutup.
  */
-export function deadline(schedule: JamOperasional, start: Date, hours: number): Date {
+export function deadline(schedule: JamOperasional | null, start: Date, hours: number): WorkingTimeResult {
   if (!(hours > 0) || !Number.isFinite(hours)) throw new RangeError(`service hours must be positive: ${hours}`);
+  if (!schedule) return belumDiisi;
   let remaining = hours * HOUR;
   const from = start.getTime();
   for (let day = 0, dayStart = wibDayStart(start); day <= MAX_DAYS_AHEAD; day++, dayStart = addWibDays(dayStart, 1)) {
@@ -37,7 +50,7 @@ export function deadline(schedule: JamOperasional, start: Date, hours: number): 
     if (!window) continue;
     const counted = Math.max(from, window.opens);
     if (counted >= window.closes) continue;
-    if (remaining <= window.closes - counted) return new Date(counted + remaining);
+    if (remaining <= window.closes - counted) return { ok: true, at: new Date(counted + remaining) };
     remaining -= window.closes - counted;
   }
   throw new RangeError("Jam Operasional has no open hours ahead");
@@ -48,12 +61,13 @@ export function deadline(schedule: JamOperasional, start: Date, hours: number): 
  * day itself never counts): every "N hari kerja" deadline. A Hari Kerja is an
  * open day of `calendar` that is not a Tanggal Tutup; it ends at its close.
  */
-export function addWorkingDays(calendar: JamOperasional, start: Date, n: number): Date {
+export function addWorkingDays(calendar: JamOperasional | null, start: Date, n: number): WorkingTimeResult {
   if (!Number.isInteger(n) || n < 1) throw new RangeError(`working days must be a whole number from 1: ${n}`);
+  if (!calendar) return belumDiisi;
   let counted = 0;
   for (let day = 1, dayStart = addWibDays(wibDayStart(start), 1); day <= MAX_DAYS_AHEAD; day++, dayStart = addWibDays(dayStart, 1)) {
     const window = openWindow(calendar, dayStart);
-    if (window && ++counted === n) return new Date(window.closes);
+    if (window && ++counted === n) return { ok: true, at: new Date(window.closes) };
   }
   throw new RangeError("the calendar has no Hari Kerja ahead");
 }
@@ -63,7 +77,7 @@ export function addWorkingDays(calendar: JamOperasional, start: Date, n: number)
  * end of the Lokasi's next Hari Kerja". The day of `start` never counts, even
  * before its opening.
  */
-export function nextWorkingDayEnd(schedule: JamOperasional, start: Date): Date {
+export function nextWorkingDayEnd(schedule: JamOperasional | null, start: Date): WorkingTimeResult {
   return addWorkingDays(schedule, start, 1);
 }
 
@@ -98,5 +112,7 @@ export const TPU_SCHEDULE: JamOperasional = {
 
 /** "N daytime hours" (the Keluhan first response): hours counted only within 06:00–18:00 WIB, i.e. the TPU schedule. */
 export function daytimeHoursDeadline(start: Date, hours: number): Date {
-  return deadline(TPU_SCHEDULE, start, hours);
+  const due = deadline(TPU_SCHEDULE, start, hours);
+  if (!due.ok) throw new Error("the TPU window is always set");
+  return due.at;
 }

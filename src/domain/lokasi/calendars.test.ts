@@ -15,12 +15,12 @@ describe("the Hari Libur Nasional list Admin Platform keeps", () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const thursdayBeforeNatal = wib("2026-12-24 09:00");
-    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), thursdayBeforeNatal, 1)).toEqual(wib("2026-12-25 23:59"));
+    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), thursdayBeforeNatal, 1)).toMatchObject({ at: wib("2026-12-25 23:59") });
 
     expect(await setup.lokasi.addHariLiburNasional(admin, natal)).toEqual({ ok: true });
 
     expect(await setup.lokasi.hariLiburNasional()).toEqual([natal]);
-    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), thursdayBeforeNatal, 1)).toEqual(wib("2026-12-28 23:59"));
+    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), thursdayBeforeNatal, 1)).toMatchObject({ at: wib("2026-12-28 23:59") });
     expect(await setup.audit.entriesAbout({ kind: "hari_libur_nasional", id: "2026-12-25" })).toMatchObject([
       { actor: { accountId: admin.accountId, role: "admin_platform" }, action: "hari_libur.tambah", before: null, after: natal, lokasiId: null },
     ]);
@@ -34,7 +34,7 @@ describe("the Hari Libur Nasional list Admin Platform keeps", () => {
     expect(await setup.lokasi.removeHariLiburNasional(admin, { date: natal.date, reason: "Salah tanggal" })).toEqual({ ok: true });
 
     expect(await setup.lokasi.hariLiburNasional()).toEqual([]);
-    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), wib("2026-12-24 09:00"), 1)).toEqual(wib("2026-12-25 23:59"));
+    expect(addWorkingDays(await setup.lokasi.adminPlatformCalendar(), wib("2026-12-24 09:00"), 1)).toMatchObject({ at: wib("2026-12-25 23:59") });
     expect((await setup.audit.entriesAbout({ kind: "hari_libur_nasional", id: "2026-12-25" })).at(-1)).toMatchObject({
       action: "hari_libur.hapus",
       before: natal,
@@ -119,7 +119,7 @@ describe("a Lokasi calendar", () => {
     const calendar = read.ok ? read.jamOperasional : null;
 
     // Tuesday 22nd → (Wednesday closed) Thursday 24th, Friday 25th (Natal, but open here), (26th a Tanggal Tutup), Sunday 27th.
-    expect(calendar && addWorkingDays(calendar, wib("2026-12-22 10:00"), 3)).toEqual(wib("2026-12-27 15:00"));
+    expect(addWorkingDays(calendar, wib("2026-12-22 10:00"), 3)).toMatchObject({ at: wib("2026-12-27 15:00") });
   });
 
 });

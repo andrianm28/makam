@@ -11,6 +11,8 @@ import {
 import { wib } from "@/lib/time/jakarta";
 
 const closed = null;
+/** The calculator's answer when it can compute: the deadline instant, given as WIB wall-clock. */
+const at = (wallClock: string) => ({ ok: true, at: wib(wallClock) });
 const hours = (opens: string, closes: string) => ({ opens, closes });
 
 /** Monday–Friday 08:00–16:00, Saturday 08:00–12:00, Sunday closed. */
@@ -30,7 +32,7 @@ const weekdaysAndSaturdayMorning: JamOperasional = {
 describe("deadline: N service hours inside a Lokasi's Jam Operasional", () => {
   it("submitted Saturday 21:00, Sunday closed, Monday 08:00–16:00: 2 service hours end Monday 10:00", () => {
     // 2026-10-03 is a Saturday.
-    expect(deadline(weekdaysAndSaturdayMorning, wib("2026-10-03 21:00"), 2)).toEqual(wib("2026-10-05 10:00"));
+    expect(deadline(weekdaysAndSaturdayMorning, wib("2026-10-03 21:00"), 2)).toEqual(at("2026-10-05 10:00"));
   });
 
   const withTanggalTutup: JamOperasional = {
@@ -49,7 +51,7 @@ describe("deadline: N service hours inside a Lokasi's Jam Operasional", () => {
     ["a start on a Tanggal Tutup counts from the next open day", withTanggalTutup, "2026-10-07 10:00", 1, "2026-10-08 09:00"],
     ["service hours may run over several open days", weekdaysAndSaturdayMorning, "2026-10-05 08:00", 20, "2026-10-07 12:00"],
   ])("%s", (_case, schedule, start, serviceHours, expected) => {
-    expect(deadline(schedule, wib(start), serviceHours)).toEqual(wib(expected));
+    expect(deadline(schedule, wib(start), serviceHours)).toEqual(at(expected));
   });
 });
 
@@ -66,7 +68,7 @@ describe("nextWorkingDayEnd: the end of the Lokasi's next Hari Kerja", () => {
     ["from Saturday night, over the closed Sunday, to Monday's close", weekdaysAndSaturdayMorning, "2026-10-03 21:00", "2026-10-05 16:00"],
     ["over a Tanggal Tutup", withTanggalTutup, "2026-10-05 10:00", "2026-10-07 16:00"],
   ])("%s", (_case, schedule, start, expected) => {
-    expect(nextWorkingDayEnd(schedule, wib(start))).toEqual(wib(expected));
+    expect(nextWorkingDayEnd(schedule, wib(start))).toEqual(at(expected));
   });
 });
 
@@ -77,7 +79,7 @@ describe("the TPU schedule: 06:00–18:00 WIB every day", () => {
     ["a start inside the window counts from the start", "2026-10-05 09:15", 2, "2026-10-05 11:15"],
     ["a start exactly at 18:00 counts from 06:00 next day", "2026-10-05 18:00", 2, "2026-10-06 08:00"],
   ])("%s", (_case, start, serviceHours, expected) => {
-    expect(deadline(TPU_SCHEDULE, wib(start), serviceHours)).toEqual(wib(expected));
+    expect(deadline(TPU_SCHEDULE, wib(start), serviceHours)).toEqual(at(expected));
   });
 });
 
@@ -102,11 +104,11 @@ describe("addWorkingDays on the Admin Platform calendar: Hari Kerja are Monday�
     ["a listed Hari Libur Nasional is skipped (Natal on Friday, then the weekend)", "2026-12-24 09:00", 1, "2026-12-28 23:59"],
     ["3 Hari Kerja over a Hari Libur Nasional and a weekend", "2026-12-23 09:00", 3, "2026-12-29 23:59"],
   ])("%s", (_case, start, n, expected) => {
-    expect(addWorkingDays(adminPlatform, wib(start), n)).toEqual(wib(expected));
+    expect(addWorkingDays(adminPlatform, wib(start), n)).toEqual(at(expected));
   });
 
   it("a date not on the Hari Libur Nasional list is a Hari Kerja, even if it is a holiday in real life", () => {
-    expect(addWorkingDays(adminPlatformCalendar([]), wib("2026-12-24 09:00"), 1)).toEqual(wib("2026-12-25 23:59"));
+    expect(addWorkingDays(adminPlatformCalendar([]), wib("2026-12-24 09:00"), 1)).toEqual(at("2026-12-25 23:59"));
   });
 });
 
@@ -122,11 +124,28 @@ describe("addWorkingDays on a Lokasi calendar: Hari Kerja are the open days of i
     ["2 Hari Kerja from Wednesday skip the Tanggal Tutup on Friday, ending at Saturday's short-hours close", "2026-10-07 10:00", 2, "2026-10-10 12:00"],
     ["3 Hari Kerja from Thursday skip the Tanggal Tutup and the closed Sunday", "2026-10-08 10:00", 3, "2026-10-13 16:00"],
   ])("%s", (_case, start, n, expected) => {
-    expect(addWorkingDays(closedWednesday, wib(start), n)).toEqual(wib(expected));
+    expect(addWorkingDays(closedWednesday, wib(start), n)).toEqual(at(expected));
   });
 
   it("1 Hari Kerja on a Lokasi calendar is the Lokasi's next working day end", () => {
     const start = wib("2026-10-07 10:00");
     expect(addWorkingDays(closedWednesday, start, 1)).toEqual(nextWorkingDayEnd(closedWednesday, start));
+  });
+});
+
+describe("the calculator refuses a Lokasi whose Jam Operasional is belum diisi", () => {
+  const belumDiisi = { ok: false, reason: "jam_operasional_belum_diisi" };
+  const start = wib("2026-10-05 10:00");
+
+  it("deadline refuses", () => {
+    expect(deadline(null, start, 2)).toEqual(belumDiisi);
+  });
+
+  it("nextWorkingDayEnd refuses", () => {
+    expect(nextWorkingDayEnd(null, start)).toEqual(belumDiisi);
+  });
+
+  it("addWorkingDays refuses", () => {
+    expect(addWorkingDays(null, start, 2)).toEqual(belumDiisi);
   });
 });

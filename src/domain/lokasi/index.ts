@@ -265,4 +265,6 @@ export {
   nextWorkingDayEnd,
   TPU_SCHEDULE,
   type HariLiburNasional,
+  type JamOperasionalBelumDiisi,
+  type WorkingTimeResult,
 } from "./working-time";

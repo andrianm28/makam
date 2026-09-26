@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { JamOperasional } from "@/domain/lokasi";
+import { addWorkingDays, deadline, type JamOperasional } from "@/domain/lokasi";
+import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
 
@@ -31,6 +32,18 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
 
     expect(await setup.lokasi.jamOperasional(admin, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
     expect(await setup.lokasi.jamOperasionalOf(lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
+  });
+
+  it("the calculator refuses a new Lokasi Mitra: no confirmation deadline or Hari Kerja deadline without a saved Jam Operasional", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const read = await setup.lokasi.jamOperasionalOf(lokasiMitra.id);
+    if (!read.ok) throw new Error(read.reason);
+    const submittedAt = wib("2026-10-05 10:00");
+
+    expect(deadline(read.jamOperasional, submittedAt, 2)).toEqual({ ok: false, reason: "jam_operasional_belum_diisi" });
+    expect(addWorkingDays(read.jamOperasional, submittedAt, 2)).toEqual({ ok: false, reason: "jam_operasional_belum_diisi" });
   });
 
   it("the Jam Operasional of no such Lokasi is not found", async () => {
