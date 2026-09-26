@@ -6,7 +6,7 @@ Spec: Domain modules > 5. Inventory (Ganti Pemegang Hak, change number, Pengemba
 
 ## What to build
 
-The other Pemegang Hak requests and holder changes. From the Makam tab: "Kembalikan Hak Pakai" for an unused plot (warned that compensation is agreed directly with the Lokasi), and "Ajukan Ganti Pemegang Hak" (new holder name + WhatsApp, jual / waris, optional documents). Both become Antrean Lokasi rows due in 2 working days. The Admin Lokasi performs Ganti Pemegang Hak with documents, keeping the holder history, and can change the Pemegang Hak's number after a KTP check. The Pemegang Hak changes the Calon Penghuni label freely; the Lokasi is notified, with no review.
+The other Pemegang Hak requests and holder changes. From the Makam tab: "Kembalikan Hak Pakai" for an unused plot (warned that compensation is agreed directly with the Lokasi), and "Ajukan Ganti Pemegang Hak" (new holder name + phone number and, if known, email, jual / waris, optional documents). Both become Antrean Lokasi rows due in 2 working days. The Admin Lokasi performs Ganti Pemegang Hak with documents, keeping the holder history, and can change the Pemegang Hak's contact number or recorded email after a KTP check. The Pemegang Hak changes the Calon Penghuni label freely; the Lokasi is notified, with no review.
 
 ## Acceptance criteria
 
@@ -19,3 +19,7 @@ The other Pemegang Hak requests and holder changes. From the Makam tab: "Kembali
 - [ ] Calon Penghuni label change: immediate, no review; the Admin Lokasi gets a notification.
 - [ ] Every Admin Lokasi action here is audited.
 - [ ] Tests: request status transitions (Perlu Perbaikan round trip, Dibatalkan only before a decision, row only while Diajukan); blocks on Ganti Pemegang Hak; sale vs inheritance; history kept; Pengembalian ends the Hak Pakai; label change notifies without a row.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the new Pemegang Hak is recorded with a phone and, when known, an email (the Makam tab matches by email); the Admin Lokasi's KTP-checked change covers the recorded email as well as the phone.

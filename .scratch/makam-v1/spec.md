@@ -3,7 +3,7 @@
 Status: ready-for-agent
 Map: [map.md](./map.md)
 
-Synthesised from the map's Decisions-so-far (tickets 01–29), `CONTEXT.md` and ADRs 0001–0003. Where a ticket was amended later, the latest amendment is what this spec states. Domain terms follow `CONTEXT.md`.
+Synthesised from the map's Decisions-so-far (tickets 01–29), `CONTEXT.md` and ADRs 0001–0004 (ADR 0004 of 2026-09-26 supersedes ADR 0003: v1 has no WhatsApp channel, and an Akun is keyed by its Email Terverifikasi). Where a ticket was amended later, the latest amendment is what this spec states. Domain terms follow `CONTEXT.md`.
 
 ## Problem Statement
 
@@ -23,12 +23,12 @@ The Operator, PT Jaya Korpora Prima, wants to run one trustworthy platform for a
    - **Pemesanan Terencana** at a Lokasi Mitra: the Pemesan picks exact plots on a Denah (plot map), the Admin Lokasi confirms, and the Pemesan pays within a 24 h hold.
    - **A further burial under an existing Hak Pakai** (tumpang, the next plot of a Kavling Keluarga, the Calon Penghuni's burial), with the Pemegang Hak's consent.
 2. **Perpanjangan Makam**
-   - At a Lokasi Mitra: look up the grave without exposing the Pemegang Hak, prove you are the holder (WhatsApp OTP, or documents checked by the Admin Lokasi), choose terms, pay, and receive a Bukti Perpanjangan.
+   - At a Lokasi Mitra: look up the grave without exposing the Pemegang Hak, prove you are the holder (a code sent to the email recorded on the Hak Pakai, or documents checked by the Admin Lokasi), choose terms, pay, and receive a Bukti Perpanjangan.
    - At a DKI TPU: a filing-only Pengurusan of the IPTM, paid before filing, with the new IPTM scan stored on the family's Makam TPU.
 3. **Layanan Makam**: one global catalog (flowers, headstone, cleaning, grass care, photo/video report) at fixed prices, ordered one-off or as a recurring Paket Layanan. At a Lokasi Mitra the Admin Lokasi does the work; at a TPU a Mitra Jasa does. Every job has in-app photo proof, a Keluhan window and optional Penilaian.
 4. **Wakaf Tanah**: a one-page Pengajuan Wakaf with manual status tracking. The Operator only facilitates and never receives land or money. Every ikrar goes to a Nazhir.
 
-Every family logs in with a code sent to their WhatsApp, or to their verified email once they have one (decision 2026-09-25), and the account is keyed by phone number; a new account is created only through WhatsApp. **Akun Saya** shows their orders, every grave they hold (Makam Keluarga) and their Pengajuan Wakaf.
+Every family logs in with a Kode Masuk sent to their email, and the Akun is keyed by its Email Terverifikasi (ADR 0004, 2026-09-26); a new Akun is created by the Kode Masuk at Kirim or on Masuk. The phone number stays on the Akun as a contact that is never verified. v1 sends nothing through WhatsApp: the CS WhatsApp number is only a `wa.me` link to a person, and a family without email is helped by CS, who may submit the order on its behalf. **Akun Saya** shows their orders, every grave they hold (Makam Keluarga) and their Pengajuan Wakaf.
 
 The back office has three staff views, all working from self-closing queues:
 - **Admin Platform**: onboarding, TPU work, refunds, Keluhan, chasing, Pencairan, Wakaf, through the Antrean.
@@ -45,7 +45,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 2. As a family planning ahead, I want a separate "Siapkan makam untuk nanti" entry, so that I'm not pushed through the urgent flow.
 3. As a visitor, I want tiles for Perpanjang Makam, Layanan Makam, Urus di TPU DKI and Wakaf Tanah below the hero (Perpanjang Makam and Layanan Makam open the Makam keluarga hub with that action preselected), so that every pillar is one tap away.
 4. As a visitor, I want a trust strip ("Lokasi terverifikasi · Harga transparan · Bantuan administrasi") linking to a Cara Kami Bekerja page, so that I can check what those claims mean.
-5. As a visitor, I want a WhatsApp CS button on every page, so that I can ask a human at any point.
+5. As a visitor, I want a WhatsApp CS button on every page (a `wa.me` link to a person answering in the WhatsApp Business app; ADR 0004), so that I can ask a human at any point.
 6. As a visitor on a phone, I want a menu drawer with the same items as the desktop top bar (Pesan Makam, Makam Keluarga, Layanan, Wakaf Tanah, Daftar Lokasi, Masuk / Akun Saya), so that navigation is the same on every device.
 7. As a visitor, I want a Daftar Lokasi Makam directory of every listed Lokasi Mitra and DKI TPU, filterable by city, type and facilities, with "mulai Rp X" all-in on each card (at a DKI TPU, X = the burial Biaya Pengurusan + Retribusi Pemda), so that I can browse without starting an order.
 8. As a visitor, I want every Lokasi Mitra page to show "Terverifikasi Makam.co.id · dikunjungi <bulan tahun>" with a "what we checked" popover, so that I know someone visited it.
@@ -64,24 +64,24 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 18. As a Pemesan, I want to see only cards with Tersedia units, each with its count, so that I never pick something that can't be served.
 19. As a Pemesan, I want a TPU section below the Lokasi Mitra cards ("dimakamkan lewat Pengurusan"), listing only TPUs taking new plots, and a type chip Semua / Lokasi Mitra / TPU DKI, so that I can compare both options.
 20. As a Pemesan outside a Lokasi's Jam Operasional, I want the card to say when confirmation will come and show the Kontak Siaga, so that I know whom to call at night.
-21. As a Pemesan, I want to give only my name and WhatsApp and the Almarhum's name and date of death (optionally planned burial time, a placement wish and an email for document copies), so that I can submit quickly.
-22. As a Pemesan, I want to name a Pemegang Hak other than me (name + WhatsApp), defaulting to "Saya sendiri", so that the right sits with the right family member.
+21. As a Pemesan, I want to give only my name, my email and a phone number, and the Almarhum's name and date of death (optionally planned burial time and a placement wish), so that I can submit quickly. (Amended 2026-09-26, ADR 0004: the email is required, proven by the Kode Masuk at Kirim and used for every message; the phone is an unverified contact.)
+22. As a Pemesan, I want to name a Pemegang Hak other than me (name + phone number, and email if known), defaulting to "Saya sendiri", so that the right sits with the right family member.
 23. As a Pemesan, I want to add "bisa hari-H" Layanan (e.g. bunga tabur) for the burial day, billed pay-after on the same Tagihan (also at a DKI TPU, where a Mitra Jasa does the work), so that I can arrange flowers in the same order.
 24. As a Pemesan, I want a sticky bottom bar showing "Total semua biaya" that expands to the itemised lines, so that I always know what I'll pay.
 25. As a Pemesan, I want the screen to say nothing is paid now and documents can follow, so that I'm not blocked at a hard moment.
-26. As a Pemesan, I want a WhatsApp OTP at Kirim to verify my number and create my account at the same moment, so that I don't have to sign up.
-27. As a Pemesan whose account has a verified email, I want a "Kirim lewat email" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me; without a verified email on my account I want to be pointed to the CS WhatsApp number instead. (Amended 2026-09-25: "an email" became "a verified email"; see story 189.)
+26. As a Pemesan, I want a Kode Masuk sent to my email at Kirim to verify my email and create my Akun at the same moment, so that I don't have to sign up. (Amended 2026-09-26, ADR 0004: was a WhatsApp OTP to my number.)
+27. ~~As a Pemesan whose account has a verified email, I want a "Kirim lewat email" button about 60 s after the OTP, so that a WhatsApp problem doesn't stop me; without a verified email on my account I want to be pointed to the CS WhatsApp number instead. (Amended 2026-09-25: "an email" became "a verified email"; see story 189.)~~ (removed 2026-09-26, ADR 0004). Replaced by: as a Pemesan without email, I want "Tidak punya email? Minta bantuan CS" at Kirim, opening a `wa.me` link to the CS WhatsApp number and showing the CS phone, so that CS / Admin Platform can submit the order on my behalf (audited).
 28. As a Pemesan, I want a Nomor Pemesanan and a status timeline straight after Kirim, with the computed confirmation deadline, so that I know when to expect an answer.
 29. As a Pemesan, I want the confirmation to show the assigned Petak Makam, the Admin Lokasi's contact, the document checklist and the payment deadline ("pemakaman tetap berjalan"), so that I know what to bring and that payment won't hold up the burial.
 30. As a Pemesan, I want to upload documents later or bring them on the day, so that paperwork doesn't block the burial.
 31. As a Pemesan, I want to accept or decline an alternative the Admin Lokasi offers (another Jenis Makam or day) with one tap, seeing the new all-in total, so that I can decide quickly.
-32. As a Pemesan whose order was declined, I want a WhatsApp link to other options in my city, with my data carried over and TPUs included, so that I can rebook in one tap.
+32. As a Pemesan whose order was declined, I want a link to other options in my city (by email and on my order page), with my data carried over and TPUs included, so that I can rebook in one tap.
 33. As a Pemesan whose order was declined, I want an Admin Platform staff member to phone me within 2 hours, so that I'm not left alone.
 34. As a Pemesan, I want to cancel myself before the burial (with a reason once it is confirmed), so that I can change plans. Nothing has been billed before confirmation; after confirmation the Tagihan is cancelled, and any payment already made is refunded except the Biaya Layanan Platform.
 35. As a Pemesan, I want to pay by VA or QRIS through a payment link that anyone in my family can use, so that whoever has the money can pay.
 36. As a Pemesan, I want a Bukti Pembayaran and then a Bukti Pemesanan once paid, so that I have proof of both the money and the right.
 37. As a Pemesan, I want the order to show Dimakamkan once the burial is recorded and Selesai once paid, with the Tagihan status as a separate badge, so that I can follow both.
-38. As a Pemesan, I want email copies of Tagihan, Bukti Pembayaran and Bukti Pemesanan if I gave an email, so that I have them outside WhatsApp.
+38. As a Pemesan, I want Tagihan, Bukti Pembayaran and Bukti Pemesanan sent to my email, so that I have them outside the site. (Amended 2026-09-26, ADR 0004: email is now every family's channel, not an optional copy.)
 
 ### Pemesanan Terencana
 
@@ -102,16 +102,16 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 50. As a family member, I want a "Makam keluarga" hub asking "Di mana makamnya?" (Lokasi Mitra / TPU DKI), so that every action on an existing grave starts in one place.
 51. As a family member, I want to look up a grave by Lokasi + Nomor Makam / Nomor Kavling or Almarhum name + year of death without seeing the Pemegang Hak's details, so that privacy is kept.
 52. As a family member, I want "Makamkan di sini" to request a tumpang, the next plot of a Kavling Keluarga or the Calon Penghuni's burial, asking only for the Almarhum and me, so that it's quick.
-53. As a Pemegang Hak logged in with my number, I want my consent to be implicit, so that I don't approve my own request.
-54. As a Pemegang Hak, I want a WhatsApp "Setujui / Tolak" request (after an OTP) when someone else asks to bury in my grave, with Tolak declining the order ("Pemegang Hak tidak menyetujui"), so that nobody uses it without me.
+53. As a Pemegang Hak logged in with the email recorded on my Hak Pakai, I want my consent to be implicit, so that I don't approve my own request.
+54. As a Pemegang Hak, I want an email "Setujui / Tolak" request (after a code sent to the email recorded on the Hak Pakai) when someone else asks to bury in my grave, with Tolak declining the order ("Pemegang Hak tidak menyetujui"), so that nobody uses it without me.
 55. As an heir whose Pemegang Hak has died, I want to bring heirship proof on the day, so that the burial still goes ahead.
 56. As a Pemesan of a further burial, I want a pay-after Tagihan (Biaya Pemakaman + Biaya Layanan Platform) due 3×24 h after the recorded burial, so that payment doesn't block it.
 
 ### Perpanjangan at a Lokasi Mitra
 
 57. As a Pemegang Hak, I want reminders 60, 30 and 7 days before my Hak Pakai ends and weekly during the masa tenggang, so that I don't lose it.
-58. As a Pemegang Hak, I want an OTP to the number on the Hak Pakai (skipped if I'm logged in with it) to take me straight to choosing 1–K terms with the price shown, so that renewal needs no review.
-59. As a Pemegang Hak whose number changed, I want to upload my KTP for the Admin Lokasi to approve within 2 working days, so that I can still renew.
+58. As a Pemegang Hak, I want a code sent to the email recorded on the Hak Pakai (skipped if I'm logged in with that Email Terverifikasi) to take me straight to choosing 1–K terms with the price shown, so that renewal needs no review.
+59. As a Pemegang Hak whose Hak Pakai has no email recorded, or whose recorded email I can no longer use, I want to upload my KTP for the Admin Lokasi to approve within 2 working days, so that I can still renew.
 60. As an heir of a deceased Pemegang Hak, I want one combined Ganti Pemegang Hak + Perpanjangan request with the death certificate, heirship proof and my KTP, so that I don't file twice.
 61. As a relative of an Almarhum with no Pemegang Hak on record, I want to claim the Hak Pakai with my KTP, proof of relationship and any old receipt, so that an imported grave can be renewed.
 62. As a Pemegang Hak, I want the new end date to be the old end date + terms × N, never counted from payment, so that renewing early costs me nothing.
@@ -126,8 +126,8 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 68. As a Pemesan at a DKI TPU, I want to choose Baru (only TPUs taking new plots) or Tumpang (describe the grave + photo of the IPTM, with warnings about the 3-year rule and consent), so that I request what is possible.
 69. As a Pemesan, I want the eligibility questions "KTP DKI?" and "Meninggal di Jakarta?" to block ineligible cases and point me to Lokasi Mitra, so that I don't waste time.
 70. As a Pemesan whose relative died outside Jakarta, I want the extra documents added to my checklist, so that the filing isn't rejected.
-71. As a Pemesan, I want to name the Pemegang Hak for the IPTM with their WhatsApp (default me), so that the right person holds the permit and gets reminders.
-72. As a Pemesan submitting at night, I want the computed confirmation time shown ("paling lambat pukul 08:00"), the CS WhatsApp ("dibalas mulai pukul 06:00") and a note that I can go to the TPU directly and still have the IPTM filed later, so that I'm never stuck.
+71. As a Pemesan, I want to name the Pemegang Hak for the IPTM with their phone number and, if known, email (default me), so that the right person holds the permit and gets reminders.
+72. As a Pemesan submitting at night, I want the computed confirmation time shown ("paling lambat pukul 08:00"), the CS WhatsApp (a `wa.me` link, "dibalas mulai pukul 06:00") and a note that I can go to the TPU directly and still have the IPTM filed later, so that I'm never stuck.
 73. As a Pemesan, I want the confirmation to show the agreed burial time, TPU address, Admin Platform and TPU staff contacts, both document lists and the price lines, so that I know what happens next.
 74. As a Pemesan, I want to upload the filing documents and a platform-generated Surat Kuasa within 7 days after the burial, so that the Operator can file the IPTM.
 75. As a Pemesan, I want to follow Dimakamkan → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, so that I know where the permit is.
@@ -154,18 +154,18 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 93. As a Pemesan, I want to cancel a Pekerjaan Layanan until H-1 or until it starts, with the item refunded (platform fee kept), so that I can change my mind.
 94. As a Pemesan, I want to file a Keluhan within 3×24 h of seeing the proof, and get a redo or refund decided by Admin Platform, so that bad work is put right.
 95. As a Pemesan, I want to give an optional 1–5 star Penilaian with a comment, so that the Operator knows about quality.
-96. As a Pemesan at a TPU, I want to see the Mitra Jasa's first name and photo and message them in a per-job thread, with each new message sent to me by WhatsApp with a reply link, so that I can coordinate without sharing my number.
+96. As a Pemesan at a TPU, I want to see the Mitra Jasa's first name and photo and message them in a per-job thread, with each new message sent to me by email with a reply link, so that I can coordinate without sharing my number.
 97. As a Pemesan whose Layanan is Terlambat and cancelled, I want a full refund including the platform fee, so that I don't pay for the fulfiller's failure.
 
 ### Akun Saya
 
-98. As any user, I want Masuk to work cold with just my WhatsApp number, even without orders, so that a Pemegang Hak who never ordered can see their graves. (Once my Akun has a verified email I may also use "Masuk dengan email", story 189.)
+98. As any user, I want Masuk to work cold with just my email (a Kode Masuk creates my Akun if that email has none), even without orders, so that a Pemegang Hak who never ordered can see the graves recorded with that email. (Amended 2026-09-26, ADR 0004: was my WhatsApp number.)
 99. As a user, I want a Perlu tindakan strip (unpaid Tagihan, missing documents, Perlu Perbaikan, an alternative to accept, a consent to give), so that I see what needs me first.
-100. As a user, I want a Pesanan tab with every order from my number, newest first, each order page holding its Tagihan, Bukti, IPTM scan and actions, so that everything about an order is in one place.
-101. As a Pemegang Hak, I want a Makam tab with every Hak Pakai and Makam TPU recorded on my number (even ones someone else ordered), with Pemakaman, active Paket, past photos and documents, so that I manage my family's graves.
+100. As a user, I want a Pesanan tab with every order on my Akun, newest first, each order page holding its Tagihan, Bukti, IPTM scan and actions, so that everything about an order is in one place.
+101. As a Pemegang Hak, I want a Makam tab with every Hak Pakai and Makam TPU whose recorded email is my Email Terverifikasi (even ones someone else ordered), with Pemakaman, active Paket, past photos and documents, so that I manage my family's graves.
 102. As a Pemegang Hak of a Terencana Hak Pakai, I want "Ajukan Pembatalan" showing the refund under the Lokasi's policy, so that I know what I'll get back.
 103. As a Pemegang Hak, I want "Kembalikan Hak Pakai" for an unused plot, warned that compensation is agreed directly with the Lokasi, so that I can give it back.
-104. As a Pemegang Hak, I want "Ajukan Ganti Pemegang Hak" (new holder name + WhatsApp, jual / waris, optional documents), so that I can pass the grave on. (Heirs of a deceased Pemegang Hak start from the hub lookup instead.)
+104. As a Pemegang Hak, I want "Ajukan Ganti Pemegang Hak" (new holder name + phone number and, if known, email, jual / waris, optional documents), so that I can pass the grave on. (Heirs of a deceased Pemegang Hak start from the hub lookup instead.)
 105. As a Pemegang Hak, I want to change the Calon Penghuni label freely (the Lokasi is notified, with no review), so that my plan stays current.
 106. As a Pemegang Hak at a Berhenti Lokasi, I want the Hak Pakai to stay visible read-only with the pengelola's contact and downloadable documents, so that my right is still provable.
 107. As the Pemesan who paid a Terencana, I want the refund of a Pembatalan the Pemegang Hak requested to come to a bank account I enter, so that the money reaches whoever paid.
@@ -176,20 +176,20 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 109. As a Wakif, I want document uploads to be optional and addable later, so that missing papers don't stop me.
 110. As a Wakif, I want the page to say plainly that land goes directly to a Nazhir and the platform takes no land or money, so that I trust it.
 111. As a Wakif outside Jabodetabek, I want my application closed as Dirujuk with a pointer to the local KUA/BWI, so that I know where to go.
-112. As a Wakif, I want a Wakaf tab in Akun Saya showing the status timeline, dates, Admin Platform's notes to me and my uploads, with each status change sent by WhatsApp, so that I can follow it.
+112. As a Wakif, I want a Wakaf tab in Akun Saya showing the status timeline, dates, Admin Platform's notes to me and my uploads, with each status change sent by email, so that I can follow it.
 113. As a Wakif, I want to cancel until Menunggu Ikrar, so that I can withdraw.
 114. As a Wakif, I want the final AIW / certificate scan in my account, so that I have the result.
 
 ### Admin Lokasi
 
 115. As an Admin Lokasi, I want an Antrean Lokasi with Mendesak and Lainnya groups sorted by deadline, whose rows close themselves, so that I just work down the list.
-116. As an Admin Lokasi, I want a WhatsApp + push alert for every new Saat Duka order at any hour, and again after 1 h of Jam Operasional if still unconfirmed, sent to every Admin Lokasi of the Lokasi and the Kontak Siaga by name, so that no family waits.
+116. As an Admin Lokasi, I want a push + email alert for every new Saat Duka order at any hour, and again after 1 h of Jam Operasional if still unconfirmed, sent to every Admin Lokasi of the Lokasi and the Kontak Siaga by name, so that no family waits.
 117. As an Admin Lokasi, I want to confirm a Saat Duka order by assigning a cleared Tersedia Petak of the chosen Jenis Makam, which creates the Hak Pakai and issues the Tagihan, so that confirmation is one step.
 118. As an Admin Lokasi, I want to Tawarkan alternatif or Tolak with a reason from a fixed list, so that I can answer honestly when I can't serve.
 119. As an Admin Lokasi, I want to record the Pemakaman (date, Petak, layer), prompted the day after the planned date, so that records stay complete and the Tagihan clock starts.
 120. As an Admin Lokasi, I want to tick off each document on the checklist, so that I know what's still missing.
 121. As an Admin Lokasi, I want to confirm or decline Terencana orders by the next working day, so that held plots don't stay in limbo.
-122. As an Admin Lokasi, I want consent for a further burial shown (implicit, WhatsApp Setujui, or logged verbal consent / heirship proof), plus a warning banner for unpaid earlier Tagihan, so that I don't bury without permission.
+122. As an Admin Lokasi, I want consent for a further burial shown (implicit, email Setujui, or logged verbal consent / heirship proof), plus a warning banner for unpaid earlier Tagihan, so that I don't bury without permission.
 123. As an Admin Lokasi, I want the tumpang rules (boleh tumpang, minimum years, maximum layers) checked for me, so that I follow the Lokasi's policy.
 124. As an Admin Lokasi, I want to review manual Perpanjangan requests (KTP, heirship, claims) within 2 working days, so that renewals keep moving.
 125. As an Admin Lokasi, I want to handle Pembatalan, Pengembalian Hak Pakai and Ganti Pemegang Hak requests as rows due in 2 working days, so that family requests aren't lost.
@@ -206,13 +206,13 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 136. As an Admin Lokasi, I want to phone the family about my Lokasi's own messages that failed to send, as a row, so that nobody misses a confirmation.
 137. As an Admin Lokasi, I want to see the audit log for my Lokasi, including Admin Platform's changes to tariffs, bank account and status, so that I can trust the platform.
 138. As a person managing several Lokasi, I want a Lokasi switcher, so that one account covers all of them.
-139. As an Admin Lokasi, I want the family's name, WhatsApp, Almarhum and documents for my Lokasi's orders only, so that I can do my job and nothing more.
+139. As an Admin Lokasi, I want the family's name, phone number, email, Almarhum and documents for my Lokasi's orders only, so that I can do my job and nothing more.
 
 ### Admin Platform
 
 140. As an Admin Platform, I want one Antrean with four tiers and per-type deadlines, sorted by tier then deadline, so that the most urgent work is always on top.
 141. As an Admin Platform, I want to Ambil a row (visible to all, takeable by anyone, logged), so that we don't double-work without blocking each other.
-142. As an Admin Platform, I want to see who is Bertugas now at the top of the Antrean, to switch Bertugas on (off automatically at 18:00 or after 12 h) to receive Tier 1 alerts, with escalation to everyone at 30 min and at 90 min for TPU confirmations, so that urgent work is covered without an external rota tool.
+142. As an Admin Platform, I want to see who is Bertugas now at the top of the Antrean, to switch Bertugas on (only with at least one active Perangkat Push, ADR 0004; off automatically at 18:00 or after 12 h) to receive Tier 1 alerts, with escalation to everyone at 30 min and at 90 min for TPU confirmations, so that urgent work is covered without an external rota tool.
 143. As an Admin Platform, I want Catatan Internal on every row and order, and to be asked to release or annotate my claims when going off duty, so that handover works.
 144. As an Admin Platform, I want a counter strip (Pencairan due, overdue Tagihan, Terlambat jobs, open Keluhan, rows past deadline), so that I see the state at a glance.
 145. As an Admin Platform, I want to confirm TPU Saat Duka orders after arranging with the TPU, offering another TPU if needed, with my name and contact shown to the family once I take it, so that the family knows who is helping.
@@ -237,10 +237,10 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 164. As an Admin Platform, I want to set a Harga Khusus on an order (shown as a negative line, borne by the Operator from the platform fee first, then its own funds, unless I enter on the order the amount the Lokasi Mitra agreed to bear, with a note), so that hardship cases can be helped openly.
 165. As an Admin Platform, I want a monthly Laporan (orders, Rp collected, platform fees, Pencairan, refunds, Tidak Tertagih) exportable as CSV and a weekly list of every outgoing transfer, so that the books can be reviewed without a second approver.
 166. As an Admin Platform, I want to review Pengajuan Wakaf, match a Nazhir from the list, schedule the survey, move statuses and write notes to the Wakif separately from internal notes and the survey report (both hidden from the Wakif), so that wakaf applications move forward.
-167. As an Admin Platform, I want to move a Pemesan's account to a new number after a KTP check, audited, so that a lost phone doesn't lose the history.
-168. As an Admin Platform, I want TOTP on top of the OTP and a 12 h session, so that money actions are protected.
+167. As an Admin Platform, I want to move an Akun to a new Email Terverifikasi after a KTP check (Pemulihan Akun), audited, so that someone who lost access to their email doesn't lose the history. (Amended 2026-09-26, ADR 0004: was Pindah Nomor, a move to a new number.)
+168. As an Admin Platform, I want TOTP on top of the Kode Masuk and a 12 h session, so that money actions are protected.
 169. As an Admin Platform, I want to renumber a Petak (audited, the old Nomor Makam kept as a hidden alias that lookups still find), so that mistakes can be fixed without breaking lookups silently.
-170. As an Admin Platform, I want to invite staff (WhatsApp number and a required email) and deactivate any staff account, keeping history, so that access stays controlled and every staff member has an email they can verify for email login. (Amended 2026-09-25: the invite email is not verified; staff verify it themselves, story 190.)
+170. As an Admin Platform, I want to invite staff (an Undangan Staf to an email, with a phone number as contact) and deactivate any staff account, keeping history, so that access stays controlled. (Amended 2026-09-25: the invite email is not verified; staff verify it themselves, story 190. Amended 2026-09-26, ADR 0004: the invite is addressed to the email, sent by email, and accepted when the Akun with that Email Terverifikasi next logs in.)
 171. As an Admin Platform, I want to read every Mitra Jasa message thread and step in, so that I can protect the family.
 172. As an Admin Platform, I want to phone the family after money messages fail to send, as a row, so that payment information reaches them.
 
@@ -252,7 +252,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 
 ### Mitra Jasa
 
-176. As a Mitra Jasa, I want a WhatsApp + push alert for each job assigned, and to accept or decline in the app, so that I control my workload.
+176. As a Mitra Jasa, I want a push + email alert for each job assigned, and to accept or decline in the app, so that I control my workload.
 177. As a Mitra Jasa, I want to set Tidak tersedia date ranges myself, so that I'm not assigned when I'm away.
 178. As a Mitra Jasa, I want to see the grave location or description, the Layanan, the target date and reference photos, but not the family's contacts, so that I can do the job.
 179. As a Mitra Jasa, I want to take before/after photos in the app with the browser camera, so that proof is quick.
@@ -264,15 +264,22 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 
 183. As the Operator, I want every Tagihan and Bukti headed with PT Jaya Korpora Prima's legal name, address and contact, and the Bukti Pemesanan / Perpanjangan to prove the right in the Lokasi Mitra's name, so that the legal roles are clear.
 184. As the Operator, I want every staff write action audited (who, when, before/after, reason), so that disputes can be settled.
-185. As the engineer, I want the payment provider, message senders and file store behind adapter interfaces, so that a second gateway or another WhatsApp provider is an addition, not a rewrite.
+185. As the engineer, I want the payment provider, message senders and file store behind adapter interfaces, so that a second gateway or a new channel (WhatsApp in a later version) is an addition, not a rewrite. (Amended 2026-09-26, ADR 0004: v1 has no WhatsAppSender.)
 186. As the engineer, I want every deadline and reminder driven by the worker from database state, so that a restart never loses a timer.
 187. As the engineer, I want daily encrypted off-host backups to object storage in Indonesia with restore tests and an external uptime alarm, so that one VPS is an acceptable risk.
-188. As an Admin Platform, I want to enter every reference value (the Operator's legal name, address and contact, the CS WhatsApp number and reply hours, and the prices, TPU list and Nazhir list on their own screens) in the dashboard, so that nothing but the first Admin Platform is seeded and no value needs a deploy.
+188. As an Admin Platform, I want to enter every reference value (the Operator's legal name, address and contact, the CS WhatsApp number (for `wa.me` links and display) and reply hours, and the prices, TPU list and Nazhir list on their own screens) in the dashboard, so that nothing but the first Admin Platform is seeded and no value needs a deploy.
 
 ### Email login (added 2026-09-25)
 
-189. As a Pemesan or a staff member whose Akun has a verified email, I want "Masuk dengan email" to send a 6-digit code to that email whenever I choose, not only after a WhatsApp problem, so that I can log in without my phone; for an unknown or unverified email I want to see the same reply as for success ("Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim."), so that nobody can learn whose email is registered.
-190. As a Pemesan (in the Akun Saya profile) or a staff member (in the staff area), I want a "Verifikasi email" action that sends a code to my email and marks it verified when I enter it, so that I can use email login; an email already verified on another Akun is refused and I am pointed to CS.
+189. As a Pemesan or a staff member, I want Masuk to send a 6-digit Kode Masuk to my email, creating my Akun when that email has none, so that I can log in without a password or a phone. (Amended 2026-09-26, ADR 0004: email is the only way in. ~~The "Masuk dengan email" alternative to WhatsApp and the identical reply for an unknown or unverified email~~ (removed 2026-09-26, ADR 0004), since an unknown email now gets a code that creates its Akun when entered.)
+190. As a Pemesan (in the Akun Saya profile) or a staff member (in the staff area), I want a "Verifikasi email" action that sends a code to a new email and makes it my Email Terverifikasi (my login email) when I enter it, so that I can change my login email myself; an email that is already another Akun's key is refused and I am pointed to CS. (Amended 2026-09-26, ADR 0004: Verifikasi Email now changes the Akun's key.)
+
+### Email is the Akun (added 2026-09-26, ADR 0004)
+
+191. As a family without email, I want "Tidak punya email? Minta bantuan CS" on the Kirim screen, opening a `wa.me` link to the CS WhatsApp number and showing the CS phone, so that CS / Admin Platform can submit the order on my behalf (audited), even with no Akun, and share its document links with me by hand.
+192. As a Pemesan whose order CS submitted without an Akun, I want CS to attach it to my Akun by its Nomor Pemesanan once I have an Email Terverifikasi, so that it appears in Akun Saya.
+193. As any user, I want to edit my phone number in Akun Saya, so that staff can call me; it is never verified and never logs me in.
+194. As a Pemesan, when I must act and email is not enough (an overdue Saat Duka Tagihan, a Hak Pakai nearing its end, a declined order), I want a staff member to phone me, so that I don't miss it.
 
 ## Implementation Decisions
 
@@ -281,7 +288,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 - A fresh TypeScript codebase in this repo. The Laravel makam-app is frozen as reference only.
 - **Next.js App Router** full-stack app, TypeScript strict. It serves three things: public pages and Akun Saya; the staff area (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) as a separate section with a role switcher; and a PWA manifest plus web push.
 - UI uses shadcn/ui and TanStack Table.
-- **Postgres + Drizzle**, **pg-boss** for jobs and schedules (no Redis; jobs are enqueued in the same transaction as the data), **Better Auth** for sessions, OTP and TOTP.
+- **Postgres + Drizzle**, **pg-boss** for jobs and schedules (no Redis; jobs are enqueued in the same transaction as the data), **Better Auth** for sessions, the email Kode Masuk and TOTP.
 - Agent rules live in `AGENTS.md`: App Router only; mutations only through Server Actions that call pure domain modules in `src/domain/*`; Zod validation at every boundary.
 - **All mutations go through Server Actions** (or route handlers for webhooks). These are thin: authenticate, check the role, validate with Zod, then call a **domain module**. Domain modules hold every business rule and are the single test seam.
 - One Docker image with two containers:
@@ -302,12 +309,9 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
   - Creates a payment for a Tagihan when the payer clicks Bayar, and re-creates it if the SumoPod link expired. The platform's own due date is independent of the link's.
   - Verifies and parses webhooks with a Svix signature and processes them idempotently.
   - No payout or refund methods in v1.
-- **WhatsAppSender** (kirim.dev → Meta Cloud API):
-  - Sends a template with parameters, including Meta's authentication template with a copy-code button.
-  - Reports status (terkirim / dibaca / gagal).
-  - Handles the inbound auto-reply that points to the CS number.
-- **EmailSender** (the **SumoPod SMTP relay**: `smtp.sumopod.com`, port 465, SMTPS, from `makam.co.id`; decision 2026-09-25, ADR 0002 amendment): sends every email: the email Kode Masuk (email login and the "Kirim lewat email" fallback, sent directly by Identity & Access), Tagihan / Bukti copies and the document-message fallback, and Undangan Staf. Amazon SES is not used in v1, and the self-hosted Stalwart mail server on this host is for human mailboxes only, never for the app. There is no SMS in v1.
-- **WebPush**: staff alerts, on top of WhatsApp.
+- ~~**WhatsAppSender** (kirim.dev → Meta Cloud API): templates, Meta's authentication template, status, inbound auto-reply~~ (removed 2026-09-26, ADR 0004): v1 has no WhatsApp channel and no WhatsAppSender port, adapter or fake; a later version that wants WhatsApp builds the port again from the ports/adapters pattern.
+- **EmailSender** (the **SumoPod SMTP relay**: `smtp.sumopod.com`, port 465, SMTPS, from `makam.co.id`; decision 2026-09-25, ADR 0002 amendment): sends every email: the Kode Masuk (at Kirim and on Masuk, sent directly by Identity & Access), every family notification with its Tagihan / Bukti links, the email copy of each Peringatan Staf, and Undangan Staf. Email is the only message channel to families (ADR 0004), so deliverability is critical: the live adapter (ticket 68) is a launch requirement. Amazon SES is not used in v1, and the self-hosted Stalwart mail server on this host is for human mailboxes only, never for the app. There is no SMS in v1.
+- **WebPush**: Peringatan Staf to each Perangkat Push, alongside email (ADR 0004).
 - **FileStore**: upload, signed URL and delete.
 - **PdfRenderer**: turns a document web page into a PDF.
 
@@ -328,22 +332,18 @@ Core entities at a glance (details in each module):
 - **Tugas Lapangan** (assigned to a Petugas Lapangan), **Antrean** / **Antrean Lokasi** rows (projections, not stored work), **Catatan Internal**, the audit log and the message log.
 
 1. **Identity & Access**
-   - The account is keyed by one WhatsApp number (ADR 0003).
-   - OTP request and verify, with WhatsApp first. The OTP at Kirim creates or logs into the account. A new Akun is created only through the WhatsApp OTP (decision 2026-09-25).
-   - Only Indonesian (+62) WhatsApp numbers in v1 (decision 2026-09-25): a number from any other country is refused with "Gunakan nomor WhatsApp Indonesia (+62)." and gets no Akun.
-   - The login OTP is sent by this module directly through the WhatsAppSender port, not through Notifications (decision 2026-09-25): it must arrive at once, background retries would only confuse, and the code is sensitive. So an OTP creates no message-log entry and is never retried automatically; when WhatsApp refuses it the Pemesan sees "gagal kirim" and may try again at once (the failed send does not count against the OTP limits).
-   - **Email login** (decision 2026-09-25, ADR 0003 amendment): any Akun with an **Email Terverifikasi** (Pemesan and every staff role) may log in with a 6-digit code sent to that email through EmailSender (SumoPod SMTP). It is an equal alternative the user may choose at any time from a "Masuk dengan email" link on Masuk, not only a fallback. An email login never creates an Akun.
-     - Same rules as the WhatsApp OTP: expiry 10 min; the 5th wrong code burns it; resend after 60 s; at most 5 per rolling hour; lockout after 10 wrong codes in 60 min. Limits are counted per email and per IP.
-     - Like the WhatsApp OTP, the email code is sent directly by this module through EmailSender, not through Notifications: no message-log entry, no automatic retries.
-     - Privacy: for an unknown or unverified email, the reply is identical to the success reply: "Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim."
-     - The WhatsApp OTP fallback is part of the same feature: about 60 s after a WhatsApp OTP, "Kirim lewat email" sends the same email code to the Email Terverifikasi of the number's existing Akun. Without one there is no fallback: the screen points to the CS WhatsApp number (Pengaturan Operator). There is no SMS.
-     - An Admin Platform who logs in by email must still pass TOTP; session rules below are unchanged.
-   - **Email Terverifikasi**: an email becomes verified only when a code sent to it is entered, through "Verifikasi email" in the Akun Saya profile or in the staff area, or on the first successful email login. An email that has only been typed in (on a "Data & kirim" screen, or by Admin Platform on an Undangan Staf) is not verified, and email login is not offered for it. The Akun's own email is added or changed only through Verifikasi email (decision 2026-09-25): a code goes to the new address, and the old Email Terverifikasi stays in force until that code is entered; there is no "save without verifying". An Akun Staf may not remove its email; it may only change it through Verifikasi email (decision 2026-09-25). A Pemesan may remove it, which removes the verified mark. A verified email belongs to at most one Akun: verifying an email already verified on another Akun is refused, and Admin Platform resolves such cases through CS. Verifying an email from the staff area is a staff write and is audited.
+   - The Akun is keyed by one **Email Terverifikasi** (ADR 0004, superseding ADR 0003's WhatsApp number). The phone number is a required contact on the Akun, never verified and never used to log in; the user edits it in Akun Saya. Only Indonesian (+62) numbers are accepted as that contact (decision 2026-09-25, kept).
+   - **Kode Masuk**, by email only, through EmailSender (SumoPod SMTP): a 6-digit code. The Kode Masuk at Kirim (in a wizard) or on Masuk logs into the Akun of that email, or creates the Akun when the email has none; the Akun is created only when the code is entered, which also proves the email and catches typos. Every role logs in this way; Admin Platform still passes TOTP. There is no WhatsApp and no SMS code. ~~WhatsApp OTP, "Masuk dengan email" as an alternative, the "Kirim lewat email" fallback~~ (removed 2026-09-26, ADR 0004).
+     - Rules: expiry 10 min; the 5th wrong code burns it; resend after 60 s; at most 5 per rolling hour; lockout after 10 wrong codes in 60 min. Limits are counted per email and per IP.
+     - The Kode Masuk is sent by this module directly through EmailSender, not through Notifications (decision 2026-09-25, kept): it must arrive at once, background retries would only confuse, and the code is sensitive. So it creates no message-log entry and is never retried automatically; when sending fails the person sees "gagal kirim" and may try again at once (the failed send does not count against the limits).
+     - The reply after a request is the same for every email, known or not (the code is sent either way; ADR 0004 retires the "Jika email ini terdaftar dan terverifikasi" reply).
+   - **Families without email** (the accepted risk, ADR 0004): the Kirim screen offers "Tidak punya email? Minta bantuan CS", which opens a `wa.me` link to the CS WhatsApp number (Pengaturan Operator; a person answering in the WhatsApp Business app, no API) and shows the CS phone. CS / Admin Platform may submit the order on the family's behalf (audited); such an order may have no Akun, only a contact number, and CS shares its document links by hand. When the family later has an Email Terverifikasi, CS attaches the order to that Akun by its Nomor Pemesanan (audited).
+   - **Email Terverifikasi**: an email becomes verified only when a code sent to it is entered (a Kode Masuk, or Verifikasi email). An email that has only been typed in (on an order CS submits, on an Undangan Staf, on a Hak Pakai) is not verified. An Akun changes its own email only through "Verifikasi email" in the Akun Saya profile or the staff area: a code goes to the new address, and the old Email Terverifikasi stays in force until that code is entered; there is no "save without verifying", and no Akun may remove its email. A verified email is the key of exactly one Akun: verifying an email that is already another Akun's key is refused, and Admin Platform resolves such cases through CS. Verifying an email from the staff area is a staff write and is audited.
    - Roles: Pemesan (implicit), Admin Lokasi (many-to-many with Lokasi Mitra, all equal), Admin Platform (TOTP required), Petugas Lapangan, Mitra Jasa. One account can hold many roles.
-   - Staff are invite-only, and every staff invite (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) requires an email, so every staff member has an email on record to verify; it is not an Email Terverifikasi until they verify it (decision 2026-09-25). The first Admin Platform is seeded from the CLI with its phone number and email; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
+   - Staff are invite-only. An **Undangan Staf** (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa) is addressed to an email, with a phone number as contact, sent by email, and accepted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk (which creates the Akun if needed) (ADR 0004). The first Admin Platform is seeded from the CLI with its email (as its Email Terverifikasi) and a contact phone number; that is the only seed, and every other reference value is entered in the dashboard (Pengaturan Operator and the owning screens).
    - Sessions: 90 days for Pemesan, 30 days for staff on a trusted device, 12 h for Admin Platform. An account holding Admin Platform uses the strictest rule (12 h session with TOTP) for the whole account, whatever other roles it holds.
-   - Optional email on a Pemesan account (required for staff): entered on a "Data & kirim" screen (kept on that order only) or changed in the Akun Saya profile through Verifikasi email; used only to send copies of Tagihan / Bukti documents and, once verified, the email Kode Masuk, all through EmailSender (SumoPod SMTP).
-   - Account number move by Admin Platform after a KTP check.
+   - ~~Optional email on a Pemesan account, used only for Tagihan / Bukti copies~~ (removed 2026-09-26, ADR 0004): the email on a "Data & kirim" screen is required for an order the family submits itself, is proven by the Kode Masuk at Kirim, and is where every family notification goes.
+   - **Pemulihan Akun** (replaces Pindah Nomor, ADR 0004): Admin Platform moves an Akun to a new Email Terverifikasi after checking the holder's KTP, for someone who lost access to their email, audited, keeping everything recorded on the Akun.
    - No self-service recovery and no shared family access.
    - Exposes an authorisation check the Server Actions call. This check also filters what Admin Lokasi, Petugas Lapangan and Mitra Jasa may see: Admin Lokasi never see Pengajuan Wakaf; Wakaf survey reports stay internal to Admin Platform; Mitra Jasa and Petugas Lapangan see no audit log.
    - Only Admin Platform changes a Lokasi's bank account, its tariffs and which Admin Lokasi it has.
@@ -374,10 +374,10 @@ Core entities at a glance (details in each module):
    - **Petak Makam status** is derived: Tersedia / Dipesan / Terisi / Masa Berlaku Habis / Tidak Tersedia (manual, with reason, only without an active Hak Pakai), plus the **Perlu Verifikasi** flag (not assignable or sellable until cleared).
    - Kavling Keluarga status is derived: Tersedia / Dipesan / Terpakai sebagian / Penuh.
    - Availability = count of cleared Tersedia units per Jenis Makam (a Kavling Keluarga counts as one).
-   - **Hak Pakai**: covers 1..n Petak, has one Pemegang Hak (name + WhatsApp + holder history; defaults to the Pemesan, never the Almarhum), an optional Calon Penghuni label per Petak (the Pemegang Hak changes it freely; the Lokasi is notified, with no review), a start date and an end date (empty for a perpetual Jenis Makam; the clock starts at the first Pemakaman, tumpang doesn't reset it), the terms in force at payment (Syarat Pemesanan Terencana snapshot), and a Perlu Verifikasi flag. Status Aktif / Kedaluwarsa / Berakhir (reason) / Dibatalkan. Ending is final; a resale creates a new Hak Pakai.
+   - **Hak Pakai**: covers 1..n Petak, has one Pemegang Hak (name + phone number + email when known + holder history; it shows in the Akun whose Email Terverifikasi equals the recorded email; defaults to the Pemesan, never the Almarhum), an optional Calon Penghuni label per Petak (the Pemegang Hak changes it freely; the Lokasi is notified, with no review), a start date and an end date (empty for a perpetual Jenis Makam; the clock starts at the first Pemakaman, tumpang doesn't reset it), the terms in force at payment (Syarat Pemesanan Terencana snapshot), and a Perlu Verifikasi flag. Status Aktif / Kedaluwarsa / Berakhir (reason) / Dibatalkan. Ending is final; a resale creates a new Hak Pakai.
    - **Pemakaman**: Almarhum, date, Petak, layer.
    - **Pembongkaran** record: a plot stays Terisi after its Hak Pakai ends until a Pembongkaran is recorded, which makes it empty again. A released but not yet cleared (still Terisi) plot is sellable only as tumpang, and only if the Lokasi allows tumpang on released plots, after the minimum years since the last burial; it is never listed as an empty plot.
-   - Operations: clear Petak, record Pemakaman, record Pembongkaran, set Tidak Tersedia, end Hak Pakai, Ganti Pemegang Hak (documents, history; blocked by an open Pembatalan or an overdue pay-after Tagihan), change the Pemegang Hak's number (Admin Lokasi after a KTP check), Pengembalian Hak Pakai.
+   - Operations: clear Petak, record Pemakaman, record Pembongkaran, set Tidak Tersedia, end Hak Pakai, Ganti Pemegang Hak (documents, history; blocked by an open Pembatalan or an overdue pay-after Tagihan), change the Pemegang Hak's contact number or recorded email (Admin Lokasi after a KTP check), Pengembalian Hak Pakai.
    - A plot hold for Terencana is placed at submission and released on decline, withdrawal or lapse.
    - Also exposes: lookup by Lokasi + Nomor Makam / Nomor Kavling or Almarhum name + year of death, returning only Almarhum names, numbers, status and end date. For a Kavling Keluarga the whole kavling is returned, since a Perpanjangan covers all of it.
    - Excel import is a stated requirement. Imported Hak Pakai without contact or end date are flagged Perlu Verifikasi; an empty imported end date does not mean perpetual unless the Jenis Makam is perpetual. The Admin Lokasi must complete it at the latest at the first Perpanjangan or Layanan on that Hak Pakai. The template follows the first partner (not in the first build; see Further Notes).
@@ -392,7 +392,7 @@ Core entities at a glance (details in each module):
      - Statuses: Diajukan (plots held) → Dikonfirmasi (hold running, pay-first Tagihan due at hold expiry) → Aktif (paid, one Hak Pakai per Petak / Kavling Keluarga, same Pemegang Hak), plus Ditolak and Dibatalkan (reason "batas pembayaran lewat", withdrawal, or Pembatalan).
      - Confirmation is due by the end of the Lokasi's next working day, with no automatic cancel.
    - **Burial under an existing Hak Pakai**: the same track as Saat Duka without creating a Hak Pakai.
-     - Consent resolution: implicit when the logged-in number is the holder's; else WhatsApp Setujui / Tolak after an OTP; else verbal consent logged by the Admin Lokasi; else heirship proof, which raises a Ganti Pemegang Hak reminder. A Tolak by the Pemegang Hak makes the order `Ditolak` with reason "Pemegang Hak tidak menyetujui".
+     - Consent resolution: implicit when the logged-in Akun's Email Terverifikasi is the holder's recorded email; else an email Setujui / Tolak after a code sent to the recorded email (ADR 0004); else verbal consent logged by the Admin Lokasi; else heirship proof, which raises a Ganti Pemegang Hak reminder. A Tolak by the Pemegang Hak makes the order `Ditolak` with reason "Pemegang Hak tidak menyetujui".
      - Tumpang policy checks. Pay-after Tagihan with Biaya Pemakaman at the day's rate + Biaya Layanan Platform.
      - Cancelling cancels only the order and its Tagihan. No new Bukti Pemesanan.
    - **Requests from the Pemegang Hak**: Pembatalan, Pengembalian Hak Pakai and Ganti Pemegang Hak, each due in 2 working days. Heirs of a deceased Pemegang Hak start from the hub lookup, not the Ganti Pemegang Hak request.
@@ -402,7 +402,7 @@ Core entities at a glance (details in each module):
 7. **Perpanjangan (Lokasi Mitra)**
    - Open from 3 months before the end date to the end of the Masa Tenggang.
    - Paths:
-     - OTP to the Hak Pakai number, skipped when logged in with it.
+     - Code sent to the email recorded on the Hak Pakai, skipped when logged in with that Email Terverifikasi (ADR 0004; was an OTP to the Hak Pakai number). With no recorded email, the manual paths below apply.
      - Manual KTP review.
      - Heir: combined Ganti Pemegang Hak + Perpanjangan.
      - Claim, when no holder is on record.
@@ -418,7 +418,7 @@ Core entities at a glance (details in each module):
      - **Perpanjangan TPU**: Diajukan → (Perlu Perbaikan ↺) → Menunggu Pembayaran → Diproses → IPTM Diajukan → IPTM Terbit, plus Ditolak and Dibatalkan.
      - **Pengurusan IPTM**: Dimakamkan → Dokumen Lengkap → Menunggu Pembayaran → IPTM Diajukan → IPTM Terbit, plus Ditolak and Dibatalkan.
    - Burial type Baru / Tumpang. Eligibility (KTP DKI, died in Jakarta) blocks no/no. Died outside Jakarta adds the Pasal 17(2) documents.
-   - Pemegang Hak name + WhatsApp.
+   - Pemegang Hak name + phone number, and email when known.
    - Two document sets: for the burial (brought) and for the filing (uploaded, due in 7 days after the burial, or 7 days after the order for Pengurusan IPTM).
    - **Surat Kuasa generator**: authority to PT Jaya Korpora Prima, represented by the filing staff member, filled from their account.
    - Payment rule: burial-arranging orders are pay-after (Tagihan at confirmation, due 3×24 h after the burial, chased, Operator bears the loss). Filing-only orders are pay-first after the document check (3×24 h, lapse to Dibatalkan).
@@ -426,7 +426,7 @@ Core entities at a glance (details in each module):
    - A fixable PTSP rejection (missing or unclear document, Surat Kuasa problem) goes back to Perlu Perbaikan and is refiled at no charge, also after payment. Final PTSP rejection of filing-only work is refunded in full. Past-grace requests are checked with the TPU before billing.
    - The Perpanjangan TPU form asks for the IPTM expiry date, read off the IPTM photo and corrected by Admin Platform.
    - Cancellation of a burial order is allowed before filing. An unpaid Tagihan is voided. A paid one is refunded in full, except that once the Operator has arranged the burial with the TPU (Dimakamkan or later) the Biaya Pengurusan is kept and only the other lines (e.g. Layanan not yet done) are refunded; Admin Platform approves, as with every refund. The IPTM is handed over regardless of payment.
-   - **Makam TPU** record: TPU, blok/nomor, Almarhum(s), Pemegang Hak + WhatsApp, current IPTM scan + expiry, and IPTM history. A tumpang updates the existing record.
+   - **Makam TPU** record: TPU, blok/nomor, Almarhum(s), Pemegang Hak + phone number (email when known), current IPTM scan + expiry, and IPTM history. A tumpang updates the existing record.
    - No Bukti Pemesanan / Perpanjangan at a TPU.
 9. **Layanan**
    - **Catalog**: one global list with fixed-price variants, text fields, minimum lead time, "bisa hari-H" flag, "makes sense on an empty plot" flag and required proof (after photo always; before photo for Pembersihan and Perawatan Rumput & Taman; video for the Laporan).
@@ -449,7 +449,7 @@ Core entities at a glance (details in each module):
      - On suspension or ending, Dijadwalkan jobs are unassigned and in-progress jobs are listed for Admin Platform. The Pemesan is notified only if the target date moves.
      - Pay: a redo by the same Mitra Jasa after an upheld Keluhan is unpaid, and the original job's Pencairan is released when the redo proof is approved. A redo by another Mitra Jasa (the first is Ditangguhkan / Berhenti, or Admin Platform picks someone else) is paid at the normal rate and the original Pencairan is cancelled. Terlambat but done: full rate. Cancelled for lateness: no Pencairan. Reassigned: only the Mitra Jasa who does the job is paid.
      - The Pemesan sees the first name and photo.
-   - **Message thread** per Pekerjaan Layanan (text + photos). Each new message notifies the Pemesan by WhatsApp with a reply link. It closes when the Keluhan window ends. Admin Platform can read and post.
+   - **Message thread** per Pekerjaan Layanan (text + photos). Each new message notifies the Pemesan by email with a reply link. It closes when the Keluhan window ends. Admin Platform can read and post.
 10. **Billing**
     - **Tagihan**
       - One per payment moment, immutable. Changes are made by cancelling and reissuing.
@@ -506,7 +506,7 @@ Core entities at a glance (details in each module):
     - **Pencairan run**: one row per recipient with due items minus Potongan. Items can be held out with a reason. Admin Platform transfers by hand, uploads the proof and enters the date, which issues one Bukti Pencairan. The Mitra Jasa version shows only job, Layanan, date and rate. Due within 2 working days.
     - On Berhenti: pending Pencairan for finished work is paid net. Held Terencana Pencairan is released except for Pemesan still inside their Masa Pembatalan who cancel, who are refunded.
 12. **Wakaf**
-    - Pengajuan Wakaf fields: Tujuan sosial / keluarga (+ family name), Wakif name / WhatsApp / relationship, land kab/kota, address, pin, m², proof type, and Nazhir (a list entry or free text).
+    - Pengajuan Wakaf fields: Tujuan sosial / keluarga (+ family name), Wakif name / phone number / relationship, land kab/kota, address, pin, m², proof type, and Nazhir (a list entry or free text).
     - Optional documents.
     - An automatic Dirujuk flag outside Jabodetabek.
     - Manual statuses: Diajukan → Ditinjau → Survei Dijadwalkan (date) → Menunggu Ikrar (KUA date) → Proses Sertipikat → Selesai (AIW / certificate scan), plus Ditolak (reason), Dirujuk and Dibatalkan (by the Wakif until Menunggu Ikrar).
@@ -522,23 +522,23 @@ Core entities at a glance (details in each module):
     - **Antrean** (Admin Platform) and **Antrean Lokasi** (per Lokasi Mitra) are **projections of domain state**. Each row type is a query plus a deadline rule. Rows are never created by hand and close when the state moves on.
     - Antrean tiers:
       - Tier 1: Konfirmasi TPU Saat Duka (2 service hours); Konfirmasi Lokasi terlambat; Saat Duka ditolak (call within 2 h); Keluhan (first response in 4 daytime hours, i.e. 06:00–18:00 WIB, decided within the window); jobs due today without a Mitra Jasa.
-      - Tier 2: foto bukti approval (24 h); Terlambat; jobs Tidak direspons / Ditolak / flagged for reassignment; failed money-message calls; unassigned or overdue Ambil surat pengantar.
+      - Tier 2: foto bukti approval (24 h); Terlambat; jobs Tidak direspons / Ditolak / flagged for reassignment; failed money-message calls; "Telepon Pemesan" (a family must act and email is not enough: a Saat Duka Tagihan Lewat Jatuh Tempo, a Hak Pakai nearing its end, or any such message on an order with no email; ADR 0004; a declined order keeps its Tier 1 call); unassigned or overdue Ambil surat pengantar.
       - Tier 3: refund transfers (2 working days after approval); Pencairan (2 working days after due); IPTM filing (7 days); TPU filing-only document check (1 working day) and filing (3 working days after Lunas); past-grace TPU check; Tagihan lewat jatuh tempo; Pengajuan Wakaf (first contact in 3 working days; no alert); Konfirmasi Terencana terlambat; Pembatalan refund approval (2 working days); Setor Retribusi (2 working days after Lunas, only for a non-zero Retribusi Pemda line). Admin Platform working days per 3. Lokasi.
       - Tier 4: TPU flag stale for 14 days; Lokasi revisits and publish-gate checks (only after Admin Platform presses "Minta kunjungan ulang" on a Lokasi Mitra, which creates the Kunjungan Verifikasi Tugas Lapangan; no automatic schedule in v1); Mitra Jasa onboarding; monthly scorecard review; other Tugas Lapangan.
-    - Ambil soft claims, Bertugas (who is Bertugas now is shown at the top of the Antrean), and escalation at 30 min and 90 min. Night TPU rows alert at 06:00. Tier 3–4 rows never alert.
+    - Ambil soft claims, Bertugas (who is Bertugas now is shown at the top of the Antrean; switching it on needs at least one active Perangkat Push, ADR 0004), and escalation at 30 min and 90 min; an unanswered Tier 1 alert also raises a call row in the Admin Platform Antrean. Night TPU rows alert at 06:00. Tier 3–4 rows never alert.
     - Antrean Lokasi:
       - Mendesak: Konfirmasi Saat Duka; Layanan due today; Kerjakan ulang.
       - Lainnya: Konfirmasi Terencana; Periksa dokumen Perpanjangan; Layanan upcoming / Terlambat; Catat Pemakaman; Ganti Pemegang Hak / Pembatalan / Pengembalian requests; Hak Pakai in masa tenggang; failed Lokasi-message calls; Petak Perlu Verifikasi.
     - The Antrean Lokasi has rows only: no Ambil claims, tiers or Bertugas, and Catatan Internal stay hidden from Admin Lokasi. The Admin Platform Antrean has Catatan Internal threads, a counter strip and the Laporan.
 15. **Notifications**
     - One module decides recipient, channel, template and timing for every domain event. It sends through the pg-boss worker.
-    - Exception: the WhatsApp login OTP does not go through this module. Identity & Access sends it directly through WhatsAppSender (decision 2026-09-25), so it creates no message-log entry, is never retried automatically and raises no Antrean row; the Pemesan sees "gagal kirim" and can retry. The same exception covers the email Kode Masuk, sent directly through EmailSender (decision 2026-09-25, later).
-    - WhatsApp is primary for everyone, through the official WhatsApp Business API only; unofficial QR-paired gateways (Fonnte, Wablas, WAHA) are banned, even as a backup. The Operator pays every message (WhatsApp, email) and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Staff also get web push. Email copies of Tagihan / Bukti go out when the Pemesan gave the optional email (Identity & Access); it need not be verified for copies. Undangan Staf also go by email. Every email goes through EmailSender on the SumoPod SMTP relay (no SES in v1). The email Kode Masuk (email login and the 60 s fallback) is sent by Identity & Access directly, like the WhatsApp OTP. There is no SMS channel.
+    - Exception: the Kode Masuk does not go through this module. Identity & Access sends it directly through EmailSender (decisions 2026-09-25, ADR 0004), so it creates no message-log entry, is never retried automatically and raises no Antrean row; the person sees "gagal kirim" and can retry.
+    - Channels (ADR 0004): **v1 sends nothing through WhatsApp** (no WhatsApp Business API, no Meta / kirim.dev, no WhatsAppSender; unofficial QR-paired gateways such as Fonnte, Wablas, WAHA stay banned). Families get email; when a family must act and email is not enough, a "Telepon Pemesan" row in the Antrean has a person call (the chain is email, then a call row). Staff get Peringatan Staf by web push to every Perangkat Push and by email. The Operator pays every message and never charges Lokasi Mitra, Mitra Jasa or families. No marketing messages. Undangan Staf go by email. Every email goes through EmailSender on the SumoPod SMTP relay (no SES in v1). There is no SMS channel.
     - Reminders to families go out 08:00–20:00 WIB. Transactional messages and new-order alerts go out at any hour.
-    - Retries: 3 with backoff. After that, document messages go to email if possible, then a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. OTP failures create no row. Failed staff alerts are not escalated beyond web push and the Antrean.
-    - Every message is logged with its status on its order (the login OTP excepted, see above).
-    - The OTP uses Meta's authentication template and arrives only on the phone (not WhatsApp Web or Desktop).
-    - A new Saat Duka order alerts every Admin Lokasi of the Lokasi and the Kontak Siaga by WhatsApp + web push at any hour, and again if still unconfirmed after 1 h of Jam Operasional.
+    - Retries: 3 with backoff. After that, a phone-call row in the owning queue: money subjects go to Admin Platform, Lokasi work subjects to the Admin Lokasi. Kode Masuk failures create no row. Failed staff alerts are not escalated beyond web push, email and the Antrean.
+    - Every message is logged with its status on its order (the Kode Masuk excepted, see above).
+    - ~~The OTP uses Meta's authentication template and arrives only on the phone (not WhatsApp Web or Desktop).~~ (removed 2026-09-26, ADR 0004).
+    - A new Saat Duka order alerts every Admin Lokasi of the Lokasi and the Kontak Siaga by web push + email at any hour, and again if still unconfirmed after 1 h of Jam Operasional.
     - Reminder schedule:
 
       | Reminder | When |
@@ -553,7 +553,7 @@ Core entities at a glance (details in each module):
 
       Each Tagihan follows exactly one of the four Tagihan rows, by its kind; rules never stack. All go out within 08:00–20:00 WIB.
 
-    - Inbound WhatsApp messages get an auto-reply pointing to the CS number (from Pengaturan Operator). There is no inbox.
+    - ~~Inbound WhatsApp messages get an auto-reply pointing to the CS number (from Pengaturan Operator).~~ (removed 2026-09-26, ADR 0004): there is no WhatsApp number on the API; CS answers its own WhatsApp Business app. There is no inbox.
 16. **Scheduler**
     - Worker jobs are thin wrappers around domain **tick functions** that take "now" from the Clock and act on the state due at that time:
       - expire holds and pay-first Tagihan
@@ -572,7 +572,7 @@ Core entities at a glance (details in each module):
 17. **Pengaturan Operator** (Operator settings)
     - One Admin Platform–only screen, audited, for the reference values no other screen owns:
       - the Operator's legal name, registered address and contact (phone, email), used by every Tagihan / Bukti header and the Hubungi Kami page;
-      - the CS WhatsApp number and its reply hours (e.g. "dibalas mulai pukul 06:00"), used by the CS button, the inbound auto-reply, the OTP no-fallback pointer and the night TPU submission text.
+      - the CS WhatsApp number and its reply hours (e.g. "dibalas mulai pukul 06:00"), used only for `wa.me` links and display (ADR 0004): the CS button, the "Tidak punya email? Minta bantuan CS" pointer, Hubungi Kami and the night TPU submission text. The platform sends nothing through it.
     - An issued Tagihan or Bukti keeps the header values in force when it was issued.
     - The other reference values live on their owning screens, all entered by Admin Platform in the dashboard and never seeded: Biaya Layanan Platform (Tariffs); DKI Biaya Pengurusan and the DKI TPU list (Tariffs, Lokasi > TPU); DKI Layanan prices and Mitra Jasa rates (Layanan catalog, Tariffs); the Nazhir list (Wakaf); the holiday list (Lokasi > Working days).
     - Content page copy stays in code.
@@ -584,7 +584,7 @@ Core entities at a glance (details in each module):
   - Saat Duka: Pilih makam → Data & kirim.
   - Terencana: Lokasi → Petak → Data & kirim.
   - Burial under an existing Hak Pakai: from the Makam keluarga hub → Data & kirim.
-  - An optional email field sits on the "Data & kirim" screen of the Saat Duka and Terencana wizards, the TPU order, the Perpanjangan checkout and the standalone Layanan checkout, and on every other order screen (burial under an existing Hak Pakai, Pengurusan IPTM, Perpanjangan TPU, TPU Layanan order, Paket Layanan order).
+  - A required email field (with the Kode Masuk at Kirim, prefilled and skipped when logged in) and a phone field sit on the "Data & kirim" screen of the Saat Duka and Terencana wizards, the TPU order, the Perpanjangan checkout and the standalone Layanan checkout, and on every other order screen (burial under an existing Hak Pakai, Pengurusan IPTM, Perpanjangan TPU, TPU Layanan order, Paket Layanan order). (Amended 2026-09-26, ADR 0004: was optional; below it, "Tidak punya email? Minta bantuan CS".)
   - Lokasi pages deep-link into the wizards with the Lokasi preselected.
 - The **Makam keluarga hub** owns the Lokasi Mitra / TPU branch for tumpang, Perpanjang, Layanan and Pengurusan IPTM. The Perpanjang Makam and Layanan Makam tiles open it with that action preselected. Heirs of a deceased Pemegang Hak start from its lookup. Logged-in users see shortcuts to their Makam tab.
 - **After a Tolak**, the Pilih makam list opens with a banner, the rejecting Lokasi removed and the family's data prefilled.
@@ -602,7 +602,7 @@ Core entities at a glance (details in each module):
     - entries to Saat Duka TPU, Perpanjang IPTM and "Sudah dimakamkan? Kami urus IPTM-nya".
   - **Wakaf Tanah**: the process in plain words, the "never land or money" line, and the form.
   - **FAQ**: booking vs Hak Pakai; what is paid when; Pembatalan; Perpanjangan; TPU eligibility; documents; data use.
-  - **Hubungi Kami**: CS WhatsApp and the Operator's address (values from Pengaturan Operator).
+  - **Hubungi Kami**: CS WhatsApp (`wa.me` link) and phone, and the Operator's address (values from Pengaturan Operator).
 
 ### Data and privacy decisions
 
@@ -611,7 +611,7 @@ Core entities at a glance (details in each module):
   - Petugas Lapangan: their assigned cases.
   - Mitra Jasa: never.
 - Wakaf survey reports and internal notes stay with Admin Platform. Mitra Jasa and Petugas Lapangan see no audit log.
-- WhatsApp (Meta) is the only known flow of data out of Indonesia. Error monitoring (GlitchTip) is self-hosted on the Jakarta host.
+- ~~WhatsApp (Meta) is the only known flow of data out of Indonesia.~~ (removed 2026-09-26, ADR 0004): WhatsApp is not used, so Meta is no longer a flow. Error monitoring (GlitchTip) is self-hosted on the Jakarta host. The remaining open question is email (next point).
 - Email (addresses, Kode Masuk, Tagihan / Bukti copies, Undangan Staf) goes through the SumoPod SMTP relay, not AWS SES and not the self-hosted Stalwart. Where SumoPod's relay processes mail is not yet confirmed (ticket 04); until it is, email is not claimed to stay in Indonesia. Files and backups stay in AWS S3 Jakarta.
 - Retention and deletion rules are out of scope, but the uploads are treated as personal data.
 
@@ -628,7 +628,7 @@ Core entities at a glance (details in each module):
   - one status-badge vocabulary mapping every domain status (Belum Tayang, Terverifikasi, Ditangguhkan, Berhenti, Terlambat, Lunas, …) to a colour and label: red only for what needs action now (Terlambat, past a deadline); Berhenti is neutral grey (ended, not an emergency); Dikonfirmasi is green like Lunas; Belum Dibayar is amber;
   - the component inventory (shadcn primitives + makam compositions: `PageHeader`, `DataTable`, `FormSection`, `EmptyState`, `StatCard`, `StatusBadge`, `ConfirmDialog`, `RoleSwitcher`, `LokasiSwitcher`);
   - **imagery** (decided 2026-09-26, "like kamboja.co.id"): the public site is photographic, like kamboja.co.id's layout (a people photo in the hero, a photo on top of each service card, real location photos), within the brand guardrails: natural warm light, calm and respectful (families together, gentle rather than laughing), Indonesian people with modest dress, service shown (staff tending a grave, flowers, a well-kept Lokasi); never a jenazah, coffin close-ups, digging, crying or other heavy grief visuals, and never another company's photos. Lokasi pages and cards use the real Kunjungan Verifikasi photos. Until the Operator's own photos exist (ticket 06), commercially licensed stock is used, recorded with its source and licence, optimised through `next/image`, with Indonesian alt text; the staff area stays photo-free;
-  - **voice**: the brand tone (warm, clear, not judgemental) and its guardrails (no hard selling, no uncertain claims, status and limits explained, privacy protected; north star "Dibantu, Jelas, Aman") are writing rules for UI copy, WhatsApp templates and content drafts;
+  - **voice**: the brand tone (warm, clear, not judgemental) and its guardrails (no hard selling, no uncertain claims, status and limits explained, privacy protected; north star "Dibantu, Jelas, Aman") are writing rules for UI copy, email templates and content drafts (the WhatsApp templates are retired, ADR 0004);
   - documented in `docs/design-system.md` and shown on a live catalogue page, a real staff page for Admin Platform (not development-only).
 - **Brand words vs the glossary**: brand and marketing material may use its own words, but the product uses `CONTEXT.md` terms: documents and UI say "Tagihan", never "Invoice"; "pengelola" and "TPS" may describe the audience in marketing, while the product says Lokasi Mitra and Admin Lokasi; the brand's "Verified Partner" ID card is a physical item only, and the UI shows no such badge (Terverifikasi is a listing gate, ticket 24).
 - **Shell**: collapsible sidebar with per-role menus; header with breadcrumbs, role switcher, Lokasi switcher (Admin Lokasi), ⌘K command palette, notification bell (web push, ticket 21) and account menu (Keluar). The active menu item is a light Sage-tinted background with semibold Forest text (solid Forest stays reserved for primary buttons). Admin Platform's menu groups: Kerja harian · Lokasi dan harga · Orang · Operator, with Audit Log under Operator. On phones: a sheet sidebar for admins and a bottom navigation for the field roles: Mitra Jasa — Pekerjaan, Pencairan, Peringatan, Akun; Petugas Lapangan — Tugas, Jadwal, Peringatan, Akun. PWA, mobile-first.
@@ -645,7 +645,7 @@ Core entities at a glance (details in each module):
   - Tests are named in glossary terms (e.g. "Saat Duka Tagihan becomes Lewat Jatuh Tempo 3×24 h after the recorded Pemakaman").
 - **The seam (confirmed with the user)**: the public functions of the domain modules, run in **Vitest against a real Postgres** (a test container, migrated fresh, no DB mocks), with:
   - an **injected Clock**, so every deadline, hold, reminder window, working-hours calculation and Keluhan window is tested by moving time;
-  - **in-memory fakes** of PaymentProvider, WhatsAppSender, EmailSender, WebPush, FileStore and PdfRenderer (the fake payment provider can emit signed webhook payloads);
+  - **in-memory fakes** of PaymentProvider, EmailSender, WebPush, FileStore and PdfRenderer (the fake payment provider can emit signed webhook payloads);
   - **scheduler tick functions** called directly with the fake clock, so worker behaviour is tested without pg-boss timing. One smoke test checks the pg-boss wiring.
 - **Modules to cover** (all of them; the heaviest first):
   - **Billing**: due-date rules per Tagihan kind; the earliest-due rule for mixed Tagihan; lapse vs chase; Tidak Tertagih guard (H+30 + a call); manual / direct / Rp 0 payments; Harga Khusus lines; immutability; document numbering; refund Biaya Layanan Platform rules.
@@ -659,12 +659,12 @@ Core entities at a glance (details in each module):
   - **Lokasi**: publish gate, Terencana switch, working-time calculator (Jam Operasional, closures, overnight pauses).
   - **Work Queues**: the right rows appear with the right deadlines and tiers and close themselves; escalation timing.
   - **Notifications**: recipients, the 08:00–20:00 window, retry → email → call row routing by subject.
-  - **Identity & Access**: OTP login creating the account, email login and the email OTP fallback (offered only for an Email Terverifikasi; the same reply for an unknown email; CS pointer otherwise; never creates an Akun), verifying an email and its uniqueness, the email code limits per email and per IP, required staff email at invite, role visibility rules, TOTP for Admin Platform (also after email login), Pemegang Hak OTP skip.
+  - **Identity & Access**: the Kode Masuk by email creating an Akun for an unknown email (at Kirim and on Masuk) and logging into an existing one, with its limits per email and per IP; the same reply for every email; Verifikasi email changing the Email Terverifikasi and its uniqueness; the phone number as an unverified contact; Undangan Staf accepted by the Akun with that email; Pemulihan Akun (KTP check, audited); attaching a CS-submitted order by Nomor Pemesanan; role visibility rules; TOTP for Admin Platform; Pemegang Hak code skip when logged in with the recorded email (ADR 0004).
   - **Wakaf**: status transitions and Dirujuk.
   - **Field Work**: Selesai gated on uploads, and the auto-created pickup task.
   - **Audit Log**: every staff write logged, and the Admin Lokasi view filter.
 - **End-to-end**: a thin **Playwright** layer on the critical paths (ticket 12), plus short UI smoke tests where a build ticket explicitly asks for one (amended 2026-09-25, user decision; each spec file stays fast and does not repeat unit/domain coverage):
-  1. Pemesanan Saat Duka at a Lokasi Mitra from the Pilih makam list through OTP, Admin Lokasi confirmation and payment to the Bukti Pemesanan.
+  1. Pemesanan Saat Duka at a Lokasi Mitra from the Pilih makam list through the email Kode Masuk at Kirim, Admin Lokasi confirmation and payment to the Bukti Pemesanan.
   2. The SumoPod webhook marking a Tagihan Lunas (signed payload against the running app).
   3. A Pencairan run producing a Bukti Pencairan.
 - **Prior art**: none in this repo yet (no code). The Vitest-against-real-Postgres and Playwright choices come from ticket 12. The frozen Laravel makam-app is reference for domain behaviour, not for test style.
@@ -682,6 +682,7 @@ Core entities at a glance (details in each module):
 - Public reviews / ratings and order counters on Lokasi pages.
 - A two-person approval rule for refunds and Pencairan.
 - Marketing messages, an in-platform WhatsApp inbox, charts / BI dashboards.
+- WhatsApp Business API (Meta / kirim.dev) and the WhatsAppSender port — out of v1 (ADR 0004). Also out: any WhatsApp or SMS Kode Masuk and any phone-number login.
 - Wakaf money of any kind (fees, wakaf uang, donations) and any link from a finished wakaf to Lokasi Mitra onboarding.
 - Shared family access to orders beyond the Pemesan and the Pemegang Hak.
 - Self-serve Ganti Pemegang Hak (only a request; the Admin Lokasi performs it) and self-service account recovery.
@@ -695,9 +696,9 @@ Core entities at a glance (details in each module):
   - **Excel import** of a Lokasi Mitra's existing Petak and Hak Pakai. The requirement and the Perlu Verifikasi behaviour are in this spec. The template is designed with the first partner. Until then the Denah clearing flow is how records get in.
 - **Pre-launch checklist**:
   - These are requirements, not design:
-    - Meta Business verification for PT Jaya Korpora Prima (akta, NIB, NPWP).
-    - Checking kirim.dev's support for `data_localization_region=ID` before registering the new API number.
-    - Email sending on the SumoPod SMTP relay (replaces SES, decision 2026-09-25): `makam.co.id` added under SumoPod's "Custom Domain", its DKIM, SPF and `sumo-verification` records published and verified, a DMARC record published, and SMTP credentials for v1 stored (ticket 04). It carries the email Kode Masuk, so it is needed before launch.
+    - ~~Meta Business verification for PT Jaya Korpora Prima (akta, NIB, NPWP).~~ (removed 2026-09-26, ADR 0004).
+    - ~~Checking kirim.dev's support for `data_localization_region=ID` before registering the new API number.~~ (removed 2026-09-26, ADR 0004).
+    - Email sending on the SumoPod SMTP relay (replaces SES, decision 2026-09-25): `makam.co.id` added under SumoPod's "Custom Domain", its DKIM, SPF and `sumo-verification` records published and verified, a DMARC record published, and SMTP credentials for v1 stored (ticket 04). It carries the Kode Masuk and every family message, so it and the live SMTP EmailSender adapter (ticket 68) are launch requirements (ADR 0004).
     - The DNS A record `errors.makam.co.id` → 103.92.214.243 and the GlitchTip set-up.
     - Every reference value entered by Admin Platform in the dashboard (Pengaturan Operator and the owning screens).
     - Every vendor account in PT JKP's name, including the domain registrant.

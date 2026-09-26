@@ -6,16 +6,20 @@ Spec: Domain modules > 12. Wakaf; 13. Field Work (Survei Wakaf); 14. Work Queues
 
 ## What to build
 
-The Wakaf module end to end. The Wakaf Tanah page explains the process in plain words, says the land goes directly to a Nazhir and the platform takes no land or money, and holds the one-page Pengajuan Wakaf form (Tujuan sosial / keluarga + family name, Wakif name / WhatsApp / relationship to the land, land kab/kota, address, pin, approx. m², proof-of-ownership type, Nazhir from the list or free text), with optional documents addable later, and OTP at submission. Outside Jabodetabek it is flagged Dirujuk with a pointer to the local KUA/BWI. Admin Platform reviews from a Tier 3 row (first contact in 3 working days; no alert), matches a Nazhir from the list, schedules a Survei Wakaf Tugas Lapangan, moves the manual statuses and writes notes to the Wakif separately from internal notes and the survey report. The Wakif follows it in an Akun Saya Wakaf tab.
+The Wakaf module end to end. The Wakaf Tanah page explains the process in plain words, says the land goes directly to a Nazhir and the platform takes no land or money, and holds the one-page Pengajuan Wakaf form (Tujuan sosial / keluarga + family name, Wakif name / phone number / relationship to the land, land kab/kota, address, pin, approx. m², proof-of-ownership type, Nazhir from the list or free text), with optional documents addable later, and the email Kode Masuk at submission (as ticket 22). Outside Jabodetabek it is flagged Dirujuk with a pointer to the local KUA/BWI. Admin Platform reviews from a Tier 3 row (first contact in 3 working days; no alert), matches a Nazhir from the list, schedules a Survei Wakaf Tugas Lapangan, moves the manual statuses and writes notes to the Wakif separately from internal notes and the survey report. The Wakif follows it in an Akun Saya Wakaf tab.
 
 ## Acceptance criteria
 
 - [ ] Statuses: Diajukan → Ditinjau → Survei Dijadwalkan (date) → Menunggu Ikrar (KUA date) → Proses Sertipikat → Selesai (AIW / certificate scan), plus Ditolak (reason), Dirujuk and Dibatalkan.
 - [ ] Automatic Dirujuk when the kab/kota is outside Jabodetabek, with the KUA/BWI pointer shown.
 - [ ] The Wakif can cancel until Menunggu Ikrar.
-- [ ] Each status change is sent to the Wakif by WhatsApp; a new Pengajuan sends no staff alert and appears as a Tier 3 row.
+- [ ] Each status change is sent to the Wakif by email; a new Pengajuan sends no staff alert and appears as a Tier 3 row.
 - [ ] Wakaf tab: status timeline, dates, notes to the Wakif, the Wakif's uploads and the final AIW / certificate scan.
 - [ ] Internal notes and the Survei Wakaf report are hidden from the Wakif; Admin Lokasi never see Pengajuan Wakaf.
 - [ ] Nazhir list CRUD by Admin Platform in the dashboard (name, type, kab/kota, contact, BWI number), not seeded; Nazhir have no login.
 - [ ] No money of any kind: no Tagihan can be attached to a Pengajuan Wakaf.
 - [ ] Tests: status transitions and the cancel limit; Dirujuk rule; visibility of notes and reports by role.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the Wakif gives a phone number (contact), submits with the email Kode Masuk and gets status changes by email (updated above).

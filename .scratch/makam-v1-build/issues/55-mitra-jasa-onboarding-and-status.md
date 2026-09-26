@@ -6,7 +6,7 @@ Spec: Domain modules > 9. Layanan (Mitra Jasa profile, suspension/ending); 14. W
 
 ## What to build
 
-Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (name must match the KTP or carry an override note), signed arrangement scan, optional emergency contact (no NPWP), and coverage lists (DKI TPUs, Layanan). The Mitra Jasa is invited by WhatsApp number and required email (ticket 09), logs in with OTP, sets Tidak tersedia date ranges and sees their history and payments. Status Aktif / Ditangguhkan / Berhenti with a reason; on suspension or ending, Dijadwalkan jobs are unassigned and in-progress jobs are listed for Admin Platform, notifying the Pemesan only if the target date moves. A "Baru" badge shows until 5 Selesai. A 90-day scorecard (Selesai, Terlambat, Keluhan upheld, declines / Tidak direspons, average Penilaian) supports a monthly Tier 4 review row.
+Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (name must match the KTP or carry an override note), signed arrangement scan, optional emergency contact (no NPWP), and coverage lists (DKI TPUs, Layanan). The Mitra Jasa is invited by an Undangan Staf to an email, with a phone number as contact (tickets 09, 82), logs in with the email Kode Masuk, sets Tidak tersedia date ranges and sees their history and payments. Status Aktif / Ditangguhkan / Berhenti with a reason; on suspension or ending, Dijadwalkan jobs are unassigned and in-progress jobs are listed for Admin Platform, notifying the Pemesan only if the target date moves. A "Baru" badge shows until 5 Selesai. A 90-day scorecard (Selesai, Terlambat, Keluhan upheld, declines / Tidak direspons, average Penilaian) supports a monthly Tier 4 review row.
 
 ## Acceptance criteria
 
@@ -17,3 +17,7 @@ Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (
 - [ ] Scorecard over the last 90 days from the Clock; monthly review row (tick).
 - [ ] Mitra Jasa never see any family document or the audit log.
 - [ ] Tests: bank-name rule; status effects on jobs; scorecard numbers for seeded jobs; Baru badge until 5 Selesai.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the Mitra Jasa invite is addressed to an email and accepted by the Akun with that Email Terverifikasi; login is by email Kode Masuk (updated above).

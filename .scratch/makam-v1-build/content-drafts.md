@@ -8,7 +8,7 @@ Conventions in this file:
 - Everything inside `{kurung_kurawal}` is a placeholder. Admin Platform sets these in the dashboard or config (ticket 06). They are listed at the end.
 - `<!-- ... -->` comments are for reviewers and are not rendered.
 - `[CATATAN EDITOR: ...]` marks a line that needs a decision before publishing. Remove the note once decided.
-- Login is by a code sent to WhatsApp, or to a verified email once the account has one (email login, decided 2026-09-25). New accounts are created only through WhatsApp. SMS is not mentioned anywhere (removed from v1 on 2026-09-25).
+- Login is by a Kode Masuk sent to the email; the Akun is keyed by its Email Terverifikasi and created by that code at Kirim or on Masuk (ADR 0004, 2026-09-26). v1 sends nothing through WhatsApp: the only WhatsApp in these drafts is the CS `wa.me` link (a person answering in the WhatsApp Business app). SMS is not mentioned anywhere (removed from v1 on 2026-09-25).
 - No YIEM, no yayasan mission language. The spec says the legal name appears "only in the footer and document headers", but it also requires Tentang Kami to say PT Jaya Korpora Prima runs the site and Hubungi Kami to give the Operator's address. This draft also uses the name in FAQ 10 (who receives the money) and in the Pengurusan di TPU DKI anti-perantara paragraph (Tagihan resmi atas nama ...). [CATATAN EDITOR: decide whether those two extra uses stay or are reworded to "pengelola Makam.co.id".]
 
 ---
@@ -205,7 +205,7 @@ Biasanya: surat keterangan kematian dari rumah sakit atau Puskesmas, surat keter
 
 **5. Bagaimana jika lokasi tidak dapat menerima pesanan saya?**
 
-Pengelola dapat menawarkan pilihan lain (jenis makam lain atau hari lain) yang bisa Anda terima atau tolak dengan satu ketukan, disertai total harga yang baru. Bila pesanan ditolak, Anda menerima tautan WhatsApp ke pilihan lain di kota Anda, termasuk TPU DKI, dengan data yang sudah terisi. Tim kami juga akan menelepon Anda dalam 2 jam.
+Pengelola dapat menawarkan pilihan lain (jenis makam lain atau hari lain) yang bisa Anda terima atau tolak dengan satu ketukan, disertai total harga yang baru. Bila pesanan ditolak, Anda menerima email berisi tautan ke pilihan lain di kota Anda, termasuk TPU DKI, dengan data yang sudah terisi. Tim kami juga akan menelepon Anda dalam 2 jam.
 <!-- Spec: User Stories 31, 32, 33; Domain modules > 6. Pemesanan (Tawarkan alternatif / Tolak); 14. Work Queues (Tier 1 Saat Duka ditolak, call within 2 h); Public site > After a Tolak. -->
 
 **6. Bisakah saya membatalkan pemesanan saat duka?**
@@ -225,7 +225,7 @@ Bisa, selama belum ada pemakaman di petak itu. Pemegang Hak mengajukan Pembatala
 
 **9. Bisakah keluarga dimakamkan lagi di makam keluarga yang sudah ada?**
 
-Bisa, bila aturan lokasi mengizinkan (misalnya tumpang, petak berikutnya di kavling keluarga, atau makam yang sudah disiapkan untuk seseorang). Mulai dari menu **Makam Keluarga**, cari makamnya, lalu pilih "Makamkan di sini". Bila Anda bukan Pemegang Hak, Pemegang Hak akan diminta persetujuan lewat WhatsApp. Tagihannya (biaya pemakaman dan Biaya Layanan Platform) dibayar setelah pemakaman.
+Bisa, bila aturan lokasi mengizinkan (misalnya tumpang, petak berikutnya di kavling keluarga, atau makam yang sudah disiapkan untuk seseorang). Mulai dari menu **Makam Keluarga**, cari makamnya, lalu pilih "Makamkan di sini". Bila Anda bukan Pemegang Hak, Pemegang Hak akan diminta persetujuan lewat email yang tercatat pada Hak Pakai. Bila tidak ada email tercatat, pengelola lokasi mencatat persetujuan secara langsung. Tagihannya (biaya pemakaman dan Biaya Layanan Platform) dibayar setelah pemakaman.
 <!-- Spec: Solution 1 (further burial with consent); User Stories 50–56; Domain modules > 6. Pemesanan > Burial under an existing Hak Pakai (consent resolution, tumpang policy checks, pay-after). -->
 
 ### Pembayaran
@@ -249,12 +249,12 @@ Silakan hubungi CS kami. Dalam keadaan tertentu tim kami dapat memberikan **Harg
 
 **13. Kapan dan bagaimana memperpanjang Hak Pakai di Lokasi Mitra?**
 
-Perpanjangan bisa diajukan mulai 3 bulan sebelum masa Hak Pakai berakhir sampai akhir masa tenggang lokasi. Kami mengirim pengingat 60, 30 dan 7 hari sebelumnya, lalu setiap minggu selama masa tenggang. Pemegang Hak memasukkan kode dari WhatsApp (atau langsung lanjut bila sudah masuk dengan nomornya), memilih jumlah periode, lalu membayar dalam 3×24 jam. Masa baru dihitung dari tanggal berakhir yang lama, bukan dari tanggal bayar, jadi memperpanjang lebih awal tidak merugikan Anda. Siapa pun di keluarga boleh membayar Tagihannya, tetapi hak tetap pada Pemegang Hak. Setelah dibayar, Anda menerima **Bukti Perpanjangan** atas nama Lokasi Mitra. Makam dengan masa berlaku selamanya tidak perlu diperpanjang.
+Perpanjangan bisa diajukan mulai 3 bulan sebelum masa Hak Pakai berakhir sampai akhir masa tenggang lokasi. Kami mengirim pengingat lewat email 60, 30 dan 7 hari sebelumnya, lalu setiap minggu selama masa tenggang, dan tim kami dapat menelepon Anda. Pemegang Hak memasukkan kode yang kami kirim ke email yang tercatat pada Hak Pakai (atau langsung lanjut bila sudah masuk dengan email itu), memilih jumlah periode, lalu membayar dalam 3×24 jam. Masa baru dihitung dari tanggal berakhir yang lama, bukan dari tanggal bayar, jadi memperpanjang lebih awal tidak merugikan Anda. Siapa pun di keluarga boleh membayar Tagihannya, tetapi hak tetap pada Pemegang Hak. Setelah dibayar, Anda menerima **Bukti Perpanjangan** atas nama Lokasi Mitra. Makam dengan masa berlaku selamanya tidak perlu diperpanjang.
 <!-- Spec: User Stories 57, 58, 62, 63, 64, 65; Domain modules > 7. Perpanjangan (open window, terms 1–K, new end = old end + terms × N, pay-first 3×24 h, Bukti Perpanjangan); 15. Notifications (Hak Pakai end reminders). -->
 
-**14. Nomor WhatsApp Pemegang Hak sudah berganti, atau Pemegang Hak sudah meninggal. Bagaimana?**
+**14. Email Pemegang Hak tidak tercatat atau tidak bisa dipakai lagi, atau Pemegang Hak sudah meninggal. Bagaimana?**
 
-Bila nomornya berganti, unggah KTP Anda. Pengelola lokasi memeriksanya dalam 2 hari kerja. Bila Pemegang Hak sudah meninggal, ahli waris mengajukan pergantian Pemegang Hak sekaligus perpanjangan dalam satu permintaan, dengan akta kematian, bukti ahli waris dan KTP. Bila makam belum tercatat punya Pemegang Hak, kerabat dapat mengajukan klaim dengan KTP, bukti hubungan keluarga, dan kuitansi lama bila ada. Persetujuan berlaku 30 hari, jadi bila Tagihan pertama terlewat Anda tidak perlu mengunggah ulang.
+Bila email Pemegang Hak tidak tercatat atau tidak bisa dipakai lagi, unggah KTP Anda. Pengelola lokasi memeriksanya dalam 2 hari kerja. Bila Pemegang Hak sudah meninggal, ahli waris mengajukan pergantian Pemegang Hak sekaligus perpanjangan dalam satu permintaan, dengan akta kematian, bukti ahli waris dan KTP. Bila makam belum tercatat punya Pemegang Hak, kerabat dapat mengajukan klaim dengan KTP, bukti hubungan keluarga, dan kuitansi lama bila ada. Persetujuan berlaku 30 hari, jadi bila Tagihan pertama terlewat Anda tidak perlu mengunggah ulang.
 <!-- Spec: User Stories 59, 60, 61, 67; Domain modules > 7. Perpanjangan (paths, manual review 2 working days, approval valid 30 days). -->
 
 **15. Bagaimana memperpanjang IPTM makam di TPU DKI?**
@@ -312,19 +312,19 @@ Tidak. Tanah diwakafkan langsung kepada Nazhir; makam.co.id tidak menerima tanah
 
 **24. Bagaimana cara masuk ke akun saya?**
 
-Cukup dengan nomor WhatsApp. Kami mengirim kode sekali pakai ke WhatsApp Anda. Kode hanya muncul di aplikasi WhatsApp di ponsel, tidak di WhatsApp Web atau Desktop. Tidak ada kata sandi. Bila email Anda sudah diverifikasi (lewat "Verifikasi email" di profil Akun Saya), Anda juga bisa memilih **Masuk dengan email** kapan saja: kodenya kami kirim ke email itu. Akun dibuat otomatis saat Anda pertama kali mengirim pesanan atau masuk dengan nomor WhatsApp, jadi Pemegang Hak yang belum pernah memesan pun bisa melihat makam keluarganya. Satu nomor adalah satu akun, dan akun tidak dapat dibagi dengan anggota keluarga lain. Bila Anda kehilangan nomor lama, hubungi CS. Tim kami dapat memindahkan akun ke nomor baru setelah memeriksa KTP Anda.
-<!-- Spec: Solution (WhatsApp OTP or verified email, account keyed by phone); User Stories 26, 98, 167, 189, 190; ticket 67 (email login, 2026-09-25); Domain modules > 1. Identity & Access (no self-service recovery, no shared family access, account move after KTP check); 15. Notifications (OTP only on the phone). SMS fallback deliberately omitted per the 2026-09-25 removal. -->
+Cukup dengan email. Kami mengirim **Kode Masuk** sekali pakai ke email Anda. Tidak ada kata sandi. Akun dibuat otomatis saat Anda pertama kali memasukkan Kode Masuk, ketika mengirim pesanan atau masuk, jadi Pemegang Hak yang belum pernah memesan pun bisa melihat makam keluarga yang tercatat dengan emailnya. Satu email adalah satu akun, dan akun tidak dapat dibagi dengan anggota keluarga lain. Nomor telepon Anda kami simpan untuk dihubungi dan dapat diubah di Akun Saya, tetapi tidak dipakai untuk masuk. Tidak punya email? Hubungi CS kami lewat WhatsApp; tim kami dapat membantu mengirim pesanan untuk Anda. Bila Anda tidak bisa lagi membuka email lama, hubungi CS. Tim kami dapat memindahkan akun ke email baru setelah memeriksa KTP Anda.
+<!-- Spec: Solution (email Kode Masuk, Akun keyed by Email Terverifikasi, ADR 0004 of 2026-09-26); User Stories 26, 98, 167, 189, 190, 191, 193; Domain modules > 1. Identity & Access (families without email, no self-service recovery, no shared family access, Pemulihan Akun after a KTP check). Rewritten 2026-09-26: the WhatsApp OTP and "Masuk dengan email" alternative are gone. SMS deliberately omitted. -->
 
 **25. Bagaimana data dan dokumen keluarga saya digunakan?**
 
-Dokumen seperti KTP, KK, surat kematian dan surat ahli waris disimpan di penyimpanan pribadi di Jakarta, dan hanya dibuka oleh pihak yang memerlukannya: pengelola lokasi untuk pesanan di lokasinya, dan petugas kami untuk urusan yang ditugaskan kepadanya. Mitra Jasa tidak melihat nomor atau dokumen Anda. Mereka berkomunikasi dengan Anda melalui pesan di halaman pekerjaan. Saat orang lain mencari makam keluarga, data Pemegang Hak tidak ditampilkan. Kami tidak mengirim pesan promosi. Pesan WhatsApp dikirim melalui layanan WhatsApp Business resmi (Meta), yang dapat memproses data di luar Indonesia.
+Dokumen seperti KTP, KK, surat kematian dan surat ahli waris disimpan di penyimpanan pribadi di Jakarta, dan hanya dibuka oleh pihak yang memerlukannya: pengelola lokasi untuk pesanan di lokasinya, dan petugas kami untuk urusan yang ditugaskan kepadanya. Mitra Jasa tidak melihat nomor atau dokumen Anda. Mereka berkomunikasi dengan Anda melalui pesan di halaman pekerjaan. Saat orang lain mencari makam keluarga, data Pemegang Hak tidak ditampilkan. Kami tidak mengirim pesan promosi. Pemberitahuan dikirim lewat email melalui penyedia layanan email kami. <!-- 2026-09-26 (ADR 0004): the WhatsApp (Meta) sentence is gone; Meta is no longer a flow of data out of Indonesia. [CATATAN EDITOR: say where email is processed only once ticket 04's answer is confirmed in the spec.] -->
 <!-- Spec: Data and privacy decisions; Domain modules > 5. Inventory (lookup returns no Pemegang Hak details); 9. Layanan (Mitra Jasa sees first name/photo, thread); 15. Notifications (official API only, no marketing); Architecture (S3 Jakarta). Retention/deletion/UU PDP out of scope, so nothing is promised about deletion. -->
 
 ---
 
 ## 5. Hubungi Kami
 
-<!-- Spec: Public site > Content pages > Hubungi Kami: CS WhatsApp and the Operator's address. Ticket 06 adds phone and email; Notifications: inbound WhatsApp to the notification number gets an auto-reply to the CS number, no inbox; ticket 24: before booking, contact goes to CS only. -->
+<!-- Spec: Public site > Content pages > Hubungi Kami: CS WhatsApp and the Operator's address. Ticket 06 adds phone and email; Notifications: no WhatsApp notification number in v1 (ADR 0004), no inbox; ticket 24: before booking, contact goes to CS only. -->
 
 ### Hubungi Kami
 
@@ -338,7 +338,7 @@ Jam layanan: {jam_layanan_cs}. Pesan di luar jam itu dibalas mulai pukul {jam_mu
 
 **Keluhan tentang Layanan Makam** diajukan dari halaman pekerjaannya di Akun Saya, dalam 3×24 jam setelah foto bukti ditampilkan.
 
-**Nomor WhatsApp pengirim notifikasi** (kode masuk, tagihan, pengingat) tidak dibaca oleh petugas. Bila Anda membalasnya, Anda akan diarahkan ke nomor CS di atas.
+**Email pemberitahuan** (Kode Masuk, tagihan, pengingat) dikirim otomatis dan tidak dibaca oleh petugas. Untuk bertanya, hubungi CS di atas. <!-- Rewritten 2026-09-26 (ADR 0004): was the WhatsApp sender number with its auto-reply. -->
 
 ### Alamat dan kontak perusahaan
 
@@ -519,7 +519,7 @@ Untuk keluarga yang sudah memakamkan sendiri di TPU DKI dan ingin kami yang meng
 - **IPTM baru biasanya terbit dalam 5 hari kerja setelah pembayaran.**
 - Bila masa perpanjangan mungkin sudah lewat, kami menanyakan ke TPU lebih dulu, **tanpa biaya**. Bila TPU tidak dapat memperpanjang, permintaan ditutup tanpa ada yang dibayar.
 - Penolakan yang bisa diperbaiki kami ajukan ulang tanpa biaya. Bila IPTM akhirnya ditolak, Biaya Pengurusan dikembalikan penuh, dan alasannya kami tampilkan.
-- Untuk makam yang kami catat, Pemegang Hak menerima pengingat lewat WhatsApp 3 bulan dan 1 bulan sebelum IPTM berakhir.
+- Untuk makam yang kami catat, Pemegang Hak menerima pengingat lewat email 3 bulan dan 1 bulan sebelum IPTM berakhir.
 
 <!-- Spec: User Stories 79–83; Domain modules > 8. Pengurusan > Perpanjangan TPU; 15. Notifications (IPTM expiry reminders); ticket 26 §1. -->
 

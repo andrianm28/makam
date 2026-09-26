@@ -19,3 +19,7 @@ Chasing for pay-after Tagihan only (Saat Duka and burials under an existing Hak 
 - [ ] Once Tidak Tertagih, the Admin Lokasi may end the Hak Pakai (Berakhir with reason); not for a burial under an existing Hak Pakai.
 - [ ] Tidak Tertagih loss: no Pencairan is due for it unless the family pays later (enforced when ticket 32 lands; recorded here as the Tagihan state).
 - [ ] Tests: reminder schedule and stop conditions; Tidak Tertagih guard (H+30 + a call); block query; end-Hak-Pakai permission after Tidak Tertagih only.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the overdue-call row for a Saat Duka Tagihan Lewat Jatuh Tempo is the "Telepon Pemesan" row type from ticket 20; reminders go by email, not WhatsApp. The call log and its outcomes are unchanged.

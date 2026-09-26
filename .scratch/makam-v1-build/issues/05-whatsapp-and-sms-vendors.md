@@ -1,6 +1,6 @@
 # WhatsApp (Meta + kirim.dev) vendor setup
 
-Status: ready-for-human
+Status: wontfix
 Spec: Implementation Decisions > Notifications; Adapter ports > WhatsAppSender; Further Notes > Pre-launch checklist; ADR 0003 (and its 2026-09-25 amendment)
 
 ## What to build
@@ -21,3 +21,7 @@ Get the official WhatsApp Business API sending number live through kirim.dev for
 ## Notes
 
 Meta bills PT JKP directly per message; kirim.dev is a flat pass-through subscription. The CS WhatsApp number (the human-answered one) is entered by Admin Platform in Pengaturan Operator (ticket 63; checklist in ticket 06).
+
+## Comments
+
+- 2026-09-26 — ADR 0004: Out of scope for v1 (ADR 0004). v1 has no WhatsApp channel: the WhatsApp Business API vendor setup (Meta Business verification, kirim.dev account, API sending number, authentication and utility templates, webhook secrets) will not be built or set up. The WhatsAppSender port and its memory fake are removed in ticket 82. No open ticket was blocked by 05. The CS WhatsApp number stays in Pengaturan Operator for `wa.me` links and display only (a person answering in the WhatsApp Business app).

@@ -26,3 +26,7 @@ Implement the FileStore port on AWS S3 in `ap-southeast-3`: upload via presigned
   - the "Kirim lewat email" fallback, and email login with it, is ticket 67.
 - The number 60 stays with S3 because the app's Pindah Nomor message already says "menunggu S3, tiket 60".
 - Blocked by 08 and 63 is gone: both were only for the fallback.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: "the Pindah Nomor KTP check" is now the Pemulihan Akun KTP check (ticket 82); same adapter, same key prefix unless 82 renames it.

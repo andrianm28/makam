@@ -6,11 +6,11 @@ Spec: Domain modules > 6. Pemesanan (burial under an existing Hak Pakai, consent
 
 ## What to build
 
-"Makamkan di sini" from the hub requests a tumpang, the next plot of a Kavling Keluarga, or the Calon Penghuni's burial, asking only for the Almarhum and the Pemesan (wizard: hub → Data & kirim). It runs the Saat Duka track (Diajukan → Dikonfirmasi → Dimakamkan → Selesai, plus Ditolak / Dibatalkan) without creating a Hak Pakai. Consent resolves in order: implicit when the logged-in number is the holder's; else a WhatsApp "Setujui / Tolak" request to the Pemegang Hak after an OTP; else verbal consent logged by the Admin Lokasi; else heirship proof brought on the day, which raises a Ganti Pemegang Hak reminder. The Admin Lokasi sees the consent state, a warning banner for unpaid earlier Tagihan, and the tumpang policy checks. Billing is a pay-after Tagihan (Biaya Pemakaman at the day's rate + Biaya Layanan Platform) due 3×24 h after the recorded burial.
+"Makamkan di sini" from the hub requests a tumpang, the next plot of a Kavling Keluarga, or the Calon Penghuni's burial, asking only for the Almarhum and the Pemesan (wizard: hub → Data & kirim). It runs the Saat Duka track (Diajukan → Dikonfirmasi → Dimakamkan → Selesai, plus Ditolak / Dibatalkan) without creating a Hak Pakai. Consent resolves in order: implicit when the logged-in Akun's Email Terverifikasi is the holder's recorded email; else an email "Setujui / Tolak" request to the Pemegang Hak after a code sent to that recorded email; else verbal consent logged by the Admin Lokasi; else heirship proof brought on the day, which raises a Ganti Pemegang Hak reminder. The Admin Lokasi sees the consent state, a warning banner for unpaid earlier Tagihan, and the tumpang policy checks. Billing is a pay-after Tagihan (Biaya Pemakaman at the day's rate + Biaya Layanan Platform) due 3×24 h after the recorded burial.
 
 ## Acceptance criteria
 
-- [ ] Consent: implicit for the holder's own number; the Pemegang Hak's WhatsApp link requires an OTP to their number, then Setujui / Tolak; Tolak makes the order Ditolak with reason "Pemegang Hak tidak menyetujui"; verbal consent and heirship proof are logged by the Admin Lokasi with a note / file.
+- [ ] Consent: implicit for the Akun whose Email Terverifikasi is the holder's recorded email; the Pemegang Hak's email link requires a code sent to that email, then Setujui / Tolak (with no recorded email, verbal consent or heirship proof); Tolak makes the order Ditolak with reason "Pemegang Hak tidak menyetujui"; verbal consent and heirship proof are logged by the Admin Lokasi with a note / file.
 - [ ] The consent request appears in the Pemegang Hak's Perlu tindakan strip.
 - [ ] Tumpang checks: the Lokasi allows tumpang, the minimum years since the last burial have passed, the maximum layers isn't reached; a failing check blocks confirmation with the reason shown.
 - [ ] A released but not cleared (still Terisi) plot is offered only as tumpang, only if the Lokasi allows tumpang on released plots, after the minimum years; never as an empty plot.
@@ -23,3 +23,7 @@ Spec: Domain modules > 6. Pemesanan (burial under an existing Hak Pakai, consent
 ## Added (2026-09-25)
 
 - [ ] Optional email field on the order screen (copies of Tagihan / Bukti by email through SumoPod SMTP; SES dropped 2026-09-25), as in spec "Booking wizards".
+
+## Comments
+
+- 2026-09-26 — ADR 0004: consent is by the recorded email of the Pemegang Hak, not the WhatsApp number (What to build and criteria updated). Data & kirim follows ticket 22 (required email, Kode Masuk at Kirim).

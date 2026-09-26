@@ -1,5 +1,7 @@
 # WhatsApp message templates for Makam.co.id v1
 
+> **Retired for v1 (ADR 0004, 2026-09-26).** v1 sends nothing through WhatsApp: no WhatsApp Business API (Meta / kirim.dev), no WhatsAppSender port, no WhatsApp Kode Masuk. Nothing here is submitted to Meta; tickets 05 and 62 are wontfix. Family messages go by email and Peringatan Staf by web push + email (ticket 20). The trigger, recipient and timing analysis below may still be reused as input for the email templates, but the WhatsApp-specific parts (authentication template, categories, URL buttons, conversation windows, inbound auto-reply) do not apply. Kept for a later version that brings WhatsApp back.
+
 Status: draft, ready to submit to Meta through kirim.dev
 Owner tickets: 05 (submission), 20 (event table), 62 (name and parameter mapping)
 Sources: `../makam-v1/spec.md` (Domain modules 1, 6–12, 15; stories), `../../CONTEXT.md`, `../makam-v1/issues/19-notification-channels.md` and the build tickets listed per template.

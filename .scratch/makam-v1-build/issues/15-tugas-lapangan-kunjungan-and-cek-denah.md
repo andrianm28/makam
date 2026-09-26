@@ -10,7 +10,7 @@ The Field Work module: Admin Platform creates and assigns a Tugas Lapangan (subj
 
 ## Acceptance criteria
 
-- [ ] Admin Platform can create any Tugas Lapangan type and assign it to one Petugas Lapangan; the Petugas gets a WhatsApp alert (through the WhatsAppSender fake) for each assignment.
+- [ ] Admin Platform can create any Tugas Lapangan type and assign it to one Petugas Lapangan; the Petugas gets a Peringatan Staf by web push and email (through the WebPush and EmailSender fakes) for each assignment.
 - [ ] "Tugas saya" shows address, pin (Leaflet), planned date and the type-specific form, and works on a phone.
 - [ ] Selesai is rejected while any required upload is missing.
 - [ ] A completed Kunjungan Verifikasi updates the Lokasi's pin, visit photos, facilities checklist and "dikunjungi" date.
@@ -18,3 +18,7 @@ The Field Work module: Admin Platform creates and assigns a Tugas Lapangan (subj
 - [ ] A Petugas Lapangan sees only the documents of cases assigned to them; no audit log.
 - [ ] Admin Platform can order a Lokasi revisit ad hoc with a "Minta kunjungan ulang" button on the Lokasi Mitra, which creates a Kunjungan Verifikasi Tugas Lapangan (and the Tier 4 rows of ticket 17); there is no automatic revisit schedule in v1.
 - [ ] Tests: Selesai gated on uploads per type; Kunjungan Verifikasi updates the Lokasi; Petugas visibility limited to assigned cases.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: assignment alerts are Peringatan Staf by web push + email, not WhatsApp (criterion updated).

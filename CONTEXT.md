@@ -75,7 +75,7 @@ A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it 
 _Avoid_: Makam umum, using TPU for any cemetery
 
 **Makam TPU**:
-The Operator's record of a grave at a DKI TPU that it has filed an IPTM for: the TPU, block and number, Almarhum, Pemegang Hak with their WhatsApp number, and the current IPTM with its expiry. The TPU counterpart of a Hak Pakai as far as the platform is concerned.
+The Operator's record of a grave at a DKI TPU that it has filed an IPTM for: the TPU, block and number, Almarhum, Pemegang Hak with their phone number (and email when known), and the current IPTM with its expiry. The TPU counterpart of a Hak Pakai as far as the platform is concerned.
 _Avoid_: TPU plot record, Hak Pakai (for a TPU)
 
 **Petak Makam**:
@@ -109,36 +109,36 @@ The person who places an order on the platform (usually a family member).
 _Avoid_: Customer, pembeli, user
 
 **Akun**:
-The identity on makam.co.id keyed by one WhatsApp number (+62), which can hold several roles: Pemesan by default, plus staff roles by invitation. It is created only by a Kode Masuk sent to that WhatsApp number; an Email Terverifikasi is a second way into an existing Akun, never a second identity.
+The identity on makam.co.id keyed by one Email Terverifikasi, which can hold several roles: Pemesan by default, plus staff roles by invitation. It is created only by a Kode Masuk sent to that email. It also records a phone number as a contact, which is never verified and never logs anyone in.
 _Avoid_: User, pengguna (as a domain term)
 
 **Kode Masuk**:
-The single-use code that logs a person into an Akun, sent either to the Akun's WhatsApp number or to its Email Terverifikasi; the same rules apply to both.
+The single-use code, sent by email, that logs a person into the Akun of that Email Terverifikasi, or creates the Akun when that email has none yet (at Kirim in a wizard, or on Masuk).
 _Avoid_: OTP (alone, in user-facing text), kata sandi, PIN, token
 
 **Email Terverifikasi**:
-An email address on an Akun that has been proven by entering a code sent to it; only such an email can receive a Kode Masuk, and it belongs to at most one Akun. An email that has only been typed in (on an order, or on an Undangan Staf) is not an Email Terverifikasi.
+An email address that has been proven by entering a code sent to it; it is the key of exactly one Akun, and only such an email can receive a Kode Masuk for an existing Akun. An email that has only been typed in (on an order, or on an Undangan Staf) is not an Email Terverifikasi.
 _Avoid_: Email terdaftar, email akun (for an unproven email), login email
 
 **Verifikasi Email**:
-Proving an email for one's own Akun by entering the code sent to it, which makes it the Akun's Email Terverifikasi (replacing any earlier one only then); it is the only way to add or change one's own login email. The code is not a Kode Masuk and logs no one in.
+Proving a new email for one's own Akun by entering the code sent to it, which makes it the Akun's Email Terverifikasi (replacing the earlier one only then); it is the only self-service way to change one's own login email. The code is not a Kode Masuk and logs no one in.
 _Avoid_: Konfirmasi email, aktivasi email, email login
 
 **Akun Staf**:
-An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); always has an email on record, which is not an Email Terverifikasi until proven; it may change that email only by Verifikasi Email and may never remove it.
+An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas Lapangan, Mitra Jasa); like every Akun it is keyed by its Email Terverifikasi, which it may change only by Verifikasi Email.
 _Avoid_: Admin user, akun admin
 
 **Undangan Staf**:
-Admin Platform's single-use, expiring offer of one staff role to a WhatsApp number and email; the role is granted when the Akun of that number next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
+Admin Platform's single-use, expiring offer of one staff role to an email (with a phone number as contact); the role is granted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
 _Avoid_: Invite link, pendaftaran staf
 
 **Dinonaktifkan**:
 Said of a former Akun Staf whose staff roles Admin Platform has taken away: it has no staff access, but still logs in as a Pemesan, and its orders and Entri Audit stay.
 _Avoid_: Dihapus, Ditangguhkan (reserved for a Lokasi Mitra or Mitra Jasa)
 
-**Pindah Nomor**:
-Admin Platform moving an Akun to a new WhatsApp number after checking the holder's KTP, keeping everything recorded on the Akun.
-_Avoid_: Ganti nomor (as self-service), pemulihan akun, Ganti Pemegang Hak
+**Pemulihan Akun**:
+Admin Platform moving an Akun to a new Email Terverifikasi after checking the holder's KTP, for someone who lost access to their email, keeping everything recorded on the Akun.
+_Avoid_: Pindah Nomor (retired with WhatsApp), reset akun, Ganti Pemegang Hak
 
 **Almarhum**:
 The deceased person who is (or will be) buried in a Petak Makam.
@@ -381,7 +381,7 @@ One piece of field work assigned to a Petugas Lapangan (surat pengantar pickup, 
 _Avoid_: Job, Pekerjaan (reserved for Pekerjaan Layanan), kunjungan (alone)
 
 **Bertugas**:
-An Admin Platform who has marked themselves on duty and so receives urgent alerts; the rota behind it lives outside the platform.
+An Admin Platform who has marked themselves on duty and so receives urgent alerts; possible only with at least one active Perangkat Push. The rota behind it lives outside the platform.
 _Avoid_: Piket, shift, on-call (as the term)
 
 **Catatan Internal**:
@@ -401,7 +401,7 @@ The Operator's own reference values that no other screen owns, kept by Admin Pla
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
 **Peringatan Staf**:
-A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it always goes by WhatsApp, and also by push to each of their Perangkat Push.
+A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it goes by push to each of their Perangkat Push and by email.
 _Avoid_: Notifikasi (alone), alert, reminder (for staff)
 
 **Perangkat Push**:

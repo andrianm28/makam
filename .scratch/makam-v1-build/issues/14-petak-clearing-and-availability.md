@@ -6,7 +6,7 @@ Spec: Domain modules > 5. Inventory (Petak status, Kavling status, availability,
 
 ## What to build
 
-Let the Admin Lokasi clear new Petak blok by blok: Tersedia; Tidak Tersedia with a reason; or occupied, recording a minimal Hak Pakai / Almarhum or "data menyusul". This introduces the Hak Pakai entity (1..n Petak, one Pemegang Hak with name + WhatsApp and holder history, start/end date, status Aktif / Kedaluwarsa / Berakhir / Dibatalkan, Perlu Verifikasi flag) and the Pemakaman record (Almarhum, date, Petak, layer). Derive Petak and Kavling Keluarga status and expose the availability count per Jenis Makam that the listings use. Admin Platform can renumber a Petak, audited.
+Let the Admin Lokasi clear new Petak blok by blok: Tersedia; Tidak Tersedia with a reason; or occupied, recording a minimal Hak Pakai / Almarhum or "data menyusul". This introduces the Hak Pakai entity (1..n Petak, one Pemegang Hak with name + phone number, email when known, and holder history, start/end date, status Aktif / Kedaluwarsa / Berakhir / Dibatalkan, Perlu Verifikasi flag) and the Pemakaman record (Almarhum, date, Petak, layer). Derive Petak and Kavling Keluarga status and expose the availability count per Jenis Makam that the listings use. Admin Platform can renumber a Petak, audited.
 
 ## Acceptance criteria
 
@@ -23,3 +23,7 @@ Let the Admin Lokasi clear new Petak blok by blok: Tersedia; Tidak Tersedia with
 ## Notes
 
 The "Petak Perlu Verifikasi" Antrean Lokasi row is added in ticket 23 when the Antrean Lokasi exists. Excel import is deferred (Further Notes); this clearing flow is how records get in.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the Pemegang Hak record holds a phone number and, when known, an email (not a WhatsApp number). A Hak Pakai shows in the Akun whose Email Terverifikasi equals the recorded email; "data menyusul" may leave both empty (Perlu Verifikasi).

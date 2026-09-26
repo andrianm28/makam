@@ -8,9 +8,9 @@ Spec: Adapter ports > EmailSender; Domain modules > 1. Identity & Access (email 
 
 Implement the `EmailSender` port on the **SumoPod SMTP relay**: `smtp.sumopod.com`, port 465, SMTPS (implicit TLS), authenticated with v1's own SMTP credentials from ticket 04, sending from `makam.co.id`. The frozen Laravel app already sends `no-reply@makam.co.id` through this relay. This adapter carries every email of v1:
 
-- the email Kode Masuk (email login and the "Kirim lewat email" fallback, ticket 67);
+- the Kode Masuk, at Masuk and at Kirim (ticket 67; the only login since ticket 82);
 - Verifikasi email codes (ticket 67);
-- Tagihan / Bukti copies and the document-message fallback (ticket 20);
+- every family notification with its Tagihan / Bukti links, and the email copy of each Peringatan Staf (tickets 20, 21);
 - Undangan Staf (ticket 20).
 
 Select it by env in the composition root. It replaces today's `notConfigured("EmailSender (SES)")`. The in-memory fake stays the default for tests and development. The app never sends through the self-hosted Stalwart on this host: Stalwart is for human mailboxes only. There is no AWS dependency.
@@ -68,3 +68,4 @@ Select it by env in the composition root. It replaces today's `notConfigured("Em
   - Tests use `FakeEmailSender.failNextSend()` to drive the "gagal kirim" path.
   - If 67 builds adapters in new entry points, pass `smtp: env.smtp`.
 - Still open under this ticket: the real send on staging and its header check (above), and whether SumoPod offers bounce reporting. Ticket 04 records where SumoPod's relay processes mail: in Indonesia, `ip03.s01.kirimemail.com`.
+- 2026-09-26 — ADR 0004: **this adapter is a launch requirement**: email is the only channel to families and the only login, so production (ticket 65, now blocked by 68) cannot go live without it. The "Kirim lewat email" fallback no longer exists.

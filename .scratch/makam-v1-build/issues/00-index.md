@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-09-25): 5 resolved (01, 07, 08, 09, 66), 6 ready-for-human (02–06, 65), 57 ready-for-agent. Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-09-25): 5 resolved (01, 07, 08, 09, 66), 6 ready-for-human (02–06, 65), 57 ready-for-agent (2026-09-26: 05 and 62 are wontfix and 82 is added, ADR 0004; see the last section). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -10,7 +10,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [02](02-infra-accounts-vps-domain-github-sentry.md) | Infrastructure accounts: VPS, domain, GitHub, GlitchTip | ready-for-human | — |
 | [03](03-aws-s3-jakarta.md) | AWS Jakarta: private S3 buckets (S3 only; SES dropped 2026-09-25) | ready-for-human | — |
 | [04](04-sumopod-merchant-account.md) | SumoPod merchant account and email (SMTP relay, `makam.co.id` domain authentication) for PT Jaya Korpora Prima | ready-for-human | — |
-| [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) vendor setup | ready-for-human | — |
+| [05](05-whatsapp-and-sms-vendors.md) | WhatsApp (Meta + kirim.dev) vendor setup — out of v1 (ADR 0004) | wontfix | — |
 | [06](06-operator-facts-and-reference-data.md) | Operator facts and launch reference data | ready-for-human | — |
 | [07](07-production-environment.md) | Staging, GlitchTip, deploy pipeline and uptime alarm | resolved | 01 |
 | [08](08-whatsapp-otp-login.md) | WhatsApp OTP login and the Pemesan account | resolved | 01 |
@@ -25,14 +25,14 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
 | [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | resolved | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | ready-for-agent | 18 |
-| [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18 |
+| [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18, 82 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
-| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16 |
+| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | ready-for-agent | 18, 20, 21, 22 |
 | [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | ready-for-agent | 23 |
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
 | [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | ready-for-agent | 22, 63 |
-| [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | ready-for-agent | 25 |
+| [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | ready-for-agent | 25, 82 |
 | [28](28-bertugas-and-tier-1-escalation.md) | Bertugas, Tier 1 alerts and escalation | ready-for-agent | 21, 24 |
 | [29](29-pay-after-tagihan-chasing.md) | Chasing overdue pay-after Tagihan and Tidak Tertagih | ready-for-agent | 25 |
 | [30](30-manual-payments-and-harga-khusus.md) | Manual payments, direct payment to the Lokasi and Harga Khusus | ready-for-agent | 25 |
@@ -41,15 +41,15 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [33](33-laporan-and-transfer-list.md) | Monthly Laporan and weekly outgoing transfer list | ready-for-agent | 29, 32 |
 | [34](34-makam-keluarga-hub-and-lookup.md) | Makam keluarga hub and grave lookup | ready-for-agent | 14, 26 |
 | [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | ready-for-agent | 25, 34 |
-| [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | ready-for-agent | 16 |
+| [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | ready-for-agent | 16, 82 |
 | [37](37-terencana-confirmation-and-payment.md) | Terencana confirmation, payment hold and Aktif | ready-for-agent | 23, 32, 36 |
 | [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | ready-for-agent | 31, 37 |
 | [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
-| [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | ready-for-agent | 29, 32, 34 |
+| [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | ready-for-agent | 29, 32, 34, 82 |
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
 | [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | ready-for-agent | 16, 17 |
-| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43, 63 |
+| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43, 63, 82 |
 | [45](45-tpu-saat-duka-confirmation-and-surat-pengantar.md) | TPU Saat Duka confirmation and Ambil surat pengantar | ready-for-agent | 28, 44 |
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | ready-for-agent | 45 |
 | [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | ready-for-agent | 31, 46 |
@@ -67,7 +67,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
 | [60](60-real-s3-filestore-adapter.md) | Real FileStore adapter (S3 Jakarta) | ready-for-agent | 03 |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
-| [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter | ready-for-agent | 05, 20 |
+| [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter — out of v1 (ADR 0004) | wontfix | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
 | [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | resolved | 09 |
 | [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | ready-for-agent | 04 |
@@ -116,7 +116,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | 38 | 20, 25 | 101 | 27 | 164 | 30 |
 | 39 | 36 | 102 | 38 | 165 | 33 |
 | 40 | 36 | 103 | 39 | 166 | 58 |
-| 41 | 36 | 104 | 39 | 167 | 09 |
+| 41 | 36 | 104 | 39 | 167 | 09, 82 |
 | 42 | 36 | 105 | 39 | 168 | 09 |
 | 43 | 36 | 106 | 59 | 169 | 14 |
 | 44 | 36 | 107 | 38 | 170 | 09, 67 |
@@ -134,18 +134,22 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | 56 | 35 | 119 | 25 | 182 | 55 |
 | 57 | 42 | 120 | 23 | 183 | 18, 25, 40 |
 | 58 | 40 | 121 | 37 | 184 | 09 |
-| 59 | 41 | 122 | 35 | 185 | 01, 60, 61, 62, 68 |
+| 59 | 41 | 122 | 35 | 185 | 01, 60, 61, 68 (62 wontfix) |
 | 60 | 41 | 123 | 35 | 186 | 01 (+ every tick ticket) |
 | 61 | 41 | 124 | 41 | 187 | 07 |
 | 62 | 40 | 125 | 38, 39 | 188 | 63, 06 |
 | 63 | 40 | 126 | 39 | 189 | 67 |
-| | | | | 190 | 67 |
+| | | | | 190 | 67, 82 |
+| | | | | 191 | 82, 22 |
+| | | | | 192 | 22 |
+| | | | | 193 | 82, 27 |
+| | | | | 194 | 20, 29, 42 |
 
 ## Implementation Decisions coverage (by spec module)
 
 - Architecture, AGENTS.md, containers, CI, Sentry SDK: 01; GlitchTip set-up and DNS: 02; production, migrations step, backups, uptime alarm, GlitchTip test errors, cutover on `makam.co.id`: 07.
-- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore real 60 (S3); EmailSender real 68 (SumoPod SMTP); PaymentProvider real 61; WhatsAppSender real 62. No SmsSender.
-- 1 Identity & Access: 08, 09 (email login, Email Terverifikasi and the email fallback 67; staff email at invite 09, 10, 55; first Admin Platform seed 09; account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
+- Adapter ports: interfaces + fakes 01; Clock 01; PdfRenderer real 18; WebPush real 21; FileStore real 60 (S3); EmailSender real 68 (SumoPod SMTP); PaymentProvider real 61; ~~WhatsAppSender real 62~~ (removed 2026-09-26, ADR 0004: port and fake removed in 82). No SmsSender.
+- 1 Identity & Access: 08, 09, 82 (Akun keyed by Email Terverifikasi, Pemulihan Akun, ADR 0004; email login, Email Terverifikasi and the email fallback 67; staff email at invite 09, 10, 55; first Admin Platform seed 09; account move 09; holder number change 39; role visibility 09, 10, 15, 23, 55, 58).
 - 2 Audit Log: 09; Lokasi view 10.
 - 3 Lokasi: 10 (record, policies, flags), 11 (Jam Operasional, Kontak Siaga, working-time calculator), 16 (publish gate, Terencana switch), 43 (TPU), 59 (Ditangguhkan, Berhenti); late confirmations / declines counted 23, 24.
 - 4 Tariffs: 12; DKI and Retribusi 43; Layanan and Mitra Jasa rates 49.
@@ -159,7 +163,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 - 12 Wakaf: 58.
 - 13 Field Work: 15; Ambil surat pengantar 45, 47; Berkas IPTM 46; Survei Wakaf 58.
 - 14 Work Queues: Antrean 17, Bertugas 28, Antrean Lokasi 23; each row type in the ticket that owns its state.
-- 15 Notifications: core 20; staff push 21; each event in its owning ticket; real senders 62, 68; the email Kode Masuk is sent outside Notifications (67).
+- 15 Notifications: core 20; staff push 21; each event in its owning ticket; real sender 68 (62 wontfix); Telepon Pemesan row 20; the email Kode Masuk is sent outside Notifications (67).
 - 16 Scheduler: tick pattern 01; ticks in 18 (pay-first lapse), 25 (Catat Pemakaman), 28 (escalation, Bertugas auto-off), 29 (overdue reminders), 32 (Potongan ageing), 37 (holds, Masa Pembatalan), 42 (Hak Pakai reminders), 48 (IPTM reminders), 50 (Terlambat), 51 (Keluhan window), 54 (Paket), 55 (scorecard review), 56 (accept deadlines), 59 (Berhenti).
 - 17 Pengaturan Operator: 63; values entered before launch 06.
 - Public site and routing: 26 (home, nav, content), 22 / 36 / 35 (wizards), 34 (hub), 24 (after a Tolak), 10 (Leaflet pin), 43 (Pengurusan di TPU DKI page), 58 (Wakaf page).
@@ -219,7 +223,7 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 ## Split of ticket 07 (2026-09-25)
 
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test | ready-for-agent | 03, 07 |
-| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64 |
+| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64, 68 |
 | [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
 
 ## Decisions 2026-09-25 (email login)
@@ -264,8 +268,22 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 | [74](74-brand-foundation-and-staff-shell.md) | Brand foundation and the staff shell, with the Admin Platform home | resolved | — |
 | [75](75-command-palette-and-alert-bell.md) | Command palette (⌘K) and the Peringatan Staf bell | ready-for-agent | 74 |
 | [76](76-lokasi-mitra-list-and-detail-redesign.md) | Lokasi Mitra list and detail on the list and detail patterns | ready-for-agent | 74 |
-| [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74 |
+| [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74, 82 |
 | [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | ready-for-agent | 74 |
 | [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | ready-for-agent | 74 |
-| [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74 |
+| [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74, 82 |
 | [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | ready-for-agent | 74 |
+
+## Decisions 2026-09-26 (WhatsApp out of v1)
+
+Decided by the user and written into ADR 0004 (which supersedes ADR 0003), `CONTEXT.md` (Akun, Kode Masuk, Email Terverifikasi, Undangan Staf, Pemulihan Akun, Peringatan Staf, Bertugas, Makam TPU), the spec and the tickets named. v1 has no WhatsApp channel: no WhatsApp Business API (Meta / kirim.dev), no `WhatsAppSender` port and no WhatsApp Kode Masuk. An Akun is keyed by its Email Terverifikasi and created by an email Kode Masuk at Kirim or on Masuk. The phone number is kept as an unverified contact. The CS WhatsApp number stays only as a `wa.me` link and for display. A family without email sees "Tidak punya email? Minta bantuan CS", and CS / Admin Platform may submit the order for them (audited, possibly with no Akun, attached later by Nomor Pemesanan). Hak Pakai record a phone and, when known, an email, and are matched to an Akun by that email. The Perpanjangan and consent codes go to that email; without one, the manual KTP / heir / claim paths apply. Family messages go by email, then a "Telepon Pemesan" row. Peringatan Staf go by web push + email, and Bertugas needs at least one active Perangkat Push. Undangan Staf are addressed to an email. Pindah Nomor becomes Pemulihan Akun. Ticket 68 (live SMTP) is a launch requirement, so 65 is now blocked by it.
+
+- **Wontfix**: 05 and 62. No other ticket listed 05 or 62 as a blocker (only 62 listed 05).
+- **Now also blocked by 82**: 20, 22, 27, 36, 40, 44, 77 and 80. 65 is now also blocked by 68.
+- **Updated to the decision** (What to build / criteria, with a dated Comments entry): 06, 14, 15, 20, 22, 23, 24, 25, 26, 27, 28, 35, 36, 38, 39, 40, 41, 42, 44, 46, 50, 52, 55, 56, 58, 68, 77 and 80. **Comment only**: 17, 29, 60 and 65.
+- **Resolved tickets with a Comments note on what is superseded**: 01, 08, 09, 10, 21, 63, 67, 69 and 70.
+- **Superseded here**: resolved infrastructure decision 1 (the "CS WhatsApp pointer" for a Pemesan without email), the "WhatsApp outage" bullet of Decisions 2026-09-25 (later), and decisions 1, 5, 6 and 8 of Decisions 2026-09-25 (email login): email login is now the only login and creates the Akun, and there is no fallback and no "Jika email ini terdaftar" reply. `../whatsapp-templates.md` is retired for v1.
+
+| # | Title | Status | Blocked by |
+|---|---|---|---|
+| [82](82-email-is-the-akun-key.md) | Email becomes the Akun key; the WhatsApp channel is removed | ready-for-agent | — |

@@ -1,5 +1,7 @@
 # A WhatsApp number is the account, for every role
 
+**Status: superseded by ADR 0004 (2026-09-26): an Email Terverifikasi is the account; no WhatsApp channel in v1.**
+
 Every account on makam.co.id is keyed by one WhatsApp number, and a WhatsApp OTP is the only login method for every role: Pemesan, Admin Lokasi, Petugas Lapangan, Mitra Jasa and Admin Platform, who must also use a TOTP authenticator. A Pemesan never signs up: the OTP at the end of the booking wizard verifies the number and creates the account at the same moment. We chose this over guest checkout (typos and fake orders would break the 2-hour Saat Duka confirmation and the invoice) and over email or Google login (a second identity to merge with the phone number, for families who mostly live on WhatsApp). Keying accounts by number also lets a Hak Pakai show up in its Pemegang Hak's account by matching the number recorded on it, and a logged-in holder skips the separate Pemegang Hak OTP. See `.scratch/makam-v1/issues/11-roles-and-accounts.md`.
 
 ## Consequences

@@ -10,6 +10,7 @@ The end of a fixed-term Hak Pakai. Reminders go to the Pemegang Hak and the Admi
 
 ## Acceptance criteria
 
+- [ ] Reminders go by email to the Pemegang Hak's recorded email; a Hak Pakai nearing its end also raises a "Telepon Pemesan" row (ticket 20), as does any reminder for a Hak Pakai with no recorded email (ADR 0004).
 - [ ] Reminder ticks at 60/30/7 days before and weekly in the Masa Tenggang, within 08:00–20:00, to both the Pemegang Hak and the Admin Lokasi; stop when a Perpanjangan is ordered or the Hak Pakai ends.
 - [ ] Status Kedaluwarsa after the end date; still extendable until the Masa Tenggang ends (Lokasi policy, default 3 months).
 - [ ] Masa tenggang row appears in Lainnya and closes on Perpanjangan payment or ending.
@@ -18,3 +19,7 @@ The end of a fixed-term Hak Pakai. Reminders go to the Pemegang Hak and the Admi
 - [ ] Tidak Tersedia (with reason) only without an active Hak Pakai.
 - [ ] All actions audited.
 - [ ] Tests: reminder schedule; Kedaluwarsa transition; masa tenggang row; end → Terisi until Pembongkaran; Tidak Tersedia guard.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: reminders go by email; a Hak Pakai nearing its end gets a "Telepon Pemesan" call row (criterion added). When exactly the row appears (e.g. at the 7-day reminder) is not fixed by ADR 0004; settle it while building.

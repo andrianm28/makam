@@ -15,7 +15,7 @@ After the burial, Admin Platform sets the Saat Duka TPU order Dimakamkan (after 
 - [ ] The Surat Kuasa is generated as a document page/PDF with PT JKP and the filing staff member's name, for the Pemegang Hak to sign and upload.
 - [ ] Tier 3 IPTM filing row with a 7-day deadline; a Berkas IPTM Tugas Lapangan can be created for originals.
 - [ ] Uploading the IPTM scan + expiry sets IPTM Terbit, sends the scan link to the Pemesan and the Pemegang Hak, and stores it on the Makam TPU regardless of the Tagihan status.
-- [ ] Makam TPU: TPU, blok/nomor, Almarhum(s), Pemegang Hak + WhatsApp, current IPTM scan + expiry, IPTM history; a Tumpang order updates the existing record instead of creating one.
+- [ ] Makam TPU: TPU, blok/nomor, Almarhum(s), Pemegang Hak + phone number (email when known), current IPTM scan + expiry, IPTM history; a Tumpang order updates the existing record instead of creating one.
 - [ ] Cancel before IPTM Diajukan → Dibatalkan; an unpaid Tagihan becomes Dibatalkan; after filing, cancel is refused.
 - [ ] A paid order cancelled before IPTM Diajukan gets a refund request (ticket 31, approved by Admin Platform): the full amount paid, except that at or past Dimakamkan (burial arranged with the TPU) the Biaya Pengurusan is kept and only the other lines (e.g. Layanan not yet done) are refunded.
 - [ ] No Bukti Pemesanan / Perpanjangan is issued at a TPU.
@@ -24,3 +24,7 @@ After the burial, Admin Platform sets the Saat Duka TPU order Dimakamkan (after 
 ## Notes
 
 Refund of a paid cancellation was settled on 2026-09-25 (see 00-index).
+
+## Comments
+
+- 2026-09-26 — ADR 0004: the Makam TPU records the Pemegang Hak's phone and, when known, email (it shows in the Akun with that Email Terverifikasi); IPTM expiry reminders go by email (ticket 48).

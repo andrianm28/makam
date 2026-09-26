@@ -6,7 +6,7 @@ Spec: Domain modules > 9. Layanan (Order at TPU, Mitra Jasa hand assignment, acc
 
 ## What to build
 
-A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfilled by a Mitra Jasa and billed pay-after on the Saat Duka TPU Tagihan. A family orders Layanan at a DKI TPU by describing the grave (TPU, blok/nomor, Almarhum, optional photo and pin) or by choosing their Makam TPU, at DKI prices with a pay-first Tagihan. Admin Platform assigns each Pekerjaan Layanan by hand from a picker hard-filtered by coverage (TPU and Layanan), status Aktif and availability. The Mitra Jasa gets a WhatsApp + push alert and accepts or declines in the app by the accept deadline (12 h or H-1 18:00, whichever is sooner); no answer counts as a decline (Tidak direspons). The Mitra Jasa sees the grave location or description, the Layanan, the target date and reference photos, never the family's contacts.
+A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfilled by a Mitra Jasa and billed pay-after on the Saat Duka TPU Tagihan. A family orders Layanan at a DKI TPU by describing the grave (TPU, blok/nomor, Almarhum, optional photo and pin) or by choosing their Makam TPU, at DKI prices with a pay-first Tagihan. Admin Platform assigns each Pekerjaan Layanan by hand from a picker hard-filtered by coverage (TPU and Layanan), status Aktif and availability. The Mitra Jasa gets a Peringatan Staf by web push + email and accepts or declines in the app by the accept deadline (12 h or H-1 18:00, whichever is sooner); no answer counts as a decline (Tidak direspons). The Mitra Jasa sees the grave location or description, the Layanan, the target date and reference photos, never the family's contacts.
 
 ## Acceptance criteria
 
@@ -22,3 +22,7 @@ A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfille
 ## Added (2026-09-25)
 
 - [ ] Optional email field on the order screen (copies of Tagihan / Bukti by email through SumoPod SMTP; SES dropped 2026-09-25), as in spec "Booking wizards".
+
+## Comments
+
+- 2026-09-26 — ADR 0004: assignment alerts are Peringatan Staf by web push + email, not WhatsApp.

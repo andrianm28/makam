@@ -1,12 +1,12 @@
 # Saat Duka at a DKI TPU: list section and submission
 
 Status: ready-for-agent
-Blocked by: 22, 43, 63
+Blocked by: 22, 43, 63, 82
 Spec: Domain modules > 8. Pengurusan (Saat Duka TPU, burial type, eligibility, documents, Pemegang Hak); 3. Lokasi (working-time calculator, TPU window); stories 19, 68, 69, 70, 71, 72
 
 ## What to build
 
-Add the TPU section below the Lokasi Mitra cards in Pilih makam ("dimakamkan lewat Pengurusan"), listing only TPUs taking new plots, and the type chip Semua / Lokasi Mitra / TPU DKI. The Saat Duka TPU submission (a Pengurusan order in the Pengurusan module) asks: Baru (only TPUs taking new plots) or Tumpang (describe the grave + photo of the IPTM, with warnings about the 3-year rule and consent); eligibility "KTP DKI?" and "Meninggal di Jakarta?"; the Pemegang Hak for the IPTM with WhatsApp (default the Pemesan). OTP at Kirim as in ticket 22. Submitted at night, it shows the computed confirmation time, the CS WhatsApp and its reply hours ("dibalas mulai pukul 06:00", both from Pengaturan Operator, ticket 63) and a note that the family can go to the TPU directly and still have the IPTM filed later.
+Add the TPU section below the Lokasi Mitra cards in Pilih makam ("dimakamkan lewat Pengurusan"), listing only TPUs taking new plots, and the type chip Semua / Lokasi Mitra / TPU DKI. The Saat Duka TPU submission (a Pengurusan order in the Pengurusan module) asks: Baru (only TPUs taking new plots) or Tumpang (describe the grave + photo of the IPTM, with warnings about the 3-year rule and consent); eligibility "KTP DKI?" and "Meninggal di Jakarta?"; the Pemegang Hak for the IPTM with phone number and, if known, email (default the Pemesan). Email Kode Masuk at Kirim and "Tidak punya email? Minta bantuan CS" as in ticket 22. Submitted at night, it shows the computed confirmation time, the CS WhatsApp and its reply hours ("dibalas mulai pukul 06:00", both from Pengaturan Operator, ticket 63) and a note that the family can go to the TPU directly and still have the IPTM filed later.
 
 ## Acceptance criteria
 
@@ -22,3 +22,7 @@ Add the TPU section below the Lokasi Mitra cards in Pilih makam ("dimakamkan lew
 ## Notes
 
 Hari-H Layanan on a TPU Saat Duka checkout (fulfilled by a Mitra Jasa) are added by ticket 56.
+
+## Comments
+
+- 2026-09-26 — ADR 0004: Pemegang Hak for the IPTM takes phone + optional email; Kirim uses the email Kode Masuk (ticket 22); the CS WhatsApp shown at night is a `wa.me` link. Now blocked by 82.
