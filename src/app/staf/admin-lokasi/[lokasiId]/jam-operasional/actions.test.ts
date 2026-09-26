@@ -1,5 +1,4 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_JAM_OPERASIONAL } from "@/domain/lokasi";
 import { browser } from "../../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../../tests/support/server-runtime";
@@ -81,7 +80,7 @@ describe("Jam Operasional Server Actions", () => {
     });
     expect(await server.runtime().lokasi.jamOperasional(adminLokasi, lokasiId)).toEqual({
       ok: true,
-      jamOperasional: DEFAULT_JAM_OPERASIONAL,
+      jamOperasional: null,
     });
   });
 

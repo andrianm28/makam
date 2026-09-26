@@ -27,7 +27,7 @@ The plot map of a Lokasi Mitra: a grid per blok in which each cell is a Petak Ma
 _Avoid_: Peta (for the plot map), site plan, layout
 
 **Jam Operasional**:
-The weekly hours and dated closures of a Lokasi Mitra, inside which its Saat Duka confirmation promise runs.
+The weekly hours and Tanggal Tutup of a Lokasi Mitra, inside which its Saat Duka confirmation promise runs. A Lokasi Mitra has none until its Admin Lokasi saves one; until then no confirmation promise or Hari Kerja deadline can be made for it.
 _Avoid_: Jam kerja, jam buka (as the setting)
 
 **Kontak Siaga**:

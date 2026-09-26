@@ -115,15 +115,11 @@ describe("a Lokasi calendar", () => {
       tanggalTutup: [{ date: "2026-12-26", note: "Kerja bakti" }],
     });
 
-    const calendar = await setup.lokasi.scheduleOf(lokasiMitra.id);
+    const read = await setup.lokasi.jamOperasionalOf(lokasiMitra.id);
+    const calendar = read.ok ? read.jamOperasional : null;
 
     // Tuesday 22nd → (Wednesday closed) Thursday 24th, Friday 25th (Natal, but open here), (26th a Tanggal Tutup), Sunday 27th.
     expect(calendar && addWorkingDays(calendar, wib("2026-12-22 10:00"), 3)).toEqual(wib("2026-12-27 15:00"));
   });
 
-  it("is null for no such Lokasi", async () => {
-    const setup = lokasiOnTestDatabase(db);
-
-    expect(await setup.lokasi.scheduleOf("7d1c5a52-5f3e-4b8e-9a51-2d8c1f0e9b11")).toBeNull();
-  });
 });

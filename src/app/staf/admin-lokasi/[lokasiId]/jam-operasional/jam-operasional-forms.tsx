@@ -33,7 +33,7 @@ function tanggalTutupLines(tanggalTutup: TanggalTutup[]): string {
 }
 
 /** Weekly hours per weekday (a weekday may be closed) and Tanggal Tutup, one per line. */
-export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: string; jamOperasional: JamOperasional }) {
+export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: string; jamOperasional: JamOperasional | null }) {
   const [state, action, pending] = useActionState(simpanJamOperasional, idle);
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -41,7 +41,7 @@ export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: str
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">Jam per hari (WIB)</legend>
         {weekdayLabels.map(([weekday, label]) => {
-          const hours = jamOperasional.weekly[weekday];
+          const hours = jamOperasional?.weekly[weekday] ?? null;
           return (
             <div key={weekday} className="flex flex-wrap items-center gap-3 text-sm">
               <label className="flex w-28 items-center gap-2">
@@ -67,7 +67,7 @@ export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: str
         <textarea
           name="tanggalTutup"
           rows={5}
-          defaultValue={tanggalTutupLines(jamOperasional.tanggalTutup)}
+          defaultValue={tanggalTutupLines(jamOperasional?.tanggalTutup ?? [])}
           placeholder={"2026-12-25 Natal\n2027-03-20 Idul Fitri"}
           className="rounded-lg border border-input bg-background px-3 py-2 font-mono outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         />

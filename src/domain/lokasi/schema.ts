@@ -38,7 +38,7 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   policies: jsonb("policies").$type<LokasiPolicies>().notNull(),
   /** LokasiFlags (./policies.ts), validated before every write. */
   flags: jsonb("flags").$type<LokasiFlags>().notNull(),
-  /** JamOperasional (./jam-operasional-schema.ts), validated before every write; null until set (DEFAULT_JAM_OPERASIONAL applies). */
+  /** JamOperasional (./jam-operasional-schema.ts), validated before every write; null until the Admin Lokasi saves one (no default). */
   jamOperasional: jsonb("jam_operasional").$type<JamOperasional>(),
   /**
    * The Kontak Siaga's Akun (identity's id; no foreign key across modules) and

@@ -36,6 +36,7 @@ import {
   type LokasiMitraResult,
   type LokasiMitraSummary,
   type NewLokasiMitra,
+  type NotFound,
   type SetPoliciesResult,
   type WriteResult,
 } from "./lokasi-mitra";
@@ -50,7 +51,7 @@ import {
 } from "./agreement";
 import {
   readJamOperasional,
-  scheduleOf,
+  jamOperasionalOf,
   setJamOperasional,
   type JamOperasionalResult,
   type SetJamOperasionalResult,
@@ -81,7 +82,7 @@ export {
   type UploadAgreementResult,
 } from "./agreement";
 export type { LokasiAuditLogResult } from "./audit-view";
-export { DEFAULT_JAM_OPERASIONAL, type JamOperasionalResult, type SetJamOperasionalResult } from "./jam-operasional";
+export type { JamOperasionalResult, SetJamOperasionalResult } from "./jam-operasional";
 export {
   MAX_TANGGAL_TUTUP,
   jamMenitSchema,
@@ -198,7 +199,7 @@ export interface Lokasi {
   ): Promise<UploadAgreementResult>;
   /** A 5-minute signed URL to the agreement scan, for Admin Platform only. */
   agreementScanUrl(by: Actor, lokasiId: string): Promise<AgreementScanUrlResult>;
-  /** This Lokasi Mitra's Jam Operasional, for Admin Platform or one of its Admin Lokasi. */
+  /** This Lokasi Mitra's Jam Operasional (null until its Admin Lokasi saves one), for Admin Platform or one of its Admin Lokasi. */
   jamOperasional(by: Actor, lokasiId: string): Promise<JamOperasionalResult>;
   /** Its Admin Lokasi (or Admin Platform) sets the Jam Operasional: weekly hours and Tanggal Tutup, audited. */
   setJamOperasional(by: Actor, lokasiId: string, input: JamOperasional): Promise<SetJamOperasionalResult>;
@@ -219,8 +220,11 @@ export interface Lokasi {
    * Libur Nasional on the list a Tanggal Tutup. It reads the list on every call, so fetch it once per tick.
    */
   adminPlatformCalendar(): Promise<JamOperasional>;
-  /** A Lokasi Mitra's Jam Operasional (also its Hari Kerja calendar), for server code (null: no such Lokasi). */
-  scheduleOf(lokasiId: string): Promise<JamOperasional | null>;
+  /**
+   * A Lokasi Mitra's Jam Operasional (also its Hari Kerja calendar), for server code: null until its Admin Lokasi
+   * saves one, which every calculator function refuses (`jam_operasional_belum_diisi`).
+   */
+  jamOperasionalOf(lokasiId: string): Promise<{ ok: true; jamOperasional: JamOperasional | null } | NotFound>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -250,7 +254,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     addHariLiburNasional: (by, input) => addHariLiburNasional(deps, by, input),
     removeHariLiburNasional: (by, input) => removeHariLiburNasional(deps, by, input),
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
-    scheduleOf: (lokasiId) => scheduleOf(deps, lokasiId),
+    jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
   };
 }
 export {

@@ -32,7 +32,13 @@ export default async function JamOperasionalPage({ params }: PageProps<"/staf/ad
         <CardHeader>
           <CardTitle>Jam Operasional</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
+          {jam.jamOperasional === null && (
+            <p role="alert" className="text-sm text-destructive">
+              Jam Operasional belum diisi. Isi jam buka per hari lalu simpan; tanpa Jam Operasional, Lokasi ini belum bisa
+              menerima pesanan.
+            </p>
+          )}
           <JamOperasionalForm lokasiId={current.id} jamOperasional={jam.jamOperasional} />
         </CardContent>
       </Card>

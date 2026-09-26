@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_JAM_OPERASIONAL, type JamOperasional } from "@/domain/lokasi";
+import type { JamOperasional } from "@/domain/lokasi";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
 
@@ -24,24 +24,19 @@ const typed: JamOperasional = {
 };
 
 describe("Jam Operasional of a Lokasi Mitra", () => {
-  it("a new Lokasi Mitra starts with the default Jam Operasional: Monday–Saturday 08:00–16:00, closed Sunday, no Tanggal Tutup", async () => {
+  it("a new Lokasi Mitra has no Jam Operasional until its Admin Lokasi saves one", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
 
-    expect(DEFAULT_JAM_OPERASIONAL).toEqual({
-      weekly: {
-        monday: open("08:00", "16:00"),
-        tuesday: open("08:00", "16:00"),
-        wednesday: open("08:00", "16:00"),
-        thursday: open("08:00", "16:00"),
-        friday: open("08:00", "16:00"),
-        saturday: open("08:00", "16:00"),
-        sunday: null,
-      },
-      tanggalTutup: [],
-    });
-    expect(await setup.lokasi.jamOperasional(admin, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: DEFAULT_JAM_OPERASIONAL });
+    expect(await setup.lokasi.jamOperasional(admin, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
+    expect(await setup.lokasi.jamOperasionalOf(lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
+  });
+
+  it("the Jam Operasional of no such Lokasi is not found", async () => {
+    const setup = lokasiOnTestDatabase(db);
+
+    expect(await setup.lokasi.jamOperasionalOf("7d1c5a52-5f3e-4b8e-9a51-2d8c1f0e9b11")).toEqual({ ok: false, reason: "tidak_ditemukan" });
   });
 
   it("the Admin Lokasi sets weekly hours per weekday (Monday closed) and Tanggal Tutup; the change is in its Lokasi's Audit Log", async () => {
@@ -58,7 +53,7 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
       actor: { accountId: adminLokasi.accountId, role: "admin_lokasi" },
       action: "lokasi.ubah_jam_operasional",
       lokasiId: lokasiMitra.id,
-      before: { jamOperasional: DEFAULT_JAM_OPERASIONAL },
+      before: { jamOperasional: null },
       after: { jamOperasional: typed },
     });
   });
@@ -80,7 +75,7 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
       ok: false,
       reason: "jam_operasional_tidak_valid",
     });
-    expect(await setup.lokasi.jamOperasional(adminLokasi, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: DEFAULT_JAM_OPERASIONAL });
+    expect(await setup.lokasi.jamOperasional(adminLokasi, lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
   });
 
   it("an Admin Lokasi of another Lokasi cannot set this Lokasi's Jam Operasional; Admin Platform can", async () => {
@@ -93,7 +88,7 @@ describe("Jam Operasional of a Lokasi Mitra", () => {
     expect(await setup.lokasi.setJamOperasional(adminLokasi, other.id, typed)).toEqual({ ok: false, reason: "tidak_berwenang" });
     const invalid = { ...typed, tanggalTutup: [{ date: "bukan tanggal", note: "" }] };
     expect(await setup.lokasi.setJamOperasional(adminLokasi, other.id, invalid)).toEqual({ ok: false, reason: "tidak_berwenang" });
-    expect(await setup.lokasi.jamOperasional(admin, other.id)).toEqual({ ok: true, jamOperasional: DEFAULT_JAM_OPERASIONAL });
+    expect(await setup.lokasi.jamOperasional(admin, other.id)).toEqual({ ok: true, jamOperasional: null });
     expect(await setup.lokasi.setJamOperasional(admin, other.id, typed)).toEqual({ ok: true });
     expect(await setup.lokasi.jamOperasional(admin, other.id)).toEqual({ ok: true, jamOperasional: typed });
   });
