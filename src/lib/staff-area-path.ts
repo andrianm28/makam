@@ -1,3 +1,5 @@
+import type { StaffRole } from "@/domain/identity";
+
 /**
  * The staff area's path: the installed staff app's id, start and scope
  * (`public/staf.webmanifest`), the service worker's scope, and the only place
@@ -9,6 +11,19 @@
  * `staffPagePath`).
  */
 export const STAFF_AREA_PATH = "/staf";
+
+/** The URL segment of each role's pages in the staff area (`/staf/<slug>`). */
+export const staffRoleSlugs = {
+  admin_platform: "admin-platform",
+  admin_lokasi: "admin-lokasi",
+  petugas_lapangan: "petugas-lapangan",
+  mitra_jasa: "mitra-jasa",
+} as const satisfies Record<StaffRole, string>;
+
+/** A staff role's home page. */
+export function staffRoleHome(role: StaffRole): string {
+  return `${STAFF_AREA_PATH}/${staffRoleSlugs[role]}`;
+}
 
 /** Any origin works: only same-origin, root-relative paths are kept. */
 const BASE = "https://makam.invalid";

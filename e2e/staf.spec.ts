@@ -54,7 +54,46 @@ test("the seeded Admin Platform logs in by OTP, must enrol TOTP, and passes it w
   await expect(page.getByRole("heading", { name: "Admin Platform" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Admin Platform" })).toBeVisible();
   // One role only: no role switcher.
-  await expect(page.getByRole("navigation", { name: "Ganti peran" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Ganti peran/ })).toHaveCount(0);
+});
+
+test("the staff shell: Admin Platform moves between menu items, collapses the sidebar and switches to dark", async () => {
+  const page = adminPage;
+  await page.goto("/staf/admin-platform");
+  const menu = page.getByRole("navigation", { name: "Menu Admin Platform" });
+  await expect(menu.getByRole("link", { name: "Beranda" })).toHaveAttribute("aria-current", "page");
+
+  await menu.getByRole("link", { name: "Hari Libur Nasional" }).click();
+  await expect(page).toHaveURL(/\/staf\/admin-platform\/hari-libur$/);
+  await expect(menu.getByRole("link", { name: "Hari Libur Nasional" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "Jejak halaman" })).toContainText("Hari Libur Nasional");
+  await menu.getByRole("link", { name: "Lokasi Mitra" }).click();
+  await expect(page).toHaveURL(/\/staf\/admin-platform\/lokasi$/);
+  await expect(page.getByRole("heading", { name: "Lokasi Mitra", level: 1 })).toBeVisible();
+
+  // The sidebar collapses to icons, and stays so on the next page load.
+  const sidebar = page.locator('[data-slot="sidebar"][data-state]');
+  const toggle = page.locator('[data-slot="sidebar-trigger"]');
+  await expect(sidebar).toHaveAttribute("data-state", "expanded");
+  await toggle.click();
+  await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+  await page.reload();
+  await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+  await toggle.click();
+  await expect(sidebar).toHaveAttribute("data-state", "expanded");
+
+  // Dark mode in the staff area; the public pages stay light.
+  await page.getByRole("button", { name: "Ganti tema" }).click();
+  await page.getByRole("menuitemradio", { name: "Gelap" }).click();
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await page.goto("/akun");
+  await expect(page.getByRole("heading", { name: "Akun Saya" })).toBeVisible();
+  await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+  await page.goto("/staf/admin-platform");
+  await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await page.getByRole("button", { name: "Ganti tema" }).click();
+  await page.getByRole("menuitemradio", { name: "Terang" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
 });
 
 test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the invite goes out by WhatsApp", async ({
@@ -88,9 +127,9 @@ test("the invitee logs in by OTP, holds both roles, and switches between their m
   await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
 
-  const switcher = page.getByRole("navigation", { name: "Ganti peran" });
-  await expect(switcher.getByRole("link")).toHaveText(["Petugas Lapangan", "Mitra Jasa"]);
-  await switcher.getByRole("link", { name: "Mitra Jasa" }).click();
+  await page.getByRole("button", { name: /Ganti peran/ }).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["Petugas Lapangan", "Mitra Jasa"]);
+  await page.getByRole("menuitem", { name: "Mitra Jasa" }).click();
   await expect(page).toHaveURL(/\/staf\/mitra-jasa$/);
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);

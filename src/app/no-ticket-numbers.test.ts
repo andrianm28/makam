@@ -9,6 +9,9 @@ import { ticketMentions } from "../../tests/support/copy-scan";
  * is visible to anyone outside the build team.
  */
 const APP_DIR = __dirname;
+/** The shared components (the staff shell, the makam compositions) carry copy too. */
+const COMPONENTS_DIR = join(__dirname, "..", "components");
+const SRC_DIR = join(__dirname, "..");
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -21,10 +24,10 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("no internal ticket numbers in user-facing copy", () => {
-  it("no string or JSX text in a non-test src/app file names a ticket", () => {
-    const violations = sourceFiles(APP_DIR).flatMap((file) =>
+  it("no string or JSX text in a non-test src/app or src/components file names a ticket", () => {
+    const violations = [...sourceFiles(APP_DIR), ...sourceFiles(COMPONENTS_DIR)].flatMap((file) =>
       ticketMentions(readFileSync(file, "utf8"), file).map(
-        (m) => `${relative(APP_DIR, file)}:${m.line}: ${m.text}`,
+        (m) => `${relative(SRC_DIR, file)}:${m.line}: ${m.text}`,
       ),
     );
     expect(violations).toEqual([]);

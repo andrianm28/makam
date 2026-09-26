@@ -1,5 +1,84 @@
-import { StaffRoleHome } from "../staff-role-home";
+import { MapPinnedIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
+import { EmptyState } from "@/components/makam/empty-state";
+import { PageHeader } from "@/components/makam/page-header";
+import { StatCard } from "@/components/makam/stat-card";
+import { buttonVariants } from "@/components/ui/button";
+import { NAMA_BULAN } from "@/lib/time/jakarta";
+import { adminPlatformBeranda } from "./beranda";
 
-export default function AdminPlatformPage() {
-  return <StaffRoleHome role="admin_platform" />;
+const AP = "/staf/admin-platform";
+
+/** "25 Desember" from "2026-12-25". */
+function tanggal(date: string): string {
+  const [, month, day] = date.split("-").map(Number);
+  return `${day} ${NAMA_BULAN[month - 1]}`;
+}
+
+/** The Admin Platform Beranda: where things stand across Lokasi Mitra, staf and the Operator's own settings. */
+export default async function AdminPlatformPage() {
+  const { lokasiMitra, staf, hariLiburBerikutnya, pengaturanOperatorDiisi } = await adminPlatformBeranda();
+  const totalLokasi = lokasiMitra.terverifikasi + lokasiMitra.belumTayang + lokasiMitra.ditangguhkan + lokasiMitra.berhenti;
+
+  return (
+    <>
+      <PageHeader
+        title="Admin Platform"
+        description="Ringkasan Lokasi Mitra, Akun Staf, Hari Libur Nasional dan Pengaturan Operator. Setiap angka membuka daftarnya."
+      />
+
+      <section aria-label="Ringkasan" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Lokasi Mitra Terverifikasi"
+          value={lokasiMitra.terverifikasi}
+          note={`${lokasiMitra.belumTayang} Belum Tayang, ${lokasiMitra.ditangguhkan} Ditangguhkan`}
+          attention={lokasiMitra.ditangguhkan > 0 ? "warning" : undefined}
+          href={`${AP}/lokasi`}
+        />
+        <StatCard
+          label="Akun Staf aktif"
+          value={staf.aktif}
+          note={
+            staf.undanganTerbuka > 0 ? `${staf.undanganTerbuka} Undangan Staf belum diterima` : "Tidak ada Undangan Staf terbuka"
+          }
+          href={`${AP}/staf`}
+        />
+        <StatCard
+          label="Hari Libur Nasional berikutnya"
+          value={hariLiburBerikutnya ? tanggal(hariLiburBerikutnya.date) : "Belum ada"}
+          note={
+            hariLiburBerikutnya
+              ? `${hariLiburBerikutnya.name}, ${hariLiburBerikutnya.date.slice(0, 4)}`
+              : "Tidak ada tanggal mendatang: setiap Senin–Jumat dihitung Hari Kerja"
+          }
+          attention={hariLiburBerikutnya ? undefined : "warning"}
+          href={`${AP}/hari-libur`}
+        />
+        <StatCard
+          label="Pengaturan Operator"
+          value={pengaturanOperatorDiisi ? "Terisi" : "Belum diisi"}
+          note={
+            pengaturanOperatorDiisi
+              ? "Nama resmi, alamat, kontak dan WhatsApp CS"
+              : "Nama resmi, alamat, kontak dan WhatsApp CS belum ada"
+          }
+          attention={pengaturanOperatorDiisi ? undefined : "warning"}
+          href={`${AP}/pengaturan-operator`}
+        />
+      </section>
+
+      {totalLokasi === 0 ? (
+        <EmptyState
+          icon={MapPinnedIcon}
+          title="Belum ada Lokasi Mitra"
+          description="Lokasi Mitra baru berstatus Belum Tayang sampai profil, perjanjian, rekening, kebijakan dan Admin Lokasi-nya lengkap."
+          action={
+            <Link href={`${AP}/lokasi`} className={buttonVariants({ variant: "default" })}>
+              <PlusIcon aria-hidden /> Tambah Lokasi Mitra
+            </Link>
+          }
+        />
+      ) : null}
+    </>
+  );
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { akunResource } from "@/domain/identity";
@@ -53,7 +54,11 @@ export async function verifikasiTotp(_previous: VerifyTotpState, formData: FormD
     return { status: "gagal", message: guardMessage(result.error) };
   }
   const passed = result.value;
-  if (passed.ok) redirect("/staf");
+  if (passed.ok) {
+    // The staff shell (the /staf layout) opens only past this step: render it afresh.
+    revalidatePath("/staf", "layout");
+    redirect("/staf");
+  }
   switch (passed.reason) {
     case "kode_salah":
       return { status: "gagal", message: "Kode authenticator salah. Periksa jam ponsel Anda dan coba kode terbaru." };
