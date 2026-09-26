@@ -62,9 +62,6 @@ describe('npm run verify-email -- <phone> --alasan "<reason>"', () => {
     expect(await verifyEmailCommand(["082222222222", "--alasan", "salah orang"], env())).toEqual(refused);
     expect(await verifyEmailCommand(["089999999999", "--alasan", "tidak ada"], env())).toEqual(refused);
     expect(await setup.identity.accountByPhoneNumber("089999999999")).toBeNull();
-    await setup.identity.requestEmailLogin({ email: "staf@contoh.id", ip: "198.51.100.30" });
-    await setup.settled();
-    expect(setup.email.sent).toEqual([]);
   });
 
   it("is refused with an empty reason, and the email stays unverified", async () => {

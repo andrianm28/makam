@@ -74,8 +74,10 @@ describe("npm run seed:admin <phone> <email>", () => {
     const admin = await setup.identity.accountByPhoneNumber("081111111111");
     const entries = await setup.audit.entriesAbout({ kind: "akun", id: admin!.id });
     expect(entries.map((entry) => entry.action)).toEqual(["staf.seed_admin_platform", "akun.email_verifikasi"]);
-    expect(entries[1]).toMatchObject({
+    const { actor, entity, before, after, reason } = entries[1];
+    expect({ actor, entity, before, after, reason }).toEqual({
       actor: { accountId: admin!.id, role: "seed_cli" },
+      entity: { kind: "akun", id: admin!.id },
       before: { terverifikasi: false },
       after: { terverifikasi: true },
       reason: "seed:admin --email-terverifikasi (jalur bootstrap sebelum WhatsApp live)",
