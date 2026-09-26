@@ -20,3 +20,7 @@ The pay page of a Tagihan, usable by anyone with the link (VA or QRIS): clicking
 ## Notes
 
 The real SumoPod adapter is ticket 61. No payout or refund methods on the port in v1.
+
+## Comments
+
+- 2026-09-26 — Decided with the user after the Spec re-review: late payments are judged by the provider's `paidAt` against `dueAt` (spec, Billing), not by the lapse tick's timing; the same for manual payments.

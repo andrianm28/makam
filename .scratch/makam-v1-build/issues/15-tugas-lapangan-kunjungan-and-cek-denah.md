@@ -22,3 +22,4 @@ The Field Work module: Admin Platform creates and assigns a Tugas Lapangan (subj
 ## Comments
 
 - 2026-09-26 — ADR 0004: assignment alerts are Peringatan Staf by web push + email, not WhatsApp (criterion updated).
+- 2026-09-26 — User decision: at a Kunjungan Verifikasi the Petugas Lapangan confirms the Lokasi's pin at its gate (it feeds the public map and "Petunjuk arah").

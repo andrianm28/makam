@@ -290,10 +290,19 @@ Decided by the user and written into ADR 0004 (which supersedes ADR 0003), `CONT
 
 ## Release plan (2026-09-26, speeding up v1)
 
-Decided by the user; spec "Release plan". Rilis 1 (go-live): 13–17, 19–33, 36–38, 60, 61, 64, 65, 68, 71–83. Rilis 2: 34, 35, 39–42, 49–57, 59. Rilis 3: 43–48, 58. Critical path to the next milestone (a family books Saat Duka on staging): 83 → 82 → 13 (after its prototype) → 14, 15 → 16 → 17 → 20 → 22 → 23 → 24 → 25; 19 and 71 in flight; the public prototype (26, 16, 22) runs alongside. Prototypes only for the public site and the Denah editor. The orchestrator merges clean two-axis reviews without asking (user's standing authorization).
+Decided by the user; spec "Release plan". Rilis 1 (go-live): 13–17, 19–33, 36–38, 60, 61, 64, 65, 68, 71–83. Rilis 2: 34, 35, 39–42, 49–57, 59, 84. Rilis 3: 43–48, 58. Critical path to the next milestone (a family books Saat Duka on staging): 83 → 82 → 13 (after its prototype) → 14, 15 → 16 → 17 → 20 → 22 → 23 → 24 → 25; 19 and 71 in flight; the public prototype (26, 16, 22) runs alongside. Prototypes only for the public site and the Denah editor. The orchestrator merges clean two-axis reviews without asking (user's standing authorization).
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
 | [83](83-lean-worktrees-for-four-agents.md) | Lean worktrees: four builder agents on the shared host | ready-for-agent | — |
 
 Also settled 2026-09-26 (user): the Masuk reply is the same for every email (an unknown email creates an Akun once its code is entered); "Telepon Pemesan" is a Tier 2 Admin Platform Antrean row; consent for a burial under an existing Hak Pakai uses a code sent to the recorded email (Rilis 2); an unanswered Tier 1 alert gets a header banner, not a call row (ticket 28).
+
+## Decisions 2026-09-26 (public prototype v2, late payments)
+
+The user accepted the eight recommendations from the public prototype v2 (Terencana wizard with the Denah picker, keyless Google Maps; recorded on tickets 36, 16, 15) and the late-payment rule (spec, Billing; ticket 19). New Rilis 2 ticket:
+
+| # | Title | Status | Blocked by |
+|---|---|---|---|
+| [84](84-denah-entrance-cell.md) | Pintu Masuk on the Denah | ready-for-agent | 13, 36 |
+
