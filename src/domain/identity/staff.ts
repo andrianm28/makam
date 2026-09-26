@@ -3,11 +3,11 @@ import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
-import { staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
+import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
+import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
 export interface StaffAccount {
   accountId: string;
@@ -30,6 +30,76 @@ export async function rolesOf(db: Database, accountId: string): Promise<Role[]> 
     .where(eq(identityStaffRole.accountId, accountId));
   const held = new Set(rows.map((row) => row.role));
   return ["pemesan", ...staffRoles.filter((role) => held.has(role))];
+}
+
+/** The Lokasi Mitra an Akun is Admin Lokasi of, oldest link first. */
+export async function adminLokasiIdsOf(db: Database, accountId: string): Promise<string[]> {
+  const rows = await db
+    .select({ lokasiId: identityAdminLokasi.lokasiId })
+    .from(identityAdminLokasi)
+    .where(eq(identityAdminLokasi.accountId, accountId))
+    .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityAdminLokasi.lokasiId));
+  return rows.map((row) => row.lokasiId);
+}
+
+/** An Admin Lokasi of one Lokasi Mitra. */
+export interface AdminLokasiAccount {
+  accountId: string;
+  phoneNumber: string;
+  email: string | null;
+}
+
+/** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
+export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): Promise<AdminLokasiAccount[]> {
+  const rows = await deps.db
+    .select({ accountId: identityUser.id, phoneNumber: identityUser.phoneNumber, email: identityUser.contactEmail })
+    .from(identityAdminLokasi)
+    .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
+    .innerJoin(
+      identityStaffRole,
+      and(eq(identityStaffRole.accountId, identityAdminLokasi.accountId), eq(identityStaffRole.role, "admin_lokasi")),
+    )
+    .where(eq(identityAdminLokasi.lokasiId, lokasiId))
+    .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
+  return rows.map((row) => ({ accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email }));
+}
+
+export type RemoveAdminLokasiResult =
+  | { ok: true }
+  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "alasan_wajib" | "bukan_admin_lokasi_di_sini" };
+
+/**
+ * Admin Platform removes an Admin Lokasi from one Lokasi Mitra: the Akun keeps
+ * its other Lokasi and its role (Dinonaktifkan is a separate write). Audited
+ * on the Akun with its Lokasi before and after, and the reason.
+ */
+export async function removeAdminLokasi(
+  deps: { db: Database; audit: AuditLog },
+  by: Actor,
+  input: { lokasiId: string; accountId: string; reason: string },
+): Promise<RemoveAdminLokasiResult> {
+  const refusal = writeRefusal(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(input.lokasiId));
+  if (refusal) return refusal;
+  const reason = input.reason.trim();
+  if (!reason) return { ok: false, reason: "alasan_wajib" };
+
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const before = await adminLokasiIdsOf(tx, input.accountId);
+    if (!before.includes(input.lokasiId)) return { ok: false, reason: "bukan_admin_lokasi_di_sini" } as const;
+    await tx
+      .delete(identityAdminLokasi)
+      .where(and(eq(identityAdminLokasi.accountId, input.accountId), eq(identityAdminLokasi.lokasiId, input.lokasiId)));
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "staf.lepas_admin_lokasi",
+      entity: { kind: "akun", id: input.accountId },
+      lokasiId: input.lokasiId,
+      before: { lokasiIds: before },
+      after: { lokasiIds: before.filter((lokasiId) => lokasiId !== input.lokasiId) },
+      reason,
+    });
+    return { ok: true } as const;
+  });
 }
 
 export type SeedResult =
@@ -109,7 +179,8 @@ export type DeactivateStaffResult =
  * holds is revoked and its sessions end, so no session of it grants staff
  * access. The Akun itself stays: its number still logs in as a Pemesan, and
  * its orders and Entri Audit remain. A new Undangan Staf can grant a role again.
- * Audited with the reason.
+ * Audited with the reason: one Entri Audit, or, for an Admin Lokasi, one per
+ * Lokasi Mitra it was Admin Lokasi of (carrying that Lokasi), in the same transaction.
  */
 export async function deactivateStaff(
   deps: { db: Database; clock: Clock; audit: AuditLog },
@@ -135,17 +206,26 @@ export async function deactivateStaff(
     const now = deps.clock.now();
     await tx.update(identityUser).set({ deactivatedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
     await tx.delete(identityStaffRole).where(eq(identityStaffRole.accountId, input.accountId));
+    // Its Lokasi Mitra go with the Admin Lokasi role: an invite back names its Lokasi afresh.
+    const lokasiIds = await adminLokasiIdsOf(tx, input.accountId);
+    await tx.delete(identityAdminLokasi).where(eq(identityAdminLokasi.accountId, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
     // A TOTP enrolment belongs to the Admin Platform role: if the Akun is invited back, it enrols afresh.
     await tx.delete(identityTotp).where(eq(identityTotp.accountId, input.accountId));
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "staf.nonaktifkan",
+    const entry = {
+      actor: { accountId: by.accountId, role: "admin_platform" as const },
+      action: "staf.nonaktifkan" as const,
       entity: { kind: "akun", id: input.accountId },
-      before: { deactivated: false, roles },
-      after: { deactivated: true, roles: [] },
+      before: { deactivated: false, roles, ...(lokasiIds.length > 0 ? { lokasiIds } : {}) },
+      after: { deactivated: true, roles: [], ...(lokasiIds.length > 0 ? { lokasiIds: [] } : {}) },
       reason,
-    });
+    };
+    if (lokasiIds.length === 0) {
+      await record(entry);
+    } else {
+      // One entry per Lokasi it was Admin Lokasi of, so that Lokasi's other Admin Lokasi see it in their Audit Log.
+      for (const lokasiId of lokasiIds) await record({ ...entry, lokasiId });
+    }
     return { ok: true } as const;
   });
 }

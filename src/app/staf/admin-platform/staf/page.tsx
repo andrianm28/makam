@@ -23,11 +23,16 @@ export default async function StafAdminPage() {
           <CardTitle>Undang staf</CardTitle>
           <CardDescription>
             Undangan dikirim lewat WhatsApp dan berlaku 7 hari. Email wajib untuk setiap staf (cadangan kode masuk lewat
-            email). Peran didapat saat ia masuk dengan kode WhatsApp di nomor itu.
+            email). Peran didapat saat ia masuk dengan kode WhatsApp di nomor itu. Admin Lokasi diundang dari halaman
+            Lokasi Mitra-nya.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <InviteForm roles={staffRoles.map((role) => ({ value: role, label: staffRoleLabels[role] }))} />
+          <InviteForm
+            roles={staffRoles
+              .filter((role) => role !== "admin_lokasi")
+              .map((role) => ({ value: role, label: staffRoleLabels[role] }))}
+          />
         </CardContent>
       </Card>
 

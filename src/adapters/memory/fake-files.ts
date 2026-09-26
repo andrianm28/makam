@@ -25,6 +25,18 @@ export class FakeFileStore implements FileStore {
   async delete(key: string): Promise<void> {
     this.stored.delete(key);
   }
+
+  /**
+   * What following a signed URL from `signedUrl` gets, as a browser would: the
+   * stored file while the URL has not expired on the Clock, else null.
+   */
+  open(url: string): StoredFile | null {
+    const parsed = new URL(url);
+    if (parsed.origin !== "https://files.fake.local") return null;
+    const expires = Number(parsed.searchParams.get("expires"));
+    if (!Number.isFinite(expires) || this.#clock.now().getTime() > expires * 1000) return null;
+    return this.stored.get(decodeURI(parsed.pathname.slice(1))) ?? null;
+  }
 }
 
 const MINIMAL_PDF = new TextEncoder().encode(

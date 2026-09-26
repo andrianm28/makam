@@ -5,7 +5,7 @@ import type { Clock } from "@/ports/clock";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffRoles, stafResource, writeRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
+import { identityAdminLokasi, identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
 import { normaliseEmail } from "./email-address";
 import { rolesOf } from "./staff";
 
@@ -31,6 +31,8 @@ export interface StaffInvite {
   phoneNumber: string;
   email: string;
   role: StaffRole;
+  /** The Lokasi Mitra of an Admin Lokasi invite; null for the other roles. */
+  lokasiId: string | null;
   expiresAt: Date;
 }
 
@@ -50,7 +52,28 @@ export type InviteStaffResult =
       delivered: boolean;
     }
   | PhoneNumberRejection
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "email_wajib" | "email_tidak_valid" };
+  | {
+      ok: false;
+      reason:
+        | "tidak_berwenang"
+        | "perlu_totp"
+        | "email_wajib"
+        | "email_tidak_valid"
+        /** An Admin Lokasi invite names no Lokasi Mitra. */
+        | "lokasi_wajib";
+    };
+
+export interface InviteStaffInput {
+  phoneNumber: string;
+  email: string;
+  role: StaffRole;
+  /**
+   * Required for an Admin Lokasi invite: the Lokasi Mitra it is for (the Lokasi
+   * module checks it exists, `inviteAdminLokasi`). Ignored for the other roles.
+   */
+  lokasiId?: string | null;
+  reason?: string | null;
+}
 
 /**
  * Admin Platform sends an Undangan Staf: a role for a WhatsApp number and a
@@ -62,7 +85,7 @@ export type InviteStaffResult =
 export async function inviteStaff(
   deps: InviteDeps,
   by: Actor,
-  input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
+  input: InviteStaffInput,
 ): Promise<InviteStaffResult> {
   const refusal = writeRefusal(by, "staf.undang", stafResource());
   if (refusal) return refusal;
@@ -73,6 +96,8 @@ export async function inviteStaff(
   if (input.email.trim() === "") return { ok: false, reason: "email_wajib" };
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
+  const lokasiId = input.role === "admin_lokasi" ? input.lokasiId?.trim() || null : null;
+  if (input.role === "admin_lokasi" && !lokasiId) return { ok: false, reason: "lokasi_wajib" };
 
   const now = deps.clock.now();
   const expiresAt = new Date(now.getTime() + STAFF_INVITE_EXPIRES_AFTER_MS);
@@ -80,14 +105,15 @@ export async function inviteStaff(
   const outcome = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [created] = await tx
       .insert(identityStaffInvite)
-      .values({ phoneNumber, email, role: input.role, invitedByAccountId: by.accountId, createdAt: now, expiresAt })
+      .values({ phoneNumber, email, role: input.role, lokasiId, invitedByAccountId: by.accountId, createdAt: now, expiresAt })
       .returning({ id: identityStaffInvite.id });
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "staf.undang",
       entity: { kind: "undangan_staf", id: created.id },
+      lokasiId,
       before: null,
-      after: { phoneNumber, email, role: input.role, expiresAt: expiresAt.toISOString() },
+      after: { phoneNumber, email, role: input.role, ...(lokasiId ? { lokasiId } : {}), expiresAt: expiresAt.toISOString() },
       reason: input.reason?.trim() || null,
     });
     return { ok: true, id: created.id } as const;
@@ -105,21 +131,34 @@ export async function inviteStaff(
     delivered = false;
   }
 
-  return { ok: true, invite: { id: outcome.id, phoneNumber, email, role: input.role, expiresAt }, delivered };
+  return { ok: true, invite: { id: outcome.id, phoneNumber, email, role: input.role, lokasiId, expiresAt }, delivered };
 }
 
-/** Every Undangan Staf not yet accepted and not expired on the Clock, oldest first. */
-export async function openStaffInvites(deps: { db: Database; clock: Clock }): Promise<StaffInvite[]> {
+/**
+ * Every Undangan Staf not yet accepted and not expired on the Clock, oldest
+ * first; with `lokasiId`, only the Admin Lokasi invites to that Lokasi Mitra.
+ */
+export async function openStaffInvites(
+  deps: { db: Database; clock: Clock },
+  filter: { lokasiId?: string } = {},
+): Promise<StaffInvite[]> {
   return deps.db
     .select({
       id: identityStaffInvite.id,
       phoneNumber: identityStaffInvite.phoneNumber,
       email: identityStaffInvite.email,
       role: identityStaffInvite.role,
+      lokasiId: identityStaffInvite.lokasiId,
       expiresAt: identityStaffInvite.expiresAt,
     })
     .from(identityStaffInvite)
-    .where(and(isNull(identityStaffInvite.acceptedAt), gt(identityStaffInvite.expiresAt, deps.clock.now())))
+    .where(
+      and(
+        isNull(identityStaffInvite.acceptedAt),
+        gt(identityStaffInvite.expiresAt, deps.clock.now()),
+        filter.lokasiId === undefined ? undefined : eq(identityStaffInvite.lokasiId, filter.lokasiId),
+      ),
+    )
     .orderBy(asc(identityStaffInvite.createdAt));
 }
 
@@ -175,14 +214,26 @@ export async function acceptOpenInvites(
         .update(identityStaffInvite)
         .set({ acceptedAt: now, acceptedAccountId: account.id })
         .where(eq(identityStaffInvite.id, invite.id));
+      if (invite.role === "admin_lokasi" && invite.lokasiId) {
+        await tx
+          .insert(identityAdminLokasi)
+          .values({ accountId: account.id, lokasiId: invite.lokasiId, grantedAt: now })
+          .onConflictDoNothing();
+      }
       const granted = staffRoles.filter((role) => role === invite.role || roles.includes(role));
       await record({
         // The invitee's own login accepts the invite; the Admin Platform who sent it is on the staf.undang entry.
         actor: { accountId: account.id, role: "pemesan" },
         action: "staf.peran_diberikan",
         entity: { kind: "akun", id: account.id },
+        lokasiId: invite.lokasiId,
         before: { roles, email },
-        after: { roles: granted, email: keepsVerifiedEmail ? email : invite.email, undanganStafId: invite.id },
+        after: {
+          roles: granted,
+          email: keepsVerifiedEmail ? email : invite.email,
+          ...(invite.lokasiId ? { lokasiId: invite.lokasiId } : {}),
+          undanganStafId: invite.id,
+        },
         reason: null,
       });
       roles = granted;

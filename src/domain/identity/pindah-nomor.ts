@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
+import { documentExtension } from "@/lib/files/document-type";
 import type { FileStore } from "@/ports/file-store";
 import { stafResource, writeRefusal, type Actor } from "./authorize";
 import type { Account } from "./login";
@@ -14,21 +15,7 @@ import { placeholderEmailFor } from "./staff";
  * What a KTP check may be: a photo or a scan. The declared type must match the
  * file's first bytes, so a renamed file of another kind is refused.
  */
-const KTP_CHECK_TYPES: Record<string, { extension: string; matches: (body: Uint8Array) => boolean }> = {
-  "image/jpeg": { extension: "jpg", matches: (body) => startsWith(body, [0xff, 0xd8, 0xff]) },
-  "image/png": { extension: "png", matches: (body) => startsWith(body, [0x89, 0x50, 0x4e, 0x47]) },
-  // RIFF....WEBP
-  "image/webp": {
-    extension: "webp",
-    matches: (body) => startsWith(body, [0x52, 0x49, 0x46, 0x46]) && startsWith(body.subarray(8), [0x57, 0x45, 0x42, 0x50]),
-  },
-  // %PDF
-  "application/pdf": { extension: "pdf", matches: (body) => startsWith(body, [0x25, 0x50, 0x44, 0x46]) },
-};
-
-function startsWith(body: Uint8Array, magic: number[]): boolean {
-  return body.length >= magic.length && magic.every((byte, index) => body[index] === byte);
-}
+const KTP_CHECK_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
 
 /** The largest KTP check file accepted, 10 MB. */
 export const KTP_CHECK_MAX_BYTES = 10 * 1024 * 1024;
@@ -80,11 +67,10 @@ export async function moveAccountToNewNumber(
   if (refusal) return refusal;
   if (!input.ktpChecked) return { ok: false, reason: "ktp_belum_dicek" };
   if (input.ktpCheck.body.byteLength === 0) return { ok: false, reason: "berkas_ktp_wajib" };
-  const type = Object.hasOwn(KTP_CHECK_TYPES, input.ktpCheck.contentType) ? KTP_CHECK_TYPES[input.ktpCheck.contentType] : null;
-  if (!type || !type.matches(input.ktpCheck.body) || input.ktpCheck.body.byteLength > KTP_CHECK_MAX_BYTES) {
+  const extension = documentExtension(input.ktpCheck, KTP_CHECK_TYPES);
+  if (!extension || input.ktpCheck.body.byteLength > KTP_CHECK_MAX_BYTES) {
     return { ok: false, reason: "berkas_ktp_tidak_didukung" };
   }
-  const { extension } = type;
   const reason = input.reason.trim();
   if (!reason) return { ok: false, reason: "alasan_wajib" };
 

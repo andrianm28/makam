@@ -53,6 +53,8 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
       return "Email wajib diisi untuk setiap staf.";
     case "email_tidak_valid":
       return "Email tidak valid.";
+    case "lokasi_wajib":
+      return "Admin Lokasi diundang dari halaman Lokasi Mitra-nya (menu Lokasi Mitra).";
     case "nomor_tidak_valid":
     case "nomor_bukan_indonesia":
       return phoneNumberRefusals[refusal.reason];

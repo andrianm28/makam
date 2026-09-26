@@ -209,7 +209,9 @@ describe("Pengaturan Operator", () => {
   ] as const)("only Admin Platform may change it: $who is refused and nothing is kept or audited", async ({ role, number }) => {
     const setup = operatorSettingsOnTestDatabase();
     const { actor: admin } = await signedInAdminPlatform(setup);
-    await setup.identity.inviteStaff(admin, { phoneNumber: number, email: "staf@contoh.id", role });
+    // An Admin Lokasi invite names its Lokasi Mitra (the identity module keeps the id as given).
+    const lokasiId = role === "admin_lokasi" ? "5d1f4c2e-0000-4000-8000-000000000001" : undefined;
+    await setup.identity.inviteStaff(admin, { phoneNumber: number, email: "staf@contoh.id", role, lokasiId });
     const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, number);
     const staff = await actorOf(setup.identity, cookies);
     expect(staff.roles).toEqual(["pemesan", role]);

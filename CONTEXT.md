@@ -18,6 +18,10 @@ _Avoid_: Mitra (alone), partner makam
 Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed; every listed Lokasi Mitra is Terverifikasi. Never said of a TPU, which is shown as an official Pemda cemetery instead.
 _Avoid_: Terdaftar, resmi (for a Lokasi Mitra), using it as a badge some listings lack
 
+**Belum Tayang**:
+Said of a Lokasi Mitra that is still being onboarded and is not yet listed: every Lokasi Mitra starts so, and stays so until it is Terverifikasi.
+_Avoid_: Draft, nonaktif, pending
+
 **Denah**:
 The plot map of a Lokasi Mitra: a grid per blok in which each cell is a Petak Makam or a path, drawn by the Admin Lokasi; the Terencana plot picker shows it.
 _Avoid_: Peta (for the plot map), site plan, layout

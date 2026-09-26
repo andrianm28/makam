@@ -42,6 +42,8 @@ describe("Audit Log", () => {
         actor: { accountId: "akun-admin", role: "admin_platform" },
         action: "akun.pindah_nomor",
         entity: { kind: "akun", id: "akun-pemesan" },
+        // Not about a Lokasi Mitra.
+        lokasiId: null,
         before: { phoneNumber: "+6281111111111" },
         after: { phoneNumber: "+6282222222222" },
         reason: "HP hilang, KTP cocok",
@@ -107,5 +109,70 @@ describe("Audit Log", () => {
     await expect(db.execute(sql`update audit_entry set reason = 'diubah'`)).rejects.toThrow();
     await expect(db.execute(sql`delete from audit_entry`)).rejects.toThrow();
     expect(await audit.allEntries()).toMatchObject([{ reason: "uji" }]);
+  });
+});
+
+describe("the Audit Log of one Lokasi Mitra (the Admin Lokasi view)", () => {
+  const LOKASI = "5d1f4c2e-0000-4000-8000-000000000001";
+  const OTHER = "5d1f4c2e-0000-4000-8000-000000000002";
+  const entry = (action: NewAuditEntry["action"], lokasiId: string | null, reason: string): NewAuditEntry => ({
+    actor: { accountId: "akun-admin", role: "admin_platform" },
+    action,
+    entity: { kind: "lokasi_mitra", id: lokasiId ?? "tanpa-lokasi" },
+    lokasiId,
+    before: null,
+    after: { reason },
+    reason,
+  });
+
+  it("holds only the entries about that Lokasi, oldest first, and hides Catatan Internal and Antrean claims", async () => {
+    const clock = new FakeClock(wib("2026-10-01 09:00"));
+    const audit = createAuditLog({ db, clock });
+    for (const next of [
+      entry("lokasi.buat", LOKASI, "dibuat"),
+      entry("lokasi.buat", OTHER, "Lokasi lain"),
+      entry("catatan_internal.tulis", LOKASI, "catatan internal"),
+      entry("lokasi.ubah_rekening", LOKASI, "rekening"),
+      entry("antrean.ambil", LOKASI, "klaim Antrean"),
+      entry("akun.pindah_nomor", null, "bukan tentang Lokasi"),
+    ]) {
+      await audit.staffWrite(db, async (_tx, record) => {
+        await record(next);
+        return { ok: true };
+      });
+      clock.advance({ minutes: 1 });
+    }
+
+    const entries = await audit.entriesForLokasi(LOKASI);
+
+    expect(entries.map((found) => [found.action, found.reason])).toEqual([
+      ["lokasi.buat", "dibuat"],
+      ["lokasi.ubah_rekening", "rekening"],
+    ]);
+    expect(entries[0]).toMatchObject({ lokasiId: LOKASI, at: wib("2026-10-01 09:00") });
+    expect((await audit.allEntries()).length).toBe(6);
+  });
+
+  it("unfiltered (Admin Platform's view), holds every entry about that Lokasi, Catatan Internal and Antrean claims included", async () => {
+    const clock = new FakeClock(wib("2026-10-01 09:00"));
+    const audit = createAuditLog({ db, clock });
+    for (const next of [
+      entry("lokasi.buat", LOKASI, "dibuat"),
+      entry("catatan_internal.tulis", LOKASI, "catatan internal"),
+      entry("lokasi.buat", OTHER, "Lokasi lain"),
+      entry("antrean.ambil", LOKASI, "klaim Antrean"),
+    ]) {
+      await audit.staffWrite(db, async (_tx, record) => {
+        await record(next);
+        return { ok: true };
+      });
+      clock.advance({ minutes: 1 });
+    }
+
+    expect((await audit.allEntriesForLokasi(LOKASI)).map((found) => [found.action, found.reason])).toEqual([
+      ["lokasi.buat", "dibuat"],
+      ["catatan_internal.tulis", "catatan internal"],
+      ["antrean.ambil", "klaim Antrean"],
+    ]);
   });
 });

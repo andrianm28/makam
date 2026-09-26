@@ -3,6 +3,7 @@ import { FakeClock, type FakeEmailSender, type FakeWhatsAppSender } from "@/adap
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
+import { createLokasi } from "@/domain/lokasi";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -43,8 +44,9 @@ export function testServerRuntime() {
       audit,
       reportError: () => {},
     });
+    const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, operatorSettings };
+    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();

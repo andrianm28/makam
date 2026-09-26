@@ -8,7 +8,7 @@
  * runs the write and its entries in one transaction, and refuses to commit a
  * write that recorded none.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Role } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
@@ -36,6 +36,8 @@ export type AuditAction =
   | "staf.peran_diberikan"
   /** Admin Platform deactivates an Akun Staf. */
   | "staf.nonaktifkan"
+  /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra. */
+  | "staf.lepas_admin_lokasi"
   /** Pindah Nomor. */
   | "akun.pindah_nomor"
   /** Admin Platform completes TOTP enrolment. */
@@ -49,13 +51,41 @@ export type AuditAction =
   /** An Akun Staf turns push off for a Perangkat Push. */
   | "akun.push_matikan"
   /** An Akun Staf verifies its email, the same one or a new one (Verifikasi Email; never the code). */
-  | "akun.email_verifikasi";
+  | "akun.email_verifikasi"
+  /** Admin Platform creates a Lokasi Mitra (Belum Tayang). */
+  | "lokasi.buat"
+  /** Admin Platform records a Lokasi Mitra's profile (name, pengelola, address, city, pin, facilities). */
+  | "lokasi.ubah_profil"
+  /** Admin Platform edits a Lokasi Mitra's document checklist. */
+  | "lokasi.ubah_dokumen"
+  /** Admin Platform sets a Lokasi Mitra's policies and flags. */
+  | "lokasi.ubah_kebijakan"
+  /** Admin Platform sets or changes a Lokasi Mitra's bank account. */
+  | "lokasi.ubah_rekening"
+  /** Admin Platform uploads a Lokasi Mitra's agreement scan and signing date. */
+  | "lokasi.unggah_perjanjian"
+  /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
+  | "catatan_internal.tulis"
+  /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
+  | "antrean.ambil";
+
+/**
+ * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
+ * Log): Catatan Internal and Antrean claims.
+ */
+const HIDDEN_FROM_ADMIN_LOKASI: readonly AuditAction[] = ["catatan_internal.tulis", "antrean.ambil"];
 
 export interface NewAuditEntry {
   /** The Akun that did the write, and the role it acted under. */
   actor: { accountId: string; role: AuditActorRole };
   action: AuditAction;
   entity: AuditEntity;
+  /**
+   * The Lokasi Mitra the write belongs to, if any: set it on every write about
+   * a Lokasi (its record, tariffs, status, its Admin Lokasi, its orders), so
+   * the Lokasi's Admin Lokasi see it in `entriesForLokasi`.
+   */
+  lokasiId?: string | null;
   before: AuditSnapshot;
   after: AuditSnapshot;
   reason: string | null;
@@ -64,6 +94,7 @@ export interface NewAuditEntry {
 export interface AuditEntry extends NewAuditEntry {
   id: string;
   at: Date;
+  lokasiId: string | null;
 }
 
 /** Records one Entri Audit in the staff write's transaction, stamped with the Clock. */
@@ -89,6 +120,13 @@ export interface AuditLog {
   entriesAbout(entity: AuditEntity): Promise<AuditEntry[]>;
   /** The whole Audit Log, oldest first (Admin Platform's `audit.lihat`). */
   allEntries(): Promise<AuditEntry[]>;
+  /**
+   * The Audit Log of one Lokasi Mitra as its Admin Lokasi see it, oldest
+   * first: every entry about that Lokasi except Catatan Internal and Antrean claims.
+   */
+  entriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
+  /** Every entry about one Lokasi Mitra, oldest first, nothing hidden (Admin Platform's view). */
+  allEntriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
 }
 
 /** Carries a refusal out of the transaction so that it rolls back. */
@@ -112,6 +150,7 @@ export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
               action: entry.action,
               entityKind: entry.entity.kind,
               entityId: entry.entity.id,
+              lokasiId: entry.lokasiId ?? null,
               before: entry.before,
               after: entry.after,
               reason: entry.reason,
@@ -140,6 +179,22 @@ export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
       const rows = await deps.db.select().from(auditEntry).orderBy(asc(auditEntry.at), asc(auditEntry.seq));
       return rows.map(toEntry);
     },
+    async entriesForLokasi(lokasiId) {
+      const rows = await deps.db
+        .select()
+        .from(auditEntry)
+        .where(and(eq(auditEntry.lokasiId, lokasiId), notInArray(auditEntry.action, [...HIDDEN_FROM_ADMIN_LOKASI])))
+        .orderBy(asc(auditEntry.at), asc(auditEntry.seq));
+      return rows.map(toEntry);
+    },
+    async allEntriesForLokasi(lokasiId) {
+      const rows = await deps.db
+        .select()
+        .from(auditEntry)
+        .where(eq(auditEntry.lokasiId, lokasiId))
+        .orderBy(asc(auditEntry.at), asc(auditEntry.seq));
+      return rows.map(toEntry);
+    },
   };
 }
 
@@ -150,6 +205,7 @@ function toEntry(row: typeof auditEntry.$inferSelect): AuditEntry {
     actor: { accountId: row.actorAccountId, role: row.actorRole as AuditActorRole },
     action: row.action as AuditAction,
     entity: { kind: row.entityKind, id: row.entityId },
+    lokasiId: row.lokasiId,
     before: (row.before as AuditSnapshot) ?? null,
     after: (row.after as AuditSnapshot) ?? null,
     reason: row.reason,

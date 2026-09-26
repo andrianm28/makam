@@ -14,7 +14,7 @@ import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import type { Actor, StaffRole } from "./authorize";
+import type { Actor } from "./authorize";
 import { createBetterAuth } from "./better-auth";
 import {
   accountEmail,
@@ -35,7 +35,7 @@ import {
 } from "./email-login";
 import { accountByPhoneNumber, verifyOtp, type Account, type VerifyOtpResult } from "./login";
 import { LoginProofs } from "./login-proofs";
-import { inviteStaff, openStaffInvites, type InviteStaffResult, type StaffInvite } from "./invites";
+import { inviteStaff, openStaffInvites, type InviteStaffInput, type InviteStaffResult, type StaffInvite } from "./invites";
 import { moveAccountToNewNumber, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
 import { requestOtp, type RequestOtpResult } from "./otp";
 import { actorFromCookies, endSession } from "./sessions";
@@ -44,6 +44,10 @@ import {
   seedFirstAdminPlatform,
   staffAccounts,
   staffRecipient,
+  adminLokasiOf,
+  removeAdminLokasi,
+  type RemoveAdminLokasiResult,
+  type AdminLokasiAccount,
   type DeactivateStaffResult,
   type SeedResult,
   type StaffAccount,
@@ -71,13 +75,23 @@ export type {
   RequestEmailVerificationResult,
 } from "./email";
 export type { SessionCookie } from "./sessions";
-export type { DeactivateStaffResult, SeedResult, StaffAccount, StaffRecipient } from "./staff";
+export type {
+  AdminLokasiAccount,
+  DeactivateStaffResult,
+  RemoveAdminLokasiResult,
+  SeedResult,
+  StaffAccount,
+  StaffRecipient,
+} from "./staff";
 export { KTP_CHECK_MAX_BYTES, type MoveAccountInput, type MoveAccountResult } from "./pindah-nomor";
-export type { InviteStaffResult, StaffInvite } from "./invites";
+export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
+  auditLogLokasiResource,
   auditLogResource,
   authorize,
+  lokasiMitraResource,
+  semuaLokasiMitraResource,
   needsTotp,
   pengaturanOperatorResource,
   stafMenuResource,
@@ -154,17 +168,25 @@ export interface Identity {
    * sessions. Null when it holds no staff role (never invited, or Dinonaktifkan).
    */
   staffRecipient(accountId: string): Promise<StaffRecipient | null>;
-  /** Admin Platform sends an Undangan Staf (role, WhatsApp number, required email), audited. */
-  inviteStaff(
+  /**
+   * Admin Platform sends an Undangan Staf (role, WhatsApp number, required
+   * email; for Admin Lokasi also the Lokasi Mitra), audited. Admin Lokasi
+   * invites go through the Lokasi module's `inviteAdminLokasi`, which checks the Lokasi.
+   */
+  inviteStaff(by: Actor, input: InviteStaffInput): Promise<InviteStaffResult>;
+  /** Every Admin Lokasi of one Lokasi Mitra. */
+  adminLokasiOf(lokasiId: string): Promise<AdminLokasiAccount[]>;
+  /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra (the Akun keeps its other Lokasi), audited. */
+  removeAdminLokasi(
     by: Actor,
-    input: { phoneNumber: string; email: string; role: StaffRole; reason?: string | null },
-  ): Promise<InviteStaffResult>;
+    input: { lokasiId: string; accountId: string; reason: string },
+  ): Promise<RemoveAdminLokasiResult>;
   /** Admin Platform deactivates an Akun Staf (Dinonaktifkan): sessions end, login blocked, history kept; audited. */
   deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
   /** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check (FileStore), audited. */
   moveAccountToNewNumber(by: Actor, input: MoveAccountInput): Promise<MoveAccountResult>;
-  /** Every Undangan Staf not yet accepted and not expired. */
-  openStaffInvites(): Promise<StaffInvite[]>;
+  /** Every Undangan Staf not yet accepted and not expired; with `lokasiId`, the Admin Lokasi invites to that Lokasi Mitra. */
+  openStaffInvites(filter?: { lokasiId?: string }): Promise<StaffInvite[]>;
   /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform (the guarded actor). */
   startTotpEnrolment(by: Actor): Promise<StartTotpEnrolmentResult>;
   /** Checks an authenticator code for the signed-in Admin Platform's session (the guarded actor's). */
@@ -212,7 +234,9 @@ export function createIdentity(deps: IdentityDeps): Identity {
     staffAccounts: () => staffAccounts(deps),
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
-    openStaffInvites: () => openStaffInvites(deps),
+    adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),
+    removeAdminLokasi: (by, input) => removeAdminLokasi(deps, by, input),
+    openStaffInvites: (filter) => openStaffInvites(deps, filter),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     moveAccountToNewNumber: (by, input) => moveAccountToNewNumber(deps, by, input),
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),

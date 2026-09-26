@@ -15,6 +15,9 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
+/** The Lokasi Mitra an Admin Lokasi invite names (the identity module keeps the id as given). */
+const LOKASI = "5d1f4c2e-0000-4000-8000-000000000001";
+
 const IP = "203.0.113.7";
 let ipCounter = 0;
 /** A fresh IP (benchmarking range), so a helper's request never meets another's per-IP 60 s wait. */
@@ -123,7 +126,7 @@ describe("Verifikasi Email in the staff area", () => {
     const setup = identityOnTestDatabase(db);
     const { identity, whatsapp, audit, email, clock } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
-    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi" });
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     const staff = await logInByOtp(identity, whatsapp, "082222222222");
     const staffActor = await actorOf(identity, staff.cookies);
     await identity.requestEmailVerification(staffActor, { email: "staf@contoh.id", ip: IP });
@@ -323,7 +326,8 @@ describe("staff log in by email", () => {
       const setup = identityOnTestDatabase(db);
       const { identity, whatsapp, clock } = setup;
       const { actor: admin } = await signedInAdminPlatform(setup);
-      await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });
+      const lokasiId = role === "admin_lokasi" ? LOKASI : undefined;
+      await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role, lokasiId });
       const byWhatsApp = await logInByOtp(identity, whatsapp, "082222222222");
       await verifyEmailOf(setup, byWhatsApp.cookies, "staf@contoh.id");
       const loggedInAt = clock.now();
@@ -379,7 +383,7 @@ describe("the email of an Undangan Staf", () => {
     const setup = identityOnTestDatabase(db);
     const { identity, whatsapp, email } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
-    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi" });
+    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
     const { cookies } = await logInByOtp(identity, whatsapp, "082222222222");
 
     expect(await identity.accountEmail(await actorOf(identity, cookies))).toEqual({ email: "staf@contoh.id", verified: false });

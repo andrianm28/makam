@@ -6,6 +6,7 @@ import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Identity } from "@/domain/identity";
 import { createNotifications, type Notifications } from "@/domain/notifications";
+import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
@@ -17,6 +18,7 @@ export interface ServerRuntime {
   audit: AuditLog;
   identity: Identity;
   notifications: Notifications;
+  lokasi: Lokasi;
   /** Pengaturan Operator: read through `current()` / `inForceAt()`, never from env or constants. */
   operatorSettings: OperatorSettings;
 }
@@ -48,6 +50,7 @@ export function serverRuntime(): ServerRuntime {
       audit,
       reportError: (error, context) => Sentry.captureException(error, context),
     });
+    const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -55,6 +58,7 @@ export function serverRuntime(): ServerRuntime {
       audit,
       identity,
       notifications,
+      lokasi,
       operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
     };
   }
