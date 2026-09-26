@@ -103,6 +103,45 @@ describe("the all-in quote", () => {
     expect(quote.total).toBe(35_900_004);
   });
 
+  it("shows the scheduled change: each line's next version and date, and the quote's next total from the first such date ('Harga baru mulai'), and since when its total holds ('Harga berlaku sejak')", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra, reguler } = await pricedLokasiMitra(setup);
+    setup.clock.set(wib("2026-10-20 10:00"));
+    await setup.tariffs.setJenisMakamTariff(admin, reguler.id, {
+      hargaHakPakai: 8_000_000,
+      tenure: { kind: "tahun", years: 5 },
+      hargaPerpanjangan: 3_250_000,
+      effectiveOn: "2027-01-01",
+      reason: null,
+    });
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 175_000, effectiveOn: "2026-12-01", reason: null });
+    const saatDuka = [
+      { kind: "harga_hak_pakai", jenisMakamId: reguler.id },
+      { kind: "biaya_pemakaman", lokasiId: lokasiMitra.id, tumpang: false },
+    ] as const;
+
+    expect(await setup.tariffs.quote(saatDuka, wib("2026-11-15 10:00"))).toMatchObject({
+      lines: [
+        { amount: 7_512_345, inForceSince: "2026-10-01", scheduledChange: { effectiveOn: "2027-01-01", amount: 8_000_000 } },
+        { amount: 1_987_655, inForceSince: "2026-10-01", scheduledChange: null },
+        { amount: 150_001, inForceSince: "2026-10-01", scheduledChange: { effectiveOn: "2026-12-01", amount: 175_000 } },
+      ],
+      total: 9_650_001,
+      inForceSince: "2026-10-01",
+      scheduledChange: { effectiveOn: "2026-12-01", total: 9_675_000 },
+    });
+    expect(await setup.tariffs.quote(saatDuka, wib("2026-12-15 10:00"))).toMatchObject({
+      total: 9_675_000,
+      inForceSince: "2026-12-01",
+      scheduledChange: { effectiveOn: "2027-01-01", total: 10_162_655 },
+    });
+    expect(await setup.tariffs.quote(saatDuka, wib("2027-01-01 00:00"))).toMatchObject({
+      total: 10_162_655,
+      inForceSince: "2027-01-01",
+      scheduledChange: null,
+    });
+  });
+
   it("a tumpang under an existing Hak Pakai: the tumpang Biaya Pemakaman + one Biaya Layanan Platform; without a tumpang amount, the Biaya Pemakaman", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { admin, lokasiMitra } = await pricedLokasiMitra(setup);
@@ -174,6 +213,8 @@ describe("the all-in quote", () => {
         expect.objectContaining({ kind: "retribusi_pemda", label: "Retribusi Pemda (IPTM)", amount: 0, provider: { kind: "pemda" }, setorRetribusi: false }),
       ],
       total: 1_500_007,
+      inForceSince: "2026-10-01",
+      scheduledChange: null,
     });
     expect(
       await setup.tariffs.quote([{ kind: "biaya_pengurusan", pengurusan: "berkas" }], wib("2026-10-05 10:00")),
