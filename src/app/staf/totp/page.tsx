@@ -5,7 +5,7 @@ import { TotpForm } from "./totp-form";
 
 /**
  * The TOTP step: an Akun holding Admin Platform enrols an authenticator once,
- * then passes TOTP after every OTP login, before anything else in the app.
+ * then passes TOTP after every Kode Masuk login, before anything else in the app.
  */
 export default async function TotpPage() {
   const actor = await currentActor();

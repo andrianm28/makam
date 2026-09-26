@@ -15,7 +15,7 @@ beforeEach(resetDatabase);
 
 /** A new Saat Duka order at a Lokasi Mitra, as ticket 23 will raise it. */
 const saatDukaBaru = {
-  kind: "staf_saat_duka_baru",
+  kind: "staf_saat_duka_baru" as const,
   email: {
     subject: "Pemesanan Saat Duka baru: MKM-2026-000123",
     text: "MKM-2026-000123 di Taman Makam Contoh (Petak tunggal, besok 10:00) menunggu konfirmasi sampai hari ini 21:00. Pemesan: Ibu Sari.",

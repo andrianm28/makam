@@ -153,13 +153,30 @@ Migration 0010 (ADR 0004) keys every Akun by its Email Terverifikasi. An Akun
 that had one keeps working. An Akun without one (a WhatsApp number only, or an
 email that was only typed in, e.g. on an Undangan Staf) keeps all its records
 but had its sessions ended and cannot log in: a Kode Masuk to the email typed
-on it makes a separate, new Akun. To give it back to its holder:
+on it makes a separate, new Akun.
+
+**When deploying migration 0010 (once per environment).** An Admin Platform
+seeded before it without `--email-terverifikasi` has no Email Terverifikasi:
+the migration ends its session, and it cannot log in again (a Kode Masuk to
+its email would make a new, plain Akun). So, right after the deploy and before
+anyone logs in with that email, run `verify-email <its email> --alasan "..."`
+(below) for it; then it logs in with a Kode Masuk to that email and passes TOTP
+as before. Check who needs it with the staff roster ("Perlu Pemulihan Akun")
+or, before the deploy, `select email from identity_user u join identity_staff_role r
+on r.account_id = u.id and r.role = 'admin_platform' where u.email_verified_at is null;`.
+Staging's EmailSender is the live SumoPod SMTP relay (`SMTP_*` are required
+there, `src/lib/env.ts`), so the Kode Masuk arrives by email on staging.
+
+To give any other such Akun back to its holder:
 
 - **Pemulihan Akun** (the normal path): another Admin Platform, at
   `/staf/admin-platform/pemulihan-akun`, checks the holder's KTP, uploads it,
   and moves the Akun to an email the holder can open (it may be the email
   already on record). The staff roster marks such Akun Staf "Perlu Pemulihan
-  Akun". Pemulihan Akun needs the FileStore for the KTP check; until the live
+  Akun", linked to the screen with that Akun picked by its id (the only way to
+  an Akun with no email on record); an email on record of more than one Akun is
+  refused, so pick such an Akun by its id too. The old email gets a notice that
+  the Akun was moved (no new email, no code). Pemulihan Akun needs the FileStore for the KTP check; until the live
   S3 adapter is configured it refuses with "Email belum dipindah".
 - **`verify-email`** (break-glass, Admin Platform only): when the Akun is an
   Admin Platform and no other Admin Platform can do the Pemulihan Akun (the

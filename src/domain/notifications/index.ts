@@ -62,11 +62,26 @@ export interface PushDevice {
 export type EnablePushResult = { ok: true } | WriteRefusal | { ok: false; reason: "perangkat_tidak_valid" };
 export type DisablePushResult = { ok: true } | WriteRefusal;
 
+/**
+ * Every kind of Peringatan Staf (the staff events of the spec's Notifications
+ * table). Later tickets that raise a new one add it here.
+ */
+export const staffAlertKinds = [
+  "staf_saat_duka_baru",
+  "staf_saat_duka_belum_dikonfirmasi",
+  "staf_antrean_mendesak",
+  "staf_antrean_eskalasi",
+  "staf_tugas_lapangan_baru",
+  "staf_hak_pakai_berakhir",
+  "staf_calon_penghuni_diubah",
+] as const;
+export type StaffAlertKind = (typeof staffAlertKinds)[number];
+
 export interface StaffAlert {
   /** The Akun Staf; its Email Terverifikasi is read from the Akun, never taken from the caller. */
   to: { accountId: string };
-  /** Names the kind of Peringatan Staf in error reports (e.g. `staf_pesanan_baru`); never shown. */
-  kind: string;
+  /** Which Peringatan Staf this is; names it in error reports, never shown. */
+  kind: StaffAlertKind;
   /** The email to the Akun Staf's Email Terverifikasi: it may carry what the lock screen may not. */
   email: { subject: string; text: string };
   /**
