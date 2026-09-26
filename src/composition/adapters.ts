@@ -1,10 +1,18 @@
 import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
 import { notConfigured } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
+import { SumopodPaymentProvider } from "@/adapters/live/sumopod-payment-provider";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import { createMemoryAdapters } from "@/adapters/memory";
-import { DEFAULT_CHROMIUM_PATH, usesInMemoryFakes, type AppEnvironment, type SmtpSettings, type VapidKeys } from "@/lib/env";
+import {
+  DEFAULT_CHROMIUM_PATH,
+  usesInMemoryFakes,
+  type AppEnvironment,
+  type SmtpSettings,
+  type SumopodSettings,
+  type VapidKeys,
+} from "@/lib/env";
 import type { Adapters } from "@/ports";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
@@ -15,6 +23,8 @@ interface CommonAdapterOptions {
   fakePaymentWebhookSecret?: string;
   /** The SumoPod SMTP relay for the live EmailSender (`env.smtp`); ignored in development and test. */
   smtp?: SmtpSettings;
+  /** The SumoPod project for the live PaymentProvider (`env.sumopod`); ignored in development and test. */
+  sumopod?: SumopodSettings;
   /** The headless Chromium the live PdfRenderer runs (`env.CHROMIUM_PATH`); ignored in development and test. */
   chromiumPath?: string;
   /** Replace individual adapters, e.g. a test's FakeClock. */
@@ -37,11 +47,12 @@ export type AdapterOptions = CommonAdapterOptions &
  *
  * - development, test: the system Clock plus in-memory fakes for every
  *   outbound port, so nothing leaves the machine.
- * - staging, production: wired identically, live adapters only (staging gets
- *   sandbox credentials, e.g. SumoPod sandbox from ticket 61). EmailSender is
- *   the SumoPod SMTP relay (ticket 68; `smtp` from the validated env). Ports whose live
- *   adapter is not configured reject every call (PortNotConfiguredError) rather
- *   than silently faking.
+ * - staging, production: wired identically, live adapters only. PaymentProvider
+ *   is SumoPod's Managed Payment API (ticket 61; `sumopod` from the validated
+ *   env — staging holds sandbox keys, production live ones from the switch
+ *   day). EmailSender is the SumoPod SMTP relay (ticket 68; `smtp` from the
+ *   validated env). Ports whose live adapter is not configured reject every
+ *   call (PortNotConfiguredError) rather than silently faking.
  */
 export function createAdapters(options: AdapterOptions): Adapters {
   const clock = options.overrides?.clock ?? new SystemClock();
@@ -50,7 +61,9 @@ export function createAdapters(options: AdapterOptions): Adapters {
     ? createMemoryAdapters(clock, { paymentWebhookSecret: options.fakePaymentWebhookSecret })
     : {
         clock,
-        payments: notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
+        payments: options.sumopod
+          ? new SumopodPaymentProvider(options.sumopod)
+          : notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
         email: options.smtp
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),

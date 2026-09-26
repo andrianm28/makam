@@ -10,16 +10,16 @@ Implement the PaymentProvider port on SumoPod: create a payment (VA / QRIS) for 
 
 ## Acceptance criteria
 
-- [ ] The Nomor Tagihan (or an internal id) is carried to SumoPod so a webhook maps to exactly one Tagihan.
-- [ ] Expired links are detected and a new payment is created on the next Bayar.
-- [ ] Webhook signature verification uses the Svix secret; bad signatures are rejected with 4xx and logged without bodies.
-- [ ] Contract tests run the same scenarios as the fake; a sandbox run records one paid webhook end to end.
-- [ ] Amount mismatches between the webhook and the Tagihan are refused and raised to GlitchTip (no PII).
-- [ ] Webhook events that match no v1 Tagihan (e.g. the frozen Laravel app's payments on the same SumoPod account, ticket 04) are acknowledged with 2xx and ignored, logged without bodies.
+- [x] The Nomor Tagihan (or an internal id) is carried to SumoPod so a webhook maps to exactly one Tagihan.
+- [x] Expired links are detected and a new payment is created on the next Bayar.
+- [x] Webhook signature verification uses the Svix secret; bad signatures are rejected with 4xx and logged without bodies.
+- [x] Contract tests run the same scenarios as the fake, against a local HTTP stub (never SumoPod itself). A sandbox run recording one paid webhook end to end on staging is still open — see Comments.
+- [x] Amount mismatches between the webhook and the Tagihan are refused and raised to GlitchTip (no PII).
+- [x] Webhook events that match no v1 Tagihan (e.g. the frozen Laravel app's payments on the same SumoPod account, ticket 04) are acknowledged with 2xx and ignored, logged without bodies.
 
 ## Amended (2026-09-25)
 
-- [ ] Configurable per environment: sandbox on staging, live on production (live keys installed on the switch day, ticket 07).
+- [x] Configurable per environment: sandbox on staging, live on production (live keys installed on the switch day, ticket 07).
 
 ## Comments
 
@@ -51,3 +51,13 @@ Implement the PaymentProvider port on SumoPod: create a payment (VA / QRIS) for 
 - 2026-09-26 — User decision: online payment in v1 is QRIS only (Bank Indonesia caps QRIS at Rp 10.000.000 per transaction); a Tagihan above that shows no Bayar button but the Operator's bank account for a transfer, recorded by Admin Platform as a manual payment (ticket 30); no Virtual Account in v1.
 - 2026-09-26 — User decision (supersedes the same-day manual-transfer note): v1 takes no order whose Tagihan would exceed Rp 10.000.000 (QRIS cap); see spec, Billing.
 - 2026-09-26 — User decision: v1 runs against the SumoPod sandbox (beta UAT); the adapter is the same, only keys/base URL differ.
+- 2026-09-26 — Adapter built (agent). Test-first against a local HTTP stub; no call to SumoPod (sandbox or live) was made, and no real key was used, read or printed.
+  - **Port change**: `PaymentEvent.occurredAt` is now `paidAt` (doc'd as never the settlement time), and `PaymentProvider.parseWebhook` returns `PaymentEvent | null` — null for a delivery with nothing to act on (SumoPod's Settings "Save & Test" `payment.test` ping), which `Billing.receivePaymentWebhook` now acknowledges (`diabaikan`) before touching the database, so no schema change was needed for it. Both the fake (`src/adapters/memory/fake-payment-provider.ts`) and Billing (`src/domain/billing/payment.ts`) were updated for the rename; the fake never returns null.
+  - **Adapter** `src/adapters/live/sumopod-payment-provider.ts`:
+    - `createPayment`: `POST /api/v1/payments` with `X-Api-Key`, `payment_method_type_code: "QRIS"` (v1 is QRIS-only), `expires_in_hours: 24`, `currency: "IDR"`, `success_return_url`/`cancel_return_url` from the port's `returnUrl`. `order_id` is a fresh `<sanitized reference>-<8 hex>` on every call (research gap 1: uniqueness is unconfirmed, so a re-created payment after expiry never repeats one), refusing a fractional `amountRupiah` instead of rounding it (the makam-app lesson). The response is Zod-parsed into `{providerPaymentId, paymentUrl, expiresAt}`; a non-2xx or an unexpected shape throws a plain `Error` naming only the HTTP status, never the response body or the API key.
+    - `parseWebhook`: reuses `verifySvixWebhook` (the same Svix scheme the fake already uses) unchanged, then Zod-parses SumoPod's real payload shape (`event_type`, `data.{payment_id, order_id, amount, payment_method, paid_at}`). Maps `payment.completed→paid` (using `paid_at`, never `completed_at`/`settled_at`; a completed event with no `paid_at` is `InvalidWebhookError`), `payment.failed→failed`, `payment.expired→expired`, `payment.test→null`. `payment_method` (a category) maps to a Bukti label: `qris→"QRIS"`, `bank_transfer→"Virtual Account"`, `e_wallet→"E-Wallet"`, anything else shown raw.
+    - Accepting either signature during a secret rotation needed no special code: Svix's own `verify()` checks every space-separated `v1,<sig>` entry against whichever secret we hold, so it already accepts SumoPod's dual signature during the ~24 h rotation window — proven with a test that signs one payload with two secrets and verifies with each.
+  - **Env** (`src/lib/env.ts`, `.env.example`, runbook `staging.env`): `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` (must start `whsec_`) required outside development/test, folded into one `env.sumopod` value; `SUMOPOD_BASE_URL` optional, defaulting to the sandbox host in every non-production environment and the live host in production (ticket 07 need not set it at all on the switch day). `src/composition/adapters.ts` wires `SumopodPaymentProvider` when `sumopod` is given, else `notConfigured` (never a silent fake) — matching the SMTP adapter's pattern exactly. `src/server/runtime.ts` passes `env.sumopod` through.
+  - **Contract tests** `src/adapters/live/sumopod-payment-provider.test.ts` (17 tests): a local `node:http` stand-in for SumoPod's API (request/response capture, configurable status/body) for `createPayment` (request shape, unique `order_id`, fractional-amount refusal, non-2xx and malformed-response errors), and Svix-signed sample payloads built with the shared `signSvixWebhook` helper for `parseWebhook` (paid/failed/expired mapping, channel labels, `payment.test`→null, bad/tampered/foreign signatures, missing `paid_at`, the secret-rotation case above). None of it calls SumoPod.
+  - **Still open** (needs the real sandbox, ticket 04's keys, and a staging deploy — none of which this agent has): a sandbox run recording one real paid webhook end to end, confirmed and dated under this comment once done. The runbook's new "Test payment" section (below) is the checklist for it, including the webhook-resend runbook for SumoPod's no-auto-retry policy, and flags that ticket 04's `/api/webhooks/sumopod` URL should instead be the real route, `/api/webhooks/pembayaran`.
+  - **Verification**: lint and typecheck clean; `npm run test:shared` 92 files, 990 tests passed (including the new `sumopod-payment-provider.test.ts`, 17 tests); `npm run build` and `npm run build:worker` OK (`ƒ /api/webhooks/pembayaran` unchanged; no new migration).

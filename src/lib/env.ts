@@ -154,8 +154,71 @@ const emailEnvSchema = z
   .superRefine(requireSmtpOutsideFakes)
   .transform(withSmtpSettings);
 
+/** SumoPod's Managed Payment sandbox host: v1's beta UAT runs on it (staging, ticket 61, decided 2026-09-26). */
+export const SUMOPOD_SANDBOX_BASE_URL = "https://api-pay-sandbox.sumopod.com";
+/** SumoPod's Managed Payment live host, installed with live keys on the switch day (ticket 07). */
+export const SUMOPOD_LIVE_BASE_URL = "https://api-pay.sumopod.com";
+
+/**
+ * The live PaymentProvider (SumoPod), by env (ticket 61). Required in staging
+ * and production, where staging holds sandbox keys (`SUMOPOD_API_KEY`,
+ * `SUMOPOD_WEBHOOK_SECRET`) and production holds live ones, installed on the
+ * switch day (ticket 07). Development and test always use the fake and need
+ * none of it.
+ */
+const sumopodEnvShape = {
+  /** The SumoPod project's X-Api-Key. */
+  SUMOPOD_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+  /** The SumoPod project's Svix signing secret. */
+  SUMOPOD_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().startsWith("whsec_").optional()),
+  /**
+   * Override for the Managed Payment API base URL. Left unset, staging uses
+   * the sandbox host and production the live host; ticket 07 need not set
+   * this at all for the switch to live keys.
+   */
+  SUMOPOD_BASE_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https$/ }).optional()),
+};
+
+const SUMOPOD_REQUIRED = ["SUMOPOD_API_KEY", "SUMOPOD_WEBHOOK_SECRET"] as const;
+
+/** The SumoPod project the live PaymentProvider calls and verifies webhooks against. */
+export interface SumopodSettings {
+  apiKey: string;
+  webhookSecret: string;
+  baseUrl: string;
+}
+
+interface SumopodEnvFields {
+  APP_ENV: AppEnvironment;
+  SUMOPOD_API_KEY?: string;
+  SUMOPOD_WEBHOOK_SECRET?: string;
+  SUMOPOD_BASE_URL?: string;
+}
+
+function requireSumopodOutsideFakes(env: SumopodEnvFields, ctx: z.RefinementCtx) {
+  if (usesInMemoryFakes(env.APP_ENV)) return;
+  for (const key of SUMOPOD_REQUIRED) {
+    if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
+  }
+}
+
+/** Folds the SUMOPOD_* variables into one `sumopod` value; undefined unless the key and secret are both set. */
+function withSumopodSettings<E extends SumopodEnvFields>(env: E) {
+  const { SUMOPOD_API_KEY, SUMOPOD_WEBHOOK_SECRET, SUMOPOD_BASE_URL, ...rest } = env;
+  const sumopod: SumopodSettings | undefined =
+    SUMOPOD_API_KEY && SUMOPOD_WEBHOOK_SECRET
+      ? {
+          apiKey: SUMOPOD_API_KEY,
+          webhookSecret: SUMOPOD_WEBHOOK_SECRET,
+          baseUrl: SUMOPOD_BASE_URL ?? (env.APP_ENV === "production" ? SUMOPOD_LIVE_BASE_URL : SUMOPOD_SANDBOX_BASE_URL),
+        }
+      : undefined;
+  return { ...rest, sumopod };
+}
+
 const runtimeEnvSchema = sentryEnvSchema.extend({
   ...smtpEnvShape,
+  ...sumopodEnvShape,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -189,6 +252,7 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
 })
   .superRefine((env, ctx) => {
     requireSmtpOutsideFakes(env, ctx);
+    requireSumopodOutsideFakes(env, ctx);
     if (usesInMemoryFakes(env.APP_ENV)) return;
     for (const key of liveRequired) {
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
@@ -206,7 +270,7 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
       DOCUMENT_PAGE_ORIGIN,
       ...env
     }) => ({
-      ...withSmtpSettings(env),
+      ...withSumopodSettings(withSmtpSettings(env)),
       documentPageOrigin: new URL(DOCUMENT_PAGE_ORIGIN ?? `http://127.0.0.1:${env.PORT}`).origin,
       // Required (and so set) in staging and production; the fixed local pair only where fakes run.
       vapid: vapidKeys({

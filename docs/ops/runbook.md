@@ -77,6 +77,8 @@ to run unless the first three match `--env`:
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
 | `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
+| `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret (SumoPod's **sandbox** project key and Svix secret in staging for the v1 beta; ticket 04) | the live PaymentProvider (QRIS, ticket 61); **required from ticket 61 on**: without them `migrate`, `web` and `worker` refuse to start |
+| `SUMOPOD_BASE_URL` | unset (defaults to the sandbox host in staging, the live host in production) | override only if SumoPod ever splits sandbox/live differently than by environment |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
 script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
@@ -519,6 +521,43 @@ SPF passes for SumoPod's own bounce domain (return-path), so DMARC alignment com
 from DKIM. Images built before ticket 68 have no `dist/email-check.mjs`; build it
 (`npm run build:worker`) and `docker cp` it into the container's `/tmp`, as for
 `sentry-check`.
+
+## Test payment (SumoPod sandbox, webhook resend runbook)
+
+The live PaymentProvider (ticket 61) has no status-lookup endpoint in
+SumoPod's public API: the webhook is the only source of truth, and **SumoPod
+does not retry a failed delivery automatically** (its guide promises none; a
+failed webhook sits in the dashboard's Webhooks tab with a Resend button).
+There is no `payment-check` CLI: verify the sandbox wiring end to end from
+the dashboard against the running app.
+
+1. In the SumoPod dashboard, switch to **sandbox mode** for the v1 project
+   (staging always runs sandbox; ticket 61) and confirm the webhook URL is
+   `https://dev.makam.co.id/api/webhooks/pembayaran` (the route the app
+   actually serves; ticket 04's checklist names `/api/webhooks/sumopod`,
+   which this build does not use — register the real path instead) with its
+   Svix secret stored as `SUMOPOD_WEBHOOK_SECRET` above.
+2. Click Bayar on a real (`seed-tagihan`-issued) Tagihan on staging to create
+   a sandbox payment, then use the dashboard's "Simulate Payment" on that
+   payment (or the hosted checkout link itself, choosing QRIS and waiting a
+   moment before simulating, per the dashboard's own guidance).
+3. Confirm the Tagihan shows Lunas with its Bukti Pembayaran, and record here
+   the date this was last verified.
+4. Use "Save & Test" in the webhook Settings to send a `payment.test` ping;
+   confirm the dashboard shows it delivered (2xx) and that nothing appears in
+   `pembayaran_perlu_ditinjau` for it.
+5. **If a webhook shows failed in the dashboard** (the app was down, or took
+   longer than SumoPod's 10 s budget): open it in the Webhooks tab and click
+   **Resend** — there is no other way to redeliver it. Redelivery reuses the
+   same `svix-id`, so a payment already processed is a safe no-op
+   (`sudah_diproses`); check `payment_webhook_event` (by `provider_payment_id`)
+   or the Tagihan's status first if in doubt.
+6. Rotating `SUMOPOD_WEBHOOK_SECRET`: SumoPod sends both the old and new
+   signature for about 24 h after a roll, so update the env var and restart
+   `web` (and `worker`, though it does not verify webhooks) any time in that
+   window — a delivery in flight during the restart itself is unaffected
+   either way, and one that failed before the roll still resends with
+   whichever secret is current.
 
 ## Test PDF (PdfRenderer, "Unduh PDF")
 

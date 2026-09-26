@@ -46,6 +46,7 @@ export function serverRuntime(): ServerRuntime {
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
+      sumopod: env.sumopod,
       vapid: env.vapid,
       chromiumPath: env.CHROMIUM_PATH,
     });

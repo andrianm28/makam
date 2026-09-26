@@ -43,7 +43,12 @@ export interface PaymentEvent {
   amountRupiah: number;
   /** What the payer paid with, as the provider names it (e.g. "QRIS", "VA BCA"), when it says. */
   channel: string | null;
-  occurredAt: Date;
+  /**
+   * When the payer paid, as the provider reports it. Never the settlement
+   * time (SumoPod's `completed_at`/`settled_at`, T+2): late-payment judgement
+   * (`paidAt` vs a Tagihan's `dueAt`) needs the moment of payment.
+   */
+  paidAt: Date;
 }
 
 export class InvalidWebhookError extends Error {
@@ -55,6 +60,11 @@ export class InvalidWebhookError extends Error {
 
 export interface PaymentProvider {
   createPayment(request: CreatePaymentRequest): Promise<CreatedPayment>;
-  /** Throws InvalidWebhookError when the signature or payload does not check out. */
-  parseWebhook(request: WebhookRequest): Promise<PaymentEvent>;
+  /**
+   * Throws InvalidWebhookError when the signature or payload does not check
+   * out. Returns null for a delivery that carries no payment event to act on
+   * (e.g. SumoPod's Settings "Save & Test" ping): the caller acknowledges it
+   * with 2xx and records nothing.
+   */
+  parseWebhook(request: WebhookRequest): Promise<PaymentEvent | null>;
 }

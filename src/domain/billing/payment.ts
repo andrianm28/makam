@@ -105,7 +105,11 @@ export type PaymentWebhookResult =
   | { ok: true; outcome: "sudah_diproses" }
   /** Another event for the payment that already settled the Tagihan: nothing changed. */
   | { ok: true; outcome: "sudah_lunas" }
-  /** Not a payment ("expired", "failed"): nothing to do; the Tagihan stays payable through Bayar. */
+  /**
+   * Not a payment ("expired", "failed"), or the provider's own connectivity
+   * test (`parseWebhook` returned null): nothing to do; the Tagihan stays
+   * payable through Bayar.
+   */
   | { ok: true; outcome: "diabaikan" }
   /** Money Billing could not settle a Tagihan with: nothing changed, and it was reported for Admin Platform. */
   | { ok: true; outcome: "perlu_ditinjau"; reason: WebhookReviewReason }
@@ -130,13 +134,15 @@ const UNNAMED_CHANNEL = "VA atau QRIS";
  * failed attempt is processed again when the provider redelivers.
  */
 export async function receivePaymentWebhook(deps: WebhookDeps, request: WebhookRequest, now: Date): Promise<PaymentWebhookResult> {
-  let event: PaymentEvent;
+  let event: PaymentEvent | null;
   try {
     event = await deps.payments.parseWebhook(request);
   } catch (error) {
     if (error instanceof InvalidWebhookError) return { ok: false, reason: "webhook_tidak_valid" };
     throw error;
   }
+  // A delivery with no payment event to act on (e.g. SumoPod's webhook connectivity test): acknowledged, nothing recorded.
+  if (event === null) return { ok: true, outcome: "diabaikan" };
   const header = await currentHeader(deps.operatorSettings);
   if (!header) throw new Error("Pengaturan Operator is missing: a Bukti Pembayaran cannot be issued");
 
@@ -181,7 +187,7 @@ async function actOn(tx: Database, deps: EffectDeps, event: PaymentEvent, header
   if (event.kind !== "paid") return { outcome: "diabaikan" };
   const channel = event.channel?.trim().slice(0, 100) || null;
   // When the payer paid, as the provider reports it (never later than now).
-  const paidAt = event.occurredAt < now ? event.occurredAt : now;
+  const paidAt = event.paidAt < now ? event.paidAt : now;
   const [payment] = await tx
     .select({ tagihanId: providerPayment.tagihanId, amount: providerPayment.amount })
     .from(providerPayment)

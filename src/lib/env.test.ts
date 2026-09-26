@@ -6,6 +6,8 @@ import {
   readRuntimeEnv,
   readSentryEnv,
   showsStagingBanner,
+  SUMOPOD_LIVE_BASE_URL,
+  SUMOPOD_SANDBOX_BASE_URL,
 } from "./env";
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
@@ -41,8 +43,9 @@ describe("runtime environment", () => {
 
   const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
+  const LIVE_SUMOPOD = { SUMOPOD_API_KEY: "sumopod-key", SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==" };
   const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
-  const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP, ...VAPID };
+  const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP, ...LIVE_SUMOPOD, ...VAPID };
 
   it.each(["staging", "production"])("needs the VAPID key pair and subject for web push in %s", (APP_ENV) => {
     for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] as const) {
@@ -193,6 +196,8 @@ describe("EmailSender environment (SumoPod SMTP relay)", () => {
       TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
       ...VAPID,
       ...LIVE_SMTP,
+      SUMOPOD_API_KEY: "sumopod-key",
+      SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
     });
     expect(env.smtp).toMatchObject({ user: "v1-user", from: { address: "no-reply@makam.co.id" } });
   });
@@ -201,6 +206,60 @@ describe("EmailSender environment (SumoPod SMTP relay)", () => {
     expect(() => readEmailEnv({ APP_ENV: "production", ...LIVE_SMTP, SMTP_PORT: "not-a-port" })).toThrow(
       expect.objectContaining({ message: expect.not.stringContaining("v1-password") }),
     );
+  });
+});
+
+describe("PaymentProvider environment (SumoPod)", () => {
+  const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
+  const LIVE_SUMOPOD = { SUMOPOD_API_KEY: "sumopod-key", SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==" };
+  const auth = (APP_ENV: string) => ({
+    DATABASE_URL,
+    APP_ENV,
+    AUTH_SECRET: "s".repeat(32),
+    APP_BASE_URL: "https://makam.co.id",
+    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+    ...VAPID,
+    ...LIVE_SMTP,
+  });
+
+  it.each(["staging", "production"])("needs SUMOPOD_API_KEY and SUMOPOD_WEBHOOK_SECRET in %s", (APP_ENV) => {
+    for (const missing of ["SUMOPOD_API_KEY", "SUMOPOD_WEBHOOK_SECRET"] as const) {
+      expect(() => readRuntimeEnv({ ...auth(APP_ENV), ...LIVE_SUMOPOD, [missing]: "" })).toThrow(
+        new RegExp(`${missing} is required in ${APP_ENV}`),
+      );
+    }
+  });
+
+  it("rejects a webhook secret that does not start with whsec_", () => {
+    expect(() =>
+      readRuntimeEnv({ ...auth("production"), ...LIVE_SUMOPOD, SUMOPOD_WEBHOOK_SECRET: "not-a-svix-secret" }),
+    ).toThrow(/SUMOPOD_WEBHOOK_SECRET/);
+  });
+
+  it("defaults the base URL to the sandbox host in staging and the live host in production", () => {
+    expect(readRuntimeEnv({ ...auth("staging"), ...LIVE_SUMOPOD }).sumopod).toEqual({
+      apiKey: "sumopod-key",
+      webhookSecret: LIVE_SUMOPOD.SUMOPOD_WEBHOOK_SECRET,
+      baseUrl: SUMOPOD_SANDBOX_BASE_URL,
+    });
+    expect(readRuntimeEnv({ ...auth("production"), ...LIVE_SUMOPOD }).sumopod).toMatchObject({
+      baseUrl: SUMOPOD_LIVE_BASE_URL,
+    });
+  });
+
+  it("an explicit SUMOPOD_BASE_URL overrides the per-environment default", () => {
+    const env = readRuntimeEnv({ ...auth("staging"), ...LIVE_SUMOPOD, SUMOPOD_BASE_URL: "https://sumopod.example.test" });
+    expect(env.sumopod?.baseUrl).toBe("https://sumopod.example.test");
+  });
+
+  it.each(["development", "test"])("needs no SumoPod settings in %s, where the fake PaymentProvider is used", (APP_ENV) => {
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).sumopod).toBeUndefined();
+  });
+
+  it("never puts the API key or webhook secret in a validation error", () => {
+    expect(() =>
+      readRuntimeEnv({ ...auth("production"), ...LIVE_SUMOPOD, SUMOPOD_BASE_URL: "not-a-url" }),
+    ).toThrow(expect.objectContaining({ message: expect.not.stringContaining("sumopod-key") }));
   });
 });
 
