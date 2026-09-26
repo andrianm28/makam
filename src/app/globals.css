@@ -309,6 +309,24 @@
   html {
     @apply font-sans;
   }
+  /* Touch targets: on touch screens every control is at least 44px, whatever
+     its desktop size. Desktop keeps the denser 32px controls. */
+  @media (pointer: coarse) {
+    [data-slot="button"],
+    [data-slot="input"],
+    [data-slot="select-trigger"],
+    [data-slot="dropdown-menu-item"],
+    [data-slot="command-item"],
+    [data-slot="sidebar-menu-button"] {
+      min-height: var(--touch-target);
+    }
+    [data-slot="sidebar-menu-badge"] {
+      top: calc((var(--touch-target) - 1.25rem) / 2);
+    }
+    [data-slot="button"]:has(> svg:only-child) {
+      min-width: var(--touch-target);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
