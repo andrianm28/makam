@@ -29,3 +29,4 @@ The Inventory module's Denah and the Admin Lokasi editor: bloks as rows × colum
 ## Comments
 
 - 2026-09-26 — Now also blocked by 74 (user decision): build the UI on the brand design system and staff shell from ticket 74 (spec, "Staff UI and design system").
+- 2026-09-26 — Prototype done (https://claude.ai/artifact/9rzchqdiMRVuEmdSAQQKoz, branch worktree-agent-ac5f7e6b188a129d1, commit 041576e); the user accepted all four recommendations: Kavling Keluarga shown by a small icon in each of its cells plus an outline on its outer edges; the Petak detail panel floats above the bottom bar on phones, like the public Denah picker (tickets 13 and 36 share one grid renderer and legend colours); Ctrl/Shift-click selects scattered cells on desktop besides drag-select; row/column delete buttons appear at the grid edge on hover, with the compact list as a fallback. The prototype's first ticked criterion is done; build test-first from here.
