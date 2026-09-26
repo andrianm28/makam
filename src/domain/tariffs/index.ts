@@ -32,6 +32,7 @@ import {
   type SetJenisMakamTariffResult,
 } from "./jenis-makam";
 import { lokasiTariffs, type LokasiTariffs } from "./lokasi-tariffs";
+import { quote, type QuoteLine, type QuoteResult } from "./quote";
 import {
   biayaPemakamanVersions,
   setBiayaPemakaman,
@@ -53,6 +54,7 @@ export type {
   Tenure,
 } from "./jenis-makam";
 export type { JenisMakamPrice, LokasiTariffs, PriceAt } from "./lokasi-tariffs";
+export type { Provider, QuoteLine, QuoteResult, QuotedLine } from "./quote";
 export type {
   BiayaPemakaman,
   BiayaPemakamanVersion,
@@ -83,6 +85,8 @@ export interface Tariffs {
   setBiayaPemakaman(by: Actor, lokasiId: string, input: SetBiayaPemakamanInput): Promise<SetBiayaPemakamanResult>;
   /** Every Biaya Pemakaman version of a Lokasi Mitra, in entry order. */
   biayaPemakamanHistory(lokasiId: string): Promise<BiayaPemakamanVersion[]>;
+  /** The all-in price of a set of lines at `at`: each line priced and attributed, plus the total. */
+  quote(lines: readonly QuoteLine[], at: Date): Promise<QuoteResult>;
 }
 
 export function createTariffs(deps: TariffDeps): Tariffs {
@@ -96,5 +100,6 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     lokasiTariffs: (lokasiId, at) => lokasiTariffs(deps.db, lokasiId, at),
     setBiayaPemakaman: (by, lokasiId, input) => setBiayaPemakaman(deps, by, lokasiId, input),
     biayaPemakamanHistory: (lokasiId) => biayaPemakamanVersions(deps.db, lokasiId),
+    quote: (lines, at) => quote(deps.db, lines, at),
   };
 }
