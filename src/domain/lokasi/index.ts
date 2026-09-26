@@ -79,6 +79,16 @@ import {
   type AddHariLiburNasionalResult,
   type RemoveHariLiburNasionalResult,
 } from "./calendars";
+import {
+  cekDenahOf,
+  kunjunganVerifikasiSelesai,
+  recordCekDenah,
+  recordKunjunganVerifikasi,
+  type CekDenahRecord,
+  type KunjunganVerifikasiInput,
+  type RecordCekDenahResult,
+  type RecordKunjunganVerifikasiResult,
+} from "./kunjungan";
 
 export {
   AGREEMENT_SCAN_MAX_BYTES,
@@ -150,6 +160,12 @@ export type {
   NewLokasiMitra,
   WriteResult,
 } from "./lokasi-mitra";
+export type {
+  CekDenahRecord,
+  KunjunganVerifikasiInput,
+  RecordCekDenahResult,
+  RecordKunjunganVerifikasiResult,
+} from "./kunjungan";
 
 export interface LokasiModuleDeps {
   db: Database;
@@ -258,6 +274,22 @@ export interface Lokasi {
    * given, e.g. the Saat Duka confirmation deadline; refused while its Jam Operasional is belum diisi.
    */
   serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
+  /**
+   * The fieldwork module calls this once a Kunjungan Verifikasi is marked
+   * Selesai: updates the Lokasi's pin, facilities, visit photos and
+   * "dikunjungi" date (spec, Field Work). `by` is the visiting Petugas
+   * Lapangan; the fieldwork module has already checked it against its task.
+   */
+  recordKunjunganVerifikasi(by: Actor, lokasiId: string, input: KunjunganVerifikasiInput): Promise<RecordKunjunganVerifikasiResult>;
+  /** Whether this Lokasi Mitra has a completed Kunjungan Verifikasi (the publish gate's fact); false for an unknown id. */
+  kunjunganVerifikasiSelesai(lokasiId: string): Promise<boolean>;
+  /**
+   * The fieldwork module calls this once a Cek Denah is marked Selesai: it
+   * records the spot-check on the Lokasi (ticket 16's Terencana-switch input).
+   */
+  recordCekDenah(by: Actor, lokasiId: string, input: { checkedAt: Date; note: string }): Promise<RecordCekDenahResult>;
+  /** The latest Cek Denah recorded on this Lokasi (ticket 16's Terencana-switch input), or null before the first one. */
+  cekDenahOf(lokasiId: string): Promise<CekDenahRecord | null>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -292,6 +324,10 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
+    recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
+    kunjunganVerifikasiSelesai: (lokasiId) => kunjunganVerifikasiSelesai(deps, lokasiId),
+    recordCekDenah: (by, lokasiId, input) => recordCekDenah(deps, by, lokasiId, input),
+    cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
   };
 }
 export {

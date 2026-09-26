@@ -99,6 +99,13 @@
       "when": 1790440060647,
       "tag": "0013_big_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790450000000,
+      "tag": "0014_fieldwork_tugas_lapangan",
+      "breakpoints": true
     }
   ]
 }

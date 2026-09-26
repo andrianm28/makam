@@ -50,6 +50,10 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "denah.pisahkan_kavling": "Kavling Keluarga dipisahkan",
   "denah.ubah_baris_kolom": "Baris/kolom Blok diubah",
   "denah.unggah_foto_blok": "Foto denah Blok diunggah",
+  "tugas_lapangan.buat": "Tugas Lapangan dibuat",
+  "tugas_lapangan.selesai": "Tugas Lapangan ditandai Selesai",
+  "lokasi.catat_kunjungan_verifikasi": "Kunjungan Verifikasi dicatat",
+  "lokasi.catat_cek_denah": "Cek Denah dicatat",
 };
 
 /** The role an Entri Audit's actor wrote under. */

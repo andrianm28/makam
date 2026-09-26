@@ -104,7 +104,15 @@ export type AuditAction =
   /** An Admin Lokasi adds or removes a row or column of a Blok's grid. */
   | "denah.ubah_baris_kolom"
   /** An Admin Lokasi uploads or replaces a Blok's site-plan photo. */
-  | "denah.unggah_foto_blok";
+  | "denah.unggah_foto_blok"
+  /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
+  | "tugas_lapangan.buat"
+  /** A Petugas Lapangan marks a Tugas Lapangan Selesai (its required uploads and type-specific form). */
+  | "tugas_lapangan.selesai"
+  /** A completed Kunjungan Verifikasi updates a Lokasi's pin, facilities, photos and "dikunjungi" date. */
+  | "lokasi.catat_kunjungan_verifikasi"
+  /** A completed Cek Denah is recorded on a Lokasi (ticket 16's Terencana-switch input). */
+  | "lokasi.catat_cek_denah";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
