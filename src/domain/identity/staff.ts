@@ -149,12 +149,19 @@ async function seed(
 
     const now = deps.clock.now();
     const [existing] = await tx
-      .select({ id: identityUser.id })
+      .select({ id: identityUser.id, email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
       .from(identityUser)
-      .where(eq(identityUser.phoneNumber, phoneNumber));
+      .where(eq(identityUser.phoneNumber, phoneNumber))
+      .for("update");
     let accountId = existing?.id;
+    // A reused Akun keeps its Email Terverifikasi only when the email stays the same:
+    // a new address is unproven until Verifikasi Email (or the audited mark below).
+    const alreadyVerified = Boolean(existing?.verifiedAt && existing.email?.toLowerCase() === email);
     if (accountId) {
-      await tx.update(identityUser).set({ contactEmail: email, updatedAt: now }).where(eq(identityUser.id, accountId));
+      await tx
+        .update(identityUser)
+        .set({ contactEmail: email, ...(alreadyVerified ? {} : { emailVerifiedAt: null }), updatedAt: now })
+        .where(eq(identityUser.id, accountId));
     } else {
       accountId = randomUUID();
       await tx.insert(identityUser).values({
@@ -179,7 +186,7 @@ async function seed(
       after: { phoneNumber, email, roles: ["admin_platform"] },
       reason: null,
     });
-    if (input.emailTerverifikasi) {
+    if (input.emailTerverifikasi && !alreadyVerified) {
       const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
         accountId,
         actorRole: "seed_cli",

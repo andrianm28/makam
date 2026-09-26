@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { akunResource, authorize, stafMenuResource } from "./index";
-import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
+import { actorOf, emailCodeTo, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { authenticatorCode } from "../../../tests/support/totp";
 
@@ -75,6 +75,70 @@ describe("seeding the first Admin Platform", () => {
       reason: "nomor_tidak_valid",
     });
     expect(await identity.staffAccounts()).toEqual([]);
+  });
+
+  /** A Pemesan on the number, with its own Email Terverifikasi, before the seed reuses its Akun. */
+  async function pemesanWithEmailTerverifikasi(setup: ReturnType<typeof identityOnTestDatabase>, address: string) {
+    const { identity, whatsapp, email } = setup;
+    const { cookies } = await logInByOtp(identity, whatsapp, "081111111111");
+    await identity.requestEmailVerification(await actorOf(identity, cookies), { email: address, ip: "198.51.100.50" });
+    const confirmed = await identity.confirmEmailVerification(await actorOf(identity, cookies), {
+      code: emailCodeTo(email, address),
+    });
+    if (!confirmed.ok) throw new Error(confirmed.reason);
+    return cookies;
+  }
+
+  it("reusing a Pemesan's Akun with a different email: the new email is not an Email Terverifikasi", async () => {
+    const setup = identityOnTestDatabase(db);
+    const cookies = await pemesanWithEmailTerverifikasi(setup, "lama@contoh.id");
+
+    await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+
+    expect(await setup.identity.accountEmail(await actorOf(setup.identity, cookies))).toEqual({
+      email: "admin@makam.co.id",
+      verified: false,
+    });
+  });
+
+  it("reusing a Pemesan's Akun with a different email and emailTerverifikasi: the new email is its Email Terverifikasi, audited by seed_cli", async () => {
+    const setup = identityOnTestDatabase(db);
+    const cookies = await pemesanWithEmailTerverifikasi(setup, "lama@contoh.id");
+
+    const seeded = await setup.identity.seedFirstAdminPlatform({
+      phoneNumber: "081111111111",
+      email: "admin@makam.co.id",
+      emailTerverifikasi: true,
+    });
+
+    expect(seeded).toMatchObject({ ok: true });
+    expect(await setup.identity.accountEmail(await actorOf(setup.identity, cookies))).toEqual({
+      email: "admin@makam.co.id",
+      verified: true,
+    });
+    const actor = await actorOf(setup.identity, cookies);
+    const entries = await setup.audit.entriesAbout({ kind: "akun", id: actor.accountId });
+    expect(entries.map((entry) => [entry.action, entry.actor.role])).toEqual([
+      ["staf.seed_admin_platform", "seed_cli"],
+      ["akun.email_verifikasi", "seed_cli"],
+    ]);
+  });
+
+  it("reusing a Pemesan's Akun whose Email Terverifikasi is the seeded email, with emailTerverifikasi: it stays verified and the seed succeeds", async () => {
+    const setup = identityOnTestDatabase(db);
+    const cookies = await pemesanWithEmailTerverifikasi(setup, "admin@makam.co.id");
+
+    const seeded = await setup.identity.seedFirstAdminPlatform({
+      phoneNumber: "081111111111",
+      email: "Admin@Makam.co.id",
+      emailTerverifikasi: true,
+    });
+
+    expect(seeded).toMatchObject({ ok: true });
+    expect(await setup.identity.accountEmail(await actorOf(setup.identity, cookies))).toEqual({
+      email: "admin@makam.co.id",
+      verified: true,
+    });
   });
 });
 
