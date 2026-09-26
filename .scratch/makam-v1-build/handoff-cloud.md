@@ -1,49 +1,54 @@
-# Handoff: makam v1 orchestration moves to Claude Code cloud (2026-09-26)
+# Handoff: makam v1 orchestration, cloud session 2 (2026-09-26, ~17:35 UTC)
 
-You are the new orchestrator for makam.co.id v1, running in a Claude Code cloud session on `andrianm28/makam` (`main`). The previous orchestrator ran on the shared VPS; it stops dispatching agents to save the owner's weekly budget and to use cloud credits. Talk to the owner in **Bahasa Indonesia**; they answer grilling rounds with "ya lanjut semua rekomendasi".
+You are the orchestrator for makam.co.id v1 in a Claude Code cloud session on `andrianm28/makam`. Talk to the owner in **Bahasa Indonesia**; they answer grilling rounds with "ya lanjut semua rekomendasi". The previous version of this file (session 1's handoff) is in git history: `git log -p -- .scratch/makam-v1-build/handoff-cloud.md`.
 
 ## Read first (don't re-derive)
 
-- `AGENTS.md` — architecture rules **and "Working agreements for agents"**: Matt Pocock workflow (skills vendored in `.claude/skills/`), model tiering (always pass `model`: sonnet builders/first reviews, haiku re-reviews/docs, opus only for hard cases; ≤ 4 builders), the owner's **standing merge authorization** (merge clean two-axis reviews without asking; ask for decisions, spec/ADR changes, destructive actions, production), priorities.
-- `CONTEXT.md` (glossary), `docs/adr/0001–0004` (0003 superseded by 0004; 0002 has several amendments, the latest "beta UAT").
-- `.scratch/makam-v1/spec.md` — esp. "Release plan", "Maps on public pages", "Staff UI and design system", Billing (QRIS only, Rp 10 juta cap, late-payment rule).
-- `.scratch/makam-v1-build/issues/00-index.md` — ticket table and dated "Decisions" sections; ticket files carry the detail in `## Comments`.
-- `docs/ops/runbook.md`, `docs/design-system.md`.
+- `AGENTS.md` — architecture rules and **"Working agreements for agents"** (Matt Pocock workflow, model tiering: always pass `model`, merge authorization, priorities).
+- `CONTEXT.md`, `docs/adr/0001–0004`, `.scratch/makam-v1/spec.md` ("Release plan" first).
+- `.scratch/makam-v1-build/issues/00-index.md` and each ticket's `## Comments` (every rebase/renumber this session is recorded there).
+
+## Owner decisions in this session
+
+- **"ya, push ke main"**: the orchestrator may push merge commits to `main` itself (session 2 did, for 75 and 61). The auto-mode permission classifier blocked `git push origin main` and a conflict-resolving `git rm` until the owner said so explicitly — expect the same in a new session; quote the owner's authorization or ask again, never work around a denial.
+- Conflict resolutions must follow the Matt workflow (`resolving-merge-conflicts` skill), reviews the `code-review` skill (two axes, reported separately).
 
 ## Where things stand
 
-- **Goal now:** v1 **beta for UAT live on `makam.co.id` ASAP** (replacing the frozen Laravel app via ticket 65), SumoPod **sandbox**, dummy/stock content, catalog imported from the old app (ticket 86), host-disk FileStore (60), local nightly backups (64). S3, live payments, more gateways → v2.
-- **Merged today** (resolved): 18, 19 (+ Rp 10 juta cap), 71, 74, 82 (email is the Akun key, WhatsApp removed), 83 (lean worktrees). `main` = `d7f7e32` at writing; staging (`dev.makam.co.id`) follows `main` through CI → `deploy-gate` → the host's pull timer.
-- **Branches waiting for YOU to review (two axes, `code-review` skill) and merge** — none is merged:
-  - `ticket-76-lokasi-mitra` (Lokasi Mitra list/detail redesign; built on 763ad2b; rebase onto `main` before merging).
-  - Being finished on the VPS and pushed there when done (check `git ls-remote --heads origin`): `ticket-75-palette-bell` (already reviewed clean; rebased with its migration renumbered to 0012 — just verify and merge), `ticket-13-denah`, `ticket-60-filestore`, `ticket-61-sumopod-sandbox`. Migration numbers can collide between branches: whoever merges second regenerates its migration as the next free number (`npm run db:generate`), keeps hand-written data steps and `-- contract:` markers.
-- **Throwaway prototypes** (never merge): branches `worktree-agent-aebfc82ebc2eab39d` (staff), and on the VPS only `worktree-agent-ab5e1eadecba063e3` (public site + Terencana Denah picker, commit 23d2d17) and `worktree-agent-ac5f7e6b188a129d1` (Denah editor, 041576e). Galleries: staff https://claude.ai/artifact/BpcTyBmWqYXL2EFCNrt9bx, public https://claude.ai/artifact/SYuh5fzc8TjkWQ5aoecYiF, Denah https://claude.ai/artifact/9rzchqdiMRVuEmdSAQQKoz. All their decisions are recorded on tickets 13, 16, 22, 26, 36.
+`main` = `f575ab1` (+ whatever the check-in below merged; run `git log --oneline origin/main -5`).
 
-## Next steps (Rilis 1 critical path)
+| Ticket | Branch | Review (two axes) | State |
+|---|---|---|---|
+| 87 | `ticket-87-cloud-trial` | — | merged before this session (8e97005) |
+| 75 | `ticket-75-palette-bell` | clean (re-reviewed after rebase) | **merged** 4af58c3 |
+| 61 | `ticket-61-sumopod-sandbox` | clean | **merged** f575ab1 |
+| 13 | `ticket-13-denah` @ f47867b | clean (judgement calls only) | rebased on 75; migration renumbered **0012 → `0013_big_cardiac`** (snapshot hand-merged, see ticket 13 Comments); first CI failed on 75's palette tests (missing Denah) → fixed in f47867b; **CI running** |
+| 76 | `ticket-76-lokasi-mitra` @ 743d822 | Standards clean; Spec found a WhatsApp invite-copy regression → **fixed during rebase** (copy back to email/Kode Masuk) | rebased onto f575ab1; **CI running** |
+| 60 | `ticket-60-filestore` @ 865fb32 | clean | rebased onto f575ab1: kept ticket 82's deletion of `pindah-nomor/actions.ts`, moved 60's `berkas_gagal_disimpan` copy to `pemulihan-akun/actions.ts` (ticket 60 Comments); **CI running** |
 
-1. Review/merge the waiting branches above.
-2. Critical path to "a family books Saat Duka on staging": 14, 15 → 16 → 17 → 20 → 22 → 23 → 24 → 25; plus 26 (public site from the prototype), 36–38 (Terencana), 27, 28, 29–33 (money), 64, 68, 86, 72 (signed deploys, with its follow-up list), 73, 77–81 (redesign), 85, 87.
-3. **Ticket 87 trial**: first cloud builder run proves the SessionStart hook (`npm ci`, Docker for the Postgres 18 test container); record findings in ticket 87 and fix the hook if needed. In the cloud, use `npm ci` + `npm test` (the VPS-only `npm run deps` / `test:shared` / `stack` are for the shared host).
-4. Ticket 65 (switch `makam.co.id`) is human-gated and needs host access (nginx, env files): hand the host steps to the owner or the VPS session.
+**Next action:** check CI for 13, 76, 60 (GitHub MCP `actions_list` on `ci.yml`, branch filter). Merge green ones in order **13 → 76 → 60**, each time re-checking whether `main` moved in a way that could interact (13 and 76 both touch staff nav/palette tests; 60 touches `adapters.ts`/runbook like 61). A `send_later` check-in (trig_017C7hzGkq4HvVecWtrZUYUg, 17:40 UTC) was scheduled in session 2 for exactly this; it fires into that session, not yours. Merge recipe: `git merge --no-ff`, set the ticket's `Status: resolved`, flip its row in `00-index.md`, commit `Merge ticket NN: …` with the attribution lines, push, then watch the `main` CI run.
 
-## Things only the VPS / the owner can do
+Open follow-ups from reviews (not blockers, don't lose them):
+- 61: the end-to-end SumoPod sandbox webhook run on staging is still open (needs sandbox keys on the host); ticket 04's checklist names the webhook URL `/api/webhooks/sumopod`, the app serves `/api/webhooks/pembayaran`.
+- 13: Kavling outer-edge outline and hover edge-delete deferred to ticket 78; audit-actor literal repeated 10× in `src/domain/inventory/*` and `shortLabel()` in `denah-editor.tsx` re-derives the Nomor Makam convention (judgement calls).
+- 76: `allLokasiMitra` and `searchLokasiMitra` both authorize "list Lokasi Mitra" (possible consolidation).
 
-- Host env files (`/opt/makam-v1/*/*.env`): SumoPod **sandbox** keys and webhook secret for ticket 61, anything new from tickets 60/64/68. Never put secrets in the cloud environment or the repo.
-- `deploy/install-host.sh`, systemd timers, nginx, the `makam.co.id` switch, reading the old app's database for ticket 86 (it lives on the VPS; a cloud session can't reach it — ticket 86's import must run on the host).
-- Owner tasks open: confirm with the Operator that no old-app payment is still open before the switch; the brand designer's SVG logo (use the interim one meanwhile); check the Rp 10 juta cap against real partner prices.
+## Cloud environment blockers (record in ticket 87)
 
-## Rules to keep
+- **Network policy blocks `registry.npmjs.org` (403, every package) and Docker Hub (`registry-1.docker.io`).** So `npm ci`, lint, typecheck and tests can't run in the cloud; session 2 validated everything through CI on pushed branches. Owner fix: environment menu in the session title bar → Edit → Network access (allow those hosts or a broader level). Asked the owner; not confirmed yet. Until fixed, builders can't do `tdd` locally — don't dispatch builders for 14/15 before this is fixed, or brief them explicitly that CI is their only test loop.
+- The SessionStart hook's `dockerd` died with "timeout waiting for containerd"; a second manual `dockerd` started fine → the hook should retry once.
+- GitHub run-log ZIP downloads (`results-receiver.actions.githubusercontent.com`) are blocked; use `get_job_logs` with a large `tail_lines` (test summary sits just before the Postgres service log).
+- **Matt skills plugin still not loaded**: `ListPlugins` empty, `~/.claude/plugins/installed_plugins.json` empty, synced account bucket empty. Docs: cloud sessions ignore repo `.claude/settings.json` `enabledPlugins`; account plugins sync at session start. Owner was asked to check the plugin is enabled on the same account/org as the session and start a fresh session. Keep the vendored `.claude/skills/` until a session shows `mattpocock-skills:*`.
 
-- Never print secrets; never send personal data (emails, phones) to outside services.
-- Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and the session's `Claude-Session:` URL line (use your own session URL).
-- After a merge: set the ticket `Status: resolved`, update `00-index.md`, push, watch CI (`gh run list --workflow CI --branch main`) — the first scan on a cold Trivy cache used to fail (fixed in 9f20437).
+## Rilis 1 critical path after the merges
+
+Unchanged from `00-index.md`: **14, 15** (both only blocked by 13) → 16 → 17 → 20 → 22 → 23 → 24 → 25; plus 26, 36–38, 27, 28, 29–33, 64, 68, 86 (runs on the host), 72, 73, 77–81, 85, 87. Ticket 65 (switch `makam.co.id`) is human-gated and host-only. Host/owner-only items are listed in session 1's handoff (git history) and `docs/ops/runbook.md`.
 
 ## Suggested skills
 
-- `code-review` — every waiting branch before merge (two axes, reported separately).
-- `grilling` + `domain-modeling` (or `grill-with-docs`) — any new decision; record in spec/CONTEXT/ADR/tickets.
-- `tdd` — put it in every builder's brief.
-- `resolving-merge-conflicts` — rebasing 76/13/60/61 onto `main`, migration renumbering.
-- `prototype` — only if a new UI question comes up (public site and Denah are decided).
-- `research` — vendor/API questions (SumoPod notes are already on ticket 61, backups on 64).
-- `to-tickets` and `handoff` are user-invoked.
+- `code-review` — any new branch before merge (two axes, separate `## Standards` / `## Spec`; sonnet reviewers, haiku for re-reviews).
+- `resolving-merge-conflicts` — every rebase/merge conflict (owner asked for it explicitly).
+- `tdd` — in every builder brief (14, 15 next), once npm is reachable.
+- `grilling` + `domain-modeling` — any new design/domain decision; record in spec/CONTEXT/ADR/tickets.
+- `diagnosing-bugs` — if a `main` CI run goes red after a merge.
+- `handoff` — at the end of the next session (write into the repo, not /tmp).
