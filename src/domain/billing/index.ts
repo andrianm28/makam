@@ -7,15 +7,19 @@
  * cancel-and-reissue with a new Nomor Tagihan. Its kind (pay-first or
  * pay-after) and its one due date come from `tagihanDue`, the one pure rule.
  *
- * Owns tables: tagihan, tagihan_line, bukti_pembayaran, billing_document_counter.
+ * Owns tables: tagihan, tagihan_line, bukti_pembayaran, billing_document_counter,
+ * provider_payment, payment_webhook_event, payment_effect_failure.
  *
  * Billing is called by the modules that own the orders (Pemesanan,
  * Perpanjangan, Pengurusan, Layanan), never by an actor directly: those check
- * who may act and record any Entri Audit.
+ * who may act and record any Entri Audit. Two exceptions face the outside
+ * directly: Bayar (anyone holding a Tagihan's link may pay) and the
+ * PaymentProvider's webhook (authenticated by its signature).
  */
 import type { Database } from "@/db/client";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Clock } from "@/ports/clock";
+import type { PaymentProvider, WebhookRequest } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import {
   documentByLink,
@@ -27,6 +31,8 @@ import {
   type RecordPaymentResult,
 } from "./documents";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
+import { bayar, receivePaymentWebhook, type BayarResult, type PaymentWebhookResult } from "./payment";
+import { retryFailedPaymentEffects, type PaymentEffect, type ReportError } from "./settlement";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
@@ -40,6 +46,8 @@ import {
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
+export type { PaymentEffect, SettledPayment } from "./settlement";
+export type { BayarResult, PaymentWebhookResult, WebhookReviewReason } from "./payment";
 export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
 export { documentLinkSchema, type DocumentHeader, type PaymentMethod } from "./shared";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
@@ -66,6 +74,13 @@ export interface BillingDeps {
   pdf: PdfRenderer;
   /** The absolute URL of a document's page (from its link), which the PdfRenderer opens. */
   documentPageUrl: (link: string) => string;
+  payments: PaymentProvider;
+  /** The public URL of a document's page (from its link): where the PaymentProvider sends the payer back to. */
+  publicDocumentUrl: (link: string) => string;
+  /** The downstream effects of a payment, registered by the modules that own them. */
+  paymentEffects?: readonly PaymentEffect[];
+  /** Where Billing reports what needs a human (a failed downstream effect, an odd webhook). */
+  reportError?: ReportError;
 }
 
 export interface Billing {
@@ -81,6 +96,25 @@ export interface Billing {
    * paid; Lewat Jatuh Tempo and Tidak Tertagih stay payable.
    */
   recordPayment(tagihanId: string, input: RecordPaymentInput): Promise<RecordPaymentResult>;
+  /**
+   * Bayar on a Tagihan's page (anyone with its link): the PaymentProvider's
+   * payment page for it, created on the first click and reused while its link
+   * is valid, created anew once it expired.
+   */
+  bayar(link: string): Promise<BayarResult>;
+  /**
+   * A PaymentProvider webhook (the raw body and headers as received): rejected
+   * unless its signature checks out, then processed exactly once per event. A
+   * "paid" event for a payment made through Bayar makes the Tagihan Lunas with
+   * one Bukti Pembayaran and fires the downstream effects, all in one
+   * transaction. Money it cannot settle a Tagihan with is reported, not lost.
+   */
+  receivePaymentWebhook(request: WebhookRequest): Promise<PaymentWebhookResult>;
+  /**
+   * Runs again every downstream effect of a payment that failed (the payment
+   * itself stood). Idempotent. Returns how many were resolved and how many failed again.
+   */
+  retryFailedPaymentEffects(): Promise<{ resolved: number; failed: number }>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -113,6 +147,9 @@ export function createBilling(deps: BillingDeps): Billing {
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
+    bayar: (link) => bayar(deps, link, deps.clock.now()),
+    receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
+    retryFailedPaymentEffects: () => retryFailedPaymentEffects(deps.db, deps, deps.clock.now()),
     documentByLink: (link) => documentByLink(deps.db, link),
     documentPdf: (link) => documentPdf(deps, link),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),

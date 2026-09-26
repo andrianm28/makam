@@ -56,6 +56,9 @@ export function testServerRuntime() {
       operatorSettings,
       pdf: adapters.pdf,
       documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
+      payments: adapters.payments,
+      publicDocumentUrl: (link) => `${new URL(env.APP_BASE_URL).origin}${documentPagePath(link)}`,
+      reportError: () => {},
     });
     holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs, billing };
   }

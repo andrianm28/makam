@@ -149,3 +149,65 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
   /** Pengaturan Operator's header values in force when the Bukti was issued. */
   header: jsonb("header").notNull(),
 });
+
+/**
+ * Owned by the Billing module: each payment the PaymentProvider created for a
+ * Tagihan when someone clicked Bayar. Bayar reuses the newest while its link
+ * is valid and asks for a new one once it expired; the Tagihan's own due date
+ * is independent of these links.
+ */
+export const providerPayment = pgTable(
+  "provider_payment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tagihanId: uuid("tagihan_id")
+      .notNull()
+      .references(() => tagihan.id),
+    providerPaymentId: text("provider_payment_id").notNull().unique(),
+    paymentUrl: text("payment_url").notNull(),
+    /** Whole rupiah asked of the provider (the Tagihan's total). */
+    amount: rupiah("amount").notNull(),
+    createdAt: at("created_at").notNull(),
+    /** When the provider's link stops working. */
+    expiresAt: at("expires_at").notNull(),
+  },
+  (table) => [
+    index("provider_payment_tagihan_idx").on(table.tagihanId, table.expiresAt),
+    check("provider_payment_amount_check", sql`${table.amount} between 0 and ${sql.raw(String(RUPIAH_MAX))}`),
+  ],
+);
+
+/**
+ * Owned by the Billing module: every PaymentProvider webhook event processed,
+ * by its event id (the Svix message id), so a replayed or duplicate delivery
+ * is recognised and changes nothing. Recorded in the transaction that acts on
+ * it, so an event whose processing failed is processed again on redelivery.
+ */
+export const paymentWebhookEvent = pgTable("payment_webhook_event", {
+  eventId: text("event_id").primaryKey(),
+  kind: text("kind", { enum: ["paid", "expired", "failed"] }).notNull(),
+  providerPaymentId: text("provider_payment_id").notNull(),
+  receivedAt: at("received_at").notNull(),
+  /** What Billing did with it (a PaymentWebhookOutcome). */
+  outcome: text("outcome").notNull(),
+});
+
+/**
+ * Owned by the Billing module: a downstream effect of a payment that failed.
+ * The payment itself stands; the effect's own changes were rolled back and it
+ * waits here to be run again (`retryFailedPaymentEffects`).
+ */
+export const paymentEffectFailure = pgTable(
+  "payment_effect_failure",
+  {
+    tagihanId: uuid("tagihan_id")
+      .notNull()
+      .references(() => tagihan.id),
+    effect: text("effect").notNull(),
+    failedAt: at("failed_at").notNull(),
+    attempts: integer("attempts").notNull(),
+    /** Set once a retry succeeded. */
+    resolvedAt: at("resolved_at"),
+  },
+  (table) => [primaryKey({ columns: [table.tagihanId, table.effect] })],
+);

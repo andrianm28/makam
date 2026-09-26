@@ -53,6 +53,7 @@ describe("fake PaymentProvider", () => {
       providerPaymentId: payment.providerPaymentId,
       reference: "TAG-2026-000001",
       amountRupiah: 7_500_000,
+      channel: "QRIS",
       occurredAt: wib("2026-10-01 09:00"),
     });
   });

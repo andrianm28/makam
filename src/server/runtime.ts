@@ -76,6 +76,9 @@ export function serverRuntime(): ServerRuntime {
         operatorSettings,
         pdf: adapters.pdf,
         documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
+        payments: adapters.payments,
+        publicDocumentUrl: (link) => `${new URL(env.APP_BASE_URL).origin}${documentPagePath(link)}`,
+        reportError: (error, context) => Sentry.captureException(error, { extra: context }),
       }),
     };
   }

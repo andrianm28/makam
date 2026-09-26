@@ -1,15 +1,10 @@
 /**
  * Internal to the Billing module: what issuing a Tagihan and recording its
- * payment share (the Operator header, document links, issuing a Bukti
- * Pembayaran inside an open transaction).
+ * payment share (the Operator header, document links, payment methods).
  */
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import type { Database } from "@/db/client";
 import type { OperatorSettings } from "@/domain/operator-settings";
-import type { Rupiah } from "@/lib/rupiah";
-import { nextDocumentNumber } from "./numbering";
-import { buktiPembayaran } from "./schema";
 
 /** The Operator's header on a document: Pengaturan Operator's values in force when it was issued. */
 export interface DocumentHeader {
@@ -63,24 +58,3 @@ export const paymentMethodSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("langsung_ke_lokasi"), lokasiName: z.string().trim().min(1).max(300) }),
   z.object({ kind: z.literal("tanpa_pembayaran") }),
 ]);
-
-/** Issues the one Bukti Pembayaran of a payment in `tx` (numbered BYR/…, with its own link); returns its id. */
-export async function issueBuktiPembayaranIn(
-  tx: Database,
-  payment: { tagihanId: string; amount: Rupiah; method: PaymentMethod; reference: string | null; header: DocumentHeader; paidAt: Date },
-): Promise<string> {
-  const [bukti] = await tx
-    .insert(buktiPembayaran)
-    .values({
-      nomor: await nextDocumentNumber(tx, "BYR", payment.paidAt),
-      link: newDocumentLink(),
-      tagihanId: payment.tagihanId,
-      paidAt: payment.paidAt,
-      amount: payment.amount,
-      method: payment.method,
-      reference: payment.reference,
-      header: payment.header,
-    })
-    .returning({ id: buktiPembayaran.id });
-  return bukti.id;
-}

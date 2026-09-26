@@ -8,7 +8,8 @@ import { RUPIAH_MAX, rupiahSchema, sumRupiah, type Rupiah } from "@/lib/rupiah";
 import { tagihanDue, type DueLine, type PaymentMoment, type TagihanKind } from "./due-rules";
 import { nextDocumentNumber } from "./numbering";
 import { tagihan, tagihanLine, type tagihanStatuses } from "./schema";
-import { currentHeader, headerSchema, issueBuktiPembayaranIn, newDocumentLink, noHeader, type DocumentHeader } from "./shared";
+import { issueBuktiPembayaranIn, type EffectDeps } from "./settlement";
+import { currentHeader, headerSchema, newDocumentLink, noHeader, type DocumentHeader } from "./shared";
 
 /** Who provides a line: the Lokasi Mitra for its tariff lines (named as it was at issue), the Operator, or the Pemda. */
 export type LineProvider = { kind: "lokasi_mitra"; lokasiId: string; name: string } | { kind: "operator" } | { kind: "pemda" };
@@ -96,7 +97,7 @@ export type ReissueTagihanResult =
   /** Only an unpaid Tagihan (Belum Dibayar, Lewat Jatuh Tempo) can be cancelled and reissued. */
   | { ok: false; reason: "tagihan_tidak_bisa_diganti" };
 
-export interface TagihanDeps {
+export interface TagihanDeps extends EffectDeps {
   db: Database;
   operatorSettings: Pick<OperatorSettings, "current">;
 }
@@ -165,6 +166,7 @@ const dueLine = (line: TagihanLine): DueLine =>
  */
 async function issueIn(
   tx: Database,
+  deps: EffectDeps,
   input: IssueTagihanInput & { anchorAt: Date },
   header: DocumentHeader,
   now: Date,
@@ -180,10 +182,11 @@ async function issueIn(
     return { ok: false, reason: "baris_tidak_valid" };
   }
   const due = tagihanDue(input.moment, checked.lines.map(dueLine), input.anchorAt);
+  const nomor = await nextDocumentNumber(tx, "TGH", now);
   const [row] = await tx
     .insert(tagihan)
     .values({
-      nomor: await nextDocumentNumber(tx, "TGH", now),
+      nomor,
       link: newDocumentLink(),
       kind: due.kind,
       moment: { ...input.moment, anchorAt: input.anchorAt },
@@ -217,14 +220,21 @@ async function issueIn(
     })),
   );
   if (checked.total === 0) {
-    await issueBuktiPembayaranIn(tx, {
-      tagihanId: row.id,
-      amount: checked.total,
-      method: { kind: "tanpa_pembayaran" },
-      reference: null,
-      header,
-      paidAt: now,
-    });
+    await issueBuktiPembayaranIn(
+      tx,
+      deps,
+      {
+        tagihanId: row.id,
+        nomorTagihan: nomor,
+        nomorPemesanan: input.nomorPemesanan,
+        amount: checked.total,
+        method: { kind: "tanpa_pembayaran" },
+        reference: null,
+        header,
+        paidAt: now,
+      },
+      now,
+    );
   }
   const issued = await readTagihan(tx, row.id);
   if (!issued) throw new Error("issued Tagihan not found");
@@ -234,7 +244,7 @@ async function issueIn(
 export async function issueTagihan(deps: TagihanDeps, input: IssueTagihanInput, now: Date): Promise<IssueTagihanResult> {
   const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
-  return refusable(deps.db, (tx) => issueIn(tx, { ...input, anchorAt: now }, header, now, null));
+  return refusable(deps.db, (tx) => issueIn(tx, deps, { ...input, anchorAt: now }, header, now, null));
 }
 
 /** Tagihan that can still be cancelled and reissued: not paid, not cancelled, not given up. */
@@ -262,6 +272,7 @@ export async function reissueTagihan(
     const { anchorAt, ...moment } = storedMomentSchema.parse(old.moment) as StoredMoment;
     const reissued = await issueIn(
       tx,
+      deps,
       {
         moment,
         anchorAt,

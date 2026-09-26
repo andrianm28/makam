@@ -24,6 +24,7 @@ const webhookPayload = z.object({
     payment_id: z.string(),
     reference: z.string(),
     amount: z.number().int().nonnegative(),
+    channel: z.string().min(1).max(100).optional(),
     occurred_at: z.iso.datetime({ offset: true }),
   }),
 });
@@ -60,7 +61,7 @@ export class FakePaymentProvider implements PaymentProvider {
   webhookFor(
     providerPaymentId: string,
     kind: PaymentEventKind,
-    options: { occurredAt?: Date; eventId?: string } = {},
+    options: { occurredAt?: Date; eventId?: string; channel?: string; amountRupiah?: number } = {},
   ): WebhookRequest {
     const payment = this.created.find((p) => p.providerPaymentId === providerPaymentId);
     if (!payment) throw new Error(`FakePaymentProvider did not create ${providerPaymentId}`);
@@ -69,7 +70,8 @@ export class FakePaymentProvider implements PaymentProvider {
       data: {
         payment_id: payment.providerPaymentId,
         reference: payment.reference,
-        amount: payment.amountRupiah,
+        amount: options.amountRupiah ?? payment.amountRupiah,
+        channel: options.channel ?? "QRIS",
         occurred_at: (options.occurredAt ?? this.#clock.now()).toISOString(),
       },
     });
@@ -96,6 +98,7 @@ export class FakePaymentProvider implements PaymentProvider {
       providerPaymentId: data.payment_id,
       reference: data.reference,
       amountRupiah: data.amount,
+      channel: data.channel ?? null,
       occurredAt: new Date(data.occurred_at),
     };
   }

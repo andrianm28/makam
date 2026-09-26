@@ -1,0 +1,380 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { Rupiah } from "@/lib/rupiah";
+import { wib } from "@/lib/time/jakarta";
+import { billingWithOperatorSettings, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
+import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { lapsePayFirstTagihanTick, type IssueTagihanInput, type PaymentEffect, type SettledPayment } from "./index";
+
+const { db, close } = testDatabase();
+afterAll(close);
+beforeEach(resetDatabase);
+
+const rp = (amount: number) => amount as Rupiah;
+const LOKASI = { kind: "lokasi_mitra", lokasiId: "7a0c5a52-0000-4000-8000-000000000001", name: "Makam Wakaf Al-Ikhlas" } as const;
+
+const terencana: IssueTagihanInput = {
+  moment: { kind: "terencana", holdExpiresAt: wib("2026-10-03 09:00") },
+  addressee: { name: "Siti Rahmawati", phoneNumber: "081234567890", accountId: null },
+  nomorPemesanan: "MKM-2026-000001",
+  placeName: "Makam Wakaf Al-Ikhlas",
+  lines: [
+    { kind: "harga_hak_pakai", label: "Harga Hak Pakai – Makam Standar", amount: rp(5_000_000), provider: LOKASI },
+    { kind: "biaya_layanan_platform", label: "Biaya Layanan Platform", amount: rp(150_000), provider: { kind: "operator" } },
+  ],
+};
+
+type Setup = Awaited<ReturnType<typeof billingWithOperatorSettings>>;
+
+async function issued(setup: Setup, input: IssueTagihanInput = terencana) {
+  const result = await setup.billing.issueTagihan(input);
+  if (!result.ok) throw new Error(`not issued: ${result.reason}`);
+  return result.tagihan;
+}
+
+describe("Bayar", () => {
+  it("the first Bayar asks the PaymentProvider for a payment of the Tagihan's total and sends the payer to it", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+
+    const bayar = await setup.billing.bayar(tagihan.link);
+
+    expect(setup.payments.created).toHaveLength(1);
+    const [created] = setup.payments.created;
+    expect(created).toMatchObject({
+      reference: "TGH/2026/000001",
+      amountRupiah: 5_150_000,
+      returnUrl: `${TEST_PUBLIC_ORIGIN}/dokumen/${tagihan.link}`,
+    });
+    expect(bayar).toEqual({ ok: true, paymentUrl: created.paymentUrl });
+  });
+
+  it("Bayar again while the provider's link is valid reuses the same payment", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const first = await setup.billing.bayar(tagihan.link);
+    setup.clock.advance({ hours: 20 });
+
+    const again = await setup.billing.bayar(tagihan.link);
+
+    expect(again).toEqual(first);
+    expect(setup.payments.created).toHaveLength(1);
+  });
+
+  it("once the provider's link expired, Bayar creates a new payment; the Tagihan's due date is unchanged", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const first = await setup.billing.bayar(tagihan.link);
+    // The fake provider's links last 24 h; the Tagihan is due at the hold expiry, two days on.
+    setup.clock.advance({ hours: 24 });
+
+    const again = await setup.billing.bayar(tagihan.link);
+
+    expect(setup.payments.created).toHaveLength(2);
+    expect(again).toEqual({ ok: true, paymentUrl: setup.payments.created[1].paymentUrl });
+    expect(again).not.toEqual(first);
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar", dueAt: tagihan.dueAt });
+  });
+
+  it("a lapsed (Dibatalkan) Tagihan can't be paid: Bayar creates no payment", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.clock.set(wib("2026-10-03 09:00"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+
+    expect(await setup.billing.bayar(tagihan.link)).toEqual({ ok: false, reason: "tagihan_dibatalkan" });
+    expect(setup.payments.created).toEqual([]);
+  });
+
+  it("a pay-after Tagihan past its due date is never lapsed and stays payable", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup, {
+      ...terencana,
+      moment: { kind: "saat_duka", burialAt: wib("2026-10-01 14:00"), paymentWindowHours: 72 },
+    });
+    setup.clock.set(wib("2026-10-10 09:00"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+
+    expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
+  });
+
+  it("a Lunas Tagihan is not paid twice: Bayar points to its Bukti Pembayaran instead", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const paid = await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null });
+    if (!paid.ok) throw new Error("not paid");
+
+    expect(await setup.billing.bayar(tagihan.link)).toEqual({ ok: false, reason: "sudah_lunas", buktiLink: paid.bukti.link });
+    expect(setup.payments.created).toEqual([]);
+  });
+
+  it("a link that is no Tagihan's finds nothing to pay", async () => {
+    const setup = await billingWithOperatorSettings(db);
+
+    expect(await setup.billing.bayar("x".repeat(43))).toEqual({ ok: false, reason: "tidak_ditemukan" });
+    expect(await setup.billing.bayar("../etc")).toEqual({ ok: false, reason: "tidak_ditemukan" });
+  });
+});
+
+/** Bayar on the Tagihan, and the provider payment it created (the newest). */
+async function paying(setup: Setup, tagihan: { link: string }) {
+  const bayar = await setup.billing.bayar(tagihan.link);
+  if (!bayar.ok) throw new Error(`Bayar refused: ${bayar.reason}`);
+  const payment = setup.payments.created.at(-1);
+  if (!payment) throw new Error("no provider payment");
+  return payment;
+}
+
+describe("the payment webhook", () => {
+  it("a signed 'paid' webhook marks the Tagihan Lunas and issues its Bukti Pembayaran with the channel, time and provider reference", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    setup.clock.set(wib("2026-10-01 16:47"));
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-01 16:45"), channel: "VA BCA" }),
+    );
+
+    expect(received).toMatchObject({
+      ok: true,
+      outcome: "lunas",
+      bukti: {
+        nomorBukti: "BYR/2026/000001",
+        paidAt: wib("2026-10-01 16:45"),
+        amount: 5_150_000,
+        method: { kind: "penyedia_pembayaran", channel: "VA BCA" },
+        reference: payment.providerPaymentId,
+        tagihan: { nomorTagihan: "TGH/2026/000001", status: "lunas", lines: tagihan.lines },
+      },
+    });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "lunas" });
+  });
+
+  it("rejects a webhook whose signature does not check out, and nothing is paid", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    const genuine = setup.payments.webhookFor(payment.providerPaymentId, "paid");
+    const tampered = { ...genuine, rawBody: genuine.rawBody.replace("5150000", "1") };
+    const unsigned = { rawBody: genuine.rawBody, headers: { "content-type": "application/json" } };
+
+    expect(await setup.billing.receivePaymentWebhook(tampered)).toEqual({ ok: false, reason: "webhook_tidak_valid" });
+    expect(await setup.billing.receivePaymentWebhook(unsigned)).toEqual({ ok: false, reason: "webhook_tidak_valid" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+  });
+
+  it("the same event delivered twice yields one Lunas transition and one Bukti Pembayaran", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    const webhook = setup.payments.webhookFor(payment.providerPaymentId, "paid");
+
+    const first = await setup.billing.receivePaymentWebhook(webhook);
+    const replayed = await setup.billing.receivePaymentWebhook(webhook);
+
+    expect(first).toMatchObject({ ok: true, outcome: "lunas", bukti: { nomorBukti: "BYR/2026/000001" } });
+    expect(replayed).toEqual({ ok: true, outcome: "sudah_diproses" });
+    expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
+  });
+
+  it("the same event delivered twice at once still issues one Bukti Pembayaran", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    const webhook = setup.payments.webhookFor(payment.providerPaymentId, "paid");
+
+    const outcomes = await Promise.all([
+      setup.billing.receivePaymentWebhook(webhook),
+      setup.billing.receivePaymentWebhook(webhook),
+    ]);
+
+    expect(outcomes.map((received) => received.ok && received.outcome).sort()).toEqual(["lunas", "sudah_diproses"]);
+    expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
+  });
+
+  it("a second 'paid' event for an already Lunas Tagihan issues no second Bukti Pembayaran", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    const another = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    expect(another).toEqual({ ok: true, outcome: "sudah_lunas" });
+    expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
+  });
+
+  it("paying on an expired link after Bayar created a new one still settles the Tagihan", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const old = await paying(setup, tagihan);
+    setup.clock.advance({ hours: 25 });
+    await paying(setup, tagihan);
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(old.providerPaymentId, "paid"));
+
+    expect(received).toMatchObject({ ok: true, outcome: "lunas" });
+  });
+
+  it("'expired' and 'failed' events change nothing: the Tagihan stays payable", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+
+    expect(await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "expired"))).toEqual({
+      ok: true,
+      outcome: "diabaikan",
+    });
+    expect(await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "failed"))).toEqual({
+      ok: true,
+      outcome: "diabaikan",
+    });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
+  });
+
+  it("money received for a lapsed (Dibatalkan) Tagihan does not make it Lunas and is reported for Admin Platform", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    setup.clock.set(wib("2026-10-03 09:00"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "tagihan_dibatalkan" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "dibatalkan" });
+    expect(setup.reportedErrors).toHaveLength(1);
+  });
+
+  it("a paid amount that differs from the Tagihan's total does not make it Lunas and is reported", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { amountRupiah: 5_000_000 }),
+    );
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "jumlah_tidak_cocok" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(setup.reportedErrors).toHaveLength(1);
+  });
+
+  it("a payment Billing never created is reported and changes nothing", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    // Created at the provider directly, never through Bayar.
+    const foreign = await setup.payments.createPayment({ reference: tagihan.nomorTagihan, amountRupiah: tagihan.total, description: "?" });
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(foreign.providerPaymentId, "paid"));
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "pembayaran_tidak_dikenal" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar" });
+    expect(setup.reportedErrors).toHaveLength(1);
+  });
+
+  it("a Tagihan paid twice (on an old link and a new one) keeps one Bukti Pembayaran; the second payment is reported", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const old = await paying(setup, tagihan);
+    setup.clock.advance({ hours: 25 });
+    const fresh = await paying(setup, tagihan);
+    await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(fresh.providerPaymentId, "paid"));
+
+    const again = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(old.providerPaymentId, "paid"));
+
+    expect(again).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "sudah_lunas_dibayar_lagi" });
+    expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
+    expect(setup.reportedErrors).toHaveLength(1);
+  });
+});
+
+describe("the downstream effects of a payment", () => {
+  it("run inside the transaction that makes the Tagihan Lunas, told of the Tagihan and its Bukti Pembayaran", async () => {
+    const seen: { payment: SettledPayment; statusInTransaction: string | undefined }[] = [];
+    const effect: PaymentEffect = {
+      name: "test.observe",
+      async run(tx, payment) {
+        seen.push({ payment, statusInTransaction: (await setup.billing.within(tx).tagihan(payment.tagihanId))?.status });
+      },
+    };
+    const setup = await billingWithOperatorSettings(db, { paymentEffects: [effect] });
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+    await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    if (!received.ok || received.outcome !== "lunas") throw new Error("not Lunas");
+    expect(seen).toEqual([
+      {
+        statusInTransaction: "lunas",
+        payment: {
+          tagihanId: tagihan.id,
+          nomorTagihan: "TGH/2026/000001",
+          nomorPemesanan: "MKM-2026-000001",
+          buktiId: received.bukti.id,
+          nomorBukti: "BYR/2026/000001",
+          paidAt: received.bukti.paidAt,
+          method: { kind: "penyedia_pembayaran", channel: "QRIS" },
+        },
+      },
+    ]);
+  });
+
+  it("a failing effect doesn't lose the payment: the Tagihan stays Lunas with its Bukti, only the effect's own changes roll back, and it is reported", async () => {
+    const effect: PaymentEffect = {
+      name: "test.bukti_pemesanan",
+      async run(tx) {
+        // Takes a Bukti Pemesanan number, then fails.
+        await setup.billing.within(tx).nextDocumentNumber("BPM");
+        throw new Error("effect failed");
+      },
+    };
+    const setup = await billingWithOperatorSettings(db, { paymentEffects: [effect] });
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+
+    const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+
+    expect(received).toMatchObject({ ok: true, outcome: "lunas", bukti: { nomorBukti: "BYR/2026/000001" } });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "lunas" });
+    expect(await setup.billing.nextDocumentNumber("BPM")).toBe("BPM/2026/000001");
+    expect(setup.reportedErrors).toMatchObject([{ context: { effect: "test.bukti_pemesanan", nomorTagihan: "TGH/2026/000001" } }]);
+  });
+
+  it("a failed effect is run again until it succeeds, once", async () => {
+    let failing = true;
+    const ran: string[] = [];
+    const effect: PaymentEffect = {
+      name: "test.flaky",
+      async run(_tx, payment) {
+        if (failing) throw new Error("not yet");
+        ran.push(payment.nomorTagihan);
+      },
+    };
+    const setup = await billingWithOperatorSettings(db, { paymentEffects: [effect] });
+    const tagihan = await issued(setup);
+    await setup.billing.recordPayment(tagihan.id, { method: { kind: "transfer_manual" }, reference: null });
+
+    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 0, failed: 1 });
+    failing = false;
+    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 1, failed: 0 });
+    expect(await setup.billing.retryFailedPaymentEffects()).toEqual({ resolved: 0, failed: 0 });
+    expect(ran).toEqual(["TGH/2026/000001"]);
+  });
+
+  it("every payment path fires them: a manual payment and a Rp 0 Tagihan (Lunas at issue) too", async () => {
+    const methods: string[] = [];
+    const setup = await billingWithOperatorSettings(db, {
+      paymentEffects: [{ name: "test.observe", run: async (_tx, payment) => void methods.push(payment.method.kind) }],
+    });
+    const tagihan = await issued(setup);
+
+    await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null });
+    await issued(setup, { ...terencana, lines: [...terencana.lines, { kind: "penyesuaian_harga_khusus", amount: rp(5_150_000) }] });
+
+    expect(methods).toEqual(["tunai", "tanpa_pembayaran"]);
+  });
+});
