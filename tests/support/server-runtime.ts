@@ -1,5 +1,5 @@
 import { afterAll, inject } from "vitest";
-import { FakeClock, type FakeEmailSender, type FakeWhatsAppSender } from "@/adapters/memory";
+import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
@@ -10,7 +10,7 @@ import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
-import { detachedTasks } from "./identity";
+import { nextTestIp } from "./identity";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
 
@@ -25,7 +25,6 @@ export function testServerRuntime() {
   process.env.DATABASE_URL = inject("databaseUrl");
   const holder = globalThis as unknown as { __makamRuntime?: ServerRuntime };
   const clock = new FakeClock(wib("2026-10-01 09:00"));
-  const detached = detachedTasks();
   if (!holder.__makamRuntime) {
     const env = readRuntimeEnv();
     const database = createDatabase(env.DATABASE_URL, { applicationName: "makam-test-web" });
@@ -36,11 +35,11 @@ export function testServerRuntime() {
       vapid: env.vapid,
       overrides: { clock },
     });
-    const { audit, identity } = composeIdentity({ env, db: database.db, adapters, runDetached: (task) => detached.run(task) });
+    const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const notifications = createNotifications({
       db: database.db,
       clock: adapters.clock,
-      whatsapp: adapters.whatsapp,
+      email: adapters.email,
       webPush: adapters.webPush,
       identity,
       audit,
@@ -59,18 +58,21 @@ export function testServerRuntime() {
   return {
     runtime: () => serverRuntime(),
     clock,
-    whatsapp: () => serverRuntime().adapters.whatsapp as FakeWhatsAppSender,
     email: () => serverRuntime().adapters.email as FakeEmailSender,
-    /** Waits for the identity module's detached tasks (the email step's lookup and send). */
-    settled: () => detached.settled(),
-    /** Logs a number in through the identity module and returns the session cookies to store. */
-    async logIn(phoneNumber: string) {
+    /** Logs an email in with a Kode Masuk through the identity module and returns the login (its session cookies to store). */
+    async logIn(address: string) {
       const { identity, adapters } = serverRuntime();
-      const whatsapp = adapters.whatsapp as FakeWhatsAppSender;
-      await identity.requestOtp({ phoneNumber });
-      const code = whatsapp.sent.filter((message) => message.template === "kode_verifikasi").at(-1)?.copyCode;
-      if (!code) throw new Error("no OTP was sent");
-      const login = await identity.verifyOtp({ phoneNumber, code });
+      const email = adapters.email as FakeEmailSender;
+      let sent = await identity.requestKodeMasuk({ email: address, ip: nextTestIp() });
+      // A second login to the same email within 60 s waits for "Kirim ulang", as a person would.
+      if (!sent.ok && sent.reason === "tunggu_kirim_ulang") {
+        clock.set(sent.retryAt);
+        sent = await identity.requestKodeMasuk({ email: address, ip: nextTestIp() });
+      }
+      if (!sent.ok) throw new Error(`Kode Masuk not sent: ${sent.reason}`);
+      const code = email.sent.filter((message) => message.to === sent.email).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
+      if (!code) throw new Error("no Kode Masuk was sent");
+      const login = await identity.verifyKodeMasuk({ email: address, code });
       if (!login.ok) throw new Error(`login failed: ${login.reason}`);
       return login;
     },

@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, logInByOtp } from "../../../tests/support/identity";
+import { actorOf, logIn } from "../../../tests/support/identity";
 import { setLokasiMitraStatusForTest } from "../../../tests/support/lokasi";
 import {
   newLokasiMitra,
@@ -117,7 +117,7 @@ describe("staff tariff reads (actor-aware) also serve a Belum Tayang Lokasi Mitr
     const { admin, lokasiMitra, jenisMakam } = await belumTayangWithTariffs(setup);
     const other = await newLokasiMitra(setup, admin, "Makam Keluarga Sentosa");
     const otherAdminLokasi = await signedInAdminLokasi(setup, admin, [other.id]);
-    const pemesan = await actorOf(setup.identity, (await logInByOtp(setup.identity, setup.whatsapp, "085555555555")).cookies);
+    const pemesan = await actorOf(setup.identity, (await logIn(setup, "pemesan@contoh.id")).cookies);
 
     for (const who of [otherAdminLokasi, pemesan]) {
       const staff = setup.tariffs.asStaff(who);

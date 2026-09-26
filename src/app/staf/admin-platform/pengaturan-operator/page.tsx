@@ -24,7 +24,7 @@ export default async function PengaturanOperatorPage() {
         <CardHeader>
           <CardTitle>Berlaku sekarang</CardTitle>
           <CardDescription>
-            Dipakai di kop setiap Tagihan dan Bukti, halaman Hubungi Kami, tombol CS dan balasan otomatis WhatsApp.
+            Dipakai di kop setiap Tagihan dan Bukti, halaman Hubungi Kami dan tautan &ldquo;Minta bantuan CS&rdquo;.
             Dokumen yang sudah terbit tetap memakai nilai yang berlaku saat diterbitkan.
           </CardDescription>
         </CardHeader>

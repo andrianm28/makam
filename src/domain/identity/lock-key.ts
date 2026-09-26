@@ -1,20 +1,17 @@
 /**
- * The key wrong Kode Masuk count and lock under (decision Q10, ticket 67): an
- * Akun across every channel, or a WhatsApp number while it has no Akun yet.
+ * The key wrong codes count and lock under. A Kode Masuk counts under its
+ * email: the email is the Akun's key (ADR 0004), so this is the Akun's
+ * lockout, and an email with no Akun yet locks the same way. A Verifikasi
+ * Email code counts under the signed-in Akun.
  */
-export type LockKey = `akun:${string}` | `wa:${string}`;
+export type LockKey = `akun:${string}` | `email:${string}`;
 
-/** The lock key of an Akun: its wrong codes on every channel count together. */
+/** The lock key of a Verifikasi Email code of this Akun. */
 export function akunLockKey(accountId: string): LockKey {
   return `akun:${accountId}`;
 }
 
-/** The lock key a WhatsApp code to `phoneNumber` counts under: its Akun's, or the number's own while it has none. */
-export function numberLockKey(phoneNumber: string, akun: { id: string } | null): LockKey {
-  return akun ? akunLockKey(akun.id) : `wa:${phoneNumber}`;
-}
-
-/** The Akun a lock key names, or null for a number's own key. */
-export function accountIdOfLockKey(key: string): string | null {
-  return key.startsWith("akun:") ? key.slice("akun:".length) : null;
+/** The lock key of a Kode Masuk to this (normalised) email. */
+export function emailLockKey(email: string): LockKey {
+  return `email:${email}`;
 }

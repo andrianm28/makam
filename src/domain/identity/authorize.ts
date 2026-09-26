@@ -26,8 +26,10 @@ export type TotpStatus =
 /** Who is acting: the signed-in account behind a request. */
 export interface Actor {
   accountId: string;
-  /** Canonical E.164 WhatsApp number. */
-  phoneNumber: string;
+  /** The Akun's Email Terverifikasi, its key (ADR 0004). */
+  email: string;
+  /** The Akun's phone number: a contact only, never verified (null until one is given). */
+  phoneNumber: string | null;
   roles: Role[];
   /** The Lokasi Mitra this Akun is Admin Lokasi of (empty without that role). Scopes every Admin Lokasi screen. */
   lokasiIds: string[];
@@ -44,10 +46,12 @@ export type Action =
   | "akun.keluar"
   /** Enrol or pass TOTP on one's own Akun. */
   | "akun.totp"
-  /** Change, remove or verify (Verifikasi Email) one's own Akun's email. */
+  /** Change one's own Akun's email (Verifikasi Email). */
   | "akun.email"
-  /** Pindah Nomor: move an Akun to a new WhatsApp number (Admin Platform). */
-  | "akun.pindah_nomor"
+  /** Change one's own Akun's phone number (a contact). */
+  | "akun.telepon"
+  /** Pemulihan Akun: move an Akun to a new Email Terverifikasi after a KTP check (Admin Platform). */
+  | "akun.pemulihan"
   /** Turn push on or off for a Perangkat Push of one's own Akun Staf. */
   | "akun.push"
   /** Open one role's menu in the staff area. */
@@ -103,7 +107,7 @@ export function akunResource(accountId: string): Resource {
   return { kind: "akun", accountId };
 }
 
-/** The staff roster (invites, Akun Staf, Pindah Nomor). */
+/** The staff roster (invites, Akun Staf, Pemulihan Akun). */
 export function stafResource(): Resource {
   return { kind: "staf" };
 }
@@ -197,6 +201,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.keluar":
     case "akun.totp":
     case "akun.email":
+    case "akun.telepon":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
     case "akun.push":
       return resource.kind === "akun" && resource.accountId === actor.accountId && staffRoles.some(holds)
@@ -206,7 +211,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "menu_staf" && holds(resource.role) ? allowed : denied;
     case "staf.undang":
     case "staf.nonaktifkan":
-    case "akun.pindah_nomor":
+    case "akun.pemulihan":
     case "lokasi.buat":
       return holds("admin_platform") ? allowed : denied;
     case "pengaturan_operator.lihat":

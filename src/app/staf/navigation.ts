@@ -10,9 +10,9 @@ import {
   LayoutDashboardIcon,
   type LucideIcon,
   MapPinnedIcon,
-  PhoneForwardedIcon,
   ReceiptIcon,
   SettingsIcon,
+  UserRoundCheckIcon,
   UsersIcon,
 } from "lucide-react";
 import type { StaffRole } from "@/domain/identity";
@@ -93,10 +93,10 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           items: [
             { label: "Staf", href: `${AP}/staf`, icon: UsersIcon, description: "Undang staf dan nonaktifkan Akun Staf." },
             {
-              label: "Pindah Nomor",
-              href: `${AP}/pindah-nomor`,
-              icon: PhoneForwardedIcon,
-              description: "Pindahkan Akun ke nomor baru setelah cek KTP.",
+              label: "Pemulihan Akun",
+              href: `${AP}/pemulihan-akun`,
+              icon: UserRoundCheckIcon,
+              description: "Pindahkan Akun ke Email Terverifikasi baru setelah cek KTP.",
             },
           ],
         },
@@ -107,7 +107,7 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               label: "Pengaturan Operator",
               href: `${AP}/pengaturan-operator`,
               icon: SettingsIcon,
-              description: "Nama resmi, alamat dan kontak Operator; nomor WhatsApp CS dan jam balasnya.",
+              description: "Nama resmi, alamat dan kontak Operator; nomor CS dan jam balasnya.",
             },
             { label: "Audit Log", icon: FileClockIcon, description: SEGERA },
           ],

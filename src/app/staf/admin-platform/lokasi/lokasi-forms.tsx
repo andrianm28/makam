@@ -286,8 +286,8 @@ export function InviteAdminLokasiForm({ lokasiId }: { lokasiId: string }) {
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       <input type="hidden" name="lokasiId" value={lokasiId} />
-      <Field label="Nomor WhatsApp" name="phoneNumber" type="tel" inputMode="tel" required placeholder="0812 3456 7890" />
       <Field label="Email" name="email" type="email" required placeholder="nama@contoh.id" />
+      <Field label="Nomor telepon" name="phoneNumber" type="tel" inputMode="tel" required placeholder="0812 3456 7890" />
       <Field label="Catatan (opsional)" name="reason" maxLength={500} />
       <div className="flex flex-col gap-2 sm:col-span-2">
         <Submit pending={pending}>Undang Admin Lokasi</Submit>

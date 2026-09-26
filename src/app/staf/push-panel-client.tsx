@@ -167,7 +167,7 @@ export function PushPanelClient({ vapidPublicKey, knownEndpoints }: { vapidPubli
 
       <div className="flex flex-wrap items-center gap-3">
         {support === "tidak_didukung" ? (
-          <p>Browser ini tidak mendukung notifikasi push. Peringatan Staf tetap dikirim lewat WhatsApp.</p>
+          <p>Browser ini tidak mendukung notifikasi push. Peringatan Staf tetap dikirim ke email Anda.</p>
         ) : support === "memeriksa" ? (
           <p className="text-muted-foreground">Memeriksa notifikasi push…</p>
         ) : endpoint ? (
@@ -179,7 +179,7 @@ export function PushPanelClient({ vapidPublicKey, knownEndpoints }: { vapidPubli
           </>
         ) : (
           <>
-            <p>Terima Peringatan Staf juga sebagai notifikasi push di perangkat ini (WhatsApp tetap dikirim).</p>
+            <p>Terima Peringatan Staf sebagai notifikasi push di perangkat ini (email tetap dikirim).</p>
             <Button type="button" size="sm" disabled={busy} onClick={aktifkan}>
               Aktifkan notifikasi push
             </Button>

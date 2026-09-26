@@ -5,7 +5,7 @@ import { TotpForm } from "./totp-form";
 
 /**
  * The TOTP step: an Akun holding Admin Platform enrols an authenticator once,
- * then passes TOTP after every OTP login, before anything else in the app.
+ * then passes TOTP after every Kode Masuk login, before anything else in the app.
  */
 export default async function TotpPage() {
   const actor = await currentActor();
@@ -21,7 +21,7 @@ export default async function TotpPage() {
         </CardTitle>
         <CardDescription>
           {enrolling
-            ? "Admin Platform wajib memakai aplikasi authenticator (misalnya Google Authenticator atau Aegis) di samping kode WhatsApp. Daftarkan sekali, lalu masukkan kodenya setiap kali masuk."
+            ? "Admin Platform wajib memakai aplikasi authenticator (misalnya Google Authenticator atau Aegis) di samping Kode Masuk. Daftarkan sekali, lalu masukkan kodenya setiap kali masuk."
             : "Masukkan kode 6 angka dari aplikasi authenticator Anda."}
         </CardDescription>
       </CardHeader>

@@ -1,12 +1,9 @@
 /**
- * What the email Server Actions (Masuk dengan email, "Kirim lewat email",
- * Verifikasi Email) hand back to their forms.
+ * What the Verifikasi Email Server Actions (Akun Saya, the staff area) hand
+ * back to their forms.
  */
 
-/** The one reply to the email step of Masuk dengan email, whatever the email (spec, story 189). */
-export const EMAIL_LOGIN_REPLY = "Jika email ini terdaftar dan terverifikasi, kode sudah kami kirim.";
-
-/** "gagal kirim" for a code by email ("Kirim lewat email" and Verifikasi Email; never the email step of Masuk). */
+/** "gagal kirim" for a code by email. */
 export const EMAIL_GAGAL_KIRIM = "Kode belum bisa dikirim lewat email. Silakan coba lagi.";
 
 export type EmailRequestState =
@@ -25,7 +22,7 @@ export type EmailRequestState =
 
 export const initialEmailRequestState: EmailRequestState = { status: "idle" };
 
-/** The Akun's email as the profile shows it, after a profile action. */
+/** The result of a profile action (Verifikasi Email's code, the phone number). */
 export type EmailProfileState =
   | { status: "idle" }
   | { status: "berhasil" | "gagal"; message: string };

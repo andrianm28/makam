@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { createLokasi, type LokasiMitraStatus } from "@/domain/lokasi";
 import { lokasiMitra as lokasiMitraTable } from "@/domain/lokasi/schema";
-import { identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "./identity";
+import { identityOnTestDatabase, logIn, signedInAdminPlatform } from "./identity";
 
 /** The Lokasi module on the test Postgres, sharing the identity module's fake Clock, FileStore and Audit Log. */
 export function lokasiOnTestDatabase(db: Database) {
@@ -37,7 +37,8 @@ export async function newLokasiMitra(
 
 /**
  * An Admin Lokasi of the given Lokasi Mitra: invited by the Admin Platform to
- * each, then logged in by OTP (which accepts the invites). Returns its actor.
+ * each (at `lokasi@contoh.id` for the default number, else `lokasi-<number>@contoh.id`),
+ * then logged in with a Kode Masuk (which accepts the invites). Returns its actor.
  */
 export async function signedInAdminLokasi(
   setup: LokasiSetup,
@@ -45,14 +46,20 @@ export async function signedInAdminLokasi(
   lokasiIds: string[],
   phoneNumber = "083333333333",
 ) {
+  const email = adminLokasiEmail(phoneNumber);
   for (const lokasiId of lokasiIds) {
-    const invited = await setup.lokasi.inviteAdminLokasi(admin, lokasiId, { phoneNumber, email: "lokasi@contoh.id" });
+    const invited = await setup.lokasi.inviteAdminLokasi(admin, lokasiId, { email, phoneNumber });
     if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
   }
-  const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
+  const { cookies } = await logIn(setup, email);
   const actor = await setup.identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
   return actor;
+}
+
+/** The email `signedInAdminLokasi` invites for a contact number. */
+export function adminLokasiEmail(phoneNumber = "083333333333"): string {
+  return phoneNumber === "083333333333" ? "lokasi@contoh.id" : `lokasi-${phoneNumber}@contoh.id`;
 }
 
 export { signedInAdminPlatform };

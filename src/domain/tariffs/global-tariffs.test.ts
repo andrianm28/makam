@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, logInByOtp } from "../../../tests/support/identity";
+import { actorOf, logIn } from "../../../tests/support/identity";
 import {
   newLokasiMitra,
   signedInAdminLokasi,
@@ -22,9 +22,9 @@ describe("who may enter a global tariff", () => {
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
     const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
-    await setup.identity.inviteStaff(admin, { phoneNumber: "084444444444", email: "petugas@contoh.id", role: "petugas_lapangan" });
-    const petugas = await actorOf(setup.identity, (await logInByOtp(setup.identity, setup.whatsapp, "084444444444")).cookies);
-    const pemesan = await actorOf(setup.identity, (await logInByOtp(setup.identity, setup.whatsapp, "085555555555")).cookies);
+    await setup.identity.inviteStaff(admin, { email: "petugas@contoh.id", phoneNumber: "084444444444", role: "petugas_lapangan" });
+    const petugas = await actorOf(setup.identity, (await logIn(setup, "petugas@contoh.id")).cookies);
+    const pemesan = await actorOf(setup.identity, (await logIn(setup, "pemesan@contoh.id")).cookies);
 
     for (const who of [adminLokasi, petugas, pemesan]) {
       expect(await setup.tariffs.setGlobalTariff(who, biayaLayananPlatform)).toEqual({ ok: false, reason: "tidak_berwenang" });
@@ -35,8 +35,8 @@ describe("who may enter a global tariff", () => {
 
   it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
     const setup = tariffsOnTestDatabase(db);
-    await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
-    const beforeTotp = await actorOf(setup.identity, (await logInByOtp(setup.identity, setup.whatsapp, "081111111111")).cookies);
+    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
+    const beforeTotp = await actorOf(setup.identity, (await logIn(setup, "admin@makam.co.id")).cookies);
 
     expect(await setup.tariffs.setGlobalTariff(beforeTotp, biayaLayananPlatform)).toEqual({ ok: false, reason: "perlu_totp" });
     expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toEqual([]);

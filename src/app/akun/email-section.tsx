@@ -1,12 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { hapusEmail, kirimKodeVerifikasi, konfirmasiVerifikasi } from "@/app/akun/email-actions";
+import { kirimKodeVerifikasi, konfirmasiVerifikasi, simpanNomorTelepon } from "@/app/akun/email-actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "@/components/email/state";
-
-const inputClass =
-  "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function Feedback({ state }: { state: EmailProfileState | { status: "gagal"; message: string } | { status: "idle" } }) {
   if (state.status === "idle") return null;
@@ -22,22 +20,11 @@ function Feedback({ state }: { state: EmailProfileState | { status: "gagal"; mes
 }
 
 /**
- * The Akun's email in Akun Saya and the staff area. It is added or changed
- * only through Verifikasi Email (a code to the new address; the old Email
- * Terverifikasi stays until the code is entered), and a Pemesan may remove it.
- * An Akun Staf may not remove it.
+ * The Akun's Email Terverifikasi (its key) in Akun Saya and the staff area.
+ * It changes only through Verifikasi email: a code to the new address, and the
+ * old Email Terverifikasi stays until the code is entered. It is never removed.
  */
-export function EmailSection({
-  email,
-  verified,
-  canRemove,
-}: {
-  email: string | null;
-  verified: boolean;
-  /** False for an Akun Staf, which must keep an email. */
-  canRemove: boolean;
-}) {
-  const [removed, remove, removing] = useActionState(hapusEmail, initialEmailProfileState);
+export function EmailSection({ email }: { email: string }) {
   const [sent, send, sending] = useActionState(kirimKodeVerifikasi, initialEmailRequestState);
   const [confirmed, confirm, confirming] = useActionState(konfirmasiVerifikasi, initialEmailProfileState);
   const awaitingCode = sent.status === "terkirim" && confirmed.status !== "berhasil";
@@ -45,48 +32,25 @@ export function EmailSection({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm">
-        {email ? (
-          <>
-            <span className="font-medium">{email}</span>
-            {" · "}
-          </>
-        ) : null}
-        <span
-          data-testid="akun-email-status"
-          className={verified ? "text-success-soft-foreground" : "text-muted-foreground"}
-        >
-          {email ? (verified ? "Terverifikasi" : "Belum terverifikasi") : "Belum ada email"}
+        <span className="font-medium" data-testid="akun-email">
+          {email}
         </span>
+        {" · "}
+        <span className="text-success-soft-foreground">Email Terverifikasi</span>
       </p>
 
-      <form className="flex flex-col gap-3">
+      <form action={send} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm font-medium">
-          Email
-          <input
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            defaultValue={email ?? ""}
-            placeholder="nama@contoh.id"
-            className={inputClass}
-          />
+          Email baru
+          <Input name="email" type="email" autoComplete="email" required placeholder="nama@contoh.id" className="h-10 px-3" />
         </label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" formAction={send} disabled={sending}>
-            {sending ? "Mengirim…" : "Kirim kode verifikasi"}
-          </Button>
-          {canRemove && email ? (
-            <Button type="submit" variant="ghost" formAction={remove} formNoValidate disabled={removing}>
-              Hapus email
-            </Button>
-          ) : null}
-        </div>
+        <Button type="submit" variant="outline" disabled={sending} className="self-start">
+          {sending ? "Mengirim…" : "Verifikasi email"}
+        </Button>
         <p className="text-xs text-muted-foreground">
-          Email baru disimpan setelah kode verifikasi yang kami kirim ke email itu dimasukkan. Sampai saat itu email
-          terverifikasi Anda yang lama tetap dipakai.
+          Kami mengirim kode ke email baru itu. Email Terverifikasi Anda baru berganti setelah kodenya dimasukkan; sampai
+          saat itu Kode Masuk tetap dikirim ke email yang sekarang.
         </p>
-        <Feedback state={removed} />
         {sent.status === "gagal" ? <Feedback state={sent} /> : null}
       </form>
 
@@ -97,23 +61,54 @@ export function EmailSection({
           </p>
           <label className="flex flex-col gap-1 text-sm font-medium">
             Kode dari email
-            <input
+            <Input
               name="code"
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="\d{6}"
               maxLength={6}
               required
-              className={`${inputClass} text-center tracking-[0.5em]`}
+              className="h-10 px-3 text-center tracking-[0.5em]"
             />
           </label>
           <Button type="submit" disabled={confirming} className="self-start">
-            {confirming ? "Memeriksa…" : "Verifikasi email"}
+            {confirming ? "Memeriksa…" : "Simpan email baru"}
           </Button>
           {confirmed.status === "gagal" ? <Feedback state={confirmed} /> : null}
         </form>
       ) : null}
       {confirmed.status === "berhasil" ? <Feedback state={confirmed} /> : null}
     </div>
+  );
+}
+
+/** The Akun's phone number: a contact that staff call, edited freely, never verified and never used to log in. */
+export function PhoneSection({ phoneNumber }: { phoneNumber: string | null }) {
+  const [saved, save, saving] = useActionState(simpanNomorTelepon, initialEmailProfileState);
+
+  return (
+    <form action={save} className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Nomor telepon
+        <Input
+          name="phoneNumber"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          required
+          defaultValue={phoneNumber ?? ""}
+          placeholder="0812 3456 7890"
+          className="h-10 px-3"
+          data-testid="akun-phone-number"
+        />
+      </label>
+      <Button type="submit" variant="outline" disabled={saving} className="self-start">
+        {saving ? "Menyimpan…" : "Simpan nomor telepon"}
+      </Button>
+      {phoneNumber ? null : (
+        <p className="text-xs text-muted-foreground">Belum ada nomor telepon. Isi agar staf bisa menghubungi Anda.</p>
+      )}
+      <Feedback state={saved} />
+    </form>
   );
 }

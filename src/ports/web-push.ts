@@ -1,4 +1,4 @@
-/** WebPush port: staff alerts, on top of WhatsApp. */
+/** WebPush port: Peringatan Staf to each Perangkat Push, alongside email. */
 export interface PushSubscription {
   endpoint: string;
   keys: { p256dh: string; auth: string };

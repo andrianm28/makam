@@ -12,7 +12,7 @@ const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl"
 
 describe("seed-tagihan (development and test stacks only)", () => {
   it("issues an example Tagihan, Belum Dibayar, and prints its page", async () => {
-    await seedAdminCommand(["081100000001", "admin-e2e@makam.co.id"], env());
+    await seedAdminCommand(["--email", "admin-e2e@makam.co.id", "--phone", "081100000001"], env());
 
     const result = await seedTagihanCommand([], env());
 
@@ -32,7 +32,7 @@ describe("seed-tagihan (development and test stacks only)", () => {
   });
 
   it("issues another each time, keeping the Pengaturan Operator entered the first time", async () => {
-    await seedAdminCommand(["081100000001", "admin-e2e@makam.co.id"], env());
+    await seedAdminCommand(["--email", "admin-e2e@makam.co.id", "--phone", "081100000001"], env());
 
     await seedTagihanCommand([], env());
     const second = await seedTagihanCommand([], env());

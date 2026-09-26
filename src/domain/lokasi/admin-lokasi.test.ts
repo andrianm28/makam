@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { logInByOtp } from "../../../tests/support/identity";
+import { logIn } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { authorize, lokasiMitraResource } from "@/domain/identity";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
@@ -8,29 +8,29 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-const INVITEE = "083333333333";
+const INVITEE = "pengelola@contoh.id";
 
 describe("Admin Lokasi of a Lokasi Mitra", () => {
-  it("Admin Platform invites an Admin Lokasi to a Lokasi Mitra by WhatsApp number and email; after the OTP login the Akun is Admin Lokasi there", async () => {
+  it("Admin Platform invites an Admin Lokasi to a Lokasi Mitra by email (phone as contact); after the Kode Masuk the Akun is Admin Lokasi there", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
 
     const invited = await setup.lokasi.inviteAdminLokasi(admin, lokasiMitra.id, {
-      phoneNumber: "0833-3333-3333",
       email: "Pengelola@Contoh.id",
+      phoneNumber: "0833-3333-3333",
     });
 
     expect(invited).toMatchObject({
       ok: true,
       invite: { phoneNumber: "+6283333333333", email: "pengelola@contoh.id", role: "admin_lokasi", lokasiId: lokasiMitra.id },
     });
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, INVITEE);
+    const { cookies } = await logIn(setup, INVITEE);
     const adminLokasi = await setup.identity.actorFromCookies(cookies);
     expect(adminLokasi).toMatchObject({ roles: ["pemesan", "admin_lokasi"], lokasiIds: [lokasiMitra.id] });
     expect(await setup.lokasi.adminLokasiOf(admin, lokasiMitra.id)).toEqual({
       ok: true,
-      adminLokasi: [{ accountId: adminLokasi!.accountId, phoneNumber: "+6283333333333", email: "pengelola@contoh.id" }],
+      adminLokasi: [{ accountId: adminLokasi!.accountId, email: "pengelola@contoh.id", phoneNumber: "+6283333333333" }],
       openInvites: [],
     });
   });
@@ -142,9 +142,9 @@ describe("Admin Lokasi of a Lokasi Mitra", () => {
       await setup.lokasi.removeAdminLokasi(admin, removed.id, { accountId: adminLokasi.accountId, reason: "Pindah tugas" }),
     ).toEqual({ ok: true });
 
-    const after = await setup.identity.accountByPhoneNumber("083333333333");
+    const after = await setup.identity.accountByEmail("lokasi@contoh.id");
     setup.clock.advance({ minutes: 2 });
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "083333333333");
+    const { cookies } = await logIn(setup, "lokasi@contoh.id");
     expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ accountId: after!.id, lokasiIds: [kept.id] });
     expect(await setup.lokasi.adminLokasiOf(admin, removed.id)).toMatchObject({ adminLokasi: [] });
     expect(await setup.audit.entriesAbout({ kind: "akun", id: adminLokasi.accountId })).toContainEqual(
@@ -168,7 +168,7 @@ describe("Admin Lokasi of a Lokasi Mitra", () => {
 
     for (const lokasiId of ["5d1f4c2e-0000-4000-8000-00000000abcd", "bukan-lokasi"]) {
       expect(
-        await setup.lokasi.inviteAdminLokasi(admin, lokasiId, { phoneNumber: INVITEE, email: "lokasi@contoh.id" }),
+        await setup.lokasi.inviteAdminLokasi(admin, lokasiId, { email: INVITEE, phoneNumber: "083333333333" }),
       ).toEqual({ ok: false, reason: "tidak_ditemukan" });
     }
     expect(await setup.identity.openStaffInvites()).toEqual([]);

@@ -1160,7 +1160,9 @@ The body says nothing about Potongan, because a Mitra Jasa never has any. The Lo
 
 ### 43. `staf_undangan`
 
-UTILITY · `id` · the invited number · ticket 09 (added 2026-09-25; sent today by the identity module through WhatsAppSender, to move behind Notifications in ticket 20)
+**Retired (ticket 82, ADR 0004):** the Undangan Staf now goes by email (the identity module's `undanganStafEmailMessage`, through EmailSender). Kept below as history only.
+
+UTILITY · `id` · the invited number · ticket 09 (added 2026-09-25)
 
 **Header:** `Undangan Staf`
 

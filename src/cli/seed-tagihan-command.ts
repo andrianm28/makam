@@ -60,6 +60,7 @@ export async function seedTagihanCommand(
         // Local stacks only: acts as that Admin Platform past TOTP, as a developer with the stack's shell could anyway.
         const asAdmin: Actor = {
           accountId: admin.accountId,
+          email: admin.email ?? "",
           phoneNumber: admin.phoneNumber,
           roles: ["admin_platform"],
           lokasiIds: [],

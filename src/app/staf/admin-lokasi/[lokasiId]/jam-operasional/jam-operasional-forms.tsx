@@ -88,7 +88,7 @@ export function KontakSiagaForm({
   kontakSiaga,
 }: {
   lokasiId: string;
-  adminLokasi: { accountId: string; phoneNumber: string; email: string | null }[];
+  adminLokasi: { accountId: string; email: string | null; phoneNumber: string | null }[];
   kontakSiaga: KontakSiaga | null;
 }) {
   const [state, action, pending] = useActionState(pilihKontakSiaga, idle);
@@ -103,7 +103,7 @@ export function KontakSiagaForm({
           </option>
           {adminLokasi.map((account) => (
             <option key={account.accountId} value={account.accountId}>
-              {account.phoneNumber}
+              {account.phoneNumber ?? "Belum ada nomor telepon"}
               {account.email ? ` (${account.email})` : ""}
             </option>
           ))}

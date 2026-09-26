@@ -12,10 +12,9 @@ describe("pruning the per-IP request records (scheduler tick)", () => {
     const setup = identityOnTestDatabase(db);
     const { identity, clock } = setup;
     const start = clock.now();
-    await identity.requestEmailLogin({ email: "satu@contoh.id", ip: "203.0.113.1" });
+    await identity.requestKodeMasuk({ email: "satu@contoh.id", ip: "203.0.113.1" });
     clock.advance({ hours: 23 });
-    await identity.requestEmailLogin({ email: "dua@contoh.id", ip: "203.0.113.2" });
-    await setup.settled();
+    await identity.requestKodeMasuk({ email: "dua@contoh.id", ip: "203.0.113.2" });
 
     const at24h = new Date(start.getTime() + 24 * 3_600_000 + 1_000);
     expect(await pruneIpRequests({ db }, at24h)).toEqual({ deleted: 1 });
@@ -26,10 +25,10 @@ describe("pruning the per-IP request records (scheduler tick)", () => {
   it("never touches the last hour's records, so the per-IP limits still hold right after it", async () => {
     const setup = identityOnTestDatabase(db);
     const { identity, clock } = setup;
-    await identity.requestEmailLogin({ email: "satu@contoh.id", ip: "203.0.113.1" });
+    await identity.requestKodeMasuk({ email: "satu@contoh.id", ip: "203.0.113.1" });
 
     expect(await pruneIpRequests({ db }, clock.now())).toEqual({ deleted: 0 });
-    expect(await identity.requestEmailLogin({ email: "dua@contoh.id", ip: "203.0.113.1" })).toMatchObject({
+    expect(await identity.requestKodeMasuk({ email: "dua@contoh.id", ip: "203.0.113.1" })).toMatchObject({
       ok: false,
       reason: "tunggu_kirim_ulang",
     });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalisePhoneNumber } from "./index";
 
-describe("WhatsApp number normalisation (one number, one account)", () => {
+describe("phone number normalisation (the Akun's contact)", () => {
   it.each([
     "081234567890",
     "6281234567890",
@@ -18,7 +18,7 @@ describe("WhatsApp number normalisation (one number, one account)", () => {
     ["+65 9123 4567", "Singapore"],
     ["+60 12-345 6789", "Malaysia"],
     ["+1 415 555 2671", "the United States"],
-  ])("refuses %s: v1 takes only Indonesian (+62) WhatsApp numbers (%s)", (typed) => {
+  ])("refuses %s: v1 takes only Indonesian (+62) numbers (%s)", (typed) => {
     expect(normalisePhoneNumber(typed)).toEqual({ ok: false, reason: "nomor_bukan_indonesia" });
   });
 
@@ -26,7 +26,7 @@ describe("WhatsApp number normalisation (one number, one account)", () => {
     ["", "empty"],
     ["0812", "too short"],
     ["08123456789012345", "too long"],
-    ["021 5551234", "a Jakarta landline, which has no WhatsApp"],
+    ["021 5551234", "a Jakarta landline, not a mobile number"],
     ["0812abc34567", "letters"],
     ["+0812345678", "no country code"],
   ])("rejects %s (%s)", (typed) => {

@@ -40,11 +40,11 @@ describe("the Admin Platform Beranda", () => {
   it("counts Akun Staf still active and Undangan Staf not yet accepted", async () => {
     const admin = await signInAsAdminPlatform(server);
     const { identity } = server.runtime();
-    await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "petugas@contoh.id", role: "petugas_lapangan" });
-    await identity.inviteStaff(admin, { phoneNumber: "083333333333", email: "mitra@contoh.id", role: "mitra_jasa" });
-    await identity.inviteStaff(admin, { phoneNumber: "084444444444", email: "lama@contoh.id", role: "mitra_jasa" });
-    await server.logIn("082222222222");
-    const former = (await server.logIn("084444444444")).account;
+    await identity.inviteStaff(admin, { email: "petugas@contoh.id", phoneNumber: "082222222222", role: "petugas_lapangan" });
+    await identity.inviteStaff(admin, { email: "mitra@contoh.id", phoneNumber: "083333333333", role: "mitra_jasa" });
+    await identity.inviteStaff(admin, { email: "lama@contoh.id", phoneNumber: "084444444444", role: "mitra_jasa" });
+    await server.logIn("petugas@contoh.id");
+    const former = (await server.logIn("lama@contoh.id")).account;
     const deactivated = await identity.deactivateStaff(admin, { accountId: former.id, reason: "Tidak lagi bekerja sama" });
     if (!deactivated.ok) throw new Error(deactivated.reason);
 

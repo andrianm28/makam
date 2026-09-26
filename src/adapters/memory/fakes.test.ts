@@ -7,7 +7,6 @@ import {
   FakePaymentProvider,
   FakePdfRenderer,
   FakeWebPush,
-  FakeWhatsAppSender,
 } from "./index";
 import { wib } from "@/lib/time/jakarta";
 
@@ -87,45 +86,6 @@ describe("fake PaymentProvider", () => {
 });
 
 describe("fake message senders", () => {
-  it("the WhatsApp fake records templates sent and reports their status", async () => {
-    const whatsapp = new FakeWhatsAppSender();
-
-    const { messageId } = await whatsapp.sendTemplate({
-      to: "+6281234567890",
-      template: "otp_login",
-      language: "id",
-      parameters: ["123456"],
-      copyCode: "123456",
-    });
-    expect(whatsapp.sent).toEqual([
-      expect.objectContaining({ messageId, to: "+6281234567890", template: "otp_login" }),
-    ]);
-    expect(await whatsapp.statusOf(messageId)).toBe("terkirim");
-
-    whatsapp.markStatus(messageId, "dibaca");
-    expect(await whatsapp.statusOf(messageId)).toBe("dibaca");
-  });
-
-  it("the WhatsApp fake can be told to fail the next send", async () => {
-    const whatsapp = new FakeWhatsAppSender();
-    whatsapp.failNextSend();
-
-    const { messageId } = await whatsapp.sendTemplate({
-      to: "+6281234567890",
-      template: "otp_login",
-      language: "id",
-      parameters: [],
-    });
-
-    expect(await whatsapp.statusOf(messageId)).toBe("gagal");
-  });
-
-  it("the WhatsApp fake records the auto-reply to an inbound message", async () => {
-    const whatsapp = new FakeWhatsAppSender();
-    await whatsapp.replyText({ to: "+6281234567890", text: "Hubungi CS di 0800..." });
-    expect(whatsapp.replies).toEqual([{ to: "+6281234567890", text: "Hubungi CS di 0800..." }]);
-  });
-
   it("the email and web push fakes record what they were given", async () => {
     const email = new FakeEmailSender();
     const push = new FakeWebPush();

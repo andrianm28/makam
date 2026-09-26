@@ -28,14 +28,14 @@ The primary source is the official **MAKAM.CO.ID Brand Guideline (Visual 2026)**
 
 ## Voice and tone
 
-The brand voice is **warm, clear and not judgemental** (hangat, jelas, tidak menghakimi). These are writing rules for UI copy, WhatsApp templates and content drafts alike.
+The brand voice is **warm, clear and not judgemental** (hangat, jelas, tidak menghakimi). These are writing rules for UI copy, email templates and content drafts alike.
 
 | Trait | Guideline example | In the product |
 |---|---|---|
 | Warm | "Kami siap membantu keluarga menemukan langkah yang paling tepat." | Speak to people, not at them; offer help, never blame ("Nomor ini belum terdaftar", not "Nomor salah"). |
 | Clear | "Ketersediaan akhir dikonfirmasi sebelum pesanan difinalisasi." | Say what is certain and what is not yet; name times and amounts exactly. |
 | Respectful | "Tempat peristirahatan yang menyimpan cerita dan kenangan." | Plain, dignified words; no jokes, no exclamation marks, no dramatic grief. |
-| Helpful | "Jika Anda membutuhkan bantuan, tim kami siap mendampingi." | Every dead end names the next step or who can help (CS WhatsApp). |
+| Helpful | "Jika Anda membutuhkan bantuan, tim kami siap mendampingi." | Every dead end names the next step or who can help ("Minta bantuan CS"). |
 
 **Guardrails** (guideline p. 17):
 

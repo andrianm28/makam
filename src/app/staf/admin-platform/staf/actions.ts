@@ -13,9 +13,9 @@ import { staffRoleLabels } from "@/lib/staff-role-labels";
 
 
 const inviteSchema = z.object({
-  phoneNumber: phoneNumberInput,
   // Empty is let through: the identity module refuses a missing email (email_wajib) with its own message.
   email: z.string().trim().max(254),
+  phoneNumber: phoneNumberInput,
   role: z.enum(staffRoles),
   reason: z.string().trim().max(500).optional(),
 });
@@ -27,8 +27,8 @@ export async function undangStaf(_previous: FormState, formData: FormData): Prom
     resource: () => stafResource(),
     schema: inviteSchema,
     input: {
-      phoneNumber: formData.get("phoneNumber"),
       email: formData.get("email"),
+      phoneNumber: formData.get("phoneNumber"),
       role: formData.get("role"),
       reason: formData.get("reason") ?? undefined,
     },
@@ -42,8 +42,8 @@ export async function undangStaf(_previous: FormState, formData: FormData): Prom
   return {
     status: "berhasil",
     message: invited.delivered
-      ? `Undangan ${label} terkirim ke ${invited.invite.phoneNumber}. Berlaku 7 hari: minta ia masuk lewat /masuk dengan nomor itu.`
-      : `Undangan ${label} untuk ${invited.invite.phoneNumber} tercatat, tetapi pesan WhatsApp gagal terkirim. Minta ia masuk lewat /masuk dengan nomor itu dalam 7 hari.`,
+      ? `Undangan ${label} terkirim ke ${invited.invite.email}. Berlaku 7 hari: minta ia masuk lewat /masuk dengan email itu.`
+      : `Undangan ${label} untuk ${invited.invite.email} tercatat, tetapi emailnya gagal terkirim. Minta ia masuk lewat /masuk dengan email itu dalam 7 hari.`,
   };
 }
 

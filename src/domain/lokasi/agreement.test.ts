@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeFileStore } from "@/adapters/memory";
 import type { FileStore } from "@/ports/file-store";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { logInByOtp } from "../../../tests/support/identity";
+import { logIn } from "../../../tests/support/identity";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
 
 const { db, close } = testDatabase();
@@ -64,7 +64,7 @@ describe("the agreement scan of a Lokasi Mitra", () => {
     const lokasiMitra = await newLokasiMitra(setup, admin);
     await setup.lokasi.uploadAgreement(admin, lokasiMitra.id, { scan: { body: PDF, contentType: "application/pdf" }, signedOn: "2026-09-20" });
     const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "085555555555");
+    const { cookies } = await logIn(setup, "pemesan@contoh.id");
     const pemesan = await setup.identity.actorFromCookies(cookies);
     if (!pemesan) throw new Error("not signed in");
 

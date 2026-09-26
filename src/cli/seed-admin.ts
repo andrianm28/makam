@@ -1,6 +1,6 @@
 /**
- * `npm run seed:admin -- <phone> <email>` (dev) or, in the image,
- * `node dist/seed-admin.mjs <phone> <email>`: seeds the first Admin Platform.
+ * `npm run seed:admin -- --email <email> --phone <phone>` (dev) or, in the image,
+ * `node dist/seed-admin.mjs --email <email> --phone <phone>`: seeds the first Admin Platform.
  * See docs/ops/runbook.md.
  */
 import { cliFailure } from "./cli-failure";

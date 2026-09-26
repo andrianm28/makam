@@ -78,6 +78,13 @@
       "when": 1790422735901,
       "tag": "0010_payment_through_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790434395277,
+      "tag": "0011_email_is_the_akun",
+      "breakpoints": true
     }
   ]
 }

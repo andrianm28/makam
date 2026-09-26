@@ -1,10 +1,10 @@
 /**
- * Notifications: WhatsApp templates, the 08:00-20:00 WIB window, retry and email fallback, the message log.
+ * Notifications: email templates, the 08:00-20:00 WIB window, retry, the message log (ADR 0004: email only).
  *
- * Built so far (ticket 21): Peringatan Staf, which always go by WhatsApp and
- * also by push to each Perangkat Push of the Akun Staf, and the Perangkat Push
- * themselves. The event table, message log, retries and reminder window
- * arrive with ticket 20.
+ * Built so far (ticket 21, channels per ADR 0004): Peringatan Staf, which go
+ * by web push to each Perangkat Push of the Akun Staf and by email to its
+ * Email Terverifikasi, and the Perangkat Push themselves. The event table,
+ * message log, retries and reminder window arrive with ticket 20.
  *
  * Owns table: notifications_push_device.
  */
@@ -26,8 +26,8 @@ import { scrubbedError, type ReportError } from "@/lib/observability/report-erro
 import { scrubText } from "@/lib/observability/scrub";
 import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
+import type { EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
-import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { notificationsPushDevice } from "./schema";
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
@@ -44,7 +44,7 @@ export const pushSubscriptionSchema = z.object({
 export interface NotificationsDeps {
   db: Database;
   clock: Clock;
-  whatsapp: WhatsAppSender;
+  email: EmailSender;
   webPush: WebPush;
   /** Who an Akun Staf is and which of its sessions are live: a Perangkat Push lasts as long as its session. */
   identity: Pick<Identity, "staffRecipient">;
@@ -62,17 +62,34 @@ export interface PushDevice {
 export type EnablePushResult = { ok: true } | WriteRefusal | { ok: false; reason: "perangkat_tidak_valid" };
 export type DisablePushResult = { ok: true } | WriteRefusal;
 
+/**
+ * Every kind of Peringatan Staf (the staff events of the spec's Notifications
+ * table). Later tickets that raise a new one add it here.
+ */
+export const staffAlertKinds = [
+  "staf_saat_duka_baru",
+  "staf_saat_duka_belum_dikonfirmasi",
+  "staf_antrean_mendesak",
+  "staf_antrean_eskalasi",
+  "staf_tugas_lapangan_baru",
+  "staf_hak_pakai_berakhir",
+  "staf_calon_penghuni_diubah",
+] as const;
+export type StaffAlertKind = (typeof staffAlertKinds)[number];
+
 export interface StaffAlert {
-  /** The Akun Staf; its WhatsApp number is read from the Akun, never taken from the caller. */
+  /** The Akun Staf; its Email Terverifikasi is read from the Akun, never taken from the caller. */
   to: { accountId: string };
-  /** The approved template (`whatsapp-templates.md`, `staf_*`) and its parameters. */
-  whatsapp: { template: string; parameters: string[] };
+  /** Which Peringatan Staf this is; names it in error reports, never shown. */
+  kind: StaffAlertKind;
+  /** The email to the Akun Staf's Email Terverifikasi: it may carry what the lock screen may not. */
+  email: { subject: string; text: string };
   /**
    * What the push shows; `url` is the staff page tapping it opens
    * (`STAFF_AREA_PATH` or under it). A push shows on the lock screen, so
    * `title` and `body` carry no personal data: no names, phone numbers or
    * emails; name the work by Nomor Pemesanan, Lokasi and kind instead (the
-   * WhatsApp may carry the rest). Phone numbers and emails are refused.
+   * email may carry the rest). Phone numbers and emails are refused.
    */
   push: PushNotification & { url: string };
 }
@@ -80,7 +97,8 @@ export interface StaffAlert {
 export type StaffAlertResult =
   | {
       ok: true;
-      whatsapp: "terkirim" | "gagal";
+      /** `tanpa_email`: an Akun from before ADR 0004 with no Email Terverifikasi yet (push only). */
+      email: "terkirim" | "gagal" | "tanpa_email";
       /** Pushes the push services accepted, and Perangkat Push removed because their browser dropped them. */
       push: { delivered: number; removed: number };
     }
@@ -95,9 +113,9 @@ export interface Notifications {
   /** The Akun's Perangkat Push, oldest first. */
   pushDevices(accountId: string): Promise<PushDevice[]>;
   /**
-   * Sends a Peringatan Staf: always by WhatsApp, and by push to each Perangkat
-   * Push of the Akun (push never replaces WhatsApp). A Perangkat Push whose
-   * browser dropped it is removed.
+   * Sends a Peringatan Staf: by push to each Perangkat Push of the Akun and by
+   * email to its Email Terverifikasi (ADR 0004). A Perangkat Push whose browser
+   * dropped it is removed.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
 }
@@ -210,19 +228,16 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         return { ok: false, reason: "bukan_akun_staf" };
       }
 
-      let whatsapp: "terkirim" | "gagal" = "terkirim";
-      try {
-        await deps.whatsapp.sendTemplate({
-          to: recipient.phoneNumber,
-          template: alert.whatsapp.template,
-          language: "id",
-          parameters: alert.whatsapp.parameters,
-        });
-      } catch (error) {
-        whatsapp = "gagal";
-        deps.reportError(scrubbedError(error), {
-          tags: { module: "notifications", channel: "whatsapp", template: alert.whatsapp.template },
-        });
+      let email: "terkirim" | "gagal" | "tanpa_email" = recipient.email ? "terkirim" : "tanpa_email";
+      if (recipient.email) {
+        try {
+          await deps.email.send({ to: recipient.email, subject: alert.email.subject, text: alert.email.text });
+        } catch (error) {
+          email = "gagal";
+          deps.reportError(scrubbedError(error), {
+            tags: { module: "notifications", channel: "email", template: alert.kind },
+          });
+        }
       }
 
       const push = { delivered: 0, removed: 0 };
@@ -244,7 +259,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           .catch((error: unknown) => {
             // Not delivered this time; the Perangkat Push is kept for the next Peringatan Staf.
             deps.reportError(scrubbedError(error), {
-              tags: { module: "notifications", channel: "push", template: alert.whatsapp.template },
+              tags: { module: "notifications", channel: "push", template: alert.kind },
             });
             return null;
           });
@@ -254,7 +269,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           push.removed++;
         }
       }
-      return { ok: true, whatsapp, push };
+      return { ok: true, email, push };
     },
   };
 }

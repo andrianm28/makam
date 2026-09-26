@@ -4,9 +4,9 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Actor, Role, TotpStatus } from "./authorize";
-import type { Account } from "./login";
-import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identitySession, identityTotp, identityUser } from "./schema";
+import { akunOfVerifiedEmail, type Account } from "./akun-lookup";
+import { normaliseEmail } from "./email-address";
+import { identitySession, identityTotp } from "./schema";
 import { actorSession } from "./sessions";
 import { rolesOf } from "./staff";
 import { openTotpSecret, sealTotpSecret } from "./totp-secret-box";
@@ -28,7 +28,7 @@ export const TOTP_MAX_WRONG_ATTEMPTS = 5;
 /** 20 random bytes (160 bits), as RFC 4226 recommends; 32 base32 characters. */
 const SECRET_BYTES = 20;
 const ISSUER = "Makam.co.id";
-/** The account name the authenticator app shows: never the phone number or anything else identifying. */
+/** The account name the authenticator app shows: never the email or anything else identifying. */
 const ACCOUNT_LABEL = "Admin Platform";
 
 export interface TotpDeps {
@@ -178,8 +178,7 @@ export async function passTotp(deps: TotpDeps, by: Actor, code: string): Promise
 
 export type ResetTotpResult =
   | { ok: true; account: Account }
-  | PhoneNumberRejection
-  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" | "totp_belum_terdaftar" };
+  | { ok: false; reason: "email_tidak_valid" | "alasan_wajib" | "bukan_admin_platform" | "totp_belum_terdaftar" };
 
 /**
  * Ops' TOTP reset (`reset-totp` CLI; there is no self-service recovery): clears
@@ -189,18 +188,16 @@ export type ResetTotpResult =
  */
 export async function resetTotp(
   deps: { db: Database; audit: AuditLog },
-  input: { phoneNumber: string; reason: string },
+  input: { email: string; reason: string },
 ): Promise<ResetTotpResult> {
-  const normalised = normalisePhoneNumber(input.phoneNumber);
-  if (!normalised.ok) return normalised;
+  const email = normaliseEmail(input.email);
+  if (!email) return { ok: false, reason: "email_tidak_valid" };
   const reason = input.reason.trim();
   if (!reason) return { ok: false, reason: "alasan_wajib" };
 
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const [user] = await tx
-      .select({ id: identityUser.id })
-      .from(identityUser)
-      .where(eq(identityUser.phoneNumber, normalised.phoneNumber));
+    // The Admin Platform whose Email Terverifikasi this is (the Akun's key).
+    const user = await akunOfVerifiedEmail(tx, email);
     if (!user || !(await rolesOf(tx, user.id)).includes("admin_platform")) {
       return { ok: false, reason: "bukan_admin_platform" } as const;
     }
@@ -222,7 +219,7 @@ export async function resetTotp(
       after: { terdaftar: false },
       reason,
     });
-    return { ok: true, account: { id: user.id, phoneNumber: normalised.phoneNumber } } as const;
+    return { ok: true, account: user } as const;
   });
 }
 

@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { identityOnTestDatabase, logIn, TEST_AUTH_SECRET } from "../../../tests/support/identity";
 import { createBetterAuth } from "./better-auth";
 
 const { db, close } = testDatabase();
@@ -22,7 +23,6 @@ function setup() {
     clock,
     secret: "test-secret-for-identity-tests-0123456789abcdef",
     baseURL: "http://localhost:3000",
-    consumeLoginProof: () => false,
   });
   return { clock, auth };
 }
@@ -94,3 +94,48 @@ describe("every row Better Auth writes carries Clock time, never system time", (
     ]);
   });
 });
+
+describe("a Kode Masuk session, read back through Better Auth itself", () => {
+  it("is stored with the length of the Akun's roles: 90 days for a Pemesan, 12 h for an Admin Platform", async () => {
+    const setup = identityOnTestDatabase(db);
+    const auth = createBetterAuth({ db, clock: setup.clock, secret: TEST_AUTH_SECRET, baseURL: "http://localhost:3000" });
+    const context = await auth.$context;
+    const pemesan = await logIn(setup, "sari@contoh.id");
+    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
+    const admin = await logIn(setup, "admin@makam.co.id");
+
+    for (const [{ login }, expiresAt] of [
+      [pemesan, wib("2026-12-30 09:00")],
+      [admin, wib("2026-10-01 21:00")],
+    ] as const) {
+      const stored = await context.internalAdapter.findSession(sessionTokenOf(login.session.cookies));
+      expect(stored?.session).toMatchObject({ userId: login.account.id, expiresAt, createdAt: wib("2026-10-01 09:00") });
+      expect(login.session.expiresAt).toEqual(expiresAt);
+    }
+  });
+
+  it("over https the cookie is Secure, SameSite=Lax and HttpOnly, and it signs the Akun in", async () => {
+    const setup = identityOnTestDatabase(db, { baseURL: "https://makam.co.id" });
+    const { login } = await logIn(setup, "sari@contoh.id");
+
+    const [cookie] = login.session.cookies;
+    expect(cookie).toMatchObject({
+      name: "__Secure-makam.session_token",
+      secure: true,
+      sameSite: "lax",
+      httpOnly: true,
+      path: "/",
+      maxAge: 90 * 86_400,
+    });
+    expect(await setup.identity.actorFromCookies(`${cookie.name}=${cookie.value}`)).toMatchObject({
+      accountId: login.account.id,
+    });
+  });
+});
+
+/** The session token inside the signed session cookie (`token.signature`). */
+function sessionTokenOf(cookies: { name: string; value: string }[]): string {
+  const cookie = cookies.find((candidate) => candidate.name.endsWith("makam.session_token"));
+  if (!cookie) throw new Error("no session cookie");
+  return decodeURIComponent(cookie.value).split(".")[0];
+}

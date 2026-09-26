@@ -1,7 +1,12 @@
-import { FakeClock, FakeEmailSender, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
+import { randomUUID } from "node:crypto";
+import { FakeClock, FakeEmailSender, FakeFileStore } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import { createAuditLog } from "@/domain/audit";
-import { createIdentity, type Identity } from "@/domain/identity";
+import { createIdentity, type Identity, type StaffRole } from "@/domain/identity";
+// The legacy-Akun helper below reaches inside the identity module on purpose (see its comment).
+import { createBetterAuth } from "@/domain/identity/better-auth";
+import { identityStaffRole, identityUser } from "@/domain/identity/schema";
+import { startSession } from "@/domain/identity/sessions";
 import { wib } from "@/lib/time/jakarta";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
@@ -11,64 +16,74 @@ export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef
 /** 32 bytes, base64: the TOTP secret encryption key used in tests. */
 export const TEST_TOTP_KEY = Buffer.alloc(32, 7).toString("base64");
 
-/**
- * Runs the identity module's detached tasks (the email step's lookup and send)
- * at once without the caller waiting, like production; `settled()` waits for
- * every task started so far.
- */
-export function detachedTasks() {
-  const pending = new Set<Promise<void>>();
-  return {
-    run(task: () => Promise<void>) {
-      const running = task().finally(() => pending.delete(running));
-      pending.add(running);
-    },
-    async settled() {
-      while (pending.size > 0) await Promise.all([...pending]);
-    },
-  };
+let ipCounter = 0;
+/** A fresh IP (benchmarking range), so one request never meets another's per-IP 60 s wait. */
+export function nextTestIp(): string {
+  ipCounter += 1;
+  return `198.18.${Math.floor(ipCounter / 250) % 250}.${(ipCounter % 250) + 1}`;
 }
 
 /** The identity module on the test Postgres with the fake Clock and in-memory fakes. */
 export function identityOnTestDatabase(
   db: Database,
-  options: { files?: FileStore; email?: EmailSender; reportError?: (event: string, error: unknown) => void } = {},
+  options: {
+    files?: FileStore;
+    email?: EmailSender;
+    reportError?: (event: string, error: unknown) => void;
+    /** The site's origin; an https one gets secure cookies. */
+    baseURL?: string;
+  } = {},
 ) {
   const clock = new FakeClock(wib("2026-10-01 09:00"));
-  const whatsapp = new FakeWhatsAppSender();
-  const fakeEmail = new FakeEmailSender();
+  // A test that hands in its own FakeEmailSender reads the codes from it.
+  const fakeEmail = options.email instanceof FakeEmailSender ? options.email : new FakeEmailSender();
   const fakeFiles = new FakeFileStore({ clock });
-  const files = options.files ?? fakeFiles;
   const audit = createAuditLog({ db, clock });
-  const detached = detachedTasks();
   const identity = createIdentity({
     db,
     clock,
-    whatsapp,
     email: options.email ?? fakeEmail,
-    files,
+    files: options.files ?? fakeFiles,
     audit,
     secret: TEST_AUTH_SECRET,
     totpEncryptionKey: TEST_TOTP_KEY,
-    baseURL: "http://localhost:3000",
+    baseURL: options.baseURL ?? "http://localhost:3000",
     reportError: options.reportError ?? (() => {}),
-    runDetached: (task) => detached.run(task),
   });
-  return { clock, whatsapp, email: fakeEmail, files: fakeFiles, audit, identity, settled: () => detached.settled() };
+  return { clock, email: fakeEmail, files: fakeFiles, audit, identity };
+}
+
+export type IdentitySetup = ReturnType<typeof identityOnTestDatabase>;
+
+/**
+ * Logs in by Kode Masuk (creating the Akun when the email has none), from a
+ * fresh IP; with `phoneNumber`, also records it as the Akun's contact, as a
+ * wizard's Data & kirim or Akun Saya would. Returns the login and the Cookie
+ * header the browser would send.
+ */
+export async function logIn(setup: IdentitySetup, address: string, options: { phoneNumber?: string } = {}) {
+  const { identity, email } = setup;
+  const sent = await identity.requestKodeMasuk({ email: address, ip: nextTestIp() });
+  if (!sent.ok) throw new Error(`Kode Masuk not sent: ${sent.reason}`);
+  const login = await identity.verifyKodeMasuk({ email: address, code: emailCodeTo(email, address) });
+  if (!login.ok) throw new Error(`login failed: ${login.reason}`);
+  const cookies = cookieHeader(login.session.cookies);
+  if (options.phoneNumber) {
+    const saved = await identity.updatePhoneNumber(await actorOf(identity, cookies), { phoneNumber: options.phoneNumber });
+    if (!saved.ok) throw new Error(`phone number refused: ${saved.reason}`);
+  }
+  return { login, cookies };
 }
 
 /**
- * The first Admin Platform, seeded, logged in by OTP and past TOTP: the actor
- * a guarded staff Server Action would hand to the identity module.
+ * The first Admin Platform, seeded, logged in by Kode Masuk and past TOTP: the
+ * actor a guarded staff Server Action would hand to the identity module.
  */
-export async function signedInAdminPlatform(
-  setup: ReturnType<typeof identityOnTestDatabase>,
-  phoneNumber = "081111111111",
-) {
-  const { identity, whatsapp, clock } = setup;
-  const seeded = await identity.seedFirstAdminPlatform({ phoneNumber, email: "admin@makam.co.id" });
+export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin@makam.co.id") {
+  const { identity, clock } = setup;
+  const seeded = await identity.seedFirstAdminPlatform({ email, phoneNumber: "081111111111" });
   if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
-  const { cookies } = await logInByOtp(identity, whatsapp, phoneNumber);
+  const { cookies } = await logIn(setup, email);
   const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
   const passed = await identity.passTotp(await actorOf(identity, cookies), authenticatorCode(enrolment.secret, clock.now()));
@@ -78,22 +93,42 @@ export async function signedInAdminPlatform(
   return { actor, cookies, totpSecret: enrolment.secret };
 }
 
-/** The last login OTP the fake WhatsAppSender "sent" to a number. */
-export function lastOtpTo(whatsapp: FakeWhatsAppSender, phoneNumber: string): string {
-  const code = whatsapp.sent
-    .filter((message) => message.template === "kode_verifikasi" && message.to === phoneNumber)
-    .at(-1)?.copyCode;
-  if (!code) throw new Error(`no OTP was sent to ${phoneNumber}`);
-  return code;
-}
-
-/** Logs a number in by WhatsApp OTP; returns the login and the Cookie header the browser would send. */
-export async function logInByOtp(identity: Identity, whatsapp: FakeWhatsAppSender, phoneNumber: string) {
-  const sent = await identity.requestOtp({ phoneNumber });
-  if (!sent.ok) throw new Error(`OTP not sent: ${sent.reason}`);
-  const login = await identity.verifyOtp({ phoneNumber, code: lastOtpTo(whatsapp, sent.phoneNumber) });
-  if (!login.ok) throw new Error(`login failed: ${login.reason}`);
-  return { login, cookies: login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
+/**
+ * An Akun as ADR 0003 left it before migration 0011: keyed by a WhatsApp
+ * number, with an email only typed in (or none), maybe staff roles, and a live
+ * session. This test-only helper is permanent: since ADR 0004 no public
+ * identity function can make such an Akun (every Akun is created by a Kode
+ * Masuk that proves its email), yet the module must still handle the ones the
+ * migration left behind (Pemulihan Akun, `verify-email`). So it writes the
+ * rows through the identity module's own schema objects, and starts the
+ * session through the module's real `startSession`, as a login would have.
+ * Returns its id and the Cookie header of its old session.
+ */
+export async function akunFromBeforeEmailKey(
+  db: Database,
+  input: { email: string | null; phoneNumber: string; roles?: StaffRole[] },
+) {
+  const accountId = randomUUID();
+  const clock = new FakeClock(wib("2026-10-01 08:00"));
+  const at = clock.now();
+  await db.insert(identityUser).values({
+    id: accountId,
+    name: "",
+    email: `${input.phoneNumber.slice(1)}@wa.makam.invalid`,
+    emailVerified: false,
+    phoneNumber: input.phoneNumber,
+    phoneNumberVerified: true,
+    contactEmail: input.email,
+    emailVerifiedAt: null,
+    createdAt: at,
+    updatedAt: at,
+  });
+  for (const role of input.roles ?? []) {
+    await db.insert(identityStaffRole).values({ accountId, role, grantedAt: at });
+  }
+  const auth = createBetterAuth({ db, clock, secret: TEST_AUTH_SECRET, baseURL: "http://localhost:3000" });
+  const { cookies } = await startSession({ auth, secret: TEST_AUTH_SECRET }, accountId);
+  return { accountId, cookies: cookieHeader(cookies) };
 }
 
 /** The signed-in actor behind a Cookie header, as `guarded()` would resolve it. */
@@ -103,22 +138,15 @@ export async function actorOf(identity: Identity, cookies: string) {
   return actor;
 }
 
+/** What the browser sends back after storing the session cookies. */
+export function cookieHeader(cookies: { name: string; value: string }[]): string {
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+}
+
 /** The last 6-digit code the fake EmailSender "sent" to an address (any spelling), or undefined. */
 export function lastEmailCodeTo(email: FakeEmailSender, to: string): string | undefined {
   const message = email.sent.filter((sent) => sent.to === to.trim().toLowerCase()).at(-1);
   return message?.text.match(/\b(\d{6})\b/)?.[1];
-}
-
-/** Logs in by email (Masuk dengan email) with the code the fake EmailSender "sent"; returns the login and its Cookie header. */
-export async function logInByEmail(setup: ReturnType<typeof identityOnTestDatabase>, address: string, ip = "198.51.100.20") {
-  const { identity, email } = setup;
-  const before = email.sent.length;
-  await identity.requestEmailLogin({ email: address, ip });
-  await setup.settled();
-  if (email.sent.length === before) throw new Error(`no Kode Masuk was emailed to ${address}`);
-  const login = await identity.verifyEmailLogin({ email: address, code: emailCodeTo(email, address) });
-  if (!login.ok) throw new Error(`email login failed: ${login.reason}`);
-  return { login, cookies: login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ") };
 }
 
 /** Like lastEmailCodeTo, but throws when no code was sent. */

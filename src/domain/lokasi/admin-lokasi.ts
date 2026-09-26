@@ -22,9 +22,9 @@ export interface AdminLokasiDeps {
 export type InviteAdminLokasiResult = InviteStaffResult | NotFound;
 
 /**
- * Admin Platform invites an Admin Lokasi to one Lokasi Mitra by WhatsApp
- * number and required email (an Undangan Staf carrying the Lokasi). Accepting
- * it at the next OTP login makes the Akun Admin Lokasi there too; every Admin
+ * Admin Platform invites an Admin Lokasi to one Lokasi Mitra by email, with a
+ * phone number as contact (an Undangan Staf carrying the Lokasi). Accepting it
+ * at the next Kode Masuk login makes the Akun Admin Lokasi there too; every Admin
  * Lokasi of a Lokasi is equal. Only Admin Platform may change which Admin
  * Lokasi a Lokasi has.
  */
@@ -32,7 +32,7 @@ export async function inviteAdminLokasi(
   deps: AdminLokasiDeps,
   by: Actor,
   lokasiId: string,
-  input: { phoneNumber: string; email: string; reason?: string | null },
+  input: { email: string; phoneNumber: string; reason?: string | null },
 ): Promise<InviteAdminLokasiResult> {
   const refusal = writeRefusal(by, "lokasi.atur_admin_lokasi", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;

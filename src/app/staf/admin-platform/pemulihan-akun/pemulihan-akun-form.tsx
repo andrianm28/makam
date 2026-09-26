@@ -2,24 +2,33 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { FormState } from "../../form-state";
-import { pindahNomor } from "./actions";
+import { pulihkanAkun } from "./actions";
 
-const inputClass =
-  "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
-
-export function PindahNomorForm() {
-  const [state, action, pending] = useActionState<FormState, FormData>(pindahNomor, { status: "idle" });
+/** The Akun picked by its id (from the staff roster), shown instead of the email field. */
+export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string } | null }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(pulihkanAkun, { status: "idle" });
   return (
     <form action={action} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
+        {akun ? (
+          <p className="flex flex-col gap-1 text-sm font-medium">
+            Akun yang dipulihkan
+            <span className="font-normal" data-testid="pemulihan-akun-terpilih">
+              {akun.label}
+            </span>
+            <input type="hidden" name="accountId" value={akun.id} />
+          </p>
+        ) : (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Email Akun sekarang
+            <Input name="currentEmail" type="email" required placeholder="nama@contoh.id" className="h-10 px-3" />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm font-medium">
-          Nomor lama
-          <input name="currentPhoneNumber" type="tel" inputMode="tel" required className={inputClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Nomor baru
-          <input name="newPhoneNumber" type="tel" inputMode="tel" required className={inputClass} />
+          Email baru
+          <Input name="newEmail" type="email" required placeholder="nama.baru@contoh.id" className="h-10 px-3" />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -34,14 +43,14 @@ export function PindahNomorForm() {
       </label>
       <label className="flex items-center gap-2 text-sm">
         <input name="ktpChecked" type="checkbox" value="ya" required />
-        Saya sudah mencocokkan KTP dengan data Akun
+        KTP sudah dicek: cocok dengan data Akun
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Alasan
-        <input name="reason" required maxLength={500} className={inputClass} />
+        <Input name="reason" required maxLength={500} className="h-10 px-3" />
       </label>
       <Button type="submit" disabled={pending} className="self-start">
-        Pindahkan nomor
+        Pulihkan Akun
       </Button>
       {state.status === "berhasil" ? (
         <p role="status" className="text-sm text-success-soft-foreground">

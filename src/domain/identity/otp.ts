@@ -2,43 +2,33 @@ import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { and, desc, eq, gt, isNull, lt, max, sql, sum, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
-import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import { akunOfNumber } from "./akun-lookup";
-import { numberLockKey, type LockKey } from "./lock-key";
-import { normalisePhoneNumber } from "./phone-number";
-import { identityIpRequest, identityOtpRequest, type otpChannels, type otpPurposes } from "./schema";
+import type { LockKey } from "./lock-key";
+import { identityIpRequest, identityOtpRequest, type otpPurposes } from "./schema";
 
 /*
- * The code rules shared by every code the identity module sends: a Kode Masuk
- * by WhatsApp or to an Email Terverifikasi, and a Verifikasi Email code.
+ * The code rules shared by every code the identity module sends, all by
+ * email (ADR 0004): the Kode Masuk and the Verifikasi Email code.
  */
 
-/** Meta's authentication template (whatsapp-templates.md #1). */
-export const OTP_TEMPLATE = "kode_verifikasi";
-export const OTP_TEMPLATE_LANGUAGE = "id";
 /** Digits in a code. */
 export const OTP_LENGTH = 6;
-/** A code works for 10 minutes; the template footer says so (`code_expiration_minutes: 10`). */
+/** A code works for 10 minutes; its email says so. */
 export const OTP_EXPIRES_AFTER_MS = 10 * 60_000;
 /** The 5th wrong code burns the code; a new one must be sent. */
 export const OTP_MAX_WRONG_ATTEMPTS = 5;
-/** "Kirim ulang" opens 60 s after the last code of the same kind to the same target (and, for email, any request from the same IP). */
+/** "Kirim ulang" opens 60 s after the last code of the same kind to the same email (and any request from the same IP). */
 export const OTP_RESEND_AFTER_MS = 60_000;
-/** The fallback slot ("Kirim lewat email" or the CS WhatsApp pointer) shows 60 s after the WhatsApp code was sent. */
-export const OTP_FALLBACK_AFTER_MS = 60_000;
-/** At most 5 codes to one target (and, for email, from one IP) in any rolling 60 minutes. */
+/** At most 5 codes to one email (and requests from one IP) in any rolling 60 minutes. */
 export const OTP_MAX_SENDS_PER_WINDOW = 5;
 export const OTP_SEND_WINDOW_MS = 60 * 60_000;
 /**
  * 10 wrong codes within 60 minutes lock for 60 minutes: no code sent, none
- * accepted. Counted per Akun across channels (decision Q10, ticket 67), or per
- * number while the number has no Akun.
+ * accepted. Counted per lock key (./lock-key.ts).
  */
 export const OTP_LOCKOUT_WRONG_CODES = 10;
 export const OTP_LOCKOUT_WINDOW_MS = 60 * 60_000;
 export const OTP_LOCKOUT_MS = 60 * 60_000;
 
-export type OtpChannel = (typeof otpChannels)[number];
 export type OtpPurpose = (typeof otpPurposes)[number];
 
 export interface CodeDeps {
@@ -47,85 +37,28 @@ export interface CodeDeps {
   secret: string;
 }
 
-export interface OtpDeps extends CodeDeps {
-  whatsapp: WhatsAppSender;
-}
-
 /** What the limits say about sending one more code. */
 export type LimitRefusal = { ok: false; reason: "tunggu_kirim_ulang" | "terlalu_sering" | "terkunci"; retryAt: Date };
 
-export type RequestOtpResult =
-  | {
-      ok: true;
-      phoneNumber: string;
-      sentAt: Date;
-      expiresAt: Date;
-      /** When "Kirim ulang" opens. */
-      resendAt: Date;
-      /** When the OTP screen shows its fallback slot. */
-      fallbackAt: Date;
-      /** True when the number's Akun has an Email Terverifikasi: the slot offers "Kirim lewat email"; otherwise the CS pointer. */
-      emailFallback: boolean;
-    }
-  | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" | "gagal_kirim" }
-  | LimitRefusal;
-
-/** Sends a WhatsApp Kode Masuk to a number (Masuk, and Kirim in the wizards). */
-export async function requestOtp(deps: OtpDeps, input: { phoneNumber: string }): Promise<RequestOtpResult> {
-  const normalised = normalisePhoneNumber(input.phoneNumber);
-  if (!normalised.ok) return normalised;
-  const { phoneNumber } = normalised;
-
-  const akun = await akunOfNumber(deps.db, phoneNumber);
-  const issued = await issueCode(
-    deps,
-    {
-      channel: "whatsapp",
-      target: phoneNumber,
-      purpose: "masuk",
-      lockKey: numberLockKey(phoneNumber, akun),
-    },
-    (code) =>
-      deps.whatsapp.sendTemplate({
-        to: phoneNumber,
-        template: OTP_TEMPLATE,
-        language: OTP_TEMPLATE_LANGUAGE,
-        parameters: [code],
-        copyCode: code,
-      }),
-  );
-  // An OTP failure raises no Antrean row (spec, Notifications): the Pemesan simply tries again.
-  if (!issued.ok) return issued.reason === "gagal_kirim" ? { ok: false, reason: "gagal_kirim" } : issued;
-  return {
-    ok: true,
-    phoneNumber,
-    sentAt: issued.sentAt,
-    expiresAt: issued.expiresAt,
-    resendAt: issued.resendAt,
-    fallbackAt: new Date(issued.sentAt.getTime() + OTP_FALLBACK_AFTER_MS),
-    emailFallback: Boolean(akun?.verifiedEmail),
-  };
-}
-
 export interface CodeRequest {
-  channel: OtpChannel;
+  /** The (normalised) email the code goes to. */
   target: string;
   purpose: OtpPurpose;
   lockKey: LockKey;
 }
 
-export type IssueCodeResult =
+type IssueCodeResult =
   | { ok: true; sentAt: Date; expiresAt: Date; resendAt: Date }
   | LimitRefusal
   | { ok: false; reason: "gagal_kirim"; error: unknown };
 
 /**
  * Sends one code under the shared rules: refused while the lock key is locked,
- * within 60 s of the last code to the same target, or after 5 to it in the
- * rolling hour. The code is stored only as an HMAC. A send that throws is not
- * counted against the limits.
+ * within 60 s of the last code of the same kind to the same email, or after 5
+ * to it in the rolling hour. The code is stored only as an HMAC. A send that
+ * throws is not counted against the limits.
  */
-export async function issueCode(
+async function issueCode(
   deps: CodeDeps,
   request: CodeRequest,
   deliver: (code: string) => Promise<unknown>,
@@ -135,8 +68,8 @@ export async function issueCode(
   const expiresAt = new Date(now.getTime() + OTP_EXPIRES_AFTER_MS);
 
   const outcome = await deps.db.transaction(async (tx) => {
-    // One request at a time per target, so two quick taps cannot both pass the limits.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:${request.channel}:${request.target}`}))`);
+    // One request at a time per email, so two quick taps cannot both pass the limits.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.otp:email:${request.target}`}))`);
     const locked = await lockedUntil(tx, request.lockKey, now);
     if (locked) return { ok: false, reason: "terkunci", retryAt: locked } as const;
     const recent = await tx
@@ -144,13 +77,12 @@ export async function issueCode(
       .from(identityOtpRequest)
       .where(
         and(
-          eq(identityOtpRequest.channel, request.channel),
           eq(identityOtpRequest.target, request.target),
           gt(identityOtpRequest.sentAt, new Date(now.getTime() - OTP_SEND_WINDOW_MS)),
         ),
       )
       .orderBy(desc(identityOtpRequest.sentAt));
-    // "Kirim ulang" waits for the last code of the same kind; the hourly limit counts every code to the target.
+    // "Kirim ulang" waits for the last code of the same kind; the hourly limit counts every code to the email.
     const refusal = sendLimitRefusal(
       recent.map((row) => row.sentAt),
       now,
@@ -161,6 +93,7 @@ export async function issueCode(
       .insert(identityOtpRequest)
       .values({
         ...request,
+        channel: "email",
         codeHash: hashCode(deps.secret, request.target, code),
         sentAt: now,
         expiresAt,
@@ -180,12 +113,38 @@ export async function issueCode(
   return { ok: true, sentAt: now, expiresAt, resendAt: new Date(now.getTime() + OTP_RESEND_AFTER_MS) };
 }
 
+export type SendEmailCodeResult =
+  | { ok: true; sentAt: Date; expiresAt: Date; resendAt: Date }
+  | LimitRefusal
+  | { ok: false; reason: "gagal_kirim" };
+
+/**
+ * The one way a code goes out by email (a Kode Masuk, a Verifikasi Email
+ * code): the request counts against `ip` first, then the code goes out under
+ * the shared rules. A send the EmailSender refuses counts against no limit,
+ * per email or per IP (the IP request is given back), and is reported under
+ * `failureEvent` without the address or the code.
+ */
+export async function sendEmailCode(
+  deps: CodeDeps & { reportError: (event: string, error: unknown) => void },
+  input: { ip: string; request: CodeRequest; deliver: (code: string) => Promise<unknown>; failureEvent: string },
+): Promise<SendEmailCodeResult> {
+  const requestedAt = deps.clock.now();
+  const ip = await claimIpRequest(deps, input.ip);
+  if (!ip.ok) return ip;
+  const issued = await issueCode(deps, input.request, input.deliver);
+  if (issued.ok || issued.reason !== "gagal_kirim") return issued;
+  await releaseIpRequest(deps, input.ip, requestedAt);
+  deps.reportError(input.failureEvent, issued.error);
+  return { ok: false, reason: "gagal_kirim" };
+}
+
 /**
  * Counts one request for an emailed code from `ip`, unless the IP is over its
  * limits (60 s between requests, 5 in any rolling hour). Every request counts,
- * whether or not a code goes out, so the answer never depends on the email typed.
+ * whether or not a code goes out.
  */
-export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: true } | LimitRefusal> {
+async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: true } | LimitRefusal> {
   const now = deps.clock.now();
   return deps.db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`identity.ip:${ip}`}))`);
@@ -204,6 +163,21 @@ export async function claimIpRequest(deps: CodeDeps, ip: string): Promise<{ ok: 
     await tx.insert(identityIpRequest).values({ ip, requestedAt: now });
     return { ok: true } as const;
   });
+}
+
+/**
+ * Gives back an IP request counted by `claimIpRequest` at `requestedAt`, when
+ * no code left after all (the EmailSender refused): a failed send counts
+ * against no limit.
+ */
+async function releaseIpRequest(deps: { db: Database }, ip: string, requestedAt: Date): Promise<void> {
+  const [claimed] = await deps.db
+    .select({ id: identityIpRequest.id })
+    .from(identityIpRequest)
+    .where(and(eq(identityIpRequest.ip, ip), eq(identityIpRequest.requestedAt, requestedAt)))
+    .orderBy(desc(identityIpRequest.requestedAt))
+    .limit(1);
+  if (claimed) await deps.db.delete(identityIpRequest).where(eq(identityIpRequest.id, claimed.id));
 }
 
 /** The per-IP request records are kept this long; the limits only ever look back 60 minutes. */
@@ -243,22 +217,14 @@ export type CodeRejection =
   | { ok: false; reason: "kode_salah" | "kode_kedaluwarsa" | "terlalu_banyak_percobaan" }
   | { ok: false; reason: "terkunci"; retryAt: Date };
 
-/** A correct code: where it was sent, and the lock key it was checked under. */
-export type CheckCodeResult = { ok: true; target: string; lockKey: string } | CodeRejection;
+/** A correct code: the email it was sent to. */
+export type CheckCodeResult = { ok: true; target: string } | CodeRejection;
 
 /**
- * Which code a typed code is checked against: the latest one matching, and
- * the lock key its wrong codes count under.
+ * Which code a typed code is checked against: the latest one of this kind
+ * sent under the lock key, and, for a Kode Masuk, to this email.
  */
-export type CodeLookup =
-  /** The latest code of this kind sent under the lock key (a Verifikasi Email code). */
-  | { purpose: OtpPurpose; lockKey: LockKey }
-  /**
-   * The latest code of this kind to the target, counted under `lockKey`, or
-   * when that is left out under the lock key the code was sent under (an
-   * email Kode Masuk: that names the Akun it was sent for).
-   */
-  | { purpose: OtpPurpose; channel: OtpChannel; target: string; lockKey?: LockKey };
+export type CodeLookup = { purpose: OtpPurpose; lockKey: LockKey; target?: string };
 
 /**
  * Checks a typed code against the latest code matching `lookup`. A correct
@@ -268,11 +234,9 @@ export type CodeLookup =
  */
 export async function checkCode(deps: CodeDeps, input: { lookup: CodeLookup; code: string }): Promise<CheckCodeResult> {
   const now = deps.clock.now();
-  const givenLockKey = input.lookup.lockKey;
-  if (givenLockKey) {
-    const locked = await lockedUntil(deps.db, givenLockKey, now);
-    if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
-  }
+  const { lockKey } = input.lookup;
+  const locked = await lockedUntil(deps.db, lockKey, now);
+  if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
 
   const [latest] = await deps.db
     .select()
@@ -282,11 +246,6 @@ export async function checkCode(deps: CodeDeps, input: { lookup: CodeLookup; cod
     .limit(1);
 
   if (!latest) return { ok: false, reason: "kode_salah" };
-  const lockKey = givenLockKey ?? latest.lockKey;
-  if (!givenLockKey) {
-    const locked = await lockedUntil(deps.db, lockKey, now);
-    if (locked) return { ok: false, reason: "terkunci", retryAt: locked };
-  }
   if (latest.closedReason === "terlalu_banyak_percobaan") return { ok: false, reason: "terlalu_banyak_percobaan" };
   if (latest.closedAt) return { ok: false, reason: "kode_salah" };
   if (latest.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "kode_kedaluwarsa" };
@@ -305,7 +264,7 @@ export async function checkCode(deps: CodeDeps, input: { lookup: CodeLookup; cod
       const retryAt = new Date(now.getTime() + OTP_LOCKOUT_MS);
       await deps.db
         .update(identityOtpRequest)
-        .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan", lockedUntil: retryAt, lockKey })
+        .set({ closedAt: now, closedReason: "terlalu_banyak_percobaan", lockedUntil: retryAt })
         .where(eq(identityOtpRequest.id, latest.id));
       return { ok: false, reason: "terkunci", retryAt };
     }
@@ -323,30 +282,15 @@ export async function checkCode(deps: CodeDeps, input: { lookup: CodeLookup; cod
     .set({ closedAt: now, closedReason: "dipakai" })
     .where(stillOpen)
     .returning({ id: identityOtpRequest.id });
-  return used.length === 1 ? { ok: true, target: latest.target, lockKey } : { ok: false, reason: "kode_salah" };
-}
-
-/** When the last code of this kind to `target` was sent, if one was sent after `since`. */
-export async function lastSentAt(
-  db: Database,
-  lookup: { channel: OtpChannel; target: string; purpose: OtpPurpose },
-  since: Date,
-): Promise<Date | null> {
-  const [row] = await db
-    .select({ at: max(identityOtpRequest.sentAt) })
-    .from(identityOtpRequest)
-    .where(and(lookupWhere(lookup), gt(identityOtpRequest.sentAt, since)));
-  return row?.at ?? null;
+  return used.length === 1 ? { ok: true, target: latest.target } : { ok: false, reason: "kode_salah" };
 }
 
 function lookupWhere(lookup: CodeLookup): SQL | undefined {
-  return !("target" in lookup)
-    ? and(eq(identityOtpRequest.purpose, lookup.purpose), eq(identityOtpRequest.lockKey, lookup.lockKey))
-    : and(
-        eq(identityOtpRequest.channel, lookup.channel),
-        eq(identityOtpRequest.target, lookup.target),
-        eq(identityOtpRequest.purpose, lookup.purpose),
-      );
+  return and(
+    eq(identityOtpRequest.purpose, lookup.purpose),
+    eq(identityOtpRequest.lockKey, lookup.lockKey),
+    lookup.target === undefined ? undefined : eq(identityOtpRequest.target, lookup.target),
+  );
 }
 
 /** When the lock key's lockout ends, if it is locked at `now`. */
