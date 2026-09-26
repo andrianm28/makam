@@ -1,6 +1,6 @@
 # Ops: mark an Admin Platform's email as Email Terverifikasi from the CLI
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 67
 Spec: Domain modules > 1. Identity & Access (Email Terverifikasi, first Admin Platform seed); ADR 0003 amendments
 
@@ -35,3 +35,4 @@ Decided with the user on 2026-09-26. Before the live WhatsApp adapter exists (ti
   - Runbook: the `seed:admin` section's broken closing fence is fixed, and a note covers the reused-Akun behaviour. The "Akun has no email" refusal is gone from `verify-email`'s exit list.
   - `seed:admin` has one success return.
   - Verified: lint 0, typecheck 0, Vitest 489/489 (48 files, exit 0), `npm run build` 0, `npm run build:worker` 0.
+- 2026-09-26 — Merged to `main` after a two-axis review and fixes: `seed:admin` clears a stale Email Terverifikasi when a reused Akun's email changes, raw-SQL test removed, row lock before the role check, guard test keeps `markEmailVerifiedByOps` out of `src/app`, runbook fence fixed. Verified: 489/489 on the branch, 559/559 combined with ticket 12.

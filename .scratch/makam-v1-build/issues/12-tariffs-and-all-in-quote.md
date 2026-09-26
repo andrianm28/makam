@@ -1,6 +1,6 @@
 # Versioned tariffs and the all-in price quote
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 10
 Spec: Domain modules > 4. Tariffs; Lokasi Mitra (Jenis Makam); stories 9 (prices), 10, 150 (Jenis Makam, versioned tariffs)
 
@@ -55,3 +55,4 @@ Layanan variant prices (Lokasi and DKI), DKI Biaya Pengurusan, Retribusi Pemda l
   - **For ticket 18 (Tagihan).** Quote lines no longer carry a `label`: they carry facts (`kind`, `amount`, `provider`, `jenisMakamName` on Harga Hak Pakai and Perpanjangan lines, `tumpang`, `pengurusan`, `terms`, `tenure`). Words come from the one presenter `quoteLineLabel(line)` (`src/lib/quote-line-label.ts`, e.g. "Harga Hak Pakai – Reguler", "Perpanjangan Makam – Reguler (2 × 5 tahun)", "Biaya Pengurusan (hanya berkas)"). Copy the facts onto the Tagihan, and the label too if the document must never re-word.
   - **Standards fixes.** One `wibDateOf` in `@/lib/time/jakarta` (duplicates removed). One new-version write (`version-writes.ts`: lock, read the version in force from the new date, insert, audit with before/after), one `selectVersions` + `versionTimesOf` pattern, one `idSchema`/`isUuid` (`ids.ts`), one lock module (`locks.ts`: `lockLokasiTariffs`, `lockGlobalTariff`; same lock names as before). `quote()` returns its refusals (no exceptions), checks Jenis Makam ids with `idSchema` (a non-id is `baris_tidak_valid`). `setGlobalTariff` trims its reason. `tariff_jenis_makam` rows are now immutable too (trigger; a rename would be a new decision). Tariff forms name the field that is wrong (date, name, years, each amount, reason; a stale hidden field says reload), and check N years' years and Perpanjangan price themselves.
   - **Verified 2026-09-26** on this branch: `npm run lint` 0; `npm run typecheck` 0; `npm test` 0 (561/561, 53 files); `npm run build` 0; `npm run build:worker` 0; Playwright 19/19 on a fresh `makam-t12` stack (port 3327), then `down -v` and its image removed.
+- 2026-09-26 — Merged to `main` after a two-axis review (mattpocock-skills:code-review) and fixes: Perpanjangan tenure from the Hak Pakai with the current per-term price (user decision), branded `Rupiah` with a Rp 100 miliar cap and checked sums, public reads only for Terverifikasi Lokasi (staff via `asStaff`, `checkedByAccountId` never public), shared version-write helper, one `wibDateOf`, per-field form messages, protected Jenis Makam name. Verified in the main session: 543/543 on the branch (0 skipped, JSON reporter), 559/559 combined with ticket 70.

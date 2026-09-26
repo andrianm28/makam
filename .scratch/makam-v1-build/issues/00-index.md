@@ -17,7 +17,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [09](09-staff-access-totp-and-audit-log.md) | Staff access: roles, invites, TOTP and the Audit Log | resolved | 08 |
 | [10](10-lokasi-mitra-onboarding.md) | Lokasi Mitra onboarding record and Admin Lokasi invites | resolved | 09 |
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | ready-for-agent | 10 |
-| [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | ready-for-agent | 10 |
+| [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | resolved | 10 |
 | [13](13-denah-builder.md) | Denah builder: bloks, Petak Makam and Kavling Keluarga | ready-for-agent | 12 |
 | [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | ready-for-agent | 13 |
 | [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
@@ -243,4 +243,4 @@ Not changed here (outside the files this change may touch):
 - the code comments that still name ticket 60 for the email fallback or say SES (`src/ports/email-sender.ts`, `src/composition/adapters.ts`, `src/domain/identity/{schema,invites,otp}.ts`);
 - `docs/ops/runbook.md`, which still says GlitchTip alerts use SES from ticket 03.
 | [69](69-no-ticket-numbers-in-ui-copy.md) | No internal ticket numbers in user-facing copy | resolved | — |
-| [70](70-ops-verify-seeded-email.md) | Ops: mark an Admin Platform's email as Email Terverifikasi from the CLI | ready-for-agent | 67 |
+| [70](70-ops-verify-seeded-email.md) | Ops: mark an Admin Platform's email as Email Terverifikasi from the CLI | resolved | 67 |
