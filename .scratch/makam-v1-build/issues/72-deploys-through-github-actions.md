@@ -21,3 +21,15 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 - [ ] **Concurrency**: signing, promotion and rollback run in groups that are never cancelled mid-way.
 - [ ] **Rehearsal**: `makam-prod` deployed once through the promotion on 127.0.0.1:3100 with sandbox keys and no nginx change; a forced failing healthcheck shows the automatic rollback; an unsigned image is refused. Live keys, the nginx switch and going live stay in ticket 65; production is not live before ticket 64.
 - [ ] Runbook: signing keys (where they live, how to rotate), approving a promotion, rolling back, pausing deploys, reading deploy results in GitHub and `deploy.log`.
+
+## Comments
+
+- 2026-09-26 — Follow-ups from ticket 71's re-review (do them here):
+  - The migration upgrade test's baseline is `:latest`; once deploys follow signed digests, and once production lags staging, the baseline must be the digest running in production (else staging), and the very first run must cope with no baseline.
+  - `.gitleaks.toml`: narrow the whole-file allowlists (e.g. `src/lib/env.ts`) to the specific keys/rules; one file per entry as the runbook says.
+  - Destructive-DDL checker: the `-- contract:` marker must be on the line(s) directly above the statement, not anywhere since the previous `;`; also flag TRUNCATE and new UNIQUE / FOREIGN KEY / CHECK constraints (expand/contract).
+  - `seed-representative.ts`: fail when any table stays empty (not only when all do); fix the "savepoint" comment.
+  - Derive the image name from `GITHUB_REPOSITORY` in the `migrations` job; share the Chromium step (keep its `--version` check) and the ghcr login instead of copies; state the main-only rule once (also in the concurrency line).
+  - Trigger CI once per PR commit (filter `push` to `main` or dedupe with `pull_request`).
+  - GitHub keeps only one pending run per concurrency group: correct the "main runs queue" wording; a skipped middle run is acceptable.
+  - The runbook's staging-rollback path (explicit tag, timer stopped) means `latest` is not what runs; the upgrade baseline must read the deployed digest.

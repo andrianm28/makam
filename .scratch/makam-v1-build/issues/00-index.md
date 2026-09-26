@@ -255,7 +255,7 @@ Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the 
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [71](71-ci-e2e-and-image-scan.md) | CI: e2e, image scan and supply-chain hardening on every build | ready-for-agent | 12 |
+| [71](71-ci-e2e-and-image-scan.md) | CI: e2e, image scan and supply-chain hardening on every build | resolved | 12 |
 | [72](72-deploys-through-github-actions.md) | Signed pull-based deploys: GitHub Deployment statuses, staging smoke test, production promotion and rollback | ready-for-agent | 71 |
 | [73](73-image-retention-and-host-disk.md) | Image retention and disk hygiene on the shared host | ready-for-agent | 72 |
 
