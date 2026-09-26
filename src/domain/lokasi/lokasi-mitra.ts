@@ -5,6 +5,7 @@ import {
   lokasiMitraResource,
   semuaLokasiMitraResource,
   writeRefusal,
+  type Action,
   type Actor,
   type WriteRefusal,
 } from "@/domain/identity";
@@ -328,26 +329,40 @@ function bankAccountOf(row: Row): BankAccount | null {
   return { bankName: row.bankName, accountNumber: row.bankAccountNumber, accountHolder: row.bankAccountHolder };
 }
 
+/** The actions a write on a Lokasi Mitra's record can be authorised as. */
+export type LokasiMitraWriteAction = Extract<Action, "lokasi.ubah" | "lokasi.ubah_rekening" | "lokasi.atur_operasional">;
+
+/** What a write changes on the row, and the Entri Audit's before and after. */
+export interface LokasiMitraChange {
+  values: Partial<Row>;
+  before: AuditSnapshot;
+  after: AuditSnapshot;
+  reason?: string | null;
+}
+
 /**
  * One staff write on a Lokasi Mitra's record: authorised (`authorisedAs`),
  * locked, changed and audited in one transaction, under the role the actor
- * wrote as (`actingRole`).
+ * wrote as (`actingRole`). `change` runs only once the actor is authorised and
+ * the row exists; it may refuse (e.g. invalid input) and then nothing is written.
  */
-export async function writeLokasiMitra(
+export async function writeLokasiMitra<Changed extends LokasiMitraChange | { ok: false; reason: string }>(
   deps: LokasiDeps,
   by: Actor,
   lokasiId: string,
   action: AuditAction,
-  change: (row: Row) => { values: Partial<Row>; before: AuditSnapshot; after: AuditSnapshot; reason?: string | null },
-  authorisedAs: "lokasi.ubah" | "lokasi.ubah_rekening" = "lokasi.ubah",
-): Promise<WriteResult> {
+  change: (row: Row) => Changed | Promise<Changed>,
+  authorisedAs: LokasiMitraWriteAction = "lokasi.ubah",
+): Promise<WriteResult | Extract<Changed, { ok: false }>> {
   const refusal = writeRefusal(by, authorisedAs, lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [row] = await tx.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
-    const { values, before, after, reason } = change(row);
+    const changed: LokasiMitraChange | { ok: false; reason: string } = await change(row);
+    if ("ok" in changed) return changed as Extract<Changed, { ok: false }>;
+    const { values, before, after, reason } = changed;
     await tx
       .update(lokasiMitraTable)
       .set({ ...values, updatedAt: deps.clock.now() })

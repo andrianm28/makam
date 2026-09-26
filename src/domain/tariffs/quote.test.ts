@@ -91,6 +91,23 @@ describe("the all-in quote", () => {
     if (quote.ok) for (const line of quote.lines) expect(line).not.toHaveProperty("label");
   });
 
+  it("a listed Lokasi Mitra whose Jam Operasional is belum diisi is still quoted: a quote never waits for, or assumes, a Jam Operasional", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { lokasiMitra, reguler } = await pricedLokasiMitra(setup);
+    expect(await setup.lokasi.jamOperasionalOf(lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
+
+    const quote = await setup.tariffs.quote(
+      [
+        { kind: "harga_hak_pakai", jenisMakamId: reguler.id },
+        { kind: "biaya_pemakaman", lokasiId: lokasiMitra.id, tumpang: false },
+      ],
+      wib("2026-10-05 10:00"),
+    );
+
+    expect(quote).toMatchObject({ ok: true, total: 9_650_001 });
+    expect(await setup.lokasi.jamOperasionalOf(lokasiMitra.id)).toEqual({ ok: true, jamOperasional: null });
+  });
+
   it("exactly one Biaya Layanan Platform per quote, however many Lokasi Mitra lines it has; the total is the exact sum", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { lokasiMitra, reguler, selamanya } = await pricedLokasiMitra(setup);

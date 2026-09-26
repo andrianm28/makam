@@ -1,6 +1,7 @@
 import { date, doublePrecision, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
+import type { JamOperasional } from "./jam-operasional-schema";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -37,6 +38,25 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   policies: jsonb("policies").$type<LokasiPolicies>().notNull(),
   /** LokasiFlags (./policies.ts), validated before every write. */
   flags: jsonb("flags").$type<LokasiFlags>().notNull(),
+  /** JamOperasional (./jam-operasional-schema.ts), validated before every write; null until the Admin Lokasi saves one (no default). */
+  jamOperasional: jsonb("jam_operasional").$type<JamOperasional>(),
+  /**
+   * The Kontak Siaga's Akun (identity's id; no foreign key across modules) and
+   * when it was picked. It counts only while that Akun is still Admin Lokasi
+   * here, linked no later than the pick; otherwise a new pick is needed.
+   */
+  kontakSiagaAccountId: text("kontak_siaga_account_id"),
+  kontakSiagaPickedAt: at("kontak_siaga_picked_at"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
+});
+
+/**
+ * Owned by the Lokasi module: the Hari Libur Nasional list Admin Platform
+ * keeps for its Hari Kerja calendar, one row per date (WIB).
+ */
+export const lokasiHariLiburNasional = pgTable("lokasi_hari_libur_nasional", {
+  date: date("date", { mode: "string" }).primaryKey(),
+  name: text("name").notNull(),
+  createdAt: at("created_at").notNull(),
 });

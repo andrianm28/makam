@@ -46,6 +46,7 @@ import {
   staffAccounts,
   staffRecipient,
   adminLokasiOf,
+  adminLokasiSince,
   removeAdminLokasi,
   type RemoveAdminLokasiResult,
   type AdminLokasiAccount,
@@ -92,6 +93,7 @@ export {
   auditLogLokasiResource,
   auditLogResource,
   authorize,
+  hariLiburNasionalResource,
   lokasiMitraResource,
   semuaLokasiMitraResource,
   needsTotp,
@@ -182,6 +184,8 @@ export interface Identity {
   inviteStaff(by: Actor, input: InviteStaffInput): Promise<InviteStaffResult>;
   /** Every Admin Lokasi of one Lokasi Mitra. */
   adminLokasiOf(lokasiId: string): Promise<AdminLokasiAccount[]>;
+  /** The Akun if it has been Admin Lokasi of this Lokasi Mitra without a break since `since` (not removed, not Dinonaktifkan), else null. */
+  adminLokasiSince(accountId: string, lokasiId: string, since: Date): Promise<AdminLokasiAccount | null>;
   /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra (the Akun keeps its other Lokasi), audited. */
   removeAdminLokasi(
     by: Actor,
@@ -246,6 +250,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(deps, by, input),
     adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),
+    adminLokasiSince: (accountId, lokasiId, since) => adminLokasiSince(deps, accountId, lokasiId, since),
     removeAdminLokasi: (by, input) => removeAdminLokasi(deps, by, input),
     openStaffInvites: (filter) => openStaffInvites(deps, filter),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),

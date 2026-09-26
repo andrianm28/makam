@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -50,9 +50,8 @@ export interface AdminLokasiAccount {
   email: string | null;
 }
 
-/** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
-export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): Promise<AdminLokasiAccount[]> {
-  const rows = await deps.db
+function adminLokasiRows(db: Database, where: SQL | undefined) {
+  return db
     .select({ accountId: identityUser.id, phoneNumber: identityUser.phoneNumber, email: identityUser.contactEmail })
     .from(identityAdminLokasi)
     .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
@@ -60,9 +59,41 @@ export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): P
       identityStaffRole,
       and(eq(identityStaffRole.accountId, identityAdminLokasi.accountId), eq(identityStaffRole.role, "admin_lokasi")),
     )
-    .where(eq(identityAdminLokasi.lokasiId, lokasiId))
+    .where(where)
     .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
-  return rows.map((row) => ({ accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email }));
+}
+
+function toAdminLokasiAccount(row: { accountId: string; phoneNumber: string | null; email: string | null }): AdminLokasiAccount {
+  return { accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email };
+}
+
+/** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
+export async function adminLokasiOf(deps: { db: Database }, lokasiId: string): Promise<AdminLokasiAccount[]> {
+  const rows = await adminLokasiRows(deps.db, eq(identityAdminLokasi.lokasiId, lokasiId));
+  return rows.map(toAdminLokasiAccount);
+}
+
+/**
+ * The Akun if it has been Admin Lokasi of this Lokasi Mitra without a break
+ * since `since`, else null. Removal from the Lokasi and Dinonaktifkan both end
+ * the link, and an invite afterwards starts a new one, so a link granted no
+ * later than `since` that still exists is unbroken.
+ */
+export async function adminLokasiSince(
+  deps: { db: Database },
+  accountId: string,
+  lokasiId: string,
+  since: Date,
+): Promise<AdminLokasiAccount | null> {
+  const [row] = await adminLokasiRows(
+    deps.db,
+    and(
+      eq(identityAdminLokasi.accountId, accountId),
+      eq(identityAdminLokasi.lokasiId, lokasiId),
+      lte(identityAdminLokasi.grantedAt, since),
+    ),
+  );
+  return row ? toAdminLokasiAccount(row) : null;
 }
 
 export type RemoveAdminLokasiResult =

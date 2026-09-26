@@ -36,6 +36,7 @@ import {
   type LokasiMitraResult,
   type LokasiMitraSummary,
   type NewLokasiMitra,
+  type NotFound,
   type SetPoliciesResult,
   type WriteResult,
 } from "./lokasi-mitra";
@@ -48,6 +49,32 @@ import {
   type AgreementScanUrlResult,
   type UploadAgreementResult,
 } from "./agreement";
+import {
+  readJamOperasional,
+  jamOperasionalOf,
+  serviceHoursDeadline,
+  setJamOperasional,
+  type JamOperasionalResult,
+  type SetJamOperasionalResult,
+} from "./jam-operasional";
+import {
+  kontakSiagaOf,
+  pickKontakSiaga,
+  readKontakSiaga,
+  type KontakSiaga,
+  type KontakSiagaResult,
+  type PickKontakSiagaResult,
+} from "./kontak-siaga";
+import type { JamOperasional, Tanggal } from "./jam-operasional-schema";
+import type { HariLiburNasional, WorkingTimeResult } from "./working-time";
+import {
+  addHariLiburNasional,
+  hariLiburNasional,
+  readAdminPlatformCalendar,
+  removeHariLiburNasional,
+  type AddHariLiburNasionalResult,
+  type RemoveHariLiburNasionalResult,
+} from "./calendars";
 
 export {
   AGREEMENT_SCAN_MAX_BYTES,
@@ -56,6 +83,23 @@ export {
   type UploadAgreementResult,
 } from "./agreement";
 export type { LokasiAuditLogResult } from "./audit-view";
+export type { JamOperasionalResult, SetJamOperasionalResult } from "./jam-operasional";
+export {
+  MAX_TANGGAL_TUTUP,
+  jamMenitSchema,
+  jamOperasionalSchema,
+  tanggalSchema,
+  tanggalTutupSchema,
+  weekdays,
+  type JamMenit,
+  type JamOperasional,
+  type OpenHours,
+  type Tanggal,
+  type TanggalTutup,
+  type Weekday,
+} from "./jam-operasional-schema";
+export type { KontakSiaga, KontakSiagaResult, PickKontakSiagaResult } from "./kontak-siaga";
+export { hariLiburNasionalSchema, type AddHariLiburNasionalResult, type RemoveHariLiburNasionalResult } from "./calendars";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
 export {
@@ -156,6 +200,37 @@ export interface Lokasi {
   ): Promise<UploadAgreementResult>;
   /** A 5-minute signed URL to the agreement scan, for Admin Platform only. */
   agreementScanUrl(by: Actor, lokasiId: string): Promise<AgreementScanUrlResult>;
+  /** This Lokasi Mitra's Jam Operasional (null until its Admin Lokasi saves one), for Admin Platform or one of its Admin Lokasi. */
+  jamOperasional(by: Actor, lokasiId: string): Promise<JamOperasionalResult>;
+  /** Its Admin Lokasi (or Admin Platform) sets the Jam Operasional: weekly hours and Tanggal Tutup, audited. */
+  setJamOperasional(by: Actor, lokasiId: string, input: JamOperasional): Promise<SetJamOperasionalResult>;
+  /** This Lokasi Mitra's Kontak Siaga (null until picked, or after its Admin Lokasi was removed), for Admin Platform or its Admin Lokasi. */
+  kontakSiaga(by: Actor, lokasiId: string): Promise<KontakSiagaResult>;
+  /** Its Admin Lokasi (or Admin Platform) picks the Kontak Siaga from the Lokasi's Admin Lokasi, audited. */
+  pickKontakSiaga(by: Actor, lokasiId: string, input: { accountId: string }): Promise<PickKontakSiagaResult>;
+  /** The Kontak Siaga for server code (alerts, the order card): null when a pick is needed. */
+  kontakSiagaOf(lokasiId: string): Promise<KontakSiaga | null>;
+  /** The Hari Libur Nasional list Admin Platform keeps, by date. */
+  hariLiburNasional(): Promise<HariLiburNasional[]>;
+  /** Admin Platform (only) adds a Hari Libur Nasional, audited. */
+  addHariLiburNasional(by: Actor, input: HariLiburNasional): Promise<AddHariLiburNasionalResult>;
+  /** Admin Platform (only) removes a Hari Libur Nasional, audited. */
+  removeHariLiburNasional(by: Actor, input: { date: Tanggal; reason: string | null }): Promise<RemoveHariLiburNasionalResult>;
+  /**
+   * The Admin Platform Hari Kerja calendar, as a Jam Operasional: Monday–Friday (ending 23:59 WIB), each Hari
+   * Libur Nasional on the list a Tanggal Tutup. It reads the list on every call, so fetch it once per tick.
+   */
+  adminPlatformCalendar(): Promise<JamOperasional>;
+  /**
+   * A Lokasi Mitra's Jam Operasional (also its Hari Kerja calendar), for server code: null until its Admin Lokasi
+   * saves one, which every calculator function refuses (`jam_operasional_belum_diisi`).
+   */
+  jamOperasionalOf(lokasiId: string): Promise<{ ok: true; jamOperasional: JamOperasional | null } | NotFound>;
+  /**
+   * `hours` service hours in the Lokasi's saved Jam Operasional from `start`, or from now (the Clock) when none is
+   * given, e.g. the Saat Duka confirmation deadline; refused while its Jam Operasional is belum diisi.
+   */
+  serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -176,5 +251,28 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     fullAuditLog: (by, lokasiId) => fullLokasiAuditLog(deps, by, lokasiId),
     uploadAgreement: (by, lokasiId, input) => uploadAgreement(deps, by, lokasiId, input),
     agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
+    jamOperasional: (by, lokasiId) => readJamOperasional(deps, by, lokasiId),
+    setJamOperasional: (by, lokasiId, input) => setJamOperasional(deps, by, lokasiId, input),
+    kontakSiaga: (by, lokasiId) => readKontakSiaga(deps, by, lokasiId),
+    pickKontakSiaga: (by, lokasiId, input) => pickKontakSiaga(deps, by, lokasiId, input),
+    kontakSiagaOf: (lokasiId) => kontakSiagaOf(deps, lokasiId),
+    hariLiburNasional: () => hariLiburNasional(deps),
+    addHariLiburNasional: (by, input) => addHariLiburNasional(deps, by, input),
+    removeHariLiburNasional: (by, input) => removeHariLiburNasional(deps, by, input),
+    adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
+    jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
+    serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
   };
 }
+export {
+  addWorkingDays,
+  adminPlatformCalendar,
+  daytimeHoursDeadline,
+  deadline,
+  nextWorkingDayEnd,
+  TPU_SCHEDULE,
+  type HariLiburNasional,
+  type JamOperasionalBelumDiisi,
+  type JamOperasionalTanpaJamBuka,
+  type WorkingTimeResult,
+} from "./working-time";

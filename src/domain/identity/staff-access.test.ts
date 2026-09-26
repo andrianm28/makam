@@ -625,6 +625,59 @@ describe("deactivating an Akun Staf", () => {
   });
 });
 
+describe("Admin Lokasi of a Lokasi Mitra continuously since a time", () => {
+  async function adminLokasiInvitedAndLoggedIn(
+    setup: ReturnType<typeof identityOnTestDatabase>,
+    admin: Awaited<ReturnType<typeof signedInAdminPlatform>>,
+  ) {
+    await setup.identity.inviteStaff(admin.actor, { phoneNumber: "082222222222", email: "lokasi@contoh.id", role: "admin_lokasi", lokasiId: LOKASI });
+    return (await logInByOtp(setup.identity, setup.whatsapp, "082222222222")).login.account.id;
+  }
+
+  it("is the Akun when it has been Admin Lokasi of the Lokasi since then, and null when it became one later", async () => {
+    const setup = identityOnTestDatabase(db);
+    const admin = await signedInAdminPlatform(setup);
+    const beforeLink = setup.clock.now();
+    setup.clock.advance({ minutes: 1 });
+    const accountId = await adminLokasiInvitedAndLoggedIn(setup, admin);
+    setup.clock.advance({ minutes: 1 });
+
+    expect(await setup.identity.adminLokasiSince(accountId, LOKASI, setup.clock.now())).toEqual({
+      accountId,
+      phoneNumber: "+6282222222222",
+      email: "lokasi@contoh.id",
+    });
+    expect(await setup.identity.adminLokasiSince(accountId, LOKASI, beforeLink)).toBeNull();
+    expect(await setup.identity.adminLokasiSince(accountId, "5d1f4c2e-0000-4000-8000-000000000002", setup.clock.now())).toBeNull();
+  });
+
+  it("is null once the Akun was removed from the Lokasi, even when invited back since", async () => {
+    const setup = identityOnTestDatabase(db);
+    const admin = await signedInAdminPlatform(setup);
+    const accountId = await adminLokasiInvitedAndLoggedIn(setup, admin);
+    const since = setup.clock.now();
+    setup.clock.advance({ minutes: 1 });
+    await setup.identity.removeAdminLokasi(admin.actor, { lokasiId: LOKASI, accountId, reason: "Salah Lokasi" });
+    expect(await setup.identity.adminLokasiSince(accountId, LOKASI, since)).toBeNull();
+    setup.clock.advance({ minutes: 1 });
+
+    await adminLokasiInvitedAndLoggedIn(setup, admin);
+
+    expect(await setup.identity.adminLokasiSince(accountId, LOKASI, since)).toBeNull();
+  });
+
+  it("is null once the Akun was Dinonaktifkan", async () => {
+    const setup = identityOnTestDatabase(db);
+    const admin = await signedInAdminPlatform(setup);
+    const accountId = await adminLokasiInvitedAndLoggedIn(setup, admin);
+    const since = setup.clock.now();
+
+    await setup.identity.deactivateStaff(admin.actor, { accountId, reason: "Keluar" });
+
+    expect(await setup.identity.adminLokasiSince(accountId, LOKASI, since)).toBeNull();
+  });
+});
+
 describe("reads are not audited", () => {
   it("reading the Akun Staf, the open Undangan Staf and an entity's Entri Audit records nothing", async () => {
     const setup = identityOnTestDatabase(db);
