@@ -10,6 +10,7 @@ await build({
     worker: "src/worker/main.ts",
     migrate: "src/cli/migrate.ts",
     "seed-admin": "src/cli/seed-admin.ts",
+    "seed-tagihan": "src/cli/seed-tagihan.ts",
     "reset-totp": "src/cli/reset-totp.ts",
     "verify-email": "src/cli/verify-email.ts",
     "sentry-check": "src/cli/sentry-check.ts",
