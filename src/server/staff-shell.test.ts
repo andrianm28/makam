@@ -170,7 +170,13 @@ describe("the command palette (role visibility on the server)", () => {
           { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
         ],
       },
-      { label: "Operator", items: [{ label: "Pengaturan Operator", href: "/staf/admin-platform/pengaturan-operator" }] },
+      {
+        label: "Operator",
+        items: [
+          { label: "Pengaturan Operator", href: "/staf/admin-platform/pengaturan-operator" },
+          { label: "Katalog Desain", href: "/staf/admin-platform/desain" },
+        ],
+      },
       {
         label: "Lokasi Mitra",
         items: [{ label: "Makam Wakaf Al-Ikhlas", href: `/staf/admin-platform/lokasi/${lokasiId}` }],

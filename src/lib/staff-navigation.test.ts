@@ -21,7 +21,7 @@ describe("the staff menu of each role", () => {
       ["Kerja harian", ["Beranda", "Antrean"]],
       ["Lokasi dan harga", ["Lokasi Mitra", "Tarif global", "Hari Libur Nasional"]],
       ["Orang", ["Staf", "Pemulihan Akun"]],
-      ["Operator", ["Pengaturan Operator", "Audit Log"]],
+      ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
     ]);
   });
 
@@ -54,6 +54,7 @@ describe("the staff menu of each role", () => {
       "Staf",
       "Pemulihan Akun",
       "Pengaturan Operator",
+      "Katalog Desain",
     ]);
     expect(linked(staffMenu("petugas_lapangan"))).toEqual(["Beranda"]);
     expect(linked(staffMenu("mitra_jasa"))).toEqual(["Beranda"]);

@@ -10,6 +10,7 @@ import {
   LayoutDashboardIcon,
   type LucideIcon,
   MapPinnedIcon,
+  PaletteIcon,
   ReceiptIcon,
   SettingsIcon,
   UserRoundCheckIcon,
@@ -110,6 +111,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               description: "Nama resmi, alamat dan kontak Operator; nomor CS dan jam balasnya.",
             },
             { label: "Audit Log", icon: FileClockIcon, description: SEGERA },
+            {
+              label: "Katalog Desain",
+              href: `${AP}/desain`,
+              icon: PaletteIcon,
+              description: "Token warna, skala tipografi, komponen dan status yang tersedia di sistem desain.",
+            },
           ],
         },
       ];
