@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog, RecordEntry } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -7,10 +7,8 @@ import { akunResource, staffRoles, writeRefusal, type Actor, type WriteRefusal }
 import { verifikasiEmailMessage } from "./email-templates";
 import { normaliseEmail } from "./email-address";
 import { akunLockKey } from "./lock-key";
-import type { Account } from "./login";
 import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
-import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identityStaffRole, identityUser } from "./schema";
+import { identityUser } from "./schema";
 
 /*
  * The Akun's own email (Akun Saya, and the staff area for an Akun Staf). It is
@@ -167,64 +165,6 @@ async function markVerified(deps: EmailDeps, by: Actor, email: string): Promise<
   });
 }
 
-export type MarkEmailVerifiedByOpsResult =
-  | { ok: true; account: Account; email: string }
-  | PhoneNumberRejection
-  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" }
-  | OpsEmailVerificationRefusal;
-
-/**
- * Why the email on record cannot be marked: the Akun has none, it already is
- * the Akun's Email Terverifikasi, or another Akun already has it as its Email
- * Terverifikasi (the unique index decides, as in Verifikasi Email).
- */
-export type OpsEmailVerificationRefusal = {
-  ok: false;
-  reason: "tanpa_email" | "sudah_terverifikasi" | "email_sudah_dipakai";
-};
-
-/**
- * Ops (`verify-email` CLI): marks the email on record of an existing Admin
- * Platform as its Email Terverifikasi, audited as `ops_cli` with the reason.
- * The bootstrap path before the live WhatsApp adapter: with it the Admin
- * Platform logs in by email, and still passes TOTP.
- */
-export async function markEmailVerifiedByOps(
-  deps: { db: Database; clock: Clock; audit: AuditLog },
-  input: { phoneNumber: string; reason: string },
-): Promise<MarkEmailVerifiedByOpsResult> {
-  const normalised = normalisePhoneNumber(input.phoneNumber);
-  if (!normalised.ok) return normalised;
-  const { phoneNumber } = normalised;
-  const reason = input.reason.trim();
-  if (!reason) return { ok: false, reason: "alasan_wajib" };
-
-  return verifiedEmailTakenAsRefusal(() =>
-    deps.audit.staffWrite(deps.db, async (tx, record) => {
-      const [user] = await tx
-        .select({ id: identityUser.id })
-        .from(identityUser)
-        .where(eq(identityUser.phoneNumber, phoneNumber));
-      const [adminPlatform] = user
-        ? await tx
-            .select({ accountId: identityStaffRole.accountId })
-            .from(identityStaffRole)
-            .where(and(eq(identityStaffRole.accountId, user.id), eq(identityStaffRole.role, "admin_platform")))
-        : [];
-      if (!user || !adminPlatform) {
-        return { ok: false, reason: "bukan_admin_platform" } as const;
-      }
-      const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
-        accountId: user.id,
-        actorRole: "ops_cli",
-        reason,
-      });
-      if (!marked.ok) return marked;
-      return { ok: true, account: { id: user.id, phoneNumber }, email: marked.email } as const;
-    }),
-  );
-}
-
 /**
  * Runs a staff write that may mark an Email Terverifikasi: when the database's
  * unique index refuses it (another Akun has that Email Terverifikasi, already
@@ -242,25 +182,18 @@ export async function verifiedEmailTakenAsRefusal<T>(
 }
 
 /**
- * Inside a staff write: makes the Akun's email on record its Email
- * Terverifikasi and records `akun.email_verifikasi` (before/after
- * `terverifikasi`, the reason; never a code). Used by `verify-email` (ops_cli)
- * and by `seed:admin --email-terverifikasi` (seed_cli).
+ * Inside a staff write, with the Akun's row already locked by the caller: makes
+ * the Akun's email on record its Email Terverifikasi and records
+ * `akun.email_verifikasi` (before/after `terverifikasi`, the reason; never a
+ * code). The caller has checked the email is not yet verified. Used by
+ * `verify-email` (ops_cli) and by `seed:admin --email-terverifikasi` (seed_cli).
  */
-export async function recordOpsEmailVerification(
+export async function markEmailOnRecordVerified(
   tx: Database,
   record: RecordEntry,
   clock: Clock,
   input: { accountId: string; actorRole: "ops_cli" | "seed_cli"; reason: string },
-): Promise<{ ok: true; email: string } | OpsEmailVerificationRefusal> {
-  const [row] = await tx
-    .select({ email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
-    .from(identityUser)
-    .where(eq(identityUser.id, input.accountId))
-    .for("update");
-  const email = row?.email;
-  if (!email) return { ok: false, reason: "tanpa_email" };
-  if (row.verifiedAt) return { ok: false, reason: "sudah_terverifikasi" };
+): Promise<void> {
   const now = clock.now();
   await tx.update(identityUser).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
   await record({
@@ -272,7 +205,6 @@ export async function recordOpsEmailVerification(
     after: { terverifikasi: true },
     reason: input.reason,
   });
-  return { ok: true, email };
 }
 
 /** True for the unique violation of identity_user_verified_email_idx (a verified email belongs to one Akun). */

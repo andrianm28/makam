@@ -19,15 +19,14 @@ import { createBetterAuth } from "./better-auth";
 import {
   accountEmail,
   confirmEmailVerification,
-  markEmailVerifiedByOps,
   removeEmail,
   requestEmailVerification,
   type AccountEmail,
   type ConfirmEmailVerificationResult,
-  type MarkEmailVerifiedByOpsResult,
   type RemoveEmailResult,
   type RequestEmailVerificationResult,
 } from "./email";
+import { markEmailVerifiedByOps, type MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
 import {
   requestEmailFallback,
   requestEmailLogin,
@@ -70,10 +69,10 @@ export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from 
 export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { Account, VerifyOtpResult } from "./login";
 export type { RequestEmailFallbackResult, RequestEmailLoginResult } from "./email-login";
+export type { MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
 export type {
   AccountEmail,
   ConfirmEmailVerificationResult,
-  MarkEmailVerifiedByOpsResult,
   RemoveEmailResult,
   RequestEmailVerificationResult,
 } from "./email";

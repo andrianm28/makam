@@ -6,7 +6,7 @@ import type { Clock } from "@/ports/clock";
 import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
 import type { Account } from "./login";
 import { normaliseEmail } from "./email-address";
-import { recordOpsEmailVerification, verifiedEmailTakenAsRefusal, type OpsEmailVerificationRefusal } from "./email";
+import { markEmailOnRecordVerified, verifiedEmailTakenAsRefusal } from "./email";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
@@ -106,8 +106,7 @@ export async function removeAdminLokasi(
 export type SeedResult =
   | { ok: true; account: Account }
   | PhoneNumberRejection
-  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" }
-  | OpsEmailVerificationRefusal;
+  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" | "email_sudah_dipakai" };
 
 /** The reason on the seed's `akun.email_verifikasi` entry (`seed:admin --email-terverifikasi`). */
 const SEED_EMAIL_VERIFIED_REASON = "seed:admin --email-terverifikasi (jalur bootstrap sebelum WhatsApp live)";
@@ -130,10 +129,13 @@ export async function seedFirstAdminPlatform(
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
 
-  return verifiedEmailTakenAsRefusal(() => seed(deps, { phoneNumber, email, emailTerverifikasi: input.emailTerverifikasi }));
+  return verifiedEmailTakenAsRefusal(() =>
+    createFirstAdminPlatform(deps, { phoneNumber, email, emailTerverifikasi: input.emailTerverifikasi }),
+  );
 }
 
-async function seed(
+/** The seed's write, once the number and email are valid; the unique index on Email Terverifikasi may still refuse it. */
+async function createFirstAdminPlatform(
   deps: { db: Database; clock: Clock; audit: AuditLog },
   input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean },
 ): Promise<SeedResult> {
@@ -187,12 +189,11 @@ async function seed(
       reason: null,
     });
     if (input.emailTerverifikasi && !alreadyVerified) {
-      const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
+      await markEmailOnRecordVerified(tx, record, deps.clock, {
         accountId,
         actorRole: "seed_cli",
         reason: SEED_EMAIL_VERIFIED_REASON,
       });
-      if (!marked.ok) return marked;
     }
     return { ok: true, account: { id: accountId, phoneNumber } } as const;
   });

@@ -20,7 +20,6 @@ const refusals: Record<Refusal, string> = {
   bukan_admin_platform: "Ditolak: nomor ini bukan Admin Platform.",
   email_sudah_dipakai: "Ditolak: email ini sudah menjadi Email Terverifikasi Akun lain. Tidak ada yang ditandai.",
   sudah_terverifikasi: "Ditolak: email Admin Platform ini sudah Email Terverifikasi. Tidak ada yang diubah.",
-  tanpa_email: "Ditolak: Admin Platform ini belum punya email. Tidak ada yang ditandai.",
   nomor_tidak_valid: `Ditolak: ${phoneNumberRefusals.nomor_tidak_valid}`,
   nomor_bukan_indonesia: `Ditolak: ${phoneNumberRefusals.nomor_bukan_indonesia}`,
 };

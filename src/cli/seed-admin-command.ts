@@ -21,8 +21,6 @@ const refusals: Record<Refusal, string> = {
   nomor_tidak_valid: `Ditolak: ${phoneNumberRefusals.nomor_tidak_valid}`,
   nomor_bukan_indonesia: `Ditolak: ${phoneNumberRefusals.nomor_bukan_indonesia}`,
   email_sudah_dipakai: "Ditolak: email ini sudah menjadi Email Terverifikasi Akun lain. Tidak ada yang dibuat.",
-  sudah_terverifikasi: "Ditolak: Akun nomor ini sudah punya Email Terverifikasi. Tidak ada yang dibuat.",
-  tanpa_email: "Ditolak: email tidak valid.",
 };
 
 /**

@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import {
@@ -113,20 +112,6 @@ describe('npm run verify-email -- <phone> --alasan "<reason>"', () => {
     });
     const actions = (await setup.audit.allEntries()).map((entry) => entry.action);
     expect(actions.filter((action) => action === "akun.email_verifikasi")).toHaveLength(1);
-  });
-
-  it("is refused for an Admin Platform with no email on record", async () => {
-    const setup = identityOnTestDatabase(db);
-    await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
-    // No identity path leaves an Akun Staf without an email (the seed, the Undangan Staf and removeEmail
-    // all require one), so the state is set up directly: an Akun from before emails were required.
-    await db.execute(sql`update identity_user set email = null where phone_number = '+6281111111111'`);
-
-    expect(await verifyEmailCommand(["081111111111", "--alasan", "Bootstrap staging"], env())).toEqual({
-      exitCode: 1,
-      output: "Ditolak: Admin Platform ini belum punya email. Tidak ada yang ditandai.",
-    });
-    expect((await setup.audit.allEntries()).map((entry) => entry.action)).not.toContain("akun.email_verifikasi");
   });
 
   it("prints its usage without a number, without --alasan, or with an unknown flag", async () => {
