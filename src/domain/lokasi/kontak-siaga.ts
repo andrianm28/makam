@@ -14,20 +14,29 @@ export interface KontakSiaga {
   email: string | null;
 }
 
+/** The Kontak Siaga a Lokasi Mitra row names, while its Akun has been Admin Lokasi here without a break since the pick. */
+async function kontakSiagaOfRow(
+  identity: Identity,
+  lokasiId: string,
+  row: { kontakSiagaAccountId: string | null; kontakSiagaPickedAt: Date | null },
+): Promise<KontakSiaga | null> {
+  if (!row.kontakSiagaAccountId || !row.kontakSiagaPickedAt) return null;
+  return identity.adminLokasiSince(row.kontakSiagaAccountId, lokasiId, row.kontakSiagaPickedAt);
+}
+
 /**
  * A Lokasi Mitra's Kontak Siaga (no actor: server code, e.g. alerts and the
- * order card), or null when none is picked or the picked Akun is no longer
- * Admin Lokasi here (removed, Dinonaktifkan, or removed and invited again
- * since the pick): then a new pick is needed.
+ * order card), or null when none is picked or the picked Akun has not been
+ * Admin Lokasi here without a break since the pick (removed, Dinonaktifkan, or
+ * removed and invited again): then a new pick is needed.
  */
 export async function kontakSiagaOf(deps: Pick<KontakSiagaDeps, "db" | "identity">, lokasiId: string): Promise<KontakSiaga | null> {
   if (!isLokasiId(lokasiId)) return null;
   const [row] = await deps.db
-    .select({ accountId: lokasiMitra.kontakSiagaAccountId, pickedAt: lokasiMitra.kontakSiagaPickedAt })
+    .select({ kontakSiagaAccountId: lokasiMitra.kontakSiagaAccountId, kontakSiagaPickedAt: lokasiMitra.kontakSiagaPickedAt })
     .from(lokasiMitra)
     .where(eq(lokasiMitra.id, lokasiId));
-  if (!row?.accountId || !row.pickedAt) return null;
-  return deps.identity.adminLokasiSince(row.accountId, lokasiId, row.pickedAt);
+  return row ? kontakSiagaOfRow(deps.identity, lokasiId, row) : null;
 }
 
 export type KontakSiagaResult = { ok: true; kontakSiaga: KontakSiaga | null } | WriteRefusal | NotFound;
@@ -52,23 +61,20 @@ export async function pickKontakSiaga(
   lokasiId: string,
   input: { accountId: string },
 ): Promise<PickKontakSiagaResult> {
-  const refusal = writeRefusal(by, "lokasi.atur_operasional", lokasiMitraResource(lokasiId));
-  if (refusal) return refusal;
-  if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
-  const picked = (await deps.identity.adminLokasiOf(lokasiId)).find((account) => account.accountId === input.accountId);
-  if (!picked) return { ok: false, reason: "bukan_admin_lokasi_di_sini" };
-  const before = await kontakSiagaOf(deps, lokasiId);
-  const kontakSiaga: KontakSiaga = { accountId: picked.accountId, phoneNumber: picked.phoneNumber, email: picked.email };
   return writeLokasiMitra(
     deps,
     by,
     lokasiId,
     "lokasi.pilih_kontak_siaga",
-    () => ({
-      values: { kontakSiagaAccountId: picked.accountId, kontakSiagaPickedAt: deps.clock.now() },
-      before: { kontakSiaga: before },
-      after: { kontakSiaga },
-    }),
+    async (row) => {
+      const picked = (await deps.identity.adminLokasiOf(lokasiId)).find((account) => account.accountId === input.accountId);
+      if (!picked) return { ok: false, reason: "bukan_admin_lokasi_di_sini" } as const;
+      return {
+        values: { kontakSiagaAccountId: picked.accountId, kontakSiagaPickedAt: deps.clock.now() },
+        before: { kontakSiaga: await kontakSiagaOfRow(deps.identity, lokasiId, row) },
+        after: { kontakSiaga: { ...picked } },
+      };
+    },
     "lokasi.atur_operasional",
   );
 }

@@ -60,21 +60,17 @@ export async function setJamOperasional(
   lokasiId: string,
   input: JamOperasional,
 ): Promise<SetJamOperasionalResult> {
-  const refusal = writeRefusal(by, "lokasi.atur_operasional", lokasiMitraResource(lokasiId));
-  if (refusal) return refusal;
-  const parsed = jamOperasionalSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, reason: "jam_operasional_tidak_valid" };
-  const jamOperasional = parsed.data;
   return writeLokasiMitra(
     deps,
     by,
     lokasiId,
     "lokasi.ubah_jam_operasional",
-    (row) => ({
-      values: { jamOperasional },
-      before: { jamOperasional: row.jamOperasional },
-      after: { jamOperasional },
-    }),
+    (row) => {
+      const parsed = jamOperasionalSchema.safeParse(input);
+      if (!parsed.success) return { ok: false, reason: "jam_operasional_tidak_valid" } as const;
+      const jamOperasional = parsed.data;
+      return { values: { jamOperasional }, before: { jamOperasional: row.jamOperasional }, after: { jamOperasional } };
+    },
     "lokasi.atur_operasional",
   );
 }
