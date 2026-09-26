@@ -75,7 +75,7 @@ This ticket changes behaviour that is already merged (tickets 08, 09, 21, 63, 67
   - Open question (1) of the entry above (Pemulihan Akun by Akun id) is resolved.
 - **Verification after the rebase**:
   - `npm run lint`: 0 problems. `npm run typecheck`: 0 errors.
-  - `npm run test:shared`: **90 files, 925 tests passed**.
+  - `npm run test:shared`: **90 files, 925 tests passed**, and after a final rebase onto main 86998e1 (billing-only changes): **90 files, 929 tests passed**, build and build:worker clean again (e2e not rerun: no e2e, UI or identity change came in).
   - `npm run build` and `npm run build:worker`: clean.
   - Upgrade test: a database migrated with main's 0000–0010, filled by `seed-representative.ts` (27 of 29 tables; ticket 19's two check-constrained tables are skipped by the seeder), plus the old-style fixtures, then upgraded to 0011. Only the verified Akun's session survived, the WhatsApp code was deleted, the invite stayed, and a duplicate phone number inserted. The full suite on that database: 90 files, 925 tests passed (after the `seed-tagihan` test fix).
   - e2e on this worktree's stack (`npm run stack`, port 3382), masuk, email-login and staf specs: **10/10 passed**, 24 s for the three files together.
