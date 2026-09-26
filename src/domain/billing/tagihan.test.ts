@@ -165,11 +165,14 @@ describe("an issued Tagihan is immutable", () => {
     const billing = billingOnTestDatabase(db).billing;
 
     expect(Object.keys(billing).sort()).toEqual([
+      "bayar",
       "documentByLink",
       "documentPdf",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
+      "pembayaranPerluDitinjau",
+      "receivePaymentWebhook",
       "recordPayment",
       "reissueTagihan",
       "tagihan",

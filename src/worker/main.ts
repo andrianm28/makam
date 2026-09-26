@@ -3,6 +3,7 @@
  * Built to dist/worker.mjs; run locally with `npm run worker`.
  */
 import { SystemClock } from "@/adapters/live/system-clock";
+import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
 import { scheduledTicks } from "@/domain/scheduler";
 import { readRuntimeEnv } from "@/lib/env";
@@ -16,7 +17,10 @@ async function main() {
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
-    db: database.db,
+    context: composeSchedulerContext({
+      db: database.db,
+      reportError: (error, context) => sentry.captureException(error, context),
+    }),
     clock: new SystemClock(),
     ticks: scheduledTicks,
     onError: (error, context) => {

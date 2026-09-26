@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
-import { documentLinkSchema, type BillingDocument, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import { documentLinkSchema, type BillingDocument, type NotPayable, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
 import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
-import { documentPdfPath } from "@/lib/document-links";
+import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
+import { bayarTagihan } from "./actions";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
 
@@ -52,13 +53,27 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
         </a>
       </div>
       <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
-        {document.type === "tagihan" ? <TagihanView tagihan={document.tagihan} /> : <BuktiView bukti={document.bukti} />}
+        {document.type === "tagihan" ? (
+          <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
+        ) : (
+          <BuktiView bukti={document.bukti} />
+        )}
       </article>
     </main>
   );
 }
 
-function TagihanView({ tagihan }: { tagihan: Tagihan }) {
+function TagihanView({
+  link,
+  tagihan,
+  notPayableBecause,
+  buktiLink,
+}: {
+  link: string;
+  tagihan: Tagihan;
+  notPayableBecause: NotPayable | null;
+  buktiLink: string | null;
+}) {
   return (
     <>
       <DocumentTop header={tagihan.header} title="Tagihan" number={tagihan.nomorTagihan} status={tagihanStatusText(tagihan.status)} />
@@ -67,6 +82,11 @@ function TagihanView({ tagihan }: { tagihan: Tagihan }) {
           {tagihan.cancelledReason === "diganti" && tagihan.replacedByNomorTagihan
             ? `Tagihan ini sudah dibatalkan dan diganti dengan Tagihan ${tagihan.replacedByNomorTagihan}. Silakan gunakan tagihan yang baru.`
             : "Tagihan ini sudah dibatalkan karena batas pembayarannya lewat, sehingga tidak bisa dibayar lagi."}
+        </p>
+      ) : null}
+      {notPayableBecause === "batas_pembayaran_lewat" ? (
+        <p className="rounded-lg border border-dashed px-4 py-3">
+          Batas pembayaran Tagihan ini sudah lewat, sehingga tidak bisa dibayar lagi.
         </p>
       ) : null}
       <Facts
@@ -80,6 +100,14 @@ function TagihanView({ tagihan }: { tagihan: Tagihan }) {
         ]}
       />
       <Lines lines={tagihan.lines} total={tagihan.total} totalLabel="Total tagihan" />
+      {notPayableBecause === null ? <BayarForm link={link} total={tagihan.total} /> : null}
+      {buktiLink ? (
+        <div className="print:hidden">
+          <a href={documentPagePath(buktiLink)} className={buttonVariants({ variant: "outline" })}>
+            Lihat Bukti Pembayaran
+          </a>
+        </div>
+      ) : null}
       <p className="text-muted-foreground">
         {tagihan.kind === "pay_after"
           ? "Tagihan ini dibayar setelah pemakaman. Pembayaran boleh dilakukan oleh siapa saja yang memegang tautan tagihan ini."
@@ -87,6 +115,22 @@ function TagihanView({ tagihan }: { tagihan: Tagihan }) {
       </p>
       <DocumentFoot header={tagihan.header} />
     </>
+  );
+}
+
+/** Bayar: on to the payment page (Virtual Account or QRIS). Never printed. */
+function BayarForm({ link, total }: { link: string; total: number }) {
+  return (
+    <form action={bayarTagihan} className="flex flex-col gap-2 print:hidden sm:items-start">
+      <input type="hidden" name="link" value={link} />
+      <Button type="submit" size="lg" className="px-6">
+        Bayar {formatRupiah(total)}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Bayar dengan Virtual Account (VA) atau QRIS. Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas
+        setelah pembayaran kami terima; muat ulang halaman ini sebentar lagi.
+      </p>
+    </form>
   );
 }
 

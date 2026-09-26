@@ -34,7 +34,7 @@ describe("the Tagihan page", () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);
 
-    expect(await setup.billing.documentByLink(tagihan.link)).toEqual({ type: "tagihan", tagihan });
+    expect(await setup.billing.documentByLink(tagihan.link)).toEqual({ type: "tagihan", tagihan, buktiLink: null, notPayableBecause: null });
     expect(await setup.billing.documentByLink("x".repeat(43))).toBeNull();
     expect(await setup.billing.documentByLink("TGH/2026/000001")).toBeNull();
   });
@@ -87,6 +87,15 @@ describe("Bukti Pembayaran", () => {
       },
     });
     expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "lunas" });
+  });
+
+  it("a Lunas Tagihan's page leads to its Bukti Pembayaran", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const paid = await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null });
+    if (!paid.ok) throw new Error("not paid");
+
+    expect(await setup.billing.documentByLink(tagihan.link)).toMatchObject({ type: "tagihan", buktiLink: paid.bukti.link, notPayableBecause: "sudah_lunas" });
   });
 
   it("is found by its own unguessable link and downloads as a PDF named after its number", async () => {

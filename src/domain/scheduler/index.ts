@@ -12,14 +12,22 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
-import { lapsePayFirstTagihanTick } from "@/domain/billing";
+import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
+import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
 export { HEARTBEAT_FRESH_FOR_SECONDS, type WorkerHeartbeat } from "./heartbeat";
 
+/**
+ * What every tick is given: the database, plus what some ticks need from the
+ * composition (built once for the worker in src/composition/scheduler.ts).
+ */
 export interface SchedulerContext {
   db: Database;
+  /** The downstream effects of a payment (src/composition/billing.ts), for re-running failed ones. */
+  paymentEffects: readonly PaymentEffect[];
+  reportError: ReportError;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -33,12 +41,12 @@ export interface ScheduledTick {
 }
 
 /** The worker's heartbeat tick: proves the scheduler is alive. */
-export async function heartbeatTick(ctx: SchedulerContext, now: Date): Promise<void> {
+export async function heartbeatTick(ctx: { db: Database }, now: Date): Promise<void> {
   await recordHeartbeat(ctx.db, now);
 }
 
 /** The worker's last heartbeat as seen at `now`; fresh while younger than `HEARTBEAT_FRESH_FOR_SECONDS`. */
-export async function workerHeartbeat(ctx: SchedulerContext, now: Date): Promise<WorkerHeartbeat> {
+export async function workerHeartbeat(ctx: { db: Database }, now: Date): Promise<WorkerHeartbeat> {
   return readHeartbeat(ctx.db, now);
 }
 
@@ -52,8 +60,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
   // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
+  // Billing: a downstream effect of a payment that failed is run again (ticket 19).
+  { name: "billing.retry_payment_effects", cron: "*/10 * * * *", tick: retryFailedPaymentEffectsTick },
 ];
 
-async function pruneIpRequestsTick(ctx: SchedulerContext, now: Date): Promise<void> {
+async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
   await pruneIpRequests(ctx, now);
 }

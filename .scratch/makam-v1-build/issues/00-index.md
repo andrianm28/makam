@@ -24,7 +24,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
 | [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | resolved | 12, 63 |
-| [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | ready-for-agent | 18 |
+| [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | resolved | 18 |
 | [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18, 82 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
 | [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16, 82 |

@@ -41,6 +41,8 @@ export interface PaymentEvent {
   providerPaymentId: string;
   reference: string;
   amountRupiah: number;
+  /** What the payer paid with, as the provider names it (e.g. "QRIS", "VA BCA"), when it says. */
+  channel: string | null;
   occurredAt: Date;
 }
 

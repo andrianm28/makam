@@ -1,13 +1,13 @@
 import type { PgBoss } from "pg-boss";
 import { createPgBoss } from "@/db/pg-boss";
-import type { Database } from "@/db/client";
-import type { ScheduledTick } from "@/domain/scheduler";
+import type { ScheduledTick, SchedulerContext } from "@/domain/scheduler";
 import { JAKARTA_TIME_ZONE } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
 
 export interface WorkerOptions {
   connectionString: string;
-  db: Database;
+  /** What every tick is given (src/composition/scheduler.ts). */
+  context: SchedulerContext;
   clock: Clock;
   ticks: readonly ScheduledTick[];
   /** Tests only: run every tick on this cron instead of its own. */
@@ -62,7 +62,7 @@ export async function startWorker(options: WorkerOptions): Promise<RunningWorker
       { pollingIntervalSeconds: options.pollingIntervalSeconds ?? 2 },
       async () => {
         try {
-          await scheduled.tick({ db: options.db }, options.clock.now());
+          await scheduled.tick(options.context, options.clock.now());
         } catch (error) {
           options.onError?.(error, { job: scheduled.name });
           throw error;

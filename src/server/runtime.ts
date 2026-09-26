@@ -2,16 +2,17 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
+import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
-import { createBilling, type Billing } from "@/domain/billing";
-import { documentPagePath } from "@/lib/document-links";
+import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
+import type { ReportError } from "@/lib/observability/report-error";
 import type { Adapters } from "@/ports";
 
 export interface ServerRuntime {
@@ -49,6 +50,7 @@ export function serverRuntime(): ServerRuntime {
       chromiumPath: env.CHROMIUM_PATH,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+    const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
     const notifications = createNotifications({
       db: database.db,
       clock: adapters.clock,
@@ -56,7 +58,7 @@ export function serverRuntime(): ServerRuntime {
       webPush: adapters.webPush,
       identity,
       audit,
-      reportError: (error, context) => Sentry.captureException(error, context),
+      reportError,
     });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
@@ -70,13 +72,7 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       operatorSettings,
       tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi }),
-      billing: createBilling({
-        db: database.db,
-        clock: adapters.clock,
-        operatorSettings,
-        pdf: adapters.pdf,
-        documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
-      }),
+      billing: composeBilling({ env, db: database.db, adapters, operatorSettings, reportError }),
     };
   }
   return globalForRuntime.__makamRuntime;
