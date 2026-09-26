@@ -654,6 +654,7 @@ v1 ships in three releases so the first can go live sooner. Nothing is dropped; 
 - **Rilis 2**: the Makam keluarga hub and Perpanjangan (34, 35, 39–42), Layanan and Mitra Jasa (49–57), Lokasi Ditangguhkan / Berhenti (59), the Pintu Masuk cell on the Denah (84).
 - **Rilis 3**: DKI TPU (43–48) and Wakaf Tanah (58).
 - Until their release, the homepage tiles and menu items for Perpanjang Makam, Layanan Makam, Urus di TPU DKI and Wakaf Tanah show "Segera hadir" with the CS link, and the trust strip makes no claim about TPU paperwork. No Hak Pakai exists on the platform at launch (the Excel import is out of scope), so Perpanjangan is not needed in Rilis 1.
+- **Beta UAT push (user decision, 2026-09-26, later):** v1 goes live as soon as possible as a beta for UAT. AWS S3 (ticket 03) moves to v2. Payments use the SumoPod **sandbox** in v1 (ticket 04 for live keys later). Photos and reference content are dummy data from free stock images (ticket 06 later). Beta data is seeded from the old app's data (ticket 65). The interim logo stays until the designer's vector arrives. The Rp 10 juta cap is accepted for v1; v2 adds more payment gateways (Xendit, Midtrans, DOKU, Stripe and others) and lifts it.
 - Next milestone: a family can book Saat Duka on staging (82 → 13–17 → 19–20 → 22–25).
 
 ## Testing Decisions

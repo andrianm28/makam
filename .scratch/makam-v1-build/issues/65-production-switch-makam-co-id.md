@@ -20,3 +20,4 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
 ## Comments
 
 - 2026-09-26 — ADR 0004: now also blocked by 68: the live SumoPod SMTP EmailSender is a launch requirement, since email carries every Kode Masuk and family message. The WhatsApp vendor items (ticket 05) are out of v1 and no longer part of the pre-launch checklist.
+- 2026-09-26 — User decision: take data from the old app as dummy data for the v1 beta UAT (scope and privacy rules pending, see the index).
