@@ -57,6 +57,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      # Push, and so run e2e and the scan, only on main. PRs and other branches
+      # build the image without pushing it.
+      PUSH: ${{ github.ref == 'refs/heads/main' }}
+    outputs:
+      pushed: ${{ env.PUSH }}
+      # ghcr.io/andrianm28/makam, sha-<commit> and the pushed digest: e2e, the
+      # scan and the deploy jobs all use `<image>:<tag>@<digest>`, this exact image.
+      image: ${{ steps.image.outputs.name }}
+      tag: sha-${{ github.sha }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -71,18 +82,169 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
       - uses: docker/login-action@v3
-        if: github.ref == 'refs/heads/main'
+        if: env.PUSH == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  e2e:
+    name: E2E (Playwright against the pushed image)
+    runs-on: ubuntu-latest
+    needs: image
+    if: needs.image.outputs.pushed == 'true'
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      # The staging compose file with CI's development settings (deploy/ci/e2e.env):
+      # the image's own Postgres, in-memory fakes, web on 127.0.0.1:3310.
+      MAKAM_IMAGE: ${{ needs.image.outputs.image }}
+      MAKAM_TAG: ${{ needs.image.outputs.tag }}@${{ needs.image.outputs.digest }}
+      COMPOSE: docker compose -p makam-e2e -f docker-compose.prod.yml --env-file deploy/ci/e2e.env
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Start the image (migrate first, then web and worker)
+        run: |
+          # The compose file joins GlitchTip's network on the host; here it is just empty.
+          docker network create glitchtip_ingest
+          $COMPOSE pull --quiet
+          $COMPOSE run --rm migrate
+          $COMPOSE up -d --wait --wait-timeout 180
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: browsers
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+      - name: Install Chromium
+        if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system packages
+        if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Playwright critical paths
+        env:
+          E2E_SEED_ADMIN: ${{ env.COMPOSE }} exec -T web node dist/seed-admin.mjs
+        run: npm run e2e
+      - name: Stack logs
+        if: failure()
+        run: mkdir -p test-results && $COMPOSE logs --no-color --timestamps > test-results/stack.log 2>&1 || true
+      - name: Upload traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: test-results/
+          retention-days: 14
+      - name: Stop the stack
+        if: always()
+        run: $COMPOSE down -v
+
+  scan:
+    name: Image scan (Trivy, fail on fixable CRITICAL)
+    runs-on: ubuntu-latest
+    needs: image
+    if: needs.image.outputs.pushed == 'true'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    env:
+      IMAGE: ${{ needs.image.outputs.image }}:${{ needs.image.outputs.tag }}@${{ needs.image.outputs.digest }}
+      # Pinned by version and digest; runs as a container (no third-party action).
+      TRIVY: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull the image
+        run: docker pull --quiet "$IMAGE"
+      - name: Cache key (one vulnerability database a day)
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ steps.day.outputs.day }}
+          restore-keys: trivy-
+      - name: Scan
+        run: |
+          mkdir -p ~/.cache/trivy trivy
+          trivy() {
+            docker run --rm --user "$(id -u):$(id -g)" --group-add "$(stat -c %g /var/run/docker.sock)" \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v ~/.cache/trivy:/cache -v "$PWD":/work -w /work \
+              "$TRIVY" image --cache-dir /cache --image-src docker --ignorefile .trivyignore --quiet "$@" "$IMAGE"
+          }
+          # Every finding, for the record (SARIF).
+          trivy --format sarif --output trivy/trivy.sarif
+          # The gate: any CRITICAL with a fix fails the run (.trivyignore holds the accepted exceptions).
+          status=0
+          trivy --skip-db-update --severity CRITICAL --ignore-unfixed --exit-code 1 --format table --output trivy/critical.txt || status=$?
+          {
+            echo "### Trivy: fixable CRITICAL vulnerabilities in \`${IMAGE%@*}\`"
+            echo '```'
+            cat trivy/critical.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat trivy/critical.txt
+          exit "$status"
+      - name: Upload findings (SARIF)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-findings
+          path: trivy/
+          retention-days: 30
+      # Private repo without GitHub code scanning: set the repo variable
+      # CODE_SCANNING=true once it is enabled to also show findings there.
+      - name: Upload findings to code scanning
+        if: always() && vars.CODE_SCANNING == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy/trivy.sarif
+          category: trivy-image
+
+  # The one job a deploy needs: `needs: deploy-gate` (ticket 72). It runs only
+  # when e2e and the scan both passed on the pushed image, and hands on that
+  # exact image.
+  deploy-gate:
+    name: Deploy gate (e2e and scan passed)
+    runs-on: ubuntu-latest
+    needs: [image, e2e, scan]
+    outputs:
+      image: ${{ needs.image.outputs.image }}
+      tag: ${{ needs.image.outputs.tag }}
+      digest: ${{ needs.image.outputs.digest }}
+    steps:
+      - run: echo "${{ needs.image.outputs.image }}:${{ needs.image.outputs.tag }}@${{ needs.image.outputs.digest }} passed e2e and the image scan."
