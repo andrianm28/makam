@@ -23,9 +23,12 @@ fi
 if [ -z "${CHROMIUM_PATH:-}" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   chrome="$(command -v google-chrome || command -v chromium || true)"
   if [ -z "$chrome" ]; then
-    # The cloud image ships Playwright's Chromium under PLAYWRIGHT_BROWSERS_PATH (/opt/pw-browsers).
-    chrome="$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"/chromium-*/chrome-linux*/chrome \
-      "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -n 1 || true)"
+    # The cloud image ships Playwright's Chromium under PLAYWRIGHT_BROWSERS_PATH (/opt/pw-browsers);
+    # prefer it, then ~/.cache/ms-playwright; within a directory take the newest version.
+    for dir in ${PLAYWRIGHT_BROWSERS_PATH:+"$PLAYWRIGHT_BROWSERS_PATH"} "$HOME/.cache/ms-playwright"; do
+      chrome="$(ls -d "$dir"/chromium-*/chrome-linux*/chrome 2>/dev/null | sort -V | tail -n 1 || true)"
+      [ -n "$chrome" ] && break
+    done
   fi
   [ -n "$chrome" ] && echo "export CHROMIUM_PATH=\"$chrome\"" >> "$CLAUDE_ENV_FILE"
 fi
