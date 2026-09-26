@@ -637,6 +637,15 @@ Core entities at a glance (details in each module):
 - **Order**: shell, design system and patterns first; existing staff pages migrate onto them; new pages from later tickets (public pages in tickets 22, 26 and 29 included) use them from the start.
 - **Process**: a throwaway clickable prototype (mattpocock-skills:prototype) for the user to react to, restyled to the brand, then tickets on the tracker, each built test-first with the two-axis review.
 
+### Maps on public pages (decided with the user, 2026-09-26, following makam-app)
+
+- Same approach as the frozen makam-app (`Cemetery::googleMapsUrl()` / `embedMapUrl()` in `/home/ubuntu/makam-app/app/Domain/CemeteryDirectory/Models/Cemetery.php`): **keyless Google Maps**, no API key and no billing.
+- The Lokasi page embeds `https://www.google.com/maps?q=<lat>,<lng>&output=embed` in a lazily loaded iframe; a **"Petunjuk arah"** link opens `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>` in a new tab (the Google Maps app on phones). The same link sits on Daftar Lokasi cards and on the Bukti Pemesanan.
+- Coordinates come from the Lokasi's pin (set by staff with the existing OpenStreetMap pin picker, updated by a Kunjungan Verifikasi). Without coordinates (e.g. a TPU with only a street address) the address text is the query; with neither, no map and no link are shown, and a pin is never invented. The textual address always shows, and a failing map never blocks the page.
+- The Content-Security-Policy allows `frame-src https://www.google.com` only for this.
+- Loading the embed sends the visitor's browser to Google (outside Indonesia); it is a visitor-side flow, listed with the other data flows. No consent banner (legal compliance is out of scope).
+- A map of the whole Daftar Lokasi (it would need the paid Maps JavaScript API) is not in v1.
+
 ### Release plan (decided with the user, 2026-09-26)
 
 v1 ships in three releases so the first can go live sooner. Nothing is dropped; later releases follow the same spec.

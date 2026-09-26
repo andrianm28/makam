@@ -20,3 +20,4 @@ The Admin Lokasi records the Pemakaman (date, Petak, layer), prompted by a Catat
 ## Comments
 
 - 2026-09-26 — ADR 0004: the Bukti Pemesanan link goes by email; the Playwright path uses the email Kode Masuk (criteria updated).
+- 2026-09-26 — The Bukti Pemesanan carries the Lokasi's "Petunjuk arah" Google Maps link (spec, "Maps on public pages").
