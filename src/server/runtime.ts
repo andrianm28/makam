@@ -6,6 +6,7 @@ import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
+import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
 import { createNotifications, type Notifications } from "@/domain/notifications";
@@ -32,6 +33,8 @@ export interface ServerRuntime {
   billing: Billing;
   /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga). */
   inventory: Inventory;
+  /** Field Work: Tugas Lapangan for Petugas Lapangan (Kunjungan Verifikasi, Cek Denah). */
+  fieldwork: Fieldwork;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -82,6 +85,15 @@ export function serverRuntime(): ServerRuntime {
       tariffs,
       billing: composeBilling({ env, db: database.db, adapters, operatorSettings, reportError }),
       inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
+      fieldwork: createFieldwork({
+        db: database.db,
+        clock: adapters.clock,
+        files: adapters.files,
+        audit,
+        identity,
+        notifications,
+        lokasi,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;
