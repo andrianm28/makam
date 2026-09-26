@@ -11,6 +11,7 @@ import type { Account } from "./login";
 import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityUser } from "./schema";
+import { rolesOf } from "./staff";
 
 /*
  * The Akun's own email (Akun Saya, and the staff area for an Akun Staf). It is
@@ -170,7 +171,18 @@ async function markVerified(deps: EmailDeps, by: Actor, email: string): Promise<
 export type MarkEmailVerifiedByOpsResult =
   | { ok: true; account: Account; email: string }
   | PhoneNumberRejection
-  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" };
+  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" }
+  | OpsEmailVerificationRefusal;
+
+/**
+ * Why the email on record cannot be marked: the Akun has none, it already is
+ * the Akun's Email Terverifikasi, or another Akun already has it as its Email
+ * Terverifikasi (the unique index decides, as in Verifikasi Email).
+ */
+export type OpsEmailVerificationRefusal = {
+  ok: false;
+  reason: "tanpa_email" | "sudah_terverifikasi" | "email_sudah_dipakai";
+};
 
 /**
  * Ops (`verify-email` CLI): marks the email on record of an existing Admin
@@ -186,21 +198,42 @@ export async function markEmailVerifiedByOps(
   if (!normalised.ok) return normalised;
   const { phoneNumber } = normalised;
   const reason = input.reason.trim();
+  if (!reason) return { ok: false, reason: "alasan_wajib" };
 
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const [user] = await tx
-      .select({ id: identityUser.id })
-      .from(identityUser)
-      .where(eq(identityUser.phoneNumber, phoneNumber));
-    if (!user) return { ok: false, reason: "bukan_admin_platform" } as const;
-    const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
-      accountId: user.id,
-      actorRole: "ops_cli",
-      reason,
-    });
-    if (!marked.ok) return marked;
-    return { ok: true, account: { id: user.id, phoneNumber }, email: marked.email } as const;
-  });
+  return verifiedEmailTakenAsRefusal(() =>
+    deps.audit.staffWrite(deps.db, async (tx, record) => {
+      const [user] = await tx
+        .select({ id: identityUser.id })
+        .from(identityUser)
+        .where(eq(identityUser.phoneNumber, phoneNumber));
+      if (!user || !(await rolesOf(tx, user.id)).includes("admin_platform")) {
+        return { ok: false, reason: "bukan_admin_platform" } as const;
+      }
+      const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
+        accountId: user.id,
+        actorRole: "ops_cli",
+        reason,
+      });
+      if (!marked.ok) return marked;
+      return { ok: true, account: { id: user.id, phoneNumber }, email: marked.email } as const;
+    }),
+  );
+}
+
+/**
+ * Runs a staff write that may mark an Email Terverifikasi: when the database's
+ * unique index refuses it (another Akun has that Email Terverifikasi, already
+ * or by winning a race), the transaction has rolled back and this is the refusal.
+ */
+export async function verifiedEmailTakenAsRefusal<T>(
+  write: () => Promise<T>,
+): Promise<T | { ok: false; reason: "email_sudah_dipakai" }> {
+  try {
+    return await write();
+  } catch (error) {
+    if (isVerifiedEmailTaken(error)) return { ok: false, reason: "email_sudah_dipakai" };
+    throw error;
+  }
 }
 
 /**
@@ -214,13 +247,15 @@ export async function recordOpsEmailVerification(
   record: RecordEntry,
   clock: Clock,
   input: { accountId: string; actorRole: "ops_cli" | "seed_cli"; reason: string },
-): Promise<{ ok: true; email: string } | { ok: false; reason: never }> {
+): Promise<{ ok: true; email: string } | OpsEmailVerificationRefusal> {
   const [row] = await tx
-    .select({ email: identityUser.contactEmail })
+    .select({ email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
     .from(identityUser)
     .where(eq(identityUser.id, input.accountId))
     .for("update");
-  const email = row?.email ?? "";
+  const email = row?.email;
+  if (!email) return { ok: false, reason: "tanpa_email" };
+  if (row.verifiedAt) return { ok: false, reason: "sudah_terverifikasi" };
   const now = clock.now();
   await tx.update(identityUser).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
   await record({
@@ -228,8 +263,8 @@ export async function recordOpsEmailVerification(
     actor: { accountId: input.accountId, role: input.actorRole },
     action: "akun.email_verifikasi",
     entity: { kind: "akun", id: input.accountId },
-    before: { email, terverifikasi: false },
-    after: { email, terverifikasi: true },
+    before: { terverifikasi: false },
+    after: { terverifikasi: true },
     reason: input.reason,
   });
   return { ok: true, email };
