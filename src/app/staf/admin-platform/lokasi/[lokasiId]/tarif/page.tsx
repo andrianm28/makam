@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,16 +90,10 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <Link href={`/staf/admin-platform/lokasi/${lokasiMitra.id}`} className="text-sm underline underline-offset-4">
-          {lokasiMitra.name}
-        </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">Tarif</h1>
-        <p className="text-sm text-muted-foreground">
-          Hanya Admin Platform yang memasukkan tarif, sesuai perjanjian. Setiap perubahan adalah versi baru dengan tanggal berlaku;
-          versi lama tidak pernah diubah atau dihapus, dan setiap perubahan tercatat di Audit Log Lokasi ini.
-        </p>
-      </div>
+      <p className="text-body text-muted-foreground">
+        Hanya Admin Platform yang memasukkan tarif, sesuai perjanjian. Setiap perubahan adalah versi baru dengan tanggal berlaku;
+        versi lama tidak pernah diubah atau dihapus, dan setiap perubahan tercatat di Audit Log Lokasi ini.
+      </p>
 
       <Section id="diperiksa" title="Tarif diperiksa" description="Syarat tayang: tarif sudah dicocokkan dengan perjanjian.">
         {checked ? (

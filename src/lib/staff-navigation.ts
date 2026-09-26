@@ -239,6 +239,7 @@ const subPages: Record<string, string> = {
   "audit-log": "Audit Log",
   "jam-operasional": "Jam Operasional",
   denah: "Denah",
+  "admin-lokasi": "Admin Lokasi",
 };
 
 /**

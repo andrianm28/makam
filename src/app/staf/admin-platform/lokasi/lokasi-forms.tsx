@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { PinPicker } from "@/components/map/pin-picker";
+import { ConfirmDialog } from "@/components/makam/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import type { LokasiFlags, LokasiMitra, LokasiPolicies } from "@/domain/lokasi";
 import type { FormState } from "../../form-state";
@@ -297,21 +298,31 @@ export function InviteAdminLokasiForm({ lokasiId }: { lokasiId: string }) {
   );
 }
 
-/** Removes one Admin Lokasi from this Lokasi Mitra, with a reason. */
+/** Removes one Admin Lokasi from this Lokasi Mitra, with a reason (ConfirmDialog: Audit Log needs one). */
 export function RemoveAdminLokasiForm({ lokasiId, accountId }: { lokasiId: string; accountId: string }) {
   const [state, action, pending] = useActionState(lepasAdminLokasi, idle);
+  const formId = `lepas-admin-lokasi-${accountId}`;
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
-      <input type="hidden" name="lokasiId" value={lokasiId} />
-      <input type="hidden" name="accountId" value={accountId} />
-      <label className="sr-only" htmlFor={`alasan-lepas-${accountId}`}>
-        Alasan
-      </label>
-      <input id={`alasan-lepas-${accountId}`} name="reason" required maxLength={500} placeholder="Alasan" className={inputClass} />
-      <Button type="submit" variant="destructive" size="sm" disabled={pending}>
-        Lepas
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="lokasiId" value={lokasiId} />
+        <input type="hidden" name="accountId" value={accountId} />
+      </form>
+      <ConfirmDialog
+        formId={formId}
+        pending={pending}
+        variant="destructive"
+        confirmLabel="Lepas"
+        title="Lepas Admin Lokasi ini?"
+        description="Akun ini tidak lagi menjadi Admin Lokasi di Lokasi Mitra ini."
+        reason={{ name: "reason", label: "Alasan", placeholder: "Alasan pelepasan, untuk Audit Log" }}
+        trigger={
+          <Button type="button" variant="destructive" size="sm">
+            Lepas
+          </Button>
+        }
+      />
       <Feedback state={state} />
-    </form>
+    </div>
   );
 }

@@ -42,6 +42,7 @@ import {
   type SetPoliciesResult,
   type WriteResult,
 } from "./lokasi-mitra";
+import { searchLokasiMitra, type LokasiMitraListPage, type LokasiMitraListQuery } from "./lokasi-list";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiProfileInput } from "./profile";
 import { fullLokasiAuditLog, lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
@@ -105,6 +106,20 @@ export type { KontakSiaga, KontakSiagaResult, PickKontakSiagaResult } from "./ko
 export { hariLiburNasionalSchema, type AddHariLiburNasionalResult, type RemoveHariLiburNasionalResult } from "./calendars";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
+export {
+  publishGate,
+  type PublishGate,
+  type PublishGateFacts,
+  type PublishGateItem,
+  type PublishGateKey,
+} from "./publish-gate";
+export {
+  LOKASI_LIST_DEFAULT_PAGE_SIZE,
+  LOKASI_LIST_MAX_PAGE_SIZE,
+  type LokasiMitraListPage,
+  type LokasiMitraListQuery,
+  type LokasiMitraListRow,
+} from "./lokasi-list";
 export {
   DEFAULT_FLAGS,
   DEFAULT_POLICIES,
@@ -186,6 +201,11 @@ export interface Lokasi {
   ): Promise<RemoveAdminLokasiFromLokasiResult>;
   /** Every Lokasi Mitra, by name (Admin Platform; empty for anyone else). */
   allLokasiMitra(by: Actor): Promise<LokasiMitraSummary[]>;
+  /**
+   * One page of the Lokasi Mitra list, by name (Admin Platform; an empty page for anyone else): searched by a part of
+   * the name, kota / kabupaten or pengelola, filtered by status.
+   */
+  searchLokasiMitra(by: Actor, query: LokasiMitraListQuery): Promise<LokasiMitraListPage>;
   /** The Lokasi Mitra the actor is Admin Lokasi of, by name: the Lokasi switcher. */
   lokasiMitraOfAdminLokasi(by: Actor): Promise<LokasiMitraSummary[]>;
   /** How many Lokasi Mitra are in each status (Admin Platform; all zero for anyone else). */
@@ -253,6 +273,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     adminLokasiOf: (by, lokasiId) => adminLokasiOfLokasi(deps, by, lokasiId),
     removeAdminLokasi: (by, lokasiId, input) => removeAdminLokasiFromLokasi(deps, by, lokasiId, input),
     allLokasiMitra: (by) => allLokasiMitra(deps, by),
+    searchLokasiMitra: (by, query) => searchLokasiMitra(deps, by, query),
     lokasiMitraOfAdminLokasi: (by) => lokasiMitraOfAdminLokasi(deps, by),
     lokasiMitraCountsByStatus: (by) => lokasiMitraCountsByStatus(deps, by),
     auditLog: (by, lokasiId) => lokasiAuditLog(deps, by, lokasiId),

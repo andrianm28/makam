@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GLOBAL_TARIFF_KEYS, type GlobalTariffKey } from "@/domain/tariffs";
 import { formatTanggal, formatWib, wibDateOf } from "@/lib/time/jakarta";
@@ -31,15 +31,10 @@ export default async function TarifGlobalPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <Link href="/staf/admin-platform" className="text-sm underline underline-offset-4">
-          Menu Admin Platform
-        </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">Tarif global</h1>
-        <p className="text-sm text-muted-foreground">
-          Setiap perubahan adalah versi baru dengan tanggal berlaku (boleh di masa depan). Versi lama tidak pernah diubah atau dihapus.
-        </p>
-      </div>
+      <PageHeader
+        title="Tarif global"
+        description="Setiap perubahan adalah versi baru dengan tanggal berlaku (boleh di masa depan). Versi lama tidak pernah diubah atau dihapus."
+      />
       {books.map(({ key, inForce, history }) => {
         const scheduled = history.filter((version) => version.inForceFrom > now);
         return (
@@ -49,7 +44,7 @@ export default async function TarifGlobalPage() {
                 <CardTitle id={`tarif-${key}`}>{globalTariffLabels[key]}</CardTitle>
                 <CardDescription>{descriptions[key]}</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-4 text-sm">
+              <CardContent className="flex flex-col gap-4 text-body">
                 <p data-testid={`berlaku-${key}`}>
                   {inForce
                     ? `Saat ini ${formatRupiah(inForce.amount)} · Harga berlaku sejak ${formatTanggal(inForce.effectiveOn)}`
