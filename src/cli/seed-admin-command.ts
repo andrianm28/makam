@@ -8,10 +8,13 @@ import { readRuntimeEnv } from "@/lib/env";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { cliFailure } from "./cli-failure";
 
-const USAGE = "Pakai: seed:admin <nomor WhatsApp +62> <email> [--email-terverifikasi]";
+const USAGE = "Pakai: seed:admin --email <email> --phone <nomor telepon +62>";
 const argsSchema = z.object({
-  positionals: z.tuple([z.string().trim().min(1).max(32), z.string().trim().min(1).max(254)]),
-  values: z.object({ "email-terverifikasi": z.boolean().optional() }),
+  positionals: z.tuple([]),
+  values: z.object({
+    email: z.string().trim().min(1).max(254),
+    phone: z.string().trim().min(1).max(32),
+  }),
 });
 
 type Refusal = Extract<SeedResult, { ok: false }>["reason"];
@@ -20,36 +23,32 @@ const refusals: Record<Refusal, string> = {
   email_tidak_valid: "Ditolak: email tidak valid.",
   nomor_tidak_valid: `Ditolak: ${phoneNumberRefusals.nomor_tidak_valid}`,
   nomor_bukan_indonesia: `Ditolak: ${phoneNumberRefusals.nomor_bukan_indonesia}`,
-  email_sudah_dipakai: "Ditolak: email ini sudah menjadi Email Terverifikasi Akun lain. Tidak ada yang dibuat.",
 };
 
 /**
- * `npm run seed:admin <phone> <email> [--email-terverifikasi]` / `node dist/seed-admin.mjs ...`:
- * the only seed (spec, Pengaturan Operator). Creates the first Admin Platform
- * and nothing else; refused once an Admin Platform exists. With
- * `--email-terverifikasi` its email is already its Email Terverifikasi, so it
- * can log in by email before live WhatsApp. Exit 0 created, 1 refused or
- * failed, 2 usage.
+ * `npm run seed:admin -- --email <email> --phone <phone>` / `node dist/seed-admin.mjs ...`:
+ * the only seed (spec, Pengaturan Operator). Creates the first Admin Platform,
+ * keyed by its email as its Email Terverifikasi (ADR 0004), with the phone
+ * number as contact, and nothing else; refused once an Admin Platform exists.
+ * Exit 0 created, 1 refused or failed, 2 usage.
  */
 export async function seedAdminCommand(
   argv: string[],
   source: Record<string, string | undefined> = process.env,
 ): Promise<{ exitCode: number; output: string }> {
-  let phoneNumber: string;
   let email: string;
-  let emailTerverifikasi: boolean;
+  let phoneNumber: string;
   try {
     const args = argsSchema.safeParse(
       parseArgs({
         args: argv,
-        options: { "email-terverifikasi": { type: "boolean" } },
+        options: { email: { type: "string" }, phone: { type: "string" } },
         allowPositionals: true,
         strict: true,
       }),
     );
     if (!args.success) return { exitCode: 2, output: USAGE };
-    [phoneNumber, email] = args.data.positionals;
-    emailTerverifikasi = args.data.values["email-terverifikasi"] ?? false;
+    ({ email, phone: phoneNumber } = args.data.values);
   } catch {
     return { exitCode: 2, output: USAGE };
   }
@@ -60,12 +59,11 @@ export async function seedAdminCommand(
     try {
       const adapters = createAdapters({ appEnv: env.APP_ENV, smtp: env.smtp, vapid: env.vapid });
       const { identity } = composeIdentity({ env, db: database.db, adapters });
-      const result = await identity.seedFirstAdminPlatform({ phoneNumber, email, emailTerverifikasi });
+      const result = await identity.seedFirstAdminPlatform({ email, phoneNumber });
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };
-      const [label, masuk] = emailTerverifikasi ? [", Email Terverifikasi", "/masuk dengan email"] : ["", "/masuk"];
       return {
         exitCode: 0,
-        output: `Admin Platform pertama dibuat: ${result.account.phoneNumber} (${email.toLowerCase()}${label}). Masuk lewat ${masuk}, lalu daftarkan TOTP.`,
+        output: `Admin Platform pertama dibuat: ${result.account.email} (Email Terverifikasi; telepon ${result.account.phoneNumber}). Masuk lewat /masuk dengan Kode Masuk ke email itu, lalu daftarkan TOTP.`,
       };
     } finally {
       await database.close();

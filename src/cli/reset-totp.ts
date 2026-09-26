@@ -1,6 +1,6 @@
 /**
- * `npm run reset-totp -- <phone> --alasan "<reason>"` (dev) or, in the image,
- * `node dist/reset-totp.mjs <phone> --alasan "<reason>"`: resets a lost Admin
+ * `npm run reset-totp -- <email> --alasan "<reason>"` (dev) or, in the image,
+ * `node dist/reset-totp.mjs <email> --alasan "<reason>"`: resets a lost Admin
  * Platform authenticator. See docs/ops/runbook.md.
  */
 import { cliFailure } from "./cli-failure";
