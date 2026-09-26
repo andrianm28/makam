@@ -21,3 +21,4 @@ The payment paths outside the provider. Admin Platform marks a Tagihan paid by h
 
 - 2026-09-26 — From ticket 18 review (user decision): a reissued Tagihan keeps the original due date. So Admin Platform cannot reissue (e.g. add a Harga Khusus to) a pay-first Tagihan that is already past its due date: the action is refused with a clear message, and the order is placed again instead. A Rp 0 Tagihan is already Lunas at issue (ticket 18).
 - 2026-09-26 — User decision: online payment in v1 is QRIS only (Bank Indonesia caps QRIS at Rp 10.000.000 per transaction); a Tagihan above that shows no Bayar button but the Operator's bank account for a transfer, recorded by Admin Platform as a manual payment (ticket 30); no Virtual Account in v1.
+- 2026-09-26 — User decision (supersedes the same-day manual-transfer note): v1 takes no order whose Tagihan would exceed Rp 10.000.000 (QRIS cap); see spec, Billing. No manual-transfer path for amounts above it in v1.
