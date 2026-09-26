@@ -98,6 +98,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               icon: UserRoundCheckIcon,
               description: "Pindahkan Akun ke Email Terverifikasi baru setelah cek KTP.",
             },
+            {
+              label: "Tugas Lapangan",
+              href: `${AP}/tugas-lapangan`,
+              icon: ClipboardListIcon,
+              description: "Buat dan tugaskan Kunjungan Verifikasi, Cek Denah dan Tugas Lapangan lain ke Petugas Lapangan.",
+            },
           ],
         },
         {
@@ -145,7 +151,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           label: "Lapangan",
           items: [
             beranda(staffRoleHome("petugas_lapangan"), "Pekerjaan lapangan Anda."),
-            { label: "Tugas", icon: ClipboardListIcon, description: SEGERA },
+            {
+              label: "Tugas",
+              href: `${staffRoleHome("petugas_lapangan")}/tugas`,
+              icon: ClipboardListIcon,
+              description: "Tugas Lapangan yang ditugaskan ke Anda: alamat, pin, tanggal rencana dan formulirnya.",
+            },
           ],
         },
       ];

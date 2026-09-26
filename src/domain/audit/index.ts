@@ -108,7 +108,15 @@ export type AuditAction =
   /** An Admin Lokasi clears a newly drawn Petak or Kavling Keluarga: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai, its Pemegang Hak and, when known, its first Pemakaman). */
   | "denah.bersihkan_petak"
   /** Admin Platform renumbers a Petak Makam, the old Nomor Makam kept as a hidden alias. */
-  | "petak.nomor_ulang";
+  | "petak.nomor_ulang"
+  /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
+  | "tugas_lapangan.buat"
+  /** A Petugas Lapangan marks a Tugas Lapangan Selesai (its required uploads and type-specific form). */
+  | "tugas_lapangan.selesai"
+  /** A completed Kunjungan Verifikasi updates a Lokasi's pin, facilities, photos and "dikunjungi" date. */
+  | "lokasi.catat_kunjungan_verifikasi"
+  /** A completed Cek Denah is recorded on a Lokasi (ticket 16's Terencana-switch input). */
+  | "lokasi.catat_cek_denah";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

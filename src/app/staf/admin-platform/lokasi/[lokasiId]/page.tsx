@@ -12,6 +12,7 @@ import {
   PoliciesForm,
   ProfileForm,
 } from "../lokasi-forms";
+import { MintaKunjunganUlangForm } from "./minta-kunjungan-ulang-form";
 
 const facilityOptions = Object.entries(lokasiFacilities).map(([value, label]) => ({ value, label }));
 
@@ -33,7 +34,7 @@ const publishGateCopy: Record<PublishGateKey, { label: string; hint: (item: Publ
   perjanjian: { label: "Perjanjian ditandatangani", hint: () => "Scan perjanjian dan tanggal tanda tangannya, di bawah." },
   kunjungan_verifikasi: {
     label: "Kunjungan Verifikasi selesai",
-    hint: () => "Belum ada cara mencatatnya di sini.",
+    hint: () => "Ditugaskan dari tab Tugas Lapangan, atau tombol \"Minta kunjungan ulang\" di bawah.",
   },
   tarif_diperiksa: {
     label: "Tarif diperiksa",
@@ -50,18 +51,18 @@ const publishGateCopy: Record<PublishGateKey, { label: string; hint: (item: Publ
 async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
   const actor = await staffMenuActor("admin_platform");
   const { lokasi, tariffs } = serverRuntime();
-  const [read, jam, siaga, tariffsChecked] = await Promise.all([
+  const [read, jam, siaga, tariffsChecked, kunjunganVerifikasiSelesai] = await Promise.all([
     lokasi.lokasiMitra(actor, lokasiId),
     lokasi.jamOperasional(actor, lokasiId),
     lokasi.kontakSiaga(actor, lokasiId),
     tariffs.asStaff(actor).tariffsChecked(lokasiId),
+    lokasi.kunjunganVerifikasiSelesai(lokasiId),
   ]);
   if (!read.ok || !jam.ok || !siaga.ok) return null;
 
   const facts: PublishGateFacts = {
     agreement: read.lokasiMitra.agreement,
-    // No Kunjungan Verifikasi is recorded anywhere yet: never met in v1.
-    kunjunganVerifikasiSelesai: false,
+    kunjunganVerifikasiSelesai,
     tariffsChecked: tariffsChecked && { changedSinceCheck: tariffsChecked.changedSinceCheck },
     jamOperasionalDiisi: jam.jamOperasional !== null,
     kontakSiagaDipilih: siaga.kontakSiaga !== null,
@@ -111,10 +112,30 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
     redirect("/staf");
   }
   const lokasiMitra = read.lokasiMitra;
+  const staffAccounts = await serverRuntime().identity.staffAccounts();
+  const petugas = staffAccounts
+    .filter((account) => account.roles.includes("petugas_lapangan") && !account.deactivated)
+    .map((account) => ({ accountId: account.accountId, email: account.email ?? account.accountId }));
 
   return (
     <>
       <PublishGateChecklist lokasiId={lokasiMitra.id} />
+
+      <Section
+        id="kunjungan-verifikasi"
+        title="Kunjungan Verifikasi"
+        description="Konfirmasi alamat, pin, fasilitas dan foto pada kunjungan lapangan terakhir."
+      >
+        {lokasiMitra.kunjunganVerifikasi ? (
+          <p className="text-body">
+            Terakhir dikunjungi {lokasiMitra.kunjunganVerifikasi.visitedOn} ({lokasiMitra.kunjunganVerifikasi.photos.length}{" "}
+            foto).
+          </p>
+        ) : (
+          <p className="text-body text-muted-foreground">Belum ada Kunjungan Verifikasi.</p>
+        )}
+        <MintaKunjunganUlangForm lokasiMitra={lokasiMitra} petugas={petugas} />
+      </Section>
 
       <Section id="profil" title="Profil" description="Pengelola, alamat, kota / kabupaten, pin peta dan fasilitas.">
         <ProfileForm lokasiMitra={lokasiMitra} facilities={facilityOptions} />

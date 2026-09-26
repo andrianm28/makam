@@ -106,6 +106,13 @@
       "when": 1790452800000,
       "tag": "0014_petak_clearing",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790452900000,
+      "tag": "0015_fieldwork_tugas_lapangan",
+      "breakpoints": true
     }
   ]
 }
