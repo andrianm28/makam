@@ -36,7 +36,7 @@ for env in staging prod; do
 done
 
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/glitchtip" "$ROOT/nginx-backups"
-install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-healthcheck" "$ROOT/bin/"
+install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-backup-files" "$ROOT/bin/"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
 install -m 0600 "$REPO/deploy/glitchtip/compose.yml" "$ROOT/glitchtip/compose.yml"
 
@@ -47,5 +47,5 @@ for unit in "$REPO"/deploy/systemd/*.service "$REPO"/deploy/systemd/*.timer; do
   sudo install -m 0644 "$unit" /etc/systemd/system/
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.timer
+sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.timer makam-staging-files-backup.timer
 systemctl list-timers 'makam-*' --no-pager

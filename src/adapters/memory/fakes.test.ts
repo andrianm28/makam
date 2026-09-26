@@ -108,34 +108,26 @@ describe("fake message senders", () => {
   });
 });
 
+// The put / signedUrl / delete contract (expiry, replace, path-traversal and
+// size guards) is shared with the host-disk adapter in file-store.contract.ts
+// (run against this fake from fake-files.test.ts).
 describe("fake FileStore", () => {
-  it("stores files, hands out a signed URL that expires, and deletes them", async () => {
+  it("stores what it was given and lets a test read it back from `.stored`", async () => {
     const files = new FakeFileStore({ clock: clock() });
 
     await files.put({ key: "ktp/1.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
-    expect(files.stored.get("ktp/1.jpg")).toMatchObject({ contentType: "image/jpeg" });
 
-    const url = await files.signedUrl("ktp/1.jpg", { expiresInSeconds: 300 });
-    expect(url).toContain("ktp/1.jpg");
-    expect(url).toContain(`expires=${wib("2026-10-01 09:05").getTime() / 1000}`);
-
-    await files.delete("ktp/1.jpg");
-    expect(files.stored.has("ktp/1.jpg")).toBe(false);
-    await expect(files.signedUrl("ktp/1.jpg", { expiresInSeconds: 300 })).rejects.toThrow();
+    expect(files.stored.get("ktp/1.jpg")).toEqual({
+      key: "ktp/1.jpg",
+      body: new Uint8Array([1, 2, 3]),
+      contentType: "image/jpeg",
+    });
   });
 
-  it("opens the file a signed URL points to until the URL expires on the Clock, as a browser would", async () => {
-    const now = clock();
-    const files = new FakeFileStore({ clock: now });
-    await files.put({ key: "ktp/1.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
-    const url = await files.signedUrl("ktp/1.jpg", { expiresInSeconds: 300 });
-
-    now.advance({ minutes: 5 });
-    expect(files.open(url)).toEqual({ key: "ktp/1.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
-
-    now.advance({ seconds: 1 });
-    expect(files.open(url)).toBeNull();
+  it("opening a URL that names no file of its own (foreign origin, unknown key) gives null, never a match", () => {
+    const files = new FakeFileStore({ clock: clock() });
     expect(files.open("https://files.fake.local/ktp/2.jpg?expires=9999999999")).toBeNull();
+    expect(files.open("https://example.com/ktp/1.jpg?expires=9999999999")).toBeNull();
   });
 });
 

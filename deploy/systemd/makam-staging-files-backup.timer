@@ -1,0 +1,13 @@
+# Runs makam-backup-files nightly at 03:15 WIB, after the staging deploy
+# window and clear of the health checks (every minute) and, once ticket 64
+# exists, the database's own nightly dump.
+[Unit]
+Description=Nightly makam-staging FileStore backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

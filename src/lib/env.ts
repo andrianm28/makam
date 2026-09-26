@@ -20,6 +20,14 @@ const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 /** Where the image installs its headless Chromium (Debian's chromium-headless-shell), for the live PdfRenderer. */
 export const DEFAULT_CHROMIUM_PATH = "/usr/bin/chromium-headless-shell";
 
+/**
+ * Where the private FileStore volume is mounted (docker-compose.prod.yml: a
+ * makam-only Docker volume, never served by nginx or Next's static handler).
+ * ADR 0002 (beta UAT amendment): a host-disk FileStore stands in for AWS S3
+ * (planned for v2) behind the same port.
+ */
+export const DEFAULT_FILES_ROOT = "/data/files";
+
 type EnvSource = Record<string, string | undefined>;
 
 /** Error monitoring (Sentry SDK to GlitchTip). Needs nothing else, so it works even when the rest is misconfigured. */
@@ -242,6 +250,8 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   VAPID_SUBJECT: z.preprocess(emptyToUndefined, vapidSubject.optional()),
   /** The headless Chromium the live PdfRenderer runs; the image installs Debian's chromium-headless-shell here. */
   CHROMIUM_PATH: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").default(DEFAULT_CHROMIUM_PATH)),
+  /** Where the live FileStore (host disk, ticket 60) reads and writes; the private volume's mount point. Development and test use the in-memory fake and never touch disk. */
+  FILES_ROOT: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").default(DEFAULT_FILES_ROOT)),
   /** The port the web server listens on (the image sets 3000). */
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(3000)),
   /**

@@ -1,5 +1,5 @@
 import type { Clock } from "@/ports/clock";
-import type { FileStore, StoredFile } from "@/ports/file-store";
+import { assertSafeFileKey, FILE_STORE_MAX_BYTES, type FileStore, type StoredFile } from "@/ports/file-store";
 import type { PdfRenderer, PdfRenderRequest } from "@/ports/pdf-renderer";
 
 /** Keeps files in memory; `stored` shows what was uploaded. */
@@ -12,17 +12,24 @@ export class FakeFileStore implements FileStore {
   }
 
   async put(file: StoredFile): Promise<{ key: string }> {
+    assertSafeFileKey(file.key);
+    if (!file.contentType.trim()) throw new Error("FileStore requires a content type");
+    if (file.body.byteLength > FILE_STORE_MAX_BYTES) {
+      throw new Error(`File exceeds the FileStore limit of ${FILE_STORE_MAX_BYTES} bytes`);
+    }
     this.stored.set(file.key, { ...file, body: new Uint8Array(file.body) });
     return { key: file.key };
   }
 
   async signedUrl(key: string, options: { expiresInSeconds: number }): Promise<string> {
+    assertSafeFileKey(key);
     if (!this.stored.has(key)) throw new Error(`No file stored at ${key}`);
     const expires = Math.floor(this.#clock.now().getTime() / 1000) + options.expiresInSeconds;
     return `https://files.fake.local/${encodeURI(key)}?expires=${expires}`;
   }
 
   async delete(key: string): Promise<void> {
+    assertSafeFileKey(key);
     this.stored.delete(key);
   }
 

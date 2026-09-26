@@ -84,7 +84,7 @@ function refusal(refused: Extract<RecoverAccountResult, { ok: false }>): string 
     case "email_sudah_dipakai":
       return "Email baru sudah menjadi Email Terverifikasi Akun lain.";
     case "berkas_gagal_disimpan":
-      return "Penyimpanan berkas belum tersedia di lingkungan ini. Email belum dipindah.";
+      return "Penyimpanan berkas sedang bermasalah, coba lagi. Email belum dipindah.";
     case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refused.reason);

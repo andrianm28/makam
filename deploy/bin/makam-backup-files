@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# makam-backup-files: nightly tar of the private FileStore volume, kept 7 days
+# on the host (ADR 0002, beta UAT amendment), run by
+# makam-<env>-files-backup.timer. Coordinates with ticket 64's nightly
+# encrypted pg_dump of the same environment: same host, same 7-day window,
+# a separate file so losing one never loses the other.
+#
+#   makam-backup-files --env staging|prod
+#
+# Reads the named Docker volume (<project>_files) through a throwaway
+# container, read-only, rather than its on-disk path under
+# /var/lib/docker/volumes/ (which depends on the storage driver and is
+# root-owned): this is the same approach regardless of who runs it or which
+# driver the host uses. Writes
+# $MAKAM_ROOT/<env>/backups/files/files-<UTC timestamp>.tar.gz, then deletes
+# its own tar files older than 7 days. Never migrates or restarts anything.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+RETENTION_DAYS=7
+# Pin by digest before installing on the host, e.g.:
+#   docker pull alpine:3.22.1 && docker inspect --format='{{index .RepoDigests 0}}' alpine:3.22.1
+# (matching the pinned-by-digest images elsewhere in this repo).
+TAR_IMAGE=alpine:3.22.1
+ENV_NAME=""
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+PROJECT="makam-$ENV_NAME"
+VOLUME="${PROJECT}_files"
+DEST="$MAKAM_ROOT/$ENV_NAME/backups/files"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+ARCHIVE="files-$STAMP.tar.gz"
+
+log() { logger -t makam-files-backup "$*"; echo "$*" >&2; }
+
+if ! docker volume inspect "$VOLUME" > /dev/null 2>&1; then
+  log "ERROR volume $VOLUME does not exist; nothing backed up"
+  exit 1
+fi
+
+install -d -m 0700 "$DEST"
+
+if ! docker run --rm \
+  -v "$VOLUME:/data:ro" \
+  -v "$DEST:/backup" \
+  "$TAR_IMAGE" \
+  tar -C /data -czf "/backup/$ARCHIVE" .; then
+  log "ERROR tar of $VOLUME failed"
+  rm -f "$DEST/$ARCHIVE"
+  exit 1
+fi
+
+find "$DEST" -maxdepth 1 -name 'files-*.tar.gz' -mtime "+$RETENTION_DAYS" -delete
+
+log "backed up $VOLUME to $DEST/$ARCHIVE, pruned entries older than ${RETENTION_DAYS}d"

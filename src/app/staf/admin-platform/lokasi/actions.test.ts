@@ -55,7 +55,7 @@ describe("Lokasi Mitra Server Actions", () => {
     });
   });
 
-  it("Unggah perjanjian: when file storage is not available, the message says so plainly and names no ticket", async () => {
+  it("Unggah perjanjian: when the FileStore fails to store the scan, the message says so plainly and names no ticket", async () => {
     const { lokasiId } = await newLokasiMitra();
     vi.spyOn(server.runtime().adapters.files, "put").mockRejectedValue(new Error("FileStore (S3) not configured"));
 
@@ -70,7 +70,7 @@ describe("Lokasi Mitra Server Actions", () => {
 
     expect(state).toEqual({
       status: "gagal",
-      message: expect.stringContaining("Penyimpanan berkas belum tersedia di lingkungan ini."),
+      message: expect.stringContaining("Penyimpanan berkas sedang bermasalah"),
     });
     if (state.status !== "idle") expect(state.message).not.toMatch(/tiket|S3/i);
   });

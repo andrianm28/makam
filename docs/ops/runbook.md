@@ -44,8 +44,9 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/admin-credentials.txt` | GlitchTip superuser login |
 | `/opt/makam-v1/glitchtip/api-token.txt` | GlitchTip API token (ops scripts) |
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
-| `/etc/systemd/system/makam-staging-{deploy,health}.{service,timer}` | from `deploy/systemd/` |
+| `/etc/systemd/system/makam-staging-{deploy,health,files-backup}.{service,timer}` | from `deploy/systemd/` |
 | `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
+| `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz` | nightly FileStore tar, kept 7 days (`makam-backup-files`) |
 
 After changing any file under `deploy/` or `docker-compose.prod.yml` on
 `main`, run `deploy/install-host.sh` from an up-to-date, clean checkout of
@@ -79,6 +80,7 @@ to run unless the first three match `--env`:
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
 | `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret (SumoPod's **sandbox** project key and Svix secret in staging for the v1 beta; ticket 04) | the live PaymentProvider (QRIS, ticket 61); **required from ticket 61 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `SUMOPOD_BASE_URL` | unset (defaults to the sandbox host in staging, the live host in production) | override only if SumoPod ever splits sandbox/live differently than by environment |
+| `FILES_ROOT` | not set (defaults to `/data/files`, the `files` volume's mount point) | where the live FileStore (ticket 60) reads and writes; only set it to something else if the volume is ever mounted elsewhere |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
 script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
@@ -368,6 +370,53 @@ is already on the new schema. Either:
 
 Never restore a database backup to undo a migration on a live environment
 without a separate decision: it loses every write since the backup.
+
+## File storage (the private FileStore) and its backup
+
+Ticket 60 (ADR 0002, beta UAT amendment): v1's FileStore (KTP checks,
+heirship documents, IPTM scans, photo proof, transfer proofs, agreement
+scans) lives on the host's own disk for the beta, not AWS S3 (planned for
+v2). It is a private, makam-only Docker volume (`makam-<env>_files`), mounted
+into `web` and `worker` at `/data/files` only — never into nginx, never a
+bind mount, never served as a static file. The only way a file leaves the
+volume is a short-lived signed URL through the app itself
+(`/api/files/[...key]`, `src/app/api/files/[...key]/route.ts`), which
+re-derives the HMAC-SHA256 signature `DiskFileStore.signedUrl` made
+(`src/adapters/live/disk-file-store.ts`) with the same `AUTH_SECRET` and
+refuses anything it does not match: a copied, altered or expired link 404s
+exactly like one for a file that never existed.
+
+**Backup**: `makam-<env>-files-backup.timer` runs `makam-backup-files --env
+<env>` nightly at 03:15 WIB. It reads the volume through a throwaway
+container (`docker run --rm -v makam-<env>_files:/data:ro …`, read-only, so
+the backup itself cannot touch what it is backing up) and writes
+`/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz`, then
+deletes its own tar files older than 7 days. This is the files half of the
+beta's nightly-backup plan (ticket 64 rescoped for the beta: a nightly
+encrypted `pg_dump` kept 7 days, the same window); the two run as separate
+units so losing one backup never touches the other.
+
+```bash
+# What's backed up, and when
+ls -la /opt/makam-v1/staging/backups/files/
+journalctl -t makam-files-backup -n 20 --no-pager
+systemctl list-timers 'makam-*-files-backup.timer'
+
+# Back up now instead of waiting for the timer
+/opt/makam-v1/bin/makam-backup-files --env staging
+
+# Restore: stop the app, empty the volume, untar into it, start the app again
+sudo systemctl stop makam-staging-deploy.timer
+docker compose -p makam-staging -f /opt/makam-v1/staging/compose.yml --env-file /opt/makam-v1/staging/staging.env --env-file /opt/makam-v1/staging/deployed.env stop web worker
+docker run --rm -v makam-staging_files:/data -v /opt/makam-v1/staging/backups/files:/backup alpine:3.22.1 \
+  sh -c 'rm -rf /data/* /data/..?* /data/.[!.]* 2>/dev/null; tar -C /data -xzf /backup/files-<timestamp>.tar.gz'
+docker compose -p makam-staging -f /opt/makam-v1/staging/compose.yml --env-file /opt/makam-v1/staging/staging.env --env-file /opt/makam-v1/staging/deployed.env start web worker
+sudo systemctl start makam-staging-deploy.timer
+```
+
+The beta holds no real personal or payment data (dummy content, SumoPod
+sandbox, ticket 86's read-only catalog import), so losing the host loses the
+beta's data — an accepted risk for the beta only (ADR 0002).
 
 ## dev.makam.co.id and its rollback
 
