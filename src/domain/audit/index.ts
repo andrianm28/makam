@@ -116,7 +116,11 @@ export type AuditAction =
   /** A completed Kunjungan Verifikasi updates a Lokasi's pin, facilities, photos and "dikunjungi" date. */
   | "lokasi.catat_kunjungan_verifikasi"
   /** A completed Cek Denah is recorded on a Lokasi (ticket 16's Terencana-switch input). */
-  | "lokasi.catat_cek_denah";
+  | "lokasi.catat_cek_denah"
+  /** Admin Platform publishes a Lokasi Mitra (Belum Tayang → Terverifikasi) once the publish gate is met. */
+  | "lokasi.terbitkan"
+  /** Admin Platform switches a Lokasi Mitra's "Pemesanan Terencana aktif" on. */
+  | "lokasi.aktifkan_terencana";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

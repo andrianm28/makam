@@ -1,7 +1,9 @@
+import { and, eq } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { availability, type AvailabilityCount } from "./availability";
 import { findBlok, isUsed, loadBloks, loadCells, loadKavlingByBlok, type BlokRecord, type CellRow, type KavlingRow } from "./grid";
+import { inventoryPetak } from "./schema";
 import {
   currentHakPakaiOfKavling,
   currentHakPakaiOfPetak,
@@ -131,4 +133,18 @@ export function staffInventoryReads(deps: InventoryDeps, by: Actor): StaffInvent
       return hakPakaiDetailOf(deps.db, await currentHakPakaiOfKavling(deps.db, kavlingId));
     },
   };
+}
+
+/**
+ * Whether any Petak Makam at this Lokasi Mitra still needs the Admin
+ * Lokasi's clearing (Perlu Verifikasi). No actor: the Terencana switch's own
+ * fact (ticket 16), read by the caller composing the Lokasi module's write.
+ */
+export async function hasPetakPerluVerifikasi(deps: { db: InventoryDeps["db"] }, lokasiId: string): Promise<boolean> {
+  const [row] = await deps.db
+    .select({ id: inventoryPetak.id })
+    .from(inventoryPetak)
+    .where(and(eq(inventoryPetak.lokasiId, lokasiId), eq(inventoryPetak.kind, "petak"), eq(inventoryPetak.perluVerifikasi, true)))
+    .limit(1);
+  return row !== undefined;
 }

@@ -2,15 +2,25 @@ import { notFound, redirect } from "next/navigation";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { lokasiFacilities, publishGate, type PublishGateFacts, type PublishGateItem, type PublishGateKey } from "@/domain/lokasi";
+import {
+  lokasiFacilities,
+  publishGate,
+  terencanaSwitchGate,
+  type PublishGateFacts,
+  type PublishGateItem,
+  type PublishGateKey,
+  type TerencanaSwitchKey,
+} from "@/domain/lokasi";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import {
+  ActivateTerencanaForm,
   AgreementForm,
   BankAccountForm,
   DocumentsForm,
   PoliciesForm,
   ProfileForm,
+  PublishForm,
 } from "../lokasi-forms";
 import { MintaKunjunganUlangForm } from "./minta-kunjungan-ulang-form";
 
@@ -68,15 +78,18 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
     kontakSiagaDipilih: siaga.kontakSiaga !== null,
   };
   const gate = publishGate(facts);
+  const sudahTerbit = read.lokasiMitra.status !== "belum_tayang";
 
   return (
     <Section
       id="syarat-tayang"
       title="Syarat tayang"
       description={
-        gate.ready
-          ? "Setiap syarat terpenuhi."
-          : "Semua syarat berikut harus terpenuhi sebelum Lokasi Mitra ini bisa Terverifikasi."
+        sudahTerbit
+          ? "Lokasi Mitra ini sudah tidak Belum Tayang."
+          : gate.ready
+            ? "Setiap syarat terpenuhi: siap diterbitkan."
+            : "Semua syarat berikut harus terpenuhi sebelum Lokasi Mitra ini bisa Terverifikasi."
       }
     >
       <ul className="flex flex-col gap-3">
@@ -97,6 +110,54 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
           );
         })}
       </ul>
+      {sudahTerbit ? null : <PublishForm lokasiId={lokasiId} ready={gate.ready} />}
+    </Section>
+  );
+}
+
+const terencanaSwitchCopy: Record<TerencanaSwitchKey, string> = {
+  petak_dibersihkan: "Setiap Petak Makam sudah dibersihkan (tidak ada yang Perlu Verifikasi lagi)",
+  cek_denah: "Cek Denah sudah dilakukan",
+};
+
+/** The Terencana switch's own checklist, separate from the publish gate. */
+async function TerencanaSwitchChecklist({ lokasiId }: { lokasiId: string }) {
+  const actor = await staffMenuActor("admin_platform");
+  const { lokasi, inventory } = serverRuntime();
+  const [read, cekDenah, hasPetakPerluVerifikasi] = await Promise.all([
+    lokasi.lokasiMitra(actor, lokasiId),
+    lokasi.cekDenahOf(lokasiId),
+    inventory.hasPetakPerluVerifikasi(lokasiId),
+  ]);
+  if (!read.ok) return null;
+  const aktif = read.lokasiMitra.flags.pemesananTerencanaAktif;
+  const gate = terencanaSwitchGate({ hasPetakPerluVerifikasi, cekDenahDilakukan: cekDenah !== null });
+
+  return (
+    <Section
+      id="syarat-terencana"
+      title="Syarat Pemesanan Terencana"
+      description={
+        aktif
+          ? "Pemesanan Terencana aktif untuk Lokasi Mitra ini."
+          : "Kedua syarat berikut harus terpenuhi sebelum Pemesanan Terencana bisa diaktifkan."
+      }
+    >
+      <ul className="flex flex-col gap-3">
+        {gate.items.map((item) => (
+          <li key={item.key} className="flex items-start gap-3">
+            {item.met ? (
+              <CheckCircle2Icon className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
+            ) : (
+              <CircleIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
+            )}
+            <p className={cn("text-body", item.met ? "text-foreground" : "text-foreground font-medium")}>
+              {terencanaSwitchCopy[item.key]}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {aktif ? null : <ActivateTerencanaForm lokasiId={lokasiId} ready={gate.ready} />}
     </Section>
   );
 }
@@ -176,6 +237,8 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
       <Section id="kebijakan" title="Kebijakan dan flag">
         <PoliciesForm lokasiId={lokasiMitra.id} policies={lokasiMitra.policies} flags={lokasiMitra.flags} />
       </Section>
+
+      <TerencanaSwitchChecklist lokasiId={lokasiMitra.id} />
     </>
   );
 }
