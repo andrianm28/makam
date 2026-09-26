@@ -21,7 +21,7 @@ export async function signInAsAdminPlatform(server: Server, phoneNumber = "08111
   browser.store((await server.logIn(phoneNumber)).session.cookies);
   const enrolment = await identity.startTotpEnrolment(await browserActor(server));
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await identity.passTotp(await browserActor(server), authenticatorCode(enrolment.secret, new Date()));
+  const passed = await identity.passTotp(await browserActor(server), authenticatorCode(enrolment.secret, server.clock.now()));
   if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   return browserActor(server);
 }
