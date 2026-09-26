@@ -1,6 +1,6 @@
 # Jam Operasional, Kontak Siaga and the working-time calculator
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 10
 Spec: Domain modules > 3. Lokasi (Jam Operasional, Kontak Siaga, working-time calculator); story 132
 
@@ -71,3 +71,4 @@ Let the Admin Lokasi set its Lokasi's Jam Operasional (weekly hours plus dated c
   - **WIB helpers**: ticket 11's `wibDate` did the same as main's `wibDateOf`, so `wibDate` is gone. The calculator and the confirmation promise presenter now use `wibDateOf`. The other helpers listed above are unchanged.
   - **Interaction tests** (tariffs): a listed Lokasi Mitra whose Jam Operasional is belum diisi is still quoted, so ticket 12 assumes no default Jam Operasional. Saving a Jam Operasional is not a tariff change, so the "tarif diperiksa" mark stays current. The Admin Platform Lokasi page keeps ticket 12's "Tarif" link. The Admin Lokasi page keeps the "Jam Operasional" menu entry. There is still no Admin Platform Jam Operasional screen.
   - **Verified 2026-09-26 after the rebase**: `npm run lint` exit 0. `npm run typecheck` exit 0. `npm test` exit 0 (649/649, 66 files). `npm run build` exit 0. `npm run build:worker` exit 0. Playwright ran once on a fresh `makam-t11` stack (port 3326, and migrate applied 0008): 19/19 passed, exit 0. The stack was then torn down with `down -v` and the `makam-v1:makam-t11` image removed.
+- 2026-09-26 — Merged to `main` after a two-axis review and fixes (no default Jam Operasional per the user; typed refusals when belum diisi; refusal tests for invalid schedules; 24:00 as end of day; glossary names; one calendar model; `adminLokasiSince` in identity; WIB helpers shared) and a rebase onto tickets 12 and 70 (migration 0008, checked on a populated database). Verified in the main session: lint 0, typecheck 0, Vitest 649/649 (0 skipped).
