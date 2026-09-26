@@ -3,7 +3,8 @@
  * Admin Platform, each version with an effective date that may be in the
  * future; old versions are never changed or deleted.
  *
- * Owns tables: tariff_global_version, tariff_jenis_makam, tariff_jenis_makam_version.
+ * Owns tables: tariff_global_version, tariff_jenis_makam, tariff_jenis_makam_version,
+ * tariff_biaya_pemakaman_version.
  *
  * Every write is a staff write: it records an Entri Audit through the Audit
  * Log module in the same transaction (with `lokasiId` for a Lokasi Mitra's
@@ -31,6 +32,13 @@ import {
   type SetJenisMakamTariffResult,
 } from "./jenis-makam";
 import { lokasiTariffs, type LokasiTariffs } from "./lokasi-tariffs";
+import {
+  biayaPemakamanVersions,
+  setBiayaPemakaman,
+  type BiayaPemakamanVersion,
+  type SetBiayaPemakamanInput,
+  type SetBiayaPemakamanResult,
+} from "./biaya-pemakaman";
 
 export type { TariffDeps } from "./deps";
 export type { GlobalTariffKey, GlobalTariffVersion, SetGlobalTariffInput, SetGlobalTariffResult } from "./global-tariffs";
@@ -45,6 +53,12 @@ export type {
   Tenure,
 } from "./jenis-makam";
 export type { JenisMakamPrice, LokasiTariffs, PriceAt } from "./lokasi-tariffs";
+export type {
+  BiayaPemakaman,
+  BiayaPemakamanVersion,
+  SetBiayaPemakamanInput,
+  SetBiayaPemakamanResult,
+} from "./biaya-pemakaman";
 
 export interface Tariffs {
   /** Admin Platform enters a new version of a global tariff, in force from its effective date; audited. */
@@ -65,6 +79,10 @@ export interface Tariffs {
   jenisMakamTariffHistory(jenisMakamId: string): Promise<JenisMakamTariffVersion[]>;
   /** A Lokasi Mitra's tariffs as in force at `at`, each with its scheduled change. */
   lokasiTariffs(lokasiId: string, at: Date): Promise<LokasiTariffs>;
+  /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount); audited on that Lokasi. */
+  setBiayaPemakaman(by: Actor, lokasiId: string, input: SetBiayaPemakamanInput): Promise<SetBiayaPemakamanResult>;
+  /** Every Biaya Pemakaman version of a Lokasi Mitra, in entry order. */
+  biayaPemakamanHistory(lokasiId: string): Promise<BiayaPemakamanVersion[]>;
 }
 
 export function createTariffs(deps: TariffDeps): Tariffs {
@@ -76,5 +94,7 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     setJenisMakamTariff: (by, jenisMakamId, input) => setJenisMakamTariff(deps, by, jenisMakamId, input),
     jenisMakamTariffHistory: (jenisMakamId) => jenisMakamVersions(deps.db, jenisMakamId),
     lokasiTariffs: (lokasiId, at) => lokasiTariffs(deps.db, lokasiId, at),
+    setBiayaPemakaman: (by, lokasiId, input) => setBiayaPemakaman(deps, by, lokasiId, input),
+    biayaPemakamanHistory: (lokasiId) => biayaPemakamanVersions(deps.db, lokasiId),
   };
 }

@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
+import { biayaPemakamanVersions, type BiayaPemakamanVersion } from "./biaya-pemakaman";
 import { jenisMakamOfLokasi, jenisMakamVersions, type JenisMakam, type JenisMakamTariffVersion } from "./jenis-makam";
-import { inForceAt, nextAfter } from "./versions";
+import { inForceAt, nextAfter, type VersionTimes } from "./versions";
 
 /** A price as a page shows it: the version in force at an instant, and the next one scheduled after it. */
 export interface PriceAt<V> {
@@ -16,16 +17,21 @@ export type JenisMakamPrice = JenisMakam & PriceAt<JenisMakamTariffVersion>;
 export interface LokasiTariffs {
   /** Every Jenis Makam, by name, with its price at that instant. */
   jenisMakam: JenisMakamPrice[];
+  /** The Biaya Pemakaman (and tumpang amount) at that instant. */
+  biayaPemakaman: PriceAt<BiayaPemakamanVersion>;
 }
 
-export function priceAt<V extends Parameters<typeof inForceAt>[0][number]>(versions: readonly V[], at: Date): PriceAt<V> {
+export function priceAt<V extends VersionTimes>(versions: readonly V[], at: Date): PriceAt<V> {
   return { inForce: inForceAt(versions, at), scheduledChange: nextAfter(versions, at) };
 }
 
 export async function lokasiTariffs(db: Database, lokasiId: string, at: Date): Promise<LokasiTariffs> {
-  const jenisMakam = await jenisMakamOfLokasi(db, lokasiId);
+  const [jenisMakam, biayaPemakaman] = await Promise.all([
+    jenisMakamOfLokasi(db, lokasiId),
+    biayaPemakamanVersions(db, lokasiId),
+  ]);
   const prices = await Promise.all(
     jenisMakam.map(async (one) => ({ ...one, ...priceAt(await jenisMakamVersions(db, one.id), at) })),
   );
-  return { jenisMakam: prices };
+  return { jenisMakam: prices, biayaPemakaman: priceAt(biayaPemakaman, at) };
 }

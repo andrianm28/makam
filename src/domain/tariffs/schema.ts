@@ -63,6 +63,28 @@ export const tariffGlobalVersion = pgTable(
 );
 
 /**
+ * Owned by the Tariffs module: every version of a Lokasi Mitra's Biaya
+ * Pemakaman, charged on every Pemakaman there; `biaya_pemakaman_tumpang` is
+ * the amount for a tumpang, null when it is the same.
+ */
+export const tariffBiayaPemakamanVersion = pgTable(
+  "tariff_biaya_pemakaman_version",
+  {
+    ...versionColumns(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    biayaPemakaman: rupiah("biaya_pemakaman").notNull(),
+    biayaPemakamanTumpang: rupiah("biaya_pemakaman_tumpang"),
+  },
+  (table) => [
+    index("tariff_biaya_pemakaman_version_idx").on(table.lokasiId, table.inForceFrom, table.seq),
+    check(
+      "tariff_biaya_pemakaman_version_amounts_check",
+      sql`${table.biayaPemakaman} >= 0 and (${table.biayaPemakamanTumpang} is null or ${table.biayaPemakamanTumpang} >= 0)`,
+    ),
+  ],
+);
+
+/**
  * Owned by the Tariffs module: a Lokasi Mitra's Jenis Makam, defined by Admin
  * Platform. Its prices and tenure live in its versions. `lokasi_id` names a
  * Lokasi Mitra of the Lokasi module (no foreign key across modules).
