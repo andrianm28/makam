@@ -1,6 +1,6 @@
 # Command palette (⌘K) and the Peringatan Staf bell
 
-Status: resolved
+Status: ready-for-agent
 Blocked by: 74
 Spec: Implementation Decisions > Staff UI and design system; docs/brand/brand-guideline-visual-2026.pdf; prototype branch `worktree-agent-aebfc82ebc2eab39d` (commit 282bcc0: `docs/design-system.md`, `/pratinjau/staf`, gallery https://claude.ai/artifact/BpcTyBmWqYXL2EFCNrt9bx)
 
@@ -30,3 +30,4 @@ The shell's quick navigation and alerts: ⌘K / Ctrl+K opens a command palette o
   - No Playwright smoke test: this ticket's acceptance criteria don't ask for one (unlike ticket 74's), and both new pieces are exercised by `src/server/staff-shell.test.ts` through the public `staffShell()`/`Notifications` queries, per AGENTS.md's testing rules.
 
   Verification: `npm run lint` clean; `npm run typecheck` clean; `npm run test:shared` 92 files, 971 tests passed; `npm run build` and `npm run build:worker` OK.
+- **2026-09-26, build agent: rebased past ticket 82 (email is the Akun key; WhatsApp removed).** `git fetch` + rebase onto `main` (d7f7e32); ticket 82 had taken migration `0011` for `0011_email_is_the_akun`, so `0011_parallel_falcon` was dropped and regenerated as `0012_tired_pet_avengers` (only `notifications_staff_alert`, unchanged). Conflicts: `src/domain/notifications/index.ts` — kept ticket 82's email send, added the `notificationsStaffAlert` insert (unaffected: it only ever wrote title/body/url, never a channel) right before it, so the bell keeps a Peringatan Staf even when the email or push later fails; `src/server/staff-area.ts` — kept ticket 82's `actor.email` (no more `identity.accountEmail()` call) and added `notifications.staffAlerts(actor)` and the palette's `lokasiOf` to the same `Promise.all`. Test fixtures updated to the new `StaffAlert` shape (`kind`/`email` instead of `whatsapp`) and to `invitedStaff(..., email)` instead of a phone number: `staff-alert-bell.test.ts`, `staff-shell.test.ts` (one stray `signIn("082222222222")` was actually meant to be the invited email — fixed to `signIn("staf@contoh.id")`; its Admin Platform palette test also still expected "Pindah Nomor" — ticket 82 replaced that page with "Pemulihan Akun" — fixed there and in `docs/design-system.md`'s one remaining mention). Re-verified: `npm run lint` clean; `npm run typecheck` clean; `npm run test:shared` 91 files, 941 tests passed; `npm run build` and `npm run build:worker` OK. Status set back to `ready-for-agent` per the orchestrator (it marks resolved at merge).

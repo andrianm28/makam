@@ -10,7 +10,8 @@ beforeEach(resetDatabase);
 /** A Peringatan Staf about work at a Lokasi Mitra, as a later slice will raise it. */
 function peringatan(title: string, url = "/staf/admin-lokasi") {
   return {
-    whatsapp: { template: "staf_saat_duka_baru", parameters: ["Taman Makam Contoh", "MKM-2026-000123"] },
+    kind: "staf_saat_duka_baru" as const,
+    email: { subject: `${title}: MKM-2026-000123`, text: "MKM-2026-000123 di Taman Makam Contoh." },
     push: { title, body: "MKM-2026-000123 di Taman Makam Contoh", url },
   };
 }
@@ -88,8 +89,8 @@ describe("the Peringatan Staf bell", () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
-    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
-    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "083333333333");
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "admin.lokasi@contoh.id");
+    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "petugas@contoh.id");
     await notifications.sendStaffAlert({ to: { accountId: adminLokasi.accountId }, ...peringatan("Pemesanan Saat Duka baru") });
 
     expect(await notifications.staffAlerts(petugas)).toEqual({ ok: true, unread: 0, latest: [] });
@@ -101,7 +102,7 @@ describe("the Peringatan Staf bell", () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, identity } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
-    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "082222222222");
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "admin.lokasi@contoh.id");
     await notifications.sendStaffAlert({ to: { accountId: adminLokasi.accountId }, ...peringatan("Pemesanan Saat Duka baru") });
     await identity.deactivateStaff(admin, { accountId: adminLokasi.accountId, reason: "Keluar dari Operator" });
     const pemesan = { ...adminLokasi, roles: ["pemesan" as const], lokasiIds: [] };
@@ -116,13 +117,13 @@ describe("the Peringatan Staf bell", () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, identity } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
-    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "083333333333");
+    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "petugas@contoh.id");
     await identity.deactivateStaff(admin, { accountId: petugas.accountId, reason: "Keluar dari Operator" });
     await notifications.sendStaffAlert({ to: { accountId: petugas.accountId }, ...peringatan("Tugas Lapangan baru", "/staf/petugas-lapangan") });
 
     // Invited again (a minute later, past the OTP resend wait): the bell starts empty.
     setup.clock.advance({ minutes: 1 });
-    const again = await invitedStaff(setup, admin, "petugas_lapangan", "083333333333");
+    const again = await invitedStaff(setup, admin, "petugas_lapangan", "petugas@contoh.id");
     expect(await notifications.staffAlerts(again)).toEqual({ ok: true, unread: 0, latest: [] });
   });
 });

@@ -96,7 +96,11 @@ describe("the staff shell", () => {
     const { notifications } = server.runtime();
     await notifications.sendStaffAlert({
       to: { accountId: adminLokasi.accountId },
-      whatsapp: { template: "staf_saat_duka_baru", parameters: ["Makam Wakaf Al-Ikhlas", "MKM-2026-000123"] },
+      kind: "staf_saat_duka_baru",
+      email: {
+        subject: "Pemesanan Saat Duka baru: MKM-2026-000123",
+        text: "MKM-2026-000123 di Makam Wakaf Al-Ikhlas menunggu konfirmasi.",
+      },
       push: {
         title: "Pemesanan Saat Duka baru",
         body: "MKM-2026-000123 di Makam Wakaf Al-Ikhlas",
@@ -162,7 +166,7 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Orang",
         items: [
           { label: "Staf", href: "/staf/admin-platform/staf" },
-          { label: "Pindah Nomor", href: "/staf/admin-platform/pindah-nomor" },
+          { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
         ],
       },
       { label: "Operator", items: [{ label: "Pengaturan Operator", href: "/staf/admin-platform/pengaturan-operator" }] },
@@ -179,7 +183,7 @@ describe("the command palette (role visibility on the server)", () => {
       const invited = await server.runtime().identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });
       if (!invited.ok) throw new Error(invited.reason);
     }
-    await signIn("082222222222");
+    await signIn("staf@contoh.id");
 
     const shell = await staffShell();
     expect(Object.keys(shell!.palette)).toEqual(["petugas_lapangan", "mitra_jasa"]);
