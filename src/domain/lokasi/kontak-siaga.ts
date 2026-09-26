@@ -27,11 +27,7 @@ export async function kontakSiagaOf(deps: Pick<KontakSiagaDeps, "db" | "identity
     .from(lokasiMitra)
     .where(eq(lokasiMitra.id, lokasiId));
   if (!row?.accountId || !row.pickedAt) return null;
-  const pickedAt = row.pickedAt;
-  const member = (await deps.identity.adminLokasiOf(lokasiId)).find(
-    (account) => account.accountId === row.accountId && account.grantedAt.getTime() <= pickedAt.getTime(),
-  );
-  return member ? { accountId: member.accountId, phoneNumber: member.phoneNumber, email: member.email } : null;
+  return deps.identity.adminLokasiSince(row.accountId, lokasiId, row.pickedAt);
 }
 
 export type KontakSiagaResult = { ok: true; kontakSiaga: KontakSiaga | null } | WriteRefusal | NotFound;
