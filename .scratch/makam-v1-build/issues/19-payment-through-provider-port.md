@@ -24,3 +24,4 @@ The real SumoPod adapter is ticket 61. No payout or refund methods on the port i
 ## Comments
 
 - 2026-09-26 — Decided with the user after the Spec re-review: late payments are judged by the provider's `paidAt` against `dueAt` (spec, Billing), not by the lapse tick's timing; the same for manual payments.
+- 2026-09-26 — User decision: online payment in v1 is QRIS only (Bank Indonesia caps QRIS at Rp 10.000.000 per transaction); a Tagihan above that shows no Bayar button but the Operator's bank account for a transfer, recorded by Admin Platform as a manual payment (ticket 30); no Virtual Account in v1.

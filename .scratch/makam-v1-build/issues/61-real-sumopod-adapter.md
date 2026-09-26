@@ -48,3 +48,4 @@ Implement the PaymentProvider port on SumoPod: create a payment (VA / QRIS) for 
     - Svix retries: https://docs.svix.com/retries
     - makam-app `docs/adr/0033-*.md`, `docs/adr/0036-*.md`, `app/Platform/Payment/Checkout/SumoPodPaymentClient.php`, `app/Platform/Payment/Providers/SumoPodWebhookSignature.php`, `app/Platform/Payment/WebhookEnvelope.php`.
 - 2026-09-26 — Decided with the user: the live adapter maps SumoPod's `paid_at` (not `completed_at`, which is the settlement time) to the port's `paidAt`, used by the late-payment rule. Payment method: see the pending QRIS decision (index, 2026-09-26).
+- 2026-09-26 — User decision: online payment in v1 is QRIS only (Bank Indonesia caps QRIS at Rp 10.000.000 per transaction); a Tagihan above that shows no Bayar button but the Operator's bank account for a transfer, recorded by Admin Platform as a manual payment (ticket 30); no Virtual Account in v1.
