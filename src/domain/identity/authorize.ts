@@ -82,7 +82,7 @@ export type Action =
   | "tarif.ubah"
   /** Set a Lokasi Mitra's Jam Operasional and pick its Kontak Siaga (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "lokasi.atur_operasional"
-  /** Keep the national holiday list of the Admin Platform working-day calendar (Admin Platform only). */
+  /** Keep the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar (Admin Platform only). */
   | "hari_libur.ubah";
 
 /** What the action is done to. */
@@ -146,7 +146,7 @@ export function tarifGlobalResource(): Resource {
   return { kind: "tarif_global" };
 }
 
-/** The national holiday list (the Admin Platform working-day calendar). */
+/** The Hari Libur Nasional list (the Admin Platform Hari Kerja calendar). */
 export function hariLiburNasionalResource(): Resource {
   return { kind: "hari_libur_nasional" };
 }

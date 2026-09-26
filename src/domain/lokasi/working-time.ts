@@ -71,7 +71,7 @@ export function deadline(schedule: JamOperasional | null, start: Date, hours: nu
  * open day of `calendar` that is not a Tanggal Tutup; it ends at its close.
  */
 export function addWorkingDays(calendar: JamOperasional | null, start: Date, n: number): WorkingTimeResult {
-  if (!Number.isInteger(n) || n < 1) throw new RangeError(`working days must be a whole number from 1: ${n}`);
+  if (!Number.isInteger(n) || n < 1) throw new RangeError(`Hari Kerja must be a whole number from 1: ${n}`);
   if (!calendar) return belumDiisi;
   if (!hasOpenWeekday(calendar)) return tanpaJamBuka;
   let counted = 0;

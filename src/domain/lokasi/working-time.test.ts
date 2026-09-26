@@ -107,7 +107,7 @@ describe("addWorkingDays on the Admin Platform calendar: Hari Kerja are Mondayâ€
     expect(addWorkingDays(adminPlatform, wib(start), n)).toEqual(at(expected));
   });
 
-  it("a date not on the Hari Libur Nasional list is a Hari Kerja, even if it is a holiday in real life", () => {
+  it("a date not on the Hari Libur Nasional list is a Hari Kerja, even if it is a public holiday in real life", () => {
     expect(addWorkingDays(adminPlatformCalendar([]), wib("2026-12-24 09:00"), 1)).toEqual(at("2026-12-25 23:59"));
   });
 });
@@ -127,7 +127,7 @@ describe("addWorkingDays on a Lokasi calendar: Hari Kerja are the open days of i
     expect(addWorkingDays(closedWednesday, wib(start), n)).toEqual(at(expected));
   });
 
-  it("1 Hari Kerja on a Lokasi calendar is the Lokasi's next working day end", () => {
+  it("1 Hari Kerja on a Lokasi calendar is the end of the Lokasi's next Hari Kerja (nextWorkingDayEnd)", () => {
     const start = wib("2026-10-07 10:00");
     expect(addWorkingDays(closedWednesday, start, 1)).toEqual(nextWorkingDayEnd(closedWednesday, start));
   });

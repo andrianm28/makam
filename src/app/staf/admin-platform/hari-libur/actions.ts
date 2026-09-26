@@ -19,9 +19,9 @@ type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 const refusalMessages: Record<Refused<AddHariLiburNasionalResult | RemoveHariLiburNasionalResult>, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
   perlu_totp: guardMessage("perlu_totp"),
-  tidak_ditemukan: "Tanggal ini tidak ada di daftar hari libur nasional.",
+  tidak_ditemukan: "Tanggal ini tidak ada di daftar Hari Libur Nasional.",
   hari_libur_tidak_valid: "Isi tanggal yang benar dan nama hari liburnya.",
-  hari_libur_sudah_ada: "Tanggal ini sudah ada di daftar hari libur nasional.",
+  hari_libur_sudah_ada: "Tanggal ini sudah ada di daftar Hari Libur Nasional.",
 };
 
 async function hariLiburWrite<S extends z.ZodType, R extends AddHariLiburNasionalResult | RemoveHariLiburNasionalResult>(options: {
@@ -52,7 +52,7 @@ export async function tambahHariLibur(_previous: FormState, formData: FormData):
     schema: hariLiburNasionalSchema,
     input: { date: formData.get("date"), name: formData.get("name") },
     run: (actor, data) => serverRuntime().lokasi.addHariLiburNasional(actor, data),
-    saved: "Hari libur nasional ditambahkan.",
+    saved: "Hari Libur Nasional ditambahkan.",
   });
 }
 
@@ -62,6 +62,6 @@ export async function hapusHariLibur(_previous: FormState, formData: FormData): 
     schema: z.object({ date: tanggalSchema, reason: z.string().trim().max(500) }),
     input: { date: formData.get("date"), reason: formData.get("reason") ?? "" },
     run: (actor, data) => serverRuntime().lokasi.removeHariLiburNasional(actor, { date: data.date, reason: data.reason || null }),
-    saved: "Hari libur nasional dihapus.",
+    saved: "Hari Libur Nasional dihapus.",
   });
 }

@@ -31,11 +31,11 @@ describe("Hari Libur Nasional Server Actions", () => {
 
     expect(await tambahHariLibur(idle, form({ date: "2026-12-25", name: "Hari Raya Natal" }))).toEqual({
       status: "berhasil",
-      message: "Hari libur nasional ditambahkan.",
+      message: "Hari Libur Nasional ditambahkan.",
     });
     expect(await tambahHariLibur(idle, form({ date: "2026-12-25", name: "Natal" }))).toEqual({
       status: "gagal",
-      message: "Tanggal ini sudah ada di daftar hari libur nasional.",
+      message: "Tanggal ini sudah ada di daftar Hari Libur Nasional.",
     });
     expect(await server.runtime().lokasi.hariLiburNasional()).toEqual([{ date: "2026-12-25", name: "Hari Raya Natal" }]);
   });
@@ -47,7 +47,7 @@ describe("Hari Libur Nasional Server Actions", () => {
 
     expect(await hapusHariLibur(idle, form({ date: "2026-08-17", reason: "" }))).toEqual({
       status: "berhasil",
-      message: "Hari libur nasional dihapus.",
+      message: "Hari Libur Nasional dihapus.",
     });
     const created = await server.runtime().lokasi.createLokasiMitra(admin, {
       name: "Makam Wakaf Al-Ikhlas",

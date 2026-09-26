@@ -56,12 +56,12 @@ describe("the Hari Libur Nasional list Admin Platform keeps", () => {
     ["a date that does not exist", { date: "2026-02-30", name: "Libur" }, "hari_libur_tidak_valid"],
     ["an empty name", { date: "2026-12-26", name: "  " }, "hari_libur_tidak_valid"],
     ["a date already on the list", natal, "hari_libur_sudah_ada"],
-  ])("refuses %s", async (_case, holiday, reason) => {
+  ])("refuses %s", async (_case, libur, reason) => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     await setup.lokasi.addHariLiburNasional(admin, natal);
 
-    expect(await setup.lokasi.addHariLiburNasional(admin, holiday)).toEqual({ ok: false, reason });
+    expect(await setup.lokasi.addHariLiburNasional(admin, libur)).toEqual({ ok: false, reason });
     expect(await setup.lokasi.hariLiburNasional()).toEqual([natal]);
   });
 
