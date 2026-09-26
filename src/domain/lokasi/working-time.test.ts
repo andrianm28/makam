@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { daytimeHoursDeadline, deadline, nextWorkingDayEnd, TPU_SCHEDULE, type JamOperasional } from "@/domain/lokasi";
+import {
+  addWorkingDays,
+  confirmationPromise,
+  daytimeHoursDeadline, deadline, nextWorkingDayEnd, TPU_SCHEDULE,
+  type JamOperasional,
+  type WorkingDayCalendar,
+} from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 
 const closed = null;
@@ -80,5 +86,61 @@ describe("daytime hours (the Keluhan first response): hours counted only within 
     ["4 daytime hours from 09:00 end 13:00", "2026-10-05 09:00", "2026-10-05 13:00"],
   ])("%s", (_case, start, expected) => {
     expect(daytimeHoursDeadline(wib(start), 4)).toEqual(wib(expected));
+  });
+});
+
+describe("addWorkingDays on the Admin Platform calendar: Monday–Friday minus the listed national holidays, ending 23:59 WIB", () => {
+  const adminPlatform: WorkingDayCalendar = {
+    kind: "admin_platform",
+    nationalHolidays: [{ date: "2026-12-25", name: "Hari Raya Natal" }],
+  };
+
+  it.each([
+    ["1 working day from a Monday ends Tuesday 23:59", "2026-10-05 10:00", 1, "2026-10-06 23:59"],
+    ["2 working days from Thursday cross the weekend to Monday 23:59", "2026-10-08 15:00", 2, "2026-10-12 23:59"],
+    ["a start on Saturday counts from Monday", "2026-10-10 09:00", 1, "2026-10-12 23:59"],
+    ["a start late at night still counts from the next day", "2026-10-05 23:59", 1, "2026-10-06 23:59"],
+    ["a listed national holiday is skipped (Natal on Friday, then the weekend)", "2026-12-24 09:00", 1, "2026-12-28 23:59"],
+    ["3 working days over a national holiday and a weekend", "2026-12-23 09:00", 3, "2026-12-29 23:59"],
+  ])("%s", (_case, start, n, expected) => {
+    expect(addWorkingDays(adminPlatform, wib(start), n)).toEqual(wib(expected));
+  });
+
+  it("a date not on the holiday list is a working day, even if it is a holiday in real life", () => {
+    const noHolidays: WorkingDayCalendar = { kind: "admin_platform", nationalHolidays: [] };
+    expect(addWorkingDays(noHolidays, wib("2026-12-24 09:00"), 1)).toEqual(wib("2026-12-25 23:59"));
+  });
+});
+
+describe("addWorkingDays on a Lokasi calendar: open days of its Jam Operasional minus its dated closures, ending at its close", () => {
+  const closedWednesday: JamOperasional = {
+    weekly: { ...weekdaysAndSaturdayMorning.weekly, wednesday: closed },
+    closures: [{ date: "2026-10-09", note: "Haul pendiri" }],
+  };
+  const lokasi: WorkingDayCalendar = { kind: "lokasi", jamOperasional: closedWednesday };
+
+  it.each([
+    ["1 working day from Monday ends at Tuesday's close", "2026-10-05 10:00", 1, "2026-10-06 16:00"],
+    ["2 working days from Monday skip the closed Wednesday", "2026-10-05 10:00", 2, "2026-10-08 16:00"],
+    ["2 working days from Wednesday skip the dated closure on Friday, ending at Saturday's short-hours close", "2026-10-07 10:00", 2, "2026-10-10 12:00"],
+    ["3 working days from Thursday skip the closure and the closed Sunday", "2026-10-08 10:00", 3, "2026-10-13 16:00"],
+  ])("%s", (_case, start, n, expected) => {
+    expect(addWorkingDays(lokasi, wib(start), n)).toEqual(wib(expected));
+  });
+
+  it("1 working day on a Lokasi calendar is the Lokasi's next working day end", () => {
+    const start = wib("2026-10-07 10:00");
+    expect(addWorkingDays(lokasi, start, 1)).toEqual(nextWorkingDayEnd(closedWednesday, start));
+  });
+});
+
+describe("the pre-submission promise text", () => {
+  it.each([
+    ["a deadline later today names only the time", "2026-10-05 10:00", "2026-10-05 08:30", "dikonfirmasi paling lambat pukul 10:00"],
+    ["a deadline tomorrow says besok", "2026-10-06 08:00", "2026-10-05 23:00", "dikonfirmasi paling lambat besok pukul 08:00"],
+    ["a later deadline names the weekday and date", "2026-10-05 10:00", "2026-10-03 21:00", "dikonfirmasi paling lambat Senin, 5 Oktober pukul 10:00"],
+    ["the time is WIB whatever the instant", "2026-12-31 16:00", "2026-12-31 09:00", "dikonfirmasi paling lambat pukul 16:00"],
+  ])("%s", (_case, due, now, expected) => {
+    expect(confirmationPromise(wib(due), wib(now))).toBe(expected);
   });
 });

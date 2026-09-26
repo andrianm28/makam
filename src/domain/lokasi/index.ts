@@ -179,12 +179,16 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   };
 }
 export {
+  addWorkingDays,
+  confirmationPromise,
   daytimeHoursDeadline,
   deadline,
   nextWorkingDayEnd,
   TPU_SCHEDULE,
   weekdays,
   type JamOperasional,
+  type NationalHoliday,
   type OpenHours,
   type Weekday,
+  type WorkingDayCalendar,
 } from "./working-time";

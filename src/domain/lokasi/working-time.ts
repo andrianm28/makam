@@ -81,11 +81,70 @@ export function deadline(schedule: JamOperasional, start: Date, hours: number): 
  * even before its opening.
  */
 export function nextWorkingDayEnd(schedule: JamOperasional, start: Date): Date {
+  return addWorkingDays({ kind: "lokasi", jamOperasional: schedule }, start, 1);
+}
+
+const hariNames = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const bulanNames = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+];
+
+/**
+ * The pre-submission promise, in WIB: "dikonfirmasi paling lambat pukul
+ * 08:00" (today), "… besok pukul 08:00", or "… Senin, 5 Oktober pukul 10:00".
+ */
+export function confirmationPromise(due: Date, now: Date): string {
+  const dueDay = dayStartOf(due.getTime());
+  const wall = new Date(due.getTime() + WIB_OFFSET);
+  const time = `pukul ${wall.toISOString().slice(11, 16)}`;
+  const daysAhead = Math.round((dueDay - dayStartOf(now.getTime())) / DAY);
+  if (daysAhead <= 0) return `dikonfirmasi paling lambat ${time}`;
+  if (daysAhead === 1) return `dikonfirmasi paling lambat besok ${time}`;
+  const hari = hariNames[weekdays.indexOf(weekdayOf(dueDay))];
+  return `dikonfirmasi paling lambat ${hari}, ${wall.getUTCDate()} ${bulanNames[wall.getUTCMonth()]} ${time}`;
+}
+
+/** A national holiday on the list Admin Platform keeps. */
+export interface NationalHoliday {
+  /** YYYY-MM-DD (WIB). */
+  date: string;
+  name: string;
+}
+
+/**
+ * Which days count as working days:
+ * - the Admin Platform calendar: Monday–Friday minus the national holidays on
+ *   Admin Platform's list; a working day ends 23:59 WIB;
+ * - a Lokasi calendar: the open days of its Jam Operasional minus its dated
+ *   closures; a working day ends at that day's close.
+ */
+export type WorkingDayCalendar =
+  | { kind: "admin_platform"; nationalHolidays: NationalHoliday[] }
+  | { kind: "lokasi"; jamOperasional: JamOperasional };
+
+/** The end of the working day starting at `dayStart` on `calendar`, or null when it is not a working day. */
+function workingDayEnd(calendar: WorkingDayCalendar, dayStart: number): number | null {
+  if (calendar.kind === "lokasi") return openWindow(calendar.jamOperasional, dayStart)?.closes ?? null;
+  const weekday = weekdayOf(dayStart);
+  if (weekday === "saturday" || weekday === "sunday") return null;
+  const date = dateKeyOf(dayStart);
+  if (calendar.nationalHolidays.some((holiday) => holiday.date === date)) return null;
+  return dayStart + (23 * 60 + 59) * MINUTE;
+}
+
+/**
+ * The end of the `n`th working day after the day `start` falls in (the day of
+ * `start` never counts): every "N working days" deadline.
+ */
+export function addWorkingDays(calendar: WorkingDayCalendar, start: Date, n: number): Date {
+  if (!Number.isInteger(n) || n < 1) throw new RangeError(`working days must be a whole number from 1: ${n}`);
+  let counted = 0;
   for (let day = 1, dayStart = dayStartOf(start.getTime()) + DAY; day <= MAX_DAYS_AHEAD; day++, dayStart += DAY) {
-    const window = openWindow(schedule, dayStart);
-    if (window) return new Date(window.closes);
+    const end = workingDayEnd(calendar, dayStart);
+    if (end !== null && ++counted === n) return new Date(end);
   }
-  throw new RangeError("Jam Operasional has no open day ahead");
+  throw new RangeError("the calendar has no working days ahead");
 }
 
 const daytime: OpenHours = { opens: "06:00", closes: "18:00" };
