@@ -37,3 +37,22 @@ Make the repo self-sufficient for Claude Code cloud sessions: vendored skills, r
   - `extraKnownMarketplaces.mattpocock` (GitHub `mattpocock/skills`, reachable from the cloud container over git) and `enabledPlugins["mattpocock-skills@mattpocock"]`. **Next cloud session: check that `mattpocock-skills:*` skills load**; if they do, delete the vendored `.claude/skills/` copies and point AGENTS.md at the plugin. Cloud sessions have been reported to skip repo-declared plugins, so don't assume.
   - `PreToolUse` hook `.claude/hooks/require-subagent-model.sh` on `Agent|Task` blocks a subagent call unless `model` is `sonnet`, `haiku` or `opus`. Verified live in this session: a call without `model` was blocked with the tiering message.
 - **Owner enabled the plugin on their claude.ai account** (2026-09-26, "Skills For Real Engineers", Anthropic Directory, v1.2.3, 38 skills, plugin id `58da2c13-5ed4-4485-9625-fb87b369e6b4`). Still not visible in this session (`ListPlugins` empty; account plugins sync at session start), so the check moves to the next cloud session. If that session shows the `mattpocock-skills:*` skills twice (account plugin plus the repo's `enabledPlugins`), drop the repo declaration and keep the account one; if it shows them once, delete the vendored `.claude/skills/` copies as planned.
+
+### 2026-09-26 17:00 UTC — report after the session restart (branch at 154c649, CI green)
+
+| Check | Result |
+|---|---|
+| CI on `ticket-87-cloud-trial` (154c649, push + PR) | ✅ green (lint, typecheck, Vitest, migration upgrade, gitleaks, build image) |
+| Node 22 | ✅ v22.22.2, matches the Dockerfile |
+| `CHROMIUM_PATH` from the hook | ✅ exported on restart: `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` |
+| Model tiering | ✅ enforced by the `PreToolUse` hook; a call without `model` was blocked live |
+| Postgres 16 in the image | ✅ unused (cluster `down`) |
+| mattpocock-skills plugin | ❌ not loaded after restart: `ListPlugins` empty, `~/.claude/plugins/installed_plugins.json` has no plugins, no `mattpocock-skills:*` skill. Neither the account plugin (id `58da2c13-…`) nor the repo's `enabledPlugins` got installed. Vendored `.claude/skills/` stay. |
+| `npm ci` in the hook | ❌ still `403 Host not in allowlist: registry.npmjs.org`; network policy unchanged |
+| Docker in the hook | ❌ → fixed: on restart the hook's `dockerd` raced the setup script's `containerd` and died ("timeout waiting for containerd to start"); started by hand it runs. The hook now waits for an already-starting daemon before starting its own, and waits up to 60 s. |
+| `npm run build` (fonts), `npm test`, real PdfRenderer test | ⏸ not run locally (no `node_modules`); CI runs them green, including the PdfRenderer test with Chromium |
+
+Still open for the owner:
+1. Environment network access: **Trusted** plus `fonts.googleapis.com` and `fonts.gstatic.com` (npm registry, Docker Hub, Google Fonts are blocked now).
+2. Plugin: check whether the environment/session actually receives account plugins; if not, the vendored skills remain the source.
+3. Then one more cloud session: `npm ci`, `npm run build`, `npm test` green, and the plugin check from the criterion above.
