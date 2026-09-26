@@ -46,7 +46,9 @@ export async function invitedStaff(
   role: Exclude<StaffRole, "admin_platform">,
   phoneNumber: string,
 ) {
-  const invited = await setup.identity.inviteStaff(admin, { phoneNumber, email: `${role}@contoh.id`, role });
+  // An Admin Lokasi invite names its Lokasi Mitra (the identity module keeps the id as given).
+  const lokasiId = role === "admin_lokasi" ? "5d1f4c2e-0000-4000-8000-000000000001" : undefined;
+  const invited = await setup.identity.inviteStaff(admin, { phoneNumber, email: `${role}@contoh.id`, role, lokasiId });
   if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
   const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
   return actorOf(setup.identity, cookies);
