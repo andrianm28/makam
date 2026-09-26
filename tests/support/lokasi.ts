@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { createLokasi } from "@/domain/lokasi";
+import { createLokasi, type LokasiMitraStatus } from "@/domain/lokasi";
+import { lokasiMitra as lokasiMitraTable } from "@/domain/lokasi/schema";
 import { identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "./identity";
 
 /** The Lokasi module on the test Postgres, sharing the identity module's fake Clock, FileStore and Audit Log. */
@@ -54,3 +56,12 @@ export async function signedInAdminLokasi(
 }
 
 export { signedInAdminPlatform };
+
+/**
+ * Sets a Lokasi Mitra's status directly. A stand-in until the publish gate
+ * (ticket 16) and Ditangguhkan / Berhenti (ticket 59) exist: those tickets
+ * replace every use with their public functions.
+ */
+export async function setLokasiMitraStatusForTest(db: Database, lokasiId: string, status: LokasiMitraStatus): Promise<void> {
+  await db.update(lokasiMitraTable).set({ status }).where(eq(lokasiMitraTable.id, lokasiId));
+}

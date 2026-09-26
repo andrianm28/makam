@@ -23,6 +23,7 @@ import {
   allLokasiMitra,
   changeBankAccount,
   createLokasiMitra,
+  isTerverifikasi,
   lokasiMitraOfAdminLokasi,
   readLokasiMitra,
   setDocumentChecklist,
@@ -102,6 +103,8 @@ export interface LokasiModuleDeps {
 export interface Lokasi {
   /** Admin Platform starts a Lokasi Mitra's onboarding record (Belum Tayang), audited. */
   createLokasiMitra(by: Actor, input: NewLokasiMitra): Promise<CreateLokasiMitraResult>;
+  /** Whether this Lokasi Mitra is Terverifikasi (listed); no actor, for public reads. False for an unknown id. */
+  isTerverifikasi(lokasiId: string): Promise<boolean>;
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
   /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
@@ -158,6 +161,7 @@ export interface Lokasi {
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   return {
     createLokasiMitra: (by, input) => createLokasiMitra(deps, by, input),
+    isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
     updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),

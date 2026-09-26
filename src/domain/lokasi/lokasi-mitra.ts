@@ -147,6 +147,21 @@ export async function readLokasiMitra(deps: LokasiDeps, by: Actor, lokasiId: str
   return { ok: true, lokasiMitra };
 }
 
+/**
+ * Whether a Lokasi Mitra is Terverifikasi, i.e. listed: the one question
+ * public reads (pages, prices) ask, so they never serve a Lokasi still Belum
+ * Tayang, or one Ditangguhkan or Berhenti. Needs no actor: it reveals nothing
+ * a public page would not. The publish gate (ticket 16) sets the status.
+ */
+export async function isTerverifikasi(deps: LokasiDeps, lokasiId: string): Promise<boolean> {
+  if (!isLokasiId(lokasiId)) return false;
+  const [row] = await deps.db
+    .select({ status: lokasiMitraTable.status })
+    .from(lokasiMitraTable)
+    .where(eq(lokasiMitraTable.id, lokasiId));
+  return row?.status === "terverifikasi";
+}
+
 /** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher). */
 export interface LokasiMitraSummary {
   id: string;
