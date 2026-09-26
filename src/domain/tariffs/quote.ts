@@ -32,8 +32,12 @@ export type QuoteLine =
  */
 export type Provider = { kind: "lokasi_mitra"; lokasiId: string } | { kind: "operator" } | { kind: "pemda" };
 
+/**
+ * A priced line carries facts only (kind, amounts, provider, the Jenis Makam's
+ * name, terms, tenure); how a page or a Tagihan words it is
+ * `quoteLineLabel` (`@/lib/quote-line-label`), outside the domain.
+ */
 interface QuotedLineBase {
-  label: string;
   amount: Rupiah;
   provider: Provider;
   /** The effective date of the tariff version this amount comes from ("Harga berlaku sejak"). */
@@ -43,9 +47,9 @@ interface QuotedLineBase {
 }
 
 export type QuotedLine =
-  | (QuotedLineBase & { kind: "harga_hak_pakai"; jenisMakamId: string; tenure: Tenure })
+  | (QuotedLineBase & { kind: "harga_hak_pakai"; jenisMakamId: string; jenisMakamName: string; tenure: Tenure })
   | (QuotedLineBase & { kind: "biaya_pemakaman"; lokasiId: string; tumpang: boolean })
-  | (QuotedLineBase & { kind: "perpanjangan"; jenisMakamId: string; terms: number; tenure: Tenure })
+  | (QuotedLineBase & { kind: "perpanjangan"; jenisMakamId: string; jenisMakamName: string; terms: number; tenure: Tenure })
   | (QuotedLineBase & { kind: "biaya_pengurusan"; pengurusan: "pemakaman" | "berkas" })
   /** `setorRetribusi`: a non-zero Retribusi Pemda must be paid on to the Pemda (a Setor Retribusi row); Rp 0 needs none. */
   | (QuotedLineBase & { kind: "retribusi_pemda"; retribusi: "iptm"; setorRetribusi: boolean })
@@ -66,7 +70,7 @@ export interface Quote {
 export type QuoteRefusal =
   /** No lines to price. */
   | { ok: false; reason: "tanpa_baris" }
-  /** A line is malformed (e.g. terms not a whole number from 1). */
+  /** A line is malformed (e.g. terms not a whole number from 1, or an id that is no id). */
   | { ok: false; reason: "baris_tidak_valid" }
   /** A Jenis Makam that does not exist. */
   | { ok: false; reason: "tidak_ditemukan" }
@@ -82,11 +86,11 @@ export type QuoteRefusal =
 export type QuoteResult = Quote | QuoteRefusal;
 
 const quoteLineSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("harga_hak_pakai"), jenisMakamId: z.string() }),
+  z.object({ kind: z.literal("harga_hak_pakai"), jenisMakamId: idSchema }),
   z.object({ kind: z.literal("biaya_pemakaman"), lokasiId: idSchema, tumpang: z.boolean() }),
   z.object({
     kind: z.literal("perpanjangan"),
-    jenisMakamId: z.string(),
+    jenisMakamId: idSchema,
     tenure: tenureSchema,
     terms: z.number().int().min(1).max(100),
   }),
@@ -146,7 +150,6 @@ async function priceLines(db: Database, lines: readonly QuoteLine[], at: Date): 
   if (lokasiIds.size === 1) {
     const platform = await globalLine(db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
       kind: "biaya_layanan_platform",
-      label: "Biaya Layanan Platform",
       amount,
       provider: { kind: "operator" },
       ...schedule,
@@ -220,8 +223,8 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
         (amount, version, schedule) => ({
           kind: "harga_hak_pakai",
           jenisMakamId: jenisMakam.id,
+          jenisMakamName: jenisMakam.name,
           tenure: version.tenure,
-          label: `Harga Hak Pakai – ${jenisMakam.name}`,
           amount,
           provider: { kind: "lokasi_mitra", lokasiId: jenisMakam.lokasiId },
           ...schedule,
@@ -238,7 +241,6 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
           kind: "biaya_pemakaman",
           lokasiId: line.lokasiId,
           tumpang: line.tumpang,
-          label: line.tumpang ? "Biaya Pemakaman (tumpang)" : "Biaya Pemakaman",
           amount,
           provider: { kind: "lokasi_mitra", lokasiId: line.lokasiId },
           ...schedule,
@@ -262,9 +264,9 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
         (amount, _version, schedule) => ({
           kind: "perpanjangan",
           jenisMakamId: jenisMakam.id,
+          jenisMakamName: jenisMakam.name,
           terms: line.terms,
           tenure,
-          label: `Perpanjangan – ${jenisMakam.name} (${line.terms} × ${tenure.years} tahun)`,
           amount,
           provider: { kind: "lokasi_mitra", lokasiId: jenisMakam.lokasiId },
           ...schedule,
@@ -280,7 +282,6 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
         (amount, schedule) => ({
           kind: "biaya_pengurusan",
           pengurusan: line.pengurusan,
-          label: line.pengurusan === "pemakaman" ? "Biaya Pengurusan" : "Biaya Pengurusan (hanya berkas)",
           amount,
           provider: { kind: "operator" },
           ...schedule,
@@ -290,7 +291,6 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<
       return globalLine(db, "retribusi_pemda", "retribusi_pemda_iptm", at, (amount, schedule) => ({
         kind: "retribusi_pemda",
         retribusi: line.retribusi,
-        label: "Retribusi Pemda (IPTM)",
         amount,
         provider: { kind: "pemda" },
         setorRetribusi: amount > 0,

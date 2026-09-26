@@ -61,26 +61,26 @@ describe("the all-in quote", () => {
       lines: [
         {
           kind: "harga_hak_pakai",
-          label: "Harga Hak Pakai – Reguler",
+          jenisMakamName: "Reguler",
           amount: 7_512_345,
           provider: { kind: "lokasi_mitra", lokasiId: lokasiMitra.id },
           tenure: { kind: "tahun", years: 5 },
         },
         {
           kind: "biaya_pemakaman",
-          label: "Biaya Pemakaman",
           amount: 1_987_655,
           provider: { kind: "lokasi_mitra", lokasiId: lokasiMitra.id },
         },
         {
           kind: "biaya_layanan_platform",
-          label: "Biaya Layanan Platform",
           amount: 150_001,
           provider: { kind: "operator" },
         },
       ],
       total: 9_650_001,
     });
+    // Line names are worded outside the domain (quoteLineLabel); a quote carries facts only.
+    if (quote.ok) for (const line of quote.lines) expect(line).not.toHaveProperty("label");
   });
 
   it("exactly one Biaya Layanan Platform per quote, however many Lokasi Mitra lines it has; the total is the exact sum", async () => {
@@ -149,7 +149,7 @@ describe("the all-in quote", () => {
 
     expect(await setup.tariffs.quote(tumpang, wib("2026-10-05 10:00"))).toMatchObject({
       lines: [
-        { kind: "biaya_pemakaman", label: "Biaya Pemakaman (tumpang)", amount: 1_250_003, tumpang: true },
+        { kind: "biaya_pemakaman", amount: 1_250_003, tumpang: true },
         { kind: "biaya_layanan_platform", amount: 150_001 },
       ],
       total: 1_400_004,
@@ -181,7 +181,7 @@ describe("the all-in quote", () => {
       lines: [
         {
           kind: "perpanjangan",
-          label: "Perpanjangan – Reguler (2 × 5 tahun)",
+          jenisMakamName: "Reguler",
           amount: 6_000_002,
           terms: 2,
           provider: { kind: "lokasi_mitra", lokasiId: lokasiMitra.id },
@@ -212,8 +212,8 @@ describe("the all-in quote", () => {
       ok: true,
       at: wib("2026-10-05 10:00"),
       lines: [
-        expect.objectContaining({ kind: "biaya_pengurusan", pengurusan: "pemakaman", label: "Biaya Pengurusan", amount: 1_500_007, provider: { kind: "operator" } }),
-        expect.objectContaining({ kind: "retribusi_pemda", label: "Retribusi Pemda (IPTM)", amount: 0, provider: { kind: "pemda" }, setorRetribusi: false }),
+        expect.objectContaining({ kind: "biaya_pengurusan", pengurusan: "pemakaman", amount: 1_500_007, provider: { kind: "operator" } }),
+        expect.objectContaining({ kind: "retribusi_pemda", retribusi: "iptm", amount: 0, provider: { kind: "pemda" }, setorRetribusi: false }),
       ],
       total: 1_500_007,
       inForceSince: "2026-10-01",
@@ -221,7 +221,7 @@ describe("the all-in quote", () => {
     });
     expect(
       await setup.tariffs.quote([{ kind: "biaya_pengurusan", pengurusan: "berkas" }], wib("2026-10-05 10:00")),
-    ).toMatchObject({ lines: [{ label: "Biaya Pengurusan (hanya berkas)", amount: 750_003 }], total: 750_003 });
+    ).toMatchObject({ lines: [{ kind: "biaya_pengurusan", pengurusan: "berkas", amount: 750_003 }], total: 750_003 });
   });
 
   it("is refused when a line has no tariff in force at that instant: a future first version, or no Biaya Layanan Platform yet", async () => {
@@ -252,7 +252,7 @@ describe("the all-in quote", () => {
     ).toEqual({ ok: false, reason: "tarif_belum_ada", kind: "biaya_pemakaman" });
   });
 
-  it("is refused for no lines, an unknown Jenis Makam, a Perpanjangan of a Selamanya Jenis Makam, or a number of terms that is not a whole number from 1", async () => {
+  it("is refused for no lines, an unknown Jenis Makam, a Jenis Makam id that is no id, a Perpanjangan of a Selamanya Jenis Makam, or a number of terms that is not a whole number from 1", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { reguler, selamanya } = await pricedLokasiMitra(setup);
     const at = wib("2026-10-05 10:00");
@@ -264,6 +264,10 @@ describe("the all-in quote", () => {
     expect(
       await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: selamanya.id, tenure: { kind: "selamanya" }, terms: 1 }], at),
     ).toEqual({ ok: false, reason: "tidak_bisa_diperpanjang" });
+    expect(await setup.tariffs.quote([{ kind: "harga_hak_pakai", jenisMakamId: "reguler" }], at)).toEqual({
+      ok: false,
+      reason: "baris_tidak_valid",
+    });
     for (const terms of [0, 1.5, -1]) {
       expect(
         await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: reguler.id, tenure: { kind: "tahun", years: 5 }, terms }], at),
