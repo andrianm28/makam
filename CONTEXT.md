@@ -278,6 +278,22 @@ _Avoid_: Review, ulasan, rating (as the term)
 A Lokasi Mitra's price for a new Hak Pakai, set per Jenis Makam.
 _Avoid_: Harga makam, harga kavling
 
+**Masa Hak Pakai**:
+How long a Hak Pakai lasts: Selamanya, or a fixed number of years that is also the length of one Perpanjangan Makam term. A Hak Pakai keeps the Masa Hak Pakai of its Jenis Makam as it was when bought, even if the Jenis Makam's changes later; only a fixed-term Hak Pakai can be extended, each term at the Jenis Makam's Perpanjangan price in force at the time of the Perpanjangan.
+_Avoid_: Tenor, durasi sewa, masa berlaku (alone)
+
+**Tarif**:
+A price entered by Admin Platform (a Lokasi Mitra's Harga Hak Pakai, Masa Hak Pakai and Perpanjangan price per Jenis Makam, its Biaya Pemakaman, or one of the Operator's global amounts), kept as versions each in force from its Tanggal Berlaku; a version is never changed or removed, only followed by a newer one.
+_Avoid_: Price list, daftar harga (as the record), harga (alone)
+
+**Tanggal Berlaku**:
+The date from which a version of a Tarif is in force, today or later, never earlier; shown as "Harga berlaku sejak <tanggal>" for the version in force and "Harga baru mulai <tanggal>" for one scheduled.
+_Avoid_: Effective date, tanggal efektif, tanggal mulai (alone)
+
+**Tarif Diperiksa**:
+Admin Platform's mark that a Lokasi Mitra's Tarif have been checked against its agreement; one of the conditions for it to become Terverifikasi.
+_Avoid_: Tarif disetujui, tarif final
+
 **Biaya Pemakaman**:
 A Lokasi Mitra's fee for carrying out one Pemakaman, charged on every burial including those under an existing Hak Pakai (tumpang may have its own amount).
 _Avoid_: Biaya gali, ongkos kubur

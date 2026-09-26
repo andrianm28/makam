@@ -31,10 +31,18 @@ const wibFormat = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
+function wibParts(instant: Date): Record<string, string> {
+  return Object.fromEntries(wibFormat.formatToParts(instant).map((part) => [part.type, part.value]));
+}
+
 /** "01/10/2026 09.00.00 WIB": Indonesian-style date and time, in WIB. */
 export function formatWib(instant: Date): string {
-  const parts = Object.fromEntries(
-    wibFormat.formatToParts(instant).map((part) => [part.type, part.value]),
-  );
+  const parts = wibParts(instant);
   return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}.${parts.minute}.${parts.second} WIB`;
+}
+
+/** The WIB calendar date of an instant, "YYYY-MM-DD" (the inverse of `wib("YYYY-MM-DD")` for midnight). */
+export function wibDateOf(instant: Date): string {
+  const parts = wibParts(instant);
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }

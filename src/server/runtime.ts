@@ -8,6 +8,7 @@ import type { Identity } from "@/domain/identity";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
+import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
 
@@ -21,6 +22,8 @@ export interface ServerRuntime {
   lokasi: Lokasi;
   /** Pengaturan Operator: read through `current()` / `inForceAt()`, never from env or constants. */
   operatorSettings: OperatorSettings;
+  /** Tariffs: versioned price books and the all-in `quote()`. */
+  tariffs: Tariffs;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -60,6 +63,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
       operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
+      tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi }),
     };
   }
   return globalForRuntime.__makamRuntime;

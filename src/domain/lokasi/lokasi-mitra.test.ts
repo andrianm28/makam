@@ -2,7 +2,12 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { LOKASI_MITRA_STATUSES } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminPlatform } from "../../../tests/support/lokasi";
+import {
+  lokasiOnTestDatabase,
+  newLokasiMitra,
+  setLokasiMitraStatusForTest,
+  signedInAdminPlatform,
+} from "../../../tests/support/lokasi";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -36,6 +41,24 @@ describe("a new Lokasi Mitra", () => {
 describe("the status of a Lokasi Mitra", () => {
   it("is one of Belum Tayang, Terverifikasi, Ditangguhkan and Berhenti; only Belum Tayang is set here (the others by the publish gate and ticket 59)", () => {
     expect(LOKASI_MITRA_STATUSES).toEqual(["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"]);
+  });
+});
+
+describe("whether a Lokasi Mitra is Terverifikasi (listed): asked without an actor, for public pages and prices", () => {
+  it("a new one is Belum Tayang, so not; once Terverifikasi it is; Ditangguhkan or Berhenti it is not; an unknown id is not", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+
+    expect(await setup.lokasi.isTerverifikasi(lokasiMitra.id)).toBe(false);
+    await setLokasiMitraStatusForTest(db, lokasiMitra.id, "terverifikasi");
+    expect(await setup.lokasi.isTerverifikasi(lokasiMitra.id)).toBe(true);
+    for (const status of ["ditangguhkan", "berhenti"] as const) {
+      await setLokasiMitraStatusForTest(db, lokasiMitra.id, status);
+      expect(await setup.lokasi.isTerverifikasi(lokasiMitra.id)).toBe(false);
+    }
+    expect(await setup.lokasi.isTerverifikasi("5d1f4c2e-0000-4000-8000-00000000abcd")).toBe(false);
+    expect(await setup.lokasi.isTerverifikasi("bukan-id")).toBe(false);
   });
 });
 
