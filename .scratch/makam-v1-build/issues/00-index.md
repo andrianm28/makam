@@ -315,3 +315,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 |---|---|---|---|
 | [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | ready-for-agent | 12 |
 
+| [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |
