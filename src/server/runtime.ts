@@ -4,6 +4,8 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
+import { createBilling, type Billing } from "@/domain/billing";
+import { documentPagePath } from "@/lib/document-links";
 import type { Identity } from "@/domain/identity";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
@@ -24,6 +26,8 @@ export interface ServerRuntime {
   operatorSettings: OperatorSettings;
   /** Tariffs: versioned price books and the all-in `quote()`. */
   tariffs: Tariffs;
+  /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
+  billing: Billing;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -42,6 +46,7 @@ export function serverRuntime(): ServerRuntime {
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
       vapid: env.vapid,
+      chromiumPath: env.CHROMIUM_PATH,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const notifications = createNotifications({
@@ -54,6 +59,7 @@ export function serverRuntime(): ServerRuntime {
       reportError: (error, context) => Sentry.captureException(error, context),
     });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+    const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -62,8 +68,15 @@ export function serverRuntime(): ServerRuntime {
       identity,
       notifications,
       lokasi,
-      operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
+      operatorSettings,
       tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi }),
+      billing: createBilling({
+        db: database.db,
+        clock: adapters.clock,
+        operatorSettings,
+        pdf: adapters.pdf,
+        documentPageUrl: (link) => `${env.documentPageOrigin}${documentPagePath(link)}`,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;

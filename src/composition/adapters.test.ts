@@ -8,6 +8,7 @@ import {
   FakeWebPush,
   FakeWhatsAppSender,
 } from "@/adapters/memory";
+import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
 import type { SmtpSettings } from "@/lib/env";
@@ -110,6 +111,14 @@ describe("composition root", () => {
 
   it.each(["development", "test"] as const)("keeps the fake WebPush in %s, even with VAPID keys", (appEnv) => {
     expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(FakeWebPush);
+  });
+
+  it.each(["staging", "production"] as const)("renders PDFs with the image's headless Chromium in %s", (appEnv) => {
+    expect(createAdapters({ appEnv, vapid: VAPID }).pdf).toBeInstanceOf(ChromiumPdfRenderer);
+  });
+
+  it.each(["development", "test"] as const)("keeps the fake PdfRenderer in %s", (appEnv) => {
+    expect(createAdapters({ appEnv }).pdf).toBeInstanceOf(FakePdfRenderer);
   });
 
   it("lets a test inject its own Clock and fakes", () => {

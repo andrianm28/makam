@@ -17,6 +17,9 @@ export function usesInMemoryFakes(appEnv: AppEnvironment): boolean {
 
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
+/** Where the image installs its headless Chromium (Debian's chromium-headless-shell), for the live PdfRenderer. */
+export const DEFAULT_CHROMIUM_PATH = "/usr/bin/chromium-headless-shell";
+
 type EnvSource = Record<string, string | undefined>;
 
 /** Error monitoring (Sentry SDK to GlitchTip). Needs nothing else, so it works even when the rest is misconfigured. */
@@ -174,6 +177,15 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   VAPID_PUBLIC_KEY: z.preprocess(emptyToUndefined, vapidPublicKey.optional()),
   VAPID_PRIVATE_KEY: z.preprocess(emptyToUndefined, vapidPrivateKey.optional()),
   VAPID_SUBJECT: z.preprocess(emptyToUndefined, vapidSubject.optional()),
+  /** The headless Chromium the live PdfRenderer runs; the image installs Debian's chromium-headless-shell here. */
+  CHROMIUM_PATH: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").default(DEFAULT_CHROMIUM_PATH)),
+  /** The port the web server listens on (the image sets 3000). */
+  PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(3000)),
+  /**
+   * Where the PdfRenderer opens document pages ("Unduh PDF"): an origin that
+   * reaches the web server from inside its container. Default http://127.0.0.1:$PORT.
+   */
+  DOCUMENT_PAGE_ORIGIN: z.preprocess(emptyToUndefined, z.url({ protocol: /^https?$/ }).optional()),
 })
   .superRefine((env, ctx) => {
     requireSmtpOutsideFakes(env, ctx);
@@ -191,9 +203,11 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
       VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY,
       VAPID_SUBJECT,
+      DOCUMENT_PAGE_ORIGIN,
       ...env
     }) => ({
       ...withSmtpSettings(env),
+      documentPageOrigin: new URL(DOCUMENT_PAGE_ORIGIN ?? `http://127.0.0.1:${env.PORT}`).origin,
       // Required (and so set) in staging and production; the fixed local pair only where fakes run.
       vapid: vapidKeys({
         publicKey: VAPID_PUBLIC_KEY ?? LOCAL_VAPID_PUBLIC_KEY,

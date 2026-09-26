@@ -41,6 +41,15 @@ export function timesRupiah(amount: Rupiah, times: number): RupiahResult {
 }
 
 /**
+ * "Rp 7.500.000": whole rupiah with dots grouping thousands (no sen, ever).
+ * A negative amount (a Penyesuaian Harga Khusus line) reads "−Rp 2.000.000".
+ */
+export function formatRupiah(amount: number): string {
+  const grouped = String(Math.abs(amount)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${amount < 0 ? "−" : ""}Rp ${grouped}`;
+}
+
+/**
  * An amount read from a Postgres `bigint` column (the driver hands it over as
  * text). Converted exactly; a value outside Rp 0..RUPIAH_MAX (so also any
  * beyond Number.MAX_SAFE_INTEGER) is refused with an error rather than rounded.

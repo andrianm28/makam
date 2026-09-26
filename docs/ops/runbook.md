@@ -428,6 +428,24 @@ from DKIM. Images built before ticket 68 have no `dist/email-check.mjs`; build i
 (`npm run build:worker`) and `docker cp` it into the container's `/tmp`, as for
 `sentry-check`.
 
+## Test PDF (PdfRenderer, "Unduh PDF")
+
+The live PdfRenderer prints a Tagihan / Bukti page to PDF with the image's
+headless Chromium (Debian `chromium-headless-shell` at `CHROMIUM_PATH`,
+`/usr/bin/chromium-headless-shell`), opening the page on the web server itself
+(`DOCUMENT_PAGE_ORIGIN`, default `http://127.0.0.1:$PORT`). `dist/pdf-check.mjs`
+(from `src/cli/pdf-check.ts`) renders one page the same way and prints the PDF's
+size; with no argument it renders the web server's home page.
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec web node dist/pdf-check.mjs
+# exit 0: "OK: ... dirender menjadi PDF <n> byte"; 1: "Gagal: ..." plus the renderer's reason
+```
+
+Images built before ticket 18 have no Chromium; rebuild the image.
+
 ## Uptime alarm
 
 The monitor watches `https://dev.makam.co.id/api/health`. That path skips

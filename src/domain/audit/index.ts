@@ -10,6 +10,7 @@
  */
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import { refusable } from "@/db/unit-of-work";
 import type { Role } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { auditEntry } from "./schema";
@@ -147,43 +148,30 @@ export interface AuditLog {
   allEntriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
 }
 
-/** Carries a refusal out of the transaction so that it rolls back. */
-class Refused<T> extends Error {
-  constructor(readonly result: T) {
-    super("staff write refused");
-  }
-}
-
 export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
   return {
-    async staffWrite(db, write) {
-      try {
-        return await db.transaction(async (tx) => {
-          let recorded = 0;
-          const record: RecordEntry = async (entry) => {
-            await tx.insert(auditEntry).values({
-              at: deps.clock.now(),
-              actorAccountId: entry.actor.accountId,
-              actorRole: entry.actor.role,
-              action: entry.action,
-              entityKind: entry.entity.kind,
-              entityId: entry.entity.id,
-              lokasiId: entry.lokasiId ?? null,
-              before: entry.before,
-              after: entry.after,
-              reason: entry.reason,
-            });
-            recorded++;
-          };
-          const result = await write(tx, record);
-          if (!result.ok) throw new Refused(result);
-          if (recorded === 0) throw new UnauditedStaffWrite();
-          return result;
-        });
-      } catch (error) {
-        if (error instanceof Refused) return error.result;
-        throw error;
-      }
+    staffWrite(db, write) {
+      return refusable(db, async (tx) => {
+        let recorded = 0;
+        const record: RecordEntry = async (entry) => {
+          await tx.insert(auditEntry).values({
+            at: deps.clock.now(),
+            actorAccountId: entry.actor.accountId,
+            actorRole: entry.actor.role,
+            action: entry.action,
+            entityKind: entry.entity.kind,
+            entityId: entry.entity.id,
+            lokasiId: entry.lokasiId ?? null,
+            before: entry.before,
+            after: entry.after,
+            reason: entry.reason,
+          });
+          recorded++;
+        };
+        const result = await write(tx, record);
+        if (result.ok && recorded === 0) throw new UnauditedStaffWrite();
+        return result;
+      });
     },
     async entriesAbout(entity) {
       const rows = await deps.db

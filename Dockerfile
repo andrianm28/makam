@@ -23,6 +23,14 @@ ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 RUN npm run build && npm run build:worker
 
 FROM base AS runner
+# The live PdfRenderer ("Unduh PDF" on every Tagihan / Bukti) prints document
+# pages with Debian's chromium-headless-shell: the headless-only build, far
+# smaller than the full chromium package and with no Node dependency. DejaVu
+# covers any glyph the page's own web fonts do not.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium-headless-shell fonts-dejavu-core \
+ && rm -rf /var/lib/apt/lists/*
+ENV CHROMIUM_PATH=/usr/bin/chromium-headless-shell
 ENV NODE_ENV=production \
     TZ=Asia/Jakarta \
     PORT=3000 \

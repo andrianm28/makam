@@ -4,7 +4,7 @@ import { heartbeatTick, workerHeartbeat } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { createPgBoss } from "./pg-boss";
-import { inTransaction } from "./unit-of-work";
+import { inTransaction, refusable } from "./unit-of-work";
 
 const QUEUE = "test.unit-of-work";
 const { db, pool, close } = testDatabase();
@@ -52,5 +52,27 @@ describe("enqueueing a job in the same transaction as the data", () => {
 
     expect((await workerHeartbeat({ db }, now())).lastBeatAt).toBeNull();
     expect(await boss.fetch(QUEUE)).toEqual([]);
+  });
+});
+
+describe("a write that may be refused", () => {
+  it("a refusal rolls back everything written before it and is returned as the result", async () => {
+    const result = await refusable(db, async (tx) => {
+      await heartbeatTick({ db: tx }, now());
+      return { ok: false as const, reason: "ditolak" };
+    });
+
+    expect(result).toEqual({ ok: false, reason: "ditolak" });
+    expect((await workerHeartbeat({ db }, now())).lastBeatAt).toBeNull();
+  });
+
+  it("an accepted write commits and its result is returned", async () => {
+    const result = await refusable(db, async (tx) => {
+      await heartbeatTick({ db: tx }, now());
+      return { ok: true as const };
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect((await workerHeartbeat({ db }, now())).lastBeatAt).toEqual(wib("2026-10-01 09:00"));
   });
 });

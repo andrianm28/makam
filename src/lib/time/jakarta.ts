@@ -85,6 +85,17 @@ export const NAMA_BULAN = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ] as const;
 
+/** "1 November 2026" for a WIB calendar date "2026-11-01". */
+export function formatTanggal(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return `${day} ${NAMA_BULAN[month - 1]} ${year}`;
+}
+
+/** "1 Oktober 2026, 21.00 WIB": the WIB date and time of `instant`, in Indonesian. */
+export function formatTanggalJam(instant: Date): string {
+  return `${formatTanggal(wibDateOf(instant))}, ${wibTime(instant).replace(":", ".")} WIB`;
+}
+
 /** "Senin, 5 Oktober": the WIB weekday and date of `instant`, in Indonesian. */
 export function formatWibHariTanggal(instant: Date): string {
   const shifted = wall(instant);

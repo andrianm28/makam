@@ -24,7 +24,7 @@ export function StagingBanner() {
   return (
     <div
       role="status"
-      className="w-full bg-amber-400 px-4 py-2 text-center text-sm font-medium leading-snug text-amber-950 break-words"
+      className="w-full bg-amber-400 px-4 py-2 print:hidden text-center text-sm font-medium leading-snug text-amber-950 break-words"
     >
       STAGING — bukan layanan resmi Makam.co.id. Data dan pembayaran di sini hanya untuk uji coba.
     </div>

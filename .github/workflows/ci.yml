@@ -39,6 +39,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The real PdfRenderer test prints a page with a headless Chromium: the
+      # runner's preinstalled Google Chrome (the image uses chromium-headless-shell).
+      - name: Chromium for the PdfRenderer test
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          "$CHROME" --version
+          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

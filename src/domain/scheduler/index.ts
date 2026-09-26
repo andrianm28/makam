@@ -12,6 +12,7 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
+import { lapsePayFirstTagihanTick } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -49,6 +50,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "scheduler.heartbeat", cron: "* * * * *", tick: heartbeatTick },
   // Identity & Access: per-IP request records for emailed codes older than 24 h (ticket 67).
   { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
+  // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
+  { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
 ];
 
 async function pruneIpRequestsTick(ctx: SchedulerContext, now: Date): Promise<void> {

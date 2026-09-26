@@ -21,6 +21,32 @@ export interface UnitOfWork {
   jobs: JobQueue;
 }
 
+/** Carries a refusal out of a transaction so that it rolls back. */
+class Refused<T> extends Error {
+  constructor(readonly result: T) {
+    super("refused");
+  }
+}
+
+/**
+ * Runs `work` in a transaction on `db` (a savepoint when `db` is already one):
+ * a result `{ ok: false }` is a refusal, so everything written is rolled back
+ * and the refusal returned; `{ ok: true }` commits. A thrown error rolls back
+ * and is rethrown.
+ */
+export async function refusable<T extends { ok: boolean }>(db: Database, work: (tx: Database) => Promise<T>): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      const result = await work(tx);
+      if (!result.ok) throw new Refused(result);
+      return result;
+    });
+  } catch (error) {
+    if (error instanceof Refused) return error.result as T;
+    throw error;
+  }
+}
+
 /**
  * Runs `work` in one Postgres transaction whose jobs are enqueued through the
  * same connection, so data and jobs commit or roll back together (no Redis, no
