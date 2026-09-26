@@ -18,4 +18,13 @@ if command -v docker >/dev/null 2>&1 && ! docker info >/dev/null 2>&1; then
   for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
   docker info >/dev/null 2>&1 || echo "Docker daemon did not start; tests need it (see /tmp/makam-dockerd.log)" >&2
 fi
+# Chromium for the real PdfRenderer test and Playwright: use a system Chrome if present,
+# otherwise the one the environment's setup script installed with Playwright.
+if [ -z "${CHROMIUM_PATH:-}" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  chrome="$(command -v google-chrome || command -v chromium || true)"
+  if [ -z "$chrome" ]; then
+    chrome="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | tail -n 1 || true)"
+  fi
+  [ -n "$chrome" ] && echo "export CHROMIUM_PATH=\"$chrome\"" >> "$CLAUDE_ENV_FILE"
+fi
 exit 0
