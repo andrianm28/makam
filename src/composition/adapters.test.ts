@@ -10,7 +10,8 @@ import {
 import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
-import type { SmtpSettings } from "@/lib/env";
+import { SumopodPaymentProvider } from "@/adapters/live/sumopod-payment-provider";
+import type { SmtpSettings, SumopodSettings } from "@/lib/env";
 import { VapidWebPush } from "@/adapters/live/vapid-web-push";
 import type { Adapters } from "@/ports";
 import { createAdapters } from "./adapters";
@@ -91,6 +92,29 @@ describe("composition root", () => {
     expect(createAdapters({ appEnv, smtp: SMTP }).email).toBeInstanceOf(FakeEmailSender);
   });
 
+  const SUMOPOD: SumopodSettings = {
+    apiKey: "sumopod-key",
+    webhookSecret: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
+    baseUrl: "https://api-pay-sandbox.sumopod.com",
+  };
+
+  it.each(["staging", "production"] as const)("pays through the live SumoPod PaymentProvider in %s", (appEnv) => {
+    expect(createAdapters({ appEnv, vapid: VAPID, sumopod: SUMOPOD }).payments).toBeInstanceOf(SumopodPaymentProvider);
+  });
+
+  it.each(["staging", "production"] as const)(
+    "without SumoPod settings the PaymentProvider refuses to run in %s, never faking it",
+    async (appEnv) => {
+      const { payments } = createAdapters({ appEnv, vapid: VAPID });
+      await expect(
+        payments.createPayment({ reference: "TGH-1", amountRupiah: 1, description: "x" }),
+      ).rejects.toThrow(/PaymentProvider \(SumoPod\)/);
+    },
+  );
+
+  it.each(["development", "test"] as const)("keeps the fake PaymentProvider in %s even with SumoPod settings", (appEnv) => {
+    expect(createAdapters({ appEnv, sumopod: SUMOPOD }).payments).toBeInstanceOf(FakePaymentProvider);
+  });
 
   it.each(["staging", "production"] as const)("wires the live VAPID WebPush for staff push in %s", (appEnv) => {
     expect(createAdapters({ appEnv, vapid: VAPID }).webPush).toBeInstanceOf(VapidWebPush);

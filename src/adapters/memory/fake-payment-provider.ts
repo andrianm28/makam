@@ -99,7 +99,7 @@ export class FakePaymentProvider implements PaymentProvider {
       reference: data.reference,
       amountRupiah: data.amount,
       channel: data.channel ?? null,
-      occurredAt: new Date(data.occurred_at),
+      paidAt: new Date(data.occurred_at),
     };
   }
 }

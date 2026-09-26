@@ -66,7 +66,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
 | [60](60-real-s3-filestore-adapter.md) | FileStore on the host disk for v1 (S3 adapter in v2) | ready-for-agent | — |
-| [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | ready-for-agent | 04, 19 |
+| [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | resolved | 04, 19 |
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter — out of v1 (ADR 0004) | wontfix | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
 | [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | resolved | 09 |
