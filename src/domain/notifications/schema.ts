@@ -25,3 +25,26 @@ export const notificationsPushDevice = pgTable(
   },
   (table) => [index("notifications_push_device_account_idx").on(table.accountId)],
 );
+
+/**
+ * Owned by the notifications module: one row per Peringatan Staf sent to an
+ * Akun Staf, for the bell in the staff header. It keeps only what the push
+ * shows (lock-screen safe: no names, phone numbers or emails) and the staff
+ * page of its subject. The times come from the Clock; no database default.
+ */
+export const notificationsStaffAlert = pgTable(
+  "notifications_staff_alert",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The Akun Staf it was sent to. Not a foreign key: identity owns its tables. */
+    accountId: text("account_id").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    /** The staff page of its subject (`/staf` or under it). */
+    url: text("url").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** When the Akun opened the bell with it listed; null while unread. */
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [index("notifications_staff_alert_account_sent_idx").on(table.accountId, table.sentAt)],
+);

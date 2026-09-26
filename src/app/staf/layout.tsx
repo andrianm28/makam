@@ -1,10 +1,12 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { KeluarButton } from "@/app/akun/keluar-button";
 import { BrandLogo } from "@/components/makam/brand-logo";
 import { staffShell } from "@/server/staff-area";
 import { PushPanel } from "./push-panel";
 import { StaffShell } from "./staff-shell";
+
+export { viewport } from "./viewport";
 
 export const metadata: Metadata = {
   title: "Area Staf | Makam.co.id",
@@ -13,14 +15,6 @@ export const metadata: Metadata = {
   manifest: "/staf.webmanifest",
   icons: { apple: "/icons/staf-apple-touch-icon.png" },
   appleWebApp: { capable: true, title: "Makam Staf", statusBarStyle: "default" },
-};
-
-/** The browser bar takes the page colour: Ivory, or the dark Forest ground in dark mode. */
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F4ED" },
-    { media: "(prefers-color-scheme: dark)", color: "#0B1711" },
-  ],
 };
 
 /**

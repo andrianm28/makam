@@ -32,8 +32,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** What the page is for, in one line (the role's card list on its home); "Segera hadir." while unbuilt. */
   description: string;
-  /** Active only on its own page, not on the pages under it (a role's Beranda). */
-  exact?: boolean;
+  /** The role's Beranda: active only on its own page, not on the pages under it, and no card on the role's home. */
+  isBeranda?: boolean;
 }
 
 export interface NavGroup {
@@ -46,7 +46,7 @@ const AL = staffRoleHome("admin_lokasi");
 const SEGERA = "Segera hadir.";
 
 function beranda(href: string, description: string): NavItem {
-  return { label: "Beranda", href, icon: LayoutDashboardIcon, description, exact: true };
+  return { label: "Beranda", href, icon: LayoutDashboardIcon, description, isBeranda: true };
 }
 
 /**
@@ -158,11 +158,54 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
   }
 }
 
+export interface PaletteItem {
+  label: string;
+  href: string;
+}
+
+export interface PaletteGroup {
+  label: string;
+  items: PaletteItem[];
+}
+
+/**
+ * What the command palette offers one staff role: every page of its menu that
+ * is built (never an unbuilt one), and the pages they link to by name. An
+ * Admin Platform gets each Lokasi Mitra in `lokasi`; an Admin Lokasi gets its
+ * menu once for each Lokasi Mitra in `lokasi`, which must be only its own
+ * (the server passes exactly those).
+ */
+export function staffPalette(role: StaffRole, lokasi: readonly { id: string; name: string }[]): PaletteGroup[] {
+  const linked = (groups: NavGroup[], label?: string): PaletteGroup[] =>
+    groups
+      .map((group) => ({
+        label: label ?? group.label,
+        items: group.items.flatMap((item) => (item.href ? [{ label: item.label, href: item.href }] : [])),
+      }))
+      .filter((group) => group.items.length > 0);
+
+  switch (role) {
+    case "admin_platform": {
+      const groups = linked(staffMenu(role));
+      if (lokasi.length === 0) return groups;
+      return [
+        ...groups,
+        { label: "Lokasi Mitra", items: lokasi.map((item) => ({ label: item.name, href: `${AP}/lokasi/${item.id}` })) },
+      ];
+    }
+    case "admin_lokasi":
+      if (lokasi.length === 0) return linked(staffMenu(role));
+      return lokasi.flatMap((item) => linked(staffMenu(role, { lokasiId: item.id }), item.name));
+    default:
+      return linked(staffMenu(role));
+  }
+}
+
 /** A role's pages other than its Beranda: the cards on the role's home. */
 export function staffPages(role: StaffRole, scope: { lokasiId?: string } = {}): NavItem[] {
   return staffMenu(role, scope)
     .flatMap((group) => group.items)
-    .filter((item) => !item.exact);
+    .filter((item) => !item.isBeranda);
 }
 
 /**
@@ -245,7 +288,7 @@ export function menuRole(pathname: string, held: readonly StaffRole[]): StaffRol
 /** Whether a menu item is the current place: its page, or a page under it. */
 export function isActiveItem(item: NavItem, pathname: string): boolean {
   if (!item.href) return false;
-  return item.exact ? pathname === item.href : within(pathname, item.href);
+  return item.isBeranda ? pathname === item.href : within(pathname, item.href);
 }
 
 function within(pathname: string, base: string): boolean {

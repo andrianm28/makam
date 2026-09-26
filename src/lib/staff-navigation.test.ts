@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { staffRoles, type StaffRole } from "@/domain/identity";
-import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage } from "./navigation";
+import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, staffPalette } from "./staff-navigation";
 
 /** A menu as its reader sees it: group labels and item labels, in order. */
 function outline(groups: ReturnType<typeof staffMenu>) {
@@ -135,5 +135,24 @@ describe("where a staff page sits in the menu", () => {
     expect(staffPage(`/staf/admin-lokasi/${lokasiId}/audit-log`).lokasiId).toBe(lokasiId);
     expect(staffPage("/staf/admin-lokasi").lokasiId).toBeUndefined();
     expect(staffPage(`/staf/admin-platform/lokasi/${lokasiId}`).lokasiId).toBeUndefined();
+  });
+});
+
+describe("the command palette of each role", () => {
+  it("an Admin Lokasi of two Lokasi Mitra finds each one's pages under its name", () => {
+    const second = "7a2e1d90-5b3c-4e8f-a1d2-3c4b5a697881";
+    expect(
+      staffPalette("admin_lokasi", [
+        { id: lokasiId, name: "Makam Wakaf Al-Ikhlas" },
+        { id: second, name: "TPU Keluarga Sentosa" },
+      ]).map((group) => [group.label, group.items.map((item) => item.href)]),
+    ).toEqual([
+      ["Makam Wakaf Al-Ikhlas", [`/staf/admin-lokasi/${lokasiId}`, `/staf/admin-lokasi/${lokasiId}/jam-operasional`, `/staf/admin-lokasi/${lokasiId}/audit-log`]],
+      ["TPU Keluarga Sentosa", [`/staf/admin-lokasi/${second}`, `/staf/admin-lokasi/${second}/jam-operasional`, `/staf/admin-lokasi/${second}/audit-log`]],
+    ]);
+  });
+
+  it("an Admin Lokasi linked to no Lokasi Mitra yet finds only its Beranda", () => {
+    expect(staffPalette("admin_lokasi", [])).toEqual([{ label: "Lokasi ini", items: [{ label: "Beranda", href: "/staf/admin-lokasi" }] }]);
   });
 });

@@ -180,9 +180,11 @@ lucide, which matches the guideline's 2 px stroke, rounded, minimal style. Don't
 
 Every staff role works inside one frame (`src/app/staf/layout.tsx` → `StaffShell`):
 
-- **Sidebar**, collapsible to icons (the header's menu button, or Ctrl/⌘ B; the choice is kept in the `sidebar_state` cookie), with the current role's menu in named groups (`staffMenu()` in `src/app/staf/navigation.ts`). Admin Platform: **Kerja harian** (Beranda, Antrean) · **Lokasi dan harga** (Lokasi Mitra, Tarif global, Hari Libur Nasional) · **Orang** (Staf, Pindah Nomor) · **Operator** (Pengaturan Operator, Audit Log). An Admin Lokasi's menu is scoped to the Lokasi Mitra in the URL. An item whose page is not built yet shows disabled with "Segera", never as a dead link.
+- **Sidebar**, collapsible to icons (the header's menu button, or Ctrl/⌘ B; the choice is kept in the `sidebar_state` cookie), with the current role's menu in named groups (`staffMenu()` in `src/lib/staff-navigation.ts`). Admin Platform: **Kerja harian** (Beranda, Antrean) · **Lokasi dan harga** (Lokasi Mitra, Tarif global, Hari Libur Nasional) · **Orang** (Staf, Pemulihan Akun) · **Operator** (Pengaturan Operator, Audit Log). An Admin Lokasi's menu is scoped to the Lokasi Mitra in the URL. An item whose page is not built yet shows disabled with "Segera", never as a dead link.
 - **The active item** is a light Sage tint (`brand-soft`) with semibold Forest text and `aria-current="page"`; solid Forest stays reserved for primary buttons. A role's Beranda is active only on its own page; every other item also on the pages under it.
-- **Header**: breadcrumbs (`staffBreadcrumbs()`: role › menu item › the pages below, naming a Lokasi Mitra by its name), the **role switcher** (only for an Akun holding several staff roles), the **theme toggle** and the **account menu** (number and email, Akun Saya, Email, Keluar).
+- **Header**: breadcrumbs (`staffBreadcrumbs()`: role › menu item › the pages below, naming a Lokasi Mitra by its name), the **role switcher** (only for an Akun holding several staff roles), the **command palette** (⌘K / Ctrl+K, or its header search button), the **Peringatan Staf bell**, the **theme toggle** and the **account menu** (number and email, Akun Saya, Email, Keluar).
+- **Command palette** (`CommandPalette`, `src/app/staf/command-palette.tsx`): opens over the pages of the role currently showing in the sidebar only (`staffPalette()` in `src/lib/staff-navigation.ts`, computed server-side in `staffShell()` — the palette never lists a page the signed-in Akun's role may not open). Arrow keys move the highlight, Enter opens the highlighted page, typing filters by page and group name.
+- **Peringatan Staf bell** (`NotificationBell`, `src/app/staf/notification-bell.tsx`): the unread count and the latest Peringatan Staf of the signed-in Akun, each linking to its subject; opening it marks them read (`bacaPeringatanStaf`, `src/app/staf/alert-actions.ts`). Empty: "Belum ada Peringatan Staf."
 - **On phones** the sidebar is a sheet opened from the header's menu button, and the role switcher moves into the account menu. (Bottom navigation for the field roles is a later slice.)
 - The shell appears only for a signed-in Akun Staf past the TOTP step (`staffShell()` in `src/server/staff-area.ts`); the TOTP step renders bare, light, with the logo and Keluar. Each page still checks its own access on the server.
 
@@ -203,7 +205,7 @@ makam compositions (`src/components/makam/`):
 | `BrandLogo`, `BrandMark` | The interim logo. |
 | `ThemeProvider` | next-themes, with the public pages held to light. |
 
-Still to come with the slices that first need them: `DataTable`, `FormSection`, `ConfirmDialog`, `LokasiSwitcher` (header), the command palette and the Peringatan Staf bell, the bottom navigation for field roles.
+Still to come with the slices that first need them: `DataTable`, `FormSection`, `ConfirmDialog`, `LokasiSwitcher` (header), the bottom navigation for field roles.
 
 ## Usage rules
 

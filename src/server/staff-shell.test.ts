@@ -89,4 +89,104 @@ describe("the staff shell", () => {
     await signInAsAdminLokasi(server, admin, lokasiId);
     expect((await staffShell())?.lokasiNames).toEqual({ [lokasiId]: "Makam Wakaf Al-Ikhlas" });
   });
+
+  it("carries the signed-in Akun's Peringatan Staf bell: the unread count and the latest, each with the page of its subject", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    const adminLokasi = await signInAsAdminLokasi(server, admin, lokasiId);
+    const { notifications } = server.runtime();
+    await notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId },
+      kind: "staf_saat_duka_baru",
+      email: {
+        subject: "Pemesanan Saat Duka baru: MKM-2026-000123",
+        text: "MKM-2026-000123 di Makam Wakaf Al-Ikhlas menunggu konfirmasi.",
+      },
+      push: {
+        title: "Pemesanan Saat Duka baru",
+        body: "MKM-2026-000123 di Makam Wakaf Al-Ikhlas",
+        url: `/staf/admin-lokasi/${lokasiId}`,
+      },
+    });
+
+    expect((await staffShell())?.alerts).toMatchObject({
+      unread: 1,
+      latest: [{ title: "Pemesanan Saat Duka baru", url: `/staf/admin-lokasi/${lokasiId}`, read: false }],
+    });
+  });
+});
+
+/** Every page a palette opens. */
+function hrefs(palette: NonNullable<Awaited<ReturnType<typeof staffShell>>>["palette"]) {
+  return Object.values(palette).flatMap((groups) => groups!.flatMap((group) => group.items.map((item) => item.href)));
+}
+
+describe("the command palette (role visibility on the server)", () => {
+  it("an Admin Lokasi's palette opens only the pages of its own Lokasi Mitra, never another Lokasi's or an Admin Platform page", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    const other = await server.runtime().lokasi.createLokasiMitra(admin, {
+      name: "TPU Keluarga Sentosa",
+      pengelolaName: "Yayasan Sentosa",
+      address: "Jl. Sentosa No. 2",
+      city: "Kota Depok",
+    });
+    if (!other.ok) throw new Error(other.reason);
+    await signInAsAdminLokasi(server, admin, lokasiId);
+
+    const shell = await staffShell();
+    expect(Object.keys(shell!.palette)).toEqual(["admin_lokasi"]);
+    expect(shell!.palette.admin_lokasi).toEqual([
+      {
+        label: "Makam Wakaf Al-Ikhlas",
+        items: [
+          { label: "Beranda", href: `/staf/admin-lokasi/${lokasiId}` },
+          { label: "Jam Operasional", href: `/staf/admin-lokasi/${lokasiId}/jam-operasional` },
+          { label: "Audit Log", href: `/staf/admin-lokasi/${lokasiId}/audit-log` },
+        ],
+      },
+    ]);
+    expect(hrefs(shell!.palette).filter((href) => href.includes(other.lokasiMitra.id) || href.startsWith("/staf/admin-platform"))).toEqual([]);
+  });
+
+  it("an Admin Platform's palette opens its built pages and each Lokasi Mitra by name, never a page that is not built yet", async () => {
+    const { lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+
+    const shell = await staffShell();
+    expect(Object.keys(shell!.palette)).toEqual(["admin_platform"]);
+    expect(shell!.palette.admin_platform).toEqual([
+      { label: "Kerja harian", items: [{ label: "Beranda", href: "/staf/admin-platform" }] },
+      {
+        label: "Lokasi dan harga",
+        items: [
+          { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },
+          { label: "Tarif global", href: "/staf/admin-platform/tarif" },
+          { label: "Hari Libur Nasional", href: "/staf/admin-platform/hari-libur" },
+        ],
+      },
+      {
+        label: "Orang",
+        items: [
+          { label: "Staf", href: "/staf/admin-platform/staf" },
+          { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
+        ],
+      },
+      { label: "Operator", items: [{ label: "Pengaturan Operator", href: "/staf/admin-platform/pengaturan-operator" }] },
+      {
+        label: "Lokasi Mitra",
+        items: [{ label: "Makam Wakaf Al-Ikhlas", href: `/staf/admin-platform/lokasi/${lokasiId}` }],
+      },
+    ]);
+  });
+
+  it("an Akun holding Petugas Lapangan and Mitra Jasa gets exactly those two roles' pages", async () => {
+    const admin = await signInAsAdminPlatform(server);
+    for (const role of ["petugas_lapangan", "mitra_jasa"] as const) {
+      const invited = await server.runtime().identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });
+      if (!invited.ok) throw new Error(invited.reason);
+    }
+    await signIn("staf@contoh.id");
+
+    const shell = await staffShell();
+    expect(Object.keys(shell!.palette)).toEqual(["petugas_lapangan", "mitra_jasa"]);
+    expect(hrefs(shell!.palette)).toEqual(["/staf/petugas-lapangan", "/staf/mitra-jasa"]);
+  });
 });

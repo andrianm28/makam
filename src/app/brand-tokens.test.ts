@@ -1,10 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { contrast, fontStack, hex, themeTokens, tokenColour, type Theme } from "../../tests/support/colour";
-import { viewport } from "./staf/layout";
-
-vi.mock("server-only", () => ({}));
+import { sourceFiles } from "../../tests/support/source-files";
+import { viewport } from "./staf/viewport";
 
 /**
  * The brand tokens in globals.css (docs/design-system.md, from the brand
@@ -110,14 +108,6 @@ describe.each<Theme>(["light", "dark"])("WCAG AA contrast, %s theme", (theme) =>
   });
 });
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
-
 /** Lines of UI source matching `pattern`, as "file:line: text". */
 function uiSourceMatching(pattern: RegExp): string[] {
   return ["src/app", "src/components"].flatMap(sourceFiles).flatMap((file) =>
@@ -131,8 +121,10 @@ describe("pages and components use the tokens", () => {
   it("no Tailwind palette colour (bg-black/10, text-emerald-700, …) and no raw hex colour", () => {
     const palette =
       /\b(bg|text|border|ring|fill|stroke|outline|from|to|via)-((black|white)(\/\d+)?(?![\w-])|(red|green|amber|yellow|emerald|blue|zinc|neutral|gray|slate|stone|orange|sky|lime|teal|cyan|indigo|violet|purple|pink|rose)-\d+)|#[0-9a-f]{3,8}\b/i;
-    // The viewport colours are checked against the tokens above.
-    expect(uiSourceMatching(palette).filter((line) => !line.startsWith("src/app/staf/layout.tsx"))).toEqual([]);
+    // The viewport's own themeColor lines are checked against the tokens above, not against this guard;
+    // every other line, in this file and everywhere else, still has to pass.
+    const isViewportThemeColor = (line: string) => line.startsWith("src/app/staf/viewport.ts:") && /\bcolor: "#/.test(line);
+    expect(uiSourceMatching(palette).filter((line) => !isViewportThemeColor(line))).toEqual([]);
   });
 
   it("no hard-coded font family: pages use font-sans, font-mono or font-serif", () => {

@@ -54,6 +54,8 @@ export type Action =
   | "akun.pemulihan"
   /** Turn push on or off for a Perangkat Push of one's own Akun Staf. */
   | "akun.push"
+  /** Read one's own Peringatan Staf (the bell) and mark them read. */
+  | "akun.peringatan"
   /** Open one role's menu in the staff area. */
   | "staf.menu"
   /** Send an Undangan Staf (Admin Platform). */
@@ -204,6 +206,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.telepon":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
     case "akun.push":
+    case "akun.peringatan":
       return resource.kind === "akun" && resource.accountId === actor.accountId && staffRoles.some(holds)
         ? allowed
         : denied;

@@ -49,13 +49,16 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { StaffRole } from "@/domain/identity";
 import type { StaffShell as StaffShellData } from "@/server/staff-area";
-import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, type NavGroup } from "./navigation";
+import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, type NavGroup, type PaletteGroup } from "@/lib/staff-navigation";
+import { CommandPalette } from "./command-palette";
+import { NotificationBell } from "./notification-bell";
 
 /**
  * The staff area's frame for every staff role: a collapsible sidebar with the
  * current role's menu (a sheet on phones), and a header with breadcrumbs, the
- * role switcher, the light/dark toggle and the account menu (Keluar). Pages
- * render inside it unchanged.
+ * role switcher, the command palette, the Peringatan Staf bell, the
+ * light/dark toggle and the account menu (Keluar). Pages render inside it
+ * unchanged.
  */
 export function StaffShell({
   shell,
@@ -77,13 +80,15 @@ export function StaffShell({
   const menu = staffMenu(role, { lokasiId: role === page.role ? page.lokasiId : undefined });
   const roleLabel = current.label;
   const roleHome = current.href;
+  // The palette offers the current role's own pages, same as the sidebar menu above.
+  const palette: PaletteGroup[] = shell.palette[role] ?? [];
 
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen={defaultSidebarOpen}>
         <StaffSidebar menu={menu} roleLabel={roleLabel} roleHome={roleHome} pathname={pathname} />
         <SidebarInset className="min-w-0">
-          <ShellHeader shell={shell} role={page.role} pathname={pathname} />
+          <ShellHeader shell={shell} role={page.role} pathname={pathname} palette={palette} />
           <div className="mx-auto flex w-full max-w-(--page-max-width) flex-1 flex-col gap-6 px-(--page-gutter) pt-6 pb-16 md:pt-8">
             {children}
           </div>
@@ -164,7 +169,17 @@ function StaffSidebar({
   );
 }
 
-function ShellHeader({ shell, role, pathname }: { shell: StaffShellData; role: StaffRole | null; pathname: string }) {
+function ShellHeader({
+  shell,
+  role,
+  pathname,
+  palette,
+}: {
+  shell: StaffShellData;
+  role: StaffRole | null;
+  pathname: string;
+  palette: PaletteGroup[];
+}) {
   const trail = staffBreadcrumbs(pathname, (lokasiId) => shell.lokasiNames[lokasiId]);
   const current = trail[trail.length - 1];
   const roleOptions = shell.roles.map((option) => ({ value: option.role, label: option.label, href: option.href }));
@@ -193,6 +208,8 @@ function ShellHeader({ shell, role, pathname }: { shell: StaffShellData; role: S
 
       <div className="ml-auto flex items-center gap-1.5">
         <RoleSwitcher roles={roleOptions} current={role} className="max-md:hidden" />
+        <CommandPalette groups={palette} />
+        <NotificationBell unread={shell.alerts.unread} latest={shell.alerts.latest} />
         <ThemeToggle />
         <AccountMenu shell={shell} role={role} />
       </div>

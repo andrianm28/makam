@@ -6,9 +6,12 @@
  * Email Terverifikasi, and the Perangkat Push themselves. The event table,
  * message log, retries and reminder window arrive with ticket 20.
  *
- * Owns table: notifications_push_device.
+ * Each Peringatan Staf is also kept for the bell in the staff header, read and
+ * marked read by its own Akun Staf only.
+ *
+ * Owns tables: notifications_push_device, notifications_staff_alert.
  */
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -28,7 +31,7 @@ import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
-import { notificationsPushDevice } from "./schema";
+import { notificationsPushDevice, notificationsStaffAlert } from "./schema";
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
 export const pushSubscriptionSchema = z.object({
@@ -105,6 +108,22 @@ export type StaffAlertResult =
   /** The Akun holds no staff role (Dinonaktifkan, or never invited): nothing is sent. */
   | { ok: false; reason: "bukan_akun_staf" };
 
+/** One Peringatan Staf in the bell of the Akun it was sent to. */
+export interface StaffAlertEntry {
+  id: string;
+  title: string;
+  body: string;
+  /** The staff page of its subject. */
+  url: string;
+  sentAt: Date;
+  read: boolean;
+}
+
+export type StaffAlertsResult = { ok: true; unread: number; latest: StaffAlertEntry[] } | WriteRefusal;
+
+/** How many Peringatan Staf the bell lists at most. */
+export const STAFF_ALERTS_SHOWN = 10;
+
 export interface Notifications {
   /** An Akun Staf turns push on for the browser it is using (one Perangkat Push per browser); audited. */
   enablePush(by: Actor, input: { subscription: PushSubscription }): Promise<EnablePushResult>;
@@ -118,6 +137,13 @@ export interface Notifications {
    * dropped it is removed.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
+  /**
+   * The bell of the signed-in Akun Staf: how many of its Peringatan Staf are
+   * unread, and the latest `limit` (newest first). Only its own.
+   */
+  staffAlerts(by: Actor, options?: { limit?: number }): Promise<StaffAlertsResult>;
+  /** Opening the bell: every Peringatan Staf of the signed-in Akun Staf is read. */
+  markStaffAlertsRead(by: Actor): Promise<{ ok: true } | WriteRefusal>;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -228,6 +254,15 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         return { ok: false, reason: "bukan_akun_staf" };
       }
 
+      // Kept for the bell regardless of how the email/push sends below turn out.
+      await db.insert(notificationsStaffAlert).values({
+        accountId: recipient.accountId,
+        title: alert.push.title,
+        body: alert.push.body,
+        url,
+        sentAt: deps.clock.now(),
+      });
+
       let email: "terkirim" | "gagal" | "tanpa_email" = recipient.email ? "terkirim" : "tanpa_email";
       if (recipient.email) {
         try {
@@ -270,6 +305,46 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         }
       }
       return { ok: true, email, push };
+    },
+
+    async staffAlerts(by, options = {}) {
+      const refusal = writeRefusal(by, "akun.peringatan", akunResource(by.accountId));
+      if (refusal) return refusal;
+      const mine = eq(notificationsStaffAlert.accountId, by.accountId);
+      const [rows, [unread]] = await Promise.all([
+        db
+          .select()
+          .from(notificationsStaffAlert)
+          .where(mine)
+          .orderBy(desc(notificationsStaffAlert.sentAt), desc(notificationsStaffAlert.id))
+          .limit(options.limit ?? STAFF_ALERTS_SHOWN),
+        db
+          .select({ n: count() })
+          .from(notificationsStaffAlert)
+          .where(and(mine, isNull(notificationsStaffAlert.readAt))),
+      ]);
+      return {
+        ok: true,
+        unread: unread?.n ?? 0,
+        latest: rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          body: row.body,
+          url: row.url,
+          sentAt: row.sentAt,
+          read: row.readAt !== null,
+        })),
+      };
+    },
+
+    async markStaffAlertsRead(by) {
+      const refusal = writeRefusal(by, "akun.peringatan", akunResource(by.accountId));
+      if (refusal) return refusal;
+      await db
+        .update(notificationsStaffAlert)
+        .set({ readAt: deps.clock.now() })
+        .where(and(eq(notificationsStaffAlert.accountId, by.accountId), isNull(notificationsStaffAlert.readAt)));
+      return { ok: true };
     },
   };
 }
