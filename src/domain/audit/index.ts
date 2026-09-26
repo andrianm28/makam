@@ -64,6 +64,8 @@ export type AuditAction =
   | "lokasi.ubah_rekening"
   /** Admin Platform uploads a Lokasi Mitra's agreement scan and signing date. */
   | "lokasi.unggah_perjanjian"
+  /** Admin Platform enters a new version of a global tariff (Biaya Layanan Platform, Biaya Pengurusan, Retribusi Pemda). */
+  | "tarif.ubah_global"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
