@@ -178,3 +178,13 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
   };
 }
+export {
+  daytimeHoursDeadline,
+  deadline,
+  nextWorkingDayEnd,
+  TPU_SCHEDULE,
+  weekdays,
+  type JamOperasional,
+  type OpenHours,
+  type Weekday,
+} from "./working-time";
