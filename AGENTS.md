@@ -44,14 +44,28 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 - The same `main` build scans the image with Trivy and fails on any CRITICAL vulnerability with a fix. Accept an exception only in `.trivyignore`, with its reason and an `exp:` date at most 90 days out (`tests/trivyignore.test.ts` checks both). A deploy depends on the `deploy-gate` job, which needs every CI job.
 - **Migrations are expand/contract.** On every push and PR, CI migrates a database from the running release's schema, with representative rows, to yours and runs the domain tests on it: a new migration must work on non-empty tables while the previous release still runs. Destructive DDL (DROP, RENAME, SET NOT NULL, a type change, a NOT NULL column without a default) fails CI unless the statement has a comment line `-- contract: <reason>` directly above it, in a later release than the expand step.
 - CI also runs gitleaks (accepted findings, each with its reason, in `.gitleaks.toml`) and `npm audit --omit=dev` (fails on a fixable critical). Pin a new action by commit SHA with the version in a comment, and a new image by digest.
-- Each worktree runs its own local stack: `docker compose -p <unique-name> up --build -d` (the dev image is tagged per project, so stacks never overwrite each other).
+- A worktree needs no local stack; see the next section for when one is still worth it.
+
+## Worktrees on the shared host
+
+Up to four builder agents share one host's disk with other projects, so each worktree stays lean (about 25 MB of its own beyond the source):
+
+1. **Dependencies**: `npm run deps`, never `npm ci`. It links `node_modules` from the shared store (`~/.cache/makam/deps`, one `npm ci` per lockfile) as hard links. After changing dependencies, `npm install` updates `package-lock.json` as usual; then run `npm run deps` again. `npm run deps -- --prune` drops store entries no worktree's lockfile uses.
+2. **Tests**: `npm run test:shared` (same arguments as `npm test`). It uses this worktree's own database on the shared `makam-testpg` Postgres (started on first use, data in tmpfs), recreated fresh each run and dropped after. Run one test run per worktree at a time. Plain `npm test` still starts its own container.
+3. **Local stack**, only when a ticket needs to see the running app beyond what CI's e2e covers (e.g. a UI you must look at, a worker job end to end): `docker compose -p makam-$(basename "$PWD") up --build -d`. Take it down as soon as you are done: `docker compose -p makam-$(basename "$PWD") down -v`, then `npm run clean` removes its image.
+4. **When the ticket is done**: `npm run clean`. It removes `.next`, `dist`, `test-results`, the worktree's test database and its local stacks (containers, volumes, `makam-v1:<project>` image).
+
+Touch only makam's own Docker objects (`makam-testpg`, your worktree's stack): other projects' containers, images, volumes and worktrees on this host are off limits, so no `docker system prune`, `docker image prune` or `docker volume prune`.
 
 ## Commands
 
 | What | Command |
 |---|---|
+| Dependencies in a worktree (shared store, hard links) | `npm run deps` |
 | Lint / typecheck | `npm run lint` / `npm run typecheck` |
 | Unit and domain tests (starts a Postgres container) | `npm test` |
+| The same on the shared `makam-testpg` (worktrees) | `npm run test:shared` |
+| Free a worktree's build output, test database and stack | `npm run clean` |
 | Next.js build | `npm run build` |
 | Worker and migrate bundles | `npm run build:worker` |
 | Migrate a database | `DATABASE_URL=... npm run migrate` |

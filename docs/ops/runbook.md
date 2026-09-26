@@ -628,3 +628,15 @@ Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-C
 ## Staging is public (2026-09-25)
 
 Basic auth on `dev.makam.co.id` was removed at the user's request: staging is reachable without a password. `X-Robots-Tag: noindex` keeps it out of search engines. `/etc/nginx/makam-staging.htpasswd` and `/opt/makam-v1/staging-basic-auth.txt` are no longer used. Staging never uses fakes and payments there are SumoPod sandbox, but treat anything entered on staging as visible to anyone with the URL.
+
+## Builder worktrees on the host (ticket 83)
+
+Agent worktrees share two makam-owned things on the host (AGENTS.md,
+"Worktrees on the shared host"):
+
+| What | Where | Safe to remove? |
+|---|---|---|
+| Dependency store | `~/.cache/makam/deps/<platform-node-lockhash>/` | Yes: `npm run deps -- --prune` keeps only entries some worktree's lockfile uses. Worktrees keep working (their `node_modules` are hard links). |
+| Shared test Postgres | container `makam-testpg`, `127.0.0.1:55432`, data in tmpfs | Yes, when no test run is going: `docker rm -f makam-testpg`. The next `npm run test:shared` starts it again. |
+
+Neither is used by staging, production or CI.
