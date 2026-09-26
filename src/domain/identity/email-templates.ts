@@ -36,6 +36,18 @@ export function verifikasiEmailMessage(code: string): { subject: string; text: s
   };
 }
 
+/** To the old email after a Pemulihan Akun: no new email, no code. */
+export function pemulihanAkunNoticeMessage(): { subject: string; text: string } {
+  return {
+    subject: "Akun Makam.co.id Anda dipindahkan ke email lain",
+    text: [
+      "Akun Makam.co.id yang memakai email ini sudah dipindahkan ke email lain oleh Admin Platform, setelah pemeriksaan KTP pemilik akun. Semua sesi masuk di akun itu sudah diakhiri, dan Kode Masuk tidak lagi dikirim ke email ini.",
+      "",
+      "Bila bukan Anda yang meminta pemindahan ini, segera hubungi CS Makam.co.id.",
+    ].join("\n"),
+  };
+}
+
 /** How the Undangan Staf email names the role. */
 const inviteRoleNames: Record<StaffRole, string> = {
   admin_platform: "Admin Platform",

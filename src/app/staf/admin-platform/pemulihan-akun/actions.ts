@@ -9,7 +9,9 @@ import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
 
 const schema = z.object({
-  currentEmail: emailInput,
+  // One of them: the Akun's id (picked from the staff roster) or its email on record.
+  accountId: z.string().trim().min(1).max(64).optional(),
+  currentEmail: emailInput.optional(),
   newEmail: emailInput,
   ktpCheck: z.instanceof(File).refine((file) => file.size <= KTP_CHECK_MAX_BYTES),
   ktpChecked: z.literal("ya").optional(),
@@ -23,7 +25,8 @@ export async function pulihkanAkun(_previous: FormState, formData: FormData): Pr
     resource: () => stafResource(),
     schema,
     input: {
-      currentEmail: formData.get("currentEmail"),
+      accountId: formData.get("accountId") ?? undefined,
+      currentEmail: formData.get("currentEmail") ?? undefined,
       newEmail: formData.get("newEmail"),
       ktpCheck: formData.get("ktpCheck"),
       ktpChecked: formData.get("ktpChecked") ?? undefined,
@@ -31,7 +34,7 @@ export async function pulihkanAkun(_previous: FormState, formData: FormData): Pr
     },
     run: async (actor, data) =>
       serverRuntime().identity.recoverAccount(actor, {
-        currentEmail: data.currentEmail,
+        akun: data.accountId ? { accountId: data.accountId } : { email: data.currentEmail ?? "" },
         newEmail: data.newEmail,
         ktpCheck: { body: new Uint8Array(await data.ktpCheck.arrayBuffer()), contentType: data.ktpCheck.type },
         ktpChecked: data.ktpChecked === "ya",
@@ -46,9 +49,15 @@ export async function pulihkanAkun(_previous: FormState, formData: FormData): Pr
   }
   const moved = result.value;
   if (!moved.ok) return { status: "gagal", message: refusal(moved) };
+  const notice =
+    moved.notice === "terkirim"
+      ? " Email lama sudah menerima pemberitahuan."
+      : moved.notice === "gagal"
+        ? " Pemberitahuan ke email lama gagal terkirim."
+        : "";
   return {
     status: "berhasil",
-    message: `Akun dipulihkan: Email Terverifikasi-nya sekarang ${moved.account.email}. Semua sesinya sudah diakhiri; pemilik Akun masuk lagi dengan Kode Masuk ke email itu.`,
+    message: `Akun dipulihkan: Email Terverifikasi-nya sekarang ${moved.account.email}. Semua sesinya sudah diakhiri; pemilik Akun masuk lagi dengan Kode Masuk ke email itu.${notice}`,
   };
 }
 
@@ -64,6 +73,8 @@ function refusal(refused: Extract<RecoverAccountResult, { ok: false }>): string 
       return "Tulis alasannya.";
     case "email_tidak_valid":
       return "Periksa lagi kedua email itu.";
+    case "akun_ganda":
+      return "Email itu tercatat di lebih dari satu Akun. Pilih Akun-nya dari daftar Staf (Perlu Pemulihan Akun).";
     case "email_sama":
       return "Email baru sama dengan Email Terverifikasi Akun ini.";
     case "akun_tidak_ditemukan":

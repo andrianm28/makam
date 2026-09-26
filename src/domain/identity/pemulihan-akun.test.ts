@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import type { FileStore } from "@/ports/file-store";
+import { FakeEmailSender } from "@/adapters/memory";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
   akunFromBeforeEmailKey,
@@ -30,7 +31,7 @@ async function pemesanWhoLostTheirEmail() {
 
 function recover(setup: IdentitySetup, admin: Awaited<ReturnType<typeof signedInAdminPlatform>>, changes: object = {}) {
   return setup.identity.recoverAccount(admin.actor, {
-    currentEmail: OLD,
+    akun: { email: OLD },
     newEmail: NEW,
     ktpCheck: KTP,
     ktpChecked: true,
@@ -53,6 +54,32 @@ describe("Pemulihan Akun", () => {
     const again = await logIn(setup, NEW);
     expect(again.login).toMatchObject({ accountCreated: false, account: { id: pemesan.login.account.id } });
     expect(await identity.accountByEmail(OLD)).toBeNull();
+  });
+
+  it("sends the old email a notice that the Akun was moved, without the new email or any code", async () => {
+    const setup = await pemesanWhoLostTheirEmail();
+
+    expect(await recover(setup, setup.admin)).toMatchObject({ ok: true, notice: "terkirim" });
+
+    const notice = setup.email.sent.filter((message) => message.to === OLD).at(-1);
+    expect(notice?.subject).toBe("Akun Makam.co.id Anda dipindahkan ke email lain");
+    expect(notice?.text).toContain("Admin Platform");
+    expect(notice?.text).not.toContain(NEW);
+    expect(notice?.text).not.toMatch(/\b\d{6}\b/);
+  });
+
+  it("still moves the Akun when the notice cannot be sent; the failure is reported without the address", async () => {
+    const fake = new FakeEmailSender();
+    const reported: string[] = [];
+    const setup = identityOnTestDatabase(db, { email: fake, reportError: (event, error) => reported.push(`${event} ${String(error)}`) });
+    const admin = await signedInAdminPlatform(setup);
+    const pemesan = await logIn(setup, OLD);
+    fake.failNextSend();
+
+    expect(await recover(setup, admin)).toMatchObject({ ok: true, notice: "gagal" });
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).not.toContain(OLD);
+    expect(await setup.identity.accountByEmail(NEW)).toMatchObject({ id: pemesan.login.account.id });
   });
 
   it("ends every session of the Akun", async () => {
@@ -90,7 +117,7 @@ describe("Pemulihan Akun", () => {
     if (!invited.ok) throw new Error(invited.reason);
     const staff = await logIn(setup, OLD);
     await recover(setup, admin);
-    await recover(setup, admin, { currentEmail: NEW, newEmail: "ketiga@contoh.id" });
+    await recover(setup, admin, { akun: { email: NEW }, newEmail: "ketiga@contoh.id" });
 
     expect(await setup.identity.staffAccounts()).toContainEqual({
       accountId: staff.login.account.id,
@@ -128,7 +155,7 @@ describe("Pemulihan Akun", () => {
     expect(await recover(setup, admin, { newEmail: "LAIN@contoh.id" })).toEqual({ ok: false, reason: "email_sudah_dipakai" });
     expect(await recover(setup, admin, { newEmail: OLD })).toEqual({ ok: false, reason: "email_sama" });
     expect(await recover(setup, admin, { newEmail: "bukan-email" })).toEqual({ ok: false, reason: "email_tidak_valid" });
-    expect(await recover(setup, admin, { currentEmail: "tidak.ada@contoh.id" })).toEqual({
+    expect(await recover(setup, admin, { akun: { email: "tidak.ada@contoh.id" } })).toEqual({
       ok: false,
       reason: "akun_tidak_ditemukan",
     });
@@ -165,7 +192,7 @@ describe("Pemulihan Akun", () => {
     const setup = await pemesanWhoLostTheirEmail();
     const { identity, files, admin } = setup;
 
-    expect(await recover(setup, admin, { currentEmail: "admin@makam.co.id" })).toEqual({ ok: false, reason: "akun_sendiri" });
+    expect(await recover(setup, admin, { akun: { email: "admin@makam.co.id" } })).toEqual({ ok: false, reason: "akun_sendiri" });
     expect(await identity.accountByEmail("admin@makam.co.id")).toMatchObject({ id: admin.actor.accountId });
     expect(await identity.actorFromCookies(admin.cookies)).not.toBeNull();
     expect(files.stored.size).toBe(0);
@@ -178,7 +205,7 @@ describe("Pemulihan Akun", () => {
 
     expect(
       await setup.identity.recoverAccount(notAdmin, {
-        currentEmail: OLD,
+        akun: { email: OLD },
         newEmail: NEW,
         ktpCheck: KTP,
         ktpChecked: true,
@@ -212,12 +239,48 @@ describe("an Akun from before ADR 0004 without an Email Terverifikasi", () => {
     const legacy = await akunFromBeforeEmailKey(db, { email: "staf.lama@contoh.id", phoneNumber: "+6282222222222" });
     expect(await setup.identity.actorFromCookies(legacy.cookies)).toBeNull();
 
-    const moved = await recover(setup, admin, { currentEmail: "Staf.Lama@contoh.id", newEmail: "staf.lama@contoh.id" });
+    const moved = await recover(setup, admin, { akun: { email: "Staf.Lama@contoh.id" }, newEmail: "staf.lama@contoh.id" });
 
     expect(moved).toMatchObject({ ok: true, account: { id: legacy.accountId, email: "staf.lama@contoh.id" } });
     expect((await logIn(setup, "staf.lama@contoh.id")).login).toMatchObject({
       accountCreated: false,
       account: { id: legacy.accountId, phoneNumber: "+6282222222222" },
+    });
+  });
+
+  it("Pemulihan Akun reaches an Akun with no email on record by its id, which the Admin Platform can look up", async () => {
+    const setup = identityOnTestDatabase(db);
+    const admin = await signedInAdminPlatform(setup);
+    const legacy = await akunFromBeforeEmailKey(db, { email: null, phoneNumber: "+6284444444444", roles: ["petugas_lapangan"] });
+
+    expect(await setup.identity.accountOnRecord(legacy.accountId)).toEqual({
+      id: legacy.accountId,
+      email: null,
+      emailTerverifikasi: false,
+      phoneNumber: "+6284444444444",
+    });
+    const moved = await recover(setup, admin, { akun: { accountId: legacy.accountId }, newEmail: "petugas@contoh.id" });
+
+    expect(moved).toMatchObject({ ok: true, account: { id: legacy.accountId, email: "petugas@contoh.id" }, notice: "tanpa_email" });
+    expect((await logIn(setup, "petugas@contoh.id")).login).toMatchObject({
+      accountCreated: false,
+      account: { id: legacy.accountId },
+      roles: ["pemesan", "petugas_lapangan"],
+    });
+    expect(await recover(setup, admin, { akun: { accountId: "tidak-ada" } })).toEqual({ ok: false, reason: "akun_tidak_ditemukan" });
+  });
+
+  it("an email on record of more than one Akun is refused (akun_ganda), and nothing moves; the Akun id reaches each", async () => {
+    const setup = identityOnTestDatabase(db);
+    const admin = await signedInAdminPlatform(setup);
+    const first = await akunFromBeforeEmailKey(db, { email: "keluarga@contoh.id", phoneNumber: "+6285555555555" });
+    await akunFromBeforeEmailKey(db, { email: "Keluarga@contoh.id", phoneNumber: "+6286666666666" });
+
+    expect(await recover(setup, admin, { akun: { email: "keluarga@contoh.id" } })).toEqual({ ok: false, reason: "akun_ganda" });
+    expect(setup.files.stored.size).toBe(0);
+    expect(await recover(setup, admin, { akun: { accountId: first.accountId } })).toMatchObject({
+      ok: true,
+      account: { id: first.accountId, email: NEW },
     });
   });
 

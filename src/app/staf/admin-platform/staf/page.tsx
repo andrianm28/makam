@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -81,9 +82,12 @@ export default async function StafAdminPage() {
                   <TableCell>
                     {account.email ?? "–"}
                     {account.emailTerverifikasi ? null : (
-                      <Badge variant="outline" className="ml-2">
+                      <Link
+                        href={`/staf/admin-platform/pemulihan-akun?akun=${encodeURIComponent(account.accountId)}`}
+                        className="ml-2 text-brand underline underline-offset-4"
+                      >
                         Perlu Pemulihan Akun
-                      </Badge>
+                      </Link>
                     )}
                   </TableCell>
                   <TableCell>{account.phoneNumber ?? "–"}</TableCell>

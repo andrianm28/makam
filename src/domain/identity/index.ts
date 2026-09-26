@@ -34,7 +34,13 @@ import {
   type VerifyKodeMasukResult,
 } from "./kode-masuk";
 import { markEmailVerifiedByOps, type MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
-import { recoverAccount, type RecoverAccountInput, type RecoverAccountResult } from "./pemulihan-akun";
+import {
+  accountOnRecord,
+  recoverAccount,
+  type AccountOnRecord,
+  type RecoverAccountInput,
+  type RecoverAccountResult,
+} from "./pemulihan-akun";
 import { actorFromCookies, endSession } from "./sessions";
 import {
   deactivateStaff,
@@ -78,7 +84,12 @@ export type {
   StaffAccount,
   StaffRecipient,
 } from "./staff";
-export { KTP_CHECK_MAX_BYTES, type RecoverAccountInput, type RecoverAccountResult } from "./pemulihan-akun";
+export {
+  KTP_CHECK_MAX_BYTES,
+  type AccountOnRecord,
+  type RecoverAccountInput,
+  type RecoverAccountResult,
+} from "./pemulihan-akun";
 export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
@@ -178,6 +189,8 @@ export interface Identity {
   deactivateStaff(by: Actor, input: { accountId: string; reason: string }): Promise<DeactivateStaffResult>;
   /** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check (FileStore), audited. */
   recoverAccount(by: Actor, input: RecoverAccountInput): Promise<RecoverAccountResult>;
+  /** An Akun as its records hold it, by id (the Pemulihan Akun screen; Admin Platform pages only), or null. */
+  accountOnRecord(accountId: string): Promise<AccountOnRecord | null>;
   /** Every Undangan Staf not yet accepted and not expired; with `lokasiId`, the Admin Lokasi invites to that Lokasi Mitra. */
   openStaffInvites(filter?: { lokasiId?: string }): Promise<StaffInvite[]>;
   /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform (the guarded actor). */
@@ -202,7 +215,8 @@ export interface Identity {
 export function createIdentity(deps: IdentityDeps): Identity {
   const auth = createBetterAuth({ db: deps.db, clock: deps.clock, secret: deps.secret, baseURL: deps.baseURL });
   const reportError = deps.reportError ?? reportToStderr;
-  const kodeMasuk = { ...deps, auth, reportError };
+  const reporting = { ...deps, reportError };
+  const kodeMasuk = { ...reporting, auth };
 
   return {
     requestKodeMasuk: (input) => requestKodeMasuk(kodeMasuk, input),
@@ -216,19 +230,20 @@ export function createIdentity(deps: IdentityDeps): Identity {
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
-    inviteStaff: (by, input) => inviteStaff({ ...deps, reportError }, by, input),
+    inviteStaff: (by, input) => inviteStaff(reporting, by, input),
     adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),
     adminLokasiSince: (accountId, lokasiId, since) => adminLokasiSince(deps, accountId, lokasiId, since),
     removeAdminLokasi: (by, input) => removeAdminLokasi(deps, by, input),
     openStaffInvites: (filter) => openStaffInvites(deps, filter),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
-    recoverAccount: (by, input) => recoverAccount(deps, by, input),
+    recoverAccount: (by, input) => recoverAccount(reporting, by, input),
+    accountOnRecord: (accountId) => accountOnRecord(deps, accountId),
     startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
     passTotp: (by, code) => passTotp(deps, by, code),
     resetTotp: (input) => resetTotp(deps, input),
     updatePhoneNumber: (by, input) => updatePhoneNumber(deps, by, input),
-    requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
-    confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
+    requestEmailVerification: (by, input) => requestEmailVerification(reporting, by, input),
+    confirmEmailVerification: (by, input) => confirmEmailVerification(reporting, by, input),
     markEmailVerifiedByOps: (input) => markEmailVerifiedByOps(deps, input),
   };
 }

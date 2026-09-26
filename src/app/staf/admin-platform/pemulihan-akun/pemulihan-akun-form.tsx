@@ -6,15 +6,26 @@ import { Input } from "@/components/ui/input";
 import type { FormState } from "../../form-state";
 import { pulihkanAkun } from "./actions";
 
-export function PemulihanAkunForm() {
+/** The Akun picked by its id (from the staff roster), shown instead of the email field. */
+export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string } | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(pulihkanAkun, { status: "idle" });
   return (
     <form action={action} className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Email Akun sekarang
-          <Input name="currentEmail" type="email" required placeholder="nama@contoh.id" className="h-10 px-3" />
-        </label>
+        {akun ? (
+          <p className="flex flex-col gap-1 text-sm font-medium">
+            Akun yang dipulihkan
+            <span className="font-normal" data-testid="pemulihan-akun-terpilih">
+              {akun.label}
+            </span>
+            <input type="hidden" name="accountId" value={akun.id} />
+          </p>
+        ) : (
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Email Akun sekarang
+            <Input name="currentEmail" type="email" required placeholder="nama@contoh.id" className="h-10 px-3" />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm font-medium">
           Email baru
           <Input name="newEmail" type="email" required placeholder="nama.baru@contoh.id" className="h-10 px-3" />

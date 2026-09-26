@@ -1,10 +1,12 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import { makeSignature } from "better-auth/crypto";
-import { sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { FakeClock, FakeEmailSender, FakeFileStore } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import { createAuditLog } from "@/domain/audit";
 import { createIdentity, type Identity, type StaffRole } from "@/domain/identity";
+// The legacy-Akun helper below reaches inside the identity module on purpose (see its comment).
+import { createBetterAuth } from "@/domain/identity/better-auth";
+import { identityStaffRole, identityUser } from "@/domain/identity/schema";
+import { startSession } from "@/domain/identity/sessions";
 import { wib } from "@/lib/time/jakarta";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
@@ -24,7 +26,13 @@ export function nextTestIp(): string {
 /** The identity module on the test Postgres with the fake Clock and in-memory fakes. */
 export function identityOnTestDatabase(
   db: Database,
-  options: { files?: FileStore; email?: EmailSender; reportError?: (event: string, error: unknown) => void } = {},
+  options: {
+    files?: FileStore;
+    email?: EmailSender;
+    reportError?: (event: string, error: unknown) => void;
+    /** The site's origin; an https one gets secure cookies. */
+    baseURL?: string;
+  } = {},
 ) {
   const clock = new FakeClock(wib("2026-10-01 09:00"));
   // A test that hands in its own FakeEmailSender reads the codes from it.
@@ -39,7 +47,7 @@ export function identityOnTestDatabase(
     audit,
     secret: TEST_AUTH_SECRET,
     totpEncryptionKey: TEST_TOTP_KEY,
-    baseURL: "http://localhost:3000",
+    baseURL: options.baseURL ?? "http://localhost:3000",
     reportError: options.reportError ?? (() => {}),
   });
   return { clock, email: fakeEmail, files: fakeFiles, audit, identity };
@@ -86,29 +94,41 @@ export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin
 }
 
 /**
- * An Akun as ADR 0003 left it (keyed by a WhatsApp number, with an email only
- * typed in, and a live session): a state no public function can make any more,
- * so it is written directly, as the database held it before migration 0010.
+ * An Akun as ADR 0003 left it before migration 0010: keyed by a WhatsApp
+ * number, with an email only typed in (or none), maybe staff roles, and a live
+ * session. This test-only helper is permanent: since ADR 0004 no public
+ * identity function can make such an Akun (every Akun is created by a Kode
+ * Masuk that proves its email), yet the module must still handle the ones the
+ * migration left behind (Pemulihan Akun, `verify-email`). So it writes the
+ * rows through the identity module's own schema objects, and starts the
+ * session through the module's real `startSession`, as a login would have.
  * Returns its id and the Cookie header of its old session.
  */
 export async function akunFromBeforeEmailKey(
   db: Database,
-  input: { email: string; phoneNumber: string; roles?: StaffRole[] },
+  input: { email: string | null; phoneNumber: string; roles?: StaffRole[] },
 ) {
   const accountId = randomUUID();
-  const token = randomBytes(16).toString("hex");
-  const at = wib("2026-09-20 09:00");
-  await db.execute(sql`
-    insert into identity_user (id, name, placeholder_email, placeholder_email_verified, phone_number, phone_number_verified, email, created_at, updated_at)
-    values (${accountId}, '', ${`${input.phoneNumber.slice(1)}@wa.makam.invalid`}, false, ${input.phoneNumber}, true, ${input.email}, ${at}, ${at})`);
-  await db.execute(sql`
-    insert into identity_session (id, token, user_id, expires_at, created_at, updated_at)
-    values (${randomUUID()}, ${token}, ${accountId}, ${wib("2026-12-20 09:00")}, ${at}, ${at})`);
+  const clock = new FakeClock(wib("2026-10-01 08:00"));
+  const at = clock.now();
+  await db.insert(identityUser).values({
+    id: accountId,
+    name: "",
+    email: `${input.phoneNumber.slice(1)}@wa.makam.invalid`,
+    emailVerified: false,
+    phoneNumber: input.phoneNumber,
+    phoneNumberVerified: true,
+    contactEmail: input.email,
+    emailVerifiedAt: null,
+    createdAt: at,
+    updatedAt: at,
+  });
   for (const role of input.roles ?? []) {
-    await db.execute(sql`insert into identity_staff_role (account_id, role, granted_at) values (${accountId}, ${role}, ${at})`);
+    await db.insert(identityStaffRole).values({ accountId, role, grantedAt: at });
   }
-  const signature = await makeSignature(token, TEST_AUTH_SECRET);
-  return { accountId, cookies: `makam.session_token=${encodeURIComponent(`${token}.${signature}`)}` };
+  const auth = createBetterAuth({ db, clock, secret: TEST_AUTH_SECRET, baseURL: "http://localhost:3000" });
+  const { cookies } = await startSession({ auth, secret: TEST_AUTH_SECRET }, accountId);
+  return { accountId, cookies: cookieHeader(cookies) };
 }
 
 /** The signed-in actor behind a Cookie header, as `guarded()` would resolve it. */
