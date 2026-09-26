@@ -55,8 +55,8 @@ export const tanggalTutupSchema = z.object({ date: tanggalSchema, note: z.string
 
 /**
  * A valid Jam Operasional: each weekday closed (null) or open "HH:MM"–"HH:MM"
- * WIB with the opening first (a close may be "24:00"); Tanggal Tutup on
- * distinct real dates, stored in date order.
+ * WIB with the opening first (a close may be "24:00"; every weekday may be
+ * closed); Tanggal Tutup on distinct real dates, stored in date order.
  */
 export const jamOperasionalSchema = z
   .object({
@@ -74,7 +74,6 @@ export const jamOperasionalSchema = z
         "setiap tanggal tutup hanya sekali",
       ),
   })
-  .refine((jam) => weekdays.some((weekday) => jam.weekly[weekday] !== null), "minimal satu hari buka")
   .transform(
     (jam): JamOperasional => ({ ...jam, tanggalTutup: [...jam.tanggalTutup].sort((a, b) => a.date.localeCompare(b.date)) }),
   );

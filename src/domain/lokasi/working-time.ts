@@ -11,20 +11,28 @@ import { minutesOf, weekdays, type JamOperasional, type OpenHours, type Tanggal,
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
-/** No search looks further ahead than this: a Jam Operasional has an open weekday and at most a year of Tanggal Tutup. */
+/** No search looks further ahead than this: a counted Jam Operasional has an open weekday, and a Lokasi at most a year of Tanggal Tutup. */
 const MAX_DAYS_AHEAD = 3 * 366;
 
 /** The calculator cannot answer for a Lokasi whose Admin Lokasi has not saved its Jam Operasional yet. */
 export type JamOperasionalBelumDiisi = { ok: false; reason: "jam_operasional_belum_diisi" };
 
+/** A saved Jam Operasional with every weekday closed: nothing can be counted inside it. */
+export type JamOperasionalTanpaJamBuka = { ok: false; reason: "jam_operasional_tanpa_jam_buka" };
+
 /**
  * A calculator answer: the deadline instant, or why there is none. A Lokasi's
  * Jam Operasional is null until saved, and every calculator function refuses
- * it rather than guess a schedule.
+ * it rather than guess a schedule; one closed every weekday is refused too.
  */
-export type WorkingTimeResult = { ok: true; at: Date } | JamOperasionalBelumDiisi;
+export type WorkingTimeResult = { ok: true; at: Date } | JamOperasionalBelumDiisi | JamOperasionalTanpaJamBuka;
 
 const belumDiisi: JamOperasionalBelumDiisi = { ok: false, reason: "jam_operasional_belum_diisi" };
+const tanpaJamBuka: JamOperasionalTanpaJamBuka = { ok: false, reason: "jam_operasional_tanpa_jam_buka" };
+
+function hasOpenWeekday(schedule: JamOperasional): boolean {
+  return weekdays.some((weekday) => schedule.weekly[weekday] !== null);
+}
 
 /** The open window of the WIB day starting at `dayStart`, or null when it is closed (weekday closed, or a Tanggal Tutup). */
 function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; closes: number } | null {
@@ -43,6 +51,7 @@ function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; 
 export function deadline(schedule: JamOperasional | null, start: Date, hours: number): WorkingTimeResult {
   if (!(hours > 0) || !Number.isFinite(hours)) throw new RangeError(`service hours must be positive: ${hours}`);
   if (!schedule) return belumDiisi;
+  if (!hasOpenWeekday(schedule)) return tanpaJamBuka;
   let remaining = hours * HOUR;
   const from = start.getTime();
   for (let day = 0, dayStart = wibDayStart(start); day <= MAX_DAYS_AHEAD; day++, dayStart = addWibDays(dayStart, 1)) {
@@ -64,6 +73,7 @@ export function deadline(schedule: JamOperasional | null, start: Date, hours: nu
 export function addWorkingDays(calendar: JamOperasional | null, start: Date, n: number): WorkingTimeResult {
   if (!Number.isInteger(n) || n < 1) throw new RangeError(`working days must be a whole number from 1: ${n}`);
   if (!calendar) return belumDiisi;
+  if (!hasOpenWeekday(calendar)) return tanpaJamBuka;
   let counted = 0;
   for (let day = 1, dayStart = addWibDays(wibDayStart(start), 1); day <= MAX_DAYS_AHEAD; day++, dayStart = addWibDays(dayStart, 1)) {
     const window = openWindow(calendar, dayStart);

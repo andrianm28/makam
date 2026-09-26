@@ -266,5 +266,6 @@ export {
   TPU_SCHEDULE,
   type HariLiburNasional,
   type JamOperasionalBelumDiisi,
+  type JamOperasionalTanpaJamBuka,
   type WorkingTimeResult,
 } from "./working-time";
