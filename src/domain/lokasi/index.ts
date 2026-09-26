@@ -50,6 +50,7 @@ import {
 } from "./agreement";
 import {
   readJamOperasional,
+  scheduleOf,
   setJamOperasional,
   type JamOperasionalResult,
   type SetJamOperasionalResult,
@@ -62,7 +63,16 @@ import {
   type KontakSiagaResult,
   type PickKontakSiagaResult,
 } from "./kontak-siaga";
-import type { JamOperasional } from "./working-time";
+import { createWorkingTime, type JamOperasional, type NationalHoliday, type WorkingDayCalendar, type WorkingTime } from "./working-time";
+import {
+  addNationalHoliday,
+  adminPlatformCalendar,
+  lokasiCalendar,
+  nationalHolidays,
+  removeNationalHoliday,
+  type AddNationalHolidayResult,
+  type RemoveNationalHolidayResult,
+} from "./calendars";
 
 export {
   AGREEMENT_SCAN_MAX_BYTES,
@@ -78,6 +88,8 @@ export {
   type JamOperasionalResult,
   type SetJamOperasionalResult,
 } from "./jam-operasional";
+export type { KontakSiaga, KontakSiagaResult, PickKontakSiagaResult } from "./kontak-siaga";
+export type { AddNationalHolidayResult, RemoveNationalHolidayResult } from "./calendars";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
 export {
@@ -188,6 +200,20 @@ export interface Lokasi {
   pickKontakSiaga(by: Actor, lokasiId: string, input: { accountId: string }): Promise<PickKontakSiagaResult>;
   /** The Kontak Siaga for server code (alerts, the order card): null when a pick is needed. */
   kontakSiagaOf(lokasiId: string): Promise<KontakSiaga | null>;
+  /** The national holiday list Admin Platform keeps, by date. */
+  nationalHolidays(): Promise<NationalHoliday[]>;
+  /** Admin Platform (only) adds a national holiday, audited. */
+  addNationalHoliday(by: Actor, input: NationalHoliday): Promise<AddNationalHolidayResult>;
+  /** Admin Platform (only) removes a national holiday, audited. */
+  removeNationalHoliday(by: Actor, input: { date: string; reason: string | null }): Promise<RemoveNationalHolidayResult>;
+  /** The Admin Platform working-day calendar: Monday–Friday minus the national holidays on the list. */
+  adminPlatformCalendar(): Promise<WorkingDayCalendar>;
+  /** A Lokasi Mitra's working-day calendar: its Jam Operasional's open days minus its dated closures (null: no such Lokasi). */
+  lokasiCalendar(lokasiId: string): Promise<WorkingDayCalendar | null>;
+  /** A Lokasi Mitra's Jam Operasional for the calculator, for server code (null: no such Lokasi). */
+  scheduleOf(lokasiId: string): Promise<JamOperasional | null>;
+  /** The working-time calculator on the Clock ("now" when a caller passes no start). */
+  workingTime: WorkingTime;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -213,6 +239,13 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     kontakSiaga: (by, lokasiId) => readKontakSiaga(deps, by, lokasiId),
     pickKontakSiaga: (by, lokasiId, input) => pickKontakSiaga(deps, by, lokasiId, input),
     kontakSiagaOf: (lokasiId) => kontakSiagaOf(deps, lokasiId),
+    nationalHolidays: () => nationalHolidays(deps),
+    addNationalHoliday: (by, input) => addNationalHoliday(deps, by, input),
+    removeNationalHoliday: (by, input) => removeNationalHoliday(deps, by, input),
+    adminPlatformCalendar: () => adminPlatformCalendar(deps),
+    lokasiCalendar: (lokasiId) => lokasiCalendar(deps, lokasiId),
+    scheduleOf: (lokasiId) => scheduleOf(deps, lokasiId),
+    workingTime: createWorkingTime(deps.clock),
   };
 }
 export {
@@ -228,4 +261,5 @@ export {
   type OpenHours,
   type Weekday,
   type WorkingDayCalendar,
+  type WorkingTime,
 } from "./working-time";

@@ -78,6 +78,10 @@ export type AuditAction =
   | "lokasi.ubah_jam_operasional"
   /** An Admin Lokasi (or Admin Platform) picks a Lokasi Mitra's Kontak Siaga from its Admin Lokasi. */
   | "lokasi.pilih_kontak_siaga"
+  /** Admin Platform adds a national holiday to the Admin Platform working-day calendar. */
+  | "hari_libur.tambah"
+  /** Admin Platform removes a national holiday from the Admin Platform working-day calendar. */
+  | "hari_libur.hapus"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */

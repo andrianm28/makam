@@ -147,6 +147,29 @@ export function addWorkingDays(calendar: WorkingDayCalendar, start: Date, n: num
   throw new RangeError("the calendar has no working days ahead");
 }
 
+/**
+ * The calculator on the Clock: each function takes its start like the pure
+ * ones, and reads "now" from the Clock only when the caller passes none.
+ */
+export interface WorkingTime {
+  deadline(schedule: JamOperasional, start: Date | undefined, hours: number): Date;
+  nextWorkingDayEnd(schedule: JamOperasional, start?: Date): Date;
+  addWorkingDays(calendar: WorkingDayCalendar, start: Date | undefined, n: number): Date;
+  daytimeHoursDeadline(start: Date | undefined, hours: number): Date;
+  confirmationPromise(due: Date, now?: Date): string;
+}
+
+export function createWorkingTime(clock: { now(): Date }): WorkingTime {
+  const from = (start: Date | undefined) => start ?? clock.now();
+  return {
+    deadline: (schedule, start, hours) => deadline(schedule, from(start), hours),
+    nextWorkingDayEnd: (schedule, start) => nextWorkingDayEnd(schedule, from(start)),
+    addWorkingDays: (calendar, start, n) => addWorkingDays(calendar, from(start), n),
+    daytimeHoursDeadline: (start, hours) => daytimeHoursDeadline(from(start), hours),
+    confirmationPromise: (due, now) => confirmationPromise(due, from(now)),
+  };
+}
+
 const daytime: OpenHours = { opens: "06:00", closes: "18:00" };
 
 /** The fixed TPU window: 06:00–18:00 WIB every day, no closures. */

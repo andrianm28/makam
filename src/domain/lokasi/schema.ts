@@ -50,3 +50,13 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });
+
+/**
+ * Owned by the Lokasi module: the national holiday list Admin Platform keeps
+ * for the Admin Platform working-day calendar, one row per date (WIB).
+ */
+export const lokasiNationalHoliday = pgTable("lokasi_national_holiday", {
+  date: date("date", { mode: "string" }).primaryKey(),
+  name: text("name").notNull(),
+  createdAt: at("created_at").notNull(),
+});
