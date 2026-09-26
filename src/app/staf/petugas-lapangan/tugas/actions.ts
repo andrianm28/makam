@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiFacilities } from "@/domain/lokasi";
 import { tugasLapanganResource } from "@/domain/identity";

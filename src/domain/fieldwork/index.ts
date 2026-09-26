@@ -26,7 +26,6 @@ import {
   completeTugasLapangan,
   createTugasLapangan,
   evidenceUrl,
-  newTugasLapanganSchema,
   readTugasLapangan,
   tugasSaya,
   type CompleteTugasLapanganResult,
@@ -34,7 +33,6 @@ import {
   type EvidenceUpload,
   type EvidenceUrlResult,
   type NewTugasLapangan,
-  type NotFound,
   type TugasLapangan,
   type TugasLapanganResult,
 } from "./tugas";

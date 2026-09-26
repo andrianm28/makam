@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { newTugasLapanganSchema, tugasLapanganTypes } from "@/domain/fieldwork";
 import { semuaTugasLapanganResource } from "@/domain/identity";
