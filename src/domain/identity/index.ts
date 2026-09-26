@@ -19,10 +19,12 @@ import { createBetterAuth } from "./better-auth";
 import {
   accountEmail,
   confirmEmailVerification,
+  markEmailVerifiedByOps,
   removeEmail,
   requestEmailVerification,
   type AccountEmail,
   type ConfirmEmailVerificationResult,
+  type MarkEmailVerifiedByOpsResult,
   type RemoveEmailResult,
   type RequestEmailVerificationResult,
 } from "./email";
@@ -71,6 +73,7 @@ export type { RequestEmailFallbackResult, RequestEmailLoginResult } from "./emai
 export type {
   AccountEmail,
   ConfirmEmailVerificationResult,
+  MarkEmailVerifiedByOpsResult,
   RemoveEmailResult,
   RequestEmailVerificationResult,
 } from "./email";
@@ -205,6 +208,11 @@ export interface Identity {
   requestEmailVerification(by: Actor, input: { email: string; ip: string }): Promise<RequestEmailVerificationResult>;
   /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
   confirmEmailVerification(by: Actor, input: { code: string }): Promise<ConfirmEmailVerificationResult>;
+  /**
+   * Ops (`verify-email` CLI): marks an existing Admin Platform's email on record as its Email
+   * Terverifikasi, audited as ops_cli with the reason. The bootstrap path before live WhatsApp.
+   */
+  markEmailVerifiedByOps(input: { phoneNumber: string; reason: string }): Promise<MarkEmailVerifiedByOpsResult>;
 }
 
 export function createIdentity(deps: IdentityDeps): Identity {
@@ -249,5 +257,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     removeEmail: (by) => removeEmail(deps, by),
     requestEmailVerification: (by, input) => requestEmailVerification(deps, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(deps, by, input),
+    markEmailVerifiedByOps: (input) => markEmailVerifiedByOps(deps, input),
   };
 }

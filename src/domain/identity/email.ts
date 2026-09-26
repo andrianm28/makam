@@ -1,13 +1,15 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import type { AuditLog } from "@/domain/audit";
+import type { AuditLog, RecordEntry } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import { akunResource, staffRoles, writeRefusal, type Actor, type WriteRefusal } from "./authorize";
 import { verifikasiEmailMessage } from "./email-templates";
 import { normaliseEmail } from "./email-address";
 import { akunLockKey } from "./lock-key";
+import type { Account } from "./login";
 import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityUser } from "./schema";
 
 /*
@@ -163,6 +165,74 @@ async function markVerified(deps: EmailDeps, by: Actor, email: string): Promise<
     });
     return { ok: true } as const;
   });
+}
+
+export type MarkEmailVerifiedByOpsResult =
+  | { ok: true; account: Account; email: string }
+  | PhoneNumberRejection
+  | { ok: false; reason: "alasan_wajib" | "bukan_admin_platform" };
+
+/**
+ * Ops (`verify-email` CLI): marks the email on record of an existing Admin
+ * Platform as its Email Terverifikasi, audited as `ops_cli` with the reason.
+ * The bootstrap path before the live WhatsApp adapter: with it the Admin
+ * Platform logs in by email, and still passes TOTP.
+ */
+export async function markEmailVerifiedByOps(
+  deps: { db: Database; clock: Clock; audit: AuditLog },
+  input: { phoneNumber: string; reason: string },
+): Promise<MarkEmailVerifiedByOpsResult> {
+  const normalised = normalisePhoneNumber(input.phoneNumber);
+  if (!normalised.ok) return normalised;
+  const { phoneNumber } = normalised;
+  const reason = input.reason.trim();
+
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [user] = await tx
+      .select({ id: identityUser.id })
+      .from(identityUser)
+      .where(eq(identityUser.phoneNumber, phoneNumber));
+    if (!user) return { ok: false, reason: "bukan_admin_platform" } as const;
+    const marked = await recordOpsEmailVerification(tx, record, deps.clock, {
+      accountId: user.id,
+      actorRole: "ops_cli",
+      reason,
+    });
+    if (!marked.ok) return marked;
+    return { ok: true, account: { id: user.id, phoneNumber }, email: marked.email } as const;
+  });
+}
+
+/**
+ * Inside a staff write: makes the Akun's email on record its Email
+ * Terverifikasi and records `akun.email_verifikasi` (before/after
+ * `terverifikasi`, the reason; never a code). Used by `verify-email` (ops_cli)
+ * and by `seed:admin --email-terverifikasi` (seed_cli).
+ */
+export async function recordOpsEmailVerification(
+  tx: Database,
+  record: RecordEntry,
+  clock: Clock,
+  input: { accountId: string; actorRole: "ops_cli" | "seed_cli"; reason: string },
+): Promise<{ ok: true; email: string } | { ok: false; reason: never }> {
+  const [row] = await tx
+    .select({ email: identityUser.contactEmail })
+    .from(identityUser)
+    .where(eq(identityUser.id, input.accountId))
+    .for("update");
+  const email = row?.email ?? "";
+  const now = clock.now();
+  await tx.update(identityUser).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
+  await record({
+    // No one is signed in: the entry names the Akun, acting as the CLI.
+    actor: { accountId: input.accountId, role: input.actorRole },
+    action: "akun.email_verifikasi",
+    entity: { kind: "akun", id: input.accountId },
+    before: { email, terverifikasi: false },
+    after: { email, terverifikasi: true },
+    reason: input.reason,
+  });
+  return { ok: true, email };
 }
 
 /** True for the unique violation of identity_user_verified_email_idx (a verified email belongs to one Akun). */
