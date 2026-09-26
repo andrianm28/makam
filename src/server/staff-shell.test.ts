@@ -139,6 +139,7 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Makam Wakaf Al-Ikhlas",
         items: [
           { label: "Beranda", href: `/staf/admin-lokasi/${lokasiId}` },
+          { label: "Denah", href: `/staf/admin-lokasi/${lokasiId}/denah` },
           { label: "Jam Operasional", href: `/staf/admin-lokasi/${lokasiId}/jam-operasional` },
           { label: "Audit Log", href: `/staf/admin-lokasi/${lokasiId}/audit-log` },
         ],

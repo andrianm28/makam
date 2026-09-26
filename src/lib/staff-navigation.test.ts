@@ -148,8 +148,8 @@ describe("the command palette of each role", () => {
         { id: second, name: "TPU Keluarga Sentosa" },
       ]).map((group) => [group.label, group.items.map((item) => item.href)]),
     ).toEqual([
-      ["Makam Wakaf Al-Ikhlas", [`/staf/admin-lokasi/${lokasiId}`, `/staf/admin-lokasi/${lokasiId}/jam-operasional`, `/staf/admin-lokasi/${lokasiId}/audit-log`]],
-      ["TPU Keluarga Sentosa", [`/staf/admin-lokasi/${second}`, `/staf/admin-lokasi/${second}/jam-operasional`, `/staf/admin-lokasi/${second}/audit-log`]],
+      ["Makam Wakaf Al-Ikhlas", [`/staf/admin-lokasi/${lokasiId}`, `/staf/admin-lokasi/${lokasiId}/denah`, `/staf/admin-lokasi/${lokasiId}/jam-operasional`, `/staf/admin-lokasi/${lokasiId}/audit-log`]],
+      ["TPU Keluarga Sentosa", [`/staf/admin-lokasi/${second}`, `/staf/admin-lokasi/${second}/denah`, `/staf/admin-lokasi/${second}/jam-operasional`, `/staf/admin-lokasi/${second}/audit-log`]],
     ]);
   });
 
