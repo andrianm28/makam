@@ -16,3 +16,7 @@ The payment paths outside the provider. Admin Platform marks a Tagihan paid by h
 - [ ] A Rp 0 Tagihan becomes Lunas immediately with method "Tanpa pembayaran (Harga Khusus)".
 - [ ] Each path fires the downstream-effect registry once (e.g. Bukti Pemesanan issued).
 - [ ] Tests: each method's Bukti Pembayaran wording; direct-payment reversal; Harga Khusus reissue and Rp 0 waiver; partner share requires a note and defaults to 0; immutability preserved.
+
+## Comments
+
+- 2026-09-26 — From ticket 18 review (user decision): a reissued Tagihan keeps the original due date. So Admin Platform cannot reissue (e.g. add a Harga Khusus to) a pay-first Tagihan that is already past its due date: the action is refused with a clear message, and the order is placed again instead. A Rp 0 Tagihan is already Lunas at issue (ticket 18).

@@ -455,7 +455,7 @@ Core entities at a glance (details in each module):
       - One per payment moment, immutable. Changes are made by cancelling and reissuing.
       - Addressed to the Pemesan, or to the Pemegang Hak for a Perpanjangan. Anyone may pay.
       - Lines carry provider attribution (the Lokasi Mitra for its tariff lines). A Harga Khusus appears as a negative "Penyesuaian Harga Khusus" line.
-      - Kind: pay-first or pay-after. A Tagihan has one due date, the earliest of its lines. Hari-H Layanan lines on a Saat Duka Tagihan are pay-after and take its due date, so that Tagihan stays pay-after. Layanan added at a Perpanjangan checkout likewise take the Perpanjangan due date (their target dates are constrained instead).
+      - Kind: pay-first or pay-after. A Tagihan has one due date, the earliest of its lines. Hari-H Layanan lines on a Saat Duka Tagihan are pay-after and take its due date, so that Tagihan stays pay-after. Layanan added at a Perpanjangan checkout likewise take the Perpanjangan due date (their target dates are constrained instead). Layanan on a burial-under-an-existing-Hak-Pakai Tagihan likewise take its due date (the burial has already happened, as for Saat Duka; confirmed 2026-09-26). A reissued Tagihan (cancel and reissue, e.g. for a Harga Khusus) keeps the original due date, so a reissue never extends the time to pay. A Rp 0 Tagihan is Lunas at issue, with its Bukti Pembayaran.
       - Statuses: Belum Dibayar / Lunas / Lewat Jatuh Tempo / Tidak Tertagih / Dibatalkan, plus Dikembalikan sebagian / penuh.
       - Pay-first Tagihan lapse to Dibatalkan at the due date. Pay-after Tagihan become Lewat Jatuh Tempo, with the clock counted from the **recorded** burial date. The printed due date of a Saat Duka Tagihan comes from the planned burial date at confirmation; the Tagihan is not reissued if the recorded date differs.
     - **Due rules by kind**:
@@ -467,7 +467,7 @@ Core entities at a glance (details in each module):
       | Pemesanan Terencana | pay-first | hold expiry |
       | Perpanjangan (Lokasi Mitra), filing-only Pengurusan | pay-first | 3×24 h after issue |
       | Standalone Layanan / Layanan at a non–Saat Duka checkout | pay-first | the earlier of 24 h after issue or the last lead-time day (target date minus the Layanan's lead time, at 23:59 WIB; e.g. target the 20th, lead time 3 days → the 17th 23:59) |
-      | Paket cycle | pay-first | H-1 |
+      | Paket cycle | pay-first | H-1 (23:59 WIB on the day before the cycle date) |
 
     - **Payment**: SumoPod webhook, or manual (Transfer manual / Tunai by Admin Platform with proof; "Dibayar langsung ke Lokasi Mitra" by the Admin Lokasi with proof, reversible by Admin Platform), or Rp 0 (Harga Khusus waiver, Lunas at once).
     - Every payment issues exactly one **Bukti Pembayaran** and fires the downstream effects: Bukti Pemesanan / Perpanjangan, Pencairan due, Pekerjaan Layanan scheduled (hari-H Layanan on a Saat Duka Tagihan are already Dijadwalkan at confirmation), Hak Pakai extended or created.
