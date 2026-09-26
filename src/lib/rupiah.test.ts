@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RUPIAH_MAX, rupiahFromDatabase, rupiahSchema, sumRupiah, timesRupiah, type Rupiah } from "./rupiah";
+import { formatRupiah, RUPIAH_MAX, rupiahFromDatabase, rupiahSchema, sumRupiah, timesRupiah, type Rupiah } from "./rupiah";
 
 const rp = (amount: number) => rupiahSchema.parse(amount);
 
@@ -32,5 +32,14 @@ describe("Rupiah: whole rupiah, never a float, at most Rp 100.000.000.000", () =
     expect(() => rupiahFromDatabase("100000000001")).toThrow(/rupiah/i);
     expect(() => rupiahFromDatabase("9007199254740993")).toThrow(/rupiah/i);
     expect(() => rupiahFromDatabase("-1")).toThrow(/rupiah/i);
+  });
+});
+
+describe("how an amount reads", () => {
+  it("whole rupiah with dots grouping thousands; a reduction (Penyesuaian Harga Khusus) reads negative", () => {
+    expect(formatRupiah(7_500_000)).toBe("Rp 7.500.000");
+    expect(formatRupiah(0)).toBe("Rp 0");
+    expect(formatRupiah(999)).toBe("Rp 999");
+    expect(formatRupiah(-2_000_000)).toBe("−Rp 2.000.000");
   });
 });

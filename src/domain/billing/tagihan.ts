@@ -1,13 +1,14 @@
-import { randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
+import { refusable } from "@/db/unit-of-work";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "@/domain/identity";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { RUPIAH_MAX, rupiahSchema, sumRupiah, type Rupiah } from "@/lib/rupiah";
 import { tagihanDue, type DueLine, type PaymentMoment, type TagihanKind } from "./due-rules";
 import { nextDocumentNumber } from "./numbering";
 import { tagihan, tagihanLine, type tagihanStatuses } from "./schema";
+import { currentHeader, headerSchema, issueBuktiPembayaranIn, newDocumentLink, noHeader, type DocumentHeader } from "./shared";
 
 /** Who provides a line: the Lokasi Mitra for its tariff lines (named as it was at issue), the Operator, or the Pemda. */
 export type LineProvider = { kind: "lokasi_mitra"; lokasiId: string; name: string } | { kind: "operator" } | { kind: "pemda" };
@@ -44,14 +45,6 @@ export type TagihanLine =
   | { kind: "penyesuaian_harga_khusus"; label: string; amount: number; provider: { kind: "operator" } };
 
 export type TagihanStatus = (typeof tagihanStatuses)[number];
-
-/** The Operator's header on a document: Pengaturan Operator's values in force when it was issued. */
-export interface DocumentHeader {
-  legalName: string;
-  address: string;
-  phone: string;
-  email: string;
-}
 
 export interface Tagihan {
   id: string;
@@ -166,9 +159,6 @@ function linesToIssue(lines: readonly NewTagihanLine[]): { ok: true; lines: Tagi
 const dueLine = (line: TagihanLine): DueLine =>
   line.kind === "layanan" ? { kind: "layanan", targetDate: line.targetDate, leadTimeDays: line.leadTimeDays } : { kind: "other" };
 
-/** 256 random bits, base64url: the unguessable part of a document's link. */
-export const newDocumentLink = () => randomBytes(32).toString("base64url");
-
 /**
  * Issues a Tagihan in `db`'s transaction at `now`; `replaces` is the Tagihan
  * it replaces, whose payment moment (and due-date anchor) it keeps.
@@ -209,7 +199,9 @@ async function issueIn(
       total: checked.total,
       header,
       replacesId,
-      status: "belum_dibayar",
+      // A Rp 0 Tagihan (a Harga Khusus waiver) is Lunas at once.
+      status: checked.total === 0 ? "lunas" : "belum_dibayar",
+      paidAt: checked.total === 0 ? now : null,
     })
     .returning({ id: tagihan.id });
   await tx.insert(tagihanLine).values(
@@ -224,46 +216,23 @@ async function issueIn(
       layananLeadTimeDays: line.kind === "layanan" ? line.leadTimeDays : null,
     })),
   );
+  if (checked.total === 0) {
+    await issueBuktiPembayaranIn(tx, {
+      tagihanId: row.id,
+      amount: checked.total,
+      method: { kind: "tanpa_pembayaran" },
+      reference: null,
+      header,
+      paidAt: now,
+    });
+  }
   const issued = await readTagihan(tx, row.id);
   if (!issued) throw new Error("issued Tagihan not found");
   return { ok: true, tagihan: issued };
 }
 
-/** Carries a refusal out of a transaction so that it rolls back. */
-class Refused<T> extends Error {
-  constructor(readonly result: T) {
-    super("refused");
-  }
-}
-
-/** Runs `work` in a transaction (a savepoint inside one already open), rolling back on a refusal. */
-export async function refusable<T extends { ok: boolean }>(db: Database, work: (tx: Database) => Promise<T>): Promise<T> {
-  try {
-    return await db.transaction(async (tx) => {
-      const result = await work(tx);
-      if (!result.ok) throw new Refused(result);
-      return result;
-    });
-  } catch (error) {
-    if (error instanceof Refused) return error.result as T;
-    throw error;
-  }
-}
-
-/**
- * The Operator's header values now in force, read before the issuing
- * transaction opens (so an issue never holds its connection while waiting for
- * another), or null before Admin Platform has entered Pengaturan Operator.
- */
-export async function currentHeader(deps: Pick<TagihanDeps, "operatorSettings">): Promise<DocumentHeader | null> {
-  const settings = await deps.operatorSettings.current();
-  return settings && { legalName: settings.legalName, address: settings.address, phone: settings.phone, email: settings.email };
-}
-
-export const noHeader = { ok: false, reason: "pengaturan_operator_belum_diisi" } as const;
-
 export async function issueTagihan(deps: TagihanDeps, input: IssueTagihanInput, now: Date): Promise<IssueTagihanResult> {
-  const header = await currentHeader(deps);
+  const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
   return refusable(deps.db, (tx) => issueIn(tx, { ...input, anchorAt: now }, header, now, null));
 }
@@ -283,7 +252,7 @@ export async function reissueTagihan(
   input: { lines: NewTagihanLine[] },
   now: Date,
 ): Promise<ReissueTagihanResult> {
-  const header = await currentHeader(deps);
+  const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
   return refusable<ReissueTagihanResult>(deps.db, async (tx) => {
     if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
@@ -332,7 +301,6 @@ export async function lapseDuePayFirstTagihan(db: Database, now: Date): Promise<
 }
 
 const providerOf = (value: unknown) => providerSchema.parse(value) as LineProvider;
-const headerSchema = z.object({ legalName: z.string(), address: z.string(), phone: z.string(), email: z.string() });
 
 /** One Tagihan as issued, with its lines and where it sits in a cancel-and-reissue chain. */
 export async function readTagihan(db: Database, tagihanId: string): Promise<Tagihan | null> {

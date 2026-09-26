@@ -1,4 +1,4 @@
-import type { LineProvider, PaymentMethod, TagihanStatus } from "@/domain/billing";
+import type { BillingDocument, LineProvider, PaymentMethod, Tagihan, TagihanStatus } from "@/domain/billing";
 
 /**
  * How Tagihan and Bukti Pembayaran read on their pages (and so in their PDFs).
@@ -34,10 +34,10 @@ export function paymentMethodText(method: PaymentMethod): string {
   }
 }
 
-/** "Rp 7.500.000", or "−Rp 2.000.000" for a reduction: whole rupiah with dots grouping thousands. */
-export function lineAmountText(amount: number): string {
-  const grouped = String(Math.abs(amount)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${amount < 0 ? "−" : ""}Rp ${grouped}`;
+/** Who a document names: a Tagihan is "Kepada" its addressee, a Bukti Pembayaran "Atas nama" them. */
+export function addresseeText(document: BillingDocument["type"], role: Tagihan["addressee"]["role"]): string {
+  const who = role === "pemegang_hak" ? "Pemegang Hak" : "Pemesan";
+  return `${document === "tagihan" ? "Kepada" : "Atas nama"} (${who})`;
 }
 
 /** Who provides a line, as the Tagihan attributes it. */

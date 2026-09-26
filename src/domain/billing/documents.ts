@@ -1,44 +1,21 @@
 import { asc, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
+import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
-import { nextDocumentNumber } from "./numbering";
 import { buktiPembayaran, tagihan as tagihanTable } from "./schema";
 import {
   currentHeader,
-  newDocumentLink,
+  documentLinkSchema,
+  headerSchema,
+  issueBuktiPembayaranIn,
   noHeader,
-  readTagihan,
-  refusable,
-  tagihanByLink,
+  paymentMethodSchema,
   type DocumentHeader,
-  type Tagihan,
-  type TagihanDeps,
-  type TagihanStatus,
-} from "./tagihan";
-
-/**
- * How a Tagihan was paid, as its Bukti Pembayaran reads:
- * - `penyedia_pembayaran`: through the PaymentProvider (SumoPod), with the channel paid on (e.g. "QRIS", "VA BCA");
- * - `transfer_manual` / `tunai`: recorded by Admin Platform with proof;
- * - `langsung_ke_lokasi`: paid directly to the Lokasi Mitra ("diterima oleh Lokasi Mitra X");
- * - `tanpa_pembayaran`: a Rp 0 Tagihan after a Harga Khusus ("Tanpa pembayaran (Harga Khusus)").
- */
-export type PaymentMethod =
-  | { kind: "penyedia_pembayaran"; channel: string }
-  | { kind: "transfer_manual" }
-  | { kind: "tunai" }
-  | { kind: "langsung_ke_lokasi"; lokasiName: string }
-  | { kind: "tanpa_pembayaran" };
-
-const paymentMethodSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("penyedia_pembayaran"), channel: z.string().trim().min(1).max(100) }),
-  z.object({ kind: z.literal("transfer_manual") }),
-  z.object({ kind: z.literal("tunai") }),
-  z.object({ kind: z.literal("langsung_ke_lokasi"), lokasiName: z.string().trim().min(1).max(300) }),
-  z.object({ kind: z.literal("tanpa_pembayaran") }),
-]);
+  type PaymentMethod,
+} from "./shared";
+import { readTagihan, tagihanByLink, type Tagihan, type TagihanDeps, type TagihanStatus } from "./tagihan";
 
 export interface BuktiPembayaran {
   id: string;
@@ -87,7 +64,7 @@ export async function recordPayment(
   const method = paymentMethodSchema.safeParse(input.method);
   if (!method.success) return { ok: false, reason: "baris_tidak_valid" };
   if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
-  const header = await currentHeader(deps);
+  const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
   const buktiId = await refusable(deps.db, async (tx) => {
     const [row] = await tx.select().from(tagihanTable).where(eq(tagihanTable.id, tagihanId)).for("update");
@@ -103,28 +80,21 @@ export async function recordPayment(
     }
     if (!PAYABLE.includes(row.status)) return { ok: false as const, reason: "tagihan_dibatalkan" as const };
     await tx.update(tagihanTable).set({ status: "lunas", paidAt: now }).where(eq(tagihanTable.id, row.id));
-    const [bukti] = await tx
-      .insert(buktiPembayaran)
-      .values({
-        nomor: await nextDocumentNumber(tx, "BYR", now),
-        link: newDocumentLink(),
-        tagihanId: row.id,
-        paidAt: now,
-        amount: row.total,
-        method: method.data,
-        reference: input.reference?.trim() || null,
-        header,
-      })
-      .returning({ id: buktiPembayaran.id });
-    return { ok: true as const, id: bukti.id };
+    const id = await issueBuktiPembayaranIn(tx, {
+      tagihanId: row.id,
+      amount: row.total,
+      method: method.data,
+      reference: input.reference?.trim() || null,
+      header,
+      paidAt: now,
+    });
+    return { ok: true as const, id };
   });
   if (!buktiId.ok) return buktiId;
   const bukti = await readBukti(deps.db, eq(buktiPembayaran.id, buktiId.id));
   if (!bukti) throw new Error("Bukti Pembayaran not found");
   return { ok: true, bukti };
 }
-
-const headerSchema = z.object({ legalName: z.string(), address: z.string(), phone: z.string(), email: z.string() });
 
 async function readBukti(db: Database, where: SQL): Promise<BuktiPembayaran | null> {
   const [row] = await db.select().from(buktiPembayaran).where(where);
@@ -147,12 +117,9 @@ async function readBukti(db: Database, where: SQL): Promise<BuktiPembayaran | nu
 /** A document page: what an unguessable link shows. */
 export type BillingDocument = { type: "tagihan"; tagihan: Tagihan } | { type: "bukti_pembayaran"; bukti: BuktiPembayaran };
 
-/** A link as issued: 256 bits in unpadded base64url. Anything else finds nothing without a lookup. */
-const linkSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-
-/** The document behind an unguessable link, or null. */
+/** The document behind an unguessable link, or null (anything not shaped like a link finds nothing without a lookup). */
 export async function documentByLink(db: Database, link: string): Promise<BillingDocument | null> {
-  if (!linkSchema.safeParse(link).success) return null;
+  if (!documentLinkSchema.safeParse(link).success) return null;
   const tagihan = await tagihanByLink(db, link);
   if (tagihan) return { type: "tagihan", tagihan };
   const bukti = await readBukti(db, eq(buktiPembayaran.link, link));

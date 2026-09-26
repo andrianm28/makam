@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineAmountText, lineProviderText, paymentMethodText, tagihanStatusText } from "./billing-labels";
+import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "./billing-labels";
 
 describe("how a Tagihan and a Bukti Pembayaran read", () => {
   it("names every Tagihan status as the glossary does", () => {
@@ -28,10 +28,11 @@ describe("how a Tagihan and a Bukti Pembayaran read", () => {
     expect(paymentMethodText({ kind: "tanpa_pembayaran" })).toBe("Tanpa pembayaran (Harga Khusus)");
   });
 
-  it("shows a Penyesuaian Harga Khusus as a negative amount beside the normal prices", () => {
-    expect(lineAmountText(5_000_000)).toBe("Rp 5.000.000");
-    expect(lineAmountText(-2_000_000)).toBe("−Rp 2.000.000");
-    expect(lineAmountText(0)).toBe("Rp 0");
+  it("names the addressee by role: a Tagihan is 'Kepada' the Pemesan or Pemegang Hak, its Bukti Pembayaran 'Atas nama' them", () => {
+    expect(addresseeText("tagihan", "pemesan")).toBe("Kepada (Pemesan)");
+    expect(addresseeText("tagihan", "pemegang_hak")).toBe("Kepada (Pemegang Hak)");
+    expect(addresseeText("bukti_pembayaran", "pemesan")).toBe("Atas nama (Pemesan)");
+    expect(addresseeText("bukti_pembayaran", "pemegang_hak")).toBe("Atas nama (Pemegang Hak)");
   });
 
   it("attributes each line to who provides it: the Lokasi Mitra by name, Makam.co.id for the Operator's own fees", () => {

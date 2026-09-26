@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import type { Rupiah } from "@/lib/rupiah";
@@ -162,31 +161,38 @@ describe("issuing a Tagihan", () => {
 });
 
 describe("an issued Tagihan is immutable", () => {
-  it("any attempt to change, add or remove an issued Tagihan's lines, or to change what it bills, fails", async () => {
+  it("Billing offers no way to change an issued Tagihan's lines: only issue, cancel-and-reissue, payment and reads", () => {
+    const billing = billingOnTestDatabase(db).billing;
+
+    expect(Object.keys(billing).sort()).toEqual([
+      "documentByLink",
+      "documentPdf",
+      "issueTagihan",
+      "nextDocumentNumber",
+      "nextNomorPemesanan",
+      "recordPayment",
+      "reissueTagihan",
+      "tagihan",
+      "within",
+    ]);
+  });
+
+  it("a Tagihan reads back exactly as issued, whatever happens to it: paid, reissued or lapsed, only its status moves", async () => {
     const { billing } = await billingWithOperatorSettings(db);
-    const issued = await billing.issueTagihan(saatDukaCheckout());
-    if (!issued.ok) throw new Error("not issued");
-    const id = issued.tagihan.id;
+    const paid = await billing.issueTagihan(saatDukaCheckout());
+    const reissued = await billing.issueTagihan(saatDukaCheckout());
+    if (!paid.ok || !reissued.ok) throw new Error("not issued");
 
-    await expect(db.execute(sql`update tagihan_line set amount = 1 where tagihan_id = ${id}`)).rejects.toThrow();
-    await expect(db.execute(sql`delete from tagihan_line where tagihan_id = ${id}`)).rejects.toThrow();
-    await expect(
-      db.execute(
-        sql`insert into tagihan_line (tagihan_id, position, kind, label, amount, provider) values (${id}, 3, 'layanan', 'Bunga', 1, '{"kind":"operator"}')`,
-      ),
-    ).rejects.toThrow();
-    for (const change of [
-      sql`update tagihan set total = 1 where id = ${id}`,
-      sql`update tagihan set due_at = now() where id = ${id}`,
-      sql`update tagihan set nomor = 'TGH/2026/999999' where id = ${id}`,
-      sql`update tagihan set header = '{}' where id = ${id}`,
-      sql`update tagihan set line_count = 4 where id = ${id}`,
-      sql`delete from tagihan where id = ${id}`,
-    ]) {
-      await expect(db.execute(change)).rejects.toThrow();
-    }
+    await billing.recordPayment(paid.tagihan.id, { method: { kind: "tunai" }, reference: null });
+    await billing.reissueTagihan(reissued.tagihan.id, { lines: saatDukaCheckout().lines.slice(0, 1) });
 
-    expect(await billing.tagihan(id)).toEqual(issued.tagihan);
+    expect(await billing.tagihan(paid.tagihan.id)).toEqual({ ...paid.tagihan, status: "lunas" });
+    expect(await billing.tagihan(reissued.tagihan.id)).toEqual({
+      ...reissued.tagihan,
+      status: "dibatalkan",
+      cancelledReason: "diganti",
+      replacedByNomorTagihan: "TGH/2026/000003",
+    });
   });
 
   it("cancel-and-reissue: the Tagihan is Dibatalkan and replaced by a new one with a new Nomor Tagihan and the new lines", async () => {

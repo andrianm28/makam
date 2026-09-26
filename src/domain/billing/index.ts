@@ -40,19 +40,12 @@ import {
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
-export type {
-  BillingDocument,
-  BuktiPembayaran,
-  DocumentPdf,
-  PaymentMethod,
-  RecordPaymentInput,
-  RecordPaymentResult,
-} from "./documents";
+export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
+export { documentLinkSchema, type DocumentHeader, type PaymentMethod } from "./shared";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
   TARIFF_LINE_KINDS,
-  type DocumentHeader,
   type IssueRefusal,
   type IssueTagihanInput,
   type IssueTagihanResult,

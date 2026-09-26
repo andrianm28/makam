@@ -132,6 +132,39 @@ describe("Bukti Pembayaran", () => {
     });
   });
 
+  it("a Rp 0 Tagihan (Harga Khusus waiver) is Lunas at once, with its Bukti Pembayaran 'Tanpa pembayaran (Harga Khusus)', and never lapses", async () => {
+    const setup = await billingWithOperatorSettings(db);
+
+    const waived = await setup.billing.issueTagihan({
+      ...terencana,
+      lines: [...terencana.lines, { kind: "penyesuaian_harga_khusus", amount: rp(5_150_000) }],
+    });
+
+    expect(waived).toMatchObject({ ok: true, tagihan: { total: 0, status: "lunas" } });
+    if (!waived.ok) return;
+    expect(await setup.billing.recordPayment(waived.tagihan.id, { method: { kind: "tunai" }, reference: null })).toMatchObject({
+      ok: true,
+      bukti: { nomorBukti: "BYR/2026/000001", amount: 0, method: { kind: "tanpa_pembayaran" }, paidAt: setup.clock.now() },
+    });
+    await lapsePayFirstTagihanTick({ db }, wib("2026-10-05 09:00"));
+    expect(await setup.billing.tagihan(waived.tagihan.id)).toMatchObject({ status: "lunas" });
+  });
+
+  it("a reissue whose Harga Khusus brings the total to Rp 0 is Lunas at once with its Bukti Pembayaran", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+
+    const reissued = await setup.billing.reissueTagihan(tagihan.id, {
+      lines: [...terencana.lines, { kind: "penyesuaian_harga_khusus", amount: rp(5_150_000) }],
+    });
+
+    expect(reissued).toMatchObject({ ok: true, tagihan: { total: 0, status: "lunas" }, cancelled: { status: "dibatalkan" } });
+    if (!reissued.ok) return;
+    expect(await setup.billing.recordPayment(reissued.tagihan.id, { method: { kind: "tunai" }, reference: null })).toMatchObject({
+      bukti: { method: { kind: "tanpa_pembayaran" }, tagihan: { nomorTagihan: "TGH/2026/000002" } },
+    });
+  });
+
   it("a Bukti Pembayaran is headed with the Operator values in force when it was issued, not the Tagihan's", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);

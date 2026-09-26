@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { documentLinkSchema } from "@/domain/billing";
 import { serverRuntime } from "@/server/runtime";
 
-const paramsSchema = z.object({ link: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+const paramsSchema = z.object({ link: documentLinkSchema });
 
 /**
  * "Unduh PDF": the Tagihan or Bukti behind an unguessable link, rendered from

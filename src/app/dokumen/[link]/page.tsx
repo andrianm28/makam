@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import type { BillingDocument, BuktiPembayaran, DocumentHeader, Tagihan, TagihanLine } from "@/domain/billing";
-import { lineAmountText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
+import { documentLinkSchema, type BillingDocument, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPdfPath } from "@/lib/document-links";
-import { NAMA_BULAN, wibDateOf, wibTime } from "@/lib/time/jakarta";
+import { formatRupiah } from "@/lib/rupiah";
+import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 
-const paramsSchema = z.object({ link: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+const paramsSchema = z.object({ link: documentLinkSchema });
 
 async function documentOf(params: Promise<{ link: string }>): Promise<{ link: string; document: BillingDocument } | null> {
   const parsed = paramsSchema.safeParse(await params);
@@ -71,11 +72,11 @@ function TagihanView({ tagihan }: { tagihan: Tagihan }) {
       ) : null}
       <Facts
         facts={[
-          [tagihan.addressee.role === "pemegang_hak" ? "Kepada (Pemegang Hak)" : "Kepada (Pemesan)", tagihan.addressee.name],
+          [addresseeText("tagihan", tagihan.addressee.role), tagihan.addressee.name],
           ["Nomor Pemesanan", tagihan.nomorPemesanan],
           ["Lokasi", tagihan.placeName],
-          ["Tanggal terbit", tanggalJam(tagihan.issuedAt)],
-          ["Jatuh tempo", tanggalJam(tagihan.dueAt)],
+          ["Tanggal terbit", formatTanggalJam(tagihan.issuedAt)],
+          ["Jatuh tempo", formatTanggalJam(tagihan.dueAt)],
           ["Menggantikan", tagihan.replacesNomorTagihan && `Tagihan ${tagihan.replacesNomorTagihan}`],
         ]}
       />
@@ -97,13 +98,13 @@ function BuktiView({ bukti }: { bukti: BuktiPembayaran }) {
       <Facts
         facts={[
           ["Untuk Tagihan", bukti.tagihan.nomorTagihan],
-          [bukti.tagihan.addressee.role === "pemegang_hak" ? "Atas nama (Pemegang Hak)" : "Atas nama (Pemesan)", bukti.tagihan.addressee.name],
+          [addresseeText("bukti_pembayaran", bukti.tagihan.addressee.role), bukti.tagihan.addressee.name],
           ["Nomor Pemesanan", bukti.tagihan.nomorPemesanan],
           ["Lokasi", bukti.tagihan.placeName],
-          ["Waktu pembayaran", tanggalJam(bukti.paidAt)],
+          ["Waktu pembayaran", formatTanggalJam(bukti.paidAt)],
           ["Metode", paymentMethodText(bukti.method)],
           ["Referensi", bukti.reference],
-          ["Jumlah diterima", lineAmountText(bukti.amount)],
+          ["Jumlah diterima", formatRupiah(bukti.amount)],
         ]}
       />
       <Lines lines={bukti.tagihan.lines} total={bukti.amount} totalLabel="Total dibayar" />
@@ -168,10 +169,10 @@ function Lines({ lines, total, totalLabel }: { lines: TagihanLine[]; total: numb
               <span className="block">{line.label}</span>
               <span className="block text-xs text-muted-foreground">
                 {line.kind === "penyesuaian_harga_khusus" ? "Harga Khusus untuk pesanan ini" : `Oleh ${lineProviderText(line.provider)}`}
-                {line.kind === "layanan" ? ` · untuk ${tanggal(line.targetDate)}` : ""}
+                {line.kind === "layanan" ? ` · untuk ${formatTanggal(line.targetDate)}` : ""}
               </span>
             </td>
-            <td className="py-2 text-right whitespace-nowrap tabular-nums">{lineAmountText(line.amount)}</td>
+            <td className="py-2 text-right whitespace-nowrap tabular-nums">{formatRupiah(line.amount)}</td>
           </tr>
         ))}
       </tbody>
@@ -180,7 +181,7 @@ function Lines({ lines, total, totalLabel }: { lines: TagihanLine[]; total: numb
           <th scope="row" className="pt-3 pr-4 font-semibold">
             {totalLabel}
           </th>
-          <td className="pt-3 text-right text-base font-semibold whitespace-nowrap tabular-nums">{lineAmountText(total)}</td>
+          <td className="pt-3 text-right text-base font-semibold whitespace-nowrap tabular-nums">{formatRupiah(total)}</td>
         </tr>
       </tfoot>
     </table>
@@ -194,15 +195,4 @@ function DocumentFoot({ header }: { header: DocumentHeader }) {
       membukanya, jadi bagikan hanya kepada keluarga yang perlu.
     </footer>
   );
-}
-
-/** "20 Oktober 2026" for a WIB date "2026-10-20". */
-function tanggal(date: string): string {
-  const [year, month, day] = date.split("-").map(Number);
-  return `${day} ${NAMA_BULAN[month - 1]} ${year}`;
-}
-
-/** "1 Oktober 2026, 21.00 WIB". */
-function tanggalJam(instant: Date): string {
-  return `${tanggal(wibDateOf(instant))}, ${wibTime(instant).replace(":", ".")} WIB`;
 }

@@ -18,7 +18,9 @@ import { optionalRupiahInput, rupiahInput } from "@/server/rupiah-input";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { formatRupiah, formatTanggal, globalTariffLabels } from "./format";
+import { formatRupiah } from "@/lib/rupiah";
+import { formatTanggal } from "@/lib/time/jakarta";
+import { globalTariffLabels } from "./format";
 
 type TariffResult =
   | SetGlobalTariffResult
