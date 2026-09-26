@@ -23,7 +23,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
 | [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
-| [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | ready-for-agent | 12, 63 |
+| [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | resolved | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | ready-for-agent | 18 |
 | [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
@@ -247,12 +247,12 @@ Not changed here (outside the files this change may touch):
 
 ## Decisions 2026-09-26 (CI/CD to production)
 
-Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the spec (Architecture, CI/CD). Deploys move from the host's pull timer to GitHub Actions deploy jobs on a self-hosted, outbound-only runner; production promotes the digest already green on staging behind the user's approval; secrets stay on the host; production still waits for ticket 64 and the makam.co.id switch stays in ticket 65.
+Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the spec (Architecture, CI/CD). Revised the same day (ADR 0002, second amendment): GitHub Free has no branch protection or environment approvals for a private repo, so deploys stay pull-based and the host deploys only cosign-signed images, reporting GitHub Deployment statuses; production is an owner-only manual promotion re-signing the staging digest with a production key; secrets stay on the host; production still waits for ticket 64 and the makam.co.id switch stays in ticket 65.
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [71](71-ci-e2e-and-image-scan.md) | CI: Playwright critical paths and image scan on every main build | ready-for-agent | 12 |
-| [72](72-deploys-through-github-actions.md) | Deploys through GitHub Actions: self-hosted runner, staging auto-deploy, production promotion | ready-for-agent | 71 |
+| [71](71-ci-e2e-and-image-scan.md) | CI: e2e, image scan and supply-chain hardening on every build | ready-for-agent | 12 |
+| [72](72-deploys-through-github-actions.md) | Signed pull-based deploys: GitHub Deployment statuses, staging smoke test, production promotion and rollback | ready-for-agent | 71 |
 | [73](73-image-retention-and-host-disk.md) | Image retention and disk hygiene on the shared host | ready-for-agent | 72 |
 
 ## Decisions 2026-09-26 (staff redesign on the brand)

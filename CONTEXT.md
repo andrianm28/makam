@@ -265,7 +265,7 @@ A grave service in the catalog (e.g. flowers, headstone, cleaning, grass care, p
 _Avoid_: Produk, jasa
 
 **Pekerjaan Layanan**:
-One Layanan carried out at one Petak Makam on one target date, with its own status and photo proof; by the Admin Lokasi at a Lokasi Mitra, by a Mitra Jasa at a TPU.
+One Layanan carried out at one Petak Makam on one target date, with its own status and photo proof; by the Admin Lokasi at a Lokasi Mitra, by a Mitra Jasa at a TPU. In a Mitra Jasa's navigation it is shortened to "Pekerjaan" (their only kind of work); page titles use the full term.
 _Avoid_: Order layanan, tugas, job
 
 **Paket Layanan**:
@@ -365,7 +365,7 @@ The Admin Lokasi's list of open work for one Lokasi Mitra, built and closed from
 _Avoid_: Antrean (alone, for the Lokasi's list), inbox
 
 **Tugas Lapangan**:
-One piece of field work assigned to a Petugas Lapangan (surat pengantar pickup, IPTM originals, Kunjungan Verifikasi, Survei Wakaf, Cek Denah), done only once its required uploads are in.
+One piece of field work assigned to a Petugas Lapangan (surat pengantar pickup, IPTM originals, Kunjungan Verifikasi, Survei Wakaf, Cek Denah), done only once its required uploads are in. In a Petugas Lapangan's navigation it is shortened to "Tugas" (never "Tugas saya"); page titles use the full term.
 _Avoid_: Job, Pekerjaan (reserved for Pekerjaan Layanan), kunjungan (alone)
 
 **Bertugas**:

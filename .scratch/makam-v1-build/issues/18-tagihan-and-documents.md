@@ -1,6 +1,6 @@
 # Tagihan, document numbering and document pages
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 12, 63
 Spec: Domain modules > 10. Billing (Tagihan, due rules by kind, Documents); Adapter ports > PdfRenderer; story 183
 
@@ -50,3 +50,4 @@ The Billing module's Tagihan: one per payment moment, immutable once issued (cha
   - **Duplication removed**: `refusable(db, work)` (refusal → rollback, returned) lives in `src/db/unit-of-work.ts` and is used by `audit.staffWrite` and Billing (tested there). Billing's shared internals (`DocumentHeader` + one `headerSchema`, `documentLinkSchema`, `newDocumentLink`, `currentHeader`, `PaymentMethod` + schema, `issueBuktiPembayaranIn`) moved to `src/domain/billing/shared.ts`; `documentLinkSchema` is exported and used by the page, the PDF route and `documents.ts`. `formatRupiah` (signed: "−Rp 2.000.000") is in `@/lib/rupiah`; `formatTanggal` and `formatTanggalJam` ("1 Oktober 2026, 21.00 WIB") are in `@/lib/time/jakarta`; the tarif `format.ts` copies and the page's copies are gone. The "Kepada (…)" / "Atas nama (…)" wording is `addresseeText` in `billing-labels`.
   - Unchanged by decision: Geist on the document page (ticket 74 switches it); the three judgement calls (Layanan on a burial-under-existing-Hak-Pakai Tagihan take its due date; a reissue keeps the original due anchor; Paket H-1 = 23:59 WIB the day before), confirmed by the user.
   - **Verified 2026-09-26 after the fixes**: `npm run lint` exit 0; `npm run typecheck` exit 0; `npm test` exit 0 — **715/715 tests, 74 files** (fresh test container); `npm run build` exit 0; `npm run build:worker` exit 0.
+- 2026-09-26 — Two-axis review (Standards, Spec) done; fixes applied (8d126a6). Merged to main as a8c28da with the user's approval. The document pages still use Geist until ticket 74 merges (decided).

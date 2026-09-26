@@ -18,3 +18,7 @@ Decided with the user on 2026-09-26. The first slice of the staff redesign: the 
 - [ ] `docs/design-system.md` on `main`: brand source, tokens, type scale, voice and guardrails (warm, clear, not judgemental; no hard selling, no uncertain claims, status and limits explained, privacy; "Dibantu, Jelas, Aman"), brand words vs the glossary (Tagihan never Invoice; no "Verified Partner" badge; TPS only in marketing).
 - [ ] Copy in `CONTEXT.md` words; no ticket numbers in UI copy (ticket 69's guard stays green).
 - [ ] A short Playwright smoke test: an Admin Platform signs in and moves between two menu items; the sidebar collapses; the theme toggles.
+
+## Comments
+
+- 2026-09-26 — Two-axis review done; the user approved these fixes before merge (after ticket 18 merged, rebase onto main): squash 1bfec66 into 37c80cd so every commit typechecks; replace `bg-black/10` in the sheet with an overlay token; add the viewport theme colours to the token test; the shared Card gets the 1 px border and faint shadow the doc describes; the Beranda counts and next Hari Libur Nasional come from public queries of their owning modules; the WIB date formatter moves to `@/lib/time/jakarta`; `server/` and `components/` stop importing from `app/`; one list of menu items per role; the shell falls back to a role the Akun holds; the document pages switch to the brand font token; nav labels "Pekerjaan" (Mitra Jasa) and "Tugas" (Petugas Lapangan, not "Tugas saya"), as now recorded in CONTEXT.md.
