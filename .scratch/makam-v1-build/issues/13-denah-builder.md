@@ -10,6 +10,13 @@ The Inventory module's Denah and the Admin Lokasi editor: bloks as rows × colum
 
 ## Acceptance criteria
 
+- [ ] **Prototype first** (decided 2026-09-26): after ticket 74 merges, a throwaway prototype of the editor on the new shell (desktop and phone) for the user to react to (mattpocock-skills:prototype); its decisions are recorded here before the build.
+- [ ] Three cell types: Petak Makam, Jalan, Bukan Petak. A new Blok (name unique per Lokasi, rows × columns) starts with every cell a Petak, numbered from an editable pattern prefixed with the Blok name (`A-01` …), each number editable.
+- [ ] Bulk editing: select many cells (drag on desktop, tap-select mode with a bottom action bar on phones) to make them Jalan / Bukan Petak, set Jenis Makam, renumber, or make a Kavling Keluarga; the grid pinch-zooms and pans on phones; tapping a cell opens its detail panel.
+- [ ] A Kavling Keluarga is at least 2 Petak connected by edges (not diagonals) within one Blok, has its own Jenis Makam and a pre-filled, editable Nomor Kavling (`A-K01`).
+- [ ] Rows/columns can be added at any edge and removed only when none of their Petak was ever used; a used Petak can't become another cell type.
+- [ ] Until the S3 FileStore exists (ticket 60), staging shows "Unggah foto belum tersedia" instead of the upload; tests use the in-memory FileStore; nothing is stored on the host disk.
+
 - [ ] An Admin Lokasi can create a blok with a size, mark cells as Petak or path, set Nomor Makam and Jenis Makam per Petak.
 - [ ] Nomor Makam is unique within the Lokasi; Nomor Kavling is unique within the Lokasi.
 - [ ] A Kavling Keluarga groups only adjacent Petak cells; it can be split only while it has no Hak Pakai.
