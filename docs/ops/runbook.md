@@ -190,11 +190,50 @@ refused in that last case too, and then creates nothing. Locally:
 Never set `email_verified_at` by hand: that leaves no Entri Audit and skips
 the Admin-Platform-only rule.
 
+## CI pipeline (GitHub Actions)
+
+`.github/workflows/ci.yml`, one run per push. On `main` the job graph is:
+
+```
+check (lint, typecheck, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┬→ deploy-gate (tags :latest)
+                                                                   └→ scan ─┘
+```
+
+- **e2e** runs on a GitHub-hosted runner, never on this host. It starts the
+  pushed `sha-<commit>@<digest>` (no rebuild) with `docker-compose.prod.yml`,
+  the same file as staging, and its own empty Postgres: `run --rm migrate`,
+  then `up -d --wait`, with `deploy/ci/e2e.env` (`APP_ENV=development`, so the
+  in-memory fakes stand in for WhatsApp, email, payments and files). Then
+  `npm run e2e` runs every spec in `e2e/` against `http://127.0.0.1:3310`,
+  seeding the e2e Admin Platform with `seed-admin` inside the web container.
+  On failure the run keeps the `e2e-results` artifact (Playwright traces,
+  screenshots, `stack.log` with the web, worker, migrate and Postgres logs)
+  for 14 days: open a trace with `npx playwright show-trace <trace.zip>`.
+- **scan** runs Trivy (`aquasec/trivy`, pinned by digest) on the same
+  image. It fails on any CRITICAL vulnerability that has a fix. All findings
+  go to the `trivy-findings` artifact (`trivy.sarif`, plus `critical.txt`,
+  also shown in the job summary) for 30 days. Code scanning is not enabled on
+  this private repo; once it is, set the repo variable `CODE_SCANNING=true`
+  and the SARIF also goes there.
+- **Accepting a finding** that cannot be fixed yet (e.g. the base image has
+  no fix): add it to `.trivyignore` with the reason in a comment directly
+  above and `exp:YYYY-MM-DD` at most 90 days out, in a reviewed PR. After the
+  date the scan fails again. Usually the fix is a rebuild on a newer
+  `node:22-bookworm-slim` (push to `main`) or a dependency bump.
+- **deploy-gate** needs e2e and scan and re-tags the image `:latest`, which
+  the staging timer follows; a deploy job (ticket 72) `needs: deploy-gate` and
+  reads the exact image from its outputs (`image`, `tag`, `digest`).
+- PRs and other branches run check and an image build without push, and
+  skip e2e, scan and the gate. A warm `main` run takes 10 to 12 minutes.
+- Re-run a flaky e2e with "Re-run failed jobs" on the run; it uses the same
+  image. Playwright already retries a failed test once in CI.
+
 ## Staging deploy
 
-**Design: pull-based.** CI (`.github/workflows/ci.yml`) runs lint, typecheck
-and Vitest, then builds the image and pushes `ghcr.io/andrianm28/makam:latest`
-and `:sha-<commit>`, only on `main` and only when the checks pass. On the host,
+**Design: pull-based.** CI (`.github/workflows/ci.yml`, see "CI pipeline"
+below) runs lint, typecheck and Vitest, builds and pushes
+`ghcr.io/andrianm28/makam:sha-<commit>`, runs e2e and the image scan on it,
+and only then tags it `:latest`, only on `main`. On the host,
 `makam-staging-deploy.timer` runs `makam-deploy --env staging` every 2 minutes
 as `ubuntu`, which has a `read:packages` ghcr login in `~/.docker/config.json`.
 The script:

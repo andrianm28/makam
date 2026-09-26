@@ -40,6 +40,8 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 - Name tests in glossary terms from `CONTEXT.md` (e.g. "Saat Duka Tagihan becomes Lewat Jatuh Tempo 3×24 h after the recorded Pemakaman").
 - Scheduler behaviour is tested by calling tick functions directly with the fake Clock; only the pg-boss smoke test exercises pg-boss timing.
 - Playwright (`e2e/`) covers the critical paths listed in the spec, plus a short smoke test when a ticket explicitly asks for one for its UI. Keep each spec file fast (target under 10 s once the stack is warm) and never re-test in Playwright what a unit or domain test already covers.
+- **E2e runs in CI** on every `main` build (`.github/workflows/ci.yml`, job `e2e`): the pushed `sha-<commit>` image on a GitHub-hosted runner with its own Postgres, never on the shared host; a failure uploads traces, screenshots and stack logs as the `e2e-results` artifact. PRs and branches skip it. Agents may still run e2e locally against their own stack, but need not; a new spec must work on a fresh stack (the CI stack is empty, `APP_ENV=development`, `deploy/ci/e2e.env`).
+- The same `main` build scans the image with Trivy and fails on any CRITICAL vulnerability with a fix. Accept an exception only in `.trivyignore`, with its reason and an `exp:` date (`tests/trivyignore.test.ts` checks the format). A deploy depends on the `deploy-gate` job, which needs both.
 - Each worktree runs its own local stack: `docker compose -p <unique-name> up --build -d` (the dev image is tagged per project, so stacks never overwrite each other).
 
 ## Commands
@@ -52,4 +54,4 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 | Worker and migrate bundles | `npm run build:worker` |
 | Migrate a database | `DATABASE_URL=... npm run migrate` |
 | Local stack (Postgres, migrate, web, worker) | `docker compose -p makam-v1-dev up --build -d` |
-| End-to-end against the local stack | `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3310 npm run e2e` |
+| End-to-end against the local stack (optional; CI runs it on `main`) | `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3310 npm run e2e` |
