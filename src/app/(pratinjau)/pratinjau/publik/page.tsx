@@ -82,7 +82,7 @@ export default function BerandaPratinjau() {
                 <span className="text-small text-ivory/80 sm:text-center">untuk keluarga yang baru saja kehilangan</span>
               </div>
               <Link
-                href={`${BASE}/lokasi?terencana=1`}
+                href={`${BASE}/pesan/terencana`}
                 className="inline-flex h-13 items-center gap-1.5 text-body-lg font-medium text-ivory underline decoration-sand/60 underline-offset-4 hover:decoration-sand"
               >
                 Siapkan makam untuk nanti

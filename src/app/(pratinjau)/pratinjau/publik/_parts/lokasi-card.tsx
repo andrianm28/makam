@@ -3,8 +3,8 @@
  */
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Bath, BadgeCheck, Car, Droplets, House, MapPin, Moon, ShieldCheck, SquareParking, type LucideIcon } from "lucide-react";
-import { BASE, FASILITAS_LABEL, mulaiDari, rupiah, type Fasilitas, type LokasiMitra } from "../_mock/data";
+import { ArrowRight, Bath, BadgeCheck, Car, Droplets, House, MapPin, Moon, Navigation, ShieldCheck, SquareParking, type LucideIcon } from "lucide-react";
+import { BASE, FASILITAS_LABEL, mulaiDari, petunjukArah, rupiah, type Fasilitas, type LokasiMitra } from "../_mock/data";
 
 export const FASILITAS_ICON: Record<Fasilitas, LucideIcon> = {
   mushola: Moon,
@@ -65,9 +65,21 @@ export function LokasiCard({ lokasi }: { lokasi: LokasiMitra }) {
           </div>
           <FasilitasIcons fasilitas={lokasi.fasilitas} />
         </div>
-        <span className="inline-flex items-center gap-1 text-body font-semibold text-forest">
-          Lihat lokasi <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-        </span>
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1 text-body font-semibold text-forest">
+            Lihat lokasi <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </span>
+          {lokasi.koordinat ? (
+            <a
+              href={petunjukArah(lokasi.koordinat)}
+              target="_blank"
+              rel="noreferrer"
+              className="relative z-10 inline-flex h-10 items-center gap-1.5 rounded-lg px-2 text-small font-medium text-sage-strong hover:bg-accent hover:text-forest"
+            >
+              <Navigation className="size-4" aria-hidden /> Petunjuk arah
+            </a>
+          ) : null}
+        </div>
       </div>
     </article>
   );

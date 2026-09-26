@@ -2,8 +2,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, CalendarClock, Check, CircleSlash, Clock, FileText, Info, MapPin } from "lucide-react";
-import { BASE, BIAYA_LAYANAN_PLATFORM, DOKUMEN, FASILITAS_LABEL, lokasiBySlug, mulaiDari, rupiah, totalSaatDuka, type Fasilitas } from "../../_mock/data";
+import { ArrowRight, CalendarClock, Check, CircleSlash, Clock, FileText, Info, MapPin, Navigation } from "lucide-react";
+import { BASE, BIAYA_LAYANAN_PLATFORM, DOKUMEN, FASILITAS_LABEL, lokasiBySlug, mulaiDari, petaEmbed, petunjukArah, rupiah, totalSaatDuka, type Fasilitas } from "../../_mock/data";
 import { FASILITAS_ICON } from "../../_parts/lokasi-card";
 import { VerifiedPopover } from "./verified-popover";
 
@@ -40,7 +40,7 @@ export default async function LokasiPratinjau({ params }: { params: Promise<{ sl
       <p className="-mt-2 text-center text-small text-muted-foreground">untuk keluarga yang baru saja kehilangan · tidak ada yang dibayar saat mengirim</p>
       <div className="border-t border-border pt-4">
         {lokasi.terencanaAktif ? (
-          <Link href={`${BASE}/lokasi?terencana=1`} className="inline-flex items-center gap-1 text-body font-semibold text-forest">
+          <Link href={`${BASE}/pesan/terencana?langkah=petak&lokasi=${lokasi.slug}`} className="inline-flex items-center gap-1 text-body font-semibold text-forest">
             Siapkan makam untuk nanti <ArrowRight className="size-4" aria-hidden />
           </Link>
         ) : (
@@ -92,7 +92,18 @@ export default async function LokasiPratinjau({ params }: { params: Promise<{ sl
           <header className="flex flex-col gap-3">
             <h1 className="text-3xl font-semibold tracking-tight text-forest md:text-4xl">{lokasi.nama}</h1>
             <p className="flex items-start gap-1.5 text-body-lg text-muted-foreground">
-              <MapPin className="mt-1 size-4 shrink-0" aria-hidden /> {lokasi.alamat}
+              <MapPin className="mt-1 size-4 shrink-0" aria-hidden />
+              <span>
+                {lokasi.alamat}
+                {lokasi.koordinat ? (
+                  <>
+                    {" · "}
+                    <a href={petunjukArah(lokasi.koordinat)} target="_blank" rel="noreferrer" className="font-medium whitespace-nowrap text-forest underline-offset-2 hover:underline">
+                      Petunjuk arah
+                    </a>
+                  </>
+                ) : null}
+              </span>
             </p>
             <p className="text-body text-foreground">
               Dikelola oleh <span className="font-semibold">{lokasi.pengelola}</span>, yang memberikan Hak Pakai kepada keluarga.
@@ -188,6 +199,39 @@ export default async function LokasiPratinjau({ params }: { params: Promise<{ sl
             </p>
           </Section>
 
+          <Section id="peta" title="Lokasi dan petunjuk arah">
+            <p className="flex items-start gap-1.5 text-body-lg text-foreground">
+              <MapPin className="mt-1 size-4 shrink-0 text-sage-strong" aria-hidden /> {lokasi.alamat}
+            </p>
+            {lokasi.koordinat ? (
+              <>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-muted">
+                  <iframe
+                    src={petaEmbed(lokasi.koordinat)}
+                    title={`Peta lokasi ${lokasi.nama}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="block aspect-[16/10] w-full md:aspect-[16/7]"
+                  />
+                </div>
+                <a
+                  href={petunjukArah(lokasi.koordinat)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex h-11 items-center gap-2 rounded-lg border border-border-strong bg-card px-4 text-body font-semibold text-forest hover:bg-accent"
+                >
+                  <Navigation className="size-4" aria-hidden /> Petunjuk arah
+                </a>
+                <p className="mt-2 text-small text-muted-foreground">Titik peta dicatat petugas kami saat kunjungan {lokasi.dikunjungi}. Membuka Google Maps di tab baru.</p>
+              </>
+            ) : (
+              <p className="mt-3 rounded-xl bg-muted px-4 py-3 text-body text-muted-foreground">
+                Titik peta lokasi ini belum tersedia. Gunakan alamat di atas, atau tanyakan arah kepada CS kami.
+              </p>
+            )}
+          </Section>
+
+          {lokasi.terencanaAktif ? (
           <Section id="pembatalan" title="Pembatalan pemesanan terencana">
             <ul className="flex flex-col gap-2">
               {lokasi.pembatalan.map((p) => (
@@ -200,6 +244,7 @@ export default async function LokasiPratinjau({ params }: { params: Promise<{ sl
               Pesanan Saat Duka dapat dibatalkan sebelum pemakaman; pembayaran yang sudah masuk dikembalikan kecuali Biaya Layanan Platform.
             </p>
           </Section>
+          ) : null}
         </div>
 
         <aside className="hidden lg:block">

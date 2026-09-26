@@ -10,10 +10,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronUp, Clock, Mail, MessageCircle, MoonStar, Phone } from "lucide-react";
+import { ArrowRight, Check, ChevronUp, Clock, MoonStar } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BASE, BIAYA_LAYANAN_PLATFORM, CS, KOTA, LOKASI, pilihanSaatDuka, rupiah, type JenisMakam, type LokasiMitra } from "../_mock/data";
+import { BASE, BIAYA_LAYANAN_PLATFORM, CS, KOTA, LOKASI, rupiah, totalSaatDuka, type JenisMakam, type LokasiMitra } from "../_mock/data";
 import { usePratinjau } from "../_parts/site-shell";
+import { DataAnda, Field, Fieldset, inputClass, KirimDenganKode, PemegangHak, Progress } from "../_parts/wizard-kit";
 
 type Pilihan = { lokasi: LokasiMitra; jenis: JenisMakam; total: number };
 
@@ -23,23 +24,7 @@ function parsePilihan(value?: string): Pilihan | undefined {
   const lokasi = LOKASI.find((l) => l.slug === slug);
   const jenis = lokasi?.jenisMakam.find((j) => j.id === id);
   if (!lokasi || !jenis) return undefined;
-  return { lokasi, jenis, total: jenis.hargaHakPakai + lokasi.biayaPemakaman + BIAYA_LAYANAN_PLATFORM };
-}
-
-function Progress({ step, onBack, backLabel }: { step: 1 | 2; onBack: () => void; backLabel: string }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className="-ml-2 inline-flex h-10 items-center gap-1.5 rounded-lg px-2 text-body font-medium text-forest hover:bg-accent">
-          <ArrowLeft className="size-4" aria-hidden /> {backLabel}
-        </button>
-        <span className="text-small text-muted-foreground">Langkah {step} dari 2</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={1} aria-valuemax={2} aria-valuenow={step} aria-label="Langkah pemesanan">
-        <div className="h-full rounded-full bg-forest transition-all" style={{ width: step === 1 ? "50%" : "100%" }} />
-      </div>
-    </div>
-  );
+  return { lokasi, jenis, total: totalSaatDuka(lokasi, jenis) };
 }
 
 function TotalBar({ pilihan, action }: { pilihan?: Pilihan; action?: React.ReactNode }) {
@@ -93,12 +78,73 @@ function TotalBar({ pilihan, action }: { pilihan?: Pilihan; action?: React.React
   );
 }
 
+function Radio({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2", on ? "border-forest bg-forest text-primary-foreground" : "border-border-strong")}
+      aria-hidden
+    >
+      {on ? <Check className="size-3.5" /> : null}
+    </span>
+  );
+}
+
+/** Said once per Lokasi: when confirmation comes, and outside Jam Operasional the Kontak Siaga. */
+function Konfirmasi({ lokasi }: { lokasi: LokasiMitra }) {
+  if (lokasi.bukaSekarang) {
+    return (
+      <p className="flex items-center gap-2 text-small text-muted-foreground">
+        <Clock className="size-4 shrink-0" aria-hidden /> Dikonfirmasi paling lambat {lokasi.konfirmasiPalingLambat}
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-xl bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground">
+      <p className="flex items-start gap-2">
+        <MoonStar className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <span>
+          Sekarang di luar Jam Operasional lokasi ini. Dikonfirmasi paling lambat <strong className="font-semibold">{lokasi.konfirmasiPalingLambat}</strong>.
+        </span>
+      </p>
+      <p className="mt-1 pl-6">
+        Perlu lebih cepat? Kontak Siaga: {lokasi.kontakSiaga.nama},{" "}
+        <a href={`tel:${lokasi.kontakSiaga.telepon.replace(/-/g, "")}`} onClick={(e) => e.stopPropagation()} className="font-semibold underline underline-offset-2">
+          {lokasi.kontakSiaga.telepon}
+        </a>
+      </p>
+    </div>
+  );
+}
+
+type Grup = { lokasi: LokasiMitra; opsi: Pilihan[]; termurah: number };
+
+function grupSaatDuka(kota: string | null): Grup[] {
+  return LOKASI.filter((l) => !kota || l.kota === kota)
+    .map((lokasi) => {
+      const opsi = lokasi.jenisMakam
+        .filter((j) => j.tersedia > 0)
+        .map((jenis) => ({ lokasi, jenis, total: totalSaatDuka(lokasi, jenis) }))
+        .sort((a, b) => a.total - b.total);
+      return { lokasi, opsi, termurah: opsi[0]?.total ?? Infinity };
+    })
+    .filter((g) => g.opsi.length > 0)
+    .sort((a, b) => a.termurah - b.termurah);
+}
+
 function PilihMakam({ initialLokasi, selected, onSelect }: { initialLokasi?: string; selected?: Pilihan; onSelect: (p: Pilihan) => void }) {
   const { semuaRilis } = usePratinjau();
   const preset = LOKASI.find((l) => l.slug === initialLokasi);
-  // Prefilled from the last choice (mock: Bogor), or from the Lokasi page deep link.
-  const [kota, setKota] = useState<string | null>(preset?.kota ?? selected?.lokasi.kota ?? "Bogor");
-  const list = pilihanSaatDuka(kota ?? undefined);
+  // "Semua kota" unless the Pemesan came from a Lokasi page.
+  const [kota, setKota] = useState<string | null>(preset?.kota ?? null);
+  const grup = grupSaatDuka(kota);
+  const isSel = (p: Pilihan) => selected?.lokasi.slug === p.lokasi.slug && selected.jenis.id === p.jenis.id;
+  const pilih = (p: Pilihan) => ({
+    role: "radio" as const,
+    "aria-checked": isSel(p),
+    tabIndex: 0,
+    onClick: () => onSelect(p),
+    onKeyDown: (e: React.KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSelect(p)),
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -125,82 +171,102 @@ function PilihMakam({ initialLokasi, selected, onSelect }: { initialLokasi?: str
       </div>
 
       <ul className="flex flex-col gap-3" role="radiogroup" aria-label="Pilihan makam">
-        {list.map((p) => {
-          const isSel = selected?.lokasi.slug === p.lokasi.slug && selected.jenis.id === p.jenis.id;
-          return (
-            <li key={p.lokasi.slug + p.jenis.id}>
-              <div
-                role="radio"
-                aria-checked={isSel}
-                tabIndex={0}
-                onClick={() => onSelect(p)}
-                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onSelect(p))}
-                className={cn(
-                  "cursor-pointer rounded-2xl border bg-card p-4 transition-shadow outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
-                  isSel ? "border-forest shadow-md ring-1 ring-forest" : "border-border hover:shadow-sm",
-                  preset?.slug === p.lokasi.slug && !isSel && "border-sage",
-                )}
-              >
-                <div className="flex gap-4">
-                  <div className="relative size-16 shrink-0 overflow-hidden rounded-xl sm:size-20">
-                    <Image src={p.lokasi.foto[0].src} alt="" fill sizes="80px" className="object-cover" />
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
-                    <div className="min-w-0">
-                      <p className="text-title-3 text-foreground">{p.jenis.nama}</p>
-                      <p className="text-body text-foreground">{p.lokasi.nama}</p>
-                      <p className="text-small text-muted-foreground">
-                        {p.lokasi.kota} · Masa Hak Pakai {p.jenis.masaHakPakai.toLowerCase()} · {p.jenis.tersedia} tersedia
-                      </p>
-                    </div>
-                    <div className="sm:text-right">
-                      <p className="text-title-2 tabular-nums text-foreground">{rupiah(p.total)}</p>
-                      <p className="text-caption text-muted-foreground">semua biaya</p>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "mt-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-                      isSel ? "border-forest bg-forest text-primary-foreground" : "border-border-strong",
-                    )}
-                    aria-hidden
-                  >
-                    {isSel ? <Check className="size-3.5" /> : null}
-                  </span>
-                </div>
-                {p.lokasi.bukaSekarang ? (
-                  <p className="mt-3 flex items-center gap-2 text-small text-muted-foreground">
-                    <Clock className="size-4 shrink-0" aria-hidden /> Dikonfirmasi paling lambat {p.lokasi.konfirmasiPalingLambat}
-                  </p>
-                ) : (
-                  <div className="mt-3 rounded-xl bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground">
-                    <p className="flex items-start gap-2">
-                      <MoonStar className="mt-0.5 size-4 shrink-0" aria-hidden />
-                      <span>
-                        Sekarang di luar Jam Operasional lokasi ini. Dikonfirmasi paling lambat <strong className="font-semibold">{p.lokasi.konfirmasiPalingLambat}</strong>.
-                      </span>
-                    </p>
-                    <p className="mt-1 pl-6">
-                      Perlu lebih cepat? Kontak Siaga: {p.lokasi.kontakSiaga.nama},{" "}
-                      <a href={`tel:${p.lokasi.kontakSiaga.telepon.replace(/-/g, "")}`} onClick={(e) => e.stopPropagation()} className="font-semibold underline underline-offset-2">
-                        {p.lokasi.kontakSiaga.telepon}
-                      </a>
-                    </p>
-                  </div>
-                )}
-                <Link
-                  href={`${BASE}/lokasi/${p.lokasi.slug}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="mt-2 inline-block text-small font-medium text-forest underline-offset-2 hover:underline"
+        {grup.map(({ lokasi, opsi }) => {
+          const anySel = opsi.some(isSel);
+          const header = (
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-xl sm:size-20">
+              <Image src={lokasi.foto[0].src} alt="" fill sizes="80px" className="object-cover" />
+            </div>
+          );
+          const lihat = (
+            <Link
+              href={`${BASE}/lokasi/${lokasi.slug}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-block text-small font-medium text-forest underline-offset-2 hover:underline"
+            >
+              Lihat lokasi
+            </Link>
+          );
+
+          if (opsi.length === 1) {
+            const p = opsi[0];
+            return (
+              <li key={lokasi.slug}>
+                <div
+                  {...pilih(p)}
+                  className={cn(
+                    "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
+                    isSel(p) ? "border-forest shadow-md ring-1 ring-forest" : "border-border hover:shadow-sm",
+                  )}
                 >
-                  Lihat lokasi
-                </Link>
+                  <div className="flex gap-4">
+                    {header}
+                    <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <p className="text-title-3 text-foreground">{lokasi.nama}</p>
+                        <p className="text-body text-foreground">{p.jenis.nama}</p>
+                        <p className="text-small text-muted-foreground">
+                          {lokasi.kota} · Masa Hak Pakai {p.jenis.masaHakPakai.toLowerCase()} · {p.jenis.tersedia} tersedia
+                        </p>
+                      </div>
+                      <div className="sm:text-right">
+                        <p className="text-title-2 tabular-nums text-foreground">{rupiah(p.total)}</p>
+                        <p className="text-caption text-muted-foreground">semua biaya</p>
+                      </div>
+                    </div>
+                    <Radio on={isSel(p)} />
+                  </div>
+                  <Konfirmasi lokasi={lokasi} />
+                  {lihat}
+                </div>
+              </li>
+            );
+          }
+
+          return (
+            <li key={lokasi.slug}>
+              <div className={cn("flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5", anySel ? "border-forest ring-1 ring-forest" : "border-border")}>
+                <div className="flex gap-4">
+                  {header}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-title-3 text-foreground">{lokasi.nama}</p>
+                    <p className="text-small text-muted-foreground">
+                      {lokasi.kota} · {opsi.length} Jenis Makam tersedia
+                    </p>
+                    <div className="mt-1">{lihat}</div>
+                  </div>
+                </div>
+                <Konfirmasi lokasi={lokasi} />
+                <div className="flex flex-col divide-y divide-border rounded-xl border border-border">
+                  {opsi.map((p) => (
+                    <div
+                      key={p.jenis.id}
+                      {...pilih(p)}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 px-3 py-3 outline-none first:rounded-t-xl last:rounded-b-xl focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
+                        isSel(p) ? "bg-brand-soft" : "hover:bg-accent",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-body font-semibold text-foreground">{p.jenis.nama}</p>
+                        <p className="text-small text-muted-foreground">
+                          Masa Hak Pakai {p.jenis.masaHakPakai.toLowerCase()} · {p.jenis.tersedia} tersedia
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-body-lg font-semibold tabular-nums text-foreground">{rupiah(p.total)}</p>
+                        <p className="text-caption text-muted-foreground">semua biaya</p>
+                      </div>
+                      <Radio on={isSel(p)} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </li>
           );
         })}
       </ul>
-      {list.length === 0 ? (
+      {grup.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
           Belum ada makam tersedia di kota ini. Coba kota lain, atau tanyakan kepada CS kami.
         </p>
@@ -217,41 +283,11 @@ function PilihMakam({ initialLokasi, selected, onSelect }: { initialLokasi?: str
   );
 }
 
-function Field({ label, hint, children, id, optional }: { label: string; hint?: string; children: React.ReactNode; id: string; optional?: boolean }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-body font-medium text-foreground">
-        {label}
-        {optional ? <span className="font-normal text-muted-foreground"> (opsional)</span> : null}
-      </label>
-      {children}
-      {hint ? <p className="text-small text-muted-foreground">{hint}</p> : null}
-    </div>
-  );
-}
-
-const inputClass =
-  "h-12 w-full rounded-lg border border-input bg-card px-3.5 text-body-lg text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
-function Fieldset({ legend, note, children }: { legend: string; note?: string; children: React.ReactNode }) {
-  return (
-    <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
-      <legend className="sr-only">{legend}</legend>
-      <div aria-hidden>
-        <p className="text-title-3 text-foreground">{legend}</p>
-        {note ? <p className="mt-0.5 text-small text-muted-foreground">{note}</p> : null}
-      </div>
-      {children}
-    </fieldset>
-  );
-}
-
 function DataKirim({ pilihan, onGanti }: { pilihan: Pilihan; onGanti: () => void }) {
-  const [pemegang, setPemegang] = useState<"saya" | "lain">("saya");
   const [email, setEmail] = useState("");
-  const [tahap, setTahap] = useState<"isi" | "kode" | "terkirim">("isi");
+  const [terkirim, setTerkirim] = useState(false);
 
-  if (tahap === "terkirim") {
+  if (terkirim) {
     return (
       <div className="flex flex-col gap-6">
         <div className="rounded-2xl border border-border bg-card p-6">
@@ -287,17 +323,7 @@ function DataKirim({ pilihan, onGanti }: { pilihan: Pilihan; onGanti: () => void
         </button>
       </div>
 
-      <Fieldset legend="Data Anda">
-        <Field id="nama" label="Nama lengkap">
-          <input id="nama" className={inputClass} autoComplete="name" placeholder="Nama sesuai KTP" />
-        </Field>
-        <Field id="email" label="Email" hint="Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Semua kabar pesanan juga dikirim ke sini.">
-          <input id="email" type="email" required className={inputClass} autoComplete="email" inputMode="email" placeholder="nama@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field id="telepon" label="Nomor telepon" hint="Agar lokasi dan tim kami bisa menelepon bila perlu.">
-          <input id="telepon" type="tel" className={inputClass} autoComplete="tel" inputMode="tel" placeholder="08xx-xxxx-xxxx" />
-        </Field>
-      </Fieldset>
+      <DataAnda email={email} setEmail={setEmail} />
 
       <Fieldset legend="Almarhum">
         <Field id="almarhum" label="Nama almarhum / almarhumah">
@@ -317,44 +343,7 @@ function DataKirim({ pilihan, onGanti }: { pilihan: Pilihan; onGanti: () => void
         </Field>
       </Fieldset>
 
-      <Fieldset legend="Pemegang Hak" note="Yang berhak atas makam ini, misalnya untuk memperpanjang atau pemakaman berikutnya.">
-        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Pemegang Hak">
-          {(
-            [
-              ["saya", "Saya sendiri"],
-              ["lain", "Anggota keluarga lain"],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={pemegang === v}
-              onClick={() => setPemegang(v)}
-              className={cn(
-                "flex h-12 items-center gap-3 rounded-lg border px-4 text-left text-body-lg",
-                pemegang === v ? "border-forest bg-brand-soft font-medium text-brand-soft-foreground" : "border-input bg-card",
-              )}
-            >
-              <span className={cn("size-4 rounded-full border-2", pemegang === v ? "border-forest bg-forest ring-2 ring-card ring-inset" : "border-border-strong")} aria-hidden />
-              {label}
-            </button>
-          ))}
-        </div>
-        {pemegang === "lain" ? (
-          <div className="flex flex-col gap-4 border-t border-border pt-4">
-            <Field id="ph-nama" label="Nama Pemegang Hak">
-              <input id="ph-nama" className={inputClass} />
-            </Field>
-            <Field id="ph-telepon" label="Nomor telepon Pemegang Hak">
-              <input id="ph-telepon" type="tel" className={inputClass} inputMode="tel" />
-            </Field>
-            <Field id="ph-email" label="Email Pemegang Hak" optional hint="Bila diisi, makam ini tampil di Akun dengan email tersebut.">
-              <input id="ph-email" type="email" className={inputClass} inputMode="email" />
-            </Field>
-          </div>
-        ) : null}
-      </Fieldset>
+      <PemegangHak />
 
       <div className="rounded-2xl bg-info-soft p-4 text-body text-info-soft-foreground">
         <p className="font-semibold">Belum ada yang dibayar sekarang.</p>
@@ -364,59 +353,7 @@ function DataKirim({ pilihan, onGanti }: { pilihan: Pilihan; onGanti: () => void
         </p>
       </div>
 
-      {tahap === "isi" ? (
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => setTahap("kode")}
-            className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-body-lg font-semibold text-primary-foreground hover:bg-primary/90"
-          >
-            Kirim pesanan <ArrowRight className="size-5" aria-hidden />
-          </button>
-          <p className="text-center text-small text-muted-foreground">Kami akan mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4 rounded-2xl border-2 border-forest bg-card p-5">
-          <p className="flex items-center gap-2 text-title-3 text-foreground">
-            <Mail className="size-5 text-forest" aria-hidden /> Masukkan Kode Masuk
-          </p>
-          <p className="text-body text-muted-foreground">
-            Kami mengirim 6 angka ke <span className="font-medium text-foreground">{email || "nama@email.com"}</span>. Periksa juga folder spam.
-          </p>
-          <input
-            aria-label="Kode Masuk"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            placeholder="••••••"
-            className={cn(inputClass, "text-center font-mono text-title-1 tracking-[0.5em]")}
-          />
-          <button
-            type="button"
-            onClick={() => setTahap("terkirim")}
-            className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-body-lg font-semibold text-primary-foreground hover:bg-primary/90"
-          >
-            Konfirmasi & kirim pesanan
-          </button>
-          <div className="flex items-center justify-between text-small">
-            <button type="button" className="font-medium text-forest">
-              Kirim ulang kode
-            </button>
-            <button type="button" onClick={() => setTahap("isi")} className="text-muted-foreground">
-              Ubah email
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-col items-center gap-1 text-center text-body">
-        <a href={CS.waLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold text-forest">
-          <MessageCircle className="size-4" aria-hidden /> Tidak punya email? Minta bantuan CS
-        </a>
-        <p className="inline-flex items-center gap-1.5 text-small text-muted-foreground">
-          <Phone className="size-3.5" aria-hidden /> {CS.phone} · CS dapat mengirimkan pesanan ini untuk Anda
-        </p>
-      </div>
+      <KirimDenganKode email={email} onDone={() => setTerkirim(true)} />
     </div>
   );
 }
@@ -425,7 +362,7 @@ export function WizardSaatDuka({ langkah, pilihan: pilihanParam, lokasi }: { lan
   const router = useRouter();
   const [pilihan, setPilihan] = useState<Pilihan | undefined>(() => parsePilihan(pilihanParam));
   const key = pilihan ? `${pilihan.lokasi.slug}.${pilihan.jenis.id}` : undefined;
-  const step: 1 | 2 = langkah === "data" && pilihan ? 2 : 1;
+  const step = langkah === "data" && pilihan ? 2 : 1;
 
   const goPilih = () => router.push(`${BASE}/pesan${key ? `?pilihan=${key}` : ""}`);
   const goData = () => key && router.push(`${BASE}/pesan?langkah=data&pilihan=${key}`);
@@ -434,15 +371,12 @@ export function WizardSaatDuka({ langkah, pilihan: pilihanParam, lokasi }: { lan
     <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-40">
       <Progress
         step={step}
+        total={2}
         onBack={() => (step === 2 ? goPilih() : router.push(lokasi ? `${BASE}/lokasi/${lokasi}` : BASE))}
         backLabel={step === 2 ? "Pilih makam" : "Kembali"}
       />
       <div className="mt-6">
-        {step === 1 ? (
-          <PilihMakam initialLokasi={lokasi} selected={pilihan} onSelect={setPilihan} />
-        ) : (
-          <DataKirim pilihan={pilihan!} onGanti={goPilih} />
-        )}
+        {step === 1 ? <PilihMakam initialLokasi={lokasi} selected={pilihan} onSelect={setPilihan} /> : <DataKirim pilihan={pilihan!} onGanti={goPilih} />}
       </div>
       <TotalBar
         pilihan={pilihan}

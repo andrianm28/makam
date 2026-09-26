@@ -249,6 +249,9 @@ const SCREENS = [
   { label: "Lokasi Mitra", href: `${BASE}/lokasi/taman-makam-firdaus` },
   { label: "Pilih makam", href: `${BASE}/pesan` },
   { label: "Data & kirim", href: `${BASE}/pesan?langkah=data&pilihan=taman-makam-firdaus.standar` },
+  { label: "Terencana: lokasi", href: `${BASE}/pesan/terencana` },
+  { label: "Denah", href: `${BASE}/pesan/terencana?langkah=petak&lokasi=taman-peristirahatan-hijau-asri` },
+  { label: "Terencana: data", href: `${BASE}/pesan/terencana?langkah=data&lokasi=taman-peristirahatan-hijau-asri&petak=A-09,A-10` },
 ];
 
 function PrototypeBar() {

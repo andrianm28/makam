@@ -64,13 +64,19 @@ export type LokasiMitra = {
   hargaBaru?: { mulai: string; catatan: string };
   terencanaAktif: boolean;
   pembatalan: string[];
+  /** Map pin from the Kunjungan Verifikasi; absent until recorded (mock: a public place near the city). */
+  koordinat?: { lat: number; lng: number };
 };
+
+export const petaEmbed = (k: { lat: number; lng: number }) => `https://www.google.com/maps?q=${k.lat},${k.lng}&output=embed`;
+export const petunjukArah = (k: { lat: number; lng: number }) => `https://www.google.com/maps/search/?api=1&query=${k.lat},${k.lng}`;
 
 const PHOTO = (name: string) => `/pratinjau/publik/${name}`;
 
 export const LOKASI: LokasiMitra[] = [
   {
     slug: "taman-makam-firdaus",
+    koordinat: { lat: -6.4153, lng: 106.9936 },
     nama: "Taman Makam Firdaus",
     kota: "Bogor",
     alamat: "Jl. Raya Cileungsi–Jonggol Km 8, Kabupaten Bogor",
@@ -106,6 +112,7 @@ export const LOKASI: LokasiMitra[] = [
   },
   {
     slug: "pemakaman-wakaf-al-ikhlas",
+    koordinat: { lat: -6.3627, lng: 106.8249 },
     nama: "Pemakaman Wakaf Al-Ikhlas",
     kota: "Depok",
     alamat: "Jl. Tanah Baru No. 21, Beji, Depok",
@@ -125,7 +132,7 @@ export const LOKASI: LokasiMitra[] = [
     biayaPemakamanTumpang: 1_000_000,
     jenisMakam: [
       { id: "umum", nama: "Makam Umum", ukuran: "1 × 2 m", masaHakPakai: "Selamanya", hargaHakPakai: 3_000_000, perpanjangan: null, tersedia: 118 },
-      { id: "keluarga", nama: "Makam Berdampingan", ukuran: "2 petak bersebelahan", masaHakPakai: "Selamanya", hargaHakPakai: 6_500_000, perpanjangan: null, tersedia: 12 },
+      { id: "kavling", nama: "Kavling Keluarga 2 Petak", ukuran: "2 petak bersebelahan", masaHakPakai: "Selamanya", hargaHakPakai: 6_500_000, perpanjangan: null, tersedia: 2 },
     ],
     hargaBerlakuSejak: "1 Mei 2026",
     terencanaAktif: true,
@@ -136,6 +143,7 @@ export const LOKASI: LokasiMitra[] = [
   },
   {
     slug: "makam-masjid-nurul-huda",
+    koordinat: { lat: -6.3063, lng: 106.764 },
     nama: "Makam Masjid Nurul Huda",
     kota: "Tangerang Selatan",
     alamat: "Jl. Pondok Aren Raya No. 5, Tangerang Selatan",
@@ -182,6 +190,7 @@ export const LOKASI: LokasiMitra[] = [
     jenisMakam: [
       { id: "standar", nama: "Makam Standar", ukuran: "1,2 × 2,5 m", masaHakPakai: "25 tahun", hargaHakPakai: 11_000_000, perpanjangan: 5_000_000, tersedia: 64 },
       { id: "premium", nama: "Makam Taman", ukuran: "2 × 3 m, dengan pagar rendah", masaHakPakai: "25 tahun", hargaHakPakai: 22_500_000, perpanjangan: 9_000_000, tersedia: 0 },
+      { id: "kavling", nama: "Kavling Keluarga 4 Petak", ukuran: "2 × 2 petak bersebelahan", masaHakPakai: "25 tahun", hargaHakPakai: 40_000_000, perpanjangan: 18_000_000, tersedia: 1 },
     ],
     hargaBerlakuSejak: "1 Juni 2026",
     terencanaAktif: true,
@@ -189,6 +198,7 @@ export const LOKASI: LokasiMitra[] = [
   },
   {
     slug: "pemakaman-bukit-sejuk",
+    koordinat: { lat: -6.7176, lng: 106.9489 },
     nama: "Pemakaman Bukit Sejuk",
     kota: "Bogor",
     alamat: "Jl. Raya Puncak Km 72, Cisarua, Kabupaten Bogor",
@@ -232,6 +242,11 @@ export function mulaiDari(lokasi: LokasiMitra) {
 
 export function rupiah(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
+/** The Terencana headline price: Harga Hak Pakai + Biaya Layanan Platform (burial costs come later). */
+export function mulaiTerencana(lokasi: LokasiMitra) {
+  return Math.min(...lokasi.jenisMakam.map((j) => j.hargaHakPakai)) + BIAYA_LAYANAN_PLATFORM;
 }
 
 /** Every Lokasi Mitra × Jenis Makam with Tersedia units, sorted by all-in total. */
