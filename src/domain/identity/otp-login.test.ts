@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { FakeClock, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
+import { FakeClock, FakeEmailSender, FakeFileStore, FakeWhatsAppSender } from "@/adapters/memory";
 import { createAuditLog } from "@/domain/audit";
 import { wib } from "@/lib/time/jakarta";
 import type { WhatsAppSender } from "@/ports/whatsapp-sender";
@@ -16,6 +16,7 @@ function build(clock: FakeClock, whatsapp: WhatsAppSender): Identity {
     db,
     clock,
     whatsapp,
+    email: new FakeEmailSender(),
     files: new FakeFileStore({ clock }),
     audit: createAuditLog({ db, clock }),
     secret: TEST_AUTH_SECRET,
@@ -155,6 +156,15 @@ describe("OTP limits", () => {
     expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
   });
 
+  it("a Kode Masuk signs in once: the same code again is refused", async () => {
+    const { whatsapp, identity } = setup();
+    await identity.requestOtp({ phoneNumber: "081234567890" });
+    const code = lastCode(whatsapp);
+
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toMatchObject({ ok: true });
+    expect(await identity.verifyOtp({ phoneNumber: "081234567890", code })).toEqual({ ok: false, reason: "kode_salah" });
+  });
+
   it("says when Kirim ulang and the fallback slot open: 60 s after the OTP was sent", async () => {
     const { identity } = setup();
 
@@ -165,6 +175,8 @@ describe("OTP limits", () => {
       expiresAt: wib("2026-10-01 09:10"),
       resendAt: wib("2026-10-01 09:01"),
       fallbackAt: wib("2026-10-01 09:01"),
+      // No Akun yet, so no Email Terverifikasi: the slot points to CS.
+      emailFallback: false,
     });
   });
 
@@ -227,7 +239,9 @@ describe("OTP limits", () => {
     expect(await identity.requestOtp({ phoneNumber: "081234567890" })).toMatchObject({ ok: true });
   });
 
-  it("10 wrong codes within 60 minutes lock the number for 60 minutes: no OTP is sent and no code accepted", async () => {
+  // A number with no Akun yet is locked by itself; once it has an Akun, the lock is the Akun's across
+  // WhatsApp and email (decision Q10, ticket 67: email-login.test.ts, "lockout per Akun across channels").
+  it("10 wrong codes within 60 minutes lock a number with no Akun yet for 60 minutes: no OTP is sent and no code accepted", async () => {
     const { clock, whatsapp, identity } = setup();
     const wrongTimes = async (times: number) => {
       const code = lastCode(whatsapp);

@@ -24,6 +24,9 @@ export default function StafLayout({ children }: LayoutProps<"/staf">) {
             Makam.co.id <span className="font-normal text-muted-foreground">· Area Staf</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link href="/staf/email" className="text-sm underline underline-offset-4">
+              Email
+            </Link>
             <Link href="/akun" className="text-sm underline underline-offset-4">
               Akun Saya
             </Link>

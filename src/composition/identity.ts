@@ -8,7 +8,13 @@ import type { Adapters } from "@/ports";
  * Wires the Audit Log and the identity module on one database: shared by the
  * `web` runtime (src/server/runtime.ts) and the ops CLIs (seed:admin, reset-totp).
  */
-export function composeIdentity(deps: { env: RuntimeEnv; db: Database; adapters: Adapters }): {
+export function composeIdentity(deps: {
+  env: RuntimeEnv;
+  db: Database;
+  adapters: Adapters;
+  /** Tests only: track the identity module's detached tasks (default: started and not awaited). */
+  runDetached?: (task: () => Promise<void>) => void;
+}): {
   audit: AuditLog;
   identity: Identity;
 } {
@@ -17,11 +23,13 @@ export function composeIdentity(deps: { env: RuntimeEnv; db: Database; adapters:
     db: deps.db,
     clock: deps.adapters.clock,
     whatsapp: deps.adapters.whatsapp,
+    email: deps.adapters.email,
     files: deps.adapters.files,
     audit,
     secret: deps.env.AUTH_SECRET,
     totpEncryptionKey: deps.env.TOTP_ENCRYPTION_KEY,
     baseURL: deps.env.APP_BASE_URL,
+    runDetached: deps.runDetached,
   });
   return { audit, identity };
 }

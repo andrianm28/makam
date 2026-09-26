@@ -1,4 +1,12 @@
-import type { RequestOtpResult, VerifyOtpResult } from "@/domain/identity";
+import type {
+  ConfirmEmailVerificationResult,
+  RemoveEmailResult,
+  RequestEmailFallbackResult,
+  RequestEmailLoginResult,
+  RequestEmailVerificationResult,
+  RequestOtpResult,
+  VerifyOtpResult,
+} from "@/domain/identity";
 import type { GuardError } from "@/server/guard";
 
 /**
@@ -15,6 +23,8 @@ export type OtpRequestState =
       resendInSeconds: number;
       /** Seconds until the fallback slot shows, from the server's Clock. */
       fallbackInSeconds: number;
+      /** The slot offers "Kirim lewat email" (the number's Akun has an Email Terverifikasi); otherwise the CS pointer. */
+      emailFallback: boolean;
       /** Changes on every send, so the screen restarts its timers. */
       sentAt: string;
     }
@@ -23,12 +33,37 @@ export type OtpRequestState =
 export type OtpVerifyState = { status: "idle" } | { status: "gagal"; message: string };
 
 export const initialOtpRequestState: OtpRequestState = { status: "idle" };
+
+/** "Kirim lewat email" in the fallback slot. */
+export type EmailFallbackState = { status: "idle" } | { status: "terkirim"; sentAt: string } | { status: "gagal"; message: string };
+export const initialEmailFallbackState: EmailFallbackState = { status: "idle" };
 export const initialOtpVerifyState: OtpVerifyState = { status: "idle" };
+
+/** The CS WhatsApp contact from Pengaturan Operator, for the OTP screen's pointer; null until it is entered. */
+export interface CsContact {
+  /** Canonical E.164 (+62…). */
+  whatsApp: string;
+  /** e.g. "dibalas mulai pukul 06:00". */
+  replyHours: string;
+}
+
+/** The wa.me link to the CS WhatsApp number. */
+export function csWhatsAppLink(contact: CsContact): string {
+  return `https://wa.me/${contact.whatsApp.replace(/^\+/, "")}`;
+}
 
 type Refusal<T> = T extends { ok: false; reason: infer R } ? R : never;
 
-/** Every reason the identity module's OTP login, or the guard, can refuse. */
-export type OtpRefusal = Refusal<RequestOtpResult> | Refusal<VerifyOtpResult> | GuardError;
+/** Every reason the identity module's Kode Masuk and email actions, or the guard, can refuse. */
+export type OtpRefusal =
+  | Refusal<RequestOtpResult>
+  | Refusal<VerifyOtpResult>
+  | Refusal<RequestEmailLoginResult>
+  | Refusal<RequestEmailFallbackResult>
+  | Refusal<RequestEmailVerificationResult>
+  | Refusal<ConfirmEmailVerificationResult>
+  | Refusal<RemoveEmailResult>
+  | GuardError;
 
 /** Bahasa Indonesia for every reason the identity module or the guard can refuse. */
 export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): string {
@@ -43,7 +78,7 @@ export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): stri
     case "terlalu_sering":
       return `Terlalu banyak permintaan kode. Coba lagi ${wait || "nanti"}.`;
     case "terkunci":
-      return `Terlalu banyak kode salah. Nomor ini dikunci sementara; coba lagi ${wait || "nanti"}.`;
+      return `Terlalu banyak kode salah. Masuk ke akun ini dikunci sementara; coba lagi ${wait || "nanti"}.`;
     case "gagal_kirim":
       return "Kode belum bisa dikirim lewat WhatsApp. Silakan coba lagi.";
     case "kode_salah":
@@ -60,6 +95,16 @@ export function otpMessage(reason: OtpRefusal, retryAt?: Date, now?: Date): stri
       return "Masukkan kode dari aplikasi authenticator Anda dulu.";
     case "input_tidak_valid":
       return "Periksa lagi isian Anda.";
+    case "email_tidak_valid":
+      return "Alamat email tidak valid. Contoh: nama@contoh.id.";
+    case "tanpa_kode_whatsapp":
+      return "Kirim kode lewat WhatsApp dulu. Kode lewat email bisa diminta 1 menit sesudahnya.";
+    case "tanpa_email_terverifikasi":
+      return "Akun ini belum punya email terverifikasi. Hubungi CS kami lewat WhatsApp.";
+    case "email_sudah_dipakai":
+      return "Email ini sudah terverifikasi di akun lain. Hubungi CS kami lewat WhatsApp untuk bantuan.";
+    case "email_wajib":
+      return "Akun staf wajib punya email. Ganti emailnya, jangan dihapus.";
   }
   // Exhaustive: a new refusal reason fails the typecheck here until it has a message.
   const unhandled: never = reason;

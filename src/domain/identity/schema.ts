@@ -1,4 +1,5 @@
-import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { staffRoles } from "./authorize";
 
 /**
@@ -13,36 +14,53 @@ import { staffRoles } from "./authorize";
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
 /** One account per WhatsApp number (ADR 0003). Better Auth model `user`. */
-export const identityUser = pgTable("identity_user", {
-  id: text("id").primaryKey(),
-  /** The name as recorded; empty until a wizard or the Akun Saya profile sets it. */
-  name: text("name").notNull(),
-  /**
-   * Better Auth requires a unique email on every user. The account has none of
-   * its own at login, so this holds an undeliverable placeholder derived from
-   * the number (`6281…@wa.makam.invalid`). It is never shown and never mailed;
-   * the optional real email (ticket 60, Akun Saya profile) gets its own column.
-   */
-  email: text("placeholder_email").notNull().unique(),
-  emailVerified: boolean("placeholder_email_verified").notNull().default(false),
-  image: text("image"),
-  /** Canonical E.164, e.g. +6281234567890. */
-  phoneNumber: text("phone_number").unique(),
-  phoneNumberVerified: boolean("phone_number_verified"),
-  /**
-   * The account's real email (lower-cased), unlike `placeholder_email`.
-   * Required for every Akun Staf (set by the seed or the accepted Undangan
-   * Staf); optional for a Pemesan (ticket 27). Carries the email OTP fallback (ticket 60).
-   */
-  contactEmail: text("email"),
-  /**
-   * Set when Admin Platform deactivates the Akun Staf (its staff roles are revoked; it still logs in as a
-   * Pemesan). Cleared when a new Undangan Staf grants it a role again.
-   */
-  deactivatedAt: at("deactivated_at"),
-  createdAt: at("created_at").notNull(),
-  updatedAt: at("updated_at").notNull(),
-});
+export const identityUser = pgTable(
+  "identity_user",
+  {
+    id: text("id").primaryKey(),
+    /** The name as recorded; empty until a wizard or the Akun Saya profile sets it. */
+    name: text("name").notNull(),
+    /**
+     * Better Auth requires a unique email on every user. The account has none of
+     * its own at login, so this holds an undeliverable placeholder derived from
+     * the number (`6281…@wa.makam.invalid`). It is never shown and never mailed;
+     * the optional real email (Akun Saya profile, Undangan Staf) gets its own column.
+     */
+    email: text("placeholder_email").notNull().unique(),
+    emailVerified: boolean("placeholder_email_verified").notNull().default(false),
+    image: text("image"),
+    /** Canonical E.164, e.g. +6281234567890. */
+    phoneNumber: text("phone_number").unique(),
+    phoneNumberVerified: boolean("phone_number_verified"),
+    /**
+     * The account's real email (lower-cased), unlike `placeholder_email`.
+     * Required for every Akun Staf (set by the seed or the accepted Undangan
+     * Staf); optional for a Pemesan (Akun Saya profile). Typed in, it is not
+     * verified: only an Email Terverifikasi (`email_verified_at` set) receives a
+     * Kode Masuk (email login and the "Kirim lewat email" fallback, ticket 67).
+     */
+    contactEmail: text("email"),
+    /**
+     * When a code sent to `email` was entered (Verifikasi Email), from the
+     * Clock. Null while the email is only typed in; cleared whenever the email changes.
+     */
+    emailVerifiedAt: at("email_verified_at"),
+    /**
+     * Set when Admin Platform deactivates the Akun Staf (its staff roles are revoked; it still logs in as a
+     * Pemesan). Cleared when a new Undangan Staf grants it a role again.
+     */
+    deactivatedAt: at("deactivated_at"),
+    createdAt: at("created_at").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [
+    // A verified email belongs to at most one Akun, whatever its case (enforced here, not only in code;
+    // the module also stores emails lower-cased).
+    uniqueIndex("identity_user_verified_email_idx")
+      .on(sql`lower(${table.contactEmail})`)
+      .where(sql`email_verified_at is not null`),
+  ],
+);
 
 /** The staff roles an Akun holds (Pemesan is implicit and never stored). */
 export const identityStaffRole = pgTable(
@@ -137,15 +155,28 @@ export const identityVerification = pgTable(
   (table) => [index("identity_verification_identifier_idx").on(table.identifier)],
 );
 
+export const otpChannels = ["whatsapp", "email"] as const;
+export const otpPurposes = ["masuk", "verifikasi_email"] as const;
+
 /**
- * One row per OTP sent to a WhatsApp number. Only a hash of the code is kept.
- * Every time in it comes from the Clock.
+ * One row per code sent: a Kode Masuk to a WhatsApp number or to an Email
+ * Terverifikasi, or a Verifikasi Email code. Both channels share the code rules
+ * (./otp.ts). Only an HMAC of the code is kept. Every time in it comes from the Clock.
  */
 export const identityOtpRequest = pgTable(
   "identity_otp_request",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    phoneNumber: text("phone_number").notNull(),
+    channel: text("channel", { enum: otpChannels }).notNull(),
+    /** Where the code went: the canonical E.164 number, or the lower-cased email. */
+    target: text("target").notNull(),
+    purpose: text("purpose", { enum: otpPurposes }).notNull(),
+    /**
+     * Whose wrong codes this row counts toward, and whom its lockout locks:
+     * `akun:<id>` for an existing Akun (across channels), `wa:<number>` for a
+     * number with no Akun yet.
+     */
+    lockKey: text("lock_key").notNull(),
     codeHash: text("code_hash").notNull(),
     sentAt: at("sent_at").notNull(),
     expiresAt: at("expires_at").notNull(),
@@ -153,10 +184,28 @@ export const identityOtpRequest = pgTable(
     /** Set when the code is used, or burnt by too many wrong attempts. */
     closedAt: at("closed_at"),
     closedReason: text("closed_reason", { enum: ["dipakai", "terlalu_banyak_percobaan"] }),
-    /** Set on the OTP whose wrong code locked the number: no OTP is sent and no code accepted until then. */
+    /** Set on the code whose wrong entry locked `lock_key`: no code is sent and none accepted until then. */
     lockedUntil: at("locked_until"),
   },
-  (table) => [index("identity_otp_request_phone_sent_idx").on(table.phoneNumber, table.sentAt)],
+  (table) => [
+    index("identity_otp_request_target_sent_idx").on(table.channel, table.target, table.sentAt),
+    index("identity_otp_request_lock_sent_idx").on(table.lockKey, table.sentAt),
+  ],
+);
+
+/**
+ * One row per request for an emailed code from one IP (Masuk dengan email,
+ * "Kirim lewat email", Verifikasi Email), whether or not a code went out, so
+ * the per-IP limits say nothing about the email typed. Keeps no email.
+ */
+export const identityIpRequest = pgTable(
+  "identity_ip_request",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ip: text("ip").notNull(),
+    requestedAt: at("requested_at").notNull(),
+  },
+  (table) => [index("identity_ip_request_ip_idx").on(table.ip, table.requestedAt)],
 );
 
 /**

@@ -6,7 +6,8 @@ import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 import { staffRoles, stafResource, writeRefusal, type Actor, type StaffRole } from "./authorize";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityStaffInvite, identityStaffRole, identityUser } from "./schema";
-import { normaliseEmail, rolesOf } from "./staff";
+import { normaliseEmail } from "./email-address";
+import { rolesOf } from "./staff";
 
 /** An Undangan Staf stays open for 7 days after it is sent. */
 export const STAFF_INVITE_EXPIRES_AFTER_MS = 7 * 86_400_000;
@@ -53,9 +54,10 @@ export type InviteStaffResult =
 
 /**
  * Admin Platform sends an Undangan Staf: a role for a WhatsApp number and a
- * required email (every Akun Staf has the email OTP fallback, ticket 60). The
- * invite is recorded with its Entri Audit in one transaction, then announced
- * by WhatsApp. The role is granted when the number next logs in by OTP.
+ * required email (every Akun Staf has an email on record; it becomes an Email
+ * Terverifikasi only by Verifikasi Email, ticket 67). The invite is recorded
+ * with its Entri Audit in one transaction, then announced by WhatsApp. The
+ * role is granted when the number next logs in with a Kode Masuk.
  */
 export async function inviteStaff(
   deps: InviteDeps,
@@ -124,7 +126,8 @@ export async function openStaffInvites(deps: { db: Database; clock: Clock }): Pr
 /**
  * On an OTP login: accepts every open Undangan Staf for the number, granting
  * its role (with an Entri Audit per invite, in the same transaction) and
- * recording its email on the Akun. A Dinonaktifkan Akun holds a staff role
+ * recording its email on the Akun, unverified, unless the Akun already has an
+ * Email Terverifikasi, which it keeps. A Dinonaktifkan Akun holds a staff role
  * again this way.
  *
  * The strictest session rule holds for the whole Akun: when a role is newly
@@ -154,10 +157,12 @@ export async function acceptOpenInvites(
     if (open.length === 0) return { ok: false } as const;
 
     const [user] = await tx
-      .select({ email: identityUser.contactEmail })
+      .select({ email: identityUser.contactEmail, emailVerifiedAt: identityUser.emailVerifiedAt })
       .from(identityUser)
       .where(eq(identityUser.id, account.id));
     let email = user?.email ?? null;
+    // A typed email never replaces an Email Terverifikasi (decision Q9, ticket 67); the invite keeps its own.
+    const keepsVerifiedEmail = Boolean(user?.email && user.emailVerifiedAt);
     const heldBefore = (await rolesOf(tx, account.id)).filter((role): role is StaffRole => role !== "pemesan");
     let roles = heldBefore;
 
@@ -177,11 +182,11 @@ export async function acceptOpenInvites(
         action: "staf.peran_diberikan",
         entity: { kind: "akun", id: account.id },
         before: { roles, email },
-        after: { roles: granted, email: invite.email, undanganStafId: invite.id },
+        after: { roles: granted, email: keepsVerifiedEmail ? email : invite.email, undanganStafId: invite.id },
         reason: null,
       });
       roles = granted;
-      email = invite.email;
+      if (!keepsVerifiedEmail) email = invite.email;
     }
     await tx
       .update(identityUser)

@@ -42,6 +42,8 @@ export type Action =
   | "akun.keluar"
   /** Enrol or pass TOTP on one's own Akun. */
   | "akun.totp"
+  /** Change, remove or verify (Verifikasi Email) one's own Akun's email. */
+  | "akun.email"
   /** Pindah Nomor: move an Akun to a new WhatsApp number (Admin Platform). */
   | "akun.pindah_nomor"
   /** Turn push on or off for a Perangkat Push of one's own Akun Staf. */
@@ -132,6 +134,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "akun.lihat":
     case "akun.keluar":
     case "akun.totp":
+    case "akun.email":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;
     case "akun.push":
       return resource.kind === "akun" && resource.accountId === actor.accountId && staffRoles.some(holds)

@@ -3,12 +3,15 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import type { Role } from "./authorize";
-import { OtpRejected, sessionLengthMs, type MakamAuth } from "./better-auth";
-import type { CodeRejection } from "./otp";
+import { sessionLengthMs, type MakamAuth } from "./better-auth";
+import { akunOfNumber, numberOfAkunWithVerifiedEmail } from "./akun-lookup";
+import { accountIdOfLockKey, numberLockKey } from "./lock-key";
+import { checkCode, type CodeLookup, type CodeRejection } from "./otp";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identitySession, identityUser } from "./schema";
 import { findSession, sessionCookiesFrom, type SessionCookie } from "./sessions";
 import { acceptOpenInvites } from "./invites";
+import type { LoginProofs } from "./login-proofs";
 import { rolesOf } from "./staff";
 
 export interface Account {
@@ -21,7 +24,7 @@ export type VerifyOtpResult =
   | {
       ok: true;
       account: Account;
-      /** True when this OTP created the account (a number with no account yet). */
+      /** True when this Kode Masuk created the account (a number with no account yet; WhatsApp only). */
       accountCreated: boolean;
       /** Every role the Akun holds after this login (open Undangan Staf accepted). */
       roles: Role[];
@@ -30,36 +33,75 @@ export type VerifyOtpResult =
   | PhoneNumberRejection
   | CodeRejection;
 
+export interface LoginDeps {
+  auth: MakamAuth;
+  db: Database;
+  clock: Clock;
+  audit: AuditLog;
+  secret: string;
+  /** One-time proofs handed to Better Auth after the module checked a Kode Masuk (see ./better-auth.ts). */
+  proofs: LoginProofs;
+}
+
 /**
- * A correct OTP logs into the number's account, creating it first when the
- * number has none (story 26: no sign-up).
+ * A correct Kode Masuk logs into the number's account. By WhatsApp it creates
+ * the account first when the number has none (story 26: no sign-up). With
+ * `channel: "email"` ("Kirim lewat email" on the same screen) the code is the
+ * one sent to the Email Terverifikasi of the number's existing Akun.
  */
 export async function verifyOtp(
-  deps: { auth: MakamAuth; db: Database; clock: Clock; audit: AuditLog },
-  input: { phoneNumber: string; code: string },
+  deps: LoginDeps,
+  input: { phoneNumber: string; code: string; channel?: "whatsapp" | "email" },
 ): Promise<VerifyOtpResult> {
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
   const { phoneNumber } = normalised;
 
+  const akun = await akunOfNumber(deps.db, phoneNumber);
+  const byEmail = input.channel === "email";
+  if (byEmail && !akun?.verifiedEmail) return { ok: false, reason: "kode_salah" };
+  const lookup: CodeLookup =
+    byEmail && akun?.verifiedEmail
+      ? { channel: "email", target: akun.verifiedEmail, purpose: "masuk" }
+      : { channel: "whatsapp", target: phoneNumber, purpose: "masuk", lockKey: numberLockKey(phoneNumber, akun) };
+  return logInAkun(deps, {
+    lookup,
+    code: input.code,
+    signsIn: byEmail
+      ? (checked) => akunTheEmailCodeWasSentFor(deps.db, checked)
+      : async () => ({ phoneNumber, mayCreate: true }),
+  });
+}
+
+/** Whom a correct Kode Masuk signs in: a number, and whether it may create its Akun (WhatsApp only). */
+export type SignsIn = { phoneNumber: string; mayCreate: boolean };
+
+/**
+ * Checks the Kode Masuk, then signs in the number `signsIn` names for the
+ * correct code (none: refused as a wrong code). Better Auth makes the session
+ * (and, only when `mayCreate`, the Akun), open Undangan Staf are accepted, and
+ * the session gets the strictest length of the roles now held.
+ */
+export async function logInAkun(
+  deps: LoginDeps,
+  input: { lookup: CodeLookup; code: string; signsIn: (checked: { target: string; lockKey: string }) => Promise<SignsIn | null> },
+): Promise<VerifyOtpResult> {
+  const checked = await checkCode(deps, { lookup: input.lookup, code: input.code });
+  if (!checked.ok) return checked;
+  const signsIn = await input.signsIn(checked);
+  if (!signsIn) return { ok: false, reason: "kode_salah" };
+  const { phoneNumber } = signsIn;
+
   const [existing] = await deps.db
     .select({ id: identityUser.id })
     .from(identityUser)
     .where(eq(identityUser.phoneNumber, phoneNumber));
+  // Only a WhatsApp Kode Masuk creates an Akun (ADR 0003).
+  if (!existing && !signsIn.mayCreate) return { ok: false, reason: "kode_salah" };
 
-  let result;
-  try {
-    result = await deps.auth.api.verifyPhoneNumber({
-      body: { phoneNumber, code: input.code },
-      returnHeaders: true,
-    });
-  } catch (error) {
-    // Better Auth lets the verifyOTP hook's error through unchanged.
-    if (error instanceof OtpRejected) return error.rejection;
-    throw error;
-  }
-
-  const { response, headers } = result;
+  const { response, headers } = await deps.proofs.during(phoneNumber, (proof) =>
+    deps.auth.api.verifyPhoneNumber({ body: { phoneNumber, code: proof }, returnHeaders: true }),
+  );
   if (!response.user || !response.token) throw new Error("Better Auth verified the number but made no session");
   const session = await findSession(deps.auth, response.token);
   if (!session) throw new Error("Better Auth reported a session it did not store");
@@ -82,6 +124,20 @@ export async function verifyOtp(
     roles,
     session: { expiresAt, cookies },
   };
+}
+
+/**
+ * The Akun an email Kode Masuk was sent for (named by the lock key it was sent
+ * under), while `target` is still that Akun's Email Terverifikasi; else null.
+ * It never names a number without an Akun.
+ */
+export async function akunTheEmailCodeWasSentFor(
+  db: Database,
+  checked: { target: string; lockKey: string },
+): Promise<SignsIn | null> {
+  const accountId = accountIdOfLockKey(checked.lockKey);
+  const phoneNumber = accountId ? await numberOfAkunWithVerifiedEmail(db, accountId, checked.target) : null;
+  return phoneNumber ? { phoneNumber, mayCreate: false } : null;
 }
 
 /** The account keyed by this WhatsApp number (any spelling), or null. */

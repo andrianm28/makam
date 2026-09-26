@@ -10,8 +10,9 @@ beforeEach(resetDatabase);
 
 /*
  * The seam here is the identity module's Better Auth engine (createBetterAuth)
- * and Better Auth's own adapter, because no public identity function writes
- * these rows yet. The Clock is years away from the system date, so a system
+ * and Better Auth's own adapter, because no public identity function shows
+ * these rows' timestamps (session lengths from the Clock are covered through
+ * the public interface in otp-login.test.ts and email-login.test.ts). The Clock is years away from the system date, so a system
  * timestamp can never pass for a Clock one.
  */
 function setup() {
@@ -21,9 +22,7 @@ function setup() {
     clock,
     secret: "test-secret-for-identity-tests-0123456789abcdef",
     baseURL: "http://localhost:3000",
-    verifyCode: async () => {
-      throw new Error("not used here");
-    },
+    consumeLoginProof: () => false,
   });
   return { clock, auth };
 }

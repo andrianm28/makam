@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { otpMessage, type OtpRefusal } from "./state";
+import { csWhatsAppLink, otpMessage, type OtpRefusal } from "./state";
 
 const everyRefusal: OtpRefusal[] = [
   "nomor_tidak_valid",
@@ -15,6 +15,11 @@ const everyRefusal: OtpRefusal[] = [
   "tidak_berwenang",
   "input_tidak_valid",
   "perlu_totp",
+  "email_tidak_valid",
+  "tanpa_email_terverifikasi",
+  "tanpa_kode_whatsapp",
+  "email_sudah_dipakai",
+  "email_wajib",
 ];
 
 describe("OTP screen messages", () => {
@@ -33,6 +38,14 @@ describe("OTP screen messages", () => {
     const now = new Date("2026-10-01T02:00:00Z");
     expect(otpMessage("terlalu_sering", new Date("2026-10-01T02:30:00Z"), now)).toBe(
       "Terlalu banyak permintaan kode. Coba lagi dalam 30 menit.",
+    );
+  });
+});
+
+describe("the CS WhatsApp pointer", () => {
+  it("links to the CS WhatsApp number from Pengaturan Operator by wa.me, without the plus", () => {
+    expect(csWhatsAppLink({ whatsApp: "+6281122223333", replyHours: "dibalas mulai pukul 06:00" })).toBe(
+      "https://wa.me/6281122223333",
     );
   });
 });

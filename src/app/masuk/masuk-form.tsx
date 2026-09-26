@@ -2,12 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { OtpVerification } from "@/components/otp/otp-verification";
-import { initialOtpRequestState, type OtpRequestState } from "@/components/otp/state";
+import { initialOtpRequestState, type CsContact, type OtpRequestState } from "@/components/otp/state";
 import { Button } from "@/components/ui/button";
 import { kirimOtp, masukDenganOtp } from "./actions";
 
 /** Masuk: a WhatsApp number, then its OTP. Works for a number with no account or orders yet. */
-export function MasukForm() {
+export function MasukForm({ csContact }: { csContact: CsContact | null }) {
   const [state, request, requesting] = useActionState(kirimOtp, initialOtpRequestState);
   const sent = useLastSent(state);
 
@@ -21,6 +21,7 @@ export function MasukForm() {
         resendPending={requesting}
         resendError={state.status === "gagal" ? state.message : undefined}
         submitLabel="Masuk"
+        csContact={csContact}
         fallback={
           <p className="text-muted-foreground">
             Kode belum masuk? Pastikan nomor WhatsApp di atas benar dan ponsel Anda tersambung ke internet, lalu kirim

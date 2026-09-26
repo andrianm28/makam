@@ -57,6 +57,23 @@ describe("phone number scrubbing", () => {
   });
 });
 
+describe("email address scrubbing (email login, ticket 67)", () => {
+  it.each([
+    ["sari@contoh.id", "plain"],
+    ["Sari.Dewi+makam@Mail.Contoh.co.id", "mixed case, plus tag, subdomains"],
+  ])("removes %s (%s)", (email) => {
+    expect(scrubText(`Kode Masuk tidak terkirim ke ${email}: 550 mailbox`)).toBe(
+      "Kode Masuk tidak terkirim ke [email]: 550 mailbox",
+    );
+  });
+
+  it("leaves a text without an address alone", () => {
+    expect(scrubText("EmailSender (SumoPod SMTP) has no live adapter @ web")).toBe(
+      "EmailSender (SumoPod SMTP) has no live adapter @ web",
+    );
+  });
+});
+
 describe("Sentry event scrubbing", () => {
   it("drops request bodies, cookies and auth headers, and scrubs phone numbers from the URL", () => {
     const event = scrubEvent({

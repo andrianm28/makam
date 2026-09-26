@@ -2,14 +2,25 @@
 
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { initialOtpVerifyState, type OtpRequestState, type OtpVerifyState } from "./state";
+import { kirimKodeLewatEmail } from "./actions";
+import {
+  csWhatsAppLink,
+  initialEmailFallbackState,
+  initialOtpVerifyState,
+  type CsContact,
+  type OtpRequestState,
+  type OtpVerifyState,
+} from "./state";
 
 type Sent = Extract<OtpRequestState, { status: "terkirim" }>;
 
 export interface OtpVerificationProps {
   /** The send this screen is for; give the component `key={sent.sentAt}` so a re-send restarts it. */
   sent: Sent;
-  /** Checks the code (a Server Action taking `phoneNumber` and `code`). */
+  /**
+   * Checks the code (a Server Action taking `phoneNumber`, `code` and, for the
+   * code "Kirim lewat email" sent, `channel=email`; pass it on to identity.verifyOtp).
+   */
   verifyAction: (state: OtpVerifyState, formData: FormData) => Promise<OtpVerifyState>;
   /** Sends a new code (the dispatch of the caller's `useActionState` for the request action). */
   resendAction: (formData: FormData) => void;
@@ -18,15 +29,19 @@ export interface OtpVerificationProps {
   resendError?: string;
   submitLabel?: string;
   /**
-   * The fallback slot: shown about 60 s after the WhatsApp OTP was sent.
-   * Ticket 60 puts "Kirim lewat email" (or the CS WhatsApp pointer) here.
+   * Extra hint in the fallback slot, under "Kirim lewat email" (when the
+   * number's Akun has an Email Terverifikasi) or the CS WhatsApp pointer.
    */
   fallback?: ReactNode;
+  /** The CS WhatsApp contact from Pengaturan Operator (`current()`); null while it is not entered: the pointer then names no number. */
+  csContact?: CsContact | null;
 }
 
 /**
- * The OTP screen: code entry, Kirim ulang, and the fallback slot. Used by
- * Masuk and, later, by Kirim in the booking wizards.
+ * The OTP screen: code entry, Kirim ulang, and the fallback slot (about 60 s
+ * after the send): "Kirim lewat email" for an Akun with an Email
+ * Terverifikasi, otherwise the CS WhatsApp pointer. Used by Masuk and, later,
+ * by Kirim in the booking wizards.
  */
 export function OtpVerification({
   sent,
@@ -36,6 +51,7 @@ export function OtpVerification({
   resendError,
   submitLabel = "Verifikasi",
   fallback,
+  csContact = null,
 }: OtpVerificationProps) {
   const [verifyState, verify, verifying] = useActionState(verifyAction, initialOtpVerifyState);
   const resendIn = useCountdown(sent.resendInSeconds);
@@ -96,10 +112,31 @@ export function OtpVerification({
 
       {fallbackIn === 0 ? (
         <div data-testid="otp-fallback-slot" className="flex flex-col gap-2 text-sm">
+          {sent.emailFallback ? (
+            <EmailFallback phoneNumber={sent.phoneNumber} verifyAction={verifyAction} submitLabel={submitLabel} />
+          ) : (
+            <CsPointer contact={csContact} />
+          )}
           {fallback}
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** "Hubungi CS" for a number with no Email Terverifikasi: the CS WhatsApp number from Pengaturan Operator, if entered. */
+function CsPointer({ contact }: { contact: CsContact | null }) {
+  if (!contact) {
+    return <p data-testid="otp-cs-pointer">Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp.</p>;
+  }
+  return (
+    <p data-testid="otp-cs-pointer">
+      Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp di{" "}
+      <a href={csWhatsAppLink(contact)} className="font-medium underline underline-offset-4" target="_blank" rel="noopener">
+        {contact.whatsApp}
+      </a>{" "}
+      ({contact.replyHours}).
+    </p>
   );
 }
 
@@ -117,4 +154,62 @@ function useCountdown(seconds: number): number {
     return () => clearInterval(timer);
   }, [seconds]);
   return left;
+}
+
+/** "Kirim lewat email": the same Kode Masuk to the Akun's Email Terverifikasi, entered here like the WhatsApp one. */
+function EmailFallback({
+  phoneNumber,
+  verifyAction,
+  submitLabel,
+}: {
+  phoneNumber: string;
+  verifyAction: OtpVerificationProps["verifyAction"];
+  submitLabel: string;
+}) {
+  const [sentByEmail, send, sending] = useActionState(kirimKodeLewatEmail, initialEmailFallbackState);
+  const [verifyState, verify, verifying] = useActionState(verifyAction, initialOtpVerifyState);
+
+  if (sentByEmail.status !== "terkirim") {
+    return (
+      <form action={send} className="flex flex-col gap-2">
+        <input type="hidden" name="phoneNumber" value={phoneNumber} />
+        <Button type="submit" variant="secondary" disabled={sending}>
+          {sending ? "Mengirim…" : "Kirim lewat email"}
+        </Button>
+        {sentByEmail.status === "gagal" ? (
+          <p role="alert" className="text-destructive">
+            {sentByEmail.message}
+          </p>
+        ) : null}
+      </form>
+    );
+  }
+  return (
+    <form action={verify} className="flex flex-col gap-2">
+      <p role="status">Kode masuk sudah kami kirim ke email terverifikasi akun ini.</p>
+      <input type="hidden" name="phoneNumber" value={phoneNumber} />
+      <input type="hidden" name="channel" value="email" />
+      <label htmlFor="otp-email-code" className="font-medium">
+        Kode dari email
+      </label>
+      <input
+        id="otp-email-code"
+        name="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="\d{6}"
+        maxLength={6}
+        required
+        className="h-11 rounded-lg border border-input bg-background px-3 text-center text-lg tracking-[0.5em] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      />
+      {verifyState.status === "gagal" ? (
+        <p role="alert" className="text-destructive">
+          {verifyState.message}
+        </p>
+      ) : null}
+      <Button type="submit" disabled={verifying}>
+        {verifying ? "Memeriksa…" : submitLabel}
+      </Button>
+    </form>
+  );
 }

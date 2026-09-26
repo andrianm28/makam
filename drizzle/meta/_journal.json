@@ -36,6 +36,13 @@
       "when": 1790357938664,
       "tag": "0004_staff_push_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790389127033,
+      "tag": "0005_email_login",
+      "breakpoints": true
     }
   ]
 }

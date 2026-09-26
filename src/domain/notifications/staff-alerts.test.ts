@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
+import { actorOf, emailCodeTo, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
 import {
   browserPushSubscription,
   invitedStaff,
@@ -216,6 +216,35 @@ describe("Perangkat Push", () => {
     expect(await notifications.pushDevices(petugas.accountId)).toEqual([
       { endpoint: laptop.endpoint, enabledAt: expect.any(Date) },
     ]);
+  });
+
+  it("is turned off when a role grant at a Masuk dengan email ends its session: only the browser that logged in by email keeps push", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications, identity, email, clock, webPush } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "082222222222");
+    const sent = await identity.requestEmailVerification(petugas, { email: "petugas@contoh.id", ip: "198.18.0.1" });
+    expect(sent.ok).toBe(true);
+    const confirmed = await identity.confirmEmailVerification(petugas, { code: emailCodeTo(email, "petugas@contoh.id") });
+    expect(confirmed.ok).toBe(true);
+    await notifications.enablePush(petugas, { subscription: browserPushSubscription() });
+    const invited = await identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "mj@contoh.id", role: "mitra_jasa" });
+    expect(invited.ok).toBe(true);
+
+    clock.advance({ minutes: 1 });
+    await identity.requestEmailLogin({ email: "petugas@contoh.id", ip: "198.18.0.2" });
+    await setup.settled();
+    const login = await identity.verifyEmailLogin({ email: "petugas@contoh.id", code: emailCodeTo(email, "petugas@contoh.id") });
+    if (!login.ok) throw new Error(`email login failed: ${login.reason}`);
+    const cookies = login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+    const laptop = browserPushSubscription();
+    await notifications.enablePush(await actorOf(identity, cookies), { subscription: laptop });
+
+    expect(await notifications.pushDevices(petugas.accountId)).toEqual([
+      { endpoint: laptop.endpoint, enabledAt: expect.any(Date) },
+    ]);
+    await notifications.sendStaffAlert({ to: { accountId: petugas.accountId }, ...saatDukaBaru });
+    expect(webPush.sent.map((push) => push.subscription.endpoint)).toEqual([laptop.endpoint]);
   });
 
   it("is removed, every one of them, when the Akun Staf is Dinonaktifkan", async () => {
