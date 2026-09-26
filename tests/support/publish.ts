@@ -4,7 +4,7 @@ import type { Actor } from "@/domain/identity";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createNotifications } from "@/domain/notifications";
 import { logIn } from "./identity";
-import { inventoryOnTestDatabase, jenisMakamInput } from "./inventory";
+import { inventoryOnTestDatabase, jenisMakamInput, newLokasiMitra } from "./inventory";
 import { signedInAdminLokasi } from "./lokasi";
 
 /**
@@ -66,13 +66,20 @@ export async function signedInPetugasLapangan(setup: PublishSetup, admin: Actor,
   return actor;
 }
 
+export interface ReadyToPublishOptions {
+  /** Its first Jenis Makam (markTariffsChecked needs at least one); defaults to `jenisMakamInput()`. */
+  jenisMakam?: Parameters<PublishSetup["tariffs"]["createJenisMakam"]>[2];
+  biayaPemakaman?: number;
+  biayaLayananPlatform?: number;
+}
+
 /**
  * Every publish-gate fact filled through the module's own public functions
  * (agreement, Jam Operasional, Kontak Siaga, a completed Kunjungan
  * Verifikasi via Field Work, tariffs "diperiksa"): the usual starting point
  * for a publish test. Leaves the Lokasi Belum Tayang; the test itself calls `publish`.
  */
-export async function readyToPublish(setup: PublishSetup, admin: Actor, lokasiId: string) {
+export async function readyToPublish(setup: PublishSetup, admin: Actor, lokasiId: string, options: ReadyToPublishOptions = {}) {
   const agreement = await setup.lokasi.uploadAgreement(admin, lokasiId, {
     scan: { body: new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]), contentType: "application/pdf" },
     signedOn: "2026-09-01",
@@ -108,15 +115,20 @@ export async function readyToPublish(setup: PublishSetup, admin: Actor, lokasiId
   });
   if (!completed.ok) throw new Error(`kunjungan verifikasi refused: ${completed.reason}`);
 
-  const jenisMakam = await setup.tariffs.createJenisMakam(admin, lokasiId, jenisMakamInput());
+  const jenisMakam = await setup.tariffs.createJenisMakam(admin, lokasiId, options.jenisMakam ?? jenisMakamInput());
   if (!jenisMakam.ok) throw new Error(`jenis makam refused: ${jenisMakam.reason}`);
   await setup.tariffs.setBiayaPemakaman(admin, lokasiId, {
-    biayaPemakaman: 2_000_000,
+    biayaPemakaman: options.biayaPemakaman ?? 2_000_000,
     biayaPemakamanTumpang: null,
     effectiveOn: "2026-10-01",
     reason: null,
   });
-  await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 150_000, effectiveOn: "2026-10-01", reason: null });
+  await setup.tariffs.setGlobalTariff(admin, {
+    key: "biaya_layanan_platform",
+    amount: options.biayaLayananPlatform ?? 150_000,
+    effectiveOn: "2026-10-01",
+    reason: null,
+  });
   const checked = await setup.tariffs.markTariffsChecked(admin, lokasiId, { reason: null });
   if (!checked.ok) throw new Error(`tarif diperiksa refused: ${JSON.stringify(checked)}`);
 
@@ -132,4 +144,19 @@ export async function readyToPublish(setup: PublishSetup, admin: Actor, lokasiId
 export async function tariffsCheckedFact(setup: PublishSetup, by: Actor, lokasiId: string) {
   const checked = await setup.tariffs.asStaff(by).tariffsChecked(lokasiId);
   return checked && { changedSinceCheck: checked.changedSinceCheck };
+}
+
+/**
+ * A new Lokasi Mitra, taken all the way to Terverifikasi through the real
+ * publish path (`readyToPublish` + `lokasi.publish`), for tests that need a
+ * listed Lokasi Mitra but are not themselves about the publish gate (e.g.
+ * public pricing, public reads).
+ */
+export async function publishedLokasiMitra(setup: PublishSetup, admin: Actor, name?: string, options: ReadyToPublishOptions = {}) {
+  const lokasiMitra = await newLokasiMitra(setup, admin, name);
+  const ready = await readyToPublish(setup, admin, lokasiMitra.id, options);
+  const tariffsChecked = await tariffsCheckedFact(setup, admin, lokasiMitra.id);
+  const published = await setup.lokasi.publish(admin, lokasiMitra.id, { tariffsChecked });
+  if (!published.ok) throw new Error(`publish refused: ${JSON.stringify(published)}`);
+  return { lokasiMitra, ...ready };
 }

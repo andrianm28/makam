@@ -1,30 +1,43 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { AmbulanceIcon, ArmchairIcon, DropletIcon, LandmarkIcon, LightbulbIcon, ShieldCheckIcon, SquareParkingIcon, ToiletIcon } from "lucide-react";
+import { z } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import { formatBulanTahun } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
 import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
-import { startingPrice } from "./pricing";
 
 export const metadata = { title: "Daftar Lokasi Makam — Makam.co.id" };
 
+const facilityKeys = Object.keys(lokasiFacilities) as [LokasiFacility, ...LokasiFacility[]];
 const facilityOptions = Object.entries(lokasiFacilities) as [LokasiFacility, string][];
 
-function oneOf(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
+/** One icon per facility (lucide, the design system's icon set): shown up to three on a Daftar Lokasi card. */
+const facilityIcons: Record<LokasiFacility, typeof SquareParkingIcon> = {
+  parkir: SquareParkingIcon,
+  musala: LandmarkIcon,
+  toilet: ToiletIcon,
+  air_bersih: DropletIcon,
+  penerangan: LightbulbIcon,
+  pos_jaga: ShieldCheckIcon,
+  akses_ambulans: AmbulanceIcon,
+  tempat_duduk: ArmchairIcon,
+};
 
-function manyOf(value: string | string[] | undefined): string[] {
-  return Array.isArray(value) ? value : value ? [value] : [];
-}
+const oneOrMany = z.union([z.string(), z.array(z.string())]).optional();
+const isFacility = (value: string): value is LokasiFacility => (facilityKeys as readonly string[]).includes(value);
+
+/** The Daftar Lokasi directory's own search params: one city, any number of (valid) facilities. */
+const searchParamsSchema = z.object({
+  kota: oneOrMany.transform((value) => (Array.isArray(value) ? value[0] : value)),
+  fasilitas: oneOrMany.transform((value) => (Array.isArray(value) ? value : value ? [value] : []).filter(isFacility)),
+});
 
 /** The Daftar Lokasi Makam directory: every Terverifikasi Lokasi Mitra, filterable by city and facilities. */
 export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lokasi">) {
-  const query = await searchParams;
-  const city = oneOf(query.kota);
-  const facilities = manyOf(query.fasilitas) as LokasiFacility[];
+  const parsed = searchParamsSchema.safeParse(await searchParams);
+  const { kota: city, fasilitas: facilities } = parsed.success ? parsed.data : { kota: undefined, fasilitas: [] };
 
   const { lokasi, tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
@@ -33,7 +46,7 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
     lokasi.publicLokasiMitraCities(),
   ]);
   const [prices, photos] = await Promise.all([
-    Promise.all(cards.map((card) => startingPrice(tariffs, card.id, now))),
+    Promise.all(cards.map((card) => tariffs.lokasiPricing(card.id, now).then((pricing) => pricing.mulaiDari))),
     Promise.all(cards.map((card) => lokasi.publicVisitPhotoUrls(card.id))),
   ]);
 
@@ -92,25 +105,18 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
                     <img src={photo} alt={`Foto ${card.name}`} className="h-40 w-full rounded-t-xl object-cover" />
                   ) : null}
                   <CardContent className="flex flex-col gap-2 pt-6">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-success-soft text-success-soft-foreground">
-                        Terverifikasi
-                      </Badge>
-                      {card.kunjunganVerifikasi ? (
-                        <span className="text-small text-muted-foreground">
-                          dikunjungi {formatBulanTahun(card.kunjunganVerifikasi.visitedOn)}
-                        </span>
-                      ) : null}
-                    </div>
+                    <p className="text-small text-success-soft-foreground">
+                      Terverifikasi
+                      {card.kunjunganVerifikasi ? ` · dikunjungi ${formatBulanTahun(card.kunjunganVerifikasi.visitedOn)}` : ""}
+                    </p>
                     <h2 className="text-lg font-semibold">{card.name}</h2>
                     <p className="text-small text-muted-foreground">{card.city}</p>
                     {card.facilities.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {card.facilities.slice(0, 3).map((facility) => (
-                          <Badge key={facility} variant="outline">
-                            {lokasiFacilities[facility]}
-                          </Badge>
-                        ))}
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        {card.facilities.slice(0, 3).map((facility) => {
+                          const Icon = facilityIcons[facility];
+                          return <Icon key={facility} className="size-5" aria-label={lokasiFacilities[facility]} />;
+                        })}
                       </div>
                     ) : null}
                     {mulaiRp !== null ? (

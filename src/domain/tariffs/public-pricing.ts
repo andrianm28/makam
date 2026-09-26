@@ -1,7 +1,20 @@
+/**
+ * Every price a Lokasi Mitra's public page or Daftar Lokasi card shows,
+ * selected under the v1 rules (spec, decision 2026-09-26): a Jenis Makam
+ * whose Harga Hak Pakai all-in total exceeds the Rp 10.000.000 QRIS cap is
+ * hidden entirely (v1 takes no such order), each remaining price is the same
+ * all-in total `quote()` gives for that line at the same instant, and a
+ * Perpanjangan price only shows for a fixed-term Jenis Makam that has one.
+ */
 import { withinPaymentCap } from "@/domain/billing";
-import type { JenisMakamPrice, Quote, QuotedLine, Tariffs, Tenure } from "@/domain/tariffs";
+import type { Database } from "@/db/client";
+import { lokasiTariffs } from "./lokasi-tariffs";
+import { quote, type Quote, type QuotedLine } from "./quote";
+import type { Visibility } from "./reads";
+import type { JenisMakamPrice } from "./lokasi-tariffs";
+import type { Tenure } from "./jenis-makam";
 
-/** An all-in price as the page shows it: the total, in small print its parts, and when it changes. */
+/** An all-in total as a page shows it: the parts (in small print), and when it changes. */
 export interface AllInPrice {
   total: number;
   lines: QuotedLine[];
@@ -9,8 +22,8 @@ export interface AllInPrice {
   scheduledChange: { effectiveOn: string; total: number } | null;
 }
 
-function allInOf(quote: Quote): AllInPrice {
-  return { total: quote.total, lines: quote.lines, inForceSince: quote.inForceSince, scheduledChange: quote.scheduledChange };
+function allInOf(q: Quote): AllInPrice {
+  return { total: q.total, lines: q.lines, inForceSince: q.inForceSince, scheduledChange: q.scheduledChange };
 }
 
 export interface JenisMakamCard {
@@ -22,32 +35,29 @@ export interface JenisMakamCard {
   perpanjangan: AllInPrice | null;
 }
 
-export interface LokasiPricing {
-  /** Every Jenis Makam priced and within the QRIS cap (spec, decision 2026-09-26): one over it is hidden entirely. */
+export interface LokasiPublicPricing {
+  /** Every Jenis Makam priced and within the QRIS cap: one over it is left out entirely. */
   jenisMakam: JenisMakamCard[];
   biayaPemakaman: AllInPrice | null;
   biayaPemakamanTumpang: AllInPrice | null;
-  /** The lowest Harga Hak Pakai all-in among `jenisMakam`, for "mulai Rp X"; null when none is priced yet. */
+  /** The lowest Harga Hak Pakai all-in among `jenisMakam` ("mulai Rp X"); null when none is priced yet. */
   mulaiDari: number | null;
 }
 
-/**
- * Every price a Lokasi Mitra's public page or Daftar Lokasi card shows, each
- * as the all-in total `quote()` gives for the same lines at the same instant
- * (spec, story 9): so the price on the page is always the price on the Tagihan.
- */
-export async function lokasiPricing(tariffs: Pick<Tariffs, "lokasiTariffs" | "quote">, lokasiId: string, at: Date): Promise<LokasiPricing> {
-  const { jenisMakam, biayaPemakaman } = await tariffs.lokasiTariffs(lokasiId, at);
+export async function lokasiPublicPricing(db: Database, visible: Visibility, lokasiId: string, at: Date): Promise<LokasiPublicPricing> {
+  const { jenisMakam, biayaPemakaman } = await lokasiTariffs(db, visible, lokasiId, at);
 
   const cards = await Promise.all(
     jenisMakam.map(async (jm): Promise<JenisMakamCard | null> => {
       if (!jm.inForce) return null;
-      const hakPakaiQuote = await tariffs.quote([{ kind: "harga_hak_pakai", jenisMakamId: jm.id }], at);
+      const hakPakaiQuote = await quote(db, visible, [{ kind: "harga_hak_pakai", jenisMakamId: jm.id }], at);
       if (!hakPakaiQuote.ok || !withinPaymentCap(hakPakaiQuote.total)) return null;
 
       let perpanjangan: AllInPrice | null = null;
       if (jm.inForce.tenure.kind !== "selamanya" && jm.inForce.hargaPerpanjangan !== null) {
-        const perpanjanganQuote = await tariffs.quote(
+        const perpanjanganQuote = await quote(
+          db,
+          visible,
           [{ kind: "perpanjangan", jenisMakamId: jm.id, tenure: jm.inForce.tenure, terms: 1 }],
           at,
         );
@@ -60,8 +70,8 @@ export async function lokasiPricing(tariffs: Pick<Tariffs, "lokasiTariffs" | "qu
   const priced = cards.filter((card): card is JenisMakamCard => card !== null);
 
   const [biayaPemakamanQuote, biayaPemakamanTumpangQuote] = await Promise.all([
-    biayaPemakaman.inForce ? tariffs.quote([{ kind: "biaya_pemakaman", lokasiId, tumpang: false }], at) : null,
-    biayaPemakaman.inForce ? tariffs.quote([{ kind: "biaya_pemakaman", lokasiId, tumpang: true }], at) : null,
+    biayaPemakaman.inForce ? quote(db, visible, [{ kind: "biaya_pemakaman", lokasiId, tumpang: false }], at) : null,
+    biayaPemakaman.inForce ? quote(db, visible, [{ kind: "biaya_pemakaman", lokasiId, tumpang: true }], at) : null,
   ]);
 
   const mulaiDari = priced.length > 0 ? Math.min(...priced.map((card) => card.hakPakai.total)) : null;
@@ -72,9 +82,4 @@ export async function lokasiPricing(tariffs: Pick<Tariffs, "lokasiTariffs" | "qu
     biayaPemakamanTumpang: biayaPemakamanTumpangQuote?.ok ? allInOf(biayaPemakamanTumpangQuote) : null,
     mulaiDari,
   };
-}
-
-/** "Mulai Rp X" for a Daftar Lokasi card: the cheapest Harga Hak Pakai all-in within the QRIS cap, or null. */
-export async function startingPrice(tariffs: Pick<Tariffs, "lokasiTariffs" | "quote">, lokasiId: string, at: Date): Promise<number | null> {
-  return (await lokasiPricing(tariffs, lokasiId, at)).mulaiDari;
 }

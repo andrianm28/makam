@@ -3,13 +3,12 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { lokasiFacilities, weekdays, type JamOperasional, type LokasiFacility, type Weekday } from "@/domain/lokasi";
-import type { Tenure } from "@/domain/tariffs";
+import type { AllInPrice, Tenure } from "@/domain/tariffs";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, embedMapUrl, mapsQueryFor } from "@/lib/maps";
-import { formatRupiah } from "@/lib/rupiah";
 import { quoteLineLabel } from "@/lib/quote-line-label";
+import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
-import { lokasiPricing, type AllInPrice } from "../pricing";
 
 const weekdayLabels: Record<Weekday, string> = {
   monday: "Senin",
@@ -95,7 +94,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   if (!profile) notFound();
 
   const [pricing, photoUrls] = await Promise.all([
-    lokasiPricing(tariffs, lokasiId, adapters.clock.now()),
+    tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
     lokasi.publicVisitPhotoUrls(lokasiId),
   ]);
 
@@ -240,24 +239,23 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pembatalan</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-body">
-          <p>
-            Pembatalan Pemesanan Terencana yang sudah dibayar, sebelum ada Pemakaman, dikembalikan penuh dalam{" "}
-            {profile.pembatalan.masaPembatalanDays} hari sejak dibayar.
-          </p>
-          <p className="text-muted-foreground">
-            Setelah itu, pengembalian {profile.pembatalan.refundAfterMasaPembatalanPercent}% dari tarif, sesuai kebijakan
-            Lokasi Mitra ini.
-          </p>
-          {!profile.terencanaAktif ? (
-            <p className="text-small text-muted-foreground">Kebijakan ini berlaku begitu Pemesanan Terencana tersedia di sini.</p>
-          ) : null}
-        </CardContent>
-      </Card>
+      {profile.terencanaAktif ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pembatalan</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1 text-body">
+            <p>
+              Pembatalan Pemesanan Terencana yang sudah dibayar, sebelum ada Pemakaman, dikembalikan penuh dalam{" "}
+              {profile.pembatalan.masaPembatalanDays} hari sejak dibayar.
+            </p>
+            <p className="text-muted-foreground">
+              Setelah itu, pengembalian {profile.pembatalan.refundAfterMasaPembatalanPercent}% dari tarif, sesuai kebijakan
+              Lokasi Mitra ini.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
