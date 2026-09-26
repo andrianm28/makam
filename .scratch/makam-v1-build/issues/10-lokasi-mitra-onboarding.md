@@ -1,6 +1,6 @@
 # Lokasi Mitra onboarding record and Admin Lokasi invites
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 09
 Spec: Domain modules > 3. Lokasi; 1. Identity & Access (Admin Lokasi); 2. Audit Log (Lokasi view); Public site > Map / pin provider; stories 137, 138, 150 (record, bank, policies, checklist, invites)
 
@@ -64,3 +64,4 @@ The Lokasi module's Lokasi Mitra record and the Admin Platform onboarding screen
   - Integration fixes: `tests/support/server-runtime.ts` builds `lokasi` too; `auditActionLabels` names main's three new actions; `tests/support/server-sign-in.ts` reads TOTP time from the runtime's FakeClock; main's Admin Lokasi invites in `email-login.test.ts` and `tests/support/notifications.ts` name a Lokasi (`lokasi_wajib`); `staf.spec`'s manifest test opens `/staf/petugas-lapangan` (the invitee is no longer Admin Lokasi).
   - New interaction tests (`src/domain/lokasi/admin-lokasi-login-and-push.test.ts`): deactivating an Admin Lokasi of two Lokasi ends its sessions, removes every Perangkat Push (no push goes out), removes it from both Lokasi and writes one `staf.nonaktifkan` per Lokasi; an Admin Lokasi invite to two Lokasi accepted at a Masuk dengan email links both Lokasi (switcher, reads, `staf.peran_diberikan` per Lokasi) and keeps the Email Terverifikasi.
 - **Verified 2026-09-26 (after the rebase)**: `npm run lint` 0, `npm run typecheck` 0, `npm test` 0 (467/467, 44 files), `npm run build` 0, `npm run build:worker` 0; Playwright 19/19 in one run on a fresh `makam-t10` stack on port 3322 (`E2E_SEED_ADMIN="docker compose -p makam-t10 exec -T web node dist/seed-admin.mjs"`); stack torn down with `down -v` and its image removed.
+- 2026-09-26 — Merged to `main` after a two-axis review (mattpocock-skills:code-review), fixes (Terencana flag locked, agreement scan Admin Platform only, no bank account for Admin Lokasi and masked in its Audit Log view, per-Lokasi deactivation entries, unfiltered Admin Platform audit view, `writeRefusal`, unrequested Playwright spec removed) and a rebase onto tickets 21, 67 and 68 (migration 0006, checked on a populated database; interaction tests with push and email login). Verified in the main session: lint 0, typecheck 0, Vitest 467/467.
