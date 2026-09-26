@@ -114,7 +114,10 @@ export const tariffBiayaPemakamanVersion = pgTable(
 /**
  * Owned by the Tariffs module: a Lokasi Mitra's Jenis Makam, defined by Admin
  * Platform. Its prices and tenure live in its versions. `lokasi_id` names a
- * Lokasi Mitra of the Lokasi module (no foreign key across modules).
+ * Lokasi Mitra of the Lokasi module (no foreign key across modules). A row is
+ * never changed or deleted (a trigger refuses both): its name and description
+ * are in Entri Audit, quotes and Tagihan, so a renaming would be a new
+ * decision (a new Jenis Makam, or a versioned name), not an update.
  */
 export const tariffJenisMakam = pgTable(
   "tariff_jenis_makam",

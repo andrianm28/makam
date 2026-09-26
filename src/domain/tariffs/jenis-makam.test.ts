@@ -84,6 +84,20 @@ describe("a Lokasi Mitra's Jenis Makam", () => {
     expect((await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toEqual([]);
   });
 
+  it("its name and description never change once defined: the audit entries, quotes and Tagihan that carry them stay true, so the database refuses a change or a removal", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, reguler);
+
+    await expect(db.execute(sql`update tariff_jenis_makam set name = 'VIP', name_key = 'vip'`)).rejects.toThrow();
+    await expect(db.execute(sql`update tariff_jenis_makam set description = 'Blok D'`)).rejects.toThrow();
+    await expect(db.execute(sql`delete from tariff_jenis_makam`)).rejects.toThrow();
+    expect((await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiMitra.id, wib("2026-10-01 12:00"))).jenisMakam).toMatchObject([
+      { name: "Reguler 1 × 2 m", description: "Blok A–C" },
+    ]);
+  });
+
   it("two Jenis Makam of one Lokasi Mitra cannot share a name (ignoring case and spaces); another Lokasi may use it", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

@@ -72,3 +72,5 @@ CREATE TRIGGER "tariff_global_version_no_update_or_delete" BEFORE UPDATE OR DELE
 CREATE TRIGGER "tariff_jenis_makam_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_jenis_makam_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();--> statement-breakpoint
 CREATE TRIGGER "tariff_biaya_pemakaman_version_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_biaya_pemakaman_version" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();--> statement-breakpoint
 CREATE TRIGGER "tariff_check_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_check" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();
+--> statement-breakpoint
+CREATE TRIGGER "tariff_jenis_makam_no_update_or_delete" BEFORE UPDATE OR DELETE ON "tariff_jenis_makam" FOR EACH ROW EXECUTE FUNCTION "tariff_append_only"();
