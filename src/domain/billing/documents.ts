@@ -44,7 +44,7 @@ export type RecordPaymentResult =
   | { ok: false; reason: "tidak_ditemukan" }
   /** A Dibatalkan Tagihan (lapsed or replaced) can no longer be paid. */
   | { ok: false; reason: "tagihan_dibatalkan" }
-  /** Paid after a pay-first Tagihan's due date, when it lapsed (whether or not the lapse tick has run). */
+  /** Paid at or after a pay-first Tagihan's due date, when it lapsed (whether or not the lapse tick has run). */
   | { ok: false; reason: "batas_pembayaran_lewat" }
   /** The payment time is not a time, or is in the future. */
   | { ok: false; reason: "waktu_pembayaran_tidak_valid" }
@@ -53,7 +53,7 @@ export type RecordPaymentResult =
 
 /**
  * Records the payment of a Tagihan, paid at `input.paidAt` (default `now`):
- * a pay-first Tagihan paid after its due date is refused. It becomes Lunas and gets exactly
+ * a pay-first Tagihan paid at or after its due date is refused. It becomes Lunas and gets exactly
  * one Bukti Pembayaran (numbered BYR/…, headed with the Operator's values now
  * in force), and its downstream effects fire in the same transaction.
  * Recording it again returns the same Bukti. The manual and direct payment

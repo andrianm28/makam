@@ -213,7 +213,17 @@ async function actOn(tx: Database, deps: EffectDeps, event: PaymentEvent, header
     },
     now,
   );
-  if (!settled.ok) return review(settled.reason === "batas_pembayaran_lewat" ? "batas_pembayaran_lewat" : "tagihan_dibatalkan");
+  if (!settled.ok) {
+    switch (settled.reason) {
+      case "batas_pembayaran_lewat":
+        return review("batas_pembayaran_lewat");
+      case "tagihan_dibatalkan":
+        return review("tagihan_dibatalkan");
+      case "tidak_ditemukan":
+        // provider_payment references its Tagihan, and a Tagihan is never deleted.
+        throw new Error("The Tagihan of a provider payment is missing");
+    }
+  }
   if (settled.settled) return { outcome: "lunas", buktiId: settled.buktiId };
   return settled.reference === event.providerPaymentId ? { outcome: "sudah_lunas" } : review("sudah_lunas_dibayar_lagi");
 }

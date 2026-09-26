@@ -308,6 +308,19 @@ describe("the payment webhook", () => {
     expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "batas_pembayaran_lewat" });
   });
 
+  it("a pay-first Tagihan paid exactly at its due date is a Pembayaran Perlu Ditinjau for being late", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    const payment = await paying(setup, tagihan);
+    setup.clock.set(wib("2026-10-03 09:00"));
+
+    const received = await setup.billing.receivePaymentWebhook(
+      setup.payments.webhookFor(payment.providerPaymentId, "paid", { occurredAt: wib("2026-10-03 09:00") }),
+    );
+
+    expect(received).toEqual({ ok: true, outcome: "perlu_ditinjau", reason: "batas_pembayaran_lewat" });
+  });
+
   it("a pay-first Tagihan paid before its due date but delivered after the lapse tick is a Pembayaran Perlu Ditinjau", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);
@@ -546,6 +559,16 @@ describe("a manual payment of a pay-first Tagihan", () => {
     });
 
     expect(recorded).toMatchObject({ ok: true, bukti: { paidAt: wib("2026-10-02 15:00"), tagihan: { status: "lunas" } } });
+  });
+
+  it("paid exactly at its due date is refused as late", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.clock.set(wib("2026-10-03 09:30"));
+
+    expect(
+      await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null, paidAt: wib("2026-10-03 09:00") }),
+    ).toEqual({ ok: false, reason: "batas_pembayaran_lewat" });
   });
 
   it("recorded without a payment time counts as paid now: after the due date it is refused", async () => {
