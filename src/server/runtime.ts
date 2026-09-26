@@ -1,9 +1,11 @@
 import "server-only";
+import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeIdentity } from "@/composition/identity";
 import type { AuditLog } from "@/domain/audit";
 import type { Identity } from "@/domain/identity";
+import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { Adapters } from "@/ports";
@@ -14,6 +16,7 @@ export interface ServerRuntime {
   adapters: Adapters;
   audit: AuditLog;
   identity: Identity;
+  notifications: Notifications;
   /** Pengaturan Operator: read through `current()` / `inForceAt()`, never from env or constants. */
   operatorSettings: OperatorSettings;
 }
@@ -33,14 +36,25 @@ export function serverRuntime(): ServerRuntime {
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
+      vapid: env.vapid,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+    const notifications = createNotifications({
+      db: database.db,
+      clock: adapters.clock,
+      whatsapp: adapters.whatsapp,
+      webPush: adapters.webPush,
+      identity,
+      audit,
+      reportError: (error, context) => Sentry.captureException(error, context),
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
       adapters,
       audit,
       identity,
+      notifications,
       operatorSettings: createOperatorSettings({ db: database.db, clock: adapters.clock, audit }),
     };
   }

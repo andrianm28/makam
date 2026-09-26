@@ -102,6 +102,24 @@ test("the invitee logs in by OTP, holds both roles, and switches between their m
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
 });
 
+test("the staff area installs as an app: its manifest, icons and a service worker scoped to /staf", async ({ request }) => {
+  const page = inviteePage;
+  await page.goto("/staf/admin-lokasi");
+
+  // Installable: a manifest scoped to the staff area, with icons for Android and iPhone.
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");
+  const manifest = await (await request.get(manifestHref!)).json();
+  expect(manifest).toMatchObject({ start_url: "/staf", scope: "/staf", display: "standalone" });
+  for (const icon of manifest.icons as { src: string }[]) {
+    expect((await request.get(icon.src)).headers()["content-type"]).toBe("image/png");
+  }
+  const appleIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
+  expect((await request.get(appleIcon!)).ok()).toBe(true);
+
+  // The service worker registers for the staff area only.
+  expect(await page.evaluate(async () => (await navigator.serviceWorker.ready).scope)).toMatch(/\/staf$/);
+});
+
 test("Admin Platform moves a Pemesan's Akun to a new number after a KTP check", async ({ browser, request }) => {
   const oldNumber = coldNumber();
   const newNumber = coldNumber();

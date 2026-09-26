@@ -10,6 +10,13 @@ import {
 
 const DATABASE_URL = "postgres://makam:makam@localhost:5432/makam";
 
+/** A VAPID key pair (web-push generate-vapid-keys), for staging and production cases. */
+const VAPID = {
+  VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+  VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+  VAPID_SUBJECT: "mailto:ops@makam.co.id",
+};
+
 describe("runtime environment", () => {
   it("reads the migrations folder the image sets", () => {
     const env = readRuntimeEnv({ DATABASE_URL, MIGRATIONS_DIR: "/app/drizzle" });
@@ -35,7 +42,43 @@ describe("runtime environment", () => {
   const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
   const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
-  const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP };
+  const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP, ...VAPID };
+
+  it.each(["staging", "production"])("needs the VAPID key pair and subject for web push in %s", (APP_ENV) => {
+    for (const key of ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"] as const) {
+      expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, [key]: "" })).toThrow(
+        new RegExp(`${key} is required`),
+      );
+    }
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH }).vapid).toEqual({
+      publicKey: VAPID.VAPID_PUBLIC_KEY,
+      privateKey: VAPID.VAPID_PRIVATE_KEY,
+      subject: VAPID.VAPID_SUBJECT,
+    });
+  });
+
+  it("rejects VAPID keys that are not a P-256 key pair in base64url", () => {
+    const live = { DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH };
+    expect(() => readRuntimeEnv({ ...live, VAPID_PUBLIC_KEY: VAPID.VAPID_PRIVATE_KEY })).toThrow(/VAPID_PUBLIC_KEY/);
+    expect(() => readRuntimeEnv({ ...live, VAPID_PRIVATE_KEY: VAPID.VAPID_PUBLIC_KEY })).toThrow(/VAPID_PRIVATE_KEY/);
+    expect(() => readRuntimeEnv({ ...live, VAPID_PRIVATE_KEY: "not+base64url/" })).toThrow(/VAPID_PRIVATE_KEY/);
+  });
+
+  it("needs a VAPID subject that push services accept: a mailto: or an https URL, never localhost", () => {
+    const live = { DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH };
+    expect(readRuntimeEnv({ ...live, VAPID_SUBJECT: "https://makam.co.id" }).vapid.subject).toBe("https://makam.co.id");
+    expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "ops@makam.co.id" })).toThrow(/VAPID_SUBJECT/);
+    expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "http://makam.co.id" })).toThrow(/VAPID_SUBJECT/);
+    expect(() => readRuntimeEnv({ ...live, VAPID_SUBJECT: "https://localhost" })).toThrow(/VAPID_SUBJECT/);
+  });
+
+  it.each(["development", "test"])("gives %s a fixed local VAPID key pair and subject when unset", (APP_ENV) => {
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, VAPID_PUBLIC_KEY: "", VAPID_PRIVATE_KEY: "", VAPID_SUBJECT: "" });
+    expect(Buffer.from(env.vapid.publicKey, "base64url")).toHaveLength(65);
+    expect(Buffer.from(env.vapid.privateKey, "base64url")).toHaveLength(32);
+    expect(env.vapid.subject).toMatch(/^mailto:/);
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).vapid).toEqual(env.vapid);
+  });
 
   it.each(["staging", "production"])("needs TOTP_ENCRYPTION_KEY in %s", (APP_ENV) => {
     expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "" })).toThrow(
@@ -128,6 +171,7 @@ describe("EmailSender environment (SumoPod SMTP relay)", () => {
       AUTH_SECRET: "s".repeat(32),
       APP_BASE_URL: "https://makam.co.id",
       TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+      ...VAPID,
       ...LIVE_SMTP,
     });
     expect(env.smtp).toMatchObject({ user: "v1-user", from: { address: "no-reply@makam.co.id" } });

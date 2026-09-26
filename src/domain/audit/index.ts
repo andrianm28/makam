@@ -43,7 +43,11 @@ export type AuditAction =
   /** `reset-totp`: ops clears an Admin Platform's TOTP enrolment. */
   | "akun.totp_reset"
   /** Admin Platform changes Pengaturan Operator. */
-  | "pengaturan_operator.ubah";
+  | "pengaturan_operator.ubah"
+  /** An Akun Staf turns push on for a Perangkat Push. */
+  | "akun.push_aktifkan"
+  /** An Akun Staf turns push off for a Perangkat Push. */
+  | "akun.push_matikan";
 
 export interface NewAuditEntry {
   /** The Akun that did the write, and the role it acted under. */

@@ -1,7 +1,281 @@
 /**
  * Notifications: WhatsApp templates, the 08:00-20:00 WIB window, retry and email fallback, the message log.
  *
- * Placeholder from the walking skeleton (ticket 01). The module's public
- * functions and its own tables (in ./schema.ts) arrive with its tickets.
+ * Built so far (ticket 21): Peringatan Staf, which always go by WhatsApp and
+ * also by push to each Perangkat Push of the Akun Staf, and the Perangkat Push
+ * themselves. The event table, message log, retries and reminder window
+ * arrive with ticket 20.
+ *
+ * Owns table: notifications_push_device.
  */
-export {};
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { z } from "zod";
+import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
+import {
+  akunResource,
+  staffRoles,
+  writeRefusal,
+  type Actor,
+  type Identity,
+  type StaffRole,
+  type WriteRefusal,
+} from "@/domain/identity";
+import { base64urlBytes } from "@/lib/base64url";
+import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
+import { scrubText } from "@/lib/observability/scrub";
+import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
+import type { Clock } from "@/ports/clock";
+import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
+import type { WhatsAppSender } from "@/ports/whatsapp-sender";
+import { notificationsPushDevice } from "./schema";
+
+/** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.url({ protocol: /^https$/ }).max(2048),
+  keys: z.object({
+    /** Uncompressed P-256 public key. */
+    p256dh: base64urlBytes(65),
+    /** 16-byte auth secret. */
+    auth: base64urlBytes(16),
+  }),
+});
+
+export interface NotificationsDeps {
+  db: Database;
+  clock: Clock;
+  whatsapp: WhatsAppSender;
+  webPush: WebPush;
+  /** Who an Akun Staf is and which of its sessions are live: a Perangkat Push lasts as long as its session. */
+  identity: Pick<Identity, "staffRecipient">;
+  /** Where a failed send goes (error monitoring), while the outcome is kept. */
+  reportError: ReportError;
+  /** Turning push on or off is a staff write: one Entri Audit each. */
+  audit: AuditLog;
+}
+
+export interface PushDevice {
+  endpoint: string;
+  enabledAt: Date;
+}
+
+export type EnablePushResult = { ok: true } | WriteRefusal | { ok: false; reason: "perangkat_tidak_valid" };
+export type DisablePushResult = { ok: true } | WriteRefusal;
+
+export interface StaffAlert {
+  /** The Akun Staf; its WhatsApp number is read from the Akun, never taken from the caller. */
+  to: { accountId: string };
+  /** The approved template (`whatsapp-templates.md`, `staf_*`) and its parameters. */
+  whatsapp: { template: string; parameters: string[] };
+  /**
+   * What the push shows; `url` is the staff page tapping it opens
+   * (`STAFF_AREA_PATH` or under it). A push shows on the lock screen, so
+   * `title` and `body` carry no personal data: no names, phone numbers or
+   * emails; name the work by Nomor Pemesanan, Lokasi and kind instead (the
+   * WhatsApp may carry the rest). Phone numbers and emails are refused.
+   */
+  push: PushNotification & { url: string };
+}
+
+export type StaffAlertResult =
+  | {
+      ok: true;
+      whatsapp: "terkirim" | "gagal";
+      /** Pushes the push services accepted, and Perangkat Push removed because their browser dropped them. */
+      push: { delivered: number; removed: number };
+    }
+  /** The Akun holds no staff role (Dinonaktifkan, or never invited): nothing is sent. */
+  | { ok: false; reason: "bukan_akun_staf" };
+
+export interface Notifications {
+  /** An Akun Staf turns push on for the browser it is using (one Perangkat Push per browser); audited. */
+  enablePush(by: Actor, input: { subscription: PushSubscription }): Promise<EnablePushResult>;
+  /** Turns push off for one browser of the signed-in Akun Staf; audited. */
+  disablePush(by: Actor, input: { endpoint: string }): Promise<DisablePushResult>;
+  /** The Akun's Perangkat Push, oldest first. */
+  pushDevices(accountId: string): Promise<PushDevice[]>;
+  /**
+   * Sends a Peringatan Staf: always by WhatsApp, and by push to each Perangkat
+   * Push of the Akun (push never replaces WhatsApp). A Perangkat Push whose
+   * browser dropped it is removed.
+   */
+  sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
+}
+
+export function createNotifications(deps: NotificationsDeps): Notifications {
+  const { db } = deps;
+
+  /** The Akun's Perangkat Push whose session is still live, oldest first. */
+  const devicesOf = async (tx: Database, accountId: string, liveSessionIds?: string[]) => {
+    const live = liveSessionIds ?? (await deps.identity.staffRecipient(accountId))?.liveSessionIds ?? [];
+    if (live.length === 0) return [];
+    return tx
+      .select()
+      .from(notificationsPushDevice)
+      .where(and(eq(notificationsPushDevice.accountId, accountId), inArray(notificationsPushDevice.sessionId, live)))
+      .orderBy(asc(notificationsPushDevice.enabledAt), asc(notificationsPushDevice.id));
+  };
+  const countDevices = async (tx: Database, accountId: string) => (await devicesOf(tx, accountId)).length;
+
+  return {
+    async enablePush(by, input) {
+      const writer = pushWriter(by);
+      if (!writer.ok) return writer;
+      const parsed = pushSubscriptionSchema.safeParse(input.subscription);
+      if (!parsed.success) return { ok: false, reason: "perangkat_tidak_valid" };
+      const { endpoint, keys } = parsed.data;
+
+      // The staff page confirms its browser's push on every visit: unchanged, nothing to write.
+      const [current] = await db
+        .select()
+        .from(notificationsPushDevice)
+        .where(eq(notificationsPushDevice.endpoint, endpoint));
+      if (
+        current?.accountId === by.accountId &&
+        current.sessionId === by.sessionId &&
+        current.p256dh === keys.p256dh &&
+        current.auth === keys.auth
+      ) {
+        return { ok: true };
+      }
+
+      return deps.audit.staffWrite(db, async (tx, record) => {
+        const before = await countDevices(tx, by.accountId);
+        const device = {
+          accountId: by.accountId,
+          sessionId: by.sessionId,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+          enabledAt: deps.clock.now(),
+        };
+        await tx
+          .insert(notificationsPushDevice)
+          .values({ endpoint, ...device })
+          .onConflictDoUpdate({ target: notificationsPushDevice.endpoint, set: device });
+        await record({
+          actor: { accountId: by.accountId, role: writer.role },
+          action: "akun.push_aktifkan",
+          entity: { kind: "akun", id: by.accountId },
+          before: { perangkatPush: before },
+          after: { perangkatPush: await countDevices(tx, by.accountId) },
+          reason: null,
+        });
+        return { ok: true as const };
+      });
+    },
+
+    async disablePush(by, input) {
+      const writer = pushWriter(by);
+      if (!writer.ok) return writer;
+      // Already off, or another Akun's browser: the write is refused (rolled back), so no Entri Audit; push is off either way.
+      await deps.audit.staffWrite(db, async (tx, record) => {
+        const before = await countDevices(tx, by.accountId);
+        const removed = await tx
+          .delete(notificationsPushDevice)
+          .where(
+            and(eq(notificationsPushDevice.accountId, by.accountId), eq(notificationsPushDevice.endpoint, input.endpoint)),
+          )
+          .returning({ id: notificationsPushDevice.id });
+        if (removed.length === 0) return { ok: false as const };
+        await record({
+          actor: { accountId: by.accountId, role: writer.role },
+          action: "akun.push_matikan",
+          entity: { kind: "akun", id: by.accountId },
+          before: { perangkatPush: before },
+          after: { perangkatPush: await countDevices(tx, by.accountId) },
+          reason: null,
+        });
+        return { ok: true as const };
+      });
+      return { ok: true };
+    },
+
+    async pushDevices(accountId) {
+      const rows = await devicesOf(db, accountId);
+      return rows.map((row) => ({ endpoint: row.endpoint, enabledAt: row.enabledAt }));
+    },
+
+    async sendStaffAlert(alert) {
+      for (const text of [alert.push.title, alert.push.body]) {
+        if (!lockScreenSafe(text)) {
+          throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
+        }
+      }
+      const url = staffPagePath(alert.push.url);
+      if (!url) throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
+
+      const recipient = await deps.identity.staffRecipient(alert.to.accountId);
+      if (!recipient) {
+        await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
+        return { ok: false, reason: "bukan_akun_staf" };
+      }
+
+      let whatsapp: "terkirim" | "gagal" = "terkirim";
+      try {
+        await deps.whatsapp.sendTemplate({
+          to: recipient.phoneNumber,
+          template: alert.whatsapp.template,
+          language: "id",
+          parameters: alert.whatsapp.parameters,
+        });
+      } catch (error) {
+        whatsapp = "gagal";
+        deps.reportError(scrubbedError(error), {
+          tags: { module: "notifications", channel: "whatsapp", template: alert.whatsapp.template },
+        });
+      }
+
+      const push = { delivered: 0, removed: 0 };
+      // A Perangkat Push whose session ended (Keluar, a new role grant, expiry) is gone.
+      await db
+        .delete(notificationsPushDevice)
+        .where(
+          and(
+            eq(notificationsPushDevice.accountId, recipient.accountId),
+            recipient.liveSessionIds.length > 0
+              ? notInArray(notificationsPushDevice.sessionId, recipient.liveSessionIds)
+              : undefined,
+          ),
+        );
+      for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
+        const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
+        const result = await deps.webPush
+          .send({ subscription, notification: { ...alert.push, url } })
+          .catch((error: unknown) => {
+            // Not delivered this time; the Perangkat Push is kept for the next Peringatan Staf.
+            deps.reportError(scrubbedError(error), {
+              tags: { module: "notifications", channel: "push", template: alert.whatsapp.template },
+            });
+            return null;
+          });
+        if (result?.delivered) push.delivered++;
+        if (result?.subscriptionGone) {
+          await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
+          push.removed++;
+        }
+      }
+      return { ok: true, whatsapp, push };
+    },
+  };
+}
+
+/** An email address anywhere in a text. */
+const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+/** Fit for a lock screen: no phone number (as error scrubbing finds them) and no email address. */
+function lockScreenSafe(text: string): boolean {
+  return scrubText(text) === text && !EMAIL.test(text);
+}
+
+/**
+ * Only an Akun Staf turns push on or off, and only for itself (an Admin
+ * Platform after TOTP). Allowed: the role its Entri Audit names, its first staff role.
+ */
+function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
+  const refusal = writeRefusal(by, "akun.push", akunResource(by.accountId));
+  if (refusal) return refusal;
+  const role = staffRoles.find((held) => by.roles.includes(held));
+  // `akun.push` is allowed only to an Akun holding a staff role, so there is always one.
+  if (!role) return { ok: false, reason: "tidak_berwenang" };
+  return { ok: true, role };
+}

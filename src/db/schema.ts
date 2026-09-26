@@ -8,5 +8,6 @@
  */
 export * from "@/domain/audit/schema";
 export * from "@/domain/identity/schema";
+export * from "@/domain/notifications/schema";
 export * from "@/domain/operator-settings/schema";
 export * from "@/domain/scheduler/schema";
