@@ -123,3 +123,35 @@ describe("a Lokasi calendar", () => {
   });
 
 });
+
+describe("a Lokasi's service-hour deadline on the Clock", () => {
+  it("counts in the Lokasi's saved Jam Operasional from now (the Clock) when no start is given, else from the start", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const workday = { opens: "08:00", closes: "16:00" };
+    await setup.lokasi.setJamOperasional(admin, lokasiMitra.id, {
+      weekly: { monday: workday, tuesday: workday, wednesday: workday, thursday: workday, friday: workday, saturday: workday, sunday: null },
+      tanggalTutup: [],
+    });
+    setup.clock.set(wib("2026-10-03 21:00"));
+
+    expect(await setup.lokasi.serviceHoursDeadline(lokasiMitra.id, 2)).toEqual({ ok: true, at: wib("2026-10-05 10:00") });
+    expect(await setup.lokasi.serviceHoursDeadline(lokasiMitra.id, 2, wib("2026-10-05 09:30"))).toEqual({
+      ok: true,
+      at: wib("2026-10-05 11:30"),
+    });
+  });
+
+  it("refuses a Lokasi whose Jam Operasional is belum diisi, and no such Lokasi", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+
+    expect(await setup.lokasi.serviceHoursDeadline(lokasiMitra.id, 2)).toEqual({ ok: false, reason: "jam_operasional_belum_diisi" });
+    expect(await setup.lokasi.serviceHoursDeadline("7d1c5a52-5f3e-4b8e-9a51-2d8c1f0e9b11", 2)).toEqual({
+      ok: false,
+      reason: "tidak_ditemukan",
+    });
+  });
+});

@@ -3,6 +3,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { isLokasiId, writeLokasiMitra, type LokasiDeps, type NotFound, type WriteResult } from "./lokasi-mitra";
 import { lokasiMitra } from "./schema";
 import { jamOperasionalSchema, type JamOperasional } from "./jam-operasional-schema";
+import { deadline, type WorkingTimeResult } from "./working-time";
 
 /** A Lokasi Mitra's Jam Operasional; null until its Admin Lokasi saves one (there is no default). */
 export type JamOperasionalResult = { ok: true; jamOperasional: JamOperasional | null } | WriteRefusal | NotFound;
@@ -28,6 +29,22 @@ export async function jamOperasionalOf(
     .from(lokasiMitra)
     .where(eq(lokasiMitra.id, lokasiId));
   return row ? { ok: true, jamOperasional: row.jamOperasional } : { ok: false, reason: "tidak_ditemukan" };
+}
+
+/**
+ * `hours` service hours in a Lokasi Mitra's saved Jam Operasional, from
+ * `start`, or from now (the Clock) when the caller gives none: e.g. the Saat
+ * Duka confirmation deadline. Refused when the Jam Operasional is belum diisi.
+ */
+export async function serviceHoursDeadline(
+  deps: Pick<LokasiDeps, "db" | "clock">,
+  lokasiId: string,
+  hours: number,
+  start?: Date,
+): Promise<WorkingTimeResult | NotFound> {
+  const read = await jamOperasionalOf(deps, lokasiId);
+  if (!read.ok) return read;
+  return deadline(read.jamOperasional, start ?? deps.clock.now(), hours);
 }
 
 export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };

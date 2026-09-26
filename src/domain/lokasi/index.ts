@@ -52,6 +52,7 @@ import {
 import {
   readJamOperasional,
   jamOperasionalOf,
+  serviceHoursDeadline,
   setJamOperasional,
   type JamOperasionalResult,
   type SetJamOperasionalResult,
@@ -65,7 +66,7 @@ import {
   type PickKontakSiagaResult,
 } from "./kontak-siaga";
 import type { JamOperasional, Tanggal } from "./jam-operasional-schema";
-import type { HariLiburNasional } from "./working-time";
+import type { HariLiburNasional, WorkingTimeResult } from "./working-time";
 import {
   addHariLiburNasional,
   hariLiburNasional,
@@ -225,6 +226,11 @@ export interface Lokasi {
    * saves one, which every calculator function refuses (`jam_operasional_belum_diisi`).
    */
   jamOperasionalOf(lokasiId: string): Promise<{ ok: true; jamOperasional: JamOperasional | null } | NotFound>;
+  /**
+   * `hours` service hours in the Lokasi's saved Jam Operasional from `start`, or from now (the Clock) when none is
+   * given, e.g. the Saat Duka confirmation deadline; refused while its Jam Operasional is belum diisi.
+   */
+  serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -255,6 +261,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     removeHariLiburNasional: (by, input) => removeHariLiburNasional(deps, by, input),
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
+    serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
   };
 }
 export {
