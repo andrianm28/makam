@@ -1,6 +1,6 @@
 # Brand foundation and the staff shell, with the Admin Platform home
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: Implementation Decisions > Staff UI and design system; docs/brand/brand-guideline-visual-2026.pdf; prototype branch `worktree-agent-aebfc82ebc2eab39d` (commit 282bcc0: `docs/design-system.md`, `/pratinjau/staf`, gallery https://claude.ai/artifact/BpcTyBmWqYXL2EFCNrt9bx)
 
@@ -58,3 +58,4 @@ Verification: `npm run lint` clean; `npm run typecheck` clean; `npm test` 73 fil
   - **Nav labels**: Petugas Lapangan "Tugas" (not "Tugas saya"), Mitra Jasa "Pekerjaan", as CONTEXT.md now records.
 
   Verification: `npm run lint` clean; `npm run typecheck` clean; `npm test` 82 files, 862 tests passed; `npm run build` and `npm run build:worker` OK; `e2e/staf.spec.ts` 8/8 passed on a fresh local stack (`docker compose -p makam-t74`), including the shell smoke test. The stack, its images and the test containers were removed afterwards.
+- 2026-09-26 — Re-review after fixes: Standards 0 hard violations, Spec clean. Merged to main as 1707b59 with the user's approval. Four small judgement calls moved to ticket 75.

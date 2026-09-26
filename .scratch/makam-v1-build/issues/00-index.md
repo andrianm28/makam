@@ -261,7 +261,7 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [74](74-brand-foundation-and-staff-shell.md) | Brand foundation and the staff shell, with the Admin Platform home | ready-for-agent | — |
+| [74](74-brand-foundation-and-staff-shell.md) | Brand foundation and the staff shell, with the Admin Platform home | resolved | — |
 | [75](75-command-palette-and-alert-bell.md) | Command palette (⌘K) and the Peringatan Staf bell | ready-for-agent | 74 |
 | [76](76-lokasi-mitra-list-and-detail-redesign.md) | Lokasi Mitra list and detail on the list and detail patterns | ready-for-agent | 74 |
 | [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74 |
