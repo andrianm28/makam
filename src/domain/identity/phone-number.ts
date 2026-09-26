@@ -1,16 +1,16 @@
 /**
- * One WhatsApp number is one Akun (ADR 0003), so every number is stored and
- * compared in one canonical E.164 form: `0812…`, `62812…`, `+62812…` and
- * `812…` are all `+62812…`.
+ * A phone number is a contact on an Akun, an Undangan Staf or an order (ADR
+ * 0004: never verified, never a key). Every number is stored in one canonical
+ * E.164 form: `0812…`, `62812…`, `+62812…` and `812…` are all `+62812…`.
  *
- * v1 takes only Indonesian (+62) WhatsApp numbers (decision 2026-09-25): a
+ * v1 takes only Indonesian (+62) mobile numbers (decision 2026-09-25): a
  * well-formed number from another country is refused as `nomor_bukan_indonesia`.
  */
 export type PhoneNumberResult =
   | { ok: true; phoneNumber: string }
   | { ok: false; reason: "nomor_tidak_valid" | "nomor_bukan_indonesia" };
 
-/** Why a typed number is refused: part of every result that takes a WhatsApp number. */
+/** Why a typed number is refused: part of every result that takes a phone number. */
 export type PhoneNumberRejection = Extract<PhoneNumberResult, { ok: false }>;
 
 /** Separators people type inside a number. */

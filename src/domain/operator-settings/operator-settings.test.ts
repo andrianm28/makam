@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "../../../tests/support/identity";
+import { actorOf, identityOnTestDatabase, logIn, signedInAdminPlatform } from "../../../tests/support/identity";
 import { createOperatorSettings, OPERATOR_SETTINGS_ENTITY_ID } from "./index";
 
 const { db, close } = testDatabase();
@@ -137,7 +137,7 @@ describe("Pengaturan Operator", () => {
     ]);
   });
 
-  it("the CS WhatsApp number is refused like an Akun number: malformed, or not an Indonesian number", async () => {
+  it("the CS WhatsApp number is refused like any phone number: malformed, or not an Indonesian number", async () => {
     const setup = operatorSettingsOnTestDatabase();
     const { actor } = await signedInAdminPlatform(setup);
 
@@ -191,7 +191,7 @@ describe("Pengaturan Operator", () => {
 
   it("only Admin Platform may change it: a Pemesan is refused and nothing is kept or audited", async () => {
     const setup = operatorSettingsOnTestDatabase();
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "085555555555");
+    const { cookies } = await logIn(setup, "pemesan@contoh.id");
     const pemesan = await actorOf(setup.identity, cookies);
 
     expect(await setup.operatorSettings.change(pemesan, { ...pengaturan, reason: null })).toEqual({
@@ -211,8 +211,8 @@ describe("Pengaturan Operator", () => {
     const { actor: admin } = await signedInAdminPlatform(setup);
     // An Admin Lokasi invite names its Lokasi Mitra (the identity module keeps the id as given).
     const lokasiId = role === "admin_lokasi" ? "5d1f4c2e-0000-4000-8000-000000000001" : undefined;
-    await setup.identity.inviteStaff(admin, { phoneNumber: number, email: "staf@contoh.id", role, lokasiId });
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, number);
+    await setup.identity.inviteStaff(admin, { email: `staf-${number}@contoh.id`, phoneNumber: number, role, lokasiId });
+    const { cookies } = await logIn(setup, `staf-${number}@contoh.id`);
     const staff = await actorOf(setup.identity, cookies);
     expect(staff.roles).toEqual(["pemesan", role]);
 
@@ -226,8 +226,8 @@ describe("Pengaturan Operator", () => {
 
   it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
     const setup = operatorSettingsOnTestDatabase();
-    await setup.identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
-    const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, "081111111111");
+    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
+    const { cookies } = await logIn(setup, "admin@makam.co.id");
     const adminBeforeTotp = await actorOf(setup.identity, cookies);
 
     expect(await setup.operatorSettings.change(adminBeforeTotp, { ...pengaturan, reason: null })).toEqual({

@@ -18,7 +18,7 @@ export const operatorSettingsVersion = pgTable(
     address: text("address").notNull(),
     phone: text("phone").notNull(),
     email: text("email").notNull(),
-    /** Canonical E.164 (+62) WhatsApp number. */
+    /** The CS number for wa.me links: canonical E.164 (+62). */
     csWhatsApp: text("cs_whatsapp").notNull(),
     csReplyHours: text("cs_reply_hours").notNull(),
     /** The Admin Platform's Akun. Not a foreign key, like the Audit Log. */

@@ -39,8 +39,10 @@ export type AuditAction =
   | "staf.nonaktifkan"
   /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra. */
   | "staf.lepas_admin_lokasi"
-  /** Pindah Nomor. */
-  | "akun.pindah_nomor"
+  /** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check. */
+  | "akun.pemulihan"
+  /** An Akun Staf changes its own phone number (a contact). */
+  | "akun.ubah_telepon"
   /** Admin Platform completes TOTP enrolment. */
   | "akun.totp_daftar"
   /** `reset-totp`: ops clears an Admin Platform's TOTP enrolment. */

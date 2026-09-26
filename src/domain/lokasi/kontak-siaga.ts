@@ -10,8 +10,9 @@ export interface KontakSiagaDeps extends LokasiDeps {
 /** The Admin Lokasi a family can phone outside the Jam Operasional. */
 export interface KontakSiaga {
   accountId: string;
-  phoneNumber: string;
   email: string | null;
+  /** Its phone number (a contact on the Akun); null until the Akun gives one. */
+  phoneNumber: string | null;
 }
 
 /** The Kontak Siaga a Lokasi Mitra row names, while its Akun has been Admin Lokasi here without a break since the pick. */

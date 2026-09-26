@@ -9,7 +9,6 @@ import type { Adapters } from "@/ports";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider } from "@/ports/payment-provider";
-import type { WhatsAppSender } from "@/ports/whatsapp-sender";
 
 interface CommonAdapterOptions {
   /** Svix secret for the fake PaymentProvider's webhooks (development and test only; ignored elsewhere). */
@@ -52,7 +51,6 @@ export function createAdapters(options: AdapterOptions): Adapters {
     : {
         clock,
         payments: notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
-        whatsapp: notConfigured<WhatsAppSender>("WhatsAppSender (kirim.dev)"),
         email: options.smtp
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),

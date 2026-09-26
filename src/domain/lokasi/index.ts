@@ -170,11 +170,11 @@ export interface Lokasi {
     lokasiId: string,
     input: BankAccount & { reason: string | null },
   ): Promise<ChangeBankAccountResult>;
-  /** Admin Platform (only) invites an Admin Lokasi to this Lokasi Mitra by WhatsApp number and required email, audited. */
+  /** Admin Platform (only) invites an Admin Lokasi to this Lokasi Mitra by email (phone number as contact), audited. */
   inviteAdminLokasi(
     by: Actor,
     lokasiId: string,
-    input: { phoneNumber: string; email: string; reason?: string | null },
+    input: { email: string; phoneNumber: string; reason?: string | null },
   ): Promise<InviteAdminLokasiResult>;
   /** The Admin Lokasi of this Lokasi Mitra and the open invites to it. */
   adminLokasiOf(by: Actor, lokasiId: string): Promise<AdminLokasiOfResult>;

@@ -4,23 +4,21 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
 import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor, type Role, type StaffRole } from "./authorize";
-import type { Account } from "./login";
+import { placeholderEmailFor, verifiedEmailIs, type Account } from "./akun-lookup";
 import { normaliseEmail } from "./email-address";
-import { markEmailOnRecordVerified, verifiedEmailTakenAsRefusal } from "./email";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
 
 export interface StaffAccount {
   accountId: string;
-  phoneNumber: string;
+  /** The email on record: its Email Terverifikasi, or (an Akun from before ADR 0004) one only typed in. */
   email: string | null;
+  /** False for an Akun from before ADR 0004 without an Email Terverifikasi: it cannot log in until a Pemulihan Akun. */
+  emailTerverifikasi: boolean;
+  /** The phone number, a contact only. */
+  phoneNumber: string | null;
   roles: StaffRole[];
   deactivated: boolean;
-}
-
-/** The undeliverable placeholder Better Auth needs as its unique user email. */
-export function placeholderEmailFor(phoneNumber: string): string {
-  return `${phoneNumber.replace(/^\+/, "")}@wa.makam.invalid`;
 }
 
 /** Every role an Akun holds: Pemesan first, then its staff roles in a fixed order. */
@@ -46,13 +44,14 @@ export async function adminLokasiIdsOf(db: Database, accountId: string): Promise
 /** An Admin Lokasi of one Lokasi Mitra. */
 export interface AdminLokasiAccount {
   accountId: string;
-  phoneNumber: string;
   email: string | null;
+  /** The phone number, a contact only (Kontak Siaga shows it). */
+  phoneNumber: string | null;
 }
 
 function adminLokasiRows(db: Database, where: SQL | undefined) {
   return db
-    .select({ accountId: identityUser.id, phoneNumber: identityUser.phoneNumber, email: identityUser.contactEmail })
+    .select({ accountId: identityUser.id, email: identityUser.contactEmail, phoneNumber: identityUser.phoneNumber })
     .from(identityAdminLokasi)
     .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
     .innerJoin(
@@ -63,8 +62,8 @@ function adminLokasiRows(db: Database, where: SQL | undefined) {
     .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
 }
 
-function toAdminLokasiAccount(row: { accountId: string; phoneNumber: string | null; email: string | null }): AdminLokasiAccount {
-  return { accountId: row.accountId, phoneNumber: row.phoneNumber ?? "", email: row.email };
+function toAdminLokasiAccount(row: { accountId: string; email: string | null; phoneNumber: string | null }): AdminLokasiAccount {
+  return { accountId: row.accountId, email: row.email, phoneNumber: row.phoneNumber };
 }
 
 /** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
@@ -137,40 +136,26 @@ export async function removeAdminLokasi(
 export type SeedResult =
   | { ok: true; account: Account }
   | PhoneNumberRejection
-  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" | "email_sudah_dipakai" };
-
-/** The reason on the seed's `akun.email_verifikasi` entry (`seed:admin --email-terverifikasi`). */
-const SEED_EMAIL_VERIFIED_REASON = "seed:admin --email-terverifikasi (jalur bootstrap sebelum WhatsApp live)";
+  | { ok: false; reason: "email_tidak_valid" | "admin_platform_sudah_ada" };
 
 /**
- * The CLI seed (`npm run seed:admin`): creates the first Admin Platform with
- * its WhatsApp number and email. Refused once any Admin Platform exists; every
- * later staff member comes by Undangan Staf. With `emailTerverifikasi`, the
- * email is its Email Terverifikasi from the start (the bootstrap path before
- * live WhatsApp), audited as seed_cli in the same transaction; refused, with
- * nothing created, when another Akun already has that Email Terverifikasi.
+ * The CLI seed (`npm run seed:admin`): the first Admin Platform, keyed by its
+ * email, seeded as its Email Terverifikasi, with a phone number as contact.
+ * When an Akun already has that Email Terverifikasi (someone who logged in
+ * before), that Akun becomes the Admin Platform. Refused once any Admin
+ * Platform exists: every later staff member comes by Undangan Staf. Audited as
+ * seed_cli.
  */
 export async function seedFirstAdminPlatform(
   deps: { db: Database; clock: Clock; audit: AuditLog },
-  input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean },
+  input: { email: string; phoneNumber: string },
 ): Promise<SeedResult> {
+  const email = normaliseEmail(input.email);
+  if (!email) return { ok: false, reason: "email_tidak_valid" };
   const normalised = normalisePhoneNumber(input.phoneNumber);
   if (!normalised.ok) return normalised;
   const { phoneNumber } = normalised;
-  const email = normaliseEmail(input.email);
-  if (!email) return { ok: false, reason: "email_tidak_valid" };
 
-  return verifiedEmailTakenAsRefusal(() =>
-    createFirstAdminPlatform(deps, { phoneNumber, email, emailTerverifikasi: input.emailTerverifikasi }),
-  );
-}
-
-/** The seed's write, once the number and email are valid; the unique index on Email Terverifikasi may still refuse it. */
-async function createFirstAdminPlatform(
-  deps: { db: Database; clock: Clock; audit: AuditLog },
-  input: { phoneNumber: string; email: string; emailTerverifikasi?: boolean },
-): Promise<SeedResult> {
-  const { phoneNumber, email } = input;
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('identity.seed_admin_platform'))`);
     const [existingAdmin] = await tx
@@ -181,52 +166,35 @@ async function createFirstAdminPlatform(
     if (existingAdmin) return { ok: false, reason: "admin_platform_sudah_ada" } as const;
 
     const now = deps.clock.now();
-    const [existing] = await tx
-      .select({ id: identityUser.id, email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
-      .from(identityUser)
-      .where(eq(identityUser.phoneNumber, phoneNumber))
-      .for("update");
+    const [existing] = await tx.select({ id: identityUser.id }).from(identityUser).where(verifiedEmailIs(email)).for("update");
     let accountId = existing?.id;
-    // A reused Akun keeps its Email Terverifikasi only when the email stays the same:
-    // a new address is unproven until Verifikasi Email (or the audited mark below).
-    const alreadyVerified = Boolean(existing?.verifiedAt && existing.email?.toLowerCase() === email);
     if (accountId) {
-      await tx
-        .update(identityUser)
-        .set({ contactEmail: email, ...(alreadyVerified ? {} : { emailVerifiedAt: null }), updatedAt: now })
-        .where(eq(identityUser.id, accountId));
+      await tx.update(identityUser).set({ phoneNumber, updatedAt: now }).where(eq(identityUser.id, accountId));
     } else {
       accountId = randomUUID();
       await tx.insert(identityUser).values({
         id: accountId,
         name: "",
-        email: placeholderEmailFor(phoneNumber),
+        email: placeholderEmailFor(accountId),
         emailVerified: false,
         phoneNumber,
-        phoneNumberVerified: false,
         contactEmail: email,
+        emailVerifiedAt: now,
         createdAt: now,
         updatedAt: now,
       });
     }
     await tx.insert(identityStaffRole).values({ accountId, role: "admin_platform", grantedAt: now });
     await record({
-      // No one is signed in at the seed: the entry names the new Akun, acting as the seed CLI.
+      // No one is signed in at the seed: the entry names the Akun, acting as the seed CLI.
       actor: { accountId, role: "seed_cli" },
       action: "staf.seed_admin_platform",
       entity: { kind: "akun", id: accountId },
       before: null,
-      after: { phoneNumber, email, roles: ["admin_platform"] },
+      after: { email, emailTerverifikasi: true, phoneNumber, roles: ["admin_platform"] },
       reason: null,
     });
-    if (input.emailTerverifikasi && !alreadyVerified) {
-      await markEmailOnRecordVerified(tx, record, deps.clock, {
-        accountId,
-        actorRole: "seed_cli",
-        reason: SEED_EMAIL_VERIFIED_REASON,
-      });
-    }
-    return { ok: true, account: { id: accountId, phoneNumber } } as const;
+    return { ok: true, account: { id: accountId, email, phoneNumber } } as const;
   });
 }
 
@@ -293,6 +261,7 @@ export async function deactivateStaff(
   });
 }
 
+
 /** Every Akun Staf, and every Akun that was one until it was Dinonaktifkan, oldest first. */
 export async function staffAccounts(deps: { db: Database }): Promise<StaffAccount[]> {
   const roles = await deps.db
@@ -305,8 +274,9 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
   const users = await deps.db
     .select({
       id: identityUser.id,
-      phoneNumber: identityUser.phoneNumber,
       email: identityUser.contactEmail,
+      emailVerifiedAt: identityUser.emailVerifiedAt,
+      phoneNumber: identityUser.phoneNumber,
       deactivatedAt: identityUser.deactivatedAt,
     })
     .from(identityUser)
@@ -320,8 +290,9 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
     const held = staffRoles.filter((role) => byAccount.get(user.id)?.has(role));
     return {
       accountId: user.id,
-      phoneNumber: user.phoneNumber ?? "",
       email: user.email,
+      emailTerverifikasi: Boolean(user.email && user.emailVerifiedAt),
+      phoneNumber: user.phoneNumber,
       roles: held,
       // Dinonaktifkan until a new Undangan Staf grants a role again.
       deactivated: held.length === 0,
@@ -329,13 +300,13 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
   });
 }
 
-/** Where a message to an Akun Staf goes: its WhatsApp number, its staff roles and its live sessions. */
+/** Where a Peringatan Staf to an Akun Staf goes: its Email Terverifikasi, its staff roles and its live sessions. */
 export interface StaffRecipient {
   accountId: string;
-  /** Canonical E.164 WhatsApp number, from the Akun record. */
-  phoneNumber: string;
+  /** Its Email Terverifikasi; null for an Akun from before ADR 0004 still waiting for a Pemulihan Akun. */
+  email: string | null;
   roles: StaffRole[];
-  /** Sessions not ended (Keluar, Dinonaktifkan, a new role grant, reset-totp, Pindah Nomor) nor expired on the Clock. */
+  /** Sessions not ended (Keluar, Dinonaktifkan, a new role grant, reset-totp, Pemulihan Akun) nor expired on the Clock. */
   liveSessionIds: string[];
 }
 
@@ -348,15 +319,20 @@ export async function staffRecipient(
   accountId: string,
 ): Promise<StaffRecipient | null> {
   const [user] = await deps.db
-    .select({ phoneNumber: identityUser.phoneNumber })
+    .select({ email: identityUser.contactEmail, emailVerifiedAt: identityUser.emailVerifiedAt })
     .from(identityUser)
     .where(eq(identityUser.id, accountId));
-  if (!user?.phoneNumber) return null;
+  if (!user) return null;
   const roles = (await rolesOf(deps.db, accountId)).filter((role): role is StaffRole => role !== "pemesan");
   if (roles.length === 0) return null;
   const sessions = await deps.db
     .select({ id: identitySession.id })
     .from(identitySession)
     .where(and(eq(identitySession.userId, accountId), gt(identitySession.expiresAt, deps.clock.now())));
-  return { accountId, phoneNumber: user.phoneNumber, roles, liveSessionIds: sessions.map((session) => session.id) };
+  return {
+    accountId,
+    email: user.email && user.emailVerifiedAt ? user.email : null,
+    roles,
+    liveSessionIds: sessions.map((session) => session.id),
+  };
 }

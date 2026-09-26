@@ -4,14 +4,17 @@ import type { Database } from "@/db/client";
 import type { Actor, StaffRole } from "@/domain/identity";
 import { createNotifications } from "@/domain/notifications";
 import type { ReportError } from "@/lib/observability/report-error";
+import type { EmailSender } from "@/ports/email-sender";
 import type { PushSubscription, WebPush } from "@/ports/web-push";
-import type { WhatsAppSender } from "@/ports/whatsapp-sender";
-import { actorOf, identityOnTestDatabase, logInByOtp, signedInAdminPlatform } from "./identity";
+import { actorOf, identityOnTestDatabase, logIn, signedInAdminPlatform } from "./identity";
 
-/** The Notifications module next to identity on the test Postgres, sharing its Clock, Audit Log and fake WhatsApp. */
+/**
+ * The Notifications module next to identity on the test Postgres, sharing its
+ * Clock, Audit Log and fake EmailSender (unless `email` gives Notifications its own).
+ */
 export function notificationsOnTestDatabase(
   db: Database,
-  options: { whatsapp?: WhatsAppSender; webPush?: WebPush } = {},
+  options: { email?: EmailSender; webPush?: WebPush } = {},
 ) {
   const setup = identityOnTestDatabase(db);
   const webPush = new FakeWebPush();
@@ -20,7 +23,7 @@ export function notificationsOnTestDatabase(
   const notifications = createNotifications({
     db,
     clock: setup.clock,
-    whatsapp: options.whatsapp ?? setup.whatsapp,
+    email: options.email ?? setup.email,
     webPush: options.webPush ?? webPush,
     reportError: (error, context) => reported.push({ error, context }),
     identity: setup.identity,
@@ -29,35 +32,35 @@ export function notificationsOnTestDatabase(
   return { ...setup, webPush, notifications, reported };
 }
 
-/** An Akun Staf holding `role`, invited by the first Admin Platform and logged in by OTP. */
+/** An Akun Staf holding `role`, invited by the first Admin Platform and logged in with a Kode Masuk. */
 export async function signedInStaff(
   setup: ReturnType<typeof identityOnTestDatabase>,
   role: Exclude<StaffRole, "admin_platform">,
-  phoneNumber = "082222222222",
+  email = `${role.replace("_", ".")}@contoh.id`,
 ) {
   const { actor: admin } = await signedInAdminPlatform(setup);
-  return invitedStaff(setup, admin, role, phoneNumber);
+  return invitedStaff(setup, admin, role, email);
 }
 
-/** An Akun Staf holding `role`, invited by `admin` (a signed-in Admin Platform) and logged in by OTP. */
+/** An Akun Staf holding `role`, invited by `admin` (a signed-in Admin Platform) and logged in with a Kode Masuk. */
 export async function invitedStaff(
   setup: ReturnType<typeof identityOnTestDatabase>,
   admin: Actor,
   role: Exclude<StaffRole, "admin_platform">,
-  phoneNumber: string,
+  email: string,
 ) {
   // An Admin Lokasi invite names its Lokasi Mitra (the identity module keeps the id as given).
   const lokasiId = role === "admin_lokasi" ? "5d1f4c2e-0000-4000-8000-000000000001" : undefined;
-  const invited = await setup.identity.inviteStaff(admin, { phoneNumber, email: `${role}@contoh.id`, role, lokasiId });
+  const invited = await setup.identity.inviteStaff(admin, { email, phoneNumber: "082222222222", role, lokasiId });
   if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
-  const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
+  const { cookies } = await logIn(setup, email);
   return actorOf(setup.identity, cookies);
 }
 
-/** The same Akun logged in by OTP on another browser (a minute later, past the OTP resend wait): its own session. */
-export async function loggedInOnAnotherBrowser(setup: ReturnType<typeof identityOnTestDatabase>, phoneNumber: string) {
+/** The same Akun logged in on another browser (a minute later, past the Kode Masuk resend wait): its own session. */
+export async function loggedInOnAnotherBrowser(setup: ReturnType<typeof identityOnTestDatabase>, email: string) {
   setup.clock.advance({ minutes: 1 });
-  const { cookies } = await logInByOtp(setup.identity, setup.whatsapp, phoneNumber);
+  const { cookies } = await logIn(setup, email);
   return { actor: await actorOf(setup.identity, cookies), cookies };
 }
 

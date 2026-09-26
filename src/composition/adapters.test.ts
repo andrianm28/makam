@@ -6,7 +6,6 @@ import {
   FakePaymentProvider,
   FakePdfRenderer,
   FakeWebPush,
-  FakeWhatsAppSender,
 } from "@/adapters/memory";
 import { ChromiumPdfRenderer } from "@/adapters/live/chromium-pdf-renderer";
 import { PortNotConfiguredError } from "@/adapters/live/not-configured";
@@ -20,7 +19,6 @@ const WEBHOOK_SECRET = "whsec_c2VjcmV0LWZvci10ZXN0cw==";
 
 function expectNoFakes(adapters: Adapters) {
   expect(adapters.payments).not.toBeInstanceOf(FakePaymentProvider);
-  expect(adapters.whatsapp).not.toBeInstanceOf(FakeWhatsAppSender);
   expect(adapters.email).not.toBeInstanceOf(FakeEmailSender);
   expect(adapters.webPush).not.toBeInstanceOf(FakeWebPush);
   expect(adapters.files).not.toBeInstanceOf(FakeFileStore);
@@ -39,7 +37,7 @@ describe("composition root", () => {
 
     expect(adapters.clock).toBeInstanceOf(SystemClock);
     expect(adapters.payments).toBeInstanceOf(FakePaymentProvider);
-    expect(adapters.whatsapp).toBeInstanceOf(FakeWhatsAppSender);
+    expect(adapters.email).toBeInstanceOf(FakeEmailSender);
   });
 
   it.each(["staging", "production"] as const)(
@@ -49,9 +47,6 @@ describe("composition root", () => {
 
       expect(adapters.clock).toBeInstanceOf(SystemClock);
       expectNoFakes(adapters);
-      await expect(
-        adapters.whatsapp.sendTemplate({ to: "+6281234567890", template: "t", language: "id", parameters: [] }),
-      ).rejects.toBeInstanceOf(PortNotConfiguredError);
       await expect(
         adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
       ).rejects.toBeInstanceOf(PortNotConfiguredError);
@@ -122,8 +117,8 @@ describe("composition root", () => {
   });
 
   it("lets a test inject its own Clock and fakes", () => {
-    const whatsapp = new FakeWhatsAppSender();
-    const adapters = createAdapters({ appEnv: "test", overrides: { whatsapp } });
-    expect(adapters.whatsapp).toBe(whatsapp);
+    const email = new FakeEmailSender();
+    const adapters = createAdapters({ appEnv: "test", overrides: { email } });
+    expect(adapters.email).toBe(email);
   });
 });

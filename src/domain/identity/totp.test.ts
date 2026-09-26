@@ -3,7 +3,7 @@ import { createAuditLog } from "@/domain/audit";
 import { FakeEmailSender, FakeFileStore } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, identityOnTestDatabase, logInByOtp, TEST_AUTH_SECRET } from "../../../tests/support/identity";
+import { actorOf, emailCodeTo, identityOnTestDatabase, logIn, nextTestIp, TEST_AUTH_SECRET } from "../../../tests/support/identity";
 import { authenticatorCode } from "../../../tests/support/totp";
 import { createIdentity } from "./index";
 
@@ -11,17 +11,17 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-const ADMIN = "081111111111";
+const ADMIN = "admin@makam.co.id";
 
-async function adminPlatformAfterOtp() {
+async function adminPlatformAfterKodeMasuk() {
   const setup = identityOnTestDatabase(db);
-  await setup.identity.seedFirstAdminPlatform({ phoneNumber: ADMIN, email: "admin@makam.co.id" });
-  const { login, cookies } = await logInByOtp(setup.identity, setup.whatsapp, ADMIN);
+  await setup.identity.seedFirstAdminPlatform({ email: ADMIN, phoneNumber: "081111111111" });
+  const { login, cookies } = await logIn(setup, ADMIN);
   return { ...setup, login, cookies };
 }
 
 async function enrolled() {
-  const setup = await adminPlatformAfterOtp();
+  const setup = await adminPlatformAfterKodeMasuk();
   const enrolment = await setup.identity.startTotpEnrolment(await actorOf(setup.identity, setup.cookies));
   if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
   const passed = await setup.identity.passTotp(await actorOf(setup.identity, setup.cookies), authenticatorCode(enrolment.secret, setup.clock.now()));
@@ -29,15 +29,15 @@ async function enrolled() {
   return { ...setup, secret: enrolment.secret };
 }
 
-describe("Admin Platform TOTP on top of the OTP", () => {
-  it("after the OTP an Admin Platform with no authenticator must enrol TOTP first", async () => {
-    const { identity, cookies } = await adminPlatformAfterOtp();
+describe("Admin Platform TOTP on top of the Kode Masuk", () => {
+  it("an Admin Platform still passes TOTP after a Kode Masuk: with no authenticator it must enrol first", async () => {
+    const { identity, cookies } = await adminPlatformAfterKodeMasuk();
 
     expect(await identity.actorFromCookies(cookies)).toMatchObject({ totp: "perlu_daftar" });
   });
 
   it("enrolment gives a secret for the authenticator; its current code passes TOTP for this session", async () => {
-    const { identity, clock, cookies } = await adminPlatformAfterOtp();
+    const { identity, clock, cookies } = await adminPlatformAfterKodeMasuk();
 
     const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
     expect(enrolment).toMatchObject({ ok: true, secret: expect.stringMatching(/^[A-Z2-7]{32}$/) });
@@ -68,7 +68,7 @@ describe("Admin Platform TOTP on top of the OTP", () => {
   });
 
   it("a wrong code does not pass TOTP", async () => {
-    const { identity, clock, cookies } = await adminPlatformAfterOtp();
+    const { identity, clock, cookies } = await adminPlatformAfterKodeMasuk();
     const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
     if (!enrolment.ok) throw new Error("enrolment refused");
     const right = authenticatorCode(enrolment.secret, clock.now());
@@ -80,11 +80,12 @@ describe("Admin Platform TOTP on top of the OTP", () => {
     expect(await identity.actorFromCookies(cookies)).toMatchObject({ totp: "perlu_daftar" });
   });
 
-  it("every new OTP login of an enrolled Admin Platform needs TOTP again", async () => {
-    const { identity, whatsapp, clock, secret } = await enrolled();
+  it("every new Kode Masuk login of an enrolled Admin Platform needs TOTP again", async () => {
+    const setup = await enrolled();
+    const { identity, clock, secret } = setup;
     clock.advance({ hours: 1 });
 
-    const again = await logInByOtp(identity, whatsapp, ADMIN);
+    const again = await logIn(setup, ADMIN);
     expect(await identity.actorFromCookies(again.cookies)).toMatchObject({ totp: "perlu_verifikasi" });
 
     expect(await identity.passTotp(await actorOf(identity, again.cookies), authenticatorCode(secret, clock.now()))).toEqual({ ok: true });
@@ -98,38 +99,41 @@ describe("Admin Platform TOTP on top of the OTP", () => {
   });
 
   it("accepts the code of the 30 s step before or after the Clock's, not two steps away", async () => {
-    const { identity, whatsapp, clock, secret } = await enrolled();
+    const setup = await enrolled();
+    const { identity, clock, secret } = setup;
     clock.advance({ hours: 1 });
     const now = clock.now();
     const at = (seconds: number) => new Date(now.getTime() + seconds * 1000);
 
-    const first = await logInByOtp(identity, whatsapp, ADMIN);
+    const first = await logIn(setup, ADMIN);
     expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(-60)))).toMatchObject({ ok: false });
     expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(60)))).toMatchObject({ ok: false });
     expect(await identity.passTotp(await actorOf(identity, first.cookies), authenticatorCode(secret, at(-30)))).toEqual({ ok: true });
 
     clock.advance({ minutes: 2 });
-    const second = await logInByOtp(identity, whatsapp, ADMIN);
+    const second = await logIn(setup, ADMIN);
     expect(await identity.passTotp(await actorOf(identity, second.cookies), authenticatorCode(secret, at(150)))).toEqual({ ok: true });
   });
 
   it("a TOTP code that was used once is refused the second time", async () => {
-    const { identity, whatsapp, clock, secret } = await enrolled();
+    const setup = await enrolled();
+    const { identity, clock, secret } = setup;
     clock.advance({ hours: 1 });
     // The code of the next 30 s step: still inside the window one minute from now.
     const code = authenticatorCode(secret, new Date(clock.now().getTime() + 30_000));
-    const first = await logInByOtp(identity, whatsapp, ADMIN);
+    const first = await logIn(setup, ADMIN);
     expect(await identity.passTotp(await actorOf(identity, first.cookies), code)).toEqual({ ok: true });
 
     clock.advance({ minutes: 1 });
-    const second = await logInByOtp(identity, whatsapp, ADMIN);
+    const second = await logIn(setup, ADMIN);
     expect(await identity.passTotp(await actorOf(identity, second.cookies), code)).toEqual({ ok: false, reason: "kode_sudah_dipakai" });
   });
 
-  it("5 wrong TOTP codes end the session: the Admin Platform must log in by OTP again", async () => {
-    const { identity, whatsapp, clock, secret } = await enrolled();
+  it("5 wrong TOTP codes end the session: the Admin Platform must log in with a Kode Masuk again", async () => {
+    const setup = await enrolled();
+    const { identity, clock, secret } = setup;
     clock.advance({ hours: 1 });
-    const { cookies } = await logInByOtp(identity, whatsapp, ADMIN);
+    const { cookies } = await logIn(setup, ADMIN);
     const right = authenticatorCode(secret, clock.now());
     const wrong = right === "000000" ? "111111" : "000000";
 
@@ -141,12 +145,12 @@ describe("Admin Platform TOTP on top of the OTP", () => {
   });
 
   it("the TOTP secret is sealed with TOTP_ENCRYPTION_KEY: under another key it cannot be used", async () => {
-    const { clock, whatsapp, secret } = await enrolled();
+    const { clock, secret } = await enrolled();
+    const email = new FakeEmailSender();
     const otherKey = createIdentity({
       db,
       clock,
-      whatsapp,
-      email: new FakeEmailSender(),
+      email,
       files: new FakeFileStore({ clock }),
       audit: createAuditLog({ db, clock }),
       secret: TEST_AUTH_SECRET,
@@ -154,7 +158,10 @@ describe("Admin Platform TOTP on top of the OTP", () => {
       baseURL: "http://localhost:3000",
     });
     clock.advance({ hours: 1 });
-    const { cookies } = await logInByOtp(otherKey, whatsapp, ADMIN);
+    await otherKey.requestKodeMasuk({ email: ADMIN, ip: nextTestIp() });
+    const login = await otherKey.verifyKodeMasuk({ email: ADMIN, code: emailCodeTo(email, ADMIN) });
+    if (!login.ok) throw new Error(login.reason);
+    const cookies = login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
 
     await expect(otherKey.passTotp(await actorOf(otherKey, cookies), authenticatorCode(secret, clock.now()))).rejects.toThrow();
   });
@@ -172,7 +179,7 @@ describe("Admin Platform session", () => {
   });
 
   it("the session cookie is kept by the browser for the same 12 h", async () => {
-    const { login } = await adminPlatformAfterOtp();
+    const { login } = await adminPlatformAfterKodeMasuk();
     const sessionCookie = login.session.cookies.find((cookie) => cookie.name === "makam.session_token");
     expect(sessionCookie?.maxAge).toBe(12 * 60 * 60);
   });

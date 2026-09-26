@@ -13,10 +13,10 @@ import {
   type Role,
 } from "./index";
 
-const pemesan: Actor = { accountId: "akun-1", phoneNumber: "+6281234567890", roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-1" };
+const pemesan: Actor = { accountId: "akun-1", email: "sari@contoh.id", phoneNumber: "+6281234567890", roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-1" };
 
 function staff(roles: Role[], totp: Actor["totp"] = "tidak_perlu"): Actor {
-  return { accountId: "akun-staf", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], lokasiIds: [], totp, sessionId: "sesi-staf" };
+  return { accountId: "akun-staf", email: "staf@makam.co.id", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], lokasiIds: [], totp, sessionId: "sesi-staf" };
 }
 
 const adminPlatform = staff(["admin_platform"], "lolos");
@@ -72,8 +72,8 @@ describe("who may read the Audit Log", () => {
 });
 
 describe("staff access", () => {
-  it("only Admin Platform may invite staff, deactivate an Akun Staf or move an Akun to a new number", () => {
-    for (const action of ["staf.undang", "staf.nonaktifkan", "akun.pindah_nomor"] as const) {
+  it("only Admin Platform may invite staff, deactivate an Akun Staf or do a Pemulihan Akun", () => {
+    for (const action of ["staf.undang", "staf.nonaktifkan", "akun.pemulihan"] as const) {
       expect(authorize(adminPlatform, action, stafResource())).toEqual({ allowed: true });
       for (const role of ["admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const) {
         expect(authorize(staff([role]), action, stafResource())).toEqual({ allowed: false, reason: "tidak_berwenang" });

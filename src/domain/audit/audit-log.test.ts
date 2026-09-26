@@ -11,7 +11,7 @@ beforeEach(resetDatabase);
 
 const pindahNomor = (phoneNumber: string): NewAuditEntry => ({
   actor: { accountId: "akun-admin", role: "admin_platform" },
-  action: "akun.pindah_nomor",
+  action: "akun.pemulihan",
   entity: { kind: "akun", id: "akun-pemesan" },
   before: null,
   after: { phoneNumber },
@@ -26,7 +26,7 @@ describe("Audit Log", () => {
     await audit.staffWrite(db, async (_tx, record) => {
       await record({
         actor: { accountId: "akun-admin", role: "admin_platform" },
-        action: "akun.pindah_nomor",
+        action: "akun.pemulihan",
         entity: { kind: "akun", id: "akun-pemesan" },
         before: { phoneNumber: "+6281111111111" },
         after: { phoneNumber: "+6282222222222" },
@@ -40,7 +40,7 @@ describe("Audit Log", () => {
         id: expect.any(String),
         at: wib("2026-10-01 09:00"),
         actor: { accountId: "akun-admin", role: "admin_platform" },
-        action: "akun.pindah_nomor",
+        action: "akun.pemulihan",
         entity: { kind: "akun", id: "akun-pemesan" },
         // Not about a Lokasi Mitra.
         lokasiId: null,
@@ -134,7 +134,7 @@ describe("the Audit Log of one Lokasi Mitra (the Admin Lokasi view)", () => {
       entry("catatan_internal.tulis", LOKASI, "catatan internal"),
       entry("lokasi.ubah_rekening", LOKASI, "rekening"),
       entry("antrean.ambil", LOKASI, "klaim Antrean"),
-      entry("akun.pindah_nomor", null, "bukan tentang Lokasi"),
+      entry("akun.pemulihan", null, "bukan tentang Lokasi"),
     ]) {
       await audit.staffWrite(db, async (_tx, record) => {
         await record(next);

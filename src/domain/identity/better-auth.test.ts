@@ -22,7 +22,6 @@ function setup() {
     clock,
     secret: "test-secret-for-identity-tests-0123456789abcdef",
     baseURL: "http://localhost:3000",
-    consumeLoginProof: () => false,
   });
   return { clock, auth };
 }

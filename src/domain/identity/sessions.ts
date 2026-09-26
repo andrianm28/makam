@@ -1,4 +1,4 @@
-import { getSessionCookie, parseSetCookieHeader } from "better-auth/cookies";
+import { getSessionCookie } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
 import { and, eq, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
@@ -9,7 +9,7 @@ import { identitySession, identityUser } from "./schema";
 import { adminLokasiIdsOf, rolesOf } from "./staff";
 import { totpStatus } from "./totp";
 
-/** A cookie the web layer must set on the response, as Better Auth wrote it. */
+/** A cookie the web layer must set on the response: Better Auth's signed session cookie. */
 export interface SessionCookie {
   name: string;
   value: string;
@@ -20,34 +20,6 @@ export interface SessionCookie {
   httpOnly?: boolean;
   secure?: boolean;
   sameSite?: "lax" | "strict" | "none";
-}
-
-/** The stored session (with its user) behind a session token, or null. */
-export async function findSession(auth: MakamAuth, token: string) {
-  const context = await auth.$context;
-  return context.internalAdapter.findSession(token);
-}
-
-/** Turns Better Auth's Set-Cookie headers into cookies the web layer can set. */
-export function sessionCookiesFrom(headers: Headers): SessionCookie[] {
-  const cookies: SessionCookie[] = [];
-  for (const header of headers.getSetCookie()) {
-    for (const [name, attributes] of parseSetCookieHeader(header)) {
-      const sameSite = attributes.samesite?.toLowerCase();
-      cookies.push({
-        name,
-        value: attributes.value,
-        maxAge: attributes["max-age"],
-        expires: attributes.expires,
-        path: attributes.path,
-        domain: attributes.domain,
-        httpOnly: attributes.httponly,
-        secure: attributes.secure,
-        sameSite: sameSite === "lax" || sameSite === "strict" || sameSite === "none" ? sameSite : undefined,
-      });
-    }
-  }
-  return cookies;
 }
 
 /**
@@ -65,6 +37,7 @@ export async function actorFromCookies(
   const totp = await totpStatus(deps.db, session);
   return {
     accountId: session.accountId,
+    email: session.email,
     phoneNumber: session.phoneNumber,
     roles: session.roles,
     lokasiIds: session.roles.includes("admin_lokasi") ? await adminLokasiIdsOf(deps.db, session.accountId) : [],
@@ -78,7 +51,9 @@ export interface ActiveSession {
   id: string;
   token: string;
   accountId: string;
-  phoneNumber: string;
+  /** The Akun's Email Terverifikasi. */
+  email: string;
+  phoneNumber: string | null;
   roles: Role[];
   createdAt: Date;
   expiresAt: Date;
@@ -116,16 +91,63 @@ async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | un
       createdAt: identitySession.createdAt,
       expiresAt: identitySession.expiresAt,
       totpPassedAt: identitySession.totpPassedAt,
+      email: identityUser.contactEmail,
+      emailVerifiedAt: identityUser.emailVerifiedAt,
       phoneNumber: identityUser.phoneNumber,
     })
     .from(identitySession)
     .innerJoin(identityUser, eq(identityUser.id, identitySession.userId))
     .where(where);
-  if (!row?.phoneNumber) return null;
+  // An Akun without an Email Terverifikasi (from before ADR 0004) cannot log in until a Pemulihan Akun.
+  if (!row?.email || !row.emailVerifiedAt) return null;
   if (row.expiresAt.getTime() <= deps.clock.now().getTime()) return null;
 
   const roles = await rolesOf(deps.db, row.accountId);
-  return { ...row, phoneNumber: row.phoneNumber, roles };
+  return {
+    id: row.id,
+    token: row.token,
+    accountId: row.accountId,
+    email: row.email,
+    phoneNumber: row.phoneNumber,
+    roles,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    totpPassedAt: row.totpPassedAt,
+  };
+}
+
+/**
+ * Starts a session for the Akun, lasting `lengthMs` from the Clock: Better
+ * Auth's internal adapter stores it, and the cookie is signed as Better Auth
+ * signs its own session cookie (so `endSession` and `actorFromCookies` read it).
+ */
+export async function startSession(
+  deps: { auth: MakamAuth; db: Database; secret: string },
+  accountId: string,
+  lengthMs: number,
+): Promise<{ token: string; expiresAt: Date; cookies: SessionCookie[] }> {
+  const context = await deps.auth.$context;
+  const created = await context.internalAdapter.createSession(accountId);
+  if (!created) throw new Error("Better Auth stored no session");
+  const expiresAt = new Date(created.createdAt.getTime() + lengthMs);
+  await deps.db.update(identitySession).set({ expiresAt }).where(eq(identitySession.token, created.token));
+  const { name, attributes } = context.authCookies.sessionToken;
+  const cookie: SessionCookie = {
+    name,
+    value: `${created.token}.${await makeSignature(created.token, deps.secret)}`,
+    maxAge: lengthMs / 1000,
+    path: attributes.path,
+    domain: attributes.domain,
+    httpOnly: attributes.httpOnly,
+    secure: attributes.secure,
+    sameSite: sameSiteOf(attributes.sameSite),
+  };
+  return { token: created.token, expiresAt, cookies: [cookie] };
+}
+
+function sameSiteOf(value: unknown): SessionCookie["sameSite"] {
+  const lower = typeof value === "string" ? value.toLowerCase() : undefined;
+  return lower === "lax" || lower === "strict" || lower === "none" ? lower : undefined;
 }
 
 /** The session token from a signed `makam.session_token` cookie, if the signature holds. */

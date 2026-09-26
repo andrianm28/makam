@@ -13,7 +13,10 @@ import { staffRoles } from "./authorize";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
-/** One account per WhatsApp number (ADR 0003). Better Auth model `user`. */
+/**
+ * One Akun per Email Terverifikasi (ADR 0004, superseding ADR 0003's phone
+ * number key). Better Auth model `user`.
+ */
 export const identityUser = pgTable(
   "identity_user",
   {
@@ -21,29 +24,34 @@ export const identityUser = pgTable(
     /** The name as recorded; empty until a wizard or the Akun Saya profile sets it. */
     name: text("name").notNull(),
     /**
-     * Better Auth requires a unique email on every user. The account has none of
-     * its own at login, so this holds an undeliverable placeholder derived from
-     * the number (`6281…@wa.makam.invalid`). It is never shown and never mailed;
-     * the optional real email (Akun Saya profile, Undangan Staf) gets its own column.
+     * Better Auth requires a unique email on every user. This holds an
+     * undeliverable placeholder (`<id>@akun.makam.invalid`; before ADR 0004,
+     * `6281…@wa.makam.invalid`), never shown and never mailed. The Akun's key
+     * is `email` below.
      */
     email: text("placeholder_email").notNull().unique(),
     emailVerified: boolean("placeholder_email_verified").notNull().default(false),
     image: text("image"),
-    /** Canonical E.164, e.g. +6281234567890. */
-    phoneNumber: text("phone_number").unique(),
+    /**
+     * The phone number: a contact only (canonical E.164, +62), never verified
+     * and never used to log in (ADR 0004), so several Akun may give the same
+     * number. Asked for wherever the Akun is used (a wizard's Data & kirim,
+     * Akun Saya) and never removed; empty only on an Akun a Kode Masuk has just
+     * created on Masuk.
+     */
+    phoneNumber: text("phone_number"),
+    /** Unused since ADR 0004 (Better Auth's phone-number flag); dropped in a later contract step. */
     phoneNumberVerified: boolean("phone_number_verified"),
     /**
-     * The account's real email (lower-cased), unlike `placeholder_email`.
-     * Required for every Akun Staf (set by the seed or the accepted Undangan
-     * Staf); optional for a Pemesan (Akun Saya profile). Typed in, it is not
-     * verified: only an Email Terverifikasi (`email_verified_at` set) receives a
-     * Kode Masuk (email login and the "Kirim lewat email" fallback, ticket 67).
+     * The Akun's key: its Email Terverifikasi (lower-cased) while
+     * `email_verified_at` is set. A Kode Masuk logs into the Akun whose Email
+     * Terverifikasi it was sent to, and creates the Akun when there is none.
+     * An Akun from before ADR 0004 may hold an email that was only typed in
+     * (`email_verified_at` null): that email is no key, and the Akun cannot log
+     * in until an Admin Platform does a Pemulihan Akun.
      */
     contactEmail: text("email"),
-    /**
-     * When a code sent to `email` was entered (Verifikasi Email), from the
-     * Clock. Null while the email is only typed in; cleared whenever the email changes.
-     */
+    /** When a code sent to `email` was entered (a Kode Masuk or Verifikasi Email), from the Clock. */
     emailVerifiedAt: at("email_verified_at"),
     /**
      * Set when Admin Platform deactivates the Akun Staf (its staff roles are revoked; it still logs in as a
@@ -54,8 +62,8 @@ export const identityUser = pgTable(
     updatedAt: at("updated_at").notNull(),
   },
   (table) => [
-    // A verified email belongs to at most one Akun, whatever its case (enforced here, not only in code;
-    // the module also stores emails lower-cased).
+    // An Email Terverifikasi is the key of exactly one Akun, whatever its case (enforced here, not only
+    // in code; the module also stores emails lower-cased).
     uniqueIndex("identity_user_verified_email_idx")
       .on(sql`lower(${table.contactEmail})`)
       .where(sql`email_verified_at is not null`),
@@ -97,15 +105,18 @@ export const identityAdminLokasi = pgTable(
 );
 
 /**
- * One Undangan Staf: a staff role offered to a WhatsApp number and email by an
- * Admin Platform. Single-use: the next OTP login of that number before
- * `expiresAt` accepts it and grants the role.
+ * One Undangan Staf: a staff role offered to an email (with a phone number as
+ * contact) by an Admin Platform. Single-use: the next Kode Masuk login of the
+ * Akun whose Email Terverifikasi is that email, before `expiresAt`, accepts it
+ * and grants the role.
  */
 export const identityStaffInvite = pgTable(
   "identity_staff_invite",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** The invitee's phone number: a contact only. */
     phoneNumber: text("phone_number").notNull(),
+    /** Who may accept it (lower-cased): the Akun whose Email Terverifikasi this is. */
     email: text("email").notNull(),
     role: text("role", { enum: staffRoles }).notNull(),
     /**
@@ -119,7 +130,7 @@ export const identityStaffInvite = pgTable(
     acceptedAt: at("accepted_at"),
     acceptedAccountId: text("accepted_account_id"),
   },
-  (table) => [index("identity_staff_invite_phone_idx").on(table.phoneNumber, table.expiresAt)],
+  (table) => [index("identity_staff_invite_email_idx").on(table.email, table.expiresAt)],
 );
 
 /** Better Auth model `session`. Expiry is read against the Clock. */
@@ -144,7 +155,7 @@ export const identitySession = pgTable(
   (table) => [index("identity_session_user_idx").on(table.userId)],
 );
 
-/** Better Auth model `account` (login providers). Unused by WhatsApp OTP; kept because Better Auth expects it. */
+/** Better Auth model `account` (login providers). Unused by the Kode Masuk; kept because Better Auth expects it. */
 export const identityAuthAccount = pgTable(
   "identity_auth_account",
   {
@@ -181,26 +192,28 @@ export const identityVerification = pgTable(
   (table) => [index("identity_verification_identifier_idx").on(table.identifier)],
 );
 
-export const otpChannels = ["whatsapp", "email"] as const;
+/** Every code goes by email since ADR 0004; the column goes in a later contract step. */
+export const otpChannels = ["email"] as const;
 export const otpPurposes = ["masuk", "verifikasi_email"] as const;
 
 /**
- * One row per code sent: a Kode Masuk to a WhatsApp number or to an Email
- * Terverifikasi, or a Verifikasi Email code. Both channels share the code rules
- * (./otp.ts). Only an HMAC of the code is kept. Every time in it comes from the Clock.
+ * One row per code sent: a Kode Masuk or a Verifikasi Email code, both to an
+ * email, under the shared code rules (./otp.ts). Only an HMAC of the code is
+ * kept. Every time in it comes from the Clock.
  */
 export const identityOtpRequest = pgTable(
   "identity_otp_request",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     channel: text("channel", { enum: otpChannels }).notNull(),
-    /** Where the code went: the canonical E.164 number, or the lower-cased email. */
+    /** Where the code went: the lower-cased email. */
     target: text("target").notNull(),
     purpose: text("purpose", { enum: otpPurposes }).notNull(),
     /**
      * Whose wrong codes this row counts toward, and whom its lockout locks:
-     * `akun:<id>` for an existing Akun (across channels), `wa:<number>` for a
-     * number with no Akun yet.
+     * `email:<address>` for a Kode Masuk (the email is the Akun's key, so this
+     * is the Akun's lockout, and an email with no Akun yet locks the same way);
+     * `akun:<id>` for a Verifikasi Email code of a signed-in Akun.
      */
     lockKey: text("lock_key").notNull(),
     codeHash: text("code_hash").notNull(),
@@ -220,9 +233,8 @@ export const identityOtpRequest = pgTable(
 );
 
 /**
- * One row per request for an emailed code from one IP (Masuk dengan email,
- * "Kirim lewat email", Verifikasi Email), whether or not a code went out, so
- * the per-IP limits say nothing about the email typed. Keeps no email.
+ * One row per request for an emailed code from one IP (a Kode Masuk, a
+ * Verifikasi Email code), whether or not a code went out. Keeps no email.
  */
 export const identityIpRequest = pgTable(
   "identity_ip_request",

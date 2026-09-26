@@ -1,6 +1,5 @@
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { phoneNumber } from "better-auth/plugins";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import {
@@ -32,11 +31,6 @@ export interface BetterAuthDeps {
   clock: Clock;
   secret: string;
   baseURL: string;
-  /**
-   * True once for a login proof the identity module issued for this number
-   * after it checked a Kode Masuk itself (./login.ts); false for anything else.
-   */
-  consumeLoginProof(phoneNumber: string, proof: string): boolean;
 }
 
 /**
@@ -51,13 +45,13 @@ export interface BetterAuthDeps {
  *   expiresAt with the system time): the module reads them itself and checks
  *   expiry against the Clock (see ./sessions.ts).
  *
- * Kode Masuk (WhatsApp and email) are generated, sent, rate-limited and
- * checked by the module (./otp.ts) against the Clock. Only then does the module
- * hand Better Auth's phone-number plugin a one-time login proof for the Akun's
- * number, which the plugin turns into a user (created on a first WhatsApp
- * login) and a session. Better Auth's own
- * rate limiter is off: it counts in memory by system time, and Server Actions
- * call `auth.api` directly, which it never sees. Its HTTP handler is not mounted.
+ * The Kode Masuk is generated, sent, rate-limited and checked by the module
+ * (./otp.ts) against the Clock, and the module creates the Akun itself
+ * (./kode-masuk.ts). Only then does Better Auth's internal adapter create the
+ * session (./sessions.ts), whose cookie the module signs as Better Auth's own
+ * session cookie. No Better Auth plugin or endpoint logs anyone in: its HTTP
+ * handler is not mounted, and its own rate limiter is off (it counts in memory
+ * by system time).
  */
 export function createBetterAuth(deps: BetterAuthDeps) {
   const stampCreated = <T extends object>(row: T) => {
@@ -115,18 +109,6 @@ export function createBetterAuth(deps: BetterAuthDeps) {
         update: { before: async (verification) => ({ data: stampUpdated(verification) }) },
       },
     },
-    plugins: [
-      phoneNumber({
-        sendOTP: () => {
-          throw new Error("Login OTPs are sent by the identity module (requestOtp), not by Better Auth.");
-        },
-        verifyOTP: async ({ phoneNumber: number, code }) => deps.consumeLoginProof(number, code),
-        signUpOnVerification: {
-          getTempEmail: (number) => `${number.replace(/^\+/, "")}@wa.makam.invalid`,
-          getTempName: () => "",
-        },
-      }),
-    ],
   });
 }
 

@@ -13,7 +13,6 @@ export type { FileStore } from "./file-store";
 export type { PaymentProvider } from "./payment-provider";
 export type { PdfRenderer } from "./pdf-renderer";
 export type { WebPush } from "./web-push";
-export type { WhatsAppSender } from "./whatsapp-sender";
 
 import type { Clock } from "./clock";
 import type { EmailSender } from "./email-sender";
@@ -21,13 +20,11 @@ import type { FileStore } from "./file-store";
 import type { PaymentProvider } from "./payment-provider";
 import type { PdfRenderer } from "./pdf-renderer";
 import type { WebPush } from "./web-push";
-import type { WhatsAppSender } from "./whatsapp-sender";
 
 /** Everything a domain module may need from the outside world. */
 export interface Adapters {
   clock: Clock;
   payments: PaymentProvider;
-  whatsapp: WhatsAppSender;
   email: EmailSender;
   webPush: WebPush;
   files: FileStore;

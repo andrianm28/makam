@@ -8,14 +8,15 @@ import { verifikasiEmailMessage } from "./email-templates";
 import { normaliseEmail } from "./email-address";
 import { akunLockKey } from "./lock-key";
 import { checkCode, claimIpRequest, issueCode, type CodeRejection, type LimitRefusal } from "./otp";
+import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
 import { identityUser } from "./schema";
 
 /*
- * The Akun's own email (Akun Saya, and the staff area for an Akun Staf). It is
- * added or changed only through Verifikasi Email, so the Akun's email is its
- * Email Terverifikasi unless an Undangan Staf or the seed set it (unverified).
- * A Pemesan may remove it; an Akun Staf may not (decision, 2026-09-25). For an
- * Akun Staf a verification is a staff write with an Entri Audit; a Pemesan's
+ * The Akun's own email and phone number (Akun Saya, and the staff area for an
+ * Akun Staf). The email is the Akun's key, its Email Terverifikasi (ADR 0004):
+ * it changes only through Verifikasi Email and is never removed. The phone
+ * number is a contact the Akun edits freely (validated, never verified). For
+ * an Akun Staf each change is a staff write with an Entri Audit; a Pemesan's
  * records none.
  */
 
@@ -27,35 +28,51 @@ export interface EmailDeps {
   secret: string;
 }
 
-/** The Akun's email as Akun Saya and the staff area show it. */
-export interface AccountEmail {
-  email: string | null;
-  /** True when `email` is the Akun's Email Terverifikasi. */
-  verified: boolean;
-}
+export type UpdatePhoneNumberResult = { ok: true; phoneNumber: string } | PhoneNumberRejection | WriteRefusal;
 
-export async function accountEmail(deps: { db: Database }, by: Actor): Promise<AccountEmail> {
-  const [row] = await deps.db
-    .select({ email: identityUser.contactEmail, verifiedAt: identityUser.emailVerifiedAt })
-    .from(identityUser)
-    .where(eq(identityUser.id, by.accountId));
-  return { email: row?.email ?? null, verified: Boolean(row?.email && row.verifiedAt) };
-}
-
-
-export type RemoveEmailResult = { ok: true } | { ok: false; reason: "email_wajib" } | WriteRefusal;
-
-/** Removes the Akun's email and its verified mark. An Akun Staf must keep one. */
-export async function removeEmail(deps: EmailDeps, by: Actor): Promise<RemoveEmailResult> {
-  const refusal = writeRefusal(by, "akun.email", akunResource(by.accountId));
+/**
+ * Akun Saya: the Akun records a new phone number as its contact (+62,
+ * normalised). It is never verified and never logs anyone in; it can be
+ * changed but not removed.
+ */
+export async function updatePhoneNumber(
+  deps: { db: Database; clock: Clock; audit: AuditLog },
+  by: Actor,
+  input: { phoneNumber: string },
+): Promise<UpdatePhoneNumberResult> {
+  const refusal = writeRefusal(by, "akun.telepon", akunResource(by.accountId));
   if (refusal) return refusal;
-  if (by.roles.some((role) => role !== "pemesan")) return { ok: false, reason: "email_wajib" };
+  const normalised = normalisePhoneNumber(input.phoneNumber);
+  if (!normalised.ok) return normalised;
+  const { phoneNumber } = normalised;
   const now = deps.clock.now();
-  await deps.db
-    .update(identityUser)
-    .set({ contactEmail: null, emailVerifiedAt: null, updatedAt: now })
-    .where(eq(identityUser.id, by.accountId));
-  return { ok: true };
+
+  const write = async (tx: Database) => {
+    const [row] = await tx
+      .select({ phoneNumber: identityUser.phoneNumber })
+      .from(identityUser)
+      .where(eq(identityUser.id, by.accountId))
+      .for("update");
+    await tx.update(identityUser).set({ phoneNumber, updatedAt: now }).where(eq(identityUser.id, by.accountId));
+    return row?.phoneNumber ?? null;
+  };
+  const staffRole = staffRoles.find((role) => by.roles.includes(role));
+  if (!staffRole) {
+    await deps.db.transaction(write);
+    return { ok: true, phoneNumber };
+  }
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const before = await write(tx);
+    await record({
+      actor: { accountId: by.accountId, role: staffRole },
+      action: "akun.ubah_telepon",
+      entity: { kind: "akun", id: by.accountId },
+      before: { phoneNumber: before },
+      after: { phoneNumber },
+      reason: null,
+    });
+    return { ok: true, phoneNumber } as const;
+  });
 }
 
 export type RequestEmailVerificationResult =
@@ -83,7 +100,7 @@ export async function requestEmailVerification(
 
   const issued = await issueCode(
     deps,
-    { channel: "email", target: email, purpose: "verifikasi_email", lockKey: akunLockKey(by.accountId) },
+    { target: email, purpose: "verifikasi_email", lockKey: akunLockKey(by.accountId) },
     (code) => deps.email.send({ to: email, ...verifikasiEmailMessage(code) }),
   );
   if (!issued.ok) return issued.reason === "gagal_kirim" ? { ok: false, reason: "gagal_kirim" } : issued;
@@ -183,26 +200,29 @@ export async function verifiedEmailTakenAsRefusal<T>(
 
 /**
  * Inside a staff write, with the Akun's row already locked by the caller: makes
- * the Akun's email on record its Email Terverifikasi and records
- * `akun.email_verifikasi` (before/after `terverifikasi`, the reason; never a
- * code). The caller has checked the email is not yet verified. Used by
- * `verify-email` (ops_cli) and by `seed:admin --email-terverifikasi` (seed_cli).
+ * the Akun's email on record (`email`, normalised) its Email Terverifikasi and
+ * records `akun.email_verifikasi` by `ops_cli` (before/after `terverifikasi`,
+ * the reason; never a code). The caller has checked the email is not yet
+ * verified. Used only by `verify-email`.
  */
 export async function markEmailOnRecordVerified(
   tx: Database,
   record: RecordEntry,
   clock: Clock,
-  input: { accountId: string; actorRole: "ops_cli" | "seed_cli"; reason: string },
+  input: { accountId: string; email: string; reason: string },
 ): Promise<void> {
   const now = clock.now();
-  await tx.update(identityUser).set({ emailVerifiedAt: now, updatedAt: now }).where(eq(identityUser.id, input.accountId));
+  await tx
+    .update(identityUser)
+    .set({ contactEmail: input.email, emailVerifiedAt: now, updatedAt: now })
+    .where(eq(identityUser.id, input.accountId));
   await record({
     // No one is signed in: the entry names the Akun, acting as the CLI.
-    actor: { accountId: input.accountId, role: input.actorRole },
+    actor: { accountId: input.accountId, role: "ops_cli" },
     action: "akun.email_verifikasi",
     entity: { kind: "akun", id: input.accountId },
-    before: { terverifikasi: false },
-    after: { terverifikasi: true },
+    before: { email: input.email, terverifikasi: false },
+    after: { email: input.email, terverifikasi: true },
     reason: input.reason,
   });
 }
