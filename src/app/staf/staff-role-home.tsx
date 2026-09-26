@@ -28,6 +28,7 @@ const menus: Record<StaffRole, MenuItem[]> = {
       href: "/staf/admin-platform/tarif",
       description: "Biaya Layanan Platform, Biaya Pengurusan dan Retribusi Pemda, per versi dengan tanggal berlaku.",
     },
+    { label: "Hari Libur Nasional", href: "/staf/admin-platform/hari-libur", description: "Daftar hari libur untuk hari kerja Admin Platform." },
   ],
   admin_lokasi: [
     { label: "Antrean Lokasi", description: "Segera hadir." },

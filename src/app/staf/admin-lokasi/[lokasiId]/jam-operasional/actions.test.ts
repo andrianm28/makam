@@ -40,13 +40,13 @@ async function lokasiWithAdminLokasi() {
 
 const idle = { status: "idle" } as const;
 
-/** The Jam Operasional form as typed: Monday–Friday 08:00–16:00, Saturday 08:00–12:00, Sunday closed. */
+/** The Jam Operasional form as typed: Monday–Friday 08:00–16:00, Saturday 08:00–12:00, Sunday unticked (closed; its times are still sent). */
 function typedHours(lokasiId: string, closures = "") {
   const fields: Record<string, string> = { lokasiId, closures };
   for (const weekday of ["monday", "tuesday", "wednesday", "thursday", "friday"]) {
     Object.assign(fields, { [`${weekday}Open`]: "ya", [`${weekday}Opens`]: "08:00", [`${weekday}Closes`]: "16:00" });
   }
-  Object.assign(fields, { saturdayOpen: "ya", saturdayOpens: "08:00", saturdayCloses: "12:00", sundayOpens: "", sundayCloses: "" });
+  Object.assign(fields, { saturdayOpen: "ya", saturdayOpens: "08:00", saturdayCloses: "12:00", sundayOpens: "08:00", sundayCloses: "16:00" });
   return fields;
 }
 

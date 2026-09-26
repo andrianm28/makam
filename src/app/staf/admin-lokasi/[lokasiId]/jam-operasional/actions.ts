@@ -71,37 +71,37 @@ const closureLines = z
     return closures;
   });
 
+/** One weekday's row of the form: ticked when open, with its opening and closing times. */
+const weekdayInput = z.object({ open: z.boolean(), opens: clockTime, closes: clockTime });
+
 const jamOperasionalSchema = z.object({
   lokasiId,
   closures: closureLines,
-  ...Object.fromEntries(
-    weekdays.flatMap((weekday) => [
-      [`${weekday}Open`, z.literal("ya").optional()],
-      [`${weekday}Opens`, clockTime],
-      [`${weekday}Closes`, clockTime],
-    ]),
-  ),
-}) as z.ZodType<{ lokasiId: string; closures: { date: string; note: string }[] } & Record<string, string | undefined>>;
+  weekly: z.record(z.enum(weekdays), weekdayInput),
+});
 
 /** The Admin Lokasi (or Admin Platform) saves the Jam Operasional: weekly hours per weekday and dated closures. */
 export async function simpanJamOperasional(_previous: FormState, formData: FormData): Promise<FormState> {
-  const fields = Object.fromEntries(
-    weekdays.flatMap((weekday) => [
-      [`${weekday}Open`, formData.get(`${weekday}Open`) ?? undefined],
-      [`${weekday}Opens`, formData.get(`${weekday}Opens`) ?? ""],
-      [`${weekday}Closes`, formData.get(`${weekday}Closes`) ?? ""],
+  const weekly = Object.fromEntries(
+    weekdays.map((weekday) => [
+      weekday,
+      {
+        open: formData.get(`${weekday}Open`) === "ya",
+        opens: formData.get(`${weekday}Opens`) ?? "",
+        closes: formData.get(`${weekday}Closes`) ?? "",
+      },
     ]),
   );
   return operasionalWrite({
     schema: jamOperasionalSchema,
-    input: { ...fields, lokasiId: formData.get("lokasiId"), closures: formData.get("closures") ?? "" },
+    input: { lokasiId: formData.get("lokasiId"), closures: formData.get("closures") ?? "", weekly },
     run: (actor, data) =>
       serverRuntime().lokasi.setJamOperasional(actor, data.lokasiId, {
         weekly: Object.fromEntries(
-          weekdays.map((weekday) => [
-            weekday,
-            data[`${weekday}Open`] === "ya" ? { opens: data[`${weekday}Opens`] ?? "", closes: data[`${weekday}Closes`] ?? "" } : null,
-          ]),
+          weekdays.map((weekday) => {
+            const day = data.weekly[weekday];
+            return [weekday, day.open ? { opens: day.opens, closes: day.closes } : null];
+          }),
         ) as JamOperasional["weekly"],
         closures: data.closures,
       }),
