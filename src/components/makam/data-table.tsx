@@ -63,7 +63,8 @@ export function DataTable<TData extends RowData>({
   filter,
   rowActions,
   pageSize = 8,
-  density = "comfortable",
+  density: initialDensity = "comfortable",
+  densityToggle = false,
   empty,
   caption,
 }: {
@@ -74,10 +75,13 @@ export function DataTable<TData extends RowData>({
   rowActions?: (row: TData) => RowAction<TData>[];
   pageSize?: number;
   density?: Density;
+  /** Offer the Nyaman / Rapat switch. Only for dense admin tables. */
+  densityToggle?: boolean;
   /** Shown when there are no rows at all (not when a search finds none). */
   empty?: React.ReactNode;
   caption: string;
 }) {
+  const [density, setDensity] = useState<Density>(initialDensity);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize });
@@ -153,9 +157,10 @@ export function DataTable<TData extends RowData>({
             </SelectContent>
           </Select>
         ) : null}
+        {densityToggle ? <DensitySwitch value={density} onChange={setDensity} /> : null}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <caption className="sr-only">{caption}</caption>
           <TableHeader className="bg-subtle">
@@ -258,5 +263,31 @@ function RowActionsMenu<TData>({ row, actions }: { row: TData; actions: RowActio
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Comfortable by default; compact only where a table is dense. */
+function DensitySwitch({ value, onChange }: { value: Density; onChange: (value: Density) => void }) {
+  const options: { value: Density; label: string }[] = [
+    { value: "comfortable", label: "Nyaman" },
+    { value: "compact", label: "Rapat" },
+  ];
+  return (
+    <div role="group" aria-label="Kepadatan tabel" className="flex w-fit items-center gap-0.5 rounded-lg bg-muted p-0.5 sm:ml-auto">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "h-7 rounded-md px-3 text-small text-muted-foreground outline-none transition-colors duration-(--duration-fast) focus-visible:ring-3 focus-visible:ring-ring/50",
+            value === option.value && "bg-card font-medium text-foreground shadow-xs",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }

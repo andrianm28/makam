@@ -62,10 +62,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { StaffRole } from "@/domain/identity";
 import { lokasiAdminLokasi, lokasiById, lokasiMitra, peringatanStaf } from "../_mock/data";
-import { BrandMark } from "./brand-mark";
+import { BrandLogo, BrandMark } from "./brand-mark";
 import { BASE, catalogueItem, fieldRoles, menus, pageTitle, roleHome, roleLabels, roleOf } from "./nav";
-import { PratinjauProvider } from "./pratinjau-context";
-import { PrototypeBar } from "./prototype-bar";
 
 const roleOptions = (Object.keys(roleLabels) as StaffRole[]).map((role) => ({
   value: role,
@@ -92,7 +90,6 @@ export function AppShell({ children, defaultSidebarOpen }: { children: React.Rea
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <PratinjauProvider>
         <TooltipProvider>
           <SidebarProvider defaultOpen={defaultSidebarOpen}>
             <AppSidebar role={role} pathname={pathname} />
@@ -109,11 +106,9 @@ export function AppShell({ children, defaultSidebarOpen }: { children: React.Rea
             </SidebarInset>
             {bottomNav ? <BottomNav role={role} pathname={pathname} /> : null}
             <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} role={role} />
-            <PrototypeBar />
             <Toaster position="top-center" />
           </SidebarProvider>
         </TooltipProvider>
-      </PratinjauProvider>
     </ThemeProvider>
   );
 }
@@ -128,12 +123,13 @@ function AppSidebar({ role, pathname }: { role: StaffRole; pathname: string }) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-(--header-height) justify-center border-b border-sidebar-border px-3">
-        <Link href={roleHome[role]} className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50" onClick={() => setOpenMobile(false)}>
-          <BrandMark />
-          <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="text-small font-semibold text-sidebar-foreground">Makam.co.id</span>
-            <span className="text-caption text-muted-foreground">Area Staf</span>
-          </span>
+        <Link
+          href={roleHome[role]}
+          aria-label="Makam.co.id, Area Staf: beranda"
+          className="flex items-center rounded-md px-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+          onClick={() => setOpenMobile(false)}
+        >
+          <BrandLogo caption="Area Staf" />
         </Link>
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2">
@@ -150,7 +146,7 @@ function AppSidebar({ role, pathname }: { role: StaffRole; pathname: string }) {
                         isActive={active}
                         tooltip={item.label}
                         render={<Link href={item.href} onClick={() => setOpenMobile(false)} aria-current={active ? "page" : undefined} />}
-                        className="data-active:bg-brand-soft data-active:font-medium data-active:text-brand-soft-foreground"
+                        className="data-active:bg-brand-soft data-active:font-semibold data-active:text-brand-soft-foreground"
                       >
                         <item.icon aria-hidden />
                         <span>{item.label}</span>
@@ -194,11 +190,9 @@ function BertugasSwitch() {
       role="switch"
       aria-checked={on}
       onClick={() => setOn(!on)}
-      className="flex items-center gap-2.5 rounded-md px-2 py-2 text-left text-small outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+      className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-left text-small outline-none hover:bg-sidebar-accent focus-visible:ring-3 focus-visible:ring-ring/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
     >
-      <span className={cn("relative flex size-2.5 shrink-0 rounded-full", on ? "bg-success" : "bg-muted-foreground/40")}>
-        {on ? <span className="absolute inset-0 animate-ping rounded-full bg-success/50 motion-reduce:hidden" /> : null}
-      </span>
+      <span className={cn("flex size-2.5 shrink-0 rounded-full", on ? "bg-success ring-3 ring-success/20" : "bg-muted-foreground/40")} />
       <span className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
         <span className="font-medium text-sidebar-foreground">{on ? "Bertugas" : "Tidak bertugas"}</span>
         <span className="text-caption text-muted-foreground">{on ? "Menerima peringatan mendesak" : "Ketuk untuk mulai bertugas"}</span>
@@ -235,7 +229,7 @@ function ShellHeader({
   return (
     <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md supports-backdrop-filter:bg-background/70 md:px-4">
       <SidebarTrigger className={cn("-ml-1", bottomNav && "max-md:hidden")} aria-label="Buka atau tutup menu" />
-      {bottomNav ? <BrandMark className="size-7 md:hidden" /> : null}
+      {bottomNav ? <BrandMark className="h-7 md:hidden" /> : null}
       <Separator orientation="vertical" className="mx-1 h-5 max-md:hidden" />
       <Breadcrumb className="min-w-0 max-md:hidden">
         <BreadcrumbList className="flex-nowrap">

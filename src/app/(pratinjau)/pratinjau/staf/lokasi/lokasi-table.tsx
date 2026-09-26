@@ -8,7 +8,6 @@ import { DataTable, type DataTableColumn } from "@/components/makam/data-table";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import type { MockLokasi } from "../_mock/data";
 import { BASE } from "../_shell/nav";
-import { usePratinjau } from "../_shell/pratinjau-context";
 
 function Yes({ yes, no }: { yes: boolean; no: string }) {
   return yes ? (
@@ -78,13 +77,12 @@ const statusOptions = (["belum_tayang", "terverifikasi", "ditangguhkan", "berhen
 
 export function LokasiTable({ data }: { data: MockLokasi[] }) {
   const router = useRouter();
-  const { density } = usePratinjau();
   return (
     <DataTable
       caption="Daftar Lokasi Mitra"
       columns={columns}
       data={data}
-      density={density}
+      densityToggle
       searchPlaceholder="Cari nama atau kota"
       filter={{ columnId: "status", label: "Filter status", allLabel: "Semua status", options: statusOptions }}
       rowActions={(row) => [

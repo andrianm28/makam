@@ -18,11 +18,32 @@ function sisa(menit: number) {
   return `${Math.round(menit / (24 * 60))} hari lagi`;
 }
 
-function tone(row: AntreanRow) {
-  if (row.sisaMenit < 0) return "danger" as const;
-  if (row.sisaMenit / row.jendelaMenit < 0.25) return "warning" as const;
-  return "calm" as const;
+/**
+ * The tenggat bar runs Sage -> Sand/amber -> muted red as the window is used
+ * up; full red only once the row is Terlambat (past its deadline).
+ */
+type Tier = "calm" | "soon" | "near" | "late";
+function tier(row: AntreanRow): Tier {
+  if (row.sisaMenit < 0) return "late";
+  const left = row.sisaMenit / row.jendelaMenit;
+  if (left < 0.2) return "near";
+  if (left < 0.5) return "soon";
+  return "calm";
 }
+
+const barClass: Record<Tier, string> = {
+  calm: "bg-deadline-calm",
+  soon: "bg-deadline-soon",
+  near: "bg-deadline-near",
+  late: "bg-deadline-late",
+};
+
+const textClass: Record<Tier, string> = {
+  calm: "text-muted-foreground",
+  soon: "text-warning-soft-foreground",
+  near: "font-medium text-danger-soft-foreground",
+  late: "font-semibold text-danger-soft-foreground",
+};
 
 /**
  * PROTOTYPE task list for the Admin Platform dashboard: the first rows of the
@@ -31,12 +52,12 @@ function tone(row: AntreanRow) {
  */
 export function AntreanList({ rows }: { rows: AntreanRow[] }) {
   return (
-    <ol className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+    <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
       {rows.map((row) => {
-        const t = tone(row);
+        const t = tier(row);
         const used = Math.min(1, Math.max(0, 1 - row.sisaMenit / row.jendelaMenit));
         return (
-          <li key={row.id} className="relative flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6">
+          <li key={row.id} className="relative flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-6">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <p className="text-body font-medium text-foreground">{row.title}</p>
               <p className="flex flex-wrap gap-x-3 text-small text-muted-foreground">
@@ -45,18 +66,11 @@ export function AntreanList({ rows }: { rows: AntreanRow[] }) {
               </p>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-44">
-              <p
-                className={cn(
-                  "text-small tabular-nums",
-                  t === "danger" && "font-medium text-danger-soft-foreground",
-                  t === "warning" && "font-medium text-warning-soft-foreground",
-                  t === "calm" && "text-muted-foreground",
-                )}
-              >
+              <p className={cn("text-small tabular-nums", textClass[t])}>
                 {sisa(row.sisaMenit)}
               </p>
               <div
-                className="h-1 w-full overflow-hidden rounded-full bg-muted"
+                className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
                 role="meter"
                 aria-label="Tenggat terpakai"
                 aria-valuemin={0}
@@ -64,12 +78,7 @@ export function AntreanList({ rows }: { rows: AntreanRow[] }) {
                 aria-valuenow={Math.round(used * 100)}
               >
                 <div
-                  className={cn(
-                    "h-full rounded-full",
-                    t === "danger" && "bg-danger",
-                    t === "warning" && "bg-warning",
-                    t === "calm" && "bg-brand",
-                  )}
+                  className={cn("h-full rounded-full", barClass[t])}
                   style={{ width: `${Math.max(used * 100, 4)}%` }}
                 />
               </div>
@@ -84,7 +93,7 @@ export function AntreanList({ rows }: { rows: AntreanRow[] }) {
                 </span>
               ) : (
                 <Button
-                  variant={t === "danger" ? "default" : "outline"}
+                  variant={t === "late" ? "default" : "outline"}
                   onClick={() => toast.success("Baris Antrean diambil", { description: `${row.subject} sekarang atas nama Anda.` })}
                 >
                   Ambil

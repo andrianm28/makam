@@ -46,7 +46,7 @@ export function StatCard({
     </>
   );
   const shared = cn(
-    "flex flex-col gap-1 rounded-lg border border-border bg-card p-5 text-card-foreground",
+    "flex flex-col gap-1 rounded-xl border border-border bg-card p-5 text-card-foreground",
     className,
   );
   if (!href) return <div data-slot="stat-card" className={shared}>{body}</div>;

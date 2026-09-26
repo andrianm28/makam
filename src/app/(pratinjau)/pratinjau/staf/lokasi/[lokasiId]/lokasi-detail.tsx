@@ -117,7 +117,7 @@ export function LokasiDetail({ lokasi, initialTab }: { lokasi: MockLokasi; initi
 
 function Panel({ title, children, action, className }: { title: string; children: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("flex flex-col rounded-lg border border-border bg-card", className)}>
+    <section className={cn("flex flex-col rounded-xl border border-border bg-card", className)}>
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-5 py-2">
         <h2 className="text-title-3">{title}</h2>
         {action}
@@ -179,7 +179,7 @@ function Ringkasan({ lokasi }: { lokasi: MockLokasi }) {
 function TarifTab({ lokasi }: { lokasi: MockLokasi }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-3 rounded-lg border border-info/25 bg-info-soft px-4 py-3 text-small text-info-soft-foreground">
+      <div className="flex items-start gap-3 rounded-xl border border-info/25 bg-info-soft px-4 py-3 text-small text-info-soft-foreground">
         <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
         <p>Harga baru mulai 1 Oktober 2026 untuk Petak tunggal, 5 tahun. Versi yang berlaku sekarang tidak berubah.</p>
       </div>
@@ -352,7 +352,7 @@ function AdminLokasiTab({ lokasi }: { lokasi: MockLokasi }) {
 
 function AuditLogTab() {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
       <Table>
         <TableHeader className="bg-subtle">
           <TableRow className="hover:bg-transparent">

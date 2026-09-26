@@ -9,7 +9,6 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { AppShell } from "./_shell/app-shell";
-import "./pratinjau.css";
 
 export const metadata: Metadata = {
   title: "Pratinjau Area Staf | Makam.co.id",

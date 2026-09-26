@@ -1,15 +1,34 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/** PROTOTYPE logo mark: five kamboja (frangipani) petals around a point. */
+/**
+ * Interim logo (spec, Staff UI and design system): a downscaled raster of the
+ * conceptual mark from the brand guideline (p. 6, public/brand/makam-mark.png)
+ * until the designer's vector master arrives. The mark is 45 x 96 px, shown
+ * at half size or smaller so it stays sharp on 2x screens.
+ */
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-md bg-brand text-brand-foreground", className)}>
-      <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
-        {[0, 72, 144, 216, 288].map((angle) => (
-          <ellipse key={angle} cx="12" cy="7" rx="3.1" ry="5" transform={`rotate(${angle} 12 12)`} fill="currentColor" opacity="0.92" />
-        ))}
-        <circle cx="12" cy="12" r="1.6" className="fill-brand" />
-      </svg>
+    <Image
+      src="/brand/makam-mark.png"
+      alt=""
+      width={45}
+      height={96}
+      priority
+      className={cn("h-8 w-auto shrink-0 select-none", className)}
+    />
+  );
+}
+
+/** The wordmark MAKAM.CO.ID in Plus Jakarta Sans bold, beside the mark. */
+export function BrandLogo({ caption, className }: { caption?: string; className?: string }) {
+  return (
+    <span className={cn("flex items-center gap-2.5", className)}>
+      <BrandMark />
+      <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
+        <span className="text-small font-bold tracking-[0.04em] text-forest dark:text-ivory">MAKAM.CO.ID</span>
+        {caption ? <span className="text-caption text-muted-foreground">{caption}</span> : null}
+      </span>
     </span>
   );
 }
