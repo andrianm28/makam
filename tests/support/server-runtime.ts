@@ -7,6 +7,7 @@ import { createLokasi } from "@/domain/lokasi";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { detachedTasks } from "./identity";
 import type { ServerRuntime } from "@/server/runtime";
@@ -46,7 +47,8 @@ export function testServerRuntime() {
     });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings };
+    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();
