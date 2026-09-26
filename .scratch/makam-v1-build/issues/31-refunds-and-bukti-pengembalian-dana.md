@@ -21,3 +21,7 @@ One refund flow for the whole platform. A refund request (from a cancellation, a
 ## Notes
 
 "Working days" are Admin Platform working days: Monday–Friday minus national holidays (ticket 11).
+
+## Comments
+
+- 2026-09-26 — From ticket 19's review (user decision): a "Pembayaran Perlu Ditinjau" (money Billing couldn't settle; public Billing query) is resolved here, usually by a refund approved by Admin Platform; resolving it closes its Antrean row (ticket 17).

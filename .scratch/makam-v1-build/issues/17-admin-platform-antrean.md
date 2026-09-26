@@ -29,3 +29,4 @@ Bertugas and Tier 1 alerting come in ticket 28. The Tier 4 revisit trigger was s
 
 - 2026-09-26 — Now also blocked by 74 (user decision): build the UI on the brand design system and staff shell from ticket 74 (spec, "Staff UI and design system").
 - 2026-09-26 — ADR 0004: the ticket-08 request above changes: the test is "a Kode Masuk send failure creates no Antrean row", driving identity with an EmailSender that fails (`FakeEmailSender.failNextSend()`), since there is no WhatsAppSender any more (ticket 82). The "Telepon Pemesan" row type is built in ticket 20 and the unanswered-Tier-1 call row in ticket 28; this framework only needs to host them.
+- 2026-09-26 — From ticket 19's review (user decision): Billing records money it can't settle (a payment on a Dibatalkan Tagihan, a wrong amount, an unknown or double payment) as "Pembayaran Perlu Ditinjau", a public Billing query. Show each as a Tier 2 row in the Admin Platform Antrean that closes itself once resolved.
