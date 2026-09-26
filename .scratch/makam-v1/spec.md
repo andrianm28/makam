@@ -615,6 +615,20 @@ Core entities at a glance (details in each module):
 - Email (addresses, Kode Masuk, Tagihan / Bukti copies, Undangan Staf) goes through the SumoPod SMTP relay, not AWS SES and not the self-hosted Stalwart. Where SumoPod's relay processes mail is not yet confirmed (ticket 04); until it is, email is not claimed to stay in Indonesia. Files and backups stay in AWS S3 Jakarta.
 - Retention and deletion rules are out of scope, but the uploads are treated as personal data.
 
+### Staff UI and design system (decided with the user, 2026-09-26)
+
+- **Framework**: stay on shadcn/ui (Radix/Base UI + Tailwind v4), completed with its official blocks: Sidebar, Dashboard, Data Table (TanStack Table), Form (react-hook-form + Zod, the same schemas the Server Actions use), Sonner toasts, cmdk command palette, charts via shadcn's Recharts wrapper, `next-themes` for light/dark. No second UI framework (Refine, Mantine, Ant Design rejected: they duplicate or fight the Server Action / domain-module pattern).
+- **Design system** in the repo, the single source of truth for staff and public UI:
+  - tokens as CSS variables in `globals.css` (colour incl. one calm brand accent — muted teal/olive — neutral greys, semantic success/warning/danger/info, radius, spacing, shadow, motion, typography on Geist), light and dark;
+  - one status-badge vocabulary mapping every domain status (Belum Tayang, Terverifikasi, Ditangguhkan, Berhenti, Terlambat, Lunas, …) to a colour and label;
+  - the component inventory (shadcn primitives + makam compositions: `PageHeader`, `DataTable`, `FormSection`, `EmptyState`, `StatCard`, `StatusBadge`, `ConfirmDialog`, `RoleSwitcher`, `LokasiSwitcher`);
+  - documented in `docs/design-system.md` and shown on a live catalogue page in the staff area.
+- **Shell**: collapsible sidebar with per-role menus; header with breadcrumbs, role switcher, Lokasi switcher (Admin Lokasi), ⌘K command palette, notification bell (web push, ticket 21) and account menu (Keluar). On phones: a sheet sidebar for admins and a bottom navigation for Petugas Lapangan and Mitra Jasa. PWA, mobile-first.
+- **Style**: neutral modern (Linear/Vercel-like), comfortable density with a compact option for tables, light and dark mode.
+- **Standard page patterns**: list (Data Table with search, filters, pagination, row actions), detail (header, tabs, body), form (sections, inline validation, toast result), queue/dashboard (stat cards + task list); uniform empty, loading (skeleton) and error states.
+- **Order**: shell, design system and patterns first; existing staff pages migrate onto them; new pages from later tickets use them from the start.
+- **Process**: a throwaway clickable prototype (mattpocock-skills:prototype) for the user to react to, then tickets on the tracker, each built test-first with the two-axis review.
+
 ## Testing Decisions
 
 - **What makes a good test**:
