@@ -85,6 +85,28 @@ describe("the 'tarif diperiksa' mark of a Lokasi Mitra (publish gate)", () => {
     });
   });
 
+  it("the Admin Lokasi saving its Lokasi's Jam Operasional is no tariff change: the mark stays current", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra } = await lokasiWithTariffs(setup);
+    const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
+    setup.clock.set(wib("2026-10-02 11:00"));
+    await setup.tariffs.markTariffsChecked(admin, lokasiMitra.id, { reason: null });
+    setup.clock.set(wib("2026-10-03 08:00"));
+
+    const open = { opens: "08:00", closes: "16:00" };
+    const saved = await setup.lokasi.setJamOperasional(adminLokasi, lokasiMitra.id, {
+      weekly: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: null },
+      tanggalTutup: [],
+    });
+
+    expect(saved).toEqual({ ok: true });
+    expect(await setup.tariffs.asStaff(admin).tariffsChecked(lokasiMitra.id)).toEqual({
+      checkedAt: wib("2026-10-02 11:00"),
+      checkedByAccountId: admin.accountId,
+      changedSinceCheck: false,
+    });
+  });
+
   it("is refused until the Lokasi has a Jenis Makam and a Biaya Pemakaman and the Biaya Layanan Platform is entered", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
