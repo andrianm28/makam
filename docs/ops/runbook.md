@@ -192,46 +192,81 @@ the Admin-Platform-only rule.
 
 ## CI pipeline (GitHub Actions)
 
-`.github/workflows/ci.yml`, one run per push. On `main` the job graph is:
+`.github/workflows/ci.yml`, one run per push and PR. On `main` the job graph is:
 
 ```
-check (lint, typecheck, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┬→ deploy-gate (tags :latest)
-                                                                   └→ scan ─┘
+check (lint, typecheck, npm audit, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┐
+secrets (gitleaks) ────────────────────────────────────────────────────────────┤         ├→ deploy-gate (tags :latest)
+migrations (upgrade from the running release) ─────────────────────────────────┴→ scan ─┘
 ```
 
+Every job except `deploy-gate` also runs on PRs and branch pushes, except that
+there `image` builds without pushing and e2e and scan are skipped. The one
+"main only" rule is the `image` job's `release` output. A warm `main` run
+takes about 11 to 12 minutes.
+
+- **check**: lint, typecheck, Vitest on a fresh Postgres, and `npm audit
+  --omit=dev`, which fails on a critical advisory that has a fix (update the
+  package; a critical with no fix is only counted).
+- **secrets**: gitleaks over the whole repository history, default rules.
+  Accepted findings (development-only keys, test fixtures) are in
+  `.gitleaks.toml`, one file per entry, each with its reason. A real leaked
+  secret: rotate it first ("Rotating secrets"), then remove it from the code;
+  the history keeps it, so the rotation is what counts.
+- **migrations**: the upgrade test. The running release (`:latest`, what
+  staging runs) migrates an empty Postgres with its own `migrate`, the
+  `seed-representative` script fills every table with a few rows, then this
+  commit's migrations run on it (Vitest's global setup) and the domain tests
+  run on the result. Before that, every migration file the running release
+  does not have is checked for destructive DDL (DROP, RENAME, SET NOT NULL, a
+  type change, a NOT NULL column without a default): each such statement
+  needs a comment line `-- contract: <why nothing running needs it>` directly
+  above it, and belongs in a later release than its expand step.
 - **e2e** runs on a GitHub-hosted runner, never on this host. It starts the
-  pushed `sha-<commit>@<digest>` (no rebuild) with `docker-compose.prod.yml`,
-  the same file as staging, and its own empty Postgres: `run --rm migrate`,
-  then `up -d --wait`, with `deploy/ci/e2e.env` (`APP_ENV=development`, so the
-  in-memory fakes stand in for WhatsApp, email, payments and files). Then
-  `npm run e2e` runs every spec in `e2e/` against `http://127.0.0.1:3310`,
-  seeding the e2e Admin Platform with `seed-admin` inside the web container.
-  On failure the run keeps the `e2e-results` artifact (Playwright traces,
-  screenshots, `stack.log` with the web, worker, migrate and Postgres logs)
-  for 14 days: open a trace with `npx playwright show-trace <trace.zip>`.
-- **scan** runs Trivy (`aquasec/trivy`, pinned by digest) on the same
-  image. It fails on any CRITICAL vulnerability that has a fix. All findings
-  go to the `trivy-findings` artifact (`trivy.sarif`, plus `critical.txt`,
-  also shown in the job summary) for 30 days. Code scanning is not enabled on
-  this private repo; once it is, set the repo variable `CODE_SCANNING=true`
-  and the SARIF also goes there.
+  pushed `image:sha-<commit>@<digest>` (no rebuild) with
+  `docker-compose.prod.yml`, the same file as staging, layered with
+  `deploy/ci/compose.e2e.yml` (the image by digest, a network of its own) and
+  its own empty Postgres: `run --rm migrate`, then `up -d --wait`, with
+  `deploy/ci/e2e.env` (`APP_ENV=development`, so the in-memory fakes stand in
+  for WhatsApp, email, payments and files). Then `npm run e2e` runs every spec
+  in `e2e/` against `http://127.0.0.1:3310`, seeding the e2e Admin Platform
+  with `seed-admin` inside the web container. On failure the run keeps the
+  `e2e-results` artifact (Playwright traces, screenshots, `stack.log` with the
+  web, worker, migrate and Postgres logs) for 14 days: open a trace with
+  `npx playwright show-trace <trace.zip>`.
+- **scan** runs Trivy (`aquasec/trivy`, pinned by digest) on the same image.
+  It fails on any CRITICAL vulnerability that has a fix. The run keeps the
+  image's SBOM (`sbom` artifact, CycloneDX, 90 days) and all findings
+  (`trivy-findings`: `trivy.sarif` and `critical.txt`, also in the job
+  summary, 30 days). Code scanning is not available on this private repo on
+  GitHub Free; if it ever is, set the repo variable `CODE_SCANNING=true` and
+  the `code-scanning` job (the only one with `security-events: write`)
+  uploads the SARIF.
 - **Accepting a finding** that cannot be fixed yet (e.g. the base image has
   no fix): add it to `.trivyignore` with the reason in a comment directly
-  above and `exp:YYYY-MM-DD` at most 90 days out, in a reviewed PR. After the
-  date the scan fails again. Usually the fix is a rebuild on a newer
-  `node:22-bookworm-slim` (push to `main`) or a dependency bump.
-- **deploy-gate** needs e2e and scan and re-tags the image `:latest`, which
-  the staging timer follows; a deploy job (ticket 72) `needs: deploy-gate` and
-  reads the exact image from its outputs (`image`, `tag`, `digest`).
-- PRs and other branches run check and an image build without push, and
-  skip e2e, scan and the gate. A warm `main` run takes 10 to 12 minutes.
+  above and `exp:YYYY-MM-DD` at most 90 days out (`tests/trivyignore.test.ts`
+  enforces both), in a reviewed PR. After the date the scan fails again.
+  Usually the fix is a newer base image digest (Dependabot) or a dependency
+  bump.
+- **deploy-gate** needs every other job and re-tags the image `:latest`,
+  which the staging timer follows. It runs in its own concurrency group and
+  is never cancelled; `main` runs queue instead of cancelling each other,
+  while PR and branch runs cancel superseded ones. A deploy (ticket 72)
+  `needs: deploy-gate` and takes the exact image from its `ref` output.
+- **Pins**: every action is pinned by commit SHA (version in a comment),
+  every image by digest (CI's Postgres, Trivy, gitleaks, the node base image,
+  the compose files). Dependabot (`.github/dependabot.yml`) proposes updates
+  weekly for actions, npm, the Dockerfile and the compose files; they go
+  through the same CI and review.
+- Every job has least-privilege `permissions` (none by default) and
+  `timeout-minutes`.
 - Re-run a flaky e2e with "Re-run failed jobs" on the run; it uses the same
   image. Playwright already retries a failed test once in CI.
 
 ## Staging deploy
 
 **Design: pull-based.** CI (`.github/workflows/ci.yml`, see "CI pipeline"
-below) runs lint, typecheck and Vitest, builds and pushes
+above) runs its checks, builds and pushes
 `ghcr.io/andrianm28/makam:sha-<commit>`, runs e2e and the image scan on it,
 and only then tags it `:latest`, only on `main`. On the host,
 `makam-staging-deploy.timer` runs `makam-deploy --env staging` every 2 minutes
