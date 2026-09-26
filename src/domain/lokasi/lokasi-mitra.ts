@@ -339,7 +339,7 @@ export async function writeLokasiMitra(
   lokasiId: string,
   action: AuditAction,
   change: (row: Row) => { values: Partial<Row>; before: AuditSnapshot; after: AuditSnapshot; reason?: string | null },
-  authorisedAs: "lokasi.ubah" | "lokasi.ubah_rekening" = "lokasi.ubah",
+  authorisedAs: "lokasi.ubah" | "lokasi.ubah_rekening" | "lokasi.atur_operasional" = "lokasi.ubah",
 ): Promise<WriteResult> {
   const refusal = writeRefusal(by, authorisedAs, lokasiMitraResource(lokasiId));
   if (refusal) return refusal;

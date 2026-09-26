@@ -74,6 +74,8 @@ export type AuditAction =
   | "tarif.ubah_biaya_pemakaman"
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" (publish gate). */
   | "tarif.tandai_diperiksa"
+  /** An Admin Lokasi (or Admin Platform) sets a Lokasi Mitra's Jam Operasional: weekly hours and dated closures. */
+  | "lokasi.ubah_jam_operasional"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */

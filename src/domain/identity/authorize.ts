@@ -79,7 +79,9 @@ export type Action =
   /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
   | "lokasi.atur_admin_lokasi"
   /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
-  | "tarif.ubah";
+  | "tarif.ubah"
+  /** Set a Lokasi Mitra's Jam Operasional and pick its Kontak Siaga (Admin Platform, or that Lokasi's Admin Lokasi). */
+  | "lokasi.atur_operasional";
 
 /** What the action is done to. */
 export type Resource =
@@ -211,7 +213,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.lihat_semua":
       return resource.kind === "lokasi_mitra_semua" && holds("admin_platform") ? allowed : denied;
     case "lokasi.lihat":
-      // Admin Platform sees every Lokasi Mitra; an Admin Lokasi only the Lokasi it is Admin Lokasi of.
+    case "lokasi.atur_operasional":
+      // Admin Platform sees (and sets the Jam Operasional of) every Lokasi Mitra; an Admin Lokasi only its own.
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
         ? allowed
         : denied;

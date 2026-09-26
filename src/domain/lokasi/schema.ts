@@ -1,6 +1,7 @@
 import { date, doublePrecision, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
+import type { JamOperasional } from "./working-time";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -37,6 +38,8 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   policies: jsonb("policies").$type<LokasiPolicies>().notNull(),
   /** LokasiFlags (./policies.ts), validated before every write. */
   flags: jsonb("flags").$type<LokasiFlags>().notNull(),
+  /** JamOperasional (./working-time.ts), validated before every write; null until set (DEFAULT_JAM_OPERASIONAL applies). */
+  jamOperasional: jsonb("jam_operasional").$type<JamOperasional>(),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });

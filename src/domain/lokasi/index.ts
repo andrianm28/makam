@@ -48,6 +48,13 @@ import {
   type AgreementScanUrlResult,
   type UploadAgreementResult,
 } from "./agreement";
+import {
+  readJamOperasional,
+  setJamOperasional,
+  type JamOperasionalResult,
+  type SetJamOperasionalResult,
+} from "./jam-operasional";
+import type { JamOperasional } from "./working-time";
 
 export {
   AGREEMENT_SCAN_MAX_BYTES,
@@ -56,6 +63,13 @@ export {
   type UploadAgreementResult,
 } from "./agreement";
 export type { LokasiAuditLogResult } from "./audit-view";
+export {
+  DEFAULT_JAM_OPERASIONAL,
+  MAX_CLOSURES,
+  jamOperasionalSchema,
+  type JamOperasionalResult,
+  type SetJamOperasionalResult,
+} from "./jam-operasional";
 export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFromLokasiResult } from "./admin-lokasi";
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
 export {
@@ -156,6 +170,10 @@ export interface Lokasi {
   ): Promise<UploadAgreementResult>;
   /** A 5-minute signed URL to the agreement scan, for Admin Platform only. */
   agreementScanUrl(by: Actor, lokasiId: string): Promise<AgreementScanUrlResult>;
+  /** This Lokasi Mitra's Jam Operasional, for Admin Platform or one of its Admin Lokasi. */
+  jamOperasional(by: Actor, lokasiId: string): Promise<JamOperasionalResult>;
+  /** Its Admin Lokasi (or Admin Platform) sets the Jam Operasional: weekly hours and dated closures, audited. */
+  setJamOperasional(by: Actor, lokasiId: string, input: JamOperasional): Promise<SetJamOperasionalResult>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -176,6 +194,8 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     fullAuditLog: (by, lokasiId) => fullLokasiAuditLog(deps, by, lokasiId),
     uploadAgreement: (by, lokasiId, input) => uploadAgreement(deps, by, lokasiId, input),
     agreementScanUrl: (by, lokasiId) => agreementScanUrl(deps, by, lokasiId),
+    jamOperasional: (by, lokasiId) => readJamOperasional(deps, by, lokasiId),
+    setJamOperasional: (by, lokasiId, input) => setJamOperasional(deps, by, lokasiId, input),
   };
 }
 export {
