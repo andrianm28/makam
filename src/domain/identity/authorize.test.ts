@@ -161,6 +161,47 @@ describe("who may write tariffs (tarif.ubah)", () => {
   });
 });
 
+describe("who may build a Lokasi Mitra's Denah (denah.ubah)", () => {
+  it("only that Lokasi's own Admin Lokasi, past TOTP if it also holds Admin Platform; not Admin Platform, and not another Lokasi's Admin Lokasi", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const otherLokasiId = "5d1f4c2e-0000-4000-8000-000000000002";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+    const adminLokasiElsewhere = { ...staff(["admin_lokasi"]), lokasiIds: [otherLokasiId] };
+
+    expect(authorize(adminLokasi, "denah.ubah", lokasiMitraResource(lokasiId))).toEqual({ allowed: true });
+    for (const who of [adminPlatform, adminLokasiElsewhere, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
+      expect(authorize(who, "denah.ubah", lokasiMitraResource(lokasiId))).toEqual({
+        allowed: false,
+        reason: "tidak_berwenang",
+      });
+    }
+  });
+
+  it("an Admin Lokasi that also holds Admin Platform without TOTP still can't build the Denah", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const notYet = { ...staff(["admin_platform", "admin_lokasi"], "perlu_verifikasi"), lokasiIds: [lokasiId] };
+    expect(authorize(notYet, "denah.ubah", lokasiMitraResource(lokasiId))).toEqual({
+      allowed: false,
+      reason: "perlu_totp",
+    });
+  });
+});
+
+describe("who may see a Lokasi Mitra's Denah (denah.lihat)", () => {
+  it("Admin Platform sees every Lokasi Mitra's Denah; an Admin Lokasi only its own", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const otherLokasiId = "5d1f4c2e-0000-4000-8000-000000000002";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+
+    expect(authorize(adminPlatform, "denah.lihat", lokasiMitraResource(lokasiId))).toEqual({ allowed: true });
+    expect(authorize(adminLokasi, "denah.lihat", lokasiMitraResource(lokasiId))).toEqual({ allowed: true });
+    expect(authorize(adminLokasi, "denah.lihat", lokasiMitraResource(otherLokasiId))).toEqual({
+      allowed: false,
+      reason: "tidak_berwenang",
+    });
+  });
+});
+
 describe("who may open the Pengaturan Operator screen", () => {
   it("only an Admin Platform past TOTP; no other role, not even one holding several", () => {
     const open = (who: Actor) => authorize(who, "pengaturan_operator.lihat", pengaturanOperatorResource());

@@ -89,7 +89,11 @@ export type Action =
   /** Set a Lokasi Mitra's Jam Operasional and pick its Kontak Siaga (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "lokasi.atur_operasional"
   /** Keep the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar (Admin Platform only). */
-  | "hari_libur.ubah";
+  | "hari_libur.ubah"
+  /** See a Lokasi Mitra's Denah (Admin Platform, or that Lokasi's Admin Lokasi). */
+  | "denah.lihat"
+  /** Build or edit a Lokasi Mitra's Denah: Blok, Petak, Kavling Keluarga, site-plan photo (that Lokasi's Admin Lokasi only). */
+  | "denah.ubah";
 
 /** What the action is done to. */
 export type Resource =
@@ -247,5 +251,13 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
         : denied;
     case "hari_libur.ubah":
       return resource.kind === "hari_libur_nasional" && holds("admin_platform") ? allowed : denied;
+    case "denah.lihat":
+      // Admin Platform sees every Lokasi Mitra's Denah; an Admin Lokasi only its own.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
+    case "denah.ubah":
+      // The Denah is built by that Lokasi's own Admin Lokasi (spec, story 127); Admin Platform does not edit it here.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

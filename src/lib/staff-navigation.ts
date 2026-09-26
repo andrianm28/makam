@@ -122,7 +122,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           items: [
             beranda(lokasi, "Lokasi Mitra ini sekilas."),
             { label: "Antrean Lokasi", icon: InboxIcon, description: SEGERA },
-            { label: "Denah", icon: GridIcon, description: SEGERA },
+            {
+              label: "Denah",
+              href: `${lokasi}/denah`,
+              icon: GridIcon,
+              description: "Blok, Petak Makam dan Kavling Keluarga; buat Blok baru dan atur selnya.",
+            },
             {
               label: "Jam Operasional",
               href: `${lokasi}/jam-operasional`,
@@ -233,6 +238,7 @@ const subPages: Record<string, string> = {
   tarif: "Tarif",
   "audit-log": "Audit Log",
   "jam-operasional": "Jam Operasional",
+  denah: "Denah",
 };
 
 /**
