@@ -22,9 +22,9 @@ export default async function StafAdminPage() {
         <CardHeader>
           <CardTitle>Undang staf</CardTitle>
           <CardDescription>
-            Undangan dikirim lewat WhatsApp dan berlaku 7 hari. Email wajib untuk setiap staf (cadangan kode masuk lewat
-            email). Peran didapat saat ia masuk dengan kode WhatsApp di nomor itu. Admin Lokasi diundang dari halaman
-            Lokasi Mitra-nya.
+            Undangan dikirim ke email staf dan berlaku 7 hari. Peran didapat saat ia masuk dengan Kode Masuk ke email
+            itu; akunnya dibuat saat itu bila belum ada. Nomor telepon dicatat sebagai kontak. Admin Lokasi diundang dari
+            halaman Lokasi Mitra-nya.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -47,7 +47,7 @@ export default async function StafAdminPage() {
             <ul className="flex flex-col gap-1 text-sm">
               {invites.map((invite) => (
                 <li key={invite.id}>
-                  {invite.phoneNumber} · {invite.email} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
+                  {invite.email} · {invite.phoneNumber} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
                   {formatWib(invite.expiresAt)} WIB
                 </li>
               ))}
@@ -60,16 +60,17 @@ export default async function StafAdminPage() {
         <CardHeader>
           <CardTitle>Akun Staf</CardTitle>
           <CardDescription>
-            Menonaktifkan Akun Staf mencabut semua perannya dan mengakhiri sesinya. Nomornya tetap bisa masuk sebagai
-            Pemesan, dan riwayatnya tetap. Untuk memberi peran lagi, kirim Undangan Staf baru.
+            Menonaktifkan Akun Staf mencabut semua perannya dan mengakhiri sesinya. Akunnya tetap bisa masuk sebagai
+            Pemesan, dan riwayatnya tetap. Untuk memberi peran lagi, kirim Undangan Staf baru ke Email Terverifikasi-nya.
+            Akun yang belum punya Email Terverifikasi belum bisa masuk sampai dipulihkan lewat Pemulihan Akun.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nomor WhatsApp</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Nomor telepon</TableHead>
                 <TableHead>Peran</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -77,8 +78,15 @@ export default async function StafAdminPage() {
             <TableBody>
               {accounts.map((account) => (
                 <TableRow key={account.accountId}>
-                  <TableCell>{account.phoneNumber}</TableCell>
-                  <TableCell>{account.email ?? "–"}</TableCell>
+                  <TableCell>
+                    {account.email ?? "–"}
+                    {account.emailTerverifikasi ? null : (
+                      <Badge variant="outline" className="ml-2">
+                        Perlu Pemulihan Akun
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{account.phoneNumber ?? "–"}</TableCell>
                   <TableCell>{account.roles.map((role) => staffRoleLabels[role]).join(", ") || "–"}</TableCell>
                   <TableCell>
                     {account.deactivated ? (

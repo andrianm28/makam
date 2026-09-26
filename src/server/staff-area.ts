@@ -35,7 +35,7 @@ export interface StaffShell {
   /** The staff roles the Akun holds, for the role switcher (hidden when there is one). */
   roles: { role: StaffRole; label: string; href: string }[];
   /** Who is signed in, for the account menu. */
-  account: { phoneNumber: string; email: string | null };
+  account: { email: string; phoneNumber: string | null };
   /** The Lokasi Mitra this Akun works on, by id, so breadcrumbs can name them. */
   lokasiNames: Record<string, string>;
 }
@@ -51,18 +51,15 @@ export async function staffShell(): Promise<StaffShell | null> {
   const held = heldStaffRoles(actor.roles);
   if (held.length === 0) return null;
 
-  const { identity, lokasi } = serverRuntime();
-  const [{ email }, lokasiMitra] = await Promise.all([
-    identity.accountEmail(actor),
-    held.includes("admin_platform")
-      ? lokasi.allLokasiMitra(actor)
-      : held.includes("admin_lokasi")
-        ? lokasi.lokasiMitraOfAdminLokasi(actor)
-        : Promise.resolve([]),
-  ]);
+  const { lokasi } = serverRuntime();
+  const lokasiMitra = held.includes("admin_platform")
+    ? await lokasi.allLokasiMitra(actor)
+    : held.includes("admin_lokasi")
+      ? await lokasi.lokasiMitraOfAdminLokasi(actor)
+      : [];
   return {
     roles: held.map((role) => ({ role, label: staffRoleLabels[role], href: staffRoleHome(role) })),
-    account: { phoneNumber: actor.phoneNumber, email },
+    account: { email: actor.email, phoneNumber: actor.phoneNumber },
     lokasiNames: Object.fromEntries(lokasiMitra.map((item) => [item.id, item.name])),
   };
 }

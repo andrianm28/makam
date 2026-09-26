@@ -2,17 +2,15 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { EMAIL_LOGIN_REPLY, type EmailRequestState } from "@/components/email/state";
 import {
-  otpMessage,
-  type OtpRefusal,
-  type OtpRequestState,
-  type OtpVerifyState,
-} from "@/components/otp/state";
+  identityMessage,
+  type IdentityRefusal,
+  type KodeMasukRequestState,
+  type KodeMasukVerifyState,
+} from "@/components/kode-masuk/state";
 import type { Role } from "@/domain/identity";
 import { clientIp } from "@/server/client-ip";
 import { codeInput, emailInput } from "@/server/code-inputs";
-import { phoneNumberInput } from "@/server/phone-number-input";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 
@@ -23,82 +21,37 @@ import { setSessionCookies } from "@/server/session";
  * Kode Masuk rule.
  */
 
+const requestSchema = z.object({ email: emailInput });
+const verifySchema = z.object({ email: emailInput, code: codeInput });
 
-const requestSchema = z.object({ phoneNumber: phoneNumberInput });
-const verifySchema = z.object({
-  phoneNumber: phoneNumberInput,
-  code: codeInput,
-  channel: z.enum(["whatsapp", "email"]).default("whatsapp"),
-});
-const emailRequestSchema = z.object({ email: emailInput });
-const emailVerifySchema = z.object({ email: emailInput, code: codeInput });
-
-/** Sends (or re-sends) the WhatsApp Kode Masuk. */
-export async function kirimOtp(_previous: OtpRequestState, formData: FormData): Promise<OtpRequestState> {
-  const parsed = requestSchema.safeParse({ phoneNumber: formData.get("phoneNumber") });
-  if (!parsed.success) return { status: "gagal", message: otpMessage("nomor_tidak_valid") };
+/** Sends (or re-sends) the Kode Masuk to the email typed; the same reply for every email. */
+export async function kirimKodeMasuk(_previous: KodeMasukRequestState, formData: FormData): Promise<KodeMasukRequestState> {
+  const typed = formData.get("email");
+  const parsed = requestSchema.safeParse({ email: typed });
+  if (!parsed.success) return { status: "gagal", message: identityMessage("email_tidak_valid") };
 
   const { identity, adapters } = serverRuntime();
-  const result = await identity.requestOtp(parsed.data);
-  const now = adapters.clock.now();
-  if (!result.ok) {
-    return { status: "gagal", message: refusalMessage(result, now), phoneNumber: parsed.data.phoneNumber };
-  }
-  return {
-    status: "terkirim",
-    phoneNumber: result.phoneNumber,
-    resendInSeconds: secondsUntil(result.resendAt, now),
-    fallbackInSeconds: secondsUntil(result.fallbackAt, now),
-    emailFallback: result.emailFallback,
-    sentAt: result.sentAt.toISOString(),
-  };
-}
-
-/**
- * Checks the Kode Masuk typed on the WhatsApp code screen (`channel: "email"`
- * for the one "Kirim lewat email" sent); on success stores the session and
- * lands on Akun Saya, or the staff area for staff.
- */
-export async function masukDenganOtp(_previous: OtpVerifyState, formData: FormData): Promise<OtpVerifyState> {
-  const parsed = verifySchema.safeParse({
-    phoneNumber: formData.get("phoneNumber"),
-    code: formData.get("code"),
-    channel: formData.get("channel") ?? undefined,
-  });
-  if (!parsed.success) return { status: "gagal", message: "Masukkan 6 angka kode Anda." };
-
-  const { identity, adapters } = serverRuntime();
-  const result = await identity.verifyOtp(parsed.data);
-  if (!result.ok) return { status: "gagal", message: refusalMessage(result, adapters.clock.now()) };
-  await setSessionCookies(result.session.cookies);
-  redirect(landingFor(result.roles));
-}
-
-/** Masuk dengan email, step 1: the same reply for every email (story 189). */
-export async function kirimKodeEmail(_previous: EmailRequestState, formData: FormData): Promise<EmailRequestState> {
-  const parsed = emailRequestSchema.safeParse({ email: formData.get("email") });
-  if (!parsed.success) return { status: "gagal", message: otpMessage("email_tidak_valid") };
-
-  const { identity, adapters } = serverRuntime();
-  const result = await identity.requestEmailLogin({ email: parsed.data.email, ip: await clientIp() });
+  const result = await identity.requestKodeMasuk({ email: parsed.data.email, ip: await clientIp() });
   const now = adapters.clock.now();
   if (!result.ok) return { status: "gagal", message: refusalMessage(result, now), email: parsed.data.email };
   return {
     status: "terkirim",
     email: result.email,
-    message: EMAIL_LOGIN_REPLY,
-    resendInSeconds: secondsUntil(result.resendAt, now),
-    sentAt: now.toISOString(),
+    resendInSeconds: Math.max(0, Math.ceil((result.resendAt.getTime() - now.getTime()) / 1000)),
+    sentAt: result.sentAt.toISOString(),
   };
 }
 
-/** Masuk dengan email, step 2: the Kode Masuk from the email. */
-export async function masukDenganEmail(_previous: OtpVerifyState, formData: FormData): Promise<OtpVerifyState> {
-  const parsed = emailVerifySchema.safeParse({ email: formData.get("email"), code: formData.get("code") });
-  if (!parsed.success) return { status: "gagal", message: "Masukkan 6 angka kode dari email." };
+/**
+ * Checks the Kode Masuk; on success stores the session and lands on Akun
+ * Saya, or the staff area for staff.
+ */
+export async function masukDenganKodeMasuk(_previous: KodeMasukVerifyState, formData: FormData): Promise<KodeMasukVerifyState> {
+  const parsed = verifySchema.safeParse({ email: formData.get("email"), code: formData.get("code") });
+  if (!parsed.success) return { status: "gagal", message: "Masukkan 6 angka Kode Masuk dari email Anda." };
 
   const { identity, adapters } = serverRuntime();
-  const result = await identity.verifyEmailLogin(parsed.data);
+  const result = await identity.verifyKodeMasuk(parsed.data);
   if (!result.ok) return { status: "gagal", message: refusalMessage(result, adapters.clock.now()) };
   await setSessionCookies(result.session.cookies);
   redirect(landingFor(result.roles));
@@ -110,10 +63,6 @@ function landingFor(roles: Role[]): string {
 }
 
 /** The message for an identity refusal, with its wait time when it has one. */
-function refusalMessage(refusal: { reason: OtpRefusal; retryAt?: Date }, now: Date): string {
-  return otpMessage(refusal.reason, refusal.retryAt, now);
-}
-
-function secondsUntil(at: Date, now: Date): number {
-  return Math.max(0, Math.ceil((at.getTime() - now.getTime()) / 1000));
+function refusalMessage(refusal: { reason: IdentityRefusal; retryAt?: Date }, now: Date): string {
+  return identityMessage(refusal.reason, refusal.retryAt, now);
 }

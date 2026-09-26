@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /*
- * The email and code fields of the email Server Actions (Masuk dengan email,
- * Kirim lewat email, Verifikasi Email). Only the shape is checked here; the
+ * The email and code fields of the email Server Actions (the Kode Masuk on
+ * Masuk and at Kirim, Verifikasi Email). Only the shape is checked here; the
  * identity module normalises the email and checks the code.
  */
 

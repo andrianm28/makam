@@ -1,40 +1,38 @@
 "use server";
 
 import { z } from "zod";
-import { KTP_CHECK_MAX_BYTES, stafResource, type MoveAccountResult } from "@/domain/identity";
+import { KTP_CHECK_MAX_BYTES, stafResource, type RecoverAccountResult } from "@/domain/identity";
+import { emailInput } from "@/server/code-inputs";
 import { guarded } from "@/server/guard";
-import { phoneNumberInput } from "@/server/phone-number-input";
-import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
 
-
 const schema = z.object({
-  currentPhoneNumber: phoneNumberInput,
-  newPhoneNumber: phoneNumberInput,
+  currentEmail: emailInput,
+  newEmail: emailInput,
   ktpCheck: z.instanceof(File).refine((file) => file.size <= KTP_CHECK_MAX_BYTES),
   ktpChecked: z.literal("ya").optional(),
   reason: z.string().trim().max(500),
 });
 
-/** Pindah Nomor: Admin Platform moves an Akun to a new number after a KTP check. */
-export async function pindahNomor(_previous: FormState, formData: FormData): Promise<FormState> {
+/** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check. */
+export async function pulihkanAkun(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
-    action: "akun.pindah_nomor",
+    action: "akun.pemulihan",
     resource: () => stafResource(),
     schema,
     input: {
-      currentPhoneNumber: formData.get("currentPhoneNumber"),
-      newPhoneNumber: formData.get("newPhoneNumber"),
+      currentEmail: formData.get("currentEmail"),
+      newEmail: formData.get("newEmail"),
       ktpCheck: formData.get("ktpCheck"),
       ktpChecked: formData.get("ktpChecked") ?? undefined,
       reason: formData.get("reason"),
     },
     run: async (actor, data) =>
-      serverRuntime().identity.moveAccountToNewNumber(actor, {
-        currentPhoneNumber: data.currentPhoneNumber,
-        newPhoneNumber: data.newPhoneNumber,
+      serverRuntime().identity.recoverAccount(actor, {
+        currentEmail: data.currentEmail,
+        newEmail: data.newEmail,
         ktpCheck: { body: new Uint8Array(await data.ktpCheck.arrayBuffer()), contentType: data.ktpCheck.type },
         ktpChecked: data.ktpChecked === "ya",
         reason: data.reason,
@@ -50,11 +48,11 @@ export async function pindahNomor(_previous: FormState, formData: FormData): Pro
   if (!moved.ok) return { status: "gagal", message: refusal(moved) };
   return {
     status: "berhasil",
-    message: `Akun dipindah ke ${moved.account.phoneNumber}. Sesi di nomor lama sudah diakhiri; pemilik Akun masuk lagi dengan nomor baru.`,
+    message: `Akun dipulihkan: Email Terverifikasi-nya sekarang ${moved.account.email}. Semua sesinya sudah diakhiri; pemilik Akun masuk lagi dengan Kode Masuk ke email itu.`,
   };
 }
 
-function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
+function refusal(refused: Extract<RecoverAccountResult, { ok: false }>): string {
   switch (refused.reason) {
     case "ktp_belum_dicek":
       return "Centang dulu bahwa KTP sudah dicocokkan dengan data Akun.";
@@ -64,19 +62,18 @@ function refusal(refused: Extract<MoveAccountResult, { ok: false }>): string {
       return "Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), paling besar 10 MB.";
     case "alasan_wajib":
       return "Tulis alasannya.";
-    case "nomor_sama":
-      return "Nomor baru sama dengan nomor lama.";
+    case "email_tidak_valid":
+      return "Periksa lagi kedua email itu.";
+    case "email_sama":
+      return "Email baru sama dengan Email Terverifikasi Akun ini.";
     case "akun_tidak_ditemukan":
-      return "Tidak ada Akun dengan nomor lama itu.";
+      return "Tidak ada Akun dengan email itu.";
     case "akun_sendiri":
-      return "Anda tidak bisa memindahkan nomor Akun Anda sendiri. Minta Admin Platform lain.";
-    case "nomor_sudah_dipakai":
-      return "Nomor baru sudah dipakai Akun lain.";
+      return "Anda tidak bisa memulihkan Akun Anda sendiri. Minta Admin Platform lain.";
+    case "email_sudah_dipakai":
+      return "Email baru sudah menjadi Email Terverifikasi Akun lain.";
     case "berkas_gagal_disimpan":
-      return "Penyimpanan berkas belum tersedia di lingkungan ini. Nomor belum dipindah.";
-    case "nomor_tidak_valid":
-    case "nomor_bukan_indonesia":
-      return phoneNumberRefusals[refused.reason];
+      return "Penyimpanan berkas belum tersedia di lingkungan ini. Email belum dipindah.";
     case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refused.reason);

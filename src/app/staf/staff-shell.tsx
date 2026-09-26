@@ -201,7 +201,7 @@ function ShellHeader({ shell, role, pathname }: { shell: StaffShellData; role: S
 }
 
 function AccountMenu({ shell, role }: { shell: StaffShellData; role: StaffRole | null }) {
-  const { phoneNumber, email } = shell.account;
+  const { email, phoneNumber } = shell.account;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="rounded-full" aria-label="Akun" />}>
@@ -214,8 +214,8 @@ function AccountMenu({ shell, role }: { shell: StaffShellData; role: StaffRole |
       <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="flex flex-col gap-0.5 py-1.5">
-            <span className="text-small font-medium text-foreground tabular-nums">{phoneNumber}</span>
-            {email ? <span className="font-normal">{email}</span> : null}
+            <span className="text-small font-medium text-foreground">{email}</span>
+            {phoneNumber ? <span className="font-normal tabular-nums">{phoneNumber}</span> : null}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

@@ -31,7 +31,7 @@ function signOutOwnAccount(input: unknown) {
 }
 
 async function signIn() {
-  const login = await server.logIn("081234567890");
+  const login = await server.logIn("pemesan@contoh.id");
   browser.store(login.session.cookies);
   return login.account;
 }
@@ -74,8 +74,8 @@ describe("a guarded Server Action", () => {
   });
 
   it("refuses an Admin Platform who has not passed TOTP with perlu_totp, before running anything", async () => {
-    await server.runtime().identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
-    const login = await server.logIn("081111111111");
+    await server.runtime().identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
+    const login = await server.logIn("admin@makam.co.id");
     browser.store(login.session.cookies);
     let ran = false;
 

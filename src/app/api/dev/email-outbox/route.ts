@@ -10,7 +10,7 @@ const querySchema = z.object({ to: z.email().transform((email) => email.toLowerC
  * Development and test only: the emails the in-memory fake EmailSender "sent"
  * to one address (the email Kode Masuk, the Verifikasi Email code), so
  * Playwright (and a developer) can read a code. Answers 404 wherever the live
- * EmailSender is wired (staging, production). Mirrors /api/dev/whatsapp-outbox.
+ * EmailSender is wired (staging, production).
  */
 export async function GET(request: Request) {
   await connection();
@@ -30,7 +30,8 @@ export async function GET(request: Request) {
 
 /**
  * The in-memory FakeEmailSender, recognised by its record of sends (not
- * `instanceof`: see the WhatsApp outbox).
+ * `instanceof`: the route and the Server Actions may load separate copies of
+ * the class, while the runtime they share is a single one on globalThis).
  */
 function isRecordingFake(sender: EmailSender): sender is EmailSender & { sent: (EmailMessage & { messageId: string })[] } {
   return "sent" in sender && Array.isArray(sender.sent);

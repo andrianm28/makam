@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { homeFor } from "@/server/staff-area";
-import { MasukForm } from "./masuk-form";
+import { kirimKodeMasuk, masukDenganKodeMasuk } from "./actions";
 
 export const metadata: Metadata = {
   title: "Masuk | Makam.co.id",
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default async function MasukPage() {
   const actor = await currentActor();
   if (actor) redirect(homeFor(actor));
-  // The OTP screen's CS pointer names the CS WhatsApp number once Pengaturan Operator holds it.
+  // "Tidak punya email? Minta bantuan CS" names the CS number once Pengaturan Operator holds it.
   const settings = await serverRuntime().operatorSettings.current();
   const csContact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
 
@@ -27,14 +27,12 @@ export default async function MasukPage() {
             <h1 className="text-2xl font-semibold">Masuk</h1>
           </CardTitle>
           <CardDescription>
-            Masuk dengan nomor WhatsApp Anda. Tidak perlu daftar: akun dibuat saat nomor Anda terverifikasi.
+            Masukkan email Anda. Kami mengirim Kode Masuk ke email itu. Tidak perlu daftar: bila email ini belum punya
+            akun, akun dibuat saat kodenya dimasukkan.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <MasukForm csContact={csContact} />
-          <Link href="/masuk/email" className="text-sm underline underline-offset-4">
-            Masuk dengan email
-          </Link>
+        <CardContent>
+          <KodeMasukForm requestAction={kirimKodeMasuk} verifyAction={masukDenganKodeMasuk} csContact={csContact} />
         </CardContent>
       </Card>
     </main>

@@ -21,7 +21,7 @@ export default async function TotpPage() {
         </CardTitle>
         <CardDescription>
           {enrolling
-            ? "Admin Platform wajib memakai aplikasi authenticator (misalnya Google Authenticator atau Aegis) di samping kode WhatsApp. Daftarkan sekali, lalu masukkan kodenya setiap kali masuk."
+            ? "Admin Platform wajib memakai aplikasi authenticator (misalnya Google Authenticator atau Aegis) di samping Kode Masuk. Daftarkan sekali, lalu masukkan kodenya setiap kali masuk."
             : "Masukkan kode 6 angka dari aplikasi authenticator Anda."}
         </CardDescription>
       </CardHeader>

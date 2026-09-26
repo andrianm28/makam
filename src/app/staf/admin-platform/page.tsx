@@ -53,8 +53,8 @@ export default async function AdminPlatformPage() {
           value={pengaturanOperatorDiisi ? "Terisi" : "Belum diisi"}
           note={
             pengaturanOperatorDiisi
-              ? "Nama resmi, alamat, kontak dan WhatsApp CS"
-              : "Nama resmi, alamat, kontak dan WhatsApp CS belum ada"
+              ? "Nama resmi, alamat, kontak dan nomor CS"
+              : "Nama resmi, alamat, kontak dan nomor CS belum ada"
           }
           attention={pengaturanOperatorDiisi ? undefined : "warning"}
           href={`${AP}/pengaturan-operator`}

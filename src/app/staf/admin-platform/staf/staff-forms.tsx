@@ -22,18 +22,18 @@ function Feedback({ state }: { state: FormState }) {
   );
 }
 
-/** Undangan Staf: WhatsApp number, required email, one role. */
+/** Undangan Staf: the email it is addressed to, a phone number as contact, one role. */
 export function InviteForm({ roles }: { roles: { value: string; label: string }[] }) {
   const [state, action, pending] = useActionState(undangStaf, idle);
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Nomor WhatsApp
-        <input name="phoneNumber" type="tel" inputMode="tel" required placeholder="0812 3456 7890" className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
         Email
         <input name="email" type="email" required placeholder="nama@contoh.id" className={inputClass} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm font-medium">
+        Nomor telepon
+        <input name="phoneNumber" type="tel" inputMode="tel" required placeholder="0812 3456 7890" className={inputClass} />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Peran

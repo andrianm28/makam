@@ -19,9 +19,9 @@ beforeEach(async () => {
 /** The first Admin Platform, signed in in this browser and past TOTP. */
 async function signInAsAdminPlatform() {
   const { identity } = server.runtime();
-  const seeded = await identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
+  const seeded = await identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
   if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
-  const login = await server.logIn("081111111111");
+  const login = await server.logIn("admin@makam.co.id");
   browser.store(login.session.cookies);
   const actor = async () => (await identity.actorFromCookies(browser.cookieHeader()))!;
   const enrolment = await identity.startTotpEnrolment(await actor());

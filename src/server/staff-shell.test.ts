@@ -16,10 +16,10 @@ beforeEach(async () => {
   browser.reset();
 });
 
-/** Signs a number in, in the test browser, instead of whoever was signed in. */
-async function signIn(phoneNumber: string) {
+/** Signs an email in, in the test browser, instead of whoever was signed in. */
+async function signIn(email: string) {
   browser.reset();
-  browser.store((await server.logIn(phoneNumber)).session.cookies);
+  browser.store((await server.logIn(email)).session.cookies);
 }
 
 async function newLokasiMitra(name: string) {
@@ -38,10 +38,10 @@ describe("the staff shell", () => {
   it("an Akun holding Petugas Lapangan and Mitra Jasa can switch between exactly those two roles", async () => {
     const admin = await signInAsAdminPlatform(server);
     for (const role of ["petugas_lapangan", "mitra_jasa"] as const) {
-      const invited = await server.runtime().identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });
+      const invited = await server.runtime().identity.inviteStaff(admin, { email: "staf@contoh.id", phoneNumber: "082222222222", role });
       if (!invited.ok) throw new Error(invited.reason);
     }
-    await signIn("082222222222");
+    await signIn("staf@contoh.id");
 
     expect((await staffShell())?.roles).toEqual([
       { role: "petugas_lapangan", label: "Petugas Lapangan", href: "/staf/petugas-lapangan" },
@@ -50,21 +50,21 @@ describe("the staff shell", () => {
   });
 
   it("an Admin Platform past the TOTP step gets the shell with its one role and its account for the account menu", async () => {
-    await signInAsAdminPlatform(server, "081111111111");
+    await signInAsAdminPlatform(server, "admin@makam.co.id");
 
     expect(await staffShell()).toMatchObject({
       roles: [{ role: "admin_platform", label: "Admin Platform", href: "/staf/admin-platform" }],
-      account: { phoneNumber: "+6281111111111", email: "admin@makam.co.id" },
+      account: { email: "admin@makam.co.id", phoneNumber: "+6281111111111" },
     });
   });
 
   it("there is no shell before the TOTP step, for a Pemesan, or when signed out", async () => {
     const { identity } = server.runtime();
-    await identity.seedFirstAdminPlatform({ phoneNumber: "081111111111", email: "admin@makam.co.id" });
-    await signIn("081111111111");
+    await identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
+    await signIn("admin@makam.co.id");
     expect(await staffShell()).toBeNull();
 
-    await signIn("085555555555");
+    await signIn("pemesan@contoh.id");
     expect(await staffShell()).toBeNull();
 
     browser.reset();

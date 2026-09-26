@@ -1,92 +1,134 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { kirimKodeLewatEmail } from "./actions";
+import { Input } from "@/components/ui/input";
 import {
   csWhatsAppLink,
-  initialEmailFallbackState,
-  initialOtpVerifyState,
+  initialKodeMasukRequestState,
+  initialKodeMasukVerifyState,
   type CsContact,
-  type OtpRequestState,
-  type OtpVerifyState,
+  type KodeMasukRequestState,
+  type KodeMasukVerifyState,
 } from "./state";
 
-type Sent = Extract<OtpRequestState, { status: "terkirim" }>;
-
-export interface OtpVerificationProps {
-  /** The send this screen is for; give the component `key={sent.sentAt}` so a re-send restarts it. */
-  sent: Sent;
-  /**
-   * Checks the code (a Server Action taking `phoneNumber`, `code` and, for the
-   * code "Kirim lewat email" sent, `channel=email`; pass it on to identity.verifyOtp).
-   */
-  verifyAction: (state: OtpVerifyState, formData: FormData) => Promise<OtpVerifyState>;
-  /** Sends a new code (the dispatch of the caller's `useActionState` for the request action). */
-  resendAction: (formData: FormData) => void;
-  resendPending?: boolean;
-  /** Why the last re-send was refused, if it was. */
-  resendError?: string;
+export interface KodeMasukFormProps {
+  /** Sends a Kode Masuk to the `email` field (a Server Action; the identity module's requestKodeMasuk). */
+  requestAction: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
+  /** Checks the Kode Masuk (a Server Action taking `email` and `code`; the identity module's verifyKodeMasuk). */
+  verifyAction: (state: KodeMasukVerifyState, formData: FormData) => Promise<KodeMasukVerifyState>;
+  /** The label of the button that enters the code, e.g. "Masuk" or "Kirim pesanan". */
   submitLabel?: string;
-  /**
-   * Extra hint in the fallback slot, under "Kirim lewat email" (when the
-   * number's Akun has an Email Terverifikasi) or the CS WhatsApp pointer.
-   */
-  fallback?: ReactNode;
-  /** The CS WhatsApp contact from Pengaturan Operator (`current()`); null while it is not entered: the pointer then names no number. */
-  csContact?: CsContact | null;
+  /** The CS WhatsApp contact from Pengaturan Operator (`current()`); null while it is not entered. */
+  csContact: CsContact | null;
 }
 
 /**
- * The OTP screen: code entry, Kirim ulang, and the fallback slot (about 60 s
- * after the send): "Kirim lewat email" for an Akun with an Email
- * Terverifikasi, otherwise the CS WhatsApp pointer. Used by Masuk and, later,
- * by Kirim in the booking wizards.
+ * The Kode Masuk: one email field, then the 6-digit code sent to it. The
+ * code logs into the Akun of that email or creates it (spec, Identity &
+ * Access), so the same form serves Masuk and, later, Kirim in the booking
+ * wizards. Under the email field: "Tidak punya email? Minta bantuan CS".
  */
-export function OtpVerification({
+export function KodeMasukForm({ requestAction, verifyAction, submitLabel = "Masuk", csContact }: KodeMasukFormProps) {
+  const [state, request, requesting] = useActionState(requestAction, initialKodeMasukRequestState);
+  const [changingEmail, setChangingEmail] = useState(false);
+  const sent = useLastSent(state, () => setChangingEmail(false));
+
+  if (sent && !changingEmail) {
+    return (
+      <CodeStep
+        key={sent.sentAt}
+        sent={sent}
+        verifyAction={verifyAction}
+        resendAction={request}
+        resendPending={requesting}
+        resendError={state.status === "gagal" ? state.message : undefined}
+        submitLabel={submitLabel}
+        onChangeEmail={() => setChangingEmail(true)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <form action={request} className="flex flex-col gap-3">
+        <label htmlFor="kode-masuk-email" className="text-sm font-medium">
+          Email
+        </label>
+        <Input
+          id="kode-masuk-email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          placeholder="nama@contoh.id"
+          defaultValue={state.status === "gagal" ? state.email : sent?.email}
+          required
+          className="h-11 px-3"
+        />
+        {state.status === "gagal" ? (
+          <p role="alert" className="text-sm text-destructive">
+            {state.message}
+          </p>
+        ) : null}
+        <Button type="submit" size="lg" disabled={requesting}>
+          {requesting ? "Mengirim…" : "Kirim Kode Masuk"}
+        </Button>
+      </form>
+      <CsHelp contact={csContact} />
+    </div>
+  );
+}
+
+type Sent = Extract<KodeMasukRequestState, { status: "terkirim" }>;
+
+function CodeStep({
   sent,
   verifyAction,
   resendAction,
-  resendPending = false,
+  resendPending,
   resendError,
-  submitLabel = "Verifikasi",
-  fallback,
-  csContact = null,
-}: OtpVerificationProps) {
-  const [verifyState, verify, verifying] = useActionState(verifyAction, initialOtpVerifyState);
+  submitLabel,
+  onChangeEmail,
+}: {
+  sent: Sent;
+  verifyAction: KodeMasukFormProps["verifyAction"];
+  resendAction: (formData: FormData) => void;
+  resendPending: boolean;
+  resendError?: string;
+  submitLabel: string;
+  onChangeEmail: () => void;
+}) {
+  const [verifyState, verify, verifying] = useActionState(verifyAction, initialKodeMasukVerifyState);
   const resendIn = useCountdown(sent.resendInSeconds);
-  const fallbackIn = useCountdown(sent.fallbackInSeconds);
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-semibold">Masukkan kode verifikasi</h2>
-        <p className="text-sm text-muted-foreground">
-          Kami mengirim kode 6 angka lewat WhatsApp ke{" "}
-          <span className="font-medium text-foreground" data-testid="otp-phone-number">
-            {sent.phoneNumber}
+        <h2 className="text-xl font-semibold">Masukkan Kode Masuk</h2>
+        <p role="status" className="text-sm text-muted-foreground" data-testid="kode-masuk-terkirim">
+          Kode Masuk 6 angka sudah kami kirim ke{" "}
+          <span className="font-medium text-foreground" data-testid="kode-masuk-email">
+            {sent.email}
           </span>
-          .
-        </p>
-        <p className="rounded-md bg-muted px-3 py-2 text-sm" data-testid="otp-phone-only-notice">
-          Buka WhatsApp di ponsel Anda. Kode hanya muncul di ponsel, tidak di WhatsApp Web atau WhatsApp Desktop.
+          . Kode berlaku 10 menit. Tidak ada di kotak masuk? Periksa folder spam.
         </p>
       </div>
 
       <form action={verify} className="flex flex-col gap-3">
-        <input type="hidden" name="phoneNumber" value={sent.phoneNumber} />
-        <label htmlFor="otp-code" className="text-sm font-medium">
-          Kode verifikasi
+        <input type="hidden" name="email" value={sent.email} />
+        <label htmlFor="kode-masuk-code" className="text-sm font-medium">
+          Kode Masuk
         </label>
-        <input
-          id="otp-code"
+        <Input
+          id="kode-masuk-code"
           name="code"
           inputMode="numeric"
           autoComplete="one-time-code"
           pattern="\d{6}"
           maxLength={6}
           required
-          className="h-11 rounded-lg border border-input bg-background px-3 text-center text-lg tracking-[0.5em] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-11 px-3 text-center text-lg tracking-[0.5em]"
         />
         {verifyState.status === "gagal" ? (
           <p role="alert" className="text-sm text-destructive">
@@ -99,7 +141,7 @@ export function OtpVerification({
       </form>
 
       <form action={resendAction} className="flex flex-col gap-2">
-        <input type="hidden" name="phoneNumber" value={sent.phoneNumber} />
+        <input type="hidden" name="email" value={sent.email} />
         <Button type="submit" variant="outline" disabled={resendIn > 0 || resendPending}>
           {resendIn > 0 ? `Kirim ulang kode (${resendIn} detik)` : "Kirim ulang kode"}
         </Button>
@@ -110,34 +152,49 @@ export function OtpVerification({
         ) : null}
       </form>
 
-      {fallbackIn === 0 ? (
-        <div data-testid="otp-fallback-slot" className="flex flex-col gap-2 text-sm">
-          {sent.emailFallback ? (
-            <EmailFallback phoneNumber={sent.phoneNumber} verifyAction={verifyAction} submitLabel={submitLabel} />
-          ) : (
-            <CsPointer contact={csContact} />
-          )}
-          {fallback}
-        </div>
-      ) : null}
+      <Button type="button" variant="ghost" onClick={onChangeEmail}>
+        Ganti email
+      </Button>
     </div>
   );
 }
 
-/** "Hubungi CS" for a number with no Email Terverifikasi: the CS WhatsApp number from Pengaturan Operator, if entered. */
-function CsPointer({ contact }: { contact: CsContact | null }) {
+/**
+ * "Tidak punya email? Minta bantuan CS": a wa.me link to the CS number
+ * (`csWhatsApp`) from Pengaturan Operator, with its reply hours and the number itself.
+ * While Pengaturan Operator is empty it names no number.
+ */
+export function CsHelp({ contact }: { contact: CsContact | null }) {
   if (!contact) {
-    return <p data-testid="otp-cs-pointer">Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp.</p>;
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="kode-masuk-cs">
+        Tidak punya email? Minta bantuan CS Makam.co.id: CS dapat mengirim pesanan atas nama keluarga Anda.
+      </p>
+    );
   }
   return (
-    <p data-testid="otp-cs-pointer">
-      Kode tidak juga masuk? Hubungi CS Makam.co.id lewat WhatsApp di{" "}
-      <a href={csWhatsAppLink(contact)} className="font-medium underline underline-offset-4" target="_blank" rel="noopener">
-        {contact.whatsApp}
+    <p className="text-sm text-muted-foreground" data-testid="kode-masuk-cs">
+      <a href={csWhatsAppLink(contact)} className="font-medium text-brand underline underline-offset-4" target="_blank" rel="noopener">
+        Tidak punya email? Minta bantuan CS
       </a>{" "}
-      ({contact.replyHours}).
+      di <span className="font-medium text-foreground">{contact.whatsApp}</span> ({contact.replyHours}). CS dapat
+      mengirim pesanan atas nama keluarga Anda.
     </p>
   );
+}
+
+/**
+ * The last successful send stays on screen when a later re-send is refused,
+ * so the code already received can still be typed. `onNewSend` runs for each new send.
+ */
+function useLastSent(state: KodeMasukRequestState, onNewSend: () => void): Sent | null {
+  const [lastSent, setLastSent] = useState<Sent | null>(null);
+  // Adjusting state while rendering (React's pattern for state derived from props).
+  if (state.status === "terkirim" && lastSent?.sentAt !== state.sentAt) {
+    setLastSent(state);
+    onNewSend();
+  }
+  return state.status === "terkirim" ? state : lastSent;
 }
 
 /** Whole seconds left, counting down from `seconds` once the screen is shown. */
@@ -154,62 +211,4 @@ function useCountdown(seconds: number): number {
     return () => clearInterval(timer);
   }, [seconds]);
   return left;
-}
-
-/** "Kirim lewat email": the same Kode Masuk to the Akun's Email Terverifikasi, entered here like the WhatsApp one. */
-function EmailFallback({
-  phoneNumber,
-  verifyAction,
-  submitLabel,
-}: {
-  phoneNumber: string;
-  verifyAction: OtpVerificationProps["verifyAction"];
-  submitLabel: string;
-}) {
-  const [sentByEmail, send, sending] = useActionState(kirimKodeLewatEmail, initialEmailFallbackState);
-  const [verifyState, verify, verifying] = useActionState(verifyAction, initialOtpVerifyState);
-
-  if (sentByEmail.status !== "terkirim") {
-    return (
-      <form action={send} className="flex flex-col gap-2">
-        <input type="hidden" name="phoneNumber" value={phoneNumber} />
-        <Button type="submit" variant="secondary" disabled={sending}>
-          {sending ? "Mengirim…" : "Kirim lewat email"}
-        </Button>
-        {sentByEmail.status === "gagal" ? (
-          <p role="alert" className="text-destructive">
-            {sentByEmail.message}
-          </p>
-        ) : null}
-      </form>
-    );
-  }
-  return (
-    <form action={verify} className="flex flex-col gap-2">
-      <p role="status">Kode masuk sudah kami kirim ke email terverifikasi akun ini.</p>
-      <input type="hidden" name="phoneNumber" value={phoneNumber} />
-      <input type="hidden" name="channel" value="email" />
-      <label htmlFor="otp-email-code" className="font-medium">
-        Kode dari email
-      </label>
-      <input
-        id="otp-email-code"
-        name="code"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pattern="\d{6}"
-        maxLength={6}
-        required
-        className="h-11 rounded-lg border border-input bg-background px-3 text-center text-lg tracking-[0.5em] outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      {verifyState.status === "gagal" ? (
-        <p role="alert" className="text-destructive">
-          {verifyState.message}
-        </p>
-      ) : null}
-      <Button type="submit" disabled={verifying}>
-        {verifying ? "Memeriksa…" : submitLabel}
-      </Button>
-    </form>
-  );
 }

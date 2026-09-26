@@ -1,8 +1,8 @@
 import { scrubText } from "./scrub";
 
 /**
- * Sends an error that the caller handled (the outcome is kept, e.g. a
- * WhatsApp marked "gagal") to error monitoring. The web server and the worker
+ * Sends an error that the caller handled (the outcome is kept, e.g. the email
+ * of a Peringatan Staf marked "gagal") to error monitoring. The web server and the worker
  * wire it to Sentry's `captureException`, whose `beforeSend` scrubs every
  * event (`scrub.ts`); tags must still carry nothing personal: no names, phone
  * numbers or emails, only codes such as a template or channel name.

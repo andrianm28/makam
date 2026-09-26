@@ -6,7 +6,7 @@ import { PushPanelClient } from "./push-panel-client";
 /**
  * The staff area's install hint and push switch for the browser in use, shown
  * to a signed-in Akun Staf (an Admin Platform once past TOTP). Peringatan Staf
- * always go by WhatsApp; push is on top.
+ * go by push to each Perangkat Push and by email.
  */
 export async function PushPanel() {
   const actor = await currentActor();

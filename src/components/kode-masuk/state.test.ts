@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { csWhatsAppLink, otpMessage, type OtpRefusal } from "./state";
+import { csWhatsAppLink, identityMessage, type IdentityRefusal } from "./state";
 
-const everyRefusal: OtpRefusal[] = [
+const everyRefusal: IdentityRefusal[] = [
   "nomor_tidak_valid",
   "nomor_bukan_indonesia",
   "gagal_kirim",
@@ -16,19 +16,16 @@ const everyRefusal: OtpRefusal[] = [
   "input_tidak_valid",
   "perlu_totp",
   "email_tidak_valid",
-  "tanpa_email_terverifikasi",
-  "tanpa_kode_whatsapp",
   "email_sudah_dipakai",
-  "email_wajib",
 ];
 
-describe("OTP screen messages", () => {
-  it("tells a Pemesan with a foreign number to use an Indonesian (+62) WhatsApp number", () => {
-    expect(otpMessage("nomor_bukan_indonesia")).toBe("Gunakan nomor WhatsApp Indonesia (+62).");
+describe("Kode Masuk and Akun Saya messages", () => {
+  it("tells someone with a foreign phone number to give an Indonesian (+62) one", () => {
+    expect(identityMessage("nomor_bukan_indonesia")).toBe("Gunakan nomor telepon Indonesia (+62).");
   });
 
   it("gives every refusal from the identity module and the guard its own message", () => {
-    const messages = everyRefusal.map((reason) => otpMessage(reason));
+    const messages = everyRefusal.map((reason) => identityMessage(reason));
 
     expect(messages).not.toContain("Terjadi kesalahan. Silakan coba lagi.");
     expect(new Set(messages).size).toBe(everyRefusal.length);
@@ -36,14 +33,14 @@ describe("OTP screen messages", () => {
 
   it("says how long to wait when the refusal has a retry time", () => {
     const now = new Date("2026-10-01T02:00:00Z");
-    expect(otpMessage("terlalu_sering", new Date("2026-10-01T02:30:00Z"), now)).toBe(
+    expect(identityMessage("terlalu_sering", new Date("2026-10-01T02:30:00Z"), now)).toBe(
       "Terlalu banyak permintaan kode. Coba lagi dalam 30 menit.",
     );
   });
 });
 
-describe("the CS WhatsApp pointer", () => {
-  it("links to the CS WhatsApp number from Pengaturan Operator by wa.me, without the plus", () => {
+describe('"Tidak punya email? Minta bantuan CS"', () => {
+  it("links to the CS number from Pengaturan Operator by wa.me, without the plus", () => {
     expect(csWhatsAppLink({ whatsApp: "+6281122223333", replyHours: "dibalas mulai pukul 06:00" })).toBe(
       "https://wa.me/6281122223333",
     );

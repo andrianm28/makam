@@ -54,7 +54,7 @@ export function serverRuntime(): ServerRuntime {
     const notifications = createNotifications({
       db: database.db,
       clock: adapters.clock,
-      whatsapp: adapters.whatsapp,
+      email: adapters.email,
       webPush: adapters.webPush,
       identity,
       audit,

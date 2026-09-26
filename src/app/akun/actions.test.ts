@@ -34,7 +34,7 @@ describe("Keluar (Server Action)", () => {
   });
 
   it("ends the Pemesan's session and goes back to Masuk", async () => {
-    const login = await server.logIn("081234567890");
+    const login = await server.logIn("pemesan@contoh.id");
     browser.store(login.session.cookies);
     const sessionCookies = browser.cookieHeader();
 

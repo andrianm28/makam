@@ -288,9 +288,9 @@ export async function unggahPerjanjian(_previous: FormState, formData: FormData)
 
 const inviteSchema = z.object({
   lokasiId,
-  phoneNumber: phoneNumberInput,
   // Empty is let through: the identity module refuses a missing email (email_wajib) with its own message.
   email: z.string().trim().max(254),
+  phoneNumber: phoneNumberInput,
   reason: z.string().trim().max(500),
 });
 
@@ -301,20 +301,20 @@ export async function undangAdminLokasi(_previous: FormState, formData: FormData
     schema: inviteSchema,
     input: {
       lokasiId: formData.get("lokasiId"),
-      phoneNumber: formData.get("phoneNumber"),
       email: formData.get("email"),
+      phoneNumber: formData.get("phoneNumber"),
       reason: formData.get("reason") ?? "",
     },
     run: (actor, data) =>
       serverRuntime().lokasi.inviteAdminLokasi(actor, data.lokasiId, {
-        phoneNumber: data.phoneNumber,
         email: data.email,
+        phoneNumber: data.phoneNumber,
         reason: data.reason || null,
       }),
     saved: ({ invite, delivered }) =>
       delivered
-        ? `Undangan Admin Lokasi terkirim ke ${invite.phoneNumber}. Berlaku 7 hari: minta ia masuk lewat /masuk dengan nomor itu.`
-        : `Undangan Admin Lokasi untuk ${invite.phoneNumber} tercatat, tetapi pesan WhatsApp gagal terkirim. Minta ia masuk lewat /masuk dengan nomor itu dalam 7 hari.`,
+        ? `Undangan Admin Lokasi terkirim ke ${invite.email}. Berlaku 7 hari: minta ia masuk lewat /masuk dengan email itu.`
+        : `Undangan Admin Lokasi untuk ${invite.email} tercatat, tetapi emailnya gagal terkirim. Minta ia masuk lewat /masuk dengan email itu dalam 7 hari.`,
   });
 }
 

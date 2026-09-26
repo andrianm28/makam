@@ -104,14 +104,14 @@ export default async function LokasiMitraPage({ params }: PageProps<"/staf/admin
       <Section
         id="admin-lokasi"
         title="Admin Lokasi"
-        description="Semua Admin Lokasi sama kedudukannya. Undangan dikirim lewat WhatsApp dan berlaku 7 hari; peran didapat saat ia masuk dengan nomor itu."
+        description="Semua Admin Lokasi sama kedudukannya. Undangan dikirim ke email dan berlaku 7 hari; peran didapat saat ia masuk dengan Kode Masuk ke email itu."
       >
         {admins.ok && admins.adminLokasi.length > 0 ? (
           <ul className="flex flex-col gap-2 text-sm">
             {admins.adminLokasi.map((admin) => (
               <li key={admin.accountId} className="flex flex-wrap items-center gap-3">
                 <span>
-                  {admin.phoneNumber} · {admin.email ?? "–"}
+                  {admin.email ?? "–"} · {admin.phoneNumber ?? "–"}
                 </span>
                 <RemoveAdminLokasiForm lokasiId={lokasiMitra.id} accountId={admin.accountId} />
               </li>
@@ -126,7 +126,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/staf/admin
             <ul>
               {admins.openInvites.map((invite) => (
                 <li key={invite.id}>
-                  {invite.phoneNumber} · {invite.email} · berlaku sampai {formatWib(invite.expiresAt)}
+                  {invite.email} · {invite.phoneNumber} · berlaku sampai {formatWib(invite.expiresAt)}
                 </li>
               ))}
             </ul>
