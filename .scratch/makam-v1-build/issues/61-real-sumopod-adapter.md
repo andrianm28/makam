@@ -47,3 +47,4 @@ Implement the PaymentProvider port on SumoPod: create a payment (VA / QRIS) for 
     - Svix manual verification: https://docs.svix.com/receiving/verifying-payloads/how-manual
     - Svix retries: https://docs.svix.com/retries
     - makam-app `docs/adr/0033-*.md`, `docs/adr/0036-*.md`, `app/Platform/Payment/Checkout/SumoPodPaymentClient.php`, `app/Platform/Payment/Providers/SumoPodWebhookSignature.php`, `app/Platform/Payment/WebhookEnvelope.php`.
+- 2026-09-26 — Decided with the user: the live adapter maps SumoPod's `paid_at` (not `completed_at`, which is the settlement time) to the port's `paidAt`, used by the late-payment rule. Payment method: see the pending QRIS decision (index, 2026-09-26).
