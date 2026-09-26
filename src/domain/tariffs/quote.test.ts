@@ -315,4 +315,36 @@ describe("the all-in quote", () => {
       total: 125_000,
     });
   });
+
+  it("is refused rather than rounded when its total would pass Rp 100.000.000.000 (jumlah_terlalu_besar); exactly that much is quoted", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra } = await pricedLokasiMitra(setup);
+    const created = await setup.tariffs.createJenisMakam(admin, lokasiMitra.id, {
+      name: "Mausoleum",
+      description: "",
+      tariff: { hargaHakPakai: 99_999_849_999, tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 50_000_000_000, effectiveOn: "2026-10-01" },
+      reason: null,
+    });
+    if (!created.ok) throw new Error(created.reason);
+    const at = wib("2026-10-05 10:00");
+    const mausoleum = created.jenisMakam.id;
+
+    expect(await setup.tariffs.quote([{ kind: "harga_hak_pakai", jenisMakamId: mausoleum }], at)).toMatchObject({
+      ok: true,
+      total: 100_000_000_000,
+    });
+    expect(
+      await setup.tariffs.quote(
+        [
+          { kind: "harga_hak_pakai", jenisMakamId: mausoleum },
+          { kind: "biaya_pemakaman", lokasiId: lokasiMitra.id, tumpang: false },
+        ],
+        at,
+      ),
+    ).toEqual({ ok: false, reason: "jumlah_terlalu_besar" });
+    expect(await setup.tariffs.quote([{ kind: "perpanjangan", jenisMakamId: mausoleum, terms: 2 }], at)).toEqual({
+      ok: false,
+      reason: "jumlah_terlalu_besar",
+    });
+  });
 });

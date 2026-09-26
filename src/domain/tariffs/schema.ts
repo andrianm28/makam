@@ -1,6 +1,6 @@
 import {
-  bigint,
   bigserial,
+  customType,
   check,
   date,
   index,
@@ -12,10 +12,20 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { RUPIAH_MAX, rupiahFromDatabase, type Rupiah } from "@/lib/rupiah";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
-/** Whole rupiah. Never a float: every amount is an integer number of rupiah. */
-const rupiah = (name: string) => bigint(name, { mode: "number" });
+/**
+ * Whole rupiah in a Postgres `bigint`. Never a float: the driver's text is
+ * converted exactly, and a stored value outside Rp 0..RUPIAH_MAX is refused
+ * (an error) rather than rounded. Every rupiah column also has a CHECK for that range.
+ */
+const rupiah = customType<{ data: Rupiah; driverData: string }>({
+  dataType: () => "bigint",
+  fromDriver: (value) => rupiahFromDatabase(value),
+  toDriver: (value) => String(value),
+});
+const inRupiahRange = (column: unknown) => sql`${column} between 0 and ${sql.raw(String(RUPIAH_MAX))}`;
 
 /**
  * The global tariffs, each its own price book (spec, Tariffs): the Biaya
@@ -58,7 +68,7 @@ export const tariffGlobalVersion = pgTable(
   },
   (table) => [
     index("tariff_global_version_key_idx").on(table.key, table.inForceFrom, table.seq),
-    check("tariff_global_version_amount_check", sql`${table.amount} >= 0`),
+    check("tariff_global_version_amount_check", inRupiahRange(table.amount)),
   ],
 );
 
@@ -96,7 +106,7 @@ export const tariffBiayaPemakamanVersion = pgTable(
     index("tariff_biaya_pemakaman_version_idx").on(table.lokasiId, table.inForceFrom, table.seq),
     check(
       "tariff_biaya_pemakaman_version_amounts_check",
-      sql`${table.biayaPemakaman} >= 0 and (${table.biayaPemakamanTumpang} is null or ${table.biayaPemakamanTumpang} >= 0)`,
+      sql`${inRupiahRange(table.biayaPemakaman)} and (${table.biayaPemakamanTumpang} is null or ${inRupiahRange(table.biayaPemakamanTumpang)})`,
     ),
   ],
 );
@@ -142,7 +152,7 @@ export const tariffJenisMakamVersion = pgTable(
     index("tariff_jenis_makam_version_idx").on(table.jenisMakamId, table.inForceFrom, table.seq),
     check(
       "tariff_jenis_makam_version_amounts_check",
-      sql`${table.hargaHakPakai} >= 0 and (${table.hargaPerpanjangan} is null or ${table.hargaPerpanjangan} >= 0)`,
+      sql`${inRupiahRange(table.hargaHakPakai)} and (${table.hargaPerpanjangan} is null or ${inRupiahRange(table.hargaPerpanjangan)})`,
     ),
     check(
       "tariff_jenis_makam_version_tenure_check",

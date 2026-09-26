@@ -9,6 +9,7 @@ import {
   effectiveOnSchema,
   rupiahSchema,
   type EffectiveDateRefusal,
+  type Rupiah,
   type InvalidTariff,
 } from "./money";
 import { tariffBiayaPemakamanVersion } from "./schema";
@@ -21,7 +22,9 @@ export interface BiayaPemakaman {
   biayaPemakamanTumpang: number | null;
 }
 
-export interface BiayaPemakamanVersion extends BiayaPemakaman, VersionTimes {
+export interface BiayaPemakamanVersion extends VersionTimes {
+  biayaPemakaman: Rupiah;
+  biayaPemakamanTumpang: Rupiah | null;
   lokasiId: string;
   enteredAt: Date;
 }

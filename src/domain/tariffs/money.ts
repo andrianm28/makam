@@ -1,11 +1,8 @@
 import { z } from "zod";
 import { wibDateOf } from "@/lib/time/jakarta";
 
-/**
- * An amount of money: whole rupiah, zero or more, never a float. Every sum of
- * such amounts is exact (all stay below Number.MAX_SAFE_INTEGER).
- */
-export const rupiahSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+/** An amount of money everywhere in this module: `Rupiah`, whole rupiah from Rp 0 to Rp 100.000.000.000. */
+export { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 
 /** An effective date: a real WIB calendar date, "YYYY-MM-DD". */
 export const effectiveOnSchema = z.iso.date();

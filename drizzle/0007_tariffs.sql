@@ -8,7 +8,7 @@ CREATE TABLE "tariff_biaya_pemakaman_version" (
 	"lokasi_id" uuid NOT NULL,
 	"biaya_pemakaman" bigint NOT NULL,
 	"biaya_pemakaman_tumpang" bigint,
-	CONSTRAINT "tariff_biaya_pemakaman_version_amounts_check" CHECK ("tariff_biaya_pemakaman_version"."biaya_pemakaman" >= 0 and ("tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" is null or "tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" >= 0))
+	CONSTRAINT "tariff_biaya_pemakaman_version_amounts_check" CHECK ("tariff_biaya_pemakaman_version"."biaya_pemakaman" between 0 and 100000000000 and ("tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" is null or "tariff_biaya_pemakaman_version"."biaya_pemakaman_tumpang" between 0 and 100000000000))
 );
 --> statement-breakpoint
 CREATE TABLE "tariff_check" (
@@ -28,7 +28,7 @@ CREATE TABLE "tariff_global_version" (
 	"entered_by_account_id" text NOT NULL,
 	"key" text NOT NULL,
 	"amount" bigint NOT NULL,
-	CONSTRAINT "tariff_global_version_amount_check" CHECK ("tariff_global_version"."amount" >= 0)
+	CONSTRAINT "tariff_global_version_amount_check" CHECK ("tariff_global_version"."amount" between 0 and 100000000000)
 );
 --> statement-breakpoint
 CREATE TABLE "tariff_jenis_makam" (
@@ -53,7 +53,7 @@ CREATE TABLE "tariff_jenis_makam_version" (
 	"harga_hak_pakai" bigint NOT NULL,
 	"tenure_years" integer,
 	"harga_perpanjangan" bigint,
-	CONSTRAINT "tariff_jenis_makam_version_amounts_check" CHECK ("tariff_jenis_makam_version"."harga_hak_pakai" >= 0 and ("tariff_jenis_makam_version"."harga_perpanjangan" is null or "tariff_jenis_makam_version"."harga_perpanjangan" >= 0)),
+	CONSTRAINT "tariff_jenis_makam_version_amounts_check" CHECK ("tariff_jenis_makam_version"."harga_hak_pakai" between 0 and 100000000000 and ("tariff_jenis_makam_version"."harga_perpanjangan" is null or "tariff_jenis_makam_version"."harga_perpanjangan" between 0 and 100000000000)),
 	CONSTRAINT "tariff_jenis_makam_version_tenure_check" CHECK (("tariff_jenis_makam_version"."tenure_years" is null and "tariff_jenis_makam_version"."harga_perpanjangan" is null) or ("tariff_jenis_makam_version"."tenure_years" >= 1 and "tariff_jenis_makam_version"."harga_perpanjangan" is not null))
 );
 --> statement-breakpoint

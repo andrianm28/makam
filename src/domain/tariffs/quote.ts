@@ -4,6 +4,7 @@ import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
 import { z } from "zod";
 import { findJenisMakam, jenisMakamVersions, type JenisMakam, type Tenure } from "./jenis-makam";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
+import { sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
 
 /** One line to price. */
 export type QuoteLine =
@@ -27,13 +28,12 @@ export type Provider = { kind: "lokasi_mitra"; lokasiId: string } | { kind: "ope
 
 interface QuotedLineBase {
   label: string;
-  /** Whole rupiah. */
-  amount: number;
+  amount: Rupiah;
   provider: Provider;
   /** The effective date of the tariff version this amount comes from ("Harga berlaku sejak"). */
   inForceSince: string;
   /** This line's amount under the next version of its tariff, from that version's date ("Harga baru mulai"), or null. */
-  scheduledChange: { effectiveOn: string; amount: number } | null;
+  scheduledChange: { effectiveOn: string; amount: Rupiah } | null;
 }
 
 export type QuotedLine =
@@ -49,12 +49,12 @@ export interface Quote {
   ok: true;
   at: Date;
   lines: QuotedLine[];
-  /** Whole rupiah: the exact sum of the lines. */
-  total: number;
+  /** The exact sum of the lines (a quote whose sum would pass Rp 100.000.000.000 is refused instead). */
+  total: Rupiah;
   /** Since when this total holds: the latest effective date among the lines' versions ("Harga berlaku sejak"). */
   inForceSince: string;
   /** The total from the first date any line's tariff changes after `at` ("Harga baru mulai"), or null. */
-  scheduledChange: { effectiveOn: string; total: number } | null;
+  scheduledChange: { effectiveOn: string; total: Rupiah } | null;
 }
 
 export type QuoteRefusal =
@@ -68,6 +68,8 @@ export type QuoteRefusal =
   | { ok: false; reason: "tidak_bisa_diperpanjang" }
   /** The lines belong to more than one place (two Lokasi Mitra, or a Lokasi Mitra and a TPU): one Tagihan is one place. */
   | { ok: false; reason: "lokasi_campur" }
+  /** The total, or a Perpanjangan price × terms, would pass Rp 100.000.000.000 (never rounded). */
+  | { ok: false; reason: "jumlah_terlalu_besar" }
   /** No version of this line's tariff is in force at that instant (not entered yet, or only from a later date). */
   | { ok: false; reason: "tarif_belum_ada"; kind: QuotedLine["kind"] };
 
@@ -82,13 +84,6 @@ const quoteLineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("retribusi_pemda"), retribusi: z.literal("iptm") }),
 ]);
 
-/** Carries a refusal out of the pricing code. */
-class Refused extends Error {
-  constructor(readonly refusal: QuoteRefusal) {
-    super(refusal.reason);
-  }
-}
-
 /** A line priced at an instant, with when its version started and when the next one starts. */
 interface Priced {
   line: QuotedLine;
@@ -96,117 +91,122 @@ interface Priced {
   next: VersionTimes | null;
 }
 
+/** A step of pricing: its value, or the refusal that ends the quote. */
+type Step<T> = { ok: true; value: T } | QuoteRefusal;
+
 export async function quote(db: Database, lines: readonly QuoteLine[], at: Date): Promise<QuoteResult> {
   if (lines.length === 0) return { ok: false, reason: "tanpa_baris" };
   if (!z.array(quoteLineSchema).safeParse(lines).success) return { ok: false, reason: "baris_tidak_valid" };
-  try {
-    return await quoteChecked(db, lines, at);
-  } catch (error) {
-    if (error instanceof Refused) return error.refusal;
-    throw error;
-  }
-}
-
-async function quoteChecked(db: Database, lines: readonly QuoteLine[], at: Date): Promise<Quote> {
   const priced = await priceLines(db, lines, at);
-  const quoted = priced.map((one) => one.line);
-  const inForceSince = priced.map((one) => one.since.effectiveOn).reduce((latest, date) => (date > latest ? date : latest));
-  const nexts = priced.map((one) => one.next).filter((next): next is VersionTimes => next !== null);
-  let scheduledChange: Quote["scheduledChange"] = null;
-  if (nexts.length > 0) {
-    const first = nexts.reduce((earliest, next) => (next.inForceFrom < earliest.inForceFrom ? next : earliest));
-    try {
-      const then = await priceLines(db, lines, first.inForceFrom);
-      scheduledChange = { effectiveOn: first.effectiveOn, total: sum(then.map((one) => one.line)) };
-    } catch (error) {
-      // From then these lines cannot be priced at all (e.g. a Perpanjangan of a Jenis Makam that becomes Selamanya).
-      if (!(error instanceof Refused)) throw error;
-    }
-  }
-  return { ok: true, at, lines: quoted, total: sum(quoted), inForceSince, scheduledChange };
+  if (!priced.ok) return priced;
+  const quoted = priced.value.map((one) => one.line);
+  const total = sumRupiah(quoted.map((line) => line.amount));
+  if (!total.ok) return total;
+  const inForceSince = priced.value.map((one) => one.since.effectiveOn).reduce((latest, date) => (date > latest ? date : latest));
+  return { ok: true, at, lines: quoted, total: total.amount, inForceSince, scheduledChange: await scheduledTotal(db, lines, priced.value) };
 }
 
-function sum(lines: readonly QuotedLine[]): number {
-  return lines.reduce((total, line) => total + line.amount, 0);
+/**
+ * The total from the first later instant any line's tariff changes, or null
+ * when none is scheduled, or when from then these lines cannot be priced at
+ * all (e.g. a tariff that is no longer entered, or a total past the maximum).
+ */
+async function scheduledTotal(db: Database, lines: readonly QuoteLine[], priced: readonly Priced[]): Promise<Quote["scheduledChange"]> {
+  const nexts = priced.map((one) => one.next).filter((next): next is VersionTimes => next !== null);
+  if (nexts.length === 0) return null;
+  const first = nexts.reduce((earliest, next) => (next.inForceFrom < earliest.inForceFrom ? next : earliest));
+  const then = await priceLines(db, lines, first.inForceFrom);
+  if (!then.ok) return null;
+  const total = sumRupiah(then.value.map((one) => one.line.amount));
+  return total.ok ? { effectiveOn: first.effectiveOn, total: total.amount } : null;
 }
 
 /** Every line priced at `at`, plus one Biaya Layanan Platform when any line is a Lokasi Mitra's. */
-async function priceLines(db: Database, lines: readonly QuoteLine[], at: Date): Promise<Priced[]> {
+async function priceLines(db: Database, lines: readonly QuoteLine[], at: Date): Promise<Step<Priced[]>> {
   const priced: Priced[] = [];
-  for (const line of lines) priced.push(await priceLine(db, line, at));
+  for (const line of lines) {
+    const one = await priceLine(db, line, at);
+    if (!one.ok) return one;
+    priced.push(one.value);
+  }
   const lokasiIds = new Set(priced.flatMap(({ line }) => (line.provider.kind === "lokasi_mitra" ? [line.provider.lokasiId] : [])));
   const atTpu = priced.some(({ line }) => line.kind === "biaya_pengurusan" || line.kind === "retribusi_pemda");
-  if (lokasiIds.size > 1 || (lokasiIds.size === 1 && atTpu)) throw new Refused({ ok: false, reason: "lokasi_campur" });
+  if (lokasiIds.size > 1 || (lokasiIds.size === 1 && atTpu)) return { ok: false, reason: "lokasi_campur" };
   // One Biaya Layanan Platform per Tagihan, and only on a Lokasi Mitra order.
   if (lokasiIds.size === 1) {
-    priced.push(
-      await globalLine(db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
-        kind: "biaya_layanan_platform",
-        label: "Biaya Layanan Platform",
-        amount,
-        provider: { kind: "operator" },
-        ...schedule,
-      })),
-    );
+    const platform = await globalLine(db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
+      kind: "biaya_layanan_platform",
+      label: "Biaya Layanan Platform",
+      amount,
+      provider: { kind: "operator" },
+      ...schedule,
+    }));
+    if (!platform.ok) return platform;
+    priced.push(platform.value);
   }
-  return priced;
+  return { ok: true, value: priced };
 }
 
 type Schedule = Pick<QuotedLineBase, "inForceSince" | "scheduledChange">;
 
 /**
  * Prices one line from its tariff's versions: `amountOf` turns a version into
- * the line's amount (null when that version cannot price it, e.g. a
- * Perpanjangan of a Jenis Makam that has become Selamanya).
+ * the line's amount, or the refusal that version gives (e.g. a total past the maximum).
  */
 function fromVersions<V extends VersionTimes>(
   kind: QuotedLine["kind"],
   versions: readonly V[],
   at: Date,
-  amountOf: (version: V) => number | null,
-  build: (amount: number, version: V, schedule: Schedule) => QuotedLine,
-): Priced {
+  amountOf: (version: V) => Step<Rupiah>,
+  build: (amount: Rupiah, version: V, schedule: Schedule) => QuotedLine,
+): Step<Priced> {
   const current = inForceAt(versions, at);
-  if (!current) throw new Refused({ ok: false, reason: "tarif_belum_ada", kind });
+  if (!current) return { ok: false, reason: "tarif_belum_ada", kind };
   const amount = amountOf(current);
-  if (amount === null) throw new Refused({ ok: false, reason: "tidak_bisa_diperpanjang" });
+  if (!amount.ok) return amount;
   const next = nextAfter(versions, at);
   const nextAmount = next && amountOf(next);
-  const scheduledChange = next && nextAmount !== null ? { effectiveOn: next.effectiveOn, amount: nextAmount } : null;
-  return { line: build(amount, current, { inForceSince: current.effectiveOn, scheduledChange }), since: current, next };
+  const scheduledChange = next && nextAmount?.ok ? { effectiveOn: next.effectiveOn, amount: nextAmount.value } : null;
+  return {
+    ok: true,
+    value: { line: build(amount.value, current, { inForceSince: current.effectiveOn, scheduledChange }), since: current, next },
+  };
 }
+
+const priced = (amount: Rupiah): Step<Rupiah> => ({ ok: true, value: amount });
 
 async function globalLine(
   db: Database,
   kind: QuotedLine["kind"],
   key: GlobalTariffKey,
   at: Date,
-  build: (amount: number, schedule: Schedule) => QuotedLine,
-): Promise<Priced> {
+  build: (amount: Rupiah, schedule: Schedule) => QuotedLine,
+): Promise<Step<Priced>> {
   return fromVersions(
     kind,
     await globalTariffVersions(db, key),
     at,
-    (version) => version.amount,
+    (version) => priced(version.amount),
     (amount, _version, schedule) => build(amount, schedule),
   );
 }
 
-async function jenisMakamOf(db: Database, jenisMakamId: string): Promise<JenisMakam> {
+async function jenisMakamOf(db: Database, jenisMakamId: string): Promise<Step<JenisMakam>> {
   const jenisMakam = await findJenisMakam(db, jenisMakamId);
-  if (!jenisMakam) throw new Refused({ ok: false, reason: "tidak_ditemukan" });
-  return jenisMakam;
+  return jenisMakam ? { ok: true, value: jenisMakam } : { ok: false, reason: "tidak_ditemukan" };
 }
 
-async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Priced> {
+async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Step<Priced>> {
   switch (line.kind) {
     case "harga_hak_pakai": {
-      const jenisMakam = await jenisMakamOf(db, line.jenisMakamId);
+      const found = await jenisMakamOf(db, line.jenisMakamId);
+      if (!found.ok) return found;
+      const jenisMakam = found.value;
       return fromVersions(
         "harga_hak_pakai",
         await jenisMakamVersions(db, jenisMakam.id),
         at,
-        (version) => version.hargaHakPakai,
+        (version) => priced(version.hargaHakPakai),
         (amount, version, schedule) => ({
           kind: "harga_hak_pakai",
           jenisMakamId: jenisMakam.id,
@@ -223,7 +223,7 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Price
         "biaya_pemakaman",
         await biayaPemakamanVersions(db, line.lokasiId),
         at,
-        (version) => (line.tumpang ? (version.biayaPemakamanTumpang ?? version.biayaPemakaman) : version.biayaPemakaman),
+        (version) => priced(line.tumpang ? (version.biayaPemakamanTumpang ?? version.biayaPemakaman) : version.biayaPemakaman),
         (amount, _version, schedule) => ({
           kind: "biaya_pemakaman",
           lokasiId: line.lokasiId,
@@ -235,12 +235,18 @@ async function priceLine(db: Database, line: QuoteLine, at: Date): Promise<Price
         }),
       );
     case "perpanjangan": {
-      const jenisMakam = await jenisMakamOf(db, line.jenisMakamId);
+      const found = await jenisMakamOf(db, line.jenisMakamId);
+      if (!found.ok) return found;
+      const jenisMakam = found.value;
       return fromVersions(
         "perpanjangan",
         await jenisMakamVersions(db, jenisMakam.id),
         at,
-        (version) => (version.hargaPerpanjangan === null ? null : version.hargaPerpanjangan * line.terms),
+        (version) => {
+          if (version.hargaPerpanjangan === null) return { ok: false, reason: "tidak_bisa_diperpanjang" };
+          const amount = timesRupiah(version.hargaPerpanjangan, line.terms);
+          return amount.ok ? priced(amount.amount) : amount;
+        },
         (amount, version, schedule) => ({
           kind: "perpanjangan",
           jenisMakamId: jenisMakam.id,

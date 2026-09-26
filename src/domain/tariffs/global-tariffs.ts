@@ -7,6 +7,7 @@ import {
   effectiveOnSchema,
   rupiahSchema,
   type EffectiveDateRefusal,
+  type Rupiah,
   type InvalidTariff,
 } from "./money";
 import { globalTariffKeys, tariffGlobalVersion } from "./schema";
@@ -18,8 +19,7 @@ export type GlobalTariffKey = (typeof globalTariffKeys)[number];
 /** One version of a global tariff. */
 export interface GlobalTariffVersion extends VersionTimes {
   key: GlobalTariffKey;
-  /** Whole rupiah. */
-  amount: number;
+  amount: Rupiah;
   /** When Admin Platform entered it (Clock). */
   enteredAt: Date;
 }
@@ -47,7 +47,8 @@ export async function setGlobalTariff(deps: TariffDeps, by: Actor, input: SetGlo
   // Defence in depth behind guarded(): the module checks the actor itself.
   const refusal = writeRefusal(by, "tarif.ubah", tarifGlobalResource());
   if (refusal) return refusal;
-  if (!globalTariffInputSchema.safeParse(input).success) return { ok: false, reason: "tarif_tidak_valid" };
+  const parsed = globalTariffInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "tarif_tidak_valid" };
   const now = deps.clock.now();
   const lampau = effectiveDateRefusal(input.effectiveOn, now);
   if (lampau) return lampau;
@@ -60,7 +61,7 @@ export async function setGlobalTariff(deps: TariffDeps, by: Actor, input: SetGlo
       .insert(tariffGlobalVersion)
       .values({
         key: input.key,
-        amount: input.amount,
+        amount: parsed.data.amount,
         effectiveOn: input.effectiveOn,
         inForceFrom,
         enteredAt: now,
@@ -74,7 +75,7 @@ export async function setGlobalTariff(deps: TariffDeps, by: Actor, input: SetGlo
       entity: { kind: "tarif_global", id: input.key },
       before: replaced && auditSnapshot(replaced),
       after: auditSnapshot(version),
-      reason: input.reason,
+      reason: input.reason?.trim() || null,
     });
     return { ok: true as const, version };
   });

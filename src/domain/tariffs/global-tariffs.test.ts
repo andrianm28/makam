@@ -118,6 +118,30 @@ describe("the Biaya Layanan Platform", () => {
     expect(await setup.tariffs.setGlobalTariff(admin, { ...biayaLayananPlatform, amount: 0 })).toMatchObject({ ok: true });
   });
 
+  it("an amount is at most Rp 100.000.000.000: that much is kept, one rupiah more is refused", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+
+    expect(await setup.tariffs.setGlobalTariff(admin, { ...biayaLayananPlatform, amount: 100_000_000_001 })).toEqual({
+      ok: false,
+      reason: "tarif_tidak_valid",
+    });
+    expect(await setup.tariffs.setGlobalTariff(admin, { ...biayaLayananPlatform, amount: 100_000_000_000 })).toMatchObject({ ok: true });
+    expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toMatchObject([{ amount: 100_000_000_000 }]);
+  });
+
+  it("the reason is recorded trimmed, and a blank one as none", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    await setup.tariffs.setGlobalTariff(admin, { ...biayaLayananPlatform, reason: "  Penyesuaian biaya 2026  " });
+    await setup.tariffs.setGlobalTariff(admin, { ...biayaLayananPlatform, reason: "   " });
+
+    expect(await setup.audit.entriesAbout({ kind: "tarif_global", id: "biaya_layanan_platform" })).toMatchObject([
+      { reason: "Penyesuaian biaya 2026" },
+      { reason: null },
+    ]);
+  });
+
   it("entering a new version keeps every older one unchanged, and the database refuses to change or delete one", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

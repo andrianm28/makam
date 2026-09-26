@@ -1,5 +1,5 @@
 {
-  "id": "58f42f3f-1b09-42d6-83b9-fd10df8c40cf",
+  "id": "95b01603-b872-470b-8186-5f0c7200b4ab",
   "prevId": "e4d2a511-e2af-4f65-8445-7df03d5d0e47",
   "version": "7",
   "dialect": "postgresql",
@@ -1463,7 +1463,7 @@
       "checkConstraints": {
         "tariff_biaya_pemakaman_version_amounts_check": {
           "name": "tariff_biaya_pemakaman_version_amounts_check",
-          "value": "\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman\" >= 0 and (\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" is null or \"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" >= 0)"
+          "value": "\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman\" between 0 and 100000000000 and (\"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" is null or \"tariff_biaya_pemakaman_version\".\"biaya_pemakaman_tumpang\" between 0 and 100000000000)"
         }
       },
       "isRLSEnabled": false
@@ -1624,7 +1624,7 @@
       "checkConstraints": {
         "tariff_global_version_amount_check": {
           "name": "tariff_global_version_amount_check",
-          "value": "\"tariff_global_version\".\"amount\" >= 0"
+          "value": "\"tariff_global_version\".\"amount\" between 0 and 100000000000"
         }
       },
       "isRLSEnabled": false
@@ -1829,7 +1829,7 @@
       "checkConstraints": {
         "tariff_jenis_makam_version_amounts_check": {
           "name": "tariff_jenis_makam_version_amounts_check",
-          "value": "\"tariff_jenis_makam_version\".\"harga_hak_pakai\" >= 0 and (\"tariff_jenis_makam_version\".\"harga_perpanjangan\" is null or \"tariff_jenis_makam_version\".\"harga_perpanjangan\" >= 0)"
+          "value": "\"tariff_jenis_makam_version\".\"harga_hak_pakai\" between 0 and 100000000000 and (\"tariff_jenis_makam_version\".\"harga_perpanjangan\" is null or \"tariff_jenis_makam_version\".\"harga_perpanjangan\" between 0 and 100000000000)"
         },
         "tariff_jenis_makam_version_tenure_check": {
           "name": "tariff_jenis_makam_version_tenure_check",

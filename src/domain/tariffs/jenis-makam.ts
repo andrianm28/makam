@@ -8,6 +8,7 @@ import {
   effectiveOnSchema,
   rupiahSchema,
   type EffectiveDateRefusal,
+  type Rupiah,
   type InvalidTariff,
 } from "./money";
 import { tariffJenisMakam, tariffJenisMakamVersion } from "./schema";
@@ -24,7 +25,10 @@ export interface JenisMakamTariff {
   hargaPerpanjangan: number | null;
 }
 
-export interface JenisMakamTariffVersion extends JenisMakamTariff, VersionTimes {
+export interface JenisMakamTariffVersion extends VersionTimes {
+  hargaHakPakai: Rupiah;
+  tenure: Tenure;
+  hargaPerpanjangan: Rupiah | null;
   jenisMakamId: string;
   enteredAt: Date;
 }
@@ -209,7 +213,7 @@ function isUuid(id: string): boolean {
 async function insertVersion(
   tx: Database,
   jenisMakam: JenisMakam,
-  tariff: JenisMakamTariffInput,
+  tariff: z.infer<typeof jenisMakamTariffSchema>,
   by: Actor,
   now: Date,
 ): Promise<JenisMakamTariffVersion> {
