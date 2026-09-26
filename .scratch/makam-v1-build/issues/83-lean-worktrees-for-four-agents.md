@@ -1,6 +1,6 @@
 # Lean worktrees: four builder agents on the shared host
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: Implementation Decisions > Architecture (shared host); ADR 0002; AGENTS.md (Tests, Commands)
 
@@ -51,3 +51,4 @@ Judgement calls:
 - **`makam-testpg`**: "no such object" is the only docker error that starts it; a daemon error fails the run. Runbook documents its RAM (tmpfs, 2 GB cap, ~160 MB idle), `--restart unless-stopped`, and how to stop or remove it. The docker CLI helper lives once in `scripts/lib/docker.ts`.
 
 Re-verified after the rebase: lint and typecheck clean; `npm run test:shared` 87 files / 908 tests passed; `npm test` (default container) 87 files / 908 tests passed; `npm run build` and `build:worker` pass (with the read-only store). `npm run clean` run against a real `npm run stack -- up --build -d` stack of this worktree (removed 4 containers, 1 volume, 1 network, its `makam-v1:` image) while a throwaway `makam-v1-dev` project (postgres service, plus a `makam-v1:makam-v1-dev` tag) and another throwaway compose project were running from a scratch directory: both were left intact, then removed by hand. Fresh-worktree cost unchanged: 23 MB `node_modules` + 7 MB source.
+- 2026-09-26 — Re-review after fixes: Standards 0 hard findings (both earlier hard findings fixed), Spec clean. Merged to main under the user's standing authorization; the remaining judgement calls became ticket 85.
