@@ -149,13 +149,13 @@ Entri Audit. The Audit Log itself is append-only (the database refuses
 
 ## Akun from before ADR 0004 (Pemulihan Akun, `verify-email`)
 
-Migration 0010 (ADR 0004) keys every Akun by its Email Terverifikasi. An Akun
+Migration 0011 (ADR 0004) keys every Akun by its Email Terverifikasi. An Akun
 that had one keeps working. An Akun without one (a WhatsApp number only, or an
 email that was only typed in, e.g. on an Undangan Staf) keeps all its records
 but had its sessions ended and cannot log in: a Kode Masuk to the email typed
 on it makes a separate, new Akun.
 
-**When deploying migration 0010 (once per environment).** An Admin Platform
+**When deploying migration 0011 (once per environment).** An Admin Platform
 seeded before it without `--email-terverifikasi` has no Email Terverifikasi:
 the migration ends its session, and it cannot log in again (a Kode Masuk to
 its email would make a new, plain Akun). So, right after the deploy and before

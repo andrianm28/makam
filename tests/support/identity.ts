@@ -94,7 +94,7 @@ export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin
 }
 
 /**
- * An Akun as ADR 0003 left it before migration 0010: keyed by a WhatsApp
+ * An Akun as ADR 0003 left it before migration 0011: keyed by a WhatsApp
  * number, with an email only typed in (or none), maybe staff roles, and a live
  * session. This test-only helper is permanent: since ADR 0004 no public
  * identity function can make such an Akun (every Akun is created by a Kode
