@@ -1,6 +1,7 @@
-# Local watchdog for staging: logs failures to the journal (tag makam-health). Not the uptime alarm.
+# Local watchdog for staging: the app's /api/health and the host's root disk.
+# Both log failures to the journal (tags makam-health and makam-disk). Not the uptime alarm.
 [Unit]
-Description=Check https://dev.makam.co.id/api/health
+Description=Check https://dev.makam.co.id/api/health and the host's disk
 Wants=network-online.target
 After=network-online.target
 
@@ -9,8 +10,16 @@ Type=oneshot
 User=ubuntu
 Group=ubuntu
 ExecStart=/opt/makam-v1/bin/makam-healthcheck https://dev.makam.co.id/api/health
+# The disk check (ticket 73) runs second on purpose: systemd stops a oneshot at
+# the first failing ExecStart, and the app check is the one an operator (and the
+# external UptimeRobot alarm) acts on, so a minute in which the app is already
+# down may go without the disk figure. The reverse order would lose the app
+# signal on a full disk. One check covers the whole host: production and every
+# builder worktree share this root filesystem. `makam-prune-images` is what frees
+# the space; see docs/ops/runbook.md, "Images on the host and the disk".
+ExecStart=/opt/makam-v1/bin/makam-diskcheck /
 
-# Hardening. It only runs curl, jq and logger (/dev/log); it writes nothing.
+# Hardening. It only runs curl, jq, df and logger (/dev/log); it writes nothing.
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict

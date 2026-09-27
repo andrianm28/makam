@@ -32,6 +32,8 @@ secret files 0600). None of it is in the repo.
 |---|---|
 | `/opt/makam-v1/bin/makam-deploy` | deploy script (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-healthcheck` | local watchdog (from `deploy/bin/`) |
+| `/opt/makam-v1/bin/makam-diskcheck` | the 85 % root-disk warning, run by the health timer (from `deploy/bin/`) |
+| `/opt/makam-v1/bin/makam-prune-images` | keeps at most 3 `ghcr.io/andrianm28/makam` versions per environment (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-glitchtip-release` | creates the GlitchTip release for the deployed commit (from `deploy/bin/`) |
 | `/opt/makam-v1/staging/compose.yml` | copy of `docker-compose.prod.yml` |
 | `/opt/makam-v1/staging/staging.env` | staging secrets and settings (see below) |
@@ -392,7 +394,11 @@ minutes as `ubuntu`, which has a `read:packages` ghcr login in
    heartbeat) and rolls back to the previous digest if it never does;
 8. creates the **GlitchTip release** for the commit that is now running (needs
    `MAKAM_GLITCHTIP_TOKEN` in `staging.env`; see "Source maps and releases").
-   Best effort: no token or GlitchTip down is a logged no-op.
+   Best effort: no token or GlitchTip down is a logged no-op;
+9. bounds the makam images on this host with `makam-prune-images` ("Images on the
+   host and the disk"). Best effort in the same way: a host that is not in a
+   state where removing an image is safe is a warning in `deploy.log`, never a
+   failed deploy.
 
 Exit codes, so a timer or a monitor can tell one failure from another:
 
@@ -554,6 +560,99 @@ Never restore a database backup to undo a migration on a live environment
 without a separate decision: it loses every write since the backup, and
 `makam-deploy` never does it on its own.
 
+## Images on the host and the disk
+
+**This host is shared.** Other projects have their own images, containers,
+volumes and worktrees here, and makam never touches them. There is no global
+cleanup in this repository, and none is ever allowed: `docker system prune`,
+`docker image prune`, `docker volume prune`, `docker builder prune` and every
+`-a` / `--all` form of them would reach another project's objects.
+`tests/tooling/image-retention.test.ts` fails the build if one appears.
+
+### What fills the disk
+
+One image per merge to `main`: GitHub does not keep images of a private
+repository on the Free plan, so every `sha-<commit>` version CI pushes is a
+version the host pulls and keeps. A deploy only needs the last few.
+
+### `makam-prune-images` (on the host, every deploy)
+
+`makam-deploy` step 9 calls it once the new release is healthy. It untags
+`ghcr.io/andrianm28/makam:sha-<40 hex>` versions and nothing else:
+
+- the repository comes from the environment's env file (`MAKAM_IMAGE`) and must
+  equal `ghcr.io/andrianm28/makam`; a `docker image ls` filtered to that one
+  repository and that one tag shape is the entire candidate list, so no other
+  project's image can even be named;
+- **kept, always**: the running version and the previous one of **every**
+  environment (`deployed.env` and `deploy.log`), because a roll back must stay
+  possible after the next deploy; then up to `MAKAM_KEEP_IMAGES` (3) per
+  environment. Staging and production can be on different digests, so the host
+  holds the union of the two sets: at most 3 each;
+- **kept, always**: whatever a running container on this host holds, whoever
+  runs it. Compared by image id, so a container started from a digest counts;
+- **refused (exit 78), nothing removed**, when the Docker daemon is unreachable,
+  when the inventory cannot be read, when an env file names another image, or
+  when an environment's `deployed.env` does not say which version it runs.
+
+```bash
+/opt/makam-v1/bin/makam-prune-images --env staging   # by hand, any time
+grep 'kept ' /opt/makam-v1/staging/deploy.log | tail -3   # what the last deploys kept
+docker image ls ghcr.io/andrianm28/makam --format '{{.Tag}} {{.CreatedSince}}'
+```
+
+Every line it prints (the retention set, each `removed`, each `in use, keeping`,
+the `kept N of M` summary) is appended to the environment's `deploy.log`. A
+non-zero exit is a `WARNING` line in `deploy.log` and never a failed deploy.
+Raise the count with `MAKAM_KEEP_IMAGES` (at least 2; a lower number is refused
+so the previous version always survives).
+
+### The monthly ghcr cleanup (in GitHub, not on the host)
+
+`.github/workflows/image-retention.yml` runs on the 1st of every month at 04:17
+UTC, and on demand with `dry_run: true`. It deletes the versions that are older
+than 30 days (`MAKAM_IMAGE_MAX_AGE_DAYS`, or the run's `max_age_days` input) and
+that nothing needs:
+
+- a version is a candidate only when **every** tag on it is a `sha-<commit>`, so a
+  `v*` release tag (what a roll back names) and `latest` (what the staging timer
+  follows) are never in the list, whatever their age;
+- the digest **staging or production is running** is excluded explicitly, from
+  the GitHub Deployments API, with the same "only a deployment that succeeded"
+  rule the migration upgrade test uses;
+- the decision is `scripts/images/expired-versions.ts`
+  (`tests/images/expired-versions.test.ts`); anything it cannot read is not a
+  candidate, and the workflow deletes one version at a time by digest.
+
+Its summary lists every version it deleted. It runs on a GitHub-hosted runner and
+never touches this host.
+
+### The 85 % warning
+
+`makam-staging-health.timer` runs `makam-diskcheck /` every minute, after the
+`/api/health` check and in the same unit. At or above
+`MAKAM_DISK_WARN_PERCENT` (85) it logs one line to the journal at priority `err`
+with tag `makam-disk` and exits non-zero, so the unit shows as failed:
+
+```bash
+journalctl -t makam-disk -p err --since today
+journalctl -t makam-health -p err --since today      # the app's own watchdog
+df -h /
+```
+
+A use that cannot be read is treated as **no space at all**, the same way the
+backup scripts refuse to write when they cannot read a free-space figure. The
+order inside the unit is deliberate: systemd stops a oneshot at the first failing
+`ExecStart`, and the app check is the one an operator (and UptimeRobot) acts on,
+so a minute in which the app is already down may go without the disk figure. One
+check covers the whole host: production and every builder worktree share this
+root filesystem.
+
+What to do when it warns: `makam-prune-images` first (it is safe to run at any
+time), then `docker image ls | head -50` to see what else is there, and never a
+prune. Worktree leftovers are `npm run clean` in the worktree that made them
+(AGENTS.md, "Worktrees on the shared host").
+
 ## File storage (the private FileStore) and its backup
 
 Ticket 60 (ADR 0002, beta UAT amendment): v1's FileStore (KTP checks,
@@ -679,8 +778,9 @@ hold its data: `makam-backup-db` on the one holding
 on the one holding **Docker's data directory** (2 × the Dump size) — a restored
 database lives in the container's writable layer, not under `/opt/makam-v1`. A
 size or a free-space figure that cannot be read is treated as no space at all.
-The host has ~20 GB free at 76 % use; ticket 73 adds the 85 % warning. Every
-refusal exits 78, logs at `err`, and writes nothing.
+Every refusal exits 78, logs at `err`, and writes nothing. The host has ~20 GB
+free at 76 % use; the 85 % warning is `makam-diskcheck` ("Images on the host and
+the disk" below).
 
 ### The restore check
 
@@ -1139,6 +1239,10 @@ systemctl status makam-staging-health.service
 The watchdog cannot page anyone and goes down with the host. It is not the
 alarm.
 
+The same timer also watches the **host's disk**: `makam-diskcheck` warns in the
+journal (tag `makam-disk`) when the root filesystem passes 85 %. See "Images on
+the host and the disk".
+
 ## Rotating secrets
 
 Each env file is 0600. Edit it in place (`nano /opt/makam-v1/staging/staging.env`).
@@ -1245,6 +1349,16 @@ breaks a worktree: its hard links keep the data until the worktree goes.
 uses RAM, not disk: about 160 MB idle, plus the test databases in use (tens of
 MB each). It runs with `--restart unless-stopped`, so it comes back after a
 reboot (empty, which is fine: every run recreates its database).
+
+**Worktree images**, tag **`makam-v1:<project>`**, where `<project>` is
+`makam-<worktree directory name>-<8 hex of the absolute path>`
+(`scripts/lib/worktree.ts`, printed by `npm run stack`). `npm run clean` in that
+worktree removes exactly that tag, and only after proving from the
+`makam.worktree` label that the image was built there, so another worktree's
+image, the shared `makam-v1-dev` image and every deployed image are never
+candidates. These images are what fill a host's disk: about 1 GB each, so a
+builder that leaves its stack up costs a gigabyte until the ticket is merged.
+
 
 ```bash
 docker stats --no-stream makam-testpg      # RAM in use

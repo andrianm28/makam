@@ -1,0 +1,114 @@
+name: Bersihkan image lama (retensi ghcr)
+
+# Ticket 73. GitHub does not keep images of a private repository on the Free
+# plan, so every merge to main leaves one more `sha-<commit>` version in ghcr and
+# they pile up without end. Once a month this deletes the ones that are older
+# than MAKAM_IMAGE_MAX_AGE_DAYS and that nothing needs any more.
+#
+# What it may delete is decided in scripts/images/expired-versions.ts, which is
+# tested (tests/images/expired-versions.test.ts) and prints the version names to
+# delete. The rule is narrow on purpose: a version is named only when **every**
+# tag on it is a `sha-<commit>`, so a `v*` release tag (the one a roll back
+# names) and `latest` (the pointer the staging timer follows) are never in it,
+# and the digest staging or production is running is excluded explicitly, from
+# the Deployments API. It touches GitHub only: nothing here runs on the host.
+#
+# `dry_run: true` reports without deleting.
+on:
+  schedule:
+    # Monthly, at 04:17 UTC (11:17 WIB) on the first: off the hour, so it is not
+    # in the crowd GitHub's scheduler is busy with.
+    - cron: "17 4 1 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only report what would go, delete nothing"
+        type: boolean
+        default: false
+      max_age_days:
+        description: "How many days a version must have been there to be deleted"
+        type: number
+        default: 30
+
+permissions: {}
+
+# Never two at once: a run that deletes a version another run is reading is a
+# run that deletes nothing.
+concurrency:
+  group: image-retention
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Delete ghcr versions nothing needs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # contents: read to check this repository out; packages: write deletes the
+      # versions; deployments: read is what says what is running. Nothing else.
+      contents: read
+      packages: write
+      deployments: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The image name is never spelled out: it is this repository's package.
+      OWNER: ${{ github.repository_owner }}
+      PACKAGE: ${{ github.event.repository.name }}
+      MAX_AGE_DAYS: ${{ inputs.max_age_days || 30 }}
+      DRY_RUN: ${{ inputs.dry_run || false }}
+      VERSIONS: ${{ runner.temp }}/ghcr-versions.json
+      DEPLOYMENTS: ${{ runner.temp }}/deployments.json
+      EXPIRED: ${{ runner.temp }}/expired.txt
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: ./.github/actions/ghcr-login
+      - name: Every version of the package, and what is running
+        run: |
+          # A container package lives under its owner's type: this repository's
+          # owner is a user account, but the same file has to work if it ever
+          # moves to an organisation, and only one of the two endpoints answers.
+          if gh api "orgs/$OWNER/packages/container/$PACKAGE/versions?per_page=1" > /dev/null 2>&1; then
+            ENDPOINT="orgs/$OWNER"
+          else
+            ENDPOINT="users/$OWNER"
+          fi
+          echo "endpoint=$ENDPOINT" >> "$GITHUB_ENV"
+          gh api --paginate "$ENDPOINT/packages/container/$PACKAGE/versions?per_page=100" > "$VERSIONS"
+          gh api "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" > "$DEPLOYMENTS"
+          printf '%s versions, %s deployments read\n' \
+            "$(jq -s 'add | length' "$VERSIONS")" "$(jq 'length' "$DEPLOYMENTS")" >> "$GITHUB_STEP_SUMMARY"
+      - name: The ones that have outlived their age
+        env:
+          MAKAM_IMAGE_MAX_AGE_DAYS: ${{ env.MAX_AGE_DAYS }}
+        run: |
+          npx --no-install tsx scripts/images/expired-versions.ts "$VERSIONS" "$DEPLOYMENTS" | tee "$EXPIRED"
+      - name: Delete them, one version at a time
+        run: |
+          # The summary is appended to, never piped through: in a pipeline the
+          # step's status is the last command's, so a failed delete would be
+          # reported as a green run. `run:` uses `bash -e`, so gh's own exit
+          # code is the step's.
+          {
+            echo "## ghcr retensi (maks. $MAX_AGE_DAYS hari)"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -s "$EXPIRED" ]; then
+            echo "Tidak ada versi yang perlu dihapus." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          while read -r name; do
+            [ -n "$name" ] || continue
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "- \`$name\` (dry run: tidak dihapus)" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            # One version at a time, by its digest: never a tag, never a
+            # wildcard, never a name the script did not print.
+            gh api --method DELETE "$ENDPOINT/packages/container/$PACKAGE/versions/$name"
+            echo "- \`$name\` dihapus" >> "$GITHUB_STEP_SUMMARY"
+          done < "$EXPIRED"

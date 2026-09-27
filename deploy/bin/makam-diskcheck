@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# makam-diskcheck: warn when a filesystem on this shared host is filling up.
+#
+#   makam-diskcheck [/opt/makam-v1]     # the root filesystem by default
+#
+# Run by makam-staging-health.timer next to makam-healthcheck, and by hand from
+# the runbook. It is the same mechanism the health watchdog already uses: below
+# the threshold nothing is written at all, at or above it one line goes to the
+# journal at priority err with tag makam-disk and the unit exits non-zero, so
+# `journalctl -t makam-disk -p err` and `systemctl --failed` show it.
+#
+# The threshold is MAKAM_DISK_WARN_PERCENT, 85 by default. A use that cannot be
+# read is treated as no space at all, the same way the backup scripts refuse to
+# write when they cannot read a free-space figure: a disk check that stays quiet
+# because df failed is worse than one that complains.
+#
+# Exit codes:
+#   0   the filesystem is below the threshold
+#   1   at or above it, or its use cannot be read: warned about in the journal
+#   64  usage, or a threshold that is not a number
+set -euo pipefail
+
+TARGET=${1:-/}
+WARN=${MAKAM_DISK_WARN_PERCENT:-85}
+
+case "$WARN" in
+  ''|*[!0-9]*) echo "MAKAM_DISK_WARN_PERCENT=$WARN is not a number of percent" >&2; exit 64 ;;
+esac
+[ "$WARN" -gt 0 ] || { echo "MAKAM_DISK_WARN_PERCENT must be above 0" >&2; exit 64; }
+
+# -P is POSIX output: exactly one line per filesystem and no wrapping of a long
+# device name, so the Use% column is always field 5. That column is the whole
+# decision; nothing is compared in bytes.
+report=$(df -P -h "$TARGET" 2>/dev/null) || report=""
+use=$(printf '%s\n' "$report" | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')
+case "$use" in
+  ''|*[!0-9]*)
+    logger -p user.err -t makam-disk "DISK UNKNOWN $TARGET at or over ${WARN}%: df could not be read, so this is treated as no space"
+    echo "cannot read the use of $TARGET; treating it as over $WARN%" >&2
+    exit 1
+    ;;
+esac
+
+if [ "$use" -lt "$WARN" ]; then
+  exit 0
+fi
+logger -p user.err -t makam-disk "DISK $TARGET is ${use}% full, at or over the ${WARN}% warning: free space with df -h, and run makam-prune-images"
+echo "DISK $TARGET is ${use}% full (warning at ${WARN}%)" >&2
+exit 1

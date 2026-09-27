@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# makam-prune-images: bound the makam image versions this host holds.
+#
+#   makam-prune-images --env staging
+#
+# --env names the environment whose deploy just finished. The retention set it
+# keeps covers every environment on this host, so a staging prune never untags
+# what production is running.
+#
+# Run by makam-deploy once a deploy came up healthy, and by hand from the
+# runbook. This host is shared with other projects, so the script only ever
+# untags `ghcr.io/andrianm28/makam:sha-<40 hex>`: the repository comes from the
+# environment's env file and must equal the allow-list above, and the tag must
+# match the pattern or it is not a candidate. Another project's image cannot be
+# named, so it cannot be removed, whatever its tag looks like.
+#
+# Retention, per environment: the running version, the previous one (a roll
+# back has to be possible after the next deploy) and then that environment's own
+# deploy.log history, newest first, up to MAKAM_KEEP_IMAGES (3). Staging and
+# production can be on different digests, so the set on the host is the union of
+# the two environments' sets: at most MAKAM_KEEP_IMAGES per environment.
+#
+# Fail closed. Nothing is removed when the Docker daemon is unreachable, when the
+# inventory cannot be read, when an environment's env file names another image,
+# or when an environment's deployed.env does not say which version it runs. The
+# version every running container on this host holds is also kept, whoever runs
+# it, so an image in use is never even offered to docker.
+#
+# Exit codes:
+#   0   versions outside the retention set are untagged (or were already gone)
+#   64  usage
+#   78  this host is not in a state where removing an image is safe
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+KEEP=${MAKAM_KEEP_IMAGES:-3}
+# The only repository this script may touch.
+ALLOWED_IMAGE=ghcr.io/andrianm28/makam
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
+log() { printf '%s\n' "$*"; }
+refuse() { echo "refusing to prune: $*" >&2; exit 78; }
+# A version tag, strictly. Nothing else is ever a candidate for removal.
+version() { [[ $1 =~ ^sha-[0-9a-f]{40}$ ]]; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+# Two is the floor: the running version and the one a roll back would put back.
+case "$KEEP" in
+  ''|*[!0-9]*) refuse "MAKAM_KEEP_IMAGES=$KEEP is not a number" ;;
+esac
+[ "$KEEP" -ge 2 ] || refuse "MAKAM_KEEP_IMAGES=$KEEP would leave no version to roll back to; it must be at least 2"
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+[ -r "$ENV_FILE" ] || refuse "missing $ENV_FILE"
+setting() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+# A variable in this process's environment would override the env file in
+# compose's interpolation, so both must agree with the allow-list.
+IMAGE=$(setting "$ENV_FILE" MAKAM_IMAGE); IMAGE=${IMAGE:-$ALLOWED_IMAGE}
+[ "$IMAGE" = "$ALLOWED_IMAGE" ] || refuse "$ENV_FILE names MAKAM_IMAGE=$IMAGE; only $ALLOWED_IMAGE is allowed"
+[ "${MAKAM_IMAGE:-$ALLOWED_IMAGE}" = "$ALLOWED_IMAGE" ] || refuse "MAKAM_IMAGE=$MAKAM_IMAGE in the environment; only $ALLOWED_IMAGE is allowed"
+
+# The inventory. Unreadable is a refusal, never an empty list to prune against.
+INVENTORY=$(docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}} {{.ID}}' 2>/dev/null) \
+  || refuse "docker image ls $ALLOWED_IMAGE failed; nothing was removed"
+CANDIDATES=$(printf '%s\n' "$INVENTORY" \
+  | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 "\t" $3 }')
+[ -n "$CANDIDATES" ] || { log "no $ALLOWED_IMAGE sha-<commit> version on this host; nothing to do"; exit 0; }
+
+# Every image a running container holds, whoever runs it: comparing ids, not
+# tags, so a container started from a digest is protected too.
+CONTAINERS=$(docker ps -q 2>/dev/null) || refuse "docker ps failed; nothing was removed"
+INUSE=""
+for container in $CONTAINERS; do
+  held=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null) \
+    || refuse "docker inspect $container failed; nothing was removed"
+  INUSE="$INUSE $held"
+done
+
+# The retention set: each environment's running and previous version first, then
+# its own deploy.log newest first. An environment that never deployed has no
+# deployed.env and claims nothing.
+KEEP_TAGS=""
+for env in staging prod; do
+  dir="$MAKAM_ROOT/$env"
+  [ -r "$dir/$env.env" ] || continue
+  [ -e "$dir/deployed.env" ] || continue
+  running=$(setting "$dir/deployed.env" MAKAM_TAG)
+  previous=$(setting "$dir/deployed.env" PREVIOUS_TAG)
+  version "$running" \
+    || refuse "$dir/deployed.env does not name a sha-<commit> version (MAKAM_TAG=$running); nothing was removed"
+  version "$previous" || previous=""
+  history=""
+  if [ -r "$dir/deploy.log" ]; then
+    history=$(tac "$dir/deploy.log" | grep -oE 'sha-[0-9a-f]{40}' | awk '!seen[$0]++' || true)
+  fi
+  count=0
+  for tag in $(printf '%s\n%s\n%s\n' "$running" "$previous" "$history" | awk 'NF && !seen[$0]++'); do
+    count=$((count + 1))
+    if [ "$count" -le "$KEEP" ]; then
+      KEEP_TAGS="$KEEP_TAGS $tag"
+    fi
+  done
+done
+log "retention: keeping${KEEP_TAGS:- nothing}"
+
+removed=0
+total=0
+while IFS=$'\t' read -r tag id; do
+  [ -n "$tag" ] || continue
+  total=$((total + 1))
+  case " $KEEP_TAGS " in
+    *" $tag "*) continue ;;
+  esac
+  case " $INUSE " in
+    *" $id "*) log "in use, keeping $IMAGE:$tag ($id)"; continue ;;
+  esac
+  if docker image rm "$IMAGE:$tag" > /dev/null 2>&1; then
+    log "removed $IMAGE:$tag"
+    removed=$((removed + 1))
+  else
+    log "could not remove $IMAGE:$tag; leaving it"
+  fi
+done <<< "$CANDIDATES"
+log "kept $((total - removed)) of $total $ALLOWED_IMAGE versions (at most $KEEP per environment; this ran for the $ENV_NAME deploy)"
