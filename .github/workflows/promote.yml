@@ -92,30 +92,15 @@ jobs:
     env:
       DIGEST: ${{ needs.check.outputs.digest }}
       RELEASE_TAG: ${{ needs.check.outputs.tag }}
-      COSIGN: ghcr.io/sigstore/cosign/cosign:v2.6.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
       - name: cosign (the production key)
-        env:
-          COSIGN_PROD_PRIVATE_KEY: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
-          COSIGN_PROD_PASSWORD: ${{ secrets.COSIGN_PROD_PASSWORD }}
-        run: |
-          if [ -z "$COSIGN_PROD_PRIVATE_KEY" ]; then
-            echo "COSIGN_PROD_PRIVATE_KEY is not set on this repository" >&2
-            exit 1
-          fi
-          mkdir -p "$HOME/.sigstore"
-          printf '%s' "$COSIGN_PROD_PRIVATE_KEY" > "$HOME/.sigstore/cosign.key"
-          printf '%s' "$COSIGN_PROD_PASSWORD" > "$HOME/.sigstore/cosign.password"
-          chmod 0600 "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"
-          docker run --rm \
-            -v "$HOME/.sigstore:/home/cosign/.sigstore" \
-            -v "$HOME/.docker:/home/cosign/.docker:ro" \
-            --entrypoint cosign "$COSIGN" sign --yes \
-            --key /home/cosign/.sigstore/cosign.key \
-            "ghcr.io/${GITHUB_REPOSITORY}@$DIGEST"
-          rm -f "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"
+        uses: ./.github/actions/cosign-sign
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ needs.check.outputs.digest }}
+          private-key: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
+          password: ${{ secrets.COSIGN_PROD_PASSWORD }}
       - name: The release tag and its notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

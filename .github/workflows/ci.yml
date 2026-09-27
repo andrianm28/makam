@@ -117,6 +117,14 @@ jobs:
       DATABASE_URL: postgres://makam:makam@localhost:5432/makam_upgrade
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Node and the dependencies before anything runs this repository's own
+      # script: `npx --no-install` then uses the tsx from node_modules instead of
+      # fetching one from the registry.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - uses: ./.github/actions/ghcr-login
       - name: The running release (production, else staging, else latest)
         run: |
@@ -129,7 +137,7 @@ jobs:
               --jq '.[] | select(.state == "success") | @json' 2>/dev/null || true)
             while IFS= read -r deployment; do
               [ -n "$deployment" ] || continue
-              candidate=$(printf '%s' "$deployment" | npx tsx scripts/migrations/deployed-release.ts "$GITHUB_REPOSITORY" 2>/dev/null || true)
+              candidate=$(printf '%s' "$deployment" | npx --no-install tsx scripts/migrations/deployed-release.ts "$GITHUB_REPOSITORY" 2>/dev/null || true)
               if [ -n "$candidate" ]; then baseline="$candidate"; break; fi
             done <<< "$deployments"
             [ -n "$baseline" ] && { echo "Running release ($environment): $baseline"; break; }
@@ -141,11 +149,6 @@ jobs:
           ls drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/here.txt"
           comm -13 "$RUNNER_TEMP/released.txt" "$RUNNER_TEMP/here.txt" | sed 's|^|drizzle/|' > "$RUNNER_TEMP/new.txt"
           echo "New migrations: $(tr '\n' ' ' < "$RUNNER_TEMP/new.txt")"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
       - name: Destructive DDL in new migrations needs "-- contract:"
         run: xargs --no-run-if-empty npx tsx scripts/migrations/check-destructive-ddl.ts < "$RUNNER_TEMP/new.txt"
       - name: Migrate with the running release, then fill with representative rows
@@ -190,7 +193,7 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           # Only sha-<commit> here; `latest` (which the staging timer follows) is
-          # added by deploy-gate once everything has passed.
+          # added by sign, once the signature exists.
           tags: type=sha,format=long
       - uses: ./.github/actions/ghcr-login
         if: env.RELEASE == 'true'
@@ -435,26 +438,14 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # The staging private key is a GitHub secret; the matching public key is on
       # the host (deploy/install-host.sh). Production has its own pair, used only
-      # by the promotion workflow.
+      # by the promotion and rollback workflows. The image is pinned by digest in
+      # the action, because that container reads a private key.
       - name: cosign
-        env:
-          COSIGN: ghcr.io/sigstore/cosign/cosign:v2.6.1
-          COSIGN_STAGING_PRIVATE_KEY: ${{ secrets.COSIGN_STAGING_PRIVATE_KEY }}
-          COSIGN_STAGING_PASSWORD: ${{ secrets.COSIGN_STAGING_PASSWORD }}
-        run: |
-          if [ -z "$COSIGN_STAGING_PRIVATE_KEY" ]; then
-            echo "COSIGN_STAGING_PRIVATE_KEY is not set on this repository" >&2
-            exit 1
-          fi
-          mkdir -p "$HOME/.sigstore"
-          printf '%s' "$COSIGN_STAGING_PRIVATE_KEY" > "$HOME/.sigstore/cosign.key"
-          printf '%s' "$COSIGN_STAGING_PASSWORD" > "$HOME/.sigstore/cosign.password"
-          chmod 0600 "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"
-          docker run --rm \
-            -v "$HOME/.sigstore:/home/cosign/.sigstore" \
-            -v "$HOME/.docker:/home/cosign/.docker:ro" \
-            --entrypoint cosign "$COSIGN" sign --yes --key /home/cosign/.sigstore/cosign.key "$REF"
-          rm -f "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"
+        uses: ./.github/actions/cosign-sign
+        with:
+          image: ${{ needs.deploy-gate.outputs.ref }}
+          private-key: ${{ secrets.COSIGN_STAGING_PRIVATE_KEY }}
+          password: ${{ secrets.COSIGN_STAGING_PASSWORD }}
       # Only now does the host have something signed to follow.
       - name: Tag it latest
         run: docker buildx imagetools create --tag "${REF%%:*}:latest" "$REF"

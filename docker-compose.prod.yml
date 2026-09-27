@@ -33,7 +33,12 @@ x-app: &app
   # runs the digest it verified the signature of, not a tag that could move
   # between the check and the pull. MAKAM_TAG alone still works, so a hand-run
   # compose command needs only the tag.
-  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}${MAKAM_DEPLOY_REF:-:${MAKAM_TAG:?set MAKAM_TAG or MAKAM_DEPLOY_REF (deployed.env, or makam-deploy)}}
+  #
+  # Compose evaluates the nested default whether or not MAKAM_DEPLOY_REF is set,
+  # so MAKAM_TAG is required either way: `deployed.env` (written by makam-deploy)
+  # always has both. The error says exactly that, because setting only
+  # MAKAM_DEPLOY_REF does not satisfy it.
+  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}${MAKAM_DEPLOY_REF:-:${MAKAM_TAG:?MAKAM_TAG is required even when MAKAM_DEPLOY_REF is set; /opt/makam-v1/bin/makam-deploy writes both in deployed.env}}
   env_file: ${MAKAM_ENV_FILE:?set MAKAM_ENV_FILE}
   environment:
     APP_ENV: ${MAKAM_APP_ENV:?set MAKAM_APP_ENV}

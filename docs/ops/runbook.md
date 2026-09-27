@@ -76,7 +76,7 @@ to run unless the first three match `--env`:
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
-| `NEXT_PUBLIC_SENTRY_DSN` | the public DSN of `/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt` | browser errors; a runtime value served in the page, never a build argument |
+| `NEXT_PUBLIC_SENTRY_DSN` | the public DSN of `/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt` | browser errors; a runtime value the browser fetches from `/api/browser-config`, never a build argument |
 | `MAKAM_GITHUB_TOKEN` | fine-grained token, "Deployments: write" only | the GitHub Deployment statuses of a deploy |
 | `MAKAM_GLITCHTIP_TOKEN` | GlitchTip auth token, `project:releases` write | the per-deploy GlitchTip release; without it the release is a logged no-op |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
@@ -256,8 +256,8 @@ output. A warm `main` run takes about 11 to 12 minutes.
   `migrate`, the `seed-representative` script fills **every** table with a few
   rows (the run fails if any table stays empty: an empty table would hide
   exactly the breakage this test exists to catch), then this commit's migrations
-  run on it (Vitest's
-  global setup) and the domain tests run on the result. Before that, every
+  run on it (Vitest's global setup) and the domain tests run on the result.
+  Before that, every
   migration file the running release does not have is checked for destructive
   DDL (DROP, TRUNCATE, RENAME, SET NOT NULL, a type change, a NOT NULL column
   without a default, a new UNIQUE/FOREIGN KEY/CHECK constraint on a table that
@@ -265,6 +265,9 @@ output. A warm `main` run takes about 11 to 12 minutes.
   `-- contract: <why nothing running needs it>` on the line(s) **directly** above
   it, and belongs in a later release than its expand step. A constraint on a
   table the same migration creates is expand, and passes without a marker.
+  Node and `npm ci` come first in that job: the baseline is read with this
+  repository's own script (`npx --no-install tsx`), never with a tsx fetched from
+  the registry while it is choosing the image to upgrade from.
 - **e2e** runs on a GitHub-hosted runner, never on this host. It starts the
   pushed `image:sha-<commit>@<digest>` (no rebuild) with
   `docker-compose.prod.yml`, the same file as staging, layered with
@@ -289,7 +292,9 @@ output. A warm `main` run takes about 11 to 12 minutes.
   digest with the **staging** cosign key and only then moves `:latest`, so the
   host can never pick up an unsigned digest. It runs in its own `sign`
   concurrency group and is never cancelled. `latest` is only a *pointer*: the
-  host resolves it to a digest and refuses anything the key did not sign.
+  host resolves it to a digest and refuses anything the key did not sign. The
+  signing itself is `.github/actions/cosign-sign`, pinned by digest, shared with
+  the promotion and the rollback.
 - **sourcemaps** sends this image's browser source maps to GlitchTip (see
   "Source maps and releases" below). `deploy-gate` does not need it: missing
   source maps cost readable stack traces, not a deploy.
@@ -298,7 +303,10 @@ output. A warm `main` run takes about 11 to 12 minutes.
   days out (`tests/trivyignore.test.ts` enforces both), in a reviewed PR.
 - **Pins**: every action is pinned by commit SHA (version in a comment), every
   image by digest (CI's Postgres, Trivy, gitleaks, the node base image, the
-  compose files). Dependabot proposes updates weekly.
+  compose files). Dependabot proposes updates weekly. Two images are used only
+  inside a workflow, which Dependabot cannot see, so they are pinned there and
+  bumped by hand: `getsentry/sentry-cli` (the `sourcemaps` job) and
+  `sigstore/cosign` (the `cosign-sign` action).
 - Every job has least-privilege `permissions` and `timeout-minutes`.
 - Re-run a flaky e2e with "Re-run failed jobs"; it uses the same image.
 - **Concurrency**: GitHub keeps one *pending* run per group, so a new push
@@ -306,10 +314,12 @@ output. A warm `main` run takes about 11 to 12 minutes.
   was deployed, so that costs nothing. On main, `deploy-gate` and `sign` are in
   groups of their own with `cancel-in-progress: false`: a cancelled run would
   cancel all its jobs, and a half-signed image is worse than a slow one.
-- **Shared steps**: the ghcr login is `.github/actions/ghcr-login` and the
-  Chromium for the PdfRenderer test is `.github/actions/chromium`, so each
-  exists once. The image name always comes from `GITHUB_REPOSITORY`, never from
-  a literal.
+- **Shared steps**: the ghcr login is `.github/actions/ghcr-login`, the Chromium
+  for the PdfRenderer test is `.github/actions/chromium`, and signing an image is
+  `.github/actions/cosign-sign` (ci.yml, promote.yml and rollback.yml all pass
+  their own key pair, so the image is pinned by digest in one place and a run
+  without a private key refuses rather than passing an unsigned digest on). The
+  image name always comes from `GITHUB_REPOSITORY`, never from a literal.
 
 ## Signing keys (cosign)
 
@@ -662,15 +672,19 @@ Certbot reuses the host's existing ACME account. After that:
 - Browser errors: put the public DSN
   (`/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt`) in the **env file on
   the host** as `NEXT_PUBLIC_SENTRY_DSN`, next to `SENTRY_DSN` (server side).
-  The DSN is public by design. It is a **runtime** value: the server reads it and
-  serves it to the browser in the page, so one image serves staging and
-  production and each reports to its own GlitchTip. It is deliberately **not** a
-  build argument any more, so the same digest can go to either environment
-  without a rebuild. Browser events also carry their environment from the
-  page's host at runtime (`dev.makam.co.id` → `staging`, `makam.co.id`/`www` →
-  `production`, anything else → `development`; `browserSentryEnvironment` in
-  `src/lib/env.ts`). Filter by environment in GlitchTip. The `@smoke` spec
-  checks the value really arrives in the page.
+  The DSN is public by design. It is a **runtime** value: the browser asks the
+  running server for it (`GET /api/browser-config`, `no-store`) and the SDK starts
+  with the answer, so one image serves staging and production and each reports to
+  its own GlitchTip. It is deliberately **not** a build argument any more, so the
+  same digest can go to either environment without a rebuild. It is also not
+  inlined into the HTML: the home page is statically rendered, so a value read
+  while building would be frozen into that HTML (and the build has no environment
+  at all, so it would be empty forever). Browser events carry their environment
+  from the page's host at runtime (`dev.makam.co.id` → `staging`,
+  `makam.co.id`/`www` → `production`, anything else → `development`;
+  `browserSentryEnvironment` in `src/lib/env.ts`). Filter by environment in
+  GlitchTip. The `@smoke` spec proves the served HTML carries no DSN and that the
+  browser ends up with the one the running server serves.
 - **Source maps and releases**: uploading them per image and creating a release
   per deploy is set up but **has never run**, because the credentials do not
   exist yet — the exact steps are in "Source maps and releases" below. Until

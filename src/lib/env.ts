@@ -296,10 +296,11 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   );
 
 /**
- * Browser error monitoring. The DSN is a runtime value, served to the browser in
- * the page (one image serves staging and production), so the caller passes the
- * value the page was rendered with. The environment is not a value at all: the
- * browser takes it from the page's host (`browserSentryEnvironment`).
+ * Browser error monitoring. The DSN is a runtime value, fetched by the browser
+ * from the server that is running (one image serves staging and production), so
+ * the caller passes the value the running process was started with. The
+ * environment is not a value at all: the browser takes it from the page's host
+ * (`browserSentryEnvironment`).
  */
 const publicSentryEnvSchema = z.object({
   NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.url().optional()),
@@ -321,6 +322,20 @@ export function browserSentryConfig(runtime: { NEXT_PUBLIC_SENTRY_DSN?: string }
     dsn: readPublicSentryEnv(runtime).NEXT_PUBLIC_SENTRY_DSN,
     environment: browserSentryEnvironment(hostname),
   };
+}
+
+/**
+ * The GlitchTip DSN the browser needs, read from the environment **this process
+ * was started with**, never from the build.
+ *
+ * It cannot be inlined into a page: the home page is statically rendered, so a
+ * value read while building would be frozen into that HTML and stay the build's
+ * (an empty string, because the image is built with no environment at all). The
+ * browser fetches it from `/api/browser-config` instead, which runs per request.
+ * The DSN is public by design, so the browser may hold it.
+ */
+export function browserSentryDsn(source: EnvSource = process.env): string {
+  return readPublicSentryEnv(source).NEXT_PUBLIC_SENTRY_DSN ?? "";
 }
 
 const browserEnvironmentByHost: Record<string, AppEnvironment> = {

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { browserSentryConfig, readPublicSentryEnv } from "@/lib/env";
+import { browserSentryConfig, browserSentryDsn, readPublicSentryEnv } from "@/lib/env";
 
 // One image serves staging and production (ticket 72), so nothing about the
-// environment may be baked into it. The browser DSN arrives at runtime, in the
-// page, and the environment is read from the host the page was served from.
+// environment may be baked into it. The browser DSN is read from the running
+// server when the browser asks for it, and the environment is read from the host
+// the page was served from.
 const stagingDsn = "https://stagingkey@glitchtip.makam.co.id/2";
 const productionDsn = "https://productionkey@errors.makam.co.id/3";
 
@@ -42,5 +43,16 @@ describe("the browser GlitchTip DSN", () => {
     expect(readPublicSentryEnv({ NEXT_PUBLIC_SENTRY_DSN: productionDsn })).toEqual({
       NEXT_PUBLIC_SENTRY_DSN: productionDsn,
     });
+  });
+
+  it("is what the running server tells the browser, and the build never is", () => {
+    // The one image, the one build, two processes: each serves the DSN it was
+    // started with. An image is built with no environment at all, so a value
+    // frozen into a static page would be empty forever.
+    expect(browserSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: stagingDsn })).toBe(stagingDsn);
+    expect(browserSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: productionDsn })).toBe(productionDsn);
+    expect(browserSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: "" })).toBe("");
+    expect(browserSentryDsn({})).toBe("");
+    expect(() => browserSentryDsn({ NEXT_PUBLIC_SENTRY_DSN: "glitchtip" })).toThrow(/Invalid environment/);
   });
 });
