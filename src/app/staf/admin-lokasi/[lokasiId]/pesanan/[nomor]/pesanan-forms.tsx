@@ -4,8 +4,16 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { AlasanTolak } from "@/domain/pemesanan";
 import type { TersediaUnit } from "@/domain/inventory";
-import { centangDokumen, konfirmasiPesanan, type PesananActionState } from "./actions";
+import {
+  batalkanPesanan,
+  centangDokumen,
+  konfirmasiPesanan,
+  tolakPesanan,
+  tawarkanAlternatifPesanan,
+  type PesananActionState,
+} from "./actions";
 
 const idle: PesananActionState = { status: "idle" };
 
@@ -89,6 +97,167 @@ export function CentangDokumenForm({ lokasiId, nomor, nama, sudah }: { lokasiId:
           {state.message}
         </span>
       ) : null}
+    </form>
+  );
+}
+
+/**
+ * The order the Lokasi cannot serve, other than by refusing it (story 118): the
+ * alternative it offers instead, and the Tolak with a reason off the fixed list.
+ *
+ * The reasons arrive as props from the server page, which reads the module's own
+ * closed list — the same list the schema the action validates with is built from,
+ * so the select and the domain can never disagree about what a Tolak is.
+ */
+export function AlternatifDanTolakForm({
+  lokasiId,
+  nomor,
+  alasan,
+  jenisMakam,
+  pemakamanAwal,
+  sudahDitawarkan,
+}: {
+  lokasiId: string;
+  nomor: string;
+  /** The closed list, in the wording the family and the Lokasi both read. */
+  alasan: { key: AlasanTolak; label: string }[];
+  /** The Jenis Makam of this Lokasi Mitra, so the alternative is one of its own. */
+  jenisMakam: { id: string; name: string }[];
+  pemakamanAwal: string;
+  sudahDitawarkan: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <TawarkanAlternatifForm lokasiId={lokasiId} nomor={nomor} jenisMakam={jenisMakam} pemakamanAwal={pemakamanAwal} sudahDitawarkan={sudahDitawarkan} />
+      <TolakForm lokasiId={lokasiId} nomor={nomor} alasan={alasan} />
+    </div>
+  );
+}
+
+/** One alternative: another Jenis Makam of this Lokasi Mitra, another day, or both. */
+function TawarkanAlternatifForm({
+  lokasiId,
+  nomor,
+  jenisMakam,
+  pemakamanAwal,
+  sudahDitawarkan,
+}: {
+  lokasiId: string;
+  nomor: string;
+  jenisMakam: { id: string; name: string }[];
+  pemakamanAwal: string;
+  sudahDitawarkan: boolean;
+}) {
+  const [state, action, pending] = useActionState(tawarkanAlternatifPesanan, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="alternatifJenisMakam" className="text-sm font-medium">Tawarkan jenis makam lain</label>
+        <Select name="jenisMakamId" defaultValue="">
+          <SelectTrigger id="alternatifJenisMakam">
+            <SelectValue placeholder="Jenis makam yang sama" />
+          </SelectTrigger>
+          <SelectContent>
+            {jenisMakam.map((satu) => (
+              <SelectItem key={satu.id} value={satu.id}>
+                {satu.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="alternatifPemakaman" className="text-sm font-medium">Tawarkan tanggal lain</label>
+        <Input id="alternatifPemakaman" name="pemakamanAt" type="datetime-local" defaultValue={pemakamanAwal} />
+        <p className="text-small text-muted-foreground">
+          Isi salah satu saja atau keduanya. Kosongkan yang tidak berubah; keluarga melihat total barunya sebelum menjawab.
+        </p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" variant="secondary" disabled={pending}>
+          {pending ? "Mengirim…" : sudahDitawarkan ? "Ganti alternatif" : "Tawarkan alternatif"}
+        </Button>
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/** The Tolak: a reason off the fixed list, and nothing else to write. */
+function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: string; alasan: { key: AlasanTolak; label: string }[] }) {
+  const [state, action, pending] = useActionState(tolakPesanan, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="alasanTolak" className="text-sm font-medium">Alasan ditolak</label>
+        <Select name="alasan" required>
+          <SelectTrigger id="alasanTolak">
+            <SelectValue placeholder="Pilih alasan" />
+          </SelectTrigger>
+          <SelectContent>
+            {alasan.map((satu) => (
+              <SelectItem key={satu.key} value={satu.key}>
+                {satu.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-small text-muted-foreground">
+          Daftar alasan ini tertutup dan keluarga membacanya persis seperti tertulis. Tim kami menelepon keluarga maksimal 2 jam.
+        </p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" variant="outline" disabled={pending}>
+          {pending ? "Menolak…" : "Tolak pesanan"}
+        </Button>
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/** A cancellation the family asked for by phone: the reason is their own words, and the plot and the Tagihan go with it. */
+export function BatalkanForm({ lokasiId, nomor, wajibAlasan }: { lokasiId: string; nomor: string; wajibAlasan: boolean }) {
+  const [state, action, pending] = useActionState(batalkanPesanan, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="alasanBatal" className="text-sm font-medium">Alasan pembatalan</label>
+        <Input
+          id="alasanBatal"
+          name="alasan"
+          placeholder="Misalnya: keluarga menunda pemakaman"
+          required={wajibAlasan}
+          maxLength={500}
+        />
+        <p className="text-small text-muted-foreground">
+          Setelah pesanan dikonfirmasi, alasannya wajib diisi. Petak kembali ke daftar, Tagihan dibatalkan, dan tidak ada biaya pembatalan.
+        </p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" variant="outline" disabled={pending}>
+          {pending ? "Membatalkan…" : "Catat pembatalan"}
+        </Button>
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

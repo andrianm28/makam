@@ -11,6 +11,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
 import type { KartuView, GrupView } from "./tampilan";
+import type { RebookPesanan } from "@/domain/pemesanan";
 
 export interface PilihMakamProps {
   grup: GrupView[];
@@ -20,6 +21,12 @@ export interface PilihMakamProps {
   kota: string | null;
   /** The "Pilih makam" URL to come back to, keeping the deep-linked Lokasi. */
   kembali: string;
+  /**
+   * The declined order this visit comes from (spec, Public site: "After a Tolak,
+   * the Pilih makam list opens with a banner, the rejecting Lokasi removed and the
+   * family's data prefilled"). null on an ordinary visit.
+   */
+  pemesanUlang: RebookPesanan | null;
   /** The Lokasi Mitra the visitor came from; null when the list decides alone. */
   preselect: string | null;
   /**
@@ -40,7 +47,7 @@ export type KartuAwal = { lokasiId: string; jenisMakamId: string } | null;
  * selected card carries on to "Data & kirim" in its URL, so the browser's back
  * button returns to the same choice.
  */
-export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, csContact, pemesanUlang }: PilihMakamProps) {
   const router = useRouter();
   const [terpilih, setTerpilih] = useState<{ lokasiId: string; kartu: KartuView } | null>(() => kartuAwalDari(grup, awal));
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
@@ -61,6 +68,8 @@ export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, cs
             Diurutkan dari total biaya terendah. Hanya makam yang masih tersedia yang ditampilkan.
           </p>
         </div>
+
+        {pemesanUlang ? <BannerPemesanUlang pemesanUlang={pemesanUlang} /> : null}
 
         <KotaFilter semuaKota={semuaKota} kota={kota} kembali={kembali} />
 
@@ -125,11 +134,7 @@ export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, cs
             <Button
               size="lg"
               disabled={!terpilih}
-              onClick={() =>
-                router.push(
-                  `/pesan-makam/saat-duka/data?lokasiId=${encodeURIComponent(terpilih!.lokasiId)}&jenisMakamId=${encodeURIComponent(terpilih!.kartu.jenisMakamId)}`,
-                )
-              }
+              onClick={() => router.push(`${dataPath(terpilih!.lokasiId, terpilih!.kartu.jenisMakamId, pemesanUlang)}`)}
               className="h-12 shrink-0 px-6 text-body-lg"
             >
               Lanjut <ArrowRight aria-hidden />
@@ -137,6 +142,37 @@ export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, cs
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Data & kirim" next, carrying `dari` on so the data it opens with is the family's
+ * own: the rebook's whole point is that nobody types the same death twice.
+ */
+function dataPath(lokasiId: string, jenisMakamId: string, pemesanUlang: RebookPesanan | null): string {
+  const query = new URLSearchParams({ lokasiId, jenisMakamId });
+  if (pemesanUlang) query.set("dari", pemesanUlang.nomor);
+  return `/pesan-makam/saat-duka/data?${query.toString()}`;
+}
+
+/**
+ * The banner a family arrives at after a Tolak: the Lokasi Mitra that could not
+ * serve them, in its own words, and the promise that somebody phones. The card
+ * they are sent to is another Lokasi Mitra's — the list behind this banner was
+ * read without the one named here, so there is nothing of it here to hide.
+ */
+function BannerPemesanUlang({ pemesanUlang }: { pemesanUlang: RebookPesanan }) {
+  return (
+    <div className="rounded-xl border border-border bg-warning-soft p-5 text-body text-warning-soft-foreground" data-testid="banner-pemesan-ulang">
+      <p className="font-semibold">
+        {pemesanUlang.banner.lokasi.name} belum bisa melayani pesanan {pemesanUlang.nomor}.
+      </p>
+      <p className="mt-1">Alasannya: {pemesanUlang.banner.alasan}.</p>
+      <p className="mt-1">
+        Pilih makam lain di bawah. Data keluarga dan almarhum sudah terisi, dan {pemesanUlang.banner.lokasi.name} tidak lagi
+        muncul di daftar ini. Tim kami juga menelepon maksimal 2 jam.
+      </p>
     </div>
   );
 }

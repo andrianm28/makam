@@ -18,6 +18,9 @@ import { addWibDays, wib, wibDateOf, wibDayStart } from "@/lib/time/jakarta";
 export const TEMPLATE_EMAIL = [
   "pesanan_diajukan",
   "pesanan_dikonfirmasi",
+  "pesanan_ditolak",
+  "pesanan_alternatif_ditawarkan",
+  "pesanan_dibatalkan",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
@@ -38,6 +41,12 @@ export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"> = {
   pesanan_diajukan: "transaksional",
   pesanan_dikonfirmasi: "transaksional",
+  // A family that was just turned away, asked to answer about an alternative, or
+  // told its order is off, hears it at once: all three ask something of it, and a
+  // pending burial does not wait for a morning window (ticket 24).
+  pesanan_ditolak: "transaksional",
+  pesanan_alternatif_ditawarkan: "transaksional",
+  pesanan_dibatalkan: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
@@ -66,6 +75,9 @@ export interface Acara {
 export const TABEL_ACARA: Record<
   | "pesanan_diajukan"
   | "pesanan_dikonfirmasi"
+  | "pesanan_ditolak"
+  | "pesanan_alternatif_ditawaran"
+  | "pesanan_dibatalkan"
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
@@ -89,6 +101,30 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pesanan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pesanan_dikonfirmasi,
+  },
+  /**
+   * The order a Lokasi Mitra cannot serve, the alternative it offers instead and
+   * the cancellation that ends it (ticket 24). All three reach the family by
+   * email at any hour, and a declined one is also the Tier 1 call Admin Platform
+   * owes, so the row is Admin Platform's rather than that Lokasi's.
+   */
+  pesanan_ditolak: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pesanan_ditolak",
+    waktu: WAKTU_TEMPLATE.pesanan_ditolak,
+  },
+  pesanan_alternatif_ditawaran: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pesanan_alternatif_ditawarkan",
+    waktu: WAKTU_TEMPLATE.pesanan_alternatif_ditawarkan,
+  },
+  pesanan_dibatalkan: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pesanan_dibatalkan",
+    waktu: WAKTU_TEMPLATE.pesanan_dibatalkan,
   },
   tagihan_terbit: {
     penerima: "email_pemesan",

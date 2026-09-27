@@ -12,7 +12,7 @@ import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal
 import type { InventoryDeps } from "./deps";
 import { foldKey } from "./ids";
 import { grantHakPakai, type NewPemegangHak, type NewPemakaman } from "./hak-pakai-grant";
-import { currentHakPakaiOfKavling, currentHakPakaiOfPetak } from "./hak-pakai-reads";
+import { memegangKavling, memegangPetak } from "./hak-pakai-reads";
 import { lockBlok, lockLokasiInventory } from "./locks";
 import { inventoryKavling, inventoryPetak } from "./schema";
 import { tenureOfJenisMakam } from "./tenure";
@@ -98,7 +98,7 @@ export async function clearPetak(deps: InventoryDeps, by: Actor, lokasiId: strin
     .where(and(eq(inventoryPetak.id, petakId), eq(inventoryPetak.lokasiId, lokasiId), eq(inventoryPetak.kind, "petak")));
   if (!petak) return { ok: false, reason: "petak_tidak_ditemukan" };
   if (petak.kavlingId) return { ok: false, reason: "bagian_kavling" };
-  if (await currentHakPakaiOfPetak(deps.db, petakId)) return { ok: false, reason: "sudah_ada_hak_pakai" };
+  if (await memegangPetak(deps.db, petakId)) return { ok: false, reason: "sudah_ada_hak_pakai" };
 
   const now = deps.clock.now();
   const input = parsed.data;
@@ -169,7 +169,7 @@ export async function clearKavling(deps: InventoryDeps, by: Actor, lokasiId: str
 
   const [kavling] = await deps.db.select().from(inventoryKavling).where(and(eq(inventoryKavling.id, kavlingId), eq(inventoryKavling.lokasiId, lokasiId)));
   if (!kavling) return { ok: false, reason: "kavling_tidak_ditemukan" };
-  if (await currentHakPakaiOfKavling(deps.db, kavlingId)) return { ok: false, reason: "sudah_ada_hak_pakai" };
+  if (await memegangKavling(deps.db, kavlingId)) return { ok: false, reason: "sudah_ada_hak_pakai" };
   const members = await deps.db.select().from(inventoryPetak).where(eq(inventoryPetak.kavlingId, kavlingId));
   const memberIds = members.map((member) => member.id);
 

@@ -4,6 +4,7 @@ import { DataKirim } from "./data-kirim";
 import { kartuView } from "../tampilan";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { satuNilai } from "@/lib/search-param";
+import { wibDateTimeLocal } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 
@@ -19,9 +20,13 @@ export const metadata: Metadata = {
  * Kode Masuk that proves the email at Kirim (skipped for a signed-in Pemesan).
  */
 export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-makam/saat-duka/data">) {
-  const { lokasiId, jenisMakamId } = await searchParams;
+  const { lokasiId, jenisMakamId, dari } = await searchParams;
   const { pemesanan, lokasi, operatorSettings } = serverRuntime();
   const actor = await currentActor();
+  // A rebook carries the declined order's number, and with it the family's own
+  // data: a family that has just been turned away does not type the same death
+  // twice (spec, Public site, "After a Tolak"; story 32).
+  const pemesanUlang = dari && actor ? await pemesanan.rebook(satuNilai(dari), { accountId: actor.accountId }) : null;
 
   // The one card is priced again by the module, so the total a family reads on
   // this screen is the one its order will carry. A URL without both ids names no
@@ -41,7 +46,16 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
 
   return (
     <DataKirim
-      draft={{ lokasiId: grup.lokasi.id, jenisMakamId: kartu.jenisMakamId, email: actor?.email ?? "", pemesanName: "", phoneNumber: "" }}
+      draft={{
+        lokasiId: grup.lokasi.id,
+        jenisMakamId: kartu.jenisMakamId,
+        email: pemesanUlang?.isi.email ?? actor?.email ?? "",
+        pemesanName: pemesanUlang?.isi.pemesanName ?? "",
+        phoneNumber: pemesanUlang?.isi.phoneNumber ?? "",
+        almarhumName: pemesanUlang?.isi.almarhumName ?? "",
+        tanggalWafat: pemesanUlang?.isi.tanggalWafat ?? "",
+        rencanaPemakamanAt: pemesanUlang?.isi.rencanaPemakamanAt ? wibDateTimeLocal(pemesanUlang.isi.rencanaPemakamanAt) : "",
+      }}
       kartu={kartuView(kartu)}
       lokasi={{ id: grup.lokasi.id, name: grup.lokasi.name, city: grup.lokasi.city }}
       sudahMasuk={actor !== null}

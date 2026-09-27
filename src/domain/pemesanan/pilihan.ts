@@ -44,6 +44,8 @@ export const JAM_KONFIRMASI_SAAT_DUKA = 2;
 export interface PilihanSaatDukaQuery {
   /** Exact kota / kabupaten; every city when none is given ("Semua kota"). */
   city?: string;
+  /** Every Lokasi Mitra but this one: a family a Lokasi Mitra has just refused is sent back to the others (ticket 24). */
+  kecualiLokasiId?: string;
   /** Only this Lokasi Mitra; with `jenisMakamId`, only that one card ("Data & kirim" prices the choice again). */
   lokasiId?: string;
   jenisMakamId?: string;
@@ -54,10 +56,18 @@ export interface PilihanSaatDukaQuery {
  * Tersedia unit, cheapest all-in total first, filtered by kota. A Jenis Makam
  * with none is left out, and so is one whose all-in total is above the QRIS
  * cap (v1 takes no such order). No actor: this is the wizard's own read.
+ *
+ * `kecualiLokasiId` leaves one Lokasi Mitra out of the answer itself rather than
+ * of the screen: a family whose order was declined there is sent back to the rest,
+ * and there is nothing for a page to remember not to draw.
  */
 export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDukaQuery = {}): Promise<GrupSaatDuka[]> {
   const at = deps.clock.now();
-  const lokasiMitra = await deps.lokasi.publicLokasiMitraList(query.lokasiId ? { id: query.lokasiId } : query.city ? { city: query.city } : {});
+  const diluar = query.kecualiLokasiId;
+  const semua = await deps.lokasi.publicLokasiMitraList(
+    query.lokasiId ? { id: query.lokasiId } : query.city ? { city: query.city } : {},
+  );
+  const lokasiMitra = diluar ? semua.filter((satu) => satu.id !== diluar) : semua;
   const grup = await Promise.all(
     lokasiMitra.map(async (lokasi): Promise<GrupSaatDuka | null> => {
       const [pricing, tertila] = await Promise.all([

@@ -150,7 +150,13 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
   | "pemesanan.konfirmasi"
   /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** The Admin Lokasi of the order's own Lokasi Mitra declines it, with a reason from the fixed list. */
+  | "pemesanan.tolak"
+  /** The Admin Lokasi of the order's own Lokasi Mitra offers an alternative (another Jenis Makam or day). */
+  | "pemesanan.tawarkan_alternatif"
+  /** The Admin Lokasi of the order's own Lokasi Mitra records a cancellation on the family's behalf. */
+  | "pemesanan.batalkan_untuk_pemesan";
 
 /** What the action is done to. */
 export type Resource =
@@ -416,9 +422,13 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
         : denied;
     case "pemesanan.konfirmasi":
     case "pemesanan.centang_dokumen":
-      // The Lokasi's own Admin Lokasi confirm its orders and tick their
-      // checklists; Admin Platform does not confirm (spec, story 117: an
-      // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
+    case "pemesanan.tolak":
+    case "pemesanan.tawarkan_alternatif":
+    case "pemesanan.batalkan_untuk_pemesan":
+      // The Lokasi's own Admin Lokasi confirm, decline, offer an alternative for,
+      // cancel and tick the checklist of its own orders; Admin Platform does none
+      // of these (spec, story 117: an Admin Platform may only chase the Lokasi by
+      // phone, see its Tier 1 row).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

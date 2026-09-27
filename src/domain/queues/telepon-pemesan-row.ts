@@ -21,6 +21,9 @@ const FALLBACK_HREF = "/staf/admin-platform/antrean";
 const SEBAB_LABEL = {
   pesan_gagal: "email gagal terkirim",
   tanpa_email: "pesanan tanpa email",
+  // A declined order's row is Tier 1 (spec, Work Queues) and is read by that row
+  // type, not by this Tier 2 one; the label keeps a stray row readable all the same.
+  saat_duka_ditolak: "pesanan ditolak, keluarga harus ditelepon",
 } as const;
 
 export const teleponPemesanRowType: AntreanRowType = {

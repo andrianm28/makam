@@ -111,13 +111,27 @@ export const tagihan = pgTable(
     replacesId: uuid("replaces_id"),
     status: text("status", { enum: tagihanStatuses }).notNull(),
     cancelledAt: at("cancelled_at"),
-    cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti"] }),
+    cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti", "pemesanan_dibatalkan"] }),
     replacedById: uuid("replaced_by_id"),
     paidAt: at("paid_at"),
+    /**
+     * When a cancellation asked for money back, and how much (ticket 24: a
+     * cancelled order refunds what was paid, less the Biaya Layanan Platform,
+     * which is never refunded). Recorded here and nowhere else so the money
+     * cannot be forgotten by a cancellation that moved the order on; approving
+     * and transferring it is ticket 31's, which reads these two columns.
+     */
+    pengembalianDimintaAt: at("pengembalian_diminta_at"),
+    pengembalianJumlah: rupiah("pengembalian_jumlah"),
   },
   (table) => [
     index("tagihan_lapse_idx").on(table.status, table.kind, table.dueAt),
+    index("tagihan_pengembalian_idx").on(table.pengembalianDimintaAt),
     check("tagihan_total_check", sql`${table.total} between 0 and ${sql.raw(String(RUPIAH_MAX))}`),
+    check(
+      "tagihan_pengembalian_check",
+      sql`(${table.pengembalianDimintaAt} is null) = (${table.pengembalianJumlah} is null)`,
+    ),
   ],
 );
 

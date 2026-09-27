@@ -9,6 +9,7 @@
  */
 import { and, count, desc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
+import { alasanOrder } from "./alasan-tolak";
 import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananStatus } from "./schema";
 import type { PemesananDeps } from "./deps";
 
@@ -39,7 +40,15 @@ export interface OrderStaf {
   tagihanId: string | null;
   konfirmasiDueAt: Date | null;
   diajukanAt: Date;
+  /** Why the Lokasi declined, or the family cancelled; null while none. */
   alasan: string | null;
+  /**
+   * The alternative this Lokasi has offered and the family has not answered, as
+   * the Lokasi itself reads it (ticket 24): the new Jenis Makam and day it
+   * proposed, so the page can say the offer is already on the table. No total: a
+   * price belongs to the family, and this read is the Lokasi's.
+   */
+  alternatif: { jenisMakam: string | null; pemakamanAt: Date | null } | null;
   /** The Lokasi Mitra's document checklist, with what has arrived and what is ticked. */
   dokumen: DokumenOrder[];
 }
@@ -127,6 +136,60 @@ export async function konfirmasiTerlambat(deps: Pick<PemesananDeps, "db">, lokas
 }
 
 /**
+ * How many of a Lokasi Mitra's orders were declined (story 118: a decline is
+ * counted on the Lokasi, beside its late confirmations). No actor, a count of
+ * stored facts rather than a stored counter, so it cannot drift from the orders
+ * it counts — and an order the Pemesan ended by refusing an alternative is a
+ * Ditolak order, counted here like any other.
+ */
+export async function ditolak(deps: Pick<PemesananDeps, "db">, lokasiId: string): Promise<number> {
+  const [row] = await deps.db
+    .select({ n: count() })
+    .from(pemesananMakam)
+    .where(and(eq(pemesananMakam.lokasiId, lokasiId), eq(pemesananMakam.status, "ditolak")));
+  return row?.n ?? 0;
+}
+
+/** One declined order as the Admin Platform Tier 1 call row reads it. */
+export interface OrderDitolak {
+  id: string;
+  nomor: string;
+  /** When the decline happened: the Tier 1 row's two hours are counted from here, never from the submission. */
+  ditolakPada: Date;
+  lokasi: { id: string; name: string };
+  pemesan: { name: string; phoneNumber: string | null };
+  almarhum: { name: string };
+  /** Why, in the wording of the fixed list, so the call says it in the family's own language. */
+  alasan: string;
+}
+
+/**
+ * Every declined Saat Duka order, newest first: the Admin Platform Antrean's Tier 1
+ * "Saat Duka ditolak" rows (spec, Work Queues: "Saat Duka ditolak (call within
+ * 2 h)"; story 33; ticket 24). It carries no deadline of its own — the row's is
+ * two daytime hours after the decline, which the row type computes. No actor:
+ * the Antrean is Admin Platform's.
+ */
+export async function saatDukaDitolak(deps: Pick<PemesananDeps, "db">): Promise<OrderDitolak[]> {
+  const rows = await deps.db
+    .select()
+    .from(pemesananMakam)
+    .where(and(eq(pemesananMakam.status, "ditolak"), isNotNull(pemesananMakam.ditolakPada)))
+    .orderBy(desc(pemesananMakam.ditolakPada), desc(pemesananMakam.nomor));
+  return rows.map((row) => ({
+    id: row.id,
+    nomor: row.nomor,
+    ditolakPada: row.ditolakPada as Date,
+    lokasi: { id: row.lokasiId, name: row.lokasiName },
+    pemesan: { name: row.pemesanName, phoneNumber: row.phoneNumber },
+    almarhum: { name: row.almarhumName },
+    // A decline always carries a reason off the list; the fallback says a hole
+    // in the data is a hole rather than dressing it up as a reason.
+    alasan: alasanOrder(row.alasanTolak, row.alasan) ?? "Alasan tidak tercatat",
+  }));
+}
+
+/**
  * One order as the Lokasi Mitra's own staff read it, with the family's own
  * details and its documents; null for an order that is not theirs (story 139:
  * an Admin Lokasi sees its own Lokasi's orders only). Admin Platform may read
@@ -171,7 +234,10 @@ async function toOrderStaf(deps: Pick<PemesananDeps, "db">, row: Row): Promise<O
     tagihanId: row.tagihanId,
     konfirmasiDueAt: row.konfirmasiDueAt,
     diajukanAt: row.diajukanAt,
-    alasan: row.alasan,
+    alasan: alasanOrder(row.alasanTolak, row.alasan),
+    alternatif: row.alternatifDitawarkanPada
+      ? { jenisMakam: row.alternatifJenisMakamId ? row.jenisMakamName : null, pemakamanAt: row.alternatifPemakamanAt }
+      : null,
     dokumen: await dokumenOf(deps, row.id),
   };
 }

@@ -22,7 +22,15 @@ import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 
 export interface DataKirimProps {
-  draft: Pick<DraftSaatDuka, "lokasiId" | "jenisMakamId" | "email" | "pemesanName" | "phoneNumber">;
+  /**
+   * What the screen opens with. On an ordinary visit the three Almarhum fields are
+   * empty; on a rebook they carry the declined order's own values, which the page
+   * read from that order rather than from the URL.
+   */
+  draft: Pick<
+    DraftSaatDuka,
+    "lokasiId" | "jenisMakamId" | "email" | "pemesanName" | "phoneNumber" | "almarhumName" | "tanggalWafat" | "rencanaPemakamanAt"
+  >;
   /** The card this screen is about, with the total its order would carry. */
   kartu: KartuView;
   lokasi: { id: string; name: string; city: string };
@@ -48,13 +56,10 @@ export interface DataKirimProps {
  */
 export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran }: DataKirimProps) {
   const router = useRouter();
-  const [isi, setisi] = useState<Isi>({
-    ...draft,
-    almarhumName: "",
-    tanggalWafat: "",
-    rencanaPemakamanAt: "",
-    keinginanPenempatan: "",
-  });
+  // The rebook's data is already in `draft` (the page filled it from the declined
+  // order), so the family types nothing twice: only the wish and the holder are
+  // theirs to decide afresh.
+  const [isi, setisi] = useState<Isi>({ ...draft, keinginanPenempatan: "" });
   const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
   const [rincianTerbuka, setRincianTerbuka] = useState(false);

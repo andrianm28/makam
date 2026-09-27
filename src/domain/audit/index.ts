@@ -168,7 +168,13 @@ export type AuditAction =
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** An Admin Lokasi declines one of its Saat Duka orders, with a reason from the fixed list (ticket 24). */
+  | "pemesanan.tolak"
+  /** An Admin Lokasi offers a Saat Duka order an alternative, another Jenis Makam or day (ticket 24). */
+  | "pemesanan.tawarkan_alternatif"
+  /** An Admin Lokasi records a cancellation on a family's behalf (ticket 24). */
+  | "pemesanan.batalkan_untuk_pemesan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

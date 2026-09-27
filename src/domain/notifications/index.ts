@@ -44,6 +44,7 @@ import type { EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
 import {
   catatPanggilan,
+  teleponPemesanTercatat,
   teleponPemesanTerbuka,
   type CatatPanggilanInput,
   type CatatPanggilanResult,
@@ -59,12 +60,18 @@ import {
   type TagihanTerbitResult,
 } from "./pesan-keluarga";
 import {
-  pesanPemesanan,
+  pesananAlternatifDitawarkan,
+  pesananDibatalkan,
   pesananDiajukan,
   pesananDikonfirmasi,
+  pesananDitolak,
+  pesanPemesanan,
   type PesanPemesananResult,
+  type PesananAlternatifDitawarkanInput,
+  type PesananDibatalkanInput,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
+  type PesananDitolakInput,
 } from "./pesan-pemesanan";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
@@ -120,6 +127,8 @@ export interface NotificationsDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /** The Pilih makam list a declined order sends the family back to, with that order's number on the link. */
+  pesanUlangUrl: (nomor: string) => string;
 }
 
 export interface PushDevice {
@@ -240,12 +249,30 @@ export interface Notifications {
    */
   pesananDiajukan(input: PesananDiajukanInput): Promise<PesanPemesananResult>;
   pesananDikonfirmasi(input: PesananDikonfirmasiInput): Promise<PesanPemesananResult>;
+  /**
+   * A Tolak (ticket 24): the reason and the rebook link by email, plus the Tier 1
+   * "Telepon Pemesan" row for Admin Platform to call the family within 2 h — the
+   * row is opened whether or not the email went out, and it has no `lokasiId`,
+   * so the call is Admin Platform's rather than the declining Lokasi's.
+   */
+  pesananDitolak(input: PesananDitolakInput): Promise<PesanPemesananResult>;
+  /** An alternative the Pemesan has to accept or decline with one tap, seeing the new all-in total. */
+  pesananAlternatifDitawarkan(input: PesananAlternatifDitawarkanInput): Promise<PesanPemesananResult>;
+  /** A cancelled order: the Petak given back, the Tagihan cancelled and the money on its way back. */
+  pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
   pesanStaf(akunStafId: string, options?: { limit?: number }): Promise<PesanTercatat[]>;
   /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
   teleponPemesanTerbuka(): Promise<TeleponPemesan[]>;
+  /**
+   * Whether the call to one subject has already been logged (a closed row): what
+   * the Tier 1 "Saat Duka ditolak" row reads to know it is done. A subject that
+   * was never called is false, whether a row is open for it or none was ever
+   * opened.
+   */
+  teleponPemesanTercatat(subjectKind: string, subjectId: string): Promise<boolean>;
   /** An Admin Platform logs the call: the "Telepon Pemesan" row closes; audited. */
   catatPanggilan(by: Actor, input: CatatPanggilanInput): Promise<CatatPanggilanResult>;
 }
@@ -500,6 +527,18 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pesananDikonfirmasi(deps, input);
     },
 
+    async pesananDitolak(input) {
+      return pesananDitolak(deps, input);
+    },
+
+    async pesananAlternatifDitawarkan(input) {
+      return pesananAlternatifDitawarkan(deps, input);
+    },
+
+    async pesananDibatalkan(input) {
+      return pesananDibatalkan(deps, input);
+    },
+
     async pesanPemesanan(pemesananId) {
       return pesanPemesanan(deps, pemesananId);
     },
@@ -524,6 +563,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async teleponPemesanTerbuka() {
       return teleponPemesanTerbuka(db);
+    },
+
+    async teleponPemesanTercatat(subjectKind, subjectId) {
+      return teleponPemesanTercatat(db, subjectKind, subjectId);
     },
 
     async catatPanggilan(by, input) {

@@ -27,6 +27,7 @@ import type { InventoryDeps } from "./deps";
 import type { PetakByNomor } from "./lookup";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
+import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
@@ -133,6 +134,13 @@ export interface Inventory {
    * caller may not confirm (that Lokasi's Admin Lokasi only).
    */
   beriHakPakai(by: Actor, lokasiId: string, input: { petakId: string; jenisMakamId: string; pemegangHak: NewPemegangHakInput }): Promise<BeriHakPakaiResult>;
+  /**
+   * One Aktif Hak Pakai with no Pemakaman under it becomes Dibatalkan, so the
+   * Petak it held is `Tersedia` again (spec, Pemesanan > Saat Duka cancellation;
+   * ticket 24). Driven by the order that owns the right, with no actor, as
+   * `lepasTahan` is: a grave that has been dug is refused, and ending is final.
+   */
+  batalkanHakPakai(input: { hakPakaiId: string; alasan: string }): Promise<BatalkanHakPakaiResult>;
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
@@ -182,6 +190,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
     beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
+    batalkanHakPakai: (input) => batalkanHakPakai(deps, input),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),

@@ -12,7 +12,7 @@
  * arrive with their own tickets, and each of them opens its row the same way:
  * queue with the Lokasi's `lokasiId`.
  */
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -115,6 +115,29 @@ export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesa
     .where(isNull(notificationsTeleponPemesan.ditutupPada))
     .orderBy(asc(notificationsTeleponPemesan.dibukaPada), asc(notificationsTeleponPemesan.id));
   return rows.map(toTeleponPemesan);
+}
+
+/**
+ * Whether the call to one subject has been logged: a row of that subject that
+ * carries a `ditutupPada`. The Tier 1 "Saat Duka ditolak" row reads it, so a
+ * declined family stays a row until somebody has actually phoned, and stops
+ * being one the moment that call is recorded.
+ */
+export async function teleponPemesanTercatat(db: Database, subjectKind: string, subjectId: string): Promise<boolean> {
+  if (subjectId.trim() === "") return false;
+  // "Any call to this subject was logged", not "the newest row is closed": a
+  // subject may be called twice, and the first call already happened.
+  const [row] = await db
+    .select({ n: count() })
+    .from(notificationsTeleponPemesan)
+    .where(
+      and(
+        eq(notificationsTeleponPemesan.subjectKind, subjectKind),
+        eq(notificationsTeleponPemesan.subjectId, subjectId),
+        isNotNull(notificationsTeleponPemesan.ditutupPada),
+      ),
+    );
+  return (row?.n ?? 0) > 0;
 }
 
 /**

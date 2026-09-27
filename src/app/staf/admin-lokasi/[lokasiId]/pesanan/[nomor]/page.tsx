@@ -7,8 +7,9 @@ import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTanggal, formatTanggalJam, wibDateTimeLocal } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
+import { ALASAN_TOLAK, alasanTolakKeys } from "@/domain/pemesanan";
 import { adminLokasiScope } from "../../../scope";
-import { CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
+import { AlternatifDanTolakForm, BatalkanForm, CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -40,6 +41,14 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
     : [];
   const tagihan = order.tagihanId ? await serverRuntime().billing.tagihan(order.tagihanId) : null;
   const rencana = order.rencanaPemakamanAt ? wibDateTimeLocal(order.rencanaPemakamanAt) : "";
+  // The alternative is one of this Lokasi Mitra's own Jenis Makam, priced by the
+  // module when the offer is made, so the list here is only its choices.
+  const semuaJenisMakam = menunggu
+    ? (await pemesanan.pilihanSaatDuka({ lokasiId: current.id }))[0]?.pilihan.map((kartu) => ({
+        id: kartu.jenisMakamId,
+        name: kartu.jenisMakamName,
+      })) ?? []
+    : [];
 
   return (
     <>
@@ -80,6 +89,14 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
               </>
             ) : null}
             {order.alasan ? <Baris label="Alasan" value={order.alasan} /> : null}
+            {order.alternatif ? (
+              <Baris
+                label="Alternatif menunggu"
+                value={[order.alternatif.jenisMakam, order.alternatif.pemakamanAt ? formatTanggalJam(order.alternatif.pemakamanAt) : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            ) : null}
           </dl>
         </CardContent>
       </Card>
@@ -100,6 +117,42 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
               petak={petak}
               pemakamanAwal={rencana}
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {menunggu ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tawarkan alternatif atau tolak</CardTitle>
+            <CardDescription>
+              Kalau ada pilihan lain, tawarkan dulu: keluarga akan melihat total barunya dan menjawab dalam satu ketukan. Kalau
+              tidak ada, tolak dengan alasan dari daftar — keluarga diberi tahu dan Tim kami meneleponnya maksimal 2 jam.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlternatifDanTolakForm
+              lokasiId={current.id}
+              nomor={order.nomor}
+              alasan={alasanTolakKeys.map((key) => ({ key, label: ALASAN_TOLAK[key] }))}
+              jenisMakam={semuaJenisMakam}
+              pemakamanAwal={order.alternatif?.pemakamanAt ? wibDateTimeLocal(order.alternatif.pemakamanAt) : rencana}
+              sudahDitawarkan={order.alternatif !== null}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {order.status === "dikonfirmasi" || order.status === "diajukan" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pembatalan atas nama keluarga</CardTitle>
+            <CardDescription>
+              Untuk permintaan keluarga yang Anda terima lewat telepon. Alasan yang mereka apa pun tidak Anda ketik ulang.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BatalkanForm lokasiId={current.id} nomor={order.nomor} wajibAlasan={order.status === "dikonfirmasi"} />
           </CardContent>
         </Card>
       ) : null}

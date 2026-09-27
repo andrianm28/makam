@@ -33,12 +33,19 @@ export default async function AntreanLokasiPage({ params }: PageProps<"/staf/adm
         description={`Baris kerja terbuka di ${current.name}, per kelompok lalu tenggat. Baris menutup diri sendiri begitu keadaannya berubah.`}
       />
 
-      <section aria-label="Ringkasan" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section aria-label="Ringkasan" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Baris terbuka" value={jumlah} attention={jumlah > 0 ? "warning" : undefined} />
         <StatCard
           label="Konfirmasi terlambat"
           value={antrean.statistik.konfirmasiTerlambat}
           attention={antrean.statistik.konfirmasiTerlambat > 0 ? "danger" : undefined}
+        />
+        {/* A decline is counted here beside a late confirmation (story 118): both are
+            how an Admin Lokasi sees how its own orders went, and neither is a row. */}
+        <StatCard
+          label="Pesanan ditolak"
+          value={antrean.statistik.ditolak}
+          attention={antrean.statistik.ditolak > 0 ? "warning" : undefined}
         />
       </section>
 

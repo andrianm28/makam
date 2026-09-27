@@ -17,10 +17,12 @@ import type { AntreanRowDeps } from "./row-types";
 export type { AntreanLokasiGrup, AntreanLokasiRow, AntreanLokasiRowType } from "./antrean-lokasi-rows";
 export { antreanLokasiRowTypes } from "./antrean-lokasi-rows";
 
-/** The counter strip the Antrean Lokasi shows above its two groups (ticket 23's AC 6). */
+/** The counter strip the Antrean Lokasi shows above its two groups (ticket 23's AC 6, ticket 24's AC 1). */
 export interface AntreanLokasiStatistik {
   /** Orders confirmed after the deadline that Lokasi's Jam Operasional gave. */
   konfirmasiTerlambat: number;
+  /** Orders of that Lokasi Mitra that ended in a Tolak, for any of the fixed reasons. */
+  ditolak: number;
 }
 
 export interface AntreanLokasiAntrean {
@@ -43,7 +45,7 @@ export async function antreanLokasi(
   by: Actor,
   lokasiId: string,
 ): Promise<AntreanLokasiAntrean> {
-  const kosong: AntreanLokasiAntrean = { mendesak: [], lainnya: [], statistik: { konfirmasiTerlambat: 0 } };
+  const kosong: AntreanLokasiAntrean = { mendesak: [], lainnya: [], statistik: { konfirmasiTerlambat: 0, ditolak: 0 } };
   if (!authorize(by, "pemesanan.lihat_staf", lokasiMitraResource(lokasiId)).allowed) return kosong;
 
   const now = deps.clock.now();
@@ -59,10 +61,11 @@ export async function antreanLokasi(
     const b = lain.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
     return a - b;
   };
+  const [statistik, ditolak] = await Promise.all([deps.pemesanan.konfirmasiTerlambat(lokasiId), deps.pemesanan.ditolak(lokasiId)]);
   return {
     mendesak: semua.filter((row) => barisMendesak(row.type)).sort(urut),
     lainnya: semua.filter((row) => !barisMendesak(row.type)).sort(urut),
-    statistik: { konfirmasiTerlambat: await deps.pemesanan.konfirmasiTerlambat(lokasiId) },
+    statistik: { konfirmasiTerlambat: statistik, ditolak },
   };
 }
 

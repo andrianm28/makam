@@ -1,13 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { pemesananResource } from "@/domain/identity";
-import { DOKUMEN_MAX_BYTES, unggahDokumenSchema } from "@/domain/pemesanan";
+import { DOKUMEN_MAX_BYTES, batalkanSaatDukaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 
 export type DokumenActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
+/** The same shape, for the alternative and the cancellation: one form state per screen. */
+export type PesananActionState = DokumenActionState;
 
 /** The document types a family may add: a photo of a paper or a scan of it. */
 const JENIS_BERKAS = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
@@ -49,6 +52,90 @@ export async function unggahDokumenAction(_previous: DokumenActionState, formDat
   revalidatePath(`/pesanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: unggahMessage(result.value.reason) };
   return { status: "berhasil", message: `${result.value.nama} diterima. Terima kasih.` };
+}
+
+/**
+ * The family answers the alternative the Lokasi offered, with one tap (story 31):
+ * accept and the order moves on with the new Jenis Makam or day, refuse and the
+ * order becomes Ditolak like any other refusal — never a status of its own.
+ */
+export async function jawabAlternatifAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const terima = formData.get("terima") === "ya";
+  const result = await guarded({
+    action: "pemesanan.lihat",
+    resource: (actor) => pemesananResource(actor.accountId),
+    schema: z.object({ nomor: z.string().trim().min(1) }),
+    input: { nomor },
+    run: (actor) =>
+      serverRuntime().pemesanan[terima ? "terimaAlternatif" : "tolakAlternatif"](
+        { accountId: actor.accountId, email: actor.email },
+        { nomor },
+      ),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: jawabMessage(result.value.reason) };
+  return terima
+    ? { status: "berhasil", message: "Pilihan lain diterima. Lokasi Mitra mengonfirmasi lagi, dan kabarnya datang ke email Anda." }
+    : { status: "berhasil", message: "Pilihan lain ditolak. Tim kami menelepon Anda untuk mencarikan makam yang bisa dilayani." };
+}
+
+/** The family cancels its own order (story 34): a reason once it is confirmed, because a plot and a bill are given up. */
+export async function batalkanPesananAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pemesanan.lihat",
+    resource: (actor) => pemesananResource(actor.accountId),
+    schema: batalkanSaatDukaSchema,
+    input: { nomor, alasan: formData.get("alasan") ?? "" },
+    run: (actor, data) =>
+      serverRuntime().pemesanan.batalkanSaatDuka({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: jawabMessage(result.value.reason) };
+  const tagihan = result.value.tagihan;
+  return {
+    status: "berhasil",
+    message:
+      tagihan && tagihan.jumlahDikembalikan > 0
+        ? `Pesanan dibatalkan. Tagihan ${tagihan.nomorTagihan} dibatalkan dan ${rupiah(tagihan.jumlahDikembalikan)} sedang dikembalikan.`
+        : "Pesanan dibatalkan. Tidak ada biaya pembatalan.",
+  };
+}
+
+/** A guard refusal in the family's words: a session that ended says so, the rest is the module's. */
+function guardMessage(error: string): string {
+  if (error === "belum_masuk") return "Silakan masuk lagi untuk melanjutkan.";
+  return pemesananMessage(error as Parameters<typeof pemesananMessage>[0]);
+}
+
+function rupiah(jumlah: number): string {
+  return `Rp ${jumlah.toLocaleString("id-ID")}`;
+}
+
+/** What a refusal from the module's own exits says, in the family's words. */
+function jawabMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan ini tidak ditemukan.";
+    case "pesanan_sudah_ditutup":
+      return "Pesanan ini sudah ditutup, jadi tidak bisa diubah lagi.";
+    case "tidak_ada_alternatif":
+      return "Tidak ada pilihan lain yang menunggu jawaban Anda untuk pesanan ini.";
+    case "harga_tidak_tersedia":
+      return "Harga pilihan itu sudah berubah atau belum tersedia. Hubungi kami lewat nomor CS.";
+    case "alasan_wajib":
+      return "Tulis alasan pembatalan dulu.";
+    case "pemakaman_sudah_dicatat":
+      return "Pemakaman sudah dilakukan, jadi petak tidak bisa dikembalikan. Hubungi Lokasi Mitra untuk SHO dan pemindahan jenazah.";
+    case "hak_pakai_tidak_ditemukan":
+    case "hak_pakai_sudah_berakhir":
+      return "Hak Pakai pesanan ini sudah berakhir, jadi tidak ada yang bisa dikembalikan.";
+    default:
+      return "Permintaan ini belum bisa diproses. Periksa lagi sebentar.";
+  }
 }
 
 function unggahMessage(reason: string): string {

@@ -7,9 +7,10 @@ import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
-import type { PemesananOrder } from "@/domain/pemesanan";
+import type { PemesananOrder, RebookPesanan } from "@/domain/pemesanan";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
+import { AlternatifForm, BatalkanForm } from "./keluar-pesanan";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -34,12 +35,19 @@ export async function generateMetadata({ params }: PageProps<"/pesanan/[nomor]">
 export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
-  const { billing, lokasi } = serverRuntime();
+  const { billing, lokasi, pemesanan } = serverRuntime();
+  const actor = await currentActor();
   // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
   // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
   const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;
   const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(order.lokasi.id);
+  // A declined order is the one place a family is sent back to Pilih makam, so
+  // the banner and the link are read from the order's own rebook (spec, Public
+  // site: "After a Tolak, the Pilih makam list opens with a banner, the rejecting
+  // Lokasi removed and the family's data prefilled").
+  // The rebook is the same family's own read, as the order page itself is.
+  const pemesanUlang = order.status === "ditolak" && actor ? await pemesanan.rebook(order.nomor, { accountId: actor.accountId }) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8">
@@ -57,6 +65,18 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </div>
       </header>
 
+      {order.status === "ditolak" && pemesanUlang ? <Ditolak order={order} pemesanUlang={pemesanUlang} /> : null}
+
+      {order.alternatif ? (
+        <AlternatifForm
+          nomor={order.nomor}
+          jenisMakam={order.alternatif.jenisMakam?.name ?? null}
+          pemakamanLabel={order.alternatif.pemakamanAt ? formatTanggalJam(order.alternatif.pemakamanAt) : null}
+          total={order.alternatif.total}
+          lines={order.alternatif.lines}
+        />
+      ) : null}
+
       {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
@@ -72,6 +92,18 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
       {order.pemakaman ? null : <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />}
 
       <Timeline order={order} />
+
+      {order.status === "diajukan" || order.status === "dikonfirmasi" ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-title-3 text-foreground">Berpindah pikiran?</h2>
+          <p className="text-small text-muted-foreground">
+            {order.status === "dikonfirmasi"
+              ? "Petak sudah Dialokasikan dan Tagihan terbit. Kalau dibatalkan, petak kembali ke Lokasi Mitra dan Tagihan dibatalkan; tidak ada biaya pembatalan."
+              : "Belum ada yang dibayar dan petak belum Dialokasikan, jadi membatalkan tidak membawa biaya apa pun."}
+          </p>
+          <BatalkanForm nomor={order.nomor} wajibAlasan={order.status === "dikonfirmasi"} />
+        </section>
+      ) : null}
 
       {order.dokumen.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -172,6 +204,34 @@ function Dikonfirmasi({
       <p className="rounded-xl bg-success-soft px-4 py-3 text-body text-success-soft-foreground">
         Pemakaman tetap berjalan walaupun pembayaran belum masuk. Dokumen boleh menyusul setelah pemakaman.
       </p>
+    </section>
+  );
+}
+
+/**
+ * A declined order (spec, Public site: "After a Tolak, the Pilih makam list opens
+ * with a banner, the rejecting Lokasi removed and the family's data prefilled"):
+ * the reason in the Lokasi's own words, the promise that somebody will phone, and
+ * the link that opens Pilih makam with the data already filled in and that Lokasi
+ * Mitra out of the list.
+ */
+function Ditolak({ order, pemesanUlang }: { order: PemesananOrder; pemesanUlang: RebookPesanan }) {
+  return (
+    <section className="flex flex-col gap-3" data-testid="pesanan-ditolak">
+      <h2 className="text-title-3 text-foreground">Pesanan belum bisa dilayani</h2>
+      <p className="rounded-xl bg-warning-soft px-4 py-3 text-body text-warning-soft-foreground">
+        <span className="font-semibold">{pemesanUlang.banner.lokasi.name}</span> belum bisa melayani pesanan ini. Alasannya:{" "}
+        {pemesanUlang.banner.alasan}.
+      </p>
+      <p className="text-body text-muted-foreground">
+        Tidak ada yang perlu dibayar. Tim kami akan menghubungi Anda maksimal 2 jam, dan Anda juga bisa memilih sendiri sekarang.
+      </p>
+      <Link
+        href={`/pesan-makam/saat-duka?dari=${encodeURIComponent(order.nomor)}`}
+        className={cn(buttonVariants({ variant: "default" }), "self-start")}
+      >
+        Pilih makam lain
+      </Link>
     </section>
   );
 }

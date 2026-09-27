@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
-import { centangDokumenSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
+import { batalkanSaatDukaSchema, centangDokumenSchema, konfirmasiSaatDukaSchema, tolakSaatDukaSchema, tawarkanAlternatifSchema } from "@/domain/pemesanan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
@@ -33,6 +33,70 @@ export async function konfirmasiPesanan(_previous: PesananActionState, formData:
   return {
     status: "berhasil",
     message: `Pesanan ${result.value.pesanan.nomor} dikonfirmasi di Petak ${result.value.pesanan.petakNomor}. Tagihan ${result.value.tagihan.nomorTagihan} terbit.`,
+  };
+}
+
+/**
+ * The Admin Lokasi declines the order with a reason off the closed list (story
+ * 118). The list itself is the schema's, so this action can offer nothing else
+ * than the fixed reasons and the module can accept nothing else either.
+ */
+export async function tolakPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const result = await guarded({
+    action: "pemesanan.tolak",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: tolakSaatDukaSchema,
+    input: { nomor: formData.get("nomor"), alasan: formData.get("alasan") },
+    run: (actor, data) => serverRuntime().pemesanan.tolakSaatDuka(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${String(formData.get("nomor") ?? "")}`);
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
+  if (!result.value.ok) return { status: "gagal", message: tolakMessage(result.value.reason) };
+  return { status: "berhasil", message: `Pesanan ${result.value.pesanan.nomor} ditolak. Keluarga diberi tahu dan dapat memilih Lokasi Mitra lain.` };
+}
+
+/** The Admin Lokasi offers an alternative: another Jenis Makam, another day, or both (story 31). */
+export async function tawarkanAlternatifPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const result = await guarded({
+    action: "pemesanan.tawarkan_alternatif",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: tawarkanAlternatifSchema,
+    input: {
+      nomor: formData.get("nomor"),
+      jenisMakamId: formData.get("jenisMakamId") ?? "",
+      pemakamanAt: formData.get("pemakamanAt") ?? "",
+    },
+    run: (actor, data) => serverRuntime().pemesanan.tawarkanAlternatif(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${String(formData.get("nomor") ?? "")}`);
+  if (!result.value.ok) return { status: "gagal", message: alternatifMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: `Alternatif ditawarkan ke keluarga: total semua biaya ${result.value.alternatif.total.toLocaleString("id-ID")} rupiah.`,
+  };
+}
+
+/** The Admin Lokasi records a cancellation the family asked for on the phone (story 34). */
+export async function batalkanPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const result = await guarded({
+    action: "pemesanan.batalkan_untuk_pemesan",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: batalkanSaatDukaSchema,
+    input: { nomor: formData.get("nomor"), alasan: formData.get("alasan") ?? "" },
+    run: (actor, data) => serverRuntime().pemesanan.batalkanUntukPemesan(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${String(formData.get("nomor") ?? "")}`);
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
+  if (!result.value.ok) return { status: "gagal", message: batalkanMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: `Pesanan ${result.value.pesanan.nomor} dibatalkan. Petak dikembalikan, Tagihan dibatalkan, dan keluarga diberi tahu.`,
   };
 }
 
@@ -75,6 +139,55 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
+}
+
+/** Why a Tolak was refused, saying what to do next. */
+function tolakMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan tidak ditemukan.";
+    case "pesanan_sudah_ditutup":
+      return "Pesanan ini sudah ditutup, jadi tidak bisa ditolak.";
+    default:
+      return "Pilih salah satu alasan dari daftar.";
+  }
+}
+
+/** Why an alternative was refused, saying what to do next. */
+function alternatifMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan tidak ditemukan.";
+    case "pesanan_sudah_ditutup":
+      return "Pesanan ini sudah ditutup, jadi tidak bisa ditawarkan alternatif.";
+    case "alternatif_kosong":
+      return "Pilih jenis makam lain atau tanggal lain. Minimal satu harus berubah.";
+    case "jenis_makam_tidak_ditemukan":
+      return "Jenis makam itu bukan milik Lokasi Mitra ini. Pilih dari daftar.";
+    case "harga_tidak_tersedia":
+      return "Harga jenis makam itu belum tersedia atau sudah berubah, jadi tidak bisa ditawarkan.";
+    default:
+      return "Alternatif belum bisa ditawarkan.";
+  }
+}
+
+/** Why a cancellation was refused, saying what to do next. */
+function batalkanMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan tidak ditemukan.";
+    case "pesanan_sudah_ditutup":
+      return "Pesanan ini sudah ditutup, jadi tidak bisa dibatalkan.";
+    case "alasan_wajib":
+      return "Tulis alasan pembatalan. Setelah pesanan dikonfirmasi, keluarga berhak tahu alasannya.";
+    case "pemakaman_sudah_dicatat":
+      return "Petak sudah dipakai untuk pemakaman, jadi tidak bisa dikembalikan. Catat keluhannya sebagai Pemakaman di bawah Hak Pakai.";
+    case "hak_pakai_tidak_ditemukan":
+    case "hak_pakai_sudah_berakhir":
+      return "Hak Pakai pesanan ini sudah berakhir, jadi tidak ada yang bisa dikembalikan.";
+    default:
+      return "Pesanan belum bisa dibatalkan. Periksa Tagihan pesanan ini lebih dulu.";
+  }
 }
 
 /** Why a confirmation was refused, saying what to do next. */

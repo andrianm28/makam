@@ -1,7 +1,7 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import type { PesananAlternatifDitawarkan, PemesananDiajukan, PesananDibatalkan, PemesananDikonfirmasi, PesananDitolak, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
@@ -32,6 +32,10 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
   const terencana: TerencanaDiajukan[] = [];
+  /** Every decline, alternative and cancellation the module announced, for a test that reads the family message. */
+  const ditolak: PesananDitolak[] = [];
+  const alternatif: PesananAlternatifDitawarkan[] = [];
+  const dibatalkan: PesananDibatalkan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -41,6 +45,15 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     },
     pesananDikonfirmasi: async (hasil) => {
       dikonfirmasi.push(hasil);
+    },
+    pesananDitolak: async (hasil) => {
+      ditolak.push(hasil);
+    },
+    pesananAlternatifDitawarkan: async (hasil) => {
+      alternatif.push(hasil);
+    },
+    pesananDibatalkan: async (hasil) => {
+      dibatalkan.push(hasil);
     },
     terencanaDiajukan: async (order) => {
       terencana.push(order);
@@ -59,7 +72,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
+  return { ...setup, pemesanan, diumumkan, dikonfirmasi, ditolak, alternatif, dibatalkan, terencana, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -69,7 +82,10 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).
  */
-export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
+export type PemesananModul = Omit<
+  PemesananSetup,
+  "diumumkan" | "dikonfirmasi" | "ditolak" | "alternatif" | "dibatalkan" | "terencana" | "notifikasi"
+>;
 
 /**
  * Pengaturan Operator entered by the first Admin Platform, as every document

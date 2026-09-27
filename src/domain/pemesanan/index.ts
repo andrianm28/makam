@@ -32,13 +32,28 @@ import { pilihanSaatDuka, type GrupSaatDuka, type PilihanSaatDukaQuery } from ".
 import { placeSaatDuka, type PlaceSaatDukaInput, type PlaceSaatDukaResult } from "./saat-duka";
 import { orderOf, type PemesananOrder } from "./reads";
 import { konfirmasiSaatDuka, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
+import { tolakSaatDuka, type TolakSaatDukaInput, type TolakSaatDukaResult } from "./tolak";
+import {
+  tawarkanAlternatif,
+  terimaAlternatif,
+  tolakAlternatif,
+  type JawabAlternatifInput,
+  type JawabAlternatifResult,
+  type TawarkanAlternatifInput,
+  type TawarkanAlternatifResult,
+} from "./alternatif";
+import { batalkanSaatDuka, batalkanUntukPemesan, type BatalkanSaatDukaInput, type BatalkanSaatDukaResult } from "./pembatalan";
+import { rebookPesanan, type RebookPesanan } from "./rebook";
 import {
   antreanKonfirmasi,
+  ditolak as ditolakOf,
   konfirmasiLewatTenggat,
   konfirmasiTerlambat,
   orderUntukStaf,
   orderUntukStafTerbaru,
+  saatDukaDitolak,
   type OrderAntrean,
+  type OrderDitolak,
   type OrderStaf,
 } from "./reads-staf";
 import {
@@ -70,8 +85,11 @@ import {
 export type {
   PemesananDeps,
   Pemesan,
+  PesananAlternatifDitawarkan,
   PemesananDiajukan,
+  PesananDibatalkan,
   PemesananDikonfirmasi,
+  PesananDitolak,
   PemesananNotifikasi,
   TerencanaDiajukan,
   TerencanaQuery,
@@ -80,7 +98,25 @@ export type { GrupSaatDuka, PilihanSaatDuka, PilihanSaatDukaQuery } from "./pili
 export { JAM_KONFIRMASI_SAAT_DUKA, kartuAwal } from "./pilihan";
 export type { PemegangHakInput, PlaceSaatDukaInput, PlaceSaatDukaResult } from "./saat-duka";
 export { konfirmasiSaatDukaSchema, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
-export type { DokumenOrder, OrderAntrean, OrderStaf } from "./reads-staf";
+export { tolakSaatDukaSchema, type TolakSaatDukaInput, type TolakSaatDukaResult } from "./tolak";
+export { batalkanSaatDukaSchema, type BatalkanSaatDukaInput, type BatalkanSaatDukaResult } from "./pembatalan";
+export {
+  jawabAlternatifSchema,
+  tawarkanAlternatifSchema,
+  type JawabAlternatifInput,
+  type JawabAlternatifResult,
+  type TawarkanAlternatifInput,
+  type TawarkanAlternatifResult,
+} from "./alternatif";
+/**
+ * The closed list of reasons a Saat Duka order can be declined with, and the
+ * wording each is shown with (ticket 24). It lives in its own file beside the
+ * module, which imports nothing from the database, so a "use client" screen
+ * may take it from either here or that file.
+ */
+export { ALASAN_TOLAK, alasanTolakKeys, alasanTolakSchema, type AlasanTolak } from "./alasan-tolak";
+export type { RebookPesanan } from "./rebook";
+export type { DokumenOrder, OrderAntrean, OrderDitolak, OrderStaf } from "./reads-staf";
 export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";
 export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
@@ -140,6 +176,41 @@ export interface Pemesanan {
    */
   konfirmasiSaatDuka(by: Actor, input: KonfirmasiSaatDukaInput): Promise<KonfirmasiSaatDukaResult>;
   /**
+   * The Admin Lokasi of that order's own Lokasi Mitra declines it, with a reason
+   * off the closed fixed list: Ditolak, the family told with the rebook link, and
+   * the Tier 1 call Admin Platform owes the family.
+   */
+  tolakSaatDuka(by: Actor, input: TolakSaatDukaInput): Promise<TolakSaatDukaResult>;
+  /** How many of that Lokasi Mitra's orders were declined (story 118). */
+  ditolak(lokasiId: string): Promise<number>;
+  /** Every declined Saat Duka order: the Admin Platform Tier 1 "Saat Duka ditolak" rows (story 33). */
+  saatDukaDitolak(): Promise<OrderDitolak[]>;
+  /**
+   * The Lokasi's Admin Lokasi offers an alternative on its own order: another
+   * Jenis Makam, another burial day, or both, with the all-in total `quote()`
+   * prices it at. The order stays Diajukan, waiting for the Pemesan.
+   */
+  tawarkanAlternatif(by: Actor, input: TawarkanAlternatifInput): Promise<TawarkanAlternatifResult>;
+  /** The Pemesan accepts the alternative: the order moves on with the new Jenis Makam and day. */
+  terimaAlternatif(pemesan: Pemesan, input: JawabAlternatifInput): Promise<JawabAlternatifResult>;
+  /** The Pemesan refuses the alternative, which is a Tolak (story 31). */
+  tolakAlternatif(pemesan: Pemesan, input: JawabAlternatifInput): Promise<JawabAlternatifResult>;
+  /**
+   * The Pemesan cancels its own order before the burial: nothing is billed and
+   * nothing is held before the confirmation; after it, the order, the Hak Pakai,
+   * the Petak and the Tagihan all move in one commit, and any payment is recorded
+   * for refund less the Biaya Layanan Platform (story 34).
+   */
+  batalkanSaatDuka(pemesan: Pemesan, input: BatalkanSaatDukaInput): Promise<BatalkanSaatDukaResult>;
+  /** The Admin Lokasi of that order's own Lokasi Mitra records the cancellation on the family's behalf, audited. */
+  batalkanUntukPemesan(by: Actor, input: BatalkanSaatDukaInput): Promise<BatalkanSaatDukaResult>;
+  /**
+   * The rebook of one declined order: the banner, the Lokasi Mitra that is not to
+   * be offered again, the city to look in and the family's own data for "Data &
+   * kirim". Null for another family's order, or one that is not Ditolak.
+   */
+  rebook(nomor: string, pemesan: { accountId: string }): Promise<RebookPesanan | null>;
+  /**
    * One order as that Lokasi Mitra's staff read it, with the family's own
    * details and its documents; null for an order that is not theirs (an Admin
    * Lokasi sees its own Lokasi's orders only).
@@ -190,6 +261,15 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     placeSaatDuka: (input) => placeSaatDuka(deps, input),
     orderOf: (nomor, pemesan) => orderOf(deps, pemesan, nomor),
     konfirmasiSaatDuka: (by, input) => konfirmasiSaatDuka(deps, by, input),
+    tolakSaatDuka: (by, input) => tolakSaatDuka(deps, by, input),
+    ditolak: (lokasiId) => ditolakOf(deps, lokasiId),
+    saatDukaDitolak: () => saatDukaDitolak(deps),
+    tawarkanAlternatif: (by, input) => tawarkanAlternatif(deps, by, input),
+    terimaAlternatif: (pemesan, input) => terimaAlternatif(deps, pemesan, input),
+    tolakAlternatif: (pemesan, input) => tolakAlternatif(deps, pemesan, input),
+    batalkanSaatDuka: (pemesan, input) => batalkanSaatDuka(deps, pemesan, input),
+    batalkanUntukPemesan: (by, input) => batalkanUntukPemesan(deps, by, input),
+    rebook: (nomor, pemesan) => rebookPesanan(deps, nomor, pemesan),
     orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
     orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
     antreanKonfirmasi: (lokasiId) => antreanKonfirmasi(deps, lokasiId),

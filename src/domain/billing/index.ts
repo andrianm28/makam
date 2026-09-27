@@ -31,6 +31,7 @@ import {
   type RecordPaymentResult,
 } from "./documents";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
+import { batalkanTagihan, type BatalkanTagihanAlasan, type BatalkanTagihanResult } from "./batalkan-tagihan";
 import {
   bayar,
   listPembayaranPerluDitinjau,
@@ -59,6 +60,7 @@ export type { NotPayable } from "./settlement";
 export type { BayarResult, PaymentWebhookResult, PembayaranPerluDitinjau, WebhookReviewReason } from "./payment";
 export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
 export { documentLinkSchema, QRIS_PAYMENT_CAP, withinPaymentCap, type DocumentHeader, type PaymentMethod } from "./shared";
+export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
@@ -99,6 +101,13 @@ export interface Billing {
   reissueTagihan(tagihanId: string, input: { lines: NewTagihanLine[] }): Promise<ReissueTagihanResult>;
   /** One Tagihan as issued, or null. */
   tagihan(tagihanId: string): Promise<Tagihan | null>;
+  /**
+   * Cancels one Tagihan because the order it was for will not happen, and in the
+   * same transaction records the refund of any payment it had, less the Biaya
+   * Layanan Platform (ticket 24). What the refund is paid out through is ticket
+   * 31's; that it is *asked for* is part of cancelling the bill.
+   */
+  batalkanTagihan(tagihanId: string, input: { alasan: BatalkanTagihanAlasan }): Promise<BatalkanTagihanResult>;
   /**
    * Records the payment of a Tagihan: Lunas, with exactly one Bukti Pembayaran
    * (recording it again returns the same one). A Dibatalkan Tagihan can't be
@@ -168,6 +177,7 @@ export function createBilling(deps: BillingDeps): Billing {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
+    batalkanTagihan: (tagihanId, input) => batalkanTagihan(deps, tagihanId, input, deps.clock.now()),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),

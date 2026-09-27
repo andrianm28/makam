@@ -52,6 +52,8 @@ export interface PesanKeluargaDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /** The Pilih makam list a declined order sends the family back to, with that order's number on the link. */
+  pesanUlangUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({
