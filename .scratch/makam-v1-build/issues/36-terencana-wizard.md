@@ -1,6 +1,6 @@
 # Pemesanan Terencana wizard with Denah picker and plot hold
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 16, 82
 Spec: Domain modules > 6. Pemesanan (Terencana); 5. Inventory (hold); Public site > Booking wizards (Terencana: Lokasi → Petak → Data & kirim); stories 39, 40, 41, 42, 43, 44, 45
 
@@ -23,6 +23,10 @@ The Terencana wizard: Lokasi (filter by city, all-in price range and facilities;
 Empty-plot Layanan at this checkout is ticket 53.
 
 ## Comments
+
+- 2026-09-27 — **Merged to main** (`9525c11`). A family can now book in advance: pick the plot on the Denah, enter the data, and the chosen plots are held so nobody else can take them. Three fix passes, then a re-review **7/7 clean** by someone other than the author — including a check that the "Lanjut" catch really exists (it did not: a plot that vanished produced a 404 instead of the friendly message), that `minYears` is honoured for a tumpang on a recently released plot, and that the QRIS cap comes from one constant. Merged onto a current `main`, so ticket 22 was **collapsed in rather than duplicated**: one `Pemesanan` interface and one `createPemesanan` for both wizards, one `PemesananNotifikasi` with two calls because the payloads differ, `authorize.ts` taken from `main`. Migration regenerated as `0020` in the fixed order (36 → 0020, 43 → 0021, 86 → 0022, 49 → 0023). 1489 tests green.
+  - **Deliberately left, and why:** `lepasTahan` has no production caller yet — a Terencana order is confirmed in **ticket 37**, which is where the hold is released. The mechanism names 37 as its owner and is locked by an integration test (order → release in one transaction → a second family gets the same plot), so the risk is tested rather than left as dead code. A crafted POST duplicating an id that is not a plot is refused in the domain as `unit_tidak_ditemukan` — never an empty plot number.
+  - **Unblocks 84** (Pintu Masuk on the Denah), and is one of three things 37 needs, alongside 23 and 32.
 
 - 2026-09-27 — Orchestrator: re-review of `34a3a2f` — 10 of 14 OK, **4 not yet**, so this is not mergeable. Findings, to fix in the next pass:
   1. **The branch does not actually contain `main`.** `git merge-base --is-ancestor origin/main HEAD` is false: the branch is 27 commits behind, including `737de19 Ticket 22 resolved`. The build report's claim that `origin/main` was merged in was stale. Ticket 22 is now on `main`, and it brought `0019_pemesanan_makam` with it — so **this ticket's migration number collides**. Required: merge `origin/main` in, verify with `--is-ancestor` (not by reading the log), then **fold the duplicated surface** rather than carrying two copies: `src/domain/pemesanan/index.ts`, the `schema.ts` kind `terencana` (main already has one), and `src/domain/identity/authorize.ts` (nearly identical). Then regenerate the migration as the next free number with `npm run db:generate` — do not hand-edit the journal or rename a SQL file.

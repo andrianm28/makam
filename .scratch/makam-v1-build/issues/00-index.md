@@ -41,7 +41,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [33](33-laporan-and-transfer-list.md) | Monthly Laporan and weekly outgoing transfer list | ready-for-agent | 29, 32 |
 | [34](34-makam-keluarga-hub-and-lookup.md) | Makam keluarga hub and grave lookup | ready-for-agent | 14, 26 |
 | [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | ready-for-agent | 25, 34 |
-| [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | ready-for-agent | 16, 82 |
+| [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | resolved | 16, 82 |
 | [37](37-terencana-confirmation-and-payment.md) | Terencana confirmation, payment hold and Aktif | ready-for-agent | 23, 32, 36 |
 | [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | ready-for-agent | 31, 37 |
 | [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
