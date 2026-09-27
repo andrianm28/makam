@@ -1,6 +1,6 @@
 # Image retention and disk hygiene on the shared host
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 72
 Spec: Implementation Decisions > Architecture; ADR 0002 (second amendment of 2026-09-26)
 
