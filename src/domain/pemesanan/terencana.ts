@@ -16,7 +16,7 @@ import type { LokasiPublicPricing, QuotedLine } from "@/domain/tariffs";
 import type { PemesananDeps, Pemesan, TerencanaQuery } from "./deps";
 import { placeTerencanaSchema } from "./skema-terencana";
 import { bolehDitahan, type TahanUnit } from "@/domain/inventory";
-import { pemesananTerencana, pemesananTerencanaUnit, type CalonPenghuniTerencana, type PemegangHakTerencana, type PemesananTerencanaStatus, type SyaratTerencana } from "./schema";
+import { pemesananTerencana, pemesananTerencanaUnit, type CalonPenghuniTerencana, type PemegangHak, type PemesananTerencanaStatus, type SyaratTerencana } from "./schema";
 
 /** One card of the Terencana wizard's Lokasi step. */
 export interface KartuTerencana {
@@ -251,17 +251,17 @@ export type PeriksaPilihanResult = { ok: true } | PilihanDitolak;
  * meanwhile is caught with the same words and the same other picks kept.
  */
 export async function periksaPilihanTerencana(deps: PemesananDeps, input: PeriksaPilihanInput): Promise<PeriksaPilihanResult> {
-  const bentuk = bolehDitahan(input.units);
-  if (!bentuk.ok) {
-    return {
-      ok: false,
-      reason: bentuk.reason,
-      nomor: bentuk.reason === "unit_ganda" ? await nomorOf(deps, input.lokasiId, bentuk.unit) : null,
-      sisa: [],
-    };
-  }
+  // The names first: an id that is no Petak Makam nor Kavling Keluarga of this Lokasi
+  // Mitra is refused as unknown, before any rule about its shape or its state is read,
+  // so no refusal ever has to invent a Nomor Makam for it.
   const units = await unitsOf(deps.inventory.publicDenah, input.lokasiId, input.units, new Map());
   if (!units) return { ok: false, reason: "unit_tidak_ditemukan", nomor: null, sisa: [] };
+
+  const bentuk = bolehDitahan(input.units);
+  if (!bentuk.ok) {
+    const nomor = bentuk.reason === "unit_ganda" ? nomorOf(bentuk.unit, units) : null;
+    return { ok: false, reason: bentuk.reason, nomor, sisa: [] };
+  }
 
   const denah = await deps.inventory.publicDenah(input.lokasiId);
   const statusOf = new Map<string, string | null>();
@@ -348,7 +348,7 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
 
   // The Pemegang Hak is recorded with their own contact, so an invalid number is refused here rather than
   // quietly replaced by the Pemesan's.
-  let pemegangHak: PemegangHakTerencana;
+  let pemegangHak: PemegangHak;
   if (draft.pemegangHak.mode === "pemesan") {
     pemegangHak = { mode: "pemesan", name: draft.pemegangHak.name ?? draft.pemesanName, phoneNumber: phone.phoneNumber, email };
   } else {
@@ -445,7 +445,17 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
 
   // The Lokasi Mitra's staff hear about the order through the Notifications module, never from here, and only once the
   // order and its hold are committed: an announcement about a rolled-back order would be a lie nobody can act on.
-  if (result.ok) await deps.notifikasi.pemesananTerencanaDiajukan({ nomor: result.pemesanan.nomor, lokasiId: draft.lokasiId, email });
+  if (result.ok) {
+    const penerima = await deps.identity.adminLokasiOf(draft.lokasiId);
+    await deps.notifikasi.terencanaDiajukan({
+      nomor: result.pemesanan.nomor,
+      lokasi: { id: draft.lokasiId, name: result.pemesanan.lokasi.name },
+      unit: result.pemesanan.unit.map((satu) => ({ nomor: satu.nomor, jenisMakamName: satu.jenisMakamName })),
+      calon: { name: result.pemesanan.calonPenghuni.name ?? result.pemesanan.pemegangHak.name },
+      pemesan: { name: result.pemesanan.pemesan.name, phoneNumber: result.pemesanan.pemesan.phoneNumber },
+      penerima: penerima.map((satu) => ({ accountId: satu.accountId })),
+    });
+  }
   return result;
 }
 
@@ -491,7 +501,7 @@ export interface PemesananTerencanaOrder {
   status: PemesananTerencanaStatus;
   lokasi: { id: string; name: string };
   pemesan: { name: string; email: string; phoneNumber: string };
-  pemegangHak: PemegangHakTerencana;
+  pemegangHak: PemegangHak;
   calonPenghuni: CalonPenghuniTerencana;
   /** The Syarat as they were when the order was placed: never re-read from the Lokasi Mitra's current policy. */
   syarat: SyaratTerencana;
@@ -566,16 +576,9 @@ function unit(jenis: "petak" | "kavling", id: string, nomor: string, jenisMakamI
   return { jenis, id, nomor, jenisMakamId, jenisMakamName: namaJenisMakam.get(jenisMakamId) ?? "" };
 }
 
-/** The number a family knows one unit by, or null when the Denah names no such unit. */
-async function nomorOf(deps: PemesananDeps, lokasiId: string, unit: string): Promise<string | null> {
-  const denah = await deps.inventory.publicDenah(lokasiId);
-  for (const blok of denah?.bloks ?? []) {
-    const cell = blok.cells.find((satu) => satu.id === unit);
-    if (cell) return cell.nomorMakam;
-    const kavling = blok.kavling.find((satu) => satu.id === unit);
-    if (kavling) return kavling.nomorKavling;
-  }
-  return null;
+/** The number a family knows the named unit by, or null when it is not one of the units resolved. */
+function nomorOf(unit: string, units: readonly UnitTerencana[]): string | null {
+  return units.find((satu) => satu.id === unit)?.nomor ?? null;
 }
 
 /** A refused selection, in the order's own words: the plot is named whenever there is one. */
@@ -584,11 +587,16 @@ function refusalOf(ditolak: PilihanDitolak): PlaceTerencanaResult {
     case "unit_campur":
       return { ok: false, reason: "unit_campur" };
     case "unit_ganda":
-      return { ok: false, reason: "unit_ganda", nomor: ditolak.nomor ?? "" };
+      // Every unit has been resolved against the Denah before this, so a doubled one
+      // is a plot the family knows by number; if it somehow is not, it is unknown.
+      if (ditolak.nomor === null) return { ok: false, reason: "unit_tidak_ditemukan" };
+      return { ok: false, reason: "unit_ganda", nomor: ditolak.nomor };
     case "sudah_dipesan":
-      return { ok: false, reason: "sudah_dipesan", nomor: ditolak.nomor ?? "" };
+      if (ditolak.nomor === null) return { ok: false, reason: "unit_tidak_ditemukan" };
+      return { ok: false, reason: "sudah_dipesan", nomor: ditolak.nomor };
     case "unit_tidak_bisa_dipilih":
-      return { ok: false, reason: "unit_tidak_bisa_dipilih", nomor: ditolak.nomor ?? "", status: ditolak.status ?? "tidak_tersedia" };
+      if (ditolak.nomor === null) return { ok: false, reason: "unit_tidak_ditemukan" };
+      return { ok: false, reason: "unit_tidak_bisa_dipilih", nomor: ditolak.nomor, status: ditolak.status ?? "tidak_tersedia" };
     default:
       return { ok: false, reason: "unit_tidak_ditemukan" };
   }

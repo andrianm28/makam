@@ -295,7 +295,7 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
   const actor = await currentActor();
   // The Kode Masuk at Kirim signed this Akun in; without it there is no order of theirs to read here.
   if (!actor) redirect(terencanaPath({ langkah: "petak", lokasiId }));
-  const order = await pemesanan.terencanaOf(database.db, { accountId: actor.accountId }, nomor);
+  const order = await pemesanan.terencanaOf(nomor, { accountId: actor.accountId });
   if (!order) notFound();
   const denah = await pemesanan.denahTerencana(lokasiId);
   const blok = denah ? denahView(denah).blok : [];

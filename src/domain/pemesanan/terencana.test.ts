@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { refusable } from "@/db/unit-of-work";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { pemesananOnTestDatabase, pemesan, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
+import { pemesananOnTestDatabase, pemesanDenganEmail, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
 import { signedInAdminPlatform } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
 import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
@@ -23,7 +23,7 @@ const pemesanan = {
 async function siap(setup: PemesananSetup, options?: TerencanaOptions) {
   const { actor: admin } = await signedInAdminPlatform(setup);
   const fixture = await terencanaLokasi(setup, admin, options);
-  return { fixture, pemesan: await pemesan(setup) };
+  return { fixture, pemesan: (await pemesanDenganEmail(setup, "kelarga@contoh.id")).pemesan };
 }
 
 /** What the picker sends the domain: the chosen plots as ids. */
@@ -219,7 +219,21 @@ describe("placing a Pemesanan Terencana", () => {
     const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
     const status = (nomor: string) => denah?.bloks.flatMap((blok) => blok.cells).find((cell) => cell.nomorMakam === nomor)?.status;
     expect([status("A-01"), status("A-02")]).toEqual(["sedang_dipesan", "sedang_dipesan"]);
-    expect(setup.notifikasi.diumumkan).toEqual([{ nomor: "MKM-2026-000001", lokasiId: fixture.lokasiMitra.id, email: "kelarga@contoh.id" }]);
+    // The announcement carries what the Lokasi Mitra's staff need to confirm it: the
+    // plots by the numbers the family knows, the Calon Penghuni and the Pemesan.
+    expect(setup.terencana).toEqual([
+      {
+        nomor: "MKM-2026-000001",
+        lokasi: { id: fixture.lokasiMitra.id, name: fixture.lokasiMitra.name },
+        unit: [
+          { nomor: "A-01", jenisMakamName: "Reguler 2 \u00d7 1 m" },
+          { nomor: "A-02", jenisMakamName: "Reguler 2 \u00d7 1 m" },
+        ],
+        calon: { name: "Rina Wulandari" },
+        pemesan: { name: "Rina Wulandari", phoneNumber: "+6281234567890" },
+        penerima: [{ accountId: fixture.adminLokasi.accountId }],
+      },
+    ]);
   });
 
   it("a declined or withdrawn order's plots are free for another family, which is what the hold's release is for", async () => {
@@ -234,7 +248,7 @@ describe("placing a Pemesanan Terencana", () => {
     // Ticket 37 declines the order and releases its hold in the same transaction as the status change.
     const dilepas = await refusable(setup.db, (tx) => setup.inventory.within(tx).lepasTahan(placed.pemesanan.nomor));
     setup.clock.advance({ minutes: 2 });
-    const lagi = await pesan(await pemesan(setup, "kelarga.lain@contoh.id"));
+    const lagi = await pesan((await pemesanDenganEmail(setup, "kelarga.lain@contoh.id")).pemesan);
 
     expect(dilepas).toEqual({ ok: true, released: 1 });
     expect(lagi).toMatchObject({ ok: true, pemesanan: { nomor: "MKM-2026-000002" } });
@@ -254,7 +268,7 @@ describe("placing a Pemesanan Terencana", () => {
     });
     if (!diubah.ok) throw new Error(`kebijakan refused: ${diubah.reason}`);
 
-    const order = await setup.pemesanan.terencanaOf(setup.db, pemesanAkun, hasil.pemesanan.nomor);
+    const order = await setup.pemesanan.terencanaOf(hasil.pemesanan.nomor, pemesanAkun);
     const denah = await setup.pemesanan.denahTerencana(fixture.lokasiMitra.id);
 
     expect(order?.syarat).toEqual({ masaPembatalanDays: 14, refundAfterMasaPembatalanPercent: 25, hakDengan: "lokasi_mitra", lokasiNama: fixture.lokasiMitra.name });
@@ -269,11 +283,11 @@ describe("placing a Pemesanan Terencana", () => {
     const hasil = await setup.pemesanan.placeTerencana({ ...pemesanan, pemesan: pemesanAkun, lokasiId: fixture.lokasiMitra.id, units: units({ petak: [a01] }) });
     if (!hasil.ok) throw new Error(`placeTerencana refused: ${hasil.reason}`);
     setup.clock.advance({ minutes: 2 });
-    const lain = await pemesan(setup, "lain@contoh.id");
+    const lain = (await pemesanDenganEmail(setup, "lain@contoh.id")).pemesan;
 
-    expect(await setup.pemesanan.terencanaOf(setup.db, pemesanAkun, hasil.pemesanan.nomor)).not.toBeNull();
-    expect(await setup.pemesanan.terencanaOf(setup.db, lain, hasil.pemesanan.nomor)).toBeNull();
-    expect(await setup.pemesanan.terencanaOf(setup.db, pemesanAkun, "MKM-2026-999999")).toBeNull();
+    expect(await setup.pemesanan.terencanaOf(hasil.pemesanan.nomor, pemesanAkun)).not.toBeNull();
+    expect(await setup.pemesanan.terencanaOf(hasil.pemesanan.nomor, lain)).toBeNull();
+    expect(await setup.pemesanan.terencanaOf("MKM-2026-999999", pemesanAkun)).toBeNull();
   });
 
   it("refuses a second order for a plot someone else took meanwhile, and leaves no order behind", async () => {
@@ -292,7 +306,7 @@ describe("placing a Pemesanan Terencana", () => {
     const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
     const status = (nomor: string) => denah?.bloks.flatMap((blok) => blok.cells).find((cell) => cell.nomorMakam === nomor)?.status;
     expect(status("A-02")).toBe("bisa_dipilih");
-    expect(await setup.pemesanan.terencanaOf(setup.db, pemesanAkun, "MKM-2026-000002")).toBeNull();
+    expect(await setup.pemesanan.terencanaOf("MKM-2026-000002", pemesanAkun)).toBeNull();
   });
 
   it("refuses a plot that is not pickable, and a Lokasi Mitra that takes no Terencana orders", async () => {
@@ -320,7 +334,7 @@ describe("placing a Pemesanan Terencana", () => {
       ok: false,
       reason: "unit_tidak_ditemukan",
     });
-    expect(setup.notifikasi.diumumkan).toEqual([]);
+    expect(setup.terencana).toEqual([]);
   });
 
   it("refuses a crafted selection of a mixed or doubled kind by name, never with an empty plot number", async () => {
@@ -343,7 +357,31 @@ describe("placing a Pemesanan Terencana", () => {
 
     expect(campur).toEqual({ ok: false, reason: "unit_campur" });
     expect(ganda).toEqual({ ok: false, reason: "unit_ganda", nomor: "A-02" });
-    expect(setup.notifikasi.diumumkan).toEqual([]);
+    expect(setup.terencana).toEqual([]);
+  });
+
+  it("refuses an id that is no plot here as unknown, doubled or not, and never answers with an empty number", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { fixture, pemesan: pemesanAkun } = await siap(setup);
+    const semua = await unitIds(setup, fixture, ["A-01"]);
+    const asing = "00000000-0000-0000-0000-000000000000";
+    const pesan = (units: { petakId?: string; kavlingId?: string }[]) =>
+      setup.pemesanan.placeTerencana({ ...pemesanan, pemesan: pemesanAkun, lokasiId: fixture.lokasiMitra.id, units });
+
+    // The names are resolved against the Denah before any rule about their shape or
+    // state is read, so a doubled id that names nothing at all is refused as unknown:
+    // the module has no Nomor Makam to name, and no screen is shown an empty one.
+    const doubled = await pesan([{ petakId: semua["A-01"] }, { petakId: asing }, { petakId: asing }]);
+    const campur = await pesan([{ petakId: semua["A-01"] }, { kavlingId: asing }]);
+    const satu = await pesan([{ petakId: asing }]);
+
+    expect(doubled).toEqual({ ok: false, reason: "unit_tidak_ditemukan" });
+    expect(campur).toEqual({ ok: false, reason: "unit_tidak_ditemukan" });
+    expect(satu).toEqual({ ok: false, reason: "unit_tidak_ditemukan" });
+    // Nothing was held and no order was written, so the real plot is still free.
+    const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+    expect(denah?.bloks.flatMap((blok) => blok.cells).find((cell) => cell.nomorMakam === "A-01")?.status).toBe("bisa_dipilih");
+    expect(setup.terencana).toEqual([]);
   });
 
   it("refuses a selection v1 cannot take, because its Tagihan would pass the Rp 10.000.000 QRIS cap", async () => {

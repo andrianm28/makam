@@ -1,28 +1,117 @@
-/**
- * The Pemesanan Terencana order (spec, domain module 6, Pemesanan > Terencana):
- * a booking made in advance, reserving one or more Petak Makam (or one whole
- * Kavling Keluarga) for a Calon Penghuni. Ticket 22 builds the shared
- * `pemesanan_makam` table for the Saat Duka order; the tables here carry what
- * only a Terencana order has — several chosen plots, a Calon Penghuni, and the
- * Syarat snapshot — and the two fold into one order table on a `kind`
- * discriminator when that ticket lands (see the ticket's Comments).
- *
- * Owns tables: pemesanan_terencana, pemesanan_terencana_unit.
- */
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+/**
+ * Every Pemesanan Makam kind (CONTEXT.md): Saat Duka and Terencana at a Lokasi
+ * Mitra, and a further burial under an existing Hak Pakai. Only Saat Duka is
+ * built (this ticket); the others arrive with theirs.
+ */
+export const pemesananKinds = ["saat_duka", "terencana", "tumpang"] as const;
+export type PemesananKind = (typeof pemesananKinds)[number];
+
+/**
+ * Every status of a Pemesanan Makam. Saat Duka runs Diajukan → Dikonfirmasi →
+ * Dimakamkan → Selesai, and may end Ditolak or Dibatalkan; Terencana and a
+ * further burial have their own steps in their own tickets.
+ */
+export const pemesananStatuses = ["diajukan", "dikonfirmasi", "dimakamkan", "selesai", "ditolak", "dibatalkan"] as const;
+export type PemesananStatus = (typeof pemesananStatuses)[number];
+
+/**
+ * The Pemegang Hak the Pemesan named (CONTEXT.md): the Pemesan themselves by
+ * default, else another relative with their own name, phone number and email
+ * when it is known. Never the Almarhum (refused on the way in).
+ */
+export interface PemegangHak {
+  mode: "pemesan" | "lain";
+  /** The holder's name: the Pemesan's when `mode` is "pemesan", as recorded at submission. */
+  name: string;
+  /** Canonical E.164 (+62…), a contact only, never verified. */
+  phoneNumber: string | null;
+  email: string | null;
+}
+
+/**
+ * Owned by the Pemesanan module: one Pemesanan Makam, a booking of one grave
+ * for one Almarhum. `lokasi_id` and `jenis_makam_id` name a Lokasi Mitra and
+ * one of its Jenis Makam (no foreign key across modules, as elsewhere);
+ * `jenis_makam_id` is null only for a TPU order, which has no plot to choose.
+ *
+ * `lokasi_name` and `jenis_makam_name` are what was ordered, copied at
+ * submission: the family reads them on the order page even after the Lokasi
+ * Mitra is renamed or stops being listed, the way a Tagihan keeps the header
+ * values in force when it was issued.
+ *
+ * Nothing is billed here: the Tagihan is issued at the Lokasi's confirmation
+ * (`tagihan_id`, null until then), so a Saat Duka order at submission carries
+ * no money. `konfirmasi_due_at` is the deadline the Lokasi's Jam Operasional
+ * gave at submission (2 service hours), kept on the order so the family is
+ * told the same time it was promised; null only while a Jam Operasional is
+ * belum diisi.
+ *
+ * `pemesan_account_id` and `email` are null for an order CS placed on a
+ * family's behalf with no Akun to attach (a later ticket); every family
+ * message goes to `email`, which the Kode Masuk at Kirim proved (ADR 0004).
+ */
+export const pemesananMakam = pgTable(
+  "pemesanan_makam",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** `MKM-2026-000123`: given at submission and shown at every confirmation. */
+    nomor: text("nomor").notNull(),
+    kind: text("kind", { enum: pemesananKinds }).notNull(),
+    status: text("status", { enum: pemesananStatuses }).notNull(),
+    lokasiId: text("lokasi_id").notNull(),
+    lokasiName: text("lokasi_name").notNull(),
+    jenisMakamId: text("jenis_makam_id"),
+    jenisMakamName: text("jenis_makam_name"),
+    /** The Akun that placed the order; null for one CS placed with no Akun. */
+    pemesanAccountId: text("pemesan_account_id"),
+    /** The Pemesan's name as typed (their Akun keeps its own, possibly empty). */
+    pemesanName: text("pemesan_name").notNull(),
+    /** The Email Terverifikasi every family message goes to (ADR 0004). */
+    email: text("email"),
+    /** The phone number as typed, a contact only: never verified, never a login. */
+    phoneNumber: text("phone_number"),
+    almarhumName: text("almarhum_name").notNull(),
+    tanggalWafat: date("tanggal_wafat", { mode: "string" }).notNull(),
+    /** The burial the family plans, if it has one; the Lokasi agrees the day at confirmation. */
+    rencanaPemakamanAt: at("rencana_pemakaman_at"),
+    /** A placement wish (e.g. near the family's other graves), free text. */
+    keinginanPenempatan: text("keinginan_penempatan"),
+    pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
+    konfirmasiDueAt: at("konfirmasi_due_at"),
+    tagihanId: text("tagihan_id"),
+    /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
+    alasan: text("alasan"),
+    diajukanAt: at("diajukan_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("pemesanan_makam_nomor_idx").on(table.nomor),
+    index("pemesanan_makam_pemesan_idx").on(table.pemesanAccountId),
+    index("pemesanan_makam_lokasi_idx").on(table.lokasiId),
+  ],
+);
 
 /**
  * The statuses a Pemesanan Terencana runs through (spec, Pemesanan > Terencana):
  * Diajukan (the plots are held) → Dikonfirmasi (the payment hold runs, the
  * pay-first Tagihan is due when it ends) → Aktif (paid, one Hak Pakai per Petak
- * Makam or Kavling Keluarga), plus Ditolak and Dibatalkan. This ticket only ever
- * places an order Diajukan; the later steps are ticket 37 (confirmation and
- * payment) and ticket 38 (Pembatalan).
+ * Makam or Kavling Keluarga), plus Ditolak and Dibatalkan. Every one of them is a
+ * Pemesanan Makam status (CONTEXT.md), so they are written as such: Aktif is where a
+ * Terencana order sits once it is paid and its Hak Pakai runs, where a Saat Duka order
+ * is already Dimakamkan. This ticket only ever places an order Diajukan; the later
+ * steps are ticket 37 (the confirmation and the payment hold) and ticket 38
+ * (Pembatalan).
  */
 export const pemesananTerencanaStatuses = ["diajukan", "dikonfirmasi", "aktif", "ditolak", "dibatalkan"] as const;
-export type PemesananTerencanaStatus = (typeof pemesananTerencanaStatuses)[number];
+/**
+ * A Terencana order is a Pemesanan Makam, so it runs the module's shared statuses,
+ * plus Aktif: where it sits once it is paid and its Hak Pakai runs, which is where a
+ * Saat Duka order is already Dimakamkan and so has no name of its own.
+ */
+export type PemesananTerencanaStatus = PemesananStatus | "aktif";
 
 /**
  * The Syarat Pemesanan Terencana as they were when the order was placed (spec,
@@ -41,17 +130,7 @@ export interface SyaratTerencana {
   lokasiNama: string;
 }
 
-/** The Pemegang Hak a Terencana order names (CONTEXT.md), never the Calon Penghuni. */
-export interface PemegangHakTerencana {
-  mode: "pemesan" | "lain";
-  /** The holder's name, the Pemesan's own when `mode` is "pemesan", as recorded at submission. */
-  name: string;
-  /** Canonical E.164 (+62…), a contact only: never verified, never a login. */
-  phoneNumber: string | null;
-  email: string | null;
-}
-
-/** The Calon Penghuni the plot is prepared for: the Pemesan themselves by default, else a name the Pemegang Hak may change later. */
+/** The Calon Penghuni a Terencana order prepares the plot for: the Pemesan themselves by default, else a name the Pemegang Hak may change later. */
 export interface CalonPenghuniTerencana {
   mode: "saya" | "lain";
   /** Null for "saya": the living person it is prepared for is the Pemesan. */
@@ -59,18 +138,22 @@ export interface CalonPenghuniTerencana {
 }
 
 /**
- * Owned by the Pemesanan module: one Pemesanan Terencana, reserving one or more
- * Petak Makam (or one whole Kavling Keluarga) for one Calon Penghuni. `lokasi_id`
- * and the unit columns name an Inventory Lokasi Mitra, Petak Makam and Kavling
- * Keluarga (no foreign key across modules, as elsewhere).
+ * Owned by the Pemesanan module: one Pemesanan Terencana — the `terencana` kind of
+ * `pemesananKinds` — reserving one or more Petak Makam (or one whole Kavling
+ * Keluarga) for one Calon Penghuni. It has a table of its own because the
+ * single-plot `pemesanan_makam` cannot carry several chosen plots, a Calon Penghuni
+ * or the Syarat snapshot; the two are one Pemesanan Makam each, read through the same
+ * public interface.
  *
- * `lokasi_name`, the unit's `jenis_makam_name` and its number are copied at
- * submission, so the order reads the way it was placed even after the Lokasi
- * Mitra is renamed or a Petak Makam renumbered.
+ * `lokasi_id` and the unit columns name an Inventory Lokasi Mitra, Petak Makam and
+ * Kavling Keluarga (no foreign key across modules, as elsewhere). `lokasi_name`, each
+ * unit's `jenis_makam_name` and its number are copied at submission, so the order reads
+ * the way it was placed even after the Lokasi Mitra is renamed or a Petak Makam
+ * renumbered.
  *
  * Nothing is billed here: the Tagihan is issued when the Lokasi Mitra confirms
  * (`tagihan_id`, null until then), and `konfirmasi_due_at` the deadline its Jam
- * Operasional gave at submission are ticket 37's.
+ * Operasional gave at submission is ticket 37's.
  */
 export const pemesananTerencana = pgTable(
   "pemesanan_terencana",
@@ -89,7 +172,7 @@ export const pemesananTerencana = pgTable(
     email: text("email").notNull(),
     /** The phone number as typed, a contact only: never verified, never a login. */
     phoneNumber: text("phone_number").notNull(),
-    pemegangHak: jsonb("pemegang_hak").$type<PemegangHakTerencana>().notNull(),
+    pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
     calonPenghuni: jsonb("calon_penghuni").$type<CalonPenghuniTerencana>().notNull(),
     syarat: jsonb("syarat").$type<SyaratTerencana>().notNull(),
     /** The instant the Lokasi Mitra's Jam Operasional promised a confirmation by; null until ticket 37 sets it. */

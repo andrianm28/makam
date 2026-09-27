@@ -27,7 +27,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | resolved | 18 |
 | [20](20-notifications-core.md) | Notifications module core | resolved | 17, 18, 82 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
-| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16, 82 |
+| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | resolved | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | ready-for-agent | 18, 20, 21, 22 |
 | [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | ready-for-agent | 23 |
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
@@ -222,7 +222,7 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 
 ## Split of ticket 07 (2026-09-25)
 
-| [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test | ready-for-agent | 03, 07 |
+| [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test (rescoped for beta: nightly encrypted local dump) | resolved | 03, 07 |
 | [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64, 68 |
 | [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
 
@@ -256,7 +256,7 @@ Decided by the user and written into ADR 0002 (amendment of 2026-09-26) and the 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
 | [71](71-ci-e2e-and-image-scan.md) | CI: e2e, image scan and supply-chain hardening on every build | resolved | 12 |
-| [72](72-deploys-through-github-actions.md) | Signed pull-based deploys: GitHub Deployment statuses, staging smoke test, production promotion and rollback | ready-for-agent | 71 |
+| [72](72-deploys-through-github-actions.md) | Signed pull-based deploys: GitHub Deployment statuses, staging smoke test, production promotion and rollback | in-progress | 71 |
 | [73](73-image-retention-and-host-disk.md) | Image retention and disk hygiene on the shared host | ready-for-agent | 72 |
 
 ## Decisions 2026-09-26 (staff redesign on the brand)

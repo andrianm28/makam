@@ -124,7 +124,11 @@ export type Action =
   | "catatan_internal.tambah"
   /** Log the "Telepon Pemesan" call, closing its row (Admin Platform only; ticket 20). */
   | "telepon_pemesan.catat"
-  /** Place a Pemesanan Makam of one's own (the wizard's Kirim), for the Lokasi Mitra and plots chosen. */
+  /**
+   * Place a Pemesanan Makam of one's own (the wizard's Kirim), for the Lokasi
+   * Mitra and Jenis Makam chosen.
+   */
+
   | "pemesanan.buat"
   /** Read one's own Pemesanan Makam by its Nomor Pemesanan. */
   | "pemesanan.lihat";

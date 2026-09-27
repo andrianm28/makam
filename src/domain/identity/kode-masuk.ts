@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Clock } from "@/ports/clock";
@@ -72,10 +73,14 @@ export type VerifyKodeMasukResult =
  * sent to, or creates that Akun when there is none: entering the code proves
  * the email. Open Undangan Staf to the email are accepted, and the session
  * gets the strictest length of the roles now held.
+ *
+ * A wizard's Kirim passes the name it asked for (`name`); it fills the Akun's
+ * name when it has none, and never replaces one an Akun Saya profile already
+ * holds. Masuk knows no name and passes none.
  */
 export async function verifyKodeMasuk(
   deps: KodeMasukDeps,
-  input: { email: string; code: string },
+  input: { email: string; code: string; name?: string },
 ): Promise<VerifyKodeMasukResult> {
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "kode_salah" };
@@ -87,6 +92,7 @@ export async function verifyKodeMasuk(
 
   const existing = await akunOfVerifiedEmail(deps.db, email);
   const account = existing ?? (await createAkun(deps, email));
+  await nameAkun(deps, account.id, input.name);
 
   // Invites first, so the new session gets the length of the strictest role the Akun now holds.
   await acceptOpenInvites(deps, account);
@@ -94,6 +100,22 @@ export async function verifyKodeMasuk(
   const { expiresAt, cookies } = await startSession(deps, account.id);
 
   return { ok: true, account, accountCreated: !existing, roles, session: { expiresAt, cookies } };
+}
+
+/**
+ * The name a wizard learned for the Akun, kept when the Akun has none: the
+ * first name a person gives is theirs, and a later checkout never overwrites
+ * it. What the Kontak Siaga's card says about a family member is then there.
+ */
+async function nameAkun(deps: KodeMasukDeps, accountId: string, typed: string | undefined) {
+  const name = typed?.trim() ?? "";
+  if (name === "") return;
+  const [row] = await deps.db
+    .select({ name: identityUser.name })
+    .from(identityUser)
+    .where(eq(identityUser.id, accountId));
+  if (!row || row.name !== "") return;
+  await deps.db.update(identityUser).set({ name, updatedAt: deps.clock.now() }).where(eq(identityUser.id, accountId));
 }
 
 /** Creates the Akun of a just-proven email; when another login created it first, that Akun. */

@@ -17,7 +17,7 @@
  */
 import type { Actor } from "@/domain/identity";
 import type { Database } from "@/db/client";
-import type { AvailabilityCount } from "./availability";
+import { availability, type AvailabilityCount } from "./availability";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
@@ -131,6 +131,12 @@ export interface Inventory {
   lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
+  /**
+   * Every Jenis Makam's count of cleared Tersedia units at this Lokasi Mitra
+   * (a Kavling Keluarga counts as one); no actor, for the listing that offers
+   * only what is available.
+   */
+  tersediaPerJenisMakam(lokasiId: string): Promise<AvailabilityCount[]>;
 }
 
 export function createInventory(deps: InventoryDeps): Inventory {
@@ -155,5 +161,6 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
     within: (tx) => createInventory({ ...deps, db: tx }),
+    tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
   };
 }

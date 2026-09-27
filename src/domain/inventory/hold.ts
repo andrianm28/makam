@@ -43,7 +43,13 @@ const unitSchema = z
   .object({ petakId: z.uuid().optional(), kavlingId: z.uuid().optional() })
   .refine((unit) => (unit.petakId === undefined) !== (unit.kavlingId === undefined), { message: "satu unit saja" });
 
-const inputSchema = z.object({ lokasiId: z.uuid(), units: z.array(unitSchema).min(1).max(100), nomorPemesanan: z.string().trim().min(1).max(60) });
+/**
+ * No cap on the number of units here: how many plots one Terencana order may hold is
+ * the Pemesanan module's own rule, and it is written down once, in that module's
+ * boundary (`TERENCANA_MAKS_UNIT`, which its form shares). The hold only answers
+ * whether each named unit can be held, all of them or none.
+ */
+const inputSchema = z.object({ lokasiId: z.uuid(), units: z.array(unitSchema).min(1), nomorPemesanan: z.string().trim().min(1).max(60) });
 
 /**
  * Whether a proposed selection is one an order may hold: several Petak Makam (any

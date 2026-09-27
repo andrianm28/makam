@@ -50,9 +50,9 @@ type Labelled = {
   /** com.docker.compose.project */
   project?: string;
   /**
-   * makam.worktree, set by `npm run stack`. Only the built image carries it
-   * (a build label in docker-compose.yml): containers, volumes and networks
-   * only ever have the compose labels.
+   * makam.worktree, set by `npm run stack` and by the tooling that starts
+   * containers of its own (the database Dump tests, tests/tooling/db-backup.test.ts).
+   * A container carries it; compose volumes and networks never do.
    */
   worktree?: string;
 };
@@ -82,7 +82,10 @@ export type StackCleanupPlan = {
  * and networks left behind by `down` without `-v` are found, once their
  * containers are gone). An image is only ever removed when its tag is
  * `makam-v1:<its project>` too: a matching label alone is not proof enough.
- * Never a protected project, never one also used from another directory.
+ * A container with no compose project at all is a `docker run` of this
+ * repository's own making (the database Dump tests), and the makam.worktree
+ * label it carries is the only proof there is. Never a protected project, never
+ * one also used from another directory.
  */
 export function planStackCleanup(root: string, inventory: DockerInventory): StackCleanupPlan {
   const fromHere = (item: Labelled & { workingDir?: string }) => item.workingDir === root || item.worktree === root;
@@ -99,9 +102,11 @@ export function planStackCleanup(root: string, inventory: DockerInventory): Stac
   const removable = (project: string | undefined): project is string =>
     Boolean(project) && !PROTECTED.test(project as string) && !usedElsewhere.has(project as string);
   const imageTagMatches = (image: Labelled) => image.id === `makam-v1:${image.project}`;
+  const removableContainer = (container: Labelled & { workingDir?: string }): boolean =>
+    container.project ? removable(container.project) && fromHere(container) : container.worktree === root;
 
   return {
-    containers: inventory.containers.filter((c) => removable(c.project) && fromHere(c)).map((c) => c.id),
+    containers: inventory.containers.filter(removableContainer).map((c) => c.id),
     volumes: inventory.volumes.filter((v) => removable(v.project) && proven.has(v.project as string)).map((v) => v.id),
     networks: inventory.networks.filter((n) => removable(n.project) && proven.has(n.project as string)).map((n) => n.id),
     images: inventory.images.filter((i) => removable(i.project) && imageTagMatches(i) && proven.has(i.project as string)).map((i) => i.id),

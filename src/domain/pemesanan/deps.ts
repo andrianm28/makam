@@ -7,29 +7,16 @@ import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 
 /**
- * Who is placing a Pemesanan Terencana: an Akun's id with the Email Terverifikasi
- * that was proven to reach it. The wizard's Kirim is the login itself (the one
- * exception in AGENTS.md), so the Server Action has no session cookie to read an
- * Actor from; the Kode Masuk hands it these two facts instead, and the module
+ * Who is placing a Pemesanan Makam: an Akun's id with the email "Data & kirim"
+ * holds, which has to be that Akun's Email Terverifikasi. The wizard's Kirim is
+ * the login itself (the one exception in AGENTS.md), so the Server Action has no
+ * session cookie to read an Actor from; the Kode Masuk (or the session, for a
+ * Pemesan already signed in) hands it these two facts instead, and the module
  * checks that the two really belong together.
  */
 export interface Pemesan {
   accountId: string;
   email: string;
-}
-
-/**
- * The Notifications seam for the messages a Pemesanan Terencana brings (spec,
- * Notifications). Ticket 20 builds the family's own messages and the event log
- * they retry from; until it lands, the composition root passes the runtime's
- * Notifications here and this is where its call arrives, so no message is sent
- * from the wizard itself and nothing is lost but the message: the Akun and its
- * Email Terverifikasi exist the moment the Kode Masuk succeeds, and a placement
- * never waits on a send.
- */
-export interface PemesananNotifikasi {
-  /** A Pemesanan Terencana the Lokasi Mitra has to confirm, named by its Nomor Pemesanan. */
-  pemesananTerencanaDiajukan(order: { nomor: string; lokasiId: string; email: string }): Promise<void>;
 }
 
 /** The filters the Terencana wizard's Lokasi step offers (spec, story 39). */
@@ -42,20 +29,85 @@ export interface TerencanaQuery {
 }
 
 /**
+ * The Notifications seam for the messages a Pemesanan Makam brings (spec,
+ * Notifications: a new Saat Duka order alerts the Lokasi Mitra's staff at any
+ * hour). `placeSaatDuka` announces the order here once it is written, naming
+ * who must see it and what they need to confirm; the composition root hands it
+ * the runtime's Notifications, which picks the channel, the template and the
+ * timing. Nothing about a message is decided here.
+ */
+export interface PemesananNotifikasi {
+  /** A Pemesanan Makam the Lokasi Mitra has to confirm, named by its Nomor Pemesanan. */
+  pemesananDiajukan(order: PemesananDiajukan): Promise<void>;
+  /**
+   * A Pemesanan Terencana the Lokasi Mitra has to confirm. It is a call of its own
+   * and not a variant of that first one because the two say different things: a
+   * Terencana order names several plots and a Calon Penghuni who is alive, so it has
+   * no Almarhum, no Jenis Makam of its own and no confirmation deadline (its plots
+   * are held outright at submission, and the Tagihan follows the confirmation).
+   */
+  terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+}
+
+/** A new Pemesanan Terencana as the staff who must see it are told about it. */
+export interface TerencanaDiajukan {
+  nomor: string;
+  lokasi: { id: string; name: string };
+  /** The plots it holds, by the numbers the family knows them by. */
+  unit: { nomor: string; jenisMakamName: string }[];
+  /** The Calon Penghuni the plots are prepared for, as it was named at submission. */
+  calon: { name: string };
+  /** The Pemesan to call back, and the number to call. */
+  pemesan: { name: string; phoneNumber: string | null };
+  /** Every Akun Staf that must see this order: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
+  penerima: { accountId: string }[];
+}
+
+/** A new Pemesanan Makam as the staff who must confirm it are told about it. */
+export interface PemesananDiajukan {
+  nomor: string;
+  lokasi: { id: string; name: string };
+  /** The Jenis Makam the family chose, as it was named at submission. */
+  jenisMakamName: string;
+  almarhum: { name: string; tanggalWafat: string };
+  /** The Pemesan to call back, and the number to call. */
+  pemesan: { name: string; phoneNumber: string | null };
+  /** The burial the family plans, if it has one; the Lokasi agrees the day. */
+  rencanaPemakamanAt: Date | null;
+  /** The instant the Lokasi's Jam Operasional promised a confirmation by; null while it had none. */
+  konfirmasiDueAt: Date | null;
+  /** Every Akun Staf that must see this order: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
+  penerima: { accountId: string }[];
+}
+
+/**
  * What the Pemesanan module needs from its neighbours: only their public
- * functions, never their tables. It reads a Lokasi Mitra's listing and its
- * tumpang rules from Lokasi, its prices from Tariffs, what may be picked and the
- * hold itself from Inventory, the Nomor Pemesanan from Billing, and which Akun an
+ * functions, never their tables. It reads the Lokasi Mitra's listing and
+ * working time from Lokasi, its prices from Tariffs, what is still Tersedia
+ * from Inventory, the Nomor Pemesanan's series from Billing, and which Akun an
  * email belongs to from Identity.
  */
 export interface PemesananDeps {
   db: Database;
   clock: Clock;
-  lokasi: Pick<Lokasi, "publicLokasiMitra" | "publicLokasiMitraList" | "kontakSiagaOf">;
+  lokasi: Pick<
+    Lokasi,
+    "isTerverifikasi" | "publicLokasiMitra" | "publicLokasiMitraList" | "bukaSekarang" | "serviceHoursDeadline" | "kontakSiagaOf"
+  >;
   tariffs: Pick<Tariffs, "lokasiPricing" | "quote">;
-  inventory: Pick<Inventory, "publicDenah" | "tersediaUntukTerencana" | "tahan" | "within">;
+  inventory: Pick<
+    Inventory,
+    | "tersediaPerJenisMakam"
+    // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
+    | "publicDenah"
+    | "tersediaUntukTerencana"
+    | "tahan"
+    | "lepasTahan"
+    | "within"
+  >;
   /** For the Nomor Pemesanan series, taken `within` the order's own transaction. */
   billing: Pick<Billing, "within">;
-  identity: Pick<Identity, "accountByEmail">;
+  /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
+  identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;
 }

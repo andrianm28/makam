@@ -1,24 +1,54 @@
 # gitleaks (CI job "Secrets scan", ticket 71): the default rules, plus the
-# findings we accept. Every allowlist entry says why it is not a secret. Keep
-# entries to single files; never allowlist a directory or a whole rule.
+# findings we accept. Every allowlist entry names the exact fixture secret(s)
+# of ONE file, so a different secret in the same file still fails the scan.
+#
+# No entry lists `paths`: a gitleaks path allowlist is whole-file and ignores
+# `matchCondition`, so listing one would re-allowlist everything in that file
+# (verified against gitleaks v8.30.1, the pinned image). The file each entry is
+# about is named in its description, and `regexTarget = "secret"` keeps each
+# regex on the secret itself rather than on the line around it. Never
+# allowlist a directory or a whole rule.
 [extend]
 useDefault = true
 
 [[allowlists]]
-description = "LOCAL_VAPID_PRIVATE_KEY: the fixed VAPID pair for development and test only, where the fake WebPush sends nothing; staging and production must set their own (env validation refuses the local one there)"
-paths = ['''^src/lib/env\.ts$''']
+description = "src/lib/env.ts: LOCAL_VAPID_PRIVATE_KEY, the fixed VAPID pair for development and test only, where the fake WebPush sends nothing; staging and production must set their own (env validation refuses the local one there)"
+regexTarget = "secret"
+regexes = ['''_ePH1MZPQEBgQ9idRe19cAhO6_v7NU8maCcgKgB1fOs''']
 
 [[allowlists]]
-description = "Test fixtures: throwaway VAPID keys, webhook secrets and the RFC 6238 TOTP test secret, used only by Vitest against the in-memory fakes"
-paths = [
-  '''^src/adapters/web-push\.contract\.test\.ts$''',
-  '''^src/composition/adapters\.test\.ts$''',
-  '''^src/lib/env\.test\.ts$''',
-  '''^tests/support/totp\.test\.ts$''',
+description = "src/composition/adapters.test.ts: the SumoPod sandbox webhook secrets and the throwaway VAPID private key, used only by Vitest against the in-memory fakes"
+regexTarget = "secret"
+regexes = [
+  '''whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==''',
+  '''whsec_c2VjcmV0LWZvci10ZXN0cw==''',
+  '''Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc''',
 ]
+
+[[allowlists]]
+description = "src/lib/env.test.ts: the SumoPod sandbox webhook secrets and the throwaway VAPID private key, used only by Vitest against the in-memory fakes"
+regexTarget = "secret"
+regexes = [
+  '''whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==''',
+  '''whsec_c2VjcmV0LWZvci10ZXN0cw==''',
+  '''Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc''',
+]
+
+[[allowlists]]
+description = "src/adapters/web-push.contract.test.ts: throwaway VAPID private keys, used only by Vitest against the fake WebPush"
+regexTarget = "secret"
+regexes = [
+  '''Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc''',
+  '''_ePH1MZPQEBgQ9idRe19cAhO6_v7NU8maCcgKgB1fOs''',
+]
+
+[[allowlists]]
+description = "tests/support/totp.test.ts: the RFC 6238 TOTP test secret, used only by Vitest"
+regexTarget = "secret"
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']
 
 [[allowlists]]
 description = "History only: a fake web push subscription in an earlier e2e/staf.spec.ts (its auth key is the bytes 0..15), never a real browser's key"
 commits = ["b43ce25c6c67047a25687108eb6583b82aab5bb9"]
-paths = ['''^e2e/staf\.spec\.ts$''']
-condition = "AND"
+regexTarget = "secret"
+regexes = ['''AAECAwQFBgcICQoLDA0ODw''']

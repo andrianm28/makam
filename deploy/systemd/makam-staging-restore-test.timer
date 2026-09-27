@@ -1,0 +1,13 @@
+# Mondays at 04:15 WIB: the night's own Dump (02:15) is two hours old, and the
+# check finds out early in the week whether the last night's backup can be
+# restored.
+[Unit]
+Description=Weekly makam-staging restore check
+
+[Timer]
+OnCalendar=Mon *-*-* 04:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

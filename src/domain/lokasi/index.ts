@@ -55,6 +55,7 @@ import {
 import {
   readJamOperasional,
   jamOperasionalOf,
+  bukaSekarang,
   serviceHoursDeadline,
   setJamOperasional,
   type JamOperasionalResult,
@@ -308,6 +309,11 @@ export interface Lokasi {
    */
   serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
   /**
+   * Whether this Lokasi Mitra is inside its Jam Operasional at the Clock's now
+   * (the order card's own fact, no actor); false for a Jam Operasional belum diisi.
+   */
+  bukaSekarang(lokasiId: string): Promise<{ ok: true; buka: boolean } | NotFound>;
+  /**
    * The fieldwork module calls this once a Kunjungan Verifikasi is marked
    * Selesai: updates the Lokasi's pin, facilities, visit photos and
    * "dikunjungi" date (spec, Field Work). `by` is the visiting Petugas
@@ -344,7 +350,7 @@ export interface Lokasi {
   activateTerencana(by: Actor, lokasiId: string, input: ActivateTerencanaInput): Promise<ActivateTerencanaResult>;
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
-  /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city and facilities. */
+  /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city, one Lokasi Mitra, and facilities. */
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
   publicLokasiMitraCities(): Promise<string[]>;
@@ -384,6 +390,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
+    bukaSekarang: (lokasiId) => bukaSekarang(deps, lokasiId),
     recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
     kunjunganVerifikasiSelesai: (lokasiId) => kunjunganVerifikasiSelesai(deps, lokasiId),
     recordCekDenah: (by, lokasiId, input) => recordCekDenah(deps, by, lokasiId, input),
@@ -402,6 +409,7 @@ export {
   adminPlatformCalendar,
   daytimeHoursDeadline,
   deadline,
+  isOpenAt,
   nextWorkingDayEnd,
   TPU_SCHEDULE,
   type HariLiburNasional,

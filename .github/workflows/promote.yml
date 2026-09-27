@@ -1,0 +1,126 @@
+name: Promosikan ke produksi
+
+# Owner-only promotion of a staging digest to production (ticket 72, ADR 0002).
+# Nothing here runs on a schedule and nothing here runs itself: the owner starts
+# it, types the release tag a second time, and the workflow still refuses unless
+# the digest is the one staging is running and its smoke test passed.
+#
+# The production host accepts only images signed with the PRODUCTION key, so
+# re-signing here is what makes the digest promotable. A staging-signed digest
+# alone never reaches makam.co.id.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "The release tag to create, typed again: vYYYY.MM.DD-N"
+        required: true
+        type: string
+      reason:
+        description: "Why this is going out (goes into the release notes)"
+        required: true
+        type: string
+
+permissions: {}
+
+# Never cancelled mid-way: a half-signed or half-tagged release is worse than a
+# slow one.
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Owner, tag and digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      digest: ${{ steps.verified.outputs.digest }}
+      sha: ${{ steps.verified.outputs.sha }}
+    steps:
+      - name: Only the repository owner may promote
+        if: github.actor != github.repository_owner
+        run: |
+          echo "refusing: ${{ github.actor }} is not the owner of ${{ github.repository }}" >&2
+          exit 1
+      - name: The release tag, typed again
+        id: tag
+        run: |
+          expected="v$(TZ=Asia/Jakarta date +%Y.%m.%d)-$(gh release list --limit 200 --json tagName --jq '[.[] | select(.tagName | startswith("v"))] | length + 1')"
+          if [ "${{ inputs.release_tag }}" != "$expected" ]; then
+            echo "refusing: the release tag must be typed exactly as $expected" >&2
+            exit 1
+          fi
+          echo "tag=$expected" >> "$GITHUB_OUTPUT"
+      - name: The digest staging runs, healthy, with a passed smoke test
+        id: verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          staging=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=20" \
+            --jq '[.[] | select(.payload.image_digest != null)] | .[0] // empty')
+          [ -n "$staging" ] || { echo "refusing: staging has no recorded deployment" >&2; exit 1; }
+          digest=$(printf '%s' "$staging" | jq -r '.payload.image_digest')
+          id=$(printf '%s' "$staging" | jq -r '.id')
+          sha=$(printf '%s' "$staging" | jq -r '.ref')
+          statuses=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$id/statuses")
+          echo "Staging deployment $id: $digest (from $sha)"
+          printf '%s' "$statuses" | jq -r '.[] | "  \(.state): \(.description // "")"'
+          printf '%s' "$statuses" | jq -e 'any(.[]; .state == "success")' > /dev/null \
+            || { echo "refusing: staging has no successful status, so it is not healthy" >&2; exit 1; }
+          # The smoke test records its own status on the same deployment, naming
+          # the digest in the description. Promotion refuses a digest without one.
+          printf '%s' "$statuses" \
+            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and (.description // "" | startswith("smoke test against dev.makam.co.id for " + $digest)))' > /dev/null \
+            || { echo "refusing: $digest has no passed staging smoke test; run the \"Smoke test staging\" workflow" >&2; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  sign-and-release:
+    name: Sign with the production key and create the release
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: sign-production
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    env:
+      DIGEST: ${{ needs.check.outputs.digest }}
+      RELEASE_TAG: ${{ needs.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/ghcr-login
+      - name: cosign (the production key)
+        uses: ./.github/actions/cosign-sign
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ needs.check.outputs.digest }}
+          private-key: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
+          password: ${{ secrets.COSIGN_PROD_PASSWORD }}
+      - name: The release tag and its notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')
+          notes_args=(--generate-notes)
+          # --notes-start-tag with no previous release is an error, and the first
+          # promotion has none.
+          if [ -n "$previous" ] && [ "$previous" != "$RELEASE_TAG" ]; then
+            notes_args+=(--notes-start-tag "$previous")
+          fi
+          gh release create "$RELEASE_TAG" \
+            --target "$SHA" \
+            --title "$RELEASE_TAG" \
+            "${notes_args[@]}" \
+            --notes "${{ inputs.reason }}
+            
+            Production digest: \`$DIGEST\`, built from \`$SHA\`, signed with the production key."
+          echo "Created $RELEASE_TAG for $DIGEST"
+          echo "The production host now deploys this digest: it is signed with the production key."
+          echo "Roll back with .github/workflows/rollback.yml, or on the host:"
+          echo "  /opt/makam-v1/bin/makam-deploy --env prod --digest <previous digest>"

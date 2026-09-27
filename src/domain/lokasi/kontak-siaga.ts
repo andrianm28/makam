@@ -11,6 +11,8 @@ export interface KontakSiagaDeps extends LokasiDeps {
 export interface KontakSiaga {
   accountId: string;
   email: string | null;
+  /** The name on record, empty while the Akun has none; the order card shows it only then. */
+  name: string;
   /** Its phone number (a contact on the Akun); null until the Akun gives one. */
   phoneNumber: string | null;
 }

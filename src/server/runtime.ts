@@ -11,8 +11,8 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import type { Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
+import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { createQueues, type Queues } from "@/domain/queues";
@@ -37,12 +37,12 @@ export interface ServerRuntime {
   billing: Billing;
   /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga) and the plot hold a Terencana order places. */
   inventory: Inventory;
-  /** Pemesanan: the booking wizards' orders (the Terencana wizard, ticket 36). */
-  pemesanan: Pemesanan;
   /** Field Work: Tugas Lapangan for Petugas Lapangan (Kunjungan Verifikasi, Cek Denah). */
   fieldwork: Fieldwork;
   /** Work Queues: the Antrean, Ambil and Catatan Internal. */
   queues: Queues;
+  /** Pemesanan Makam: both booking wizards (Saat Duka's list, Kirim and order page; Terencana's Denah, hold and order). */
+  pemesanan: Pemesanan;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -91,6 +91,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
+    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     globalForRuntime.__makamRuntime = {
       env,
@@ -104,19 +105,6 @@ export function serverRuntime(): ServerRuntime {
       tariffs,
       billing,
       inventory,
-      pemesanan: composePemesanan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
-        inventory,
-        billing,
-        identity,
-        // `notifikasi: notifications` lands here as soon as there is a message for a new Terencana
-        // order: the Pemesanan module never sends one itself. Its first real family message is
-        // Notifications' Tagihan one (`tagihanTerbit`), which the Lokasi Mitra's confirmation issues
-        // (ticket 37), so the seam stays the composition root's no-op until then.
-      }),
       fieldwork,
       queues: createQueues({
         db: database.db,
@@ -125,6 +113,16 @@ export function serverRuntime(): ServerRuntime {
         lokasi,
         fieldwork,
         billing,
+        notifications,
+      }),
+      pemesanan: composePemesanan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        identity,
         notifications,
       }),
     };

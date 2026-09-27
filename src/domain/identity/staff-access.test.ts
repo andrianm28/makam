@@ -210,7 +210,7 @@ describe("Undangan Staf", () => {
       lokasiIds: [LOKASI, OTHER],
     });
     expect(await setup.identity.adminLokasiOf(OTHER)).toEqual([
-      { accountId: second.login.account.id, email: INVITEE, phoneNumber: "+6282222222222" },
+      { accountId: second.login.account.id, email: INVITEE, name: "", phoneNumber: "+6282222222222" },
     ]);
   });
 
@@ -614,6 +614,7 @@ describe("Admin Lokasi of a Lokasi Mitra continuously since a time", () => {
     expect(await setup.identity.adminLokasiSince(accountId, LOKASI, setup.clock.now())).toEqual({
       accountId,
       email: "lokasi@contoh.id",
+      name: "",
       phoneNumber: "+6282222222222",
     });
     expect(await setup.identity.adminLokasiSince(accountId, LOKASI, beforeLink)).toBeNull();
