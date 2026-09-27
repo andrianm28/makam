@@ -10,6 +10,7 @@ import { createLokasi } from "@/domain/lokasi";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createQueues } from "@/domain/queues";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { nextTestIp } from "./identity";
@@ -74,6 +75,7 @@ export function testServerRuntime() {
       billing,
       inventory,
       fieldwork,
+      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
     };
   }
   afterAll(async () => {

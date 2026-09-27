@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { lokasiMitraResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
 import { kontakSiagaOf } from "./kontak-siaga";
-import { actingRole, isLokasiId, type LokasiDeps, type LokasiMitraStatus, type NotFound } from "./lokasi-mitra";
+import { actingRole, isLokasiId, writeLokasiMitra, type LokasiDeps, type LokasiMitraStatus, type NotFound, type WriteResult } from "./lokasi-mitra";
 import { publishGate, type PublishGate } from "./publish-gate";
 import { lokasiMitra as lokasiMitraTable } from "./schema";
 
@@ -69,7 +69,7 @@ export async function publishLokasiMitra(
 
     await tx
       .update(lokasiMitraTable)
-      .set({ status: "terverifikasi", updatedAt: deps.clock.now() })
+      .set({ status: "terverifikasi", publishedAt: deps.clock.now(), updatedAt: deps.clock.now() })
       .where(eq(lokasiMitraTable.id, lokasiId));
     await record({
       actor: { accountId: by.accountId, role: actingRole(by) },
@@ -82,4 +82,26 @@ export async function publishLokasiMitra(
     });
     return { ok: true, status: "terverifikasi" } as const;
   });
+}
+
+/**
+ * Admin Platform records that this Lokasi Mitra still meets the publish gate,
+ * closing the Antrean's Tier 4 "publish-gate check" row (ticket 17): open
+ * again only once a later Kunjungan Verifikasi completes. Audited; a harmless
+ * write even before any revisit (the row simply never opens for it).
+ */
+export async function recordPublishGateMasihTerpenuhi(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<WriteResult> {
+  const now = deps.clock.now();
+  return writeLokasiMitra(
+    deps,
+    by,
+    lokasiId,
+    "lokasi.konfirmasi_syarat_tayang",
+    (row) => ({
+      values: { publishGateRecheckedAt: now },
+      before: { publishGateRecheckedAt: row.publishGateRecheckedAt?.toISOString() ?? null },
+      after: { publishGateRecheckedAt: now.toISOString() },
+    }),
+    "lokasi.konfirmasi_syarat_tayang",
+  );
 }

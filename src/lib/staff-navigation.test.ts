@@ -59,6 +59,7 @@ describe("the staff menu of each role", () => {
   it("items whose page is not built yet open nothing (they show, disabled)", () => {
     expect(linked(staffMenu("admin_platform"))).toEqual([
       "Beranda",
+      "Antrean",
       "Lokasi Mitra",
       "Tarif global",
       "Hari Libur Nasional",

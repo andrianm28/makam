@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { FakePaymentProvider, FakePdfRenderer } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import { createBilling, type PaymentEffect, type TagihanStatus } from "@/domain/billing";
-import { tagihan as tagihanTable } from "@/domain/billing/schema";
+import { pembayaranPerluDitinjau, tagihan as tagihanTable } from "@/domain/billing/schema";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import type { Rupiah } from "@/lib/rupiah";
 import { identityOnTestDatabase, signedInAdminPlatform } from "./identity";
@@ -72,6 +72,17 @@ export async function billingWithOperatorSettings(db: Database, options: Billing
  */
 export async function setTagihanStatusForTest(db: Database, tagihanId: string, status: TagihanStatus): Promise<void> {
   await db.update(tagihanTable).set({ status }).where(eq(tagihanTable.id, tagihanId));
+}
+
+/**
+ * Marks a Pembayaran Perlu Ditinjau resolved directly (deletes its row). A
+ * stand-in for ticket 31 (Refunds), which resolves one for real (usually by
+ * an approved refund) through its own public function: once that exists, the
+ * Antrean's Tier 2 row for it needs no change to close, since it is a plain
+ * projection of `billing.pembayaranPerluDitinjau()`.
+ */
+export async function resolvePembayaranPerluDitinjauForTest(db: Database, id: string): Promise<void> {
+  await db.delete(pembayaranPerluDitinjau).where(eq(pembayaranPerluDitinjau.id, id));
 }
 
 /**

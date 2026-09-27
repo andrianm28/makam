@@ -103,7 +103,7 @@ describe("the staff shell", () => {
     expect((await staffShell())?.adminLokasi).toEqual([]);
 
     await signInAsAdminLokasi(server, admin, lokasiId);
-    expect((await staffShell())?.adminLokasi).toEqual([{ id: lokasiId, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang" }]);
+    expect((await staffShell())?.adminLokasi).toEqual([{ id: lokasiId, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang", publishedAt: null, publishGateRecheckedAt: null }]);
   });
 
   it("carries the signed-in Akun's Peringatan Staf bell: the unread count and the latest, each with the page of its subject", async () => {
@@ -170,7 +170,13 @@ describe("the command palette (role visibility on the server)", () => {
     const shell = await staffShell();
     expect(Object.keys(shell!.palette)).toEqual(["admin_platform"]);
     expect(shell!.palette.admin_platform).toEqual([
-      { label: "Kerja harian", items: [{ label: "Beranda", href: "/staf/admin-platform" }] },
+      {
+        label: "Kerja harian",
+        items: [
+          { label: "Beranda", href: "/staf/admin-platform" },
+          { label: "Antrean", href: "/staf/admin-platform/antrean" },
+        ],
+      },
       {
         label: "Lokasi dan harga",
         items: [

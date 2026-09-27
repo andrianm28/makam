@@ -113,7 +113,15 @@ export type Action =
   /** Admin Platform publishes a Lokasi Mitra once the publish gate is met (Admin Platform only). */
   | "lokasi.terbitkan"
   /** Admin Platform switches "Pemesanan Terencana aktif" on once its own gate is met (Admin Platform only). */
-  | "lokasi.aktifkan_terencana";
+  | "lokasi.aktifkan_terencana"
+  /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17's Tier 4 "publish-gate check" row). */
+  | "lokasi.konfirmasi_syarat_tayang"
+  /** Open the Antrean, its counter strip and a row's Catatan Internal thread (Admin Platform only). */
+  | "antrean.lihat"
+  /** Ambil an Antrean row: a soft claim, visible to all and takeable by anyone (Admin Platform only). */
+  | "antrean.ambil"
+  /** Add a Catatan Internal to an Antrean row or an order (Admin Platform only; never shown to the Pemesan, Mitra Jasa or Admin Lokasi). */
+  | "catatan_internal.tambah";
 
 /** What the action is done to. */
 export type Resource =
@@ -128,7 +136,8 @@ export type Resource =
   | { kind: "tarif_global" }
   | { kind: "hari_libur_nasional" }
   | { kind: "tugas_lapangan_semua" }
-  | { kind: "tugas_lapangan"; id: string };
+  | { kind: "tugas_lapangan"; id: string }
+  | { kind: "antrean" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -191,6 +200,11 @@ export function semuaTugasLapanganResource(): Resource {
 /** One Tugas Lapangan. */
 export function tugasLapanganResource(id: string): Resource {
   return { kind: "tugas_lapangan", id };
+}
+
+/** The Antrean: its rows, counter strip, Ambil claims and Catatan Internal threads (Admin Platform only). */
+export function antreanResource(): Resource {
+  return { kind: "antrean" };
 }
 
 export type Authorization =
@@ -277,6 +291,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.atur_admin_lokasi":
     case "lokasi.terbitkan":
     case "lokasi.aktifkan_terencana":
+    case "lokasi.konfirmasi_syarat_tayang":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "tarif.ubah":
       // Only Admin Platform enters tariffs (spec, Identity & Access); an Admin Lokasi only reads them.
@@ -310,5 +325,9 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.catat_kunjungan_verifikasi":
     case "lokasi.catat_cek_denah":
       return resource.kind === "lokasi_mitra" && holds("petugas_lapangan") ? allowed : denied;
+    case "antrean.lihat":
+    case "antrean.ambil":
+    case "catatan_internal.tambah":
+      return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;
   }
 }

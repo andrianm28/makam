@@ -61,6 +61,14 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
    */
   cekDenahAt: at("cek_denah_at"),
   cekDenahNote: text("cek_denah_note"),
+  /** Set once, when the publish gate first admits this Lokasi Mitra (Belum Tayang → Terverifikasi, ticket 16). Null before. */
+  publishedAt: at("published_at"),
+  /**
+   * Admin Platform's last "still meets the publish gate" confirmation, after a
+   * revisit (ticket 17's Tier 4 "publish-gate check" row: open again once a
+   * later Kunjungan Verifikasi completes). Null before the first one.
+   */
+  publishGateRecheckedAt: at("publish_gate_rechecked_at"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });

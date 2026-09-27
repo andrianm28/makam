@@ -1,16 +1,19 @@
-import { FakeWebPush } from "@/adapters/memory";
+import { FakePaymentProvider, FakePdfRenderer, FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
+import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createNotifications } from "@/domain/notifications";
+import { createOperatorSettings } from "@/domain/operator-settings";
 import { logIn } from "./identity";
 import { inventoryOnTestDatabase, jenisMakamInput, newLokasiMitra } from "./inventory";
 import { signedInAdminLokasi } from "./lokasi";
 
 /**
- * Lokasi, Tariffs, Inventory and Field Work together on the test Postgres,
- * sharing one fake Clock, FileStore, Identity and Audit Log (ticket 16: the
- * publish gate and Terencana switch compose all four).
+ * Lokasi, Tariffs, Inventory, Field Work and Billing together on the test
+ * Postgres, sharing one fake Clock, FileStore, Identity and Audit Log (ticket
+ * 16: the publish gate and Terencana switch compose the first four; ticket
+ * 17's Tier 2 Pembayaran Perlu Ditinjau row needs Billing too).
  */
 export function publishOnTestDatabase(db: Database) {
   const setup = inventoryOnTestDatabase(db);
@@ -33,7 +36,20 @@ export function publishOnTestDatabase(db: Database) {
     notifications,
     lokasi: setup.lokasi,
   });
-  return { ...setup, notifications, webPush, fieldwork };
+  const operatorSettings = createOperatorSettings({ db, clock: setup.clock, audit: setup.audit });
+  const payments = new FakePaymentProvider({ clock: setup.clock });
+  const reportedErrors: { error: unknown; context: Record<string, unknown> }[] = [];
+  const billing = createBilling({
+    db,
+    clock: setup.clock,
+    operatorSettings,
+    pdf: new FakePdfRenderer(),
+    payments,
+    documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
+    publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
+    reportError: (error, context) => reportedErrors.push({ error, context }),
+  });
+  return { ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }
 
 export type PublishSetup = ReturnType<typeof publishOnTestDatabase>;

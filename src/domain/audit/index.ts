@@ -120,7 +120,9 @@ export type AuditAction =
   /** Admin Platform publishes a Lokasi Mitra (Belum Tayang → Terverifikasi) once the publish gate is met. */
   | "lokasi.terbitkan"
   /** Admin Platform switches a Lokasi Mitra's "Pemesanan Terencana aktif" on. */
-  | "lokasi.aktifkan_terencana";
+  | "lokasi.aktifkan_terencana"
+  /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17). */
+  | "lokasi.konfirmasi_syarat_tayang";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

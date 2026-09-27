@@ -58,6 +58,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "lokasi.catat_cek_denah": "Cek Denah dicatat",
   "lokasi.terbitkan": "Lokasi Mitra diterbitkan (Terverifikasi)",
   "lokasi.aktifkan_terencana": "Pemesanan Terencana diaktifkan",
+  "lokasi.konfirmasi_syarat_tayang": "Syarat tayang dikonfirmasi masih terpenuhi",
 };
 
 /** The role an Entri Audit's actor wrote under. */
