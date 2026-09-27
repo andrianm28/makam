@@ -4,7 +4,7 @@
 # makam-<env>-restore-test.timer and by hand. A backup nobody has ever restored
 # is a hope, not a backup.
 #
-# The throwaway Postgres is named makam-restoretest-<env>-<UTC timestamp>,
+# The throwaway Postgres is named makam-restoretest-<env>-<UTC timestamp>-<pid>,
 # carries the label makam.role=restore-test, gets no network at all, and mounts
 # nothing of the environment's: no port, no host directory, no makam volume (the
 # image brings its own anonymous volume for the data, under Docker's directory).
@@ -61,7 +61,11 @@ esac
 
 BACKUPS="$MAKAM_ROOT/$ENV_NAME/backups/db"
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-NAME="makam-restoretest-$ENV_NAME-$STAMP"
+# The pid, because two checks may run at the same second: this timer and an
+# operator with the runbook open, or a builder worktree on the shared host. A
+# second-resolution name alone then collides, and Docker refuses the name — a
+# check that never restored anything, reported as a restore that failed.
+NAME="makam-restoretest-$ENV_NAME-$STAMP-$$"
 
 read_passphrase "$MAKAM_ROOT/$ENV_NAME/backup-passphrase" "the Dump cannot be decrypted without it"
 export BACKUP_PASSPHRASE="$PASSPHRASE"

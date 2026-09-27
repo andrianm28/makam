@@ -7,9 +7,13 @@
 // by digest as staging and CI, its own name and labels, published on 127.0.0.1
 // only so this test can migrate it and put rows in it). Both that container and
 // the ones the restore check starts carry makam.worktree, so `npm run clean`
-// reaches them if a run dies on this host that four agents share. Nothing here
-// needs the host's makam-staging or makam-prod project, and the throwaway
-// restore container gets no network at all.
+// reaches them if a run dies on this host that four agents share — and so this
+// file can tell its own containers from a colleague's, which is what
+// restoreContainers() asks Docker for (never a host-wide guess: another
+// worktree's restore check, or an operator's by hand, is not this run's
+// business and must not be counted as its own, or removed by it).
+// Nothing here needs the host's makam-staging or makam-prod project, and the
+// throwaway restore container gets no network at all.
 import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
@@ -37,9 +41,11 @@ const PASSPHRASE_FILE = "backup-passphrase";
 
 const sourceName = `makam-dbsrc-t64-${process.pid}`;
 const tempRoots: string[] = [];
+/** Containers the ownership test below starts under another worktree's label. */
+const foreignNames: string[] = [];
 
 let sourceUrl = "";
-/** Whatever restore containers already existed when this file started. */
+/** This worktree's restore containers, of whichever run, that already existed when this file started. */
 let restoreContainersAtStart: string[] = [];
 
 /** A free port on 127.0.0.1, so two test runs never collide. */
@@ -89,16 +95,30 @@ async function freshRoot(): Promise<string> {
 
 type Run = { code: number; stdout: string; stderr: string };
 
-function runScript(script: string, args: string[], env: Record<string, string>): Promise<Run> {
+/**
+ * What one script gets before it is killed, per kind of run and inside the
+ * calling test's own budget on purpose: a script that hangs then dies as itself
+ * (its exit code and its stderr reach the assertions) instead of the test
+ * hitting its own ceiling with nothing left to read. Measured on this host,
+ * alone: a Dump 4 s, the heaviest restore check 19 s, and the numbers below are
+ * roughly 12 to 20 times that, because this host runs four agents' suites at
+ * once and a Docker round trip costs seconds when it is busy. The suite's
+ * default 30 s is not a budget for anything that starts a container here.
+ */
+const DUMP_LEASH = 90_000;
+const RESTORE_LEASH = 240_000;
+
+function runScript(script: string, args: string[], env: Record<string, string>, leash: number): Promise<Run> {
   return new Promise((resolve) => {
     execFile(
       script,
       args,
       {
         // MAKAM_WORKTREE: the restore script labels its throwaway container as
-        // this worktree's, so `npm run clean` reaches it if this run dies.
+        // this worktree's, so `npm run clean` reaches it if this run dies, and
+        // so this file can tell it from a colleague's.
         env: { ...process.env, MAKAM_ROOT: "", MAKAM_WORKTREE: root, ...env },
-        timeout: 300_000,
+        timeout: leash,
       },
       (error, stdout, stderr) => {
         resolve({ code: error ? ((error as { code?: number }).code ?? 1) : 0, stdout, stderr });
@@ -112,10 +132,10 @@ function runScript(script: string, args: string[], env: Record<string, string>):
  * host runs makam-staging, and a test must never read from it.
  */
 const backup = (dir: string, args: string[] = [], env: Record<string, string> = {}) =>
-  runScript(backupScript, ["--env", ENV_NAME, "--container", sourceName, ...args], { MAKAM_ROOT: dir, ...env });
+  runScript(backupScript, ["--env", ENV_NAME, "--container", sourceName, ...args], { MAKAM_ROOT: dir, ...env }, DUMP_LEASH);
 
 const restoreCheck = (dir: string, args: string[] = [], env: Record<string, string> = {}) =>
-  runScript(restoreScript, ["--env", ENV_NAME, ...args], { MAKAM_ROOT: dir, ...env });
+  runScript(restoreScript, ["--env", ENV_NAME, ...args], { MAKAM_ROOT: dir, ...env }, RESTORE_LEASH);
 
 /** Where the scripts look for the passphrase, this test's own MAKAM_ROOT. */
 const passphraseOf = (dir: string) => path.join(dir, ENV_NAME, PASSPHRASE_FILE);
@@ -185,9 +205,11 @@ afterAll(async () => {
   for (const dir of tempRoots) await rm(dir, { recursive: true, force: true });
   // Only what this run started: a crashed test must not leave a stopped
   // container on a host four agents share.
-  for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
+  for (const name of [...foreignNames, ...(await newRestoreContainers())]) await docker(["rm", "-f", name]);
   await docker(["rm", "-f", sourceName]);
-});
+  // The hook's own budget, not the suite's: this is several `docker rm -f`
+  // calls, and a busy host makes each of them seconds.
+}, 180_000);
 
 describe("the nightly Dump of the database", () => {
   it("writes an encrypted dump and the row counts a later restore is checked against", async () => {
@@ -327,12 +349,23 @@ describe("the nightly Dump of the database", () => {
 
 /** The throwaway containers a restore check has left behind, running or stopped. */
 async function restoreContainers(): Promise<string[]> {
-  return lines(await docker(["ps", "-a", "--filter", "label=makam.role=restore-test", "--format", "{{.Names}}"]));
+  return lines(await docker([
+    "ps", "-a",
+    "--filter", "label=makam.role=restore-test",
+    // The role label alone is host-wide, and this host is shared: another
+    // worktree's restore check (or an operator's by hand) carries it too. Only
+    // this worktree's label says whose they are, and a colleague's container
+    // must neither fail the assertions below nor be removed by afterAll.
+    "--filter", `label=makam.worktree=${root}`,
+    "--format", "{{.Names}}",
+  ]));
 }
 
 /**
- * Only the ones this run started. `docker ps` is host-wide, and a restore check
- * an operator runs by hand at the same time is not this test's business.
+ * Only the ones this run started. A container of a crashed earlier run of this
+ * same worktree was already there when this file began, so it is not this run's
+ * to report on (or to leave behind: afterAll removes those too, since they are
+ * proven to be this worktree's).
  */
 async function newRestoreContainers(): Promise<string[]> {
   const before = await restoreContainersAtStart;
@@ -455,4 +488,48 @@ describe("the restore check", () => {
       for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
     }
   }, 300_000);
+});
+
+/**
+ * What "leaves nothing behind" is allowed to mean. The assertions above can
+ * only be trusted if they mean this run's own containers, and on a host where
+ * four agents run this suite at once they are not the only restore checks on
+ * the machine. This makes that collision the way a busy host does —
+ * deterministically, in a second, without waiting for one.
+ */
+describe("a restore check this run does not own", () => {
+  it("is neither counted as this run's nor removed by it", async () => {
+    // A colleague's, or an operator's by hand: the same role label, another
+    // worktree's (a path no worktree has, so no `npm run clean` out there can
+    // reach it either), and this run's own for the other half. `create`, never
+    // start: the labels are the whole point, and an unstarted container costs
+    // nothing on a busy host.
+    const colleague = `makam-restoretest-staging-colleague-${process.pid}`;
+    const mine = `makam-restoretest-staging-own-${process.pid}`;
+    const create = (name: string, worktree: string) =>
+      docker([
+        "create", "--name", name,
+        "--label", "makam.role=restore-test",
+        "--label", `makam.worktree=${worktree}`,
+        "--network", "none", PG_IMAGE, "sleep", "1",
+      ]);
+    foreignNames.push(colleague, mine);
+    await create(colleague, path.join(root, "not-this-worktree"));
+    await create(mine, root);
+
+    try {
+      // Both were created after this file began, so a host-wide role filter
+      // would call them both this run's: "nothing left behind" would fail on
+      // somebody else's container, and so would the count of one kept.
+      expect(await newRestoreContainers()).toEqual([mine]);
+    } finally {
+      // Exactly what afterAll does: remove what this run started, and no more.
+      for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
+    }
+
+    // The colleague's container is still there: it was never this run's to
+    // count and never this run's to remove.
+    expect(await newRestoreContainers()).toEqual([]);
+    await expect(docker(["inspect", colleague])).resolves.toContain(colleague);
+  }, 120_000);
 });

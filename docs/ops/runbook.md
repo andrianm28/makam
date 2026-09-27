@@ -691,9 +691,11 @@ refusal exits 78, logs at `err`, and writes nothing.
 docker ps -a --filter label=makam.role=restore-test            # what is left over (should be empty)
 ```
 
-It starts `makam-restoretest-<env>-<timestamp>` from the same Postgres image by
-digest that staging runs, with **no network at all** (`--network none`, so
-nothing on the host can reach it), no published port, no restart policy and
+It starts `makam-restoretest-<env>-<timestamp>-<pid>` (the pid keeps two checks
+started in the same second from asking Docker for one name) from the same
+Postgres image by digest that staging runs, with **no network at all**
+(`--network none`, so nothing on the host can reach it), no published port, no
+restart policy and
 nothing of the environment mounted in — the image's own anonymous volume holds
 the restored data, under Docker's directory. It restores into it, then checks
 that every table of that night is there (the recorded counts, plus a fixed
