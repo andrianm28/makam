@@ -83,4 +83,67 @@ describe("destructive DDL in a new migration (expand/contract)", () => {
       { line: 6, statement: 'ALTER TABLE "a" RENAME TO "b";', reason: "RENAME" },
     ]);
   });
+
+  it("does not carry a -- contract: marker over to the next statement", () => {
+    const migration = [
+      "-- contract: no release since 2026-10-01 reads gone",
+      'DROP TABLE "gone";--> statement-breakpoint',
+      'DROP TABLE "other";',
+    ].join("\n");
+    expect(unmarkedDestructiveStatements(migration)).toEqual([
+      { line: 3, statement: 'DROP TABLE "other";', reason: "DROP" },
+    ]);
+  });
+
+  it("ignores a -- contract: marker separated from the statement by a blank line", () => {
+    const migration = ["-- contract: stale reason", "", 'DROP TABLE "other";'].join("\n");
+    expect(unmarkedDestructiveStatements(migration)).toEqual([
+      { line: 3, statement: 'DROP TABLE "other";', reason: "DROP" },
+    ]);
+  });
+
+  it.each([['TRUNCATE "tagihan";', "TRUNCATE"], ['TRUNCATE TABLE "tagihan";', "TRUNCATE"]])(
+    "refuses unmarked %s (%s)",
+    (statement, reason) => {
+      expect(unmarkedDestructiveStatements(statement)).toEqual([{ line: 1, statement, reason }]);
+    },
+  );
+
+  it.each([
+    ['ALTER TABLE "tagihan" ADD CONSTRAINT "tagihan_nomor_key" UNIQUE ("nomor");', "new UNIQUE constraint"],
+    ['ALTER TABLE "tagihan" ADD CONSTRAINT "tagihan_akun_fk" FOREIGN KEY ("akun") REFERENCES "akun" ("id");', "new FOREIGN KEY constraint"],
+    ['ALTER TABLE "tagihan" ADD CONSTRAINT "tagihan_total_check" CHECK ("total" >= 0);', "new CHECK constraint"],
+    ['CREATE UNIQUE INDEX "tagihan_nomor_idx" ON "tagihan" ("nomor");', "new UNIQUE constraint"],
+  ])("refuses unmarked %s (%s)", (statement, reason) => {
+    expect(unmarkedDestructiveStatements(statement)).toEqual([{ line: 1, statement, reason }]);
+  });
+
+  it("lets an inline UNIQUE inside a new table through (expand)", () => {
+    expect(
+      unmarkedDestructiveStatements('CREATE TABLE "a" ("id" uuid PRIMARY KEY, "nomor" text UNIQUE);'),
+    ).toEqual([]);
+  });
+
+  it("lets a UNIQUE index and a FOREIGN KEY on a table created in the same migration through (expand)", () => {
+    const migration = [
+      'CREATE TABLE "a" ("id" uuid PRIMARY KEY);--> statement-breakpoint',
+      'CREATE UNIQUE INDEX "a_nomor_idx" ON "a" ("nomor");--> statement-breakpoint',
+      'ALTER TABLE "a" ADD CONSTRAINT "a_b_fk" FOREIGN KEY ("b") REFERENCES "b" ("id");',
+    ].join("\n");
+    expect(unmarkedDestructiveStatements(migration)).toEqual([]);
+  });
+
+  it("still flags a new constraint on a table from an earlier migration", () => {
+    const migration = [
+      'CREATE TABLE "fresh" ("id" uuid PRIMARY KEY);--> statement-breakpoint',
+      'ALTER TABLE "tagihan" ADD CONSTRAINT "tagihan_nomor_key" UNIQUE ("nomor");',
+    ].join("\n");
+    expect(unmarkedDestructiveStatements(migration)).toEqual([
+      {
+        line: 2,
+        statement: 'ALTER TABLE "tagihan" ADD CONSTRAINT "tagihan_nomor_key" UNIQUE ("nomor");',
+        reason: "new UNIQUE constraint",
+      },
+    ]);
+  });
 });

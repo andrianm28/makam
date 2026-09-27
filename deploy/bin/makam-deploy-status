@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Reports a makam-deploy run to GitHub as a Deployment and its status, so the
+# deploy is visible in the repository (the commit page, the environment) and not
+# only in deploy.log on the host.
+#
+#   makam-deploy-status --env staging begin   <digest> <tag>   # create the Deployment
+#   makam-deploy-status --env staging state   <in_progress|success|failure> "<description>"
+#
+# Needs a fine-grained token with exactly one permission: "Deployments" write on
+# this repository. It lives in <root>/<env>/<env>.env as MAKAM_GITHUB_TOKEN, on
+# the host only; GitHub never gets a host credential. Without the token (or
+# without curl/jq) every call is a logged no-op, so a staging deploy never fails
+# because reporting is misconfigured.
+#
+# The Deployment id is kept in <root>/<env>/.deployment-id so the states of one
+# run land on the same Deployment. Exit 0 in every case except a bad usage.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+MAKAM_REPOSITORY_DEFAULT=andrianm28/makam
+API=https://api.github.com
+ENV_NAME=""
+ACTION=""
+DIGEST=""
+TAG=""
+STATE=""
+DESCRIPTION=""
+
+usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    begin|state) ACTION=$1; shift ;;
+    --digest) DIGEST=${2:?}; shift 2 ;;
+    --tag) TAG=${2:?}; shift 2 ;;
+    --state) STATE=${2:?}; shift 2 ;;
+    --description) DESCRIPTION=${2:-}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging) ENVIRONMENT=staging ;;
+  prod) ENVIRONMENT=production ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+case "$ACTION" in
+  begin) [ -n "$DIGEST" ] || { echo "begin needs --digest" >&2; exit 64; } ;;
+  state) [ -n "$STATE" ] || { echo "state needs --state" >&2; exit 64; } ;;
+  *) usage 64 ;;
+esac
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+ID_FILE="$DIR/.deployment-id"
+[ -r "$ENV_FILE" ] || exit 78
+
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
+TOKEN=${MAKAM_GITHUB_TOKEN:-$(setting MAKAM_GITHUB_TOKEN)}
+REPOSITORY=${MAKAM_GITHUB_REPOSITORY:-$(setting MAKAM_GITHUB_REPOSITORY)}
+REPOSITORY=${REPOSITORY:-$MAKAM_REPOSITORY_DEFAULT}
+
+# Reporting is a courtesy: a missing token or tool must never fail a deploy.
+quiet() { echo "[deploy-status] $*" >> "$DIR/deploy.log" 2>/dev/null || true; }
+if [ -z "$TOKEN" ]; then
+  quiet "no MAKAM_GITHUB_TOKEN in $ENV_FILE; not reporting this deploy to GitHub"
+  exit 0
+fi
+command -v curl > /dev/null 2>&1 || { quiet "curl is not installed; not reporting"; exit 0; }
+command -v jq > /dev/null 2>&1 || { quiet "jq is not installed; not reporting"; exit 0; }
+
+call() {
+  curl -sS --fail-with-body -X "$1" "$API$2" \
+    -H "Accept: application/vnd.github+json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    -H "User-Agent: makam-deploy" \
+    --data-binary @- <<< "$3"
+}
+
+if [ "$ACTION" = begin ]; then
+  body=$(jq -nc --arg ref "$TAG" --arg env "$ENVIRONMENT" --arg digest "$DIGEST" --arg desc "$DESCRIPTION" \
+    '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [],
+      payload: {image_digest: $digest, description: $desc},
+      description: (if $desc == "" then ("Deploy " + $digest) else $desc end)}')
+  id=$(call POST "/repos/$REPOSITORY/deployments" "$body" | jq -r '.id // empty') || id=""
+  if [ -n "$id" ]; then
+    printf '%s' "$id" > "$ID_FILE"
+    quiet "GitHub deployment $id for $ENVIRONMENT $DIGEST"
+  else
+    quiet "could not create the GitHub deployment; continuing without it"
+  fi
+  exit 0
+fi
+
+[ -r "$ID_FILE" ] || { quiet "no deployment id for this run; nothing to update"; exit 0; }
+id=$(cat "$ID_FILE")
+url="https://github.com/$REPOSITORY/deployments/$id"
+case "$STATE" in
+  in_progress) target=in_progress ;;
+  success)
+    target=success
+    DESCRIPTION=${DESCRIPTION:-$TAG deployed and healthy}
+    ;;
+  failure)
+    target=failure
+    DESCRIPTION=${DESCRIPTION:-$TAG failed}
+    ;;
+  *) echo "--state must be in_progress, success or failure" >&2; exit 64 ;;
+esac
+body=$(jq -nc --arg state "$target" --arg desc "$DESCRIPTION" --arg url "$url" \
+  '{state: $state, log_url: $url, description: $desc}')
+call POST "/repos/$REPOSITORY/deployments/$id/statuses" "$body" > /dev/null \
+  || quiet "could not record status $target for deployment $id"
+quiet "deployment $id: $target ($DESCRIPTION)"

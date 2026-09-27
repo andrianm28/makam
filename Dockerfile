@@ -15,13 +15,20 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 FROM base AS build
+# The release is the commit this image is built from: a build-time fact (the
+# Sentry SDK injects it into the bundle), never a secret. ci.yml's `sourcemaps`
+# job uploads the source maps under the same name.
+ARG SENTRY_RELEASE=""
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# The browser Sentry DSN is inlined at build time. Its environment is not: one
-# image serves staging and production, so the browser reads it from the host.
-ARG NEXT_PUBLIC_SENTRY_DSN=""
-ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
-RUN npm run build && npm run build:worker
+# No environment here, at all: one image serves staging and production, so the
+# browser GlitchTip DSN is a runtime value served to the browser in the page
+# (src/app/layout.tsx), never a build argument baked into the bundle.
+# The source maps the build leaves behind are moved out of .next/static, which
+# the web server serves, into /app/dist/sourcemaps, which nothing serves: CI
+# uploads them from the image, and no browser can read the source through them.
+RUN npm run build && npm run build:worker && node scripts/collect-sourcemaps.mjs
 
 FROM base AS runner
 # The live PdfRenderer ("Unduh PDF" on every Tagihan / Bukti) prints document
