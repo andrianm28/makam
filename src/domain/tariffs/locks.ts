@@ -19,3 +19,8 @@ export function lockLokasiTariffs(tx: Database, lokasiId: string): Promise<void>
 export function lockGlobalTariff(tx: Database, key: GlobalTariffKey): Promise<void> {
   return lockTariffs(tx, `global.${key}`);
 }
+
+/** One Layanan variant's price book (its Lokasi Mitra's price, the DKI price or the Mitra Jasa rate). */
+export function lockLayananHarga(tx: Database, name: string): Promise<void> {
+  return lockTariffs(tx, `layanan.${name}`);
+}

@@ -41,6 +41,7 @@ export function publishOnTestDatabase(db: Database) {
     reportError: () => {},
     tagihan: billing,
     dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
+    pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,

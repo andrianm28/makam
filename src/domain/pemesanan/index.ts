@@ -1,17 +1,21 @@
 /**
  * Pemesanan Makam at a Lokasi Mitra: Saat Duka, Terencana, a further burial
  * under an existing Hak Pakai (spec, domain module 6; CONTEXT.md).
- *
- * Owns tables: pemesanan_makam (the Saat Duka order), pemesanan_terencana and
- * pemesanan_terencana_unit (the Terencana order: several chosen plots, a Calon
- * Penghuni and a Syarat snapshot, which the single-plot table cannot carry). Both
- * are one Pemesanan Makam each, told apart by the `kind` of `pemesananKinds`
- * (`pemesanan_makam.kind` and the Terencana table's own name); the Lokasi's
- * confirmation, alternative plot, Tolak and Pembatalan are the next tickets.
+ * Owns tables: pemesanan_makam and its documents (pemesanan_berkas), the
+ * Terencana order (pemesanan_terencana) and its chosen units
+ * (pemesanan_terencana_unit: several plots, a Calon Penghuni and a Syarat
+ * snapshot, which the single-plot table cannot carry). Every order is one
+ * Pemesanan Makam, told apart by its `kind`; a plot is assigned by the Lokasi at
+ * the Saat Duka confirmation, and the Tagihan is issued then, so nothing is
+ * billed at submission.
  *
  * Built so far: the Saat Duka wizard's "Pilih makam" list, its Kirim and the
  * order page that follows it (ticket 22); the Terencana wizard's three steps,
- * the hold it places and the order it reads back (ticket 36).
+ * the hold it places and the order it reads back (ticket 36); the Lokasi's
+ * confirmation of a Saat Duka order (a cleared Tersedia Petak → an Aktif Hak
+ * Pakai → a pay-after Tagihan), the family documents on an order with the
+ * Lokasi's checklist, and the re-alert of an order still unconfirmed (ticket
+ * 23). The alternative, decline and cancellation are ticket 24.
  *
  * Every public function here is one wizard step or one order read, and each one
  * reaches its neighbours only through their public functions: the Lokasi Mitra's
@@ -22,10 +26,31 @@
  * family's own wizard, so the Server Actions are what authenticate and check the
  * role.
  */
-import type { PemesananDeps, TerencanaQuery } from "./deps";
+import type { Actor } from "@/domain/identity";
+import type { Pemesan, PemesananDeps, TerencanaQuery } from "./deps";
 import { pilihanSaatDuka, type GrupSaatDuka, type PilihanSaatDukaQuery } from "./pilihan";
 import { placeSaatDuka, type PlaceSaatDukaInput, type PlaceSaatDukaResult } from "./saat-duka";
 import { orderOf, type PemesananOrder } from "./reads";
+import { konfirmasiSaatDuka, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
+import {
+  antreanKonfirmasi,
+  konfirmasiLewatTenggat,
+  konfirmasiTerlambat,
+  orderUntukStaf,
+  orderUntukStafTerbaru,
+  type OrderAntrean,
+  type OrderStaf,
+} from "./reads-staf";
+import {
+  centangDokumen,
+  unggahDokumen,
+  urlDokumen,
+  urlDokumenUntukStaf,
+  type CentangDokumenInput,
+  type DokumenResult,
+  type UnggahDokumenInput,
+} from "./berkas";
+import { realertKonfirmasiSaatDukaTick } from "./realert";
 import {
   denahTerencana,
   kotaTerencana,
@@ -42,12 +67,25 @@ import {
   type PlaceTerencanaResult,
 } from "./terencana";
 
-export type { PemesananDeps, Pemesan, PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan, TerencanaQuery } from "./deps";
+export type {
+  PemesananDeps,
+  Pemesan,
+  PemesananDiajukan,
+  PemesananDikonfirmasi,
+  PemesananNotifikasi,
+  TerencanaDiajukan,
+  TerencanaQuery,
+} from "./deps";
 export type { GrupSaatDuka, PilihanSaatDuka, PilihanSaatDukaQuery } from "./pilihan";
 export { JAM_KONFIRMASI_SAAT_DUKA, kartuAwal } from "./pilihan";
 export type { PemegangHakInput, PlaceSaatDukaInput, PlaceSaatDukaResult } from "./saat-duka";
+export { konfirmasiSaatDukaSchema, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
+export type { DokumenOrder, OrderAntrean, OrderStaf } from "./reads-staf";
+export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";
 export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
+export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
+export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
 export { HARGA_BANDS } from "./terencana";
@@ -95,6 +133,34 @@ export interface Pemesanan {
   placeSaatDuka(input: PlaceSaatDukaInput): Promise<PlaceSaatDukaResult>;
   /** One Pemesanan Makam of that Akun, by its Nomor Pemesanan, or null. */
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananOrder | null>;
+  /**
+   * That Lokasi's own Admin Lokasi confirms an order: the cleared Tersedia
+   * Petak of the chosen Jenis Makam it assigns, the Aktif Hak Pakai that
+   * creates, and the pay-after Tagihan issued with it, in one step.
+   */
+  konfirmasiSaatDuka(by: Actor, input: KonfirmasiSaatDukaInput): Promise<KonfirmasiSaatDukaResult>;
+  /**
+   * One order as that Lokasi Mitra's staff read it, with the family's own
+   * details and its documents; null for an order that is not theirs (an Admin
+   * Lokasi sees its own Lokasi's orders only).
+   */
+  orderUntukStaf(by: Actor, nomor: string): Promise<OrderStaf | null>;
+  /** That Lokasi's own open orders, newest first: what an Admin Lokasi works down. */
+  orderUntukStafTerbaru(by: Actor, lokasiId: string): Promise<OrderStaf[]>;
+  /** Every order of one Lokasi Mitra still waiting for its confirmation, oldest first (the Antrean Lokasi's row). */
+  antreanKonfirmasi(lokasiId: string): Promise<OrderAntrean[]>;
+  /** Every order past the deadline its Lokasi's Jam Operasional gave (the Admin Platform Tier 1 row). */
+  konfirmasiLewatTenggat(): Promise<OrderAntrean[]>;
+  /** How many of a Lokasi Mitra's orders were confirmed after that deadline. */
+  konfirmasiTerlambat(lokasiId: string): Promise<number>;
+  /** The family adds (or replaces) a document on its own order's checklist, at any time. */
+  unggahDokumen(pemesan: Pemesan, input: UnggahDokumenInput): Promise<DokumenResult>;
+  /** The Lokasi's own Admin Lokasi ticks a checklist item off. */
+  centangDokumen(by: Actor, input: CentangDokumenInput): Promise<DokumenResult>;
+  /** A short-lived URL for one document of the caller's own order, or null. */
+  urlDokumen(pemesan: Pemesan, nomor: string, nama: string): Promise<string | null>;
+  /** The same for that Lokasi Mitra's own staff (or Admin Platform), and no other Lokasi's. */
+  urlDokumenUntukStaf(by: Actor, nomor: string, nama: string): Promise<string | null>;
   /** The Terencana wizard's step 1, "Lokasi": every Lokasi Mitra that takes a Terencana order, by city, all-in price band and facilities. */
   pilihanTerencana(query?: TerencanaQuery): Promise<KartuTerencana[]>;
   /** Every city with at least one of them, for that step's city filter. */
@@ -123,6 +189,16 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     pilihanSaatDuka: (query) => pilihanSaatDuka(deps, query),
     placeSaatDuka: (input) => placeSaatDuka(deps, input),
     orderOf: (nomor, pemesan) => orderOf(deps, pemesan, nomor),
+    konfirmasiSaatDuka: (by, input) => konfirmasiSaatDuka(deps, by, input),
+    orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
+    orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
+    antreanKonfirmasi: (lokasiId) => antreanKonfirmasi(deps, lokasiId),
+    konfirmasiLewatTenggat: () => konfirmasiLewatTenggat(deps, deps.clock.now()),
+    konfirmasiTerlambat: (lokasiId) => konfirmasiTerlambat(deps, lokasiId),
+    unggahDokumen: (pemesan, input) => unggahDokumen(deps, pemesan, input),
+    centangDokumen: (by, input) => centangDokumen(deps, by, input),
+    urlDokumen: (pemesan, nomor, nama) => urlDokumen(deps, pemesan, nomor, nama),
+    urlDokumenUntukStaf: (by, nomor, nama) => urlDokumenUntukStaf(deps, by, nomor, nama),
     pilihanTerencana: (query) => pilihanTerencana(deps, query),
     kotaTerencana: () => kotaTerencana(deps),
     denahTerencana: (lokasiId, pilihan) => denahTerencana(deps, lokasiId, pilihan),
@@ -131,3 +207,6 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
   };
 }
+
+/** The worker's tick, as the scheduler registry calls it: the Saat Duka re-alert (ticket 23). */
+export const pemesananRealertTick = realertKonfirmasiSaatDukaTick;

@@ -7,6 +7,7 @@ import {
   ClipboardListIcon,
   ClockIcon,
   FileClockIcon,
+  FlowerIcon,
   GridIcon,
   InboxIcon,
   LayoutDashboardIcon,
@@ -100,6 +101,13 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               description: "Biaya Layanan Platform, Biaya Pengurusan dan Retribusi Pemda, per versi dengan tanggal berlaku.",
             },
             {
+              label: "Katalog Layanan",
+              href: `${AP}/layanan`,
+              icon: FlowerIcon,
+              description:
+                "Daftar Layanan global, tanda boleh di TPU DKI, harga TPU DKI dan tarif Mitra Jasa, serta Paket Layanan.",
+            },
+            {
               label: "Hari Libur Nasional",
               href: `${AP}/hari-libur`,
               icon: CalendarXIcon,
@@ -152,7 +160,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           label: "Lokasi ini",
           items: [
             beranda(lokasi, "Lokasi Mitra ini sekilas."),
-            { label: "Antrean Lokasi", icon: InboxIcon, description: SEGERA },
+            {
+              label: "Antrean Lokasi",
+              href: `${lokasi}/antrean`,
+              icon: InboxIcon,
+              description: "Baris kerja terbuka di Lokasi Mitra ini: konfirmasi pesanan, dokumen, petak yang belum dicek.",
+            },
             {
               label: "Denah",
               href: `${lokasi}/denah`,

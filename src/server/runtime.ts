@@ -11,6 +11,7 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
+import { createLayanan, type Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -33,6 +34,8 @@ export interface ServerRuntime {
   operatorSettings: OperatorSettings;
   /** Tariffs: versioned price books and the all-in `quote()`. */
   tariffs: Tariffs;
+  /** Layanan: the global catalog, which Layanan each Lokasi offers, and the Paket Layanan. */
+  layanan: Layanan;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
   /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga) and the plot hold a Terencana order places. */
@@ -72,6 +75,7 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     const notifications = composeNotifications({
       env,
@@ -93,6 +97,19 @@ export function serverRuntime(): ServerRuntime {
     });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    // The wizard's own messages, and the Lokasi's when it confirms an order, go out through Notifications.
+    const pemesanan = composePemesanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -103,9 +120,11 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       operatorSettings,
       tariffs,
+      layanan,
       billing,
       inventory,
       fieldwork,
+      pemesanan,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -114,16 +133,8 @@ export function serverRuntime(): ServerRuntime {
         fieldwork,
         billing,
         notifications,
-      }),
-      pemesanan: composePemesanan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
         inventory,
-        billing,
-        identity,
-        notifications,
+        pemesanan,
       }),
     };
   }

@@ -33,6 +33,7 @@ export function notificationsOnTestDatabase(
     audit: setup.audit,
     tagihan: setup.billing,
     dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
+    pesananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesanan/${nomor}`,
   });
   return { ...setup, webPush, notifications, reported };
 }

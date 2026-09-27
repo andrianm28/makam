@@ -4,7 +4,7 @@ import { LogOutIcon, MailIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
-import { keluarDariBrowserIni } from "@/app/akun/keluar-button";
+import { keluarDariBrowserIni } from "@/app/(site)/akun/keluar-button";
 import { BrandLogo } from "@/components/makam/brand-logo";
 import { LokasiSwitcher, type LokasiOption } from "@/components/makam/lokasi-switcher";
 import { RoleSwitcher } from "@/components/makam/role-switcher";

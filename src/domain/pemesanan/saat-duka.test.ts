@@ -25,7 +25,7 @@ describe("the wizard's Kirim places a Pemesanan Saat Duka", () => {
 
     const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
 
-    expect(placed).toEqual({ ok: true, pemesanan: { nomor: "MKM-2026-000001", status: "diajukan", konfirmasiDueAt: wib("2026-10-01 11:00") } });
+    expect(placed).toMatchObject({ ok: true, pemesanan: { nomor: "MKM-2026-000001", status: "diajukan", konfirmasiDueAt: wib("2026-10-01 11:00") } });
 
     const order = await setup.pemesanan.orderOf("MKM-2026-000001", fixture.pemesan);
     expect(order).toMatchObject({
@@ -189,11 +189,12 @@ describe("the wizard's Kirim places a Pemesanan Saat Duka", () => {
 
     expect(setup.diumumkan).toEqual([
       {
+        id: expect.any(String),
         nomor: "MKM-2026-000001",
         lokasi: { id: fixture.lokasiMitra.id, name: "Makam Wakaf Al-Ikhlas" },
         jenisMakamName: "Reguler 1 × 2 m",
         almarhum: { name: "Siti Aminah", tanggalWafat: "2026-09-30" },
-        pemesan: { name: "Budi Santoso", phoneNumber: "+6281234567890" },
+        pemesan: { name: "Budi Santoso", phoneNumber: "+6281234567890", email: "pemesan@contoh.id" },
         rencanaPemakamanAt: null,
         konfirmasiDueAt: wib("2026-10-01 11:00"),
         // The Admin Lokasi of that Lokasi Mitra, who is also its Kontak Siaga.
@@ -235,6 +236,6 @@ describe("the wizard's Kirim places a Pemesanan Saat Duka", () => {
     setup.clock.set(wib("2026-10-01 20:00"));
     const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
 
-    expect(placed).toEqual({ ok: true, pemesanan: { nomor: "MKM-2026-000001", status: "diajukan", konfirmasiDueAt: wib("2026-10-02 09:00") } });
+    expect(placed).toMatchObject({ ok: true, pemesanan: { nomor: "MKM-2026-000001", status: "diajukan", konfirmasiDueAt: wib("2026-10-02 09:00") } });
   });
 });

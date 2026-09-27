@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DataKirim } from "./data-kirim";
 import { kartuView } from "../tampilan";
-import { kirimKodeMasuk } from "@/app/masuk/actions";
+import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { satuNilai } from "@/lib/search-param";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
  */
 export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-makam/saat-duka/data">) {
   const { lokasiId, jenisMakamId } = await searchParams;
-  const { pemesanan, operatorSettings } = serverRuntime();
+  const { pemesanan, lokasi, operatorSettings } = serverRuntime();
   const actor = await currentActor();
 
   // The one card is priced again by the module, so the total a family reads on
@@ -35,6 +35,9 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
   const grup = daftar[0];
   const kartu = grup?.pilihan[0];
   if (!grup || !kartu) notFound();
+  // What this Lokasi Mitra promises for the Tagihan it will issue: its own
+  // payment window, so the note below never names a span the order will not keep.
+  const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(grup.lokasi.id);
 
   return (
     <DataKirim
@@ -44,6 +47,7 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
       sudahMasuk={actor !== null}
       mintaKodeMasuk={kirimKodeMasuk}
       csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
+      jumlahJamPembayaran={jumlahJamPembayaran}
     />
   );
 }

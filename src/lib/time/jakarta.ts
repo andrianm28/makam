@@ -41,6 +41,11 @@ export function formatWib(instant: Date): string {
   return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}.${parts.minute}.${parts.second} WIB`;
 }
 
+/** The calendar year of an instant in WIB (the public footer's copyright year). */
+export function yearInJakarta(instant: Date): number {
+  return Number(wibParts(instant).year);
+}
+
 /** The WIB calendar date of an instant, "YYYY-MM-DD" (the inverse of `wib("YYYY-MM-DD")` for midnight). */
 export function wibDateOf(instant: Date): string {
   const parts = wibParts(instant);
@@ -64,6 +69,11 @@ export function wibDayStart(instant: Date): Date {
 /** The same WIB wall-clock time `days` days later (WIB has no daylight saving, so a day is always 24 h). */
 export function addWibDays(instant: Date, days: number): Date {
   return new Date(instant.getTime() + days * DAY_MS);
+}
+
+/** "2026-10-02T10:00": the WIB wall clock of `instant` as a `datetime-local` input holds it (never re-derived as an instant). */
+export function wibDateTimeLocal(instant: Date): string {
+  return `${wibDateOf(instant)}T${wibTime(instant)}`;
 }
 
 /** "09:30": the WIB wall-clock time of `instant`, to the minute. */

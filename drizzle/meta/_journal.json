@@ -162,6 +162,20 @@
       "when": 1790522326803,
       "tag": "0022_eager_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790523868341,
+      "tag": "0023_woozy_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790529441344,
+      "tag": "0024_overrated_fixer",
+      "breakpoints": true
     }
   ]
 }

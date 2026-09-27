@@ -1,5 +1,8 @@
 import type { Database } from "@/db/client";
+import type { Identity } from "@/domain/identity";
+import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
+import type { PemesananNotifikasi } from "@/domain/pemesanan";
 import type { SchedulerContext } from "@/domain/scheduler";
 import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
@@ -12,11 +15,15 @@ export function composeSchedulerContext(deps: {
   clock: Clock;
   dokumenUrl: (link: string) => string;
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
+  lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
+  identity: Pick<Identity, "adminLokasiOf">;
+  notifikasi: PemesananNotifikasi;
 }): SchedulerContext {
   return {
     db: deps.db,
     paymentEffects: paymentEffects({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }),
     reportError: deps.reportError,
     notifications: deps.notifications,
+    pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
   };
 }

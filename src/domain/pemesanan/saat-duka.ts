@@ -40,7 +40,7 @@ export interface PlaceSaatDukaInput {
 }
 
 export type PlaceSaatDukaResult =
-  | { ok: true; pemesanan: { nomor: string; status: "diajukan"; konfirmasiDueAt: Date | null } }
+  | { ok: true; pemesanan: { id: string; nomor: string; status: "diajukan"; konfirmasiDueAt: Date | null } }
   /** The email is not that Akun's Email Terverifikasi: the Kode Masuk and the order must agree. */
   | { ok: false; reason: "email_bukan_akun_ini" }
   /** The Lokasi Mitra is not listed (Terverifikasi), so it takes no new order. */
@@ -115,17 +115,18 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
         konfirmasiDueAt,
         diajukanAt: now,
       })
-      .returning({ nomor: pemesananMakam.nomor });
-    return { ok: true as const, pemesanan: { nomor: row.nomor, status: "diajukan" as const, konfirmasiDueAt } };
+      .returning({ id: pemesananMakam.id, nomor: pemesananMakam.nomor });
+    return { ok: true as const, pemesanan: { id: row.id, nomor: row.nomor, status: "diajukan" as const, konfirmasiDueAt } };
   });
   if (!placed.ok) return placed;
 
-  await deps.notifikasi.pemesananDiajukan({
+  await deps.notifikasi.pesananDiajukan({
+    id: placed.pemesanan.id,
     nomor: placed.pemesanan.nomor,
     lokasi: { id: lokasi.id, name: lokasi.name },
     jenisMakamName: kartu.jenisMakam.name,
     almarhum: { name: almarhumName, tanggalWafat: input.tanggalWafat },
-    pemesan: { name: pemesanName, phoneNumber },
+    pemesan: { name: pemesanName, phoneNumber, email: akun.email },
     rencanaPemakamanAt: rencana,
     konfirmasiDueAt,
     penerima: await penerimaOf(deps, lokasi.id),

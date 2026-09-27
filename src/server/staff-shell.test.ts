@@ -155,6 +155,7 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Makam Wakaf Al-Ikhlas",
         items: [
           { label: "Beranda", href: `/staf/admin-lokasi/${lokasiId}` },
+          { label: "Antrean Lokasi", href: `/staf/admin-lokasi/${lokasiId}/antrean` },
           { label: "Denah", href: `/staf/admin-lokasi/${lokasiId}/denah` },
           { label: "Jam Operasional", href: `/staf/admin-lokasi/${lokasiId}/jam-operasional` },
           { label: "Audit Log", href: `/staf/admin-lokasi/${lokasiId}/audit-log` },
@@ -183,6 +184,7 @@ describe("the command palette (role visibility on the server)", () => {
           { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },
           { label: "TPU DKI", href: "/staf/admin-platform/tpu" },
           { label: "Tarif global", href: "/staf/admin-platform/tarif" },
+          { label: "Katalog Layanan", href: "/staf/admin-platform/layanan" },
           { label: "Hari Libur Nasional", href: "/staf/admin-platform/hari-libur" },
         ],
       },

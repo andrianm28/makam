@@ -1,7 +1,8 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
@@ -28,10 +29,18 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
   const setup = publishOnTestDatabase(db);
   const diumumkan: PemesananDiajukan[] = [];
+  /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
+  const dikonfirmasi: PemesananDikonfirmasi[] = [];
   const terencana: TerencanaDiajukan[] = [];
   const terkumpul: PemesananNotifikasi = {
-    pemesananDiajukan: async (order) => {
+    pesananDiajukan: async (order) => {
       diumumkan.push(order);
+    },
+    pesananBelumDikonfirmasi: async (order) => {
+      diumumkan.push(order);
+    },
+    pesananDikonfirmasi: async (hasil) => {
+      dikonfirmasi.push(hasil);
     },
     terencanaDiajukan: async (order) => {
       terencana.push(order);
@@ -40,6 +49,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     inventory: setup.inventory,
@@ -48,10 +59,29 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, terencana };
+  return { ...setup, pemesanan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
+
+/**
+ * What the fixtures below need from a setup: the modules, without the
+ * announcement collectors (a setup that composes the Pemesanan module itself,
+ * as the Antrean Lokasi's tests do, has its own).
+ */
+export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
+
+/**
+ * Pengaturan Operator entered by the first Admin Platform, as every document
+ * needs before one can be issued: a confirmation issues a Tagihan, so a test
+ * that confirms needs this first.
+ */
+export async function siapkanOperatorPemesanan(setup: PemesananModul) {
+  const { actor: admin } = await adminPlatform(setup);
+  const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
+  if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
+  return admin;
+}
 
 /** The ids of the Petak Makam and Kavling Keluarga the Terencana fixture's Denah shows, by the number they are known by. */
 export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, nomor: readonly string[]): Promise<Record<string, string>> {
@@ -70,7 +100,7 @@ export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, n
 
 /** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */
 const admins = new WeakMap<object, Promise<{ actor: Actor; cookies: string }>>();
-function adminPlatform(setup: PemesananSetup) {
+function adminPlatform(setup: PemesananModul) {
   let admin = admins.get(setup);
   if (!admin) {
     admin = signedInAdminPlatform(setup);
@@ -81,7 +111,7 @@ function adminPlatform(setup: PemesananSetup) {
 
 /** The one PetugasLapangan of a setup: a Kode Masuk is sent at most once a minute per email. */
 const petugasCache = new WeakMap<object, Promise<Actor>>();
-function petugasLapangan(setup: PemesananSetup, admin: Actor) {
+function petugasLapangan(setup: PemesananModul, admin: Actor) {
   let cached = petugasCache.get(setup);
   if (!cached) {
     cached = (async () => {
@@ -102,7 +132,7 @@ function petugasLapangan(setup: PemesananSetup, admin: Actor) {
 /** One Admin Lokasi per Lokasi Mitra, each with its own email: a role is granted at the login that accepts its invite, so a second Lokasi needs a second Akun. */
 type PeranAdminLokasi = { actor: Actor; cookies: string };
 const adminLokasiCache = new WeakMap<object, Map<string, Promise<PeranAdminLokasi>>>();
-function adminLokasiOf(setup: PemesananSetup, admin: Actor, lokasiId: string) {
+function adminLokasiOf(setup: PemesananModul, admin: Actor, lokasiId: string) {
   const cache = adminLokasiCache.get(setup) ?? new Map<string, Promise<PeranAdminLokasi>>();
   adminLokasiCache.set(setup, cache);
   const cached = cache.get(lokasiId);
@@ -137,7 +167,7 @@ export interface LokasiOptions {
  * everything the Saat Duka list needs to offer it. The fake Clock sits at
  * Thursday 2026-10-01 09:00 WIB, inside those hours.
  */
-export async function terverifikasiLokasi(setup: PemesananSetup, options: LokasiOptions = {}) {
+export async function terverifikasiLokasi(setup: PemesananModul, options: LokasiOptions = {}) {
   const { actor: admin } = await adminPlatform(setup);
   const dibuat = await setup.lokasi.createLokasiMitra(admin, {
     name: options.name ?? "Makam Wakaf Al-Ikhlas",
@@ -157,7 +187,7 @@ export async function terverifikasiLokasi(setup: PemesananSetup, options: Lokasi
 }
 
 /** The agreement, the Jam Operasional, the Kontak Siaga and the Kunjungan Verifikasi the listing gate needs. */
-async function prasyaratPublikasi(setup: PemesananSetup, admin: Actor, adminLokasi: Actor, petugas: Actor, lokasiId: string) {
+async function prasyaratPublikasi(setup: PemesananModul, admin: Actor, adminLokasi: Actor, petugas: Actor, lokasiId: string) {
   const agreement = await setup.lokasi.uploadAgreement(admin, lokasiId, {
     scan: { body: new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]), contentType: "application/pdf" },
     signedOn: "2026-09-01",
@@ -185,7 +215,7 @@ async function prasyaratPublikasi(setup: PemesananSetup, admin: Actor, adminLoka
 }
 
 /** The Jenis Makam, the Biaya Pemakaman and the Biaya Layanan Platform the all-in total is priced from. */
-async function hargaDanJam(setup: PemesananSetup, admin: Actor, lokasiId: string, options: LokasiOptions) {
+async function hargaDanJam(setup: PemesananModul, admin: Actor, lokasiId: string, options: LokasiOptions) {
   const jenis = await setup.tariffs.createJenisMakam(admin, lokasiId, {
     ...jenisMakamInput(),
     tariff: {
@@ -214,7 +244,7 @@ async function hargaDanJam(setup: PemesananSetup, admin: Actor, lokasiId: string
 }
 
 /** Marks the tariffs "diperiksa" and takes the Lokasi Mitra to Terverifikasi. */
-async function terbitkan(setup: PemesananSetup, admin: Actor, lokasiId: string) {
+async function terbitkan(setup: PemesananModul, admin: Actor, lokasiId: string) {
   const checked = await setup.tariffs.markTariffsChecked(admin, lokasiId, { reason: null });
   if (!checked.ok) throw new Error(`tarif diperiksa refused: ${checked.reason}`);
   const fakta = await setup.tariffs.asStaff(admin).tariffsChecked(lokasiId);
@@ -238,7 +268,7 @@ const jamOperasional = {
 
 /** A Blok of that Jenis Makam with every Petak cleared Tersedia, as a freshly drawn Denah is not. */
 async function blokTersedia(
-  setup: PemesananSetup,
+  setup: PemesananModul,
   adminLokasi: Actor,
   lokasiId: string,
   jenisMakamId: string,
@@ -255,7 +285,7 @@ async function blokTersedia(
 }
 
 /** A Lokasi Mitra still Belum Tayang: never listed, so it never appears in the wizard. */
-export async function belumTeverifikasiLokasi(setup: PemesananSetup, name = "Makam Sawah Besar") {
+export async function belumTeverifikasiLokasi(setup: PemesananModul, name = "Makam Sawah Besar") {
   const { actor: admin } = await adminPlatform(setup);
   const dibuat = await setup.lokasi.createLokasiMitra(admin, {
     name,
@@ -271,7 +301,7 @@ export async function belumTeverifikasiLokasi(setup: PemesananSetup, name = "Mak
  * A Pemesan with a proven email: a Kode Masuk created the Akun, as it does at
  * Kirim, with `name` the name "Data & kirim" held.
  */
-export async function pemesanDenganEmail(setup: PemesananSetup, email: string, name?: string) {
+export async function pemesanDenganEmail(setup: PemesananModul, email: string, name?: string) {
   let sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
   // A second login to the same email within 60 s waits for "Kirim ulang", as a person would.
   if (!sent.ok && sent.reason === "tunggu_kirim_ulang") {
@@ -287,7 +317,7 @@ export async function pemesanDenganEmail(setup: PemesananSetup, email: string, n
 }
 
 /** A Lokasi Mitra the list offers, and a Pemesan to order from it. */
-export async function saatDukaFixture(setup: PemesananSetup, options: LokasiOptions & { email?: string } = {}) {
+export async function saatDukaFixture(setup: PemesananModul, options: LokasiOptions & { email?: string } = {}) {
   const lokasi = await terverifikasiLokasi(setup, options);
   const pemesan = await pemesanDenganEmail(setup, options.email ?? "pemesan@contoh.id");
   return { ...lokasi, pemesan: pemesan.pemesan };

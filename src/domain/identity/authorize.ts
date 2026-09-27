@@ -84,8 +84,12 @@ export type Action =
   | "lokasi.ubah_rekening"
   /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
   | "lokasi.atur_admin_lokasi"
-  /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
+  /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, a Layanan's price, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
   | "tarif.ubah"
+  /** Keep the Layanan catalog: add or change a Layanan, its variants, the "boleh di TPU DKI" mark and the Paket Layanan (Admin Platform only). */
+  | "layanan.kelola"
+  /** Switch the Layanan a Lokasi Mitra offers on or off (Admin Platform only). */
+  | "layanan.tawarkan"
   /** Set a Lokasi Mitra's Jam Operasional and pick its Kontak Siaga (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "lokasi.atur_operasional"
   /** Keep the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar (Admin Platform only). */
@@ -130,13 +134,23 @@ export type Action =
   | "catatan_internal.tambah"
   /** Log the "Telepon Pemesan" call, closing its row (Admin Platform only; ticket 20). */
   | "telepon_pemesan.catat"
+  /** Log the call on a call row of one's own Lokasi Mitra's work (that Lokasi's Admin Lokasi, or Admin Platform; ticket 23). */
+  | "telepon_pemesan.catat_lokasi"
   /**
    * Place a Pemesanan Makam of one's own (the wizard's Kirim), for the Lokasi
    * Mitra and Jenis Makam chosen.
    */
   | "pemesanan.buat"
   /** Read one's own Pemesanan Makam by its Nomor Pemesanan. */
-  | "pemesanan.lihat";
+  | "pemesanan.lihat"
+  /** Add a document to one's own Pemesanan Makam, at any time (the family, ticket 23). */
+  | "pemesanan.unggah_dokumen"
+  /** Read one order as staff of its Lokasi Mitra, with the family's own details (Admin Platform, or that Lokasi's Admin Lokasi; ticket 23). */
+  | "pemesanan.lihat_staf"
+  /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
+  | "pemesanan.konfirmasi"
+  /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
+  | "pemesanan.centang_dokumen";
 
 /** What the action is done to. */
 export type Resource =
@@ -149,6 +163,7 @@ export type Resource =
   | { kind: "lokasi_mitra_semua" }
   | { kind: "lokasi_mitra"; lokasiId: string }
   | { kind: "tarif_global" }
+  | { kind: "layanan_katalog" }
   | { kind: "hari_libur_nasional" }
   | { kind: "tpu_dki_semua" }
   | { kind: "tpu_dki"; tpuId: string }
@@ -204,6 +219,11 @@ export function lokasiMitraResource(lokasiId: string): Resource {
 /** The global tariffs: Biaya Layanan Platform, DKI Biaya Pengurusan, Retribusi Pemda. */
 export function tarifGlobalResource(): Resource {
   return { kind: "tarif_global" };
+}
+
+/** The Layanan catalog: its Layanan, variants, the "boleh di TPU DKI" mark and the Paket Layanan (Admin Platform only). */
+export function layananKatalogResource(): Resource {
+  return { kind: "layanan_katalog" };
 }
 
 /** The Hari Libur Nasional list (the Admin Platform Hari Kerja calendar). */
@@ -332,6 +352,12 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return (resource.kind === "lokasi_mitra" || resource.kind === "tarif_global") && holds("admin_platform")
         ? allowed
         : denied;
+    case "layanan.kelola":
+      // The Layanan catalog, the TPU mark and the Paket Layanan are the Operator's own (spec, Identity & Access): Admin Platform only.
+      return resource.kind === "layanan_katalog" && holds("admin_platform") ? allowed : denied;
+    case "layanan.tawarkan":
+      // Which Layanan a Lokasi Mitra offers is its own tariff line, so Admin Platform switches it on or off.
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "hari_libur.ubah":
       return resource.kind === "hari_libur_nasional" && holds("admin_platform") ? allowed : denied;
     case "tpu.lihat_semua":
@@ -370,10 +396,29 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "catatan_internal.tambah":
     case "telepon_pemesan.catat":
       return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;
+    case "telepon_pemesan.catat_lokasi":
+      // A call row that belongs to a Lokasi Mitra's own work: its Admin Lokasi
+      // calls, and Admin Platform may call as well.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
     case "pemesanan.buat":
     case "pemesanan.lihat":
-      // An Akun places and reads its own orders only, as itself; CS placing one
-      // on a family's behalf (with or without an Akun of its own) is a later ticket.
+    case "pemesanan.unggah_dokumen":
+      // An Akun places and reads its own orders only, as itself, and adds its own
+      // documents to them; CS placing one on a family's behalf (with or without
+      // an Akun of its own) is a later ticket.
       return resource.kind === "pemesanan_makam" && resource.accountId === actor.accountId ? allowed : denied;
+    case "pemesanan.lihat_staf":
+      // An Admin Lokasi sees its own Lokasi Mitra's orders and no other's (story 139); Admin Platform sees every order.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
+    case "pemesanan.konfirmasi":
+    case "pemesanan.centang_dokumen":
+      // The Lokasi's own Admin Lokasi confirm its orders and tick their
+      // checklists; Admin Platform does not confirm (spec, story 117: an
+      // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

@@ -98,6 +98,7 @@ export {
   auditLogResource,
   authorize,
   hariLiburNasionalResource,
+  layananKatalogResource,
   lokasiMitraResource,
   pemesananResource,
   semuaLokasiMitraResource,

@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
+import type { Actor } from "@/domain/identity";
+import type { HargaLayananVersion, JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
 import { formatTanggal, formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
@@ -13,6 +14,7 @@ import {
   NewJenisMakamForm,
   TariffsCheckedForm,
 } from "../../../tarif/tarif-forms";
+import { StopLayananForm, TawarkanLayananForm } from "../../../layanan/layanan-forms";
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -155,6 +157,84 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
           </details>
         ) : null}
       </Section>
+
+      <LayananLokasiSection actor={actor} lokasiId={lokasiMitra.id} today={today} />
     </>
+  );
+}
+
+/**
+ * Every price version one Pilihan had at this Lokasi Mitra, oldest first: an old
+ * price is read back, never rewritten, and this is where that history is read.
+ * Nothing yet is nothing on screen.
+ */
+function RiwayatVersi({ versions }: { versions: readonly HargaLayananVersion[] | undefined }) {
+  if (!versions?.length) return null;
+  return (
+    <details>
+      <summary className="cursor-pointer">Riwayat versi ({versions.length})</summary>
+      <ul className="mt-2 flex flex-col gap-1">
+        {versions.map((version) => (
+          <li key={version.seq}>
+            {formatRupiah(version.amount)} berlaku {formatTanggal(version.effectiveOn)} · dicatat {formatWib(version.enteredAt)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * Which Layanan this Lokasi Mitra offers and what it charges: the catalog is
+ * global, the price is this place's own, and a Pilihan with no price in force is
+ * never shown to a family.
+ */
+async function LayananLokasiSection({ actor, lokasiId, today }: { actor: Actor; lokasiId: string; today: string }) {
+  const { layanan, tariffs, adapters } = serverRuntime();
+  const now = adapters.clock.now();
+  const [penawaran, riwayat] = await Promise.all([
+    layanan.asStaff(actor).lokasiLayanan(lokasiId, now),
+    // One read for the whole place, so an old price can still be read back on
+    // every variant this Lokasi Mitra offers, as the other tariffs on this page do.
+    tariffs.hargaLayananLokasiSemuaHistory(lokasiId),
+  ]);
+
+  return (
+    <Section
+      id="layanan"
+      title="Layanan"
+      description="Layanan yang ditawarkan Lokasi Mitra ini, beserta harganya. Tanpa harga yang berlaku, sebuah Pilihan tidak tayang di halaman publik Lokasi ini."
+    >
+      {penawaran.length === 0 ? <p className="text-muted-foreground">Katalog Layanan masih kosong.</p> : null}
+      {penawaran.map((entry) => (
+        <div key={entry.layanan.id} className="flex flex-col gap-2">
+          <h3 className="font-medium">{entry.layanan.name}</h3>
+          {entry.varian.map((varian) => (
+            <div key={varian.id} className="flex flex-col gap-1 border-t pt-3">
+              <p>
+                <span className="font-medium">{varian.name}</span> ·{" "}
+                {varian.ditawarkan
+                  ? varian.harga
+                    ? `ditawarkan ${formatRupiah(varian.harga.amount)} · berlaku sejak ${formatTanggal(varian.harga.effectiveOn)}`
+                    : "ditawarkan, tapi belum ada harga yang berlaku"
+                  : "belum ditawarkan"}
+              </p>
+              <details>
+                <summary className="cursor-pointer">
+                  {varian.ditawarkan ? "Harga baru atau berhenti menawarkannya" : "Tawarkan di Lokasi Mitra ini"}
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <TawarkanLayananForm lokasiId={lokasiId} variantId={varian.id} today={today} />
+                  {varian.ditawarkan ? (
+                    <StopLayananForm lokasiId={lokasiId} variantId={varian.id} name={`${entry.layanan.name} — ${varian.name}`} />
+                  ) : null}
+                </div>
+              </details>
+              <RiwayatVersi versions={riwayat.get(varian.id)} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </Section>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Check, MapPin } from "lucide-react";
-import { kirimKodeMasuk } from "@/app/masuk/actions";
+import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type TerencanaQuery, type UnitTerencana } from "@/domain/pemesanan";

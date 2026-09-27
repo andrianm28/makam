@@ -4,8 +4,9 @@
  * can follow the order itself.
  */
 import { and, eq } from "drizzle-orm";
-import { pemesananMakam, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
+import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
 import type { PemesananDeps } from "./deps";
+import type { DokumenOrder } from "./reads-staf";
 
 /** The statuses each kind of Pemesanan Makam runs through, in order (spec, Pemesanan (Lokasi Mitra)). */
 const tracks: Record<PemesananKind, readonly PemesananStatus[]> = {
@@ -54,8 +55,15 @@ export interface PemesananOrder {
   pemegangHak: PemegangHak;
   /** The instant the Lokasi's Jam Operasional promised a confirmation by; null while it had none. */
   konfirmasiDueAt: Date | null;
+  /**
+   * What the Lokasi's confirmation assigned: the Petak Makam and the burial the
+   * two agreed. Null until the order is Dikonfirmasi (spec, story 29).
+   */
+  pemakaman: { petakNomor: string; at: Date } | null;
   /** The Tagihan issued when the Lokasi confirmed; null until then. Nothing is billed at submission. */
   tagihanId: string | null;
+  /** The Lokasi Mitra's document checklist with what has arrived and what is ticked (spec, stories 29, 120). */
+  dokumen: DokumenOrder[];
   /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
   alasan: string | null;
   diajukanAt: Date;
@@ -68,7 +76,7 @@ export interface PemesananOrder {
  * `pemesanan.lihat` on the Akun's own orders).
  */
 export async function orderOf(
-  deps: Pick<PemesananDeps, "db">,
+  deps: Pick<PemesananDeps, "db" | "lokasi">,
   pemesan: { accountId: string },
   nomor: string,
 ): Promise<PemesananOrder | null> {
@@ -90,8 +98,27 @@ export async function orderOf(
     keinginanPenempatan: row.keinginanPenempatan,
     pemegangHak: row.pemegangHak,
     konfirmasiDueAt: row.konfirmasiDueAt,
+    pemakaman: row.petakNomor && row.pemakamanAt ? { petakNomor: row.petakNomor, at: row.pemakamanAt } : null,
     tagihanId: row.tagihanId,
+    dokumen: await dokumenMilik(deps, row.id, row.lokasiId),
     alasan: row.alasan,
     diajukanAt: row.diajukanAt,
   };
+}
+
+/** The order's own documents, with the Lokasi Mitra's checklist items it has none of yet. */
+async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
+  const [rows, checklist] = await Promise.all([
+    deps.db.select().from(pemesananBerkas).where(eq(pemesananBerkas.pemesananId, pemesananId)),
+    deps.lokasi.documentChecklistOf(lokasiId),
+  ]);
+  const punya = new Map(rows.map((row) => [row.nama, row]));
+  return checklist.map((nama) => {
+    const row = punya.get(nama);
+    return {
+      nama,
+      diunggah: row?.diunggahPada ? { at: row.diunggahPada, oleh: row.diunggahOleh ?? "" } : null,
+      dicentang: row?.dicentangPada ? { at: row.dicentangPada, oleh: row.dicentangOleh ?? "" } : null,
+    };
+  });
 }

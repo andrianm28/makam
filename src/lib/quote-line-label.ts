@@ -19,5 +19,10 @@ export function quoteLineLabel(line: QuotedLine): string {
       return "Retribusi Pemda (IPTM)";
     case "biaya_layanan_platform":
       return "Biaya Layanan Platform";
+    case "layanan_lokasi":
+    case "layanan_dki":
+      // A Layanan line names no Layanan: those words belong to the Layanan module,
+      // which reads its own catalog and labels its own prices.
+      return "Layanan";
   }
 }

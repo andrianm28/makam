@@ -58,6 +58,14 @@ import {
   type TagihanTerbitInput,
   type TagihanTerbitResult,
 } from "./pesan-keluarga";
+import {
+  pesanPemesanan,
+  pesananDiajukan,
+  pesananDikonfirmasi,
+  type PesanPemesananResult,
+  type PesananDiajukanInput,
+  type PesananDikonfirmasiInput,
+} from "./pesan-pemesanan";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
@@ -67,6 +75,13 @@ export {
   type CatatPanggilanResult,
   type TeleponPemesan,
 } from "./telepon-pemesan";
+export {
+  pesananDiajukanSchema,
+  pesananDikonfirmasiSchema,
+  type PesanPemesananResult,
+  type PesananDiajukanInput,
+  type PesananDikonfirmasiInput,
+} from "./pesan-pemesanan";
 export {
   tagihanTerbitSchema,
   type KirimJatuhTempo,
@@ -103,6 +118,8 @@ export interface NotificationsDeps {
   tagihan: Pick<Billing, "tagihan">;
   /** The Tagihan page's full URL from its link, for the family email's link into the app. */
   dokumenUrl: (link: string) => string;
+  /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
+  pesananUrl: (nomor: string) => string;
 }
 
 export interface PushDevice {
@@ -214,6 +231,17 @@ export interface Notifications {
   kirimPesanJatuhTempo(now: Date): Promise<KirimJatuhTempo>;
   /** Every logged message about one Tagihan, oldest first: what its order page shows. */
   pesanTagihan(tagihanId: string): Promise<PesanTercatat[]>;
+  /**
+   * Announces a Pemesanan Makam to its family: the order submitted, or the
+   * same order confirmed with its Petak, the Lokasi's contact, the document
+   * checklist and the pay-after Tagihan (ticket 23). Queued first, the worker's
+   * tick sends it, one message per order per template. An order with no email
+   * opens a call row for that Lokasi's own Admin Lokasi instead.
+   */
+  pesananDiajukan(input: PesananDiajukanInput): Promise<PesanPemesananResult>;
+  pesananDikonfirmasi(input: PesananDikonfirmasiInput): Promise<PesanPemesananResult>;
+  /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
+  pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
   pesanStaf(akunStafId: string, options?: { limit?: number }): Promise<PesanTercatat[]>;
   /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
@@ -462,6 +490,18 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesanTagihan(tagihanId) {
       return pesanTagihan(deps, tagihanId);
+    },
+
+    async pesananDiajukan(input) {
+      return pesananDiajukan(deps, input);
+    },
+
+    async pesananDikonfirmasi(input) {
+      return pesananDikonfirmasi(deps, input);
+    },
+
+    async pesanPemesanan(pemesananId) {
+      return pesanPemesanan(deps, pemesananId);
     },
 
     async pesanStaf(akunStafId, options = {}) {
