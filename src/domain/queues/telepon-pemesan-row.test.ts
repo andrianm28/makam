@@ -3,7 +3,7 @@ import { wib } from "@/lib/time/jakarta";
 import { PENGATURAN_OPERATOR } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { queuesOnTestDatabase, signedInAdminPlatform } from "../../../tests/support/queues";
-import { terbitkanPerpanjangan } from "../../../tests/support/notifications-messages";
+import { terbitanPerpanjangan } from "../../../tests/support/notifications-messages";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -16,7 +16,7 @@ describe("Antrean: Tier 2 Telepon Pemesan", () => {
     const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
     if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
     setup.clock.set(wib("2026-10-01 10:00"));
-    const { tagihan } = await terbitkanPerpanjangan(setup, "keluarga@contoh.id");
+    const { tagihan } = await terbitanPerpanjangan(setup, "keluarga@contoh.id");
 
     expect(await setup.queues.antrean(admin)).toEqual([]);
 
@@ -43,5 +43,27 @@ describe("Antrean: Tier 2 Telepon Pemesan", () => {
     const dicatat = await setup.notifications.catatPanggilan(admin, { teleponId: terbuka.id, hasil: "sudah_dihubungi" });
     expect(dicatat.ok).toBe(true);
     expect((await setup.queues.antrean(admin)).some((row) => row.type === "telepon_pemesan")).toBe(false);
+  });
+
+  it("is named in the CONTEXT.md words, and says in the Antrean why each one was opened", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
+    if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    // One order CS submitted with no email, one whose email never gets through.
+    const tanpaEmail = await terbitanPerpanjangan(setup, null);
+    await terbitanPerpanjangan(setup, "keluarga@contoh.id");
+    setup.email.failNextSend(4);
+    for (const jam of ["2026-10-01 10:00", "2026-10-01 10:15", "2026-10-01 11:15", "2026-10-01 15:15"]) {
+      setup.clock.set(wib(jam));
+      await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    }
+
+    const rows = (await setup.queues.antrean(admin)).filter((row) => row.type === "telepon_pemesan");
+    expect(rows.map((row) => row.label)).toEqual(["Telepon Pemesan", "Telepon Pemesan"]);
+    const labels = rows.map((row) => row.subjectLabel).sort();
+    expect(labels[0]).toBe(`${tanpaEmail.tagihan.nomorTagihan} · pesanan tanpa email`);
+    expect(labels[1]).toContain("email gagal terkirim");
   });
 });

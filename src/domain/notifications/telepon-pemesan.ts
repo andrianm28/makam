@@ -50,13 +50,28 @@ export interface BukaTeleponPemesan {
 
 /**
  * Opens a "Telepon Pemesan" row, unless one is already open for the subject:
- * retries and re-announcements never stack rows for the same Tagihan.
+ * retries and re-announcements never stack rows for the same Tagihan. The
+ * open row is unique in the database, so two ticks escalating the same failed
+ * message at once still leave the Antrean one row.
  */
 export async function bukaTeleponPemesan(
   tx: Database,
   now: Date,
   input: BukaTeleponPemesan,
 ): Promise<{ id: string; baru: boolean }> {
+  const inserted = await tx
+    .insert(notificationsTeleponPemesan)
+    .values({
+      subjectKind: input.subjectKind,
+      subjectId: input.subjectId,
+      nomorTagihan: input.nomorTagihan ?? null,
+      sebab: input.sebab,
+      pesanId: input.pesanId ?? null,
+      dibukaPada: now,
+    })
+    .onConflictDoNothing()
+    .returning({ id: notificationsTeleponPemesan.id });
+  if (inserted[0]) return { id: inserted[0].id, baru: true };
   const [open] = await tx
     .select({ id: notificationsTeleponPemesan.id })
     .from(notificationsTeleponPemesan)
@@ -68,19 +83,8 @@ export async function bukaTeleponPemesan(
       ),
     )
     .limit(1);
-  if (open) return { id: open.id, baru: false };
-  const [row] = await tx
-    .insert(notificationsTeleponPemesan)
-    .values({
-      subjectKind: input.subjectKind,
-      subjectId: input.subjectId,
-      nomorTagihan: input.nomorTagihan ?? null,
-      sebab: input.sebab,
-      pesanId: input.pesanId ?? null,
-      dibukaPada: now,
-    })
-    .returning({ id: notificationsTeleponPemesan.id });
-  return { id: row.id, baru: true };
+  if (!open) throw new Error("a Telepon Pemesan row for an open subject just vanished");
+  return { id: open.id, baru: false };
 }
 
 /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */

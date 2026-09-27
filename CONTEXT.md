@@ -380,6 +380,10 @@ _Avoid_: Inbox, tiket, to-do
 The Admin Lokasi's list of open work for one Lokasi Mitra, built and closed from state like the Antrean, split into Mendesak and Lainnya, without claims or Bertugas.
 _Avoid_: Antrean (alone, for the Lokasi's list), inbox
 
+**Telepon Pemesan**:
+A Tier 2 Antrean row asking a staff member to call a Pemesan: the family has to act and email is not enough (a money message that failed for good, an order submitted with no email, a Saat Duka Tagihan Lewat Jatuh Tempo, a Hak Pakai nearing its end). One open row per subject, no deadline of its own, closed once a staff member logs the call and what they found; a declined order keeps its Tier 1 call instead.
+_Avoid_: Telepon CS, telephon, follow-up call, tiket telepon
+
 **Tugas Lapangan**:
 One piece of field work assigned to a Petugas Lapangan (surat pengantar pickup, IPTM originals, Kunjungan Verifikasi, Survei Wakaf, Cek Denah), done only once its required uploads are in. In a Petugas Lapangan's navigation it is shortened to "Tugas" (never "Tugas saya"); page titles use the full term.
 _Avoid_: Job, Pekerjaan (reserved for Pekerjaan Layanan), kunjungan (alone)

@@ -463,6 +463,9 @@ describe("the downstream effects of a payment", () => {
           tagihanId: tagihan.id,
           nomorTagihan: "TGH/2026/000001",
           nomorPemesanan: "MKM-2026-000001",
+          // What a receipt needs, so no effect reads the Tagihan again.
+          total: tagihan.total,
+          link: tagihan.link,
           buktiId: received.bukti.id,
           nomorBukti: "BYR/2026/000001",
           paidAt: received.bukti.paidAt,

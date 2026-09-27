@@ -3,7 +3,7 @@ import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn } from "../../../tests/support/identity";
 import { notificationsOnTestDatabase } from "../../../tests/support/notifications";
-import { siapkanOperator, terbitkanPerpanjangan } from "../../../tests/support/notifications-messages";
+import { siapkanOperator, terbitanPerpanjangan } from "../../../tests/support/notifications-messages";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -14,7 +14,7 @@ describe("Telepon Pemesan: a money message that finally fails", () => {
     const setup = notificationsOnTestDatabase(db);
     await siapkanOperator(setup);
     setup.clock.set(wib("2026-10-01 10:00"));
-    const { tagihan } = await terbitkanPerpanjangan(setup, "keluarga@contoh.id");
+    const { tagihan } = await terbitanPerpanjangan(setup, "keluarga@contoh.id");
     setup.email.failNextSend(4);
 
     await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
@@ -49,7 +49,7 @@ describe("Telepon Pemesan: an order with no email", () => {
     const setup = notificationsOnTestDatabase(db);
     await siapkanOperator(setup);
     setup.clock.set(wib("2026-10-01 10:00"));
-    const { tagihan } = await terbitkanPerpanjangan(setup, null);
+    const { tagihan } = await terbitanPerpanjangan(setup, null);
 
     expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([
       expect.objectContaining({ subjectKind: "tagihan", subjectId: tagihan.id, sebab: "tanpa_email" }),
@@ -67,7 +67,7 @@ describe("Telepon Pemesan: logging the call closes the row", () => {
     const setup = notificationsOnTestDatabase(db);
     const { admin } = await siapkanOperator(setup);
     setup.clock.set(wib("2026-10-01 10:00"));
-    await terbitkanPerpanjangan(setup, null);
+    await terbitanPerpanjangan(setup, null);
     const [terbuka] = await setup.notifications.teleponPemesanTerbuka();
     if (!terbuka) throw new Error("no Telepon Pemesan row");
 

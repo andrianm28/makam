@@ -12,11 +12,20 @@ import { nextDocumentNumber } from "./numbering";
 import { buktiPembayaran, paymentEffectFailure, tagihan, type tagihanStatuses } from "./schema";
 import { newDocumentLink, paymentMethodSchema, type DocumentHeader, type PaymentMethod } from "./shared";
 
-/** What a downstream effect learns of a payment: the Tagihan now Lunas and its one Bukti Pembayaran. */
+/**
+ * What a downstream effect learns of a payment: the Tagihan now Lunas, the
+ * amount settled, the page its document link opens, and its one Bukti
+ * Pembayaran — what a receipt email needs, so no effect has to read the
+ * Tagihan again.
+ */
 export interface SettledPayment {
   tagihanId: string;
   nomorTagihan: string;
   nomorPemesanan: string | null;
+  /** Whole rupiah settled: what the receipt states. */
+  total: Rupiah;
+  /** The unguessable part of the Tagihan page's link, where its Bukti appears once Lunas. */
+  link: string;
   buktiId: string;
   nomorBukti: string;
   paidAt: Date;
@@ -104,7 +113,14 @@ export async function settleIn(
   const buktiId = await issueBuktiPembayaranIn(
     tx,
     deps,
-    { ...payment, tagihanId: row.id, nomorTagihan: row.nomor, nomorPemesanan: row.nomorPemesanan, amount: row.total },
+    {
+      ...payment,
+      tagihanId: row.id,
+      nomorTagihan: row.nomor,
+      nomorPemesanan: row.nomorPemesanan,
+      link: row.link,
+      amount: row.total,
+    },
     now,
   );
   return { ok: true, buktiId, settled: true, reference: payment.reference };
@@ -115,6 +131,8 @@ export interface Settling {
   tagihanId: string;
   nomorTagihan: string;
   nomorPemesanan: string | null;
+  /** The Tagihan page's link, which the effects are handed with the payment. */
+  link: string;
   amount: Rupiah;
   method: PaymentMethod;
   reference: string | null;
@@ -149,6 +167,8 @@ export async function issueBuktiPembayaranIn(tx: Database, deps: EffectDeps, pay
       tagihanId: payment.tagihanId,
       nomorTagihan: payment.nomorTagihan,
       nomorPemesanan: payment.nomorPemesanan,
+      total: payment.amount,
+      link: payment.link,
       buktiId: bukti.id,
       nomorBukti,
       paidAt: payment.paidAt,
@@ -230,6 +250,8 @@ async function settledPayment(db: Database, tagihanId: string): Promise<SettledP
       tagihanId: tagihan.id,
       nomorTagihan: tagihan.nomor,
       nomorPemesanan: tagihan.nomorPemesanan,
+      total: tagihan.total,
+      link: tagihan.link,
       buktiId: buktiPembayaran.id,
       nomorBukti: buktiPembayaran.nomor,
       paidAt: buktiPembayaran.paidAt,

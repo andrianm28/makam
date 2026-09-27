@@ -1,4 +1,5 @@
-import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -65,8 +66,9 @@ export const pesanStatuses = ["menunggu", "terkirim", "gagal", "dibatalkan", "ta
  * Owned by the notifications module: one row per outbound message (ticket
  * 20), the log and the outbox in one. Retries update the same row
  * (`attempts`, `sendAfter`); the worker's tick sends every `menunggu` row
- * whose `sendAfter` has passed. The Kode Masuk never lands here (identity
- * sends it directly, spec Notifications).
+ * whose `sendAfter` has passed, having claimed it first, so a tick that runs
+ * twice sends once. The Kode Masuk never lands here (identity sends it
+ * directly, spec Notifications).
  */
 export const notificationsMessage = pgTable(
   "notifications_message",
@@ -88,7 +90,7 @@ export const notificationsMessage = pgTable(
     status: text("status", { enum: pesanStatuses }).notNull(),
     /** Sends attempted so far (the first send is attempt 1). */
     attempts: integer("attempts").notNull(),
-    /** Not sent before this (the 08:00–20:00 WIB window, retry backoff). The time comes from the Clock; no database default. */
+    /** Not sent before this (the 08:00–20:00 WIB window, retry backoff, the claim a tick holds while it sends). The time comes from the Clock; no database default. */
     sendAfter: at("send_after").notNull(),
     sentAt: at("sent_at"),
     createdAt: at("created_at").notNull(),
@@ -96,6 +98,11 @@ export const notificationsMessage = pgTable(
   (table) => [
     index("notifications_message_due_idx").on(table.status, table.sendAfter),
     index("notifications_message_tagihan_idx").on(table.tagihanId),
+    // One family message per Tagihan per template, whatever runs twice: a
+    // reminder kind is a template of its own, so the four pay-after
+    // reminders are four templates. A Peringatan Staf has no Tagihan, and
+    // several nulls never collide.
+    uniqueIndex("notifications_message_tagihan_template_idx").on(table.tagihanId, table.template),
   ],
 );
 
@@ -129,24 +136,27 @@ export const notificationsTeleponPemesan = pgTable(
     catatan: text("catatan"),
     dicatatOleh: text("dicatat_oleh"),
   },
-  (table) => [index("notifications_telepon_pemesan_subject_idx").on(table.subjectKind, table.subjectId)],
+  (table) => [
+    index("notifications_telepon_pemesan_subject_idx").on(table.subjectKind, table.subjectId),
+    // One open call row per subject, whoever opens it and however many ticks
+    // run at once; a closed row frees the subject for a later call.
+    uniqueIndex("notifications_telepon_pemesan_open_idx")
+      .on(table.subjectKind, table.subjectId)
+      .where(sql`${table.ditutupPada} is null`),
+  ],
 );
 
 /**
- * Owned by the notifications module: where a Tagihan's family messages go,
- * recorded when the Tagihan is announced (`tagihanTerbit`). The Bukti
- * Pembayaran effect (which learns no address from Billing) reads it back to
- * address the receipt. Not a foreign key: billing owns its tables.
+ * Owned by the notifications module: the address a Tagihan's family messages
+ * go to, recorded when the Tagihan is announced (`tagihanTerbit`) — the one
+ * thing the Bukti Pembayaran effect cannot learn from the payment it runs in.
+ * Everything else the receipt needs (the number, the amount, the document
+ * link) Billing hands the effect with the payment. Not a foreign key:
+ * billing owns its tables.
  */
 export const notificationsTagihanKontak = pgTable("notifications_tagihan_kontak", {
   /** The Tagihan's id. */
   tagihanId: text("tagihan_id").primaryKey(),
   /** The email on the order; null when CS submitted it with no email. */
   email: text("email"),
-  nomorTagihan: text("nomor_tagihan").notNull(),
-  nomorPemesanan: text("nomor_pemesanan"),
-  /** Whole rupiah, for the receipt the Bukti effect composes. */
-  total: integer("total").notNull(),
-  /** The unguessable part of the Tagihan page's link, for the email's link into the app. */
-  tagihanLink: text("tagihan_link").notNull(),
 });

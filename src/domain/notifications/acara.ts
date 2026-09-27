@@ -6,10 +6,11 @@
  * push to each Perangkat Push and by email. No WhatsApp, no SMS. The Kode
  * Masuk is not here: identity sends it directly (no log, no retry, no row).
  *
- * Timing: reminders to families go out only 08:00–20:00 WIB (deferred to
- * 08:00 otherwise); transactional messages and new-order alerts go at any
- * hour. `tagihan_terbit` is transactional: for a pay-first Tagihan the clock
- * runs from issue, so the family must see it at once, day or night.
+ * Timing: everything the family is asked to act on goes out 08:00–20:00 WIB
+ * (deferred to 08:00 otherwise) — the Tagihan on issue and its H-1 and
+ * due-day reminders (spec, the reminder table) — while a message that asks
+ * nothing goes at any hour (the Bukti Pembayaran). A Peringatan Staf goes at
+ * any hour too: a new Saat Duka order alerts every Admin Lokasi at night.
  */
 import { addWibDays, wib, wibDateOf, wibDayStart } from "@/lib/time/jakarta";
 
@@ -22,12 +23,27 @@ export const TEMPLATE_EMAIL = [
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
-/** The reminder templates by name: a message is a reminder or it is not. */
-const TEMPLATE_PENGINGAT: readonly string[] = ["tagihan_pengingat_h_1", "tagihan_pengingat_hari_h"];
+/**
+ * The one place a family email is timed: `pengingat` waits for 08:00–20:00
+ * WIB, `transaksional` goes at any hour. `TEMPLATE_EMAIL` and this record
+ * check each other, and the event table below reads its `waktu` from here, so
+ * a template is classified once.
+ */
+export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"> = {
+  tagihan_terbit: "pengingat",
+  tagihan_pengingat_h_1: "pengingat",
+  tagihan_pengingat_hari_h: "pengingat",
+  bukti_pembayaran_terbit: "transaksional",
+};
+
+/** True for a template of this module's, whose send waits for the window when it is a reminder. */
+export function adalahTemplateEmail(template: string): template is TemplateEmail {
+  return Object.hasOwn(WAKTU_TEMPLATE, template);
+}
 
 /** True for a reminder, whose send waits for 08:00–20:00 WIB. */
 export function adalahPengingat(template: string): boolean {
-  return TEMPLATE_PENGINGAT.includes(template);
+  return adalahTemplateEmail(template) && WAKTU_TEMPLATE[template] === "pengingat";
 }
 
 export interface Acara {
@@ -38,16 +54,35 @@ export interface Acara {
   waktu: "transaksional" | "pengingat";
 }
 
-/** One row per family event: recipient, channel, template and timing. */
-export const TABEL_ACARA: Record<"tagihan_terbit" | "tagihan_pengingat" | "bukti_pembayaran_terbit", Acara> = {
-  tagihan_terbit: { penerima: "email_pemesan", kanal: "email", template: "tagihan_terbit", waktu: "transaksional" },
-  tagihan_pengingat: { penerima: "email_pemesan", kanal: "email", template: "tagihan_pengingat_h_1", waktu: "pengingat" },
+/** One row per domain event: recipient, channel, template and timing. */
+export const TABEL_ACARA: Record<
+  "tagihan_terbit" | "tagihan_pengingat" | "bukti_pembayaran_terbit" | "peringatan_staf",
+  Acara
+> = {
+  tagihan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "tagihan_terbit",
+    waktu: WAKTU_TEMPLATE.tagihan_terbit,
+  },
+  tagihan_pengingat: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "tagihan_pengingat_h_1",
+    waktu: WAKTU_TEMPLATE.tagihan_pengingat_h_1,
+  },
   bukti_pembayaran_terbit: {
     penerima: "email_pemesan",
     kanal: "email",
     template: "bukti_pembayaran_terbit",
-    waktu: "transaksional",
+    waktu: WAKTU_TEMPLATE.bukti_pembayaran_terbit,
   },
+  /**
+   * The staff events, one Peringatan Staf per kind (the module's
+   * `staffAlertKinds`): by push to every Perangkat Push of the Akun Staf and
+   * by email, logged per channel and never retried.
+   */
+  peringatan_staf: { penerima: "akun_staf", kanal: "push_dan_email", template: "peringatan_staf", waktu: "transaksional" },
 };
 
 /** The payment moments a Tagihan is issued for (Billing's PaymentMoment kinds), in one place. */
@@ -64,18 +99,19 @@ export type MacamMomenTagihan = (typeof MACAM_MOMEN_TAGIHAN)[number];
 
 /**
  * Exactly one reminder rule per Tagihan kind, never stacked (spec,
- * Notifications): which moments it covers, when its reminders go out, and
- * which ticket builds it. This ticket builds the pay-first rule; each rule
- * stops once its Tagihan is Lunas, Dibatalkan or Tidak Tertagih.
+ * Notifications): when its reminders go out, as the spec's reminder table
+ * gives them. This ticket schedules the pay-first rule; the rest arrive with
+ * the tickets that own them, and each rule stops once its Tagihan is Lunas,
+ * Dibatalkan or Tidak Tertagih.
  */
-export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, { jadwal: string; pemilik: string }> = {
-  perpanjangan: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-  pengurusan_berkas: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-  layanan: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-  terencana: { jadwal: "sekali, sekitar 4 jam sebelum hold berakhir", pemilik: "ticket-37" },
-  paket_cycle: { jadwal: "H-7 (saat terbit) dan H-1", pemilik: "ticket-54" },
-  saat_duka: { jadwal: "H+3, H+7, H+14, H+30", pemilik: "ticket-29" },
-  pemakaman_hak_pakai_ada: { jadwal: "H+3, H+7, H+14, H+30", pemilik: "ticket-29" },
+export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, string> = {
+  perpanjangan: "saat terbit, H-1 dan hari jatuh tempo",
+  pengurusan_berkas: "saat terbit, H-1 dan hari jatuh tempo",
+  layanan: "saat terbit, H-1 dan hari jatuh tempo",
+  terencana: "sekali, sekitar 4 jam sebelum hold berakhir",
+  paket_cycle: "H-7 (saat terbit) dan H-1",
+  saat_duka: "H+3, H+7, H+14, H+30",
+  pemakaman_hak_pakai_ada: "H+3, H+7, H+14, H+30",
 };
 
 /** The pay-first moments, whose reminders this ticket schedules. */
@@ -107,6 +143,18 @@ export function tundaSampaiJamKirim(instant: Date): Date {
 /** Minutes since 00:00 WIB of the WIB day `instant` falls in. */
 function minutesOfWibDay(instant: Date): number {
   return Math.floor((instant.getTime() - wibDayStart(instant).getTime()) / 60_000);
+}
+
+/**
+ * A reminder that reaches the family a day late says the wrong day, and the
+ * rule never stacks: an H-1 reminder arriving on the due day would say
+ * "jatuh tempo besok" the day the money is due, and the due-day reminder
+ * says it properly. It is dropped, and the due-day one speaks for both.
+ */
+export function pengingatKetinggalan(template: string, dueAt: Date, now: Date): boolean {
+  if (template === "tagihan_pengingat_h_1") return wibDateOf(dueAt) <= wibDateOf(now);
+  if (template === "tagihan_pengingat_hari_h") return wibDateOf(dueAt) < wibDateOf(now);
+  return false;
 }
 
 /**

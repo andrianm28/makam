@@ -1,30 +1,38 @@
 /**
  * Family messages (ticket 20): a Tagihan issued and its pay-first reminders,
  * sent through the worker's tick. Every send is queued first (the tick sends
- * it), logged with its status, retried 3 times with backoff, and escalated
- * to a Tier 2 "Telepon Pemesan" row when the money message finally fails.
+ * it), logged with its status, retried 3 times with backoff, and escalated to
+ * a Tier 2 "Telepon Pemesan" row when the money message finally fails.
  *
- * Reminders go out only 08:00–20:00 WIB; the Tagihan and Bukti messages are
- * transactional (any hour). A reminder is dropped (`dibatalkan`) once its
- * Tagihan is no longer waiting for money (Lunas, Dibatalkan, Tidak
- * Tertagih, ...). An order with no email gets a "Telepon Pemesan" row
+ * Everything the family is asked to act on goes out 08:00–20:00 WIB: the
+ * Tagihan on issue and its H-1 and due-day reminders (spec, the reminder
+ * table) and the Bukti Pembayaran, which asks nothing (transactional). A
+ * message is dropped (`dibatalkan`) once its Tagihan is no longer waiting for
+ * money (Lunas, Dibatalkan, Tidak Tertagih, ...) or a reminder reaches the
+ * family a day late. An order with no email gets a "Telepon Pemesan" row
  * wherever the family must act; CS shares document links by hand.
+ *
+ * Each message is queued once per Tagihan per template and claimed before it
+ * is sent, so a replayed announcement, a re-run effect and a tick that runs
+ * twice all leave the family with one email.
  */
 import { and, asc, eq, lte } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
-import type { Billing } from "@/domain/billing";
+import type { Billing, Tagihan } from "@/domain/billing";
 import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import {
-  dalamJamKirim,
   adalahPengingat,
+  adalahTemplateEmail,
+  dalamJamKirim,
   jadwalPengingatPayFirst,
   MACAM_MOMEN_TAGIHAN,
   MAKS_PERCOBAAN,
   MOMEN_PAY_FIRST,
+  pengingatKetinggalan,
   tundaSampaiJamKirim,
   tundaUlangBerikutnya,
   type TemplateEmail,
@@ -46,20 +54,17 @@ export interface PesanKeluargaDeps {
 
 export const tagihanTerbitSchema = z.object({
   tagihanId: z.uuid(),
-  nomorTagihan: z.string().trim().min(1).max(50),
-  kind: z.enum(["pay_first", "pay_after"]),
   momentKind: z.enum(MACAM_MOMEN_TAGIHAN),
+  nomorTagihan: z.string().trim().min(1).max(50),
   nomorPemesanan: z.string().trim().min(1).max(50).nullable(),
   /** The email on the order; null when CS submitted it with no email. */
   email: z.email().max(320).nullable(),
   /** What the Tagihan is for, e.g. "Perpanjangan Makam di Taman Makam Contoh". */
   perihal: z.string().trim().min(1).max(300),
   total: z.number().int().nonnegative(),
-  issuedAt: z.date(),
   dueAt: z.date(),
   /** The unguessable part of the Tagihan page's link. */
   link: z.string().trim().min(1).max(100),
-  placeName: z.string().trim().max(300).nullable(),
 });
 export type TagihanTerbitInput = z.infer<typeof tagihanTerbitSchema>;
 
@@ -76,17 +81,18 @@ export interface PesanTercatat {
   sentAt: Date | null;
 }
 
-const TRANSAKSIONAL_TEMPLATES: readonly string[] = ["tagihan_terbit", "bukti_pembayaran_terbit"];
-
 /** A Tagihan still waiting for its money: reminders stop for any other status. */
 const TAGIHAN_MENUNGGU_UANG = ["belum_dibayar", "lewat_jatuh_tempo"];
 
 /**
  * Announces a Tagihan: records where its family messages go, queues the
- * Tagihan email (transactional) and, for a pay-first Tagihan, its H-1 and
- * due-day reminders. The worker's tick sends them. An order with no email
- * gets a "Telepon Pemesan" row at once instead. All of it in one
- * transaction: a Tagihan is never announced without somewhere to send.
+ * Tagihan email and, for a pay-first Tagihan, its H-1 and due-day reminders.
+ * The worker's tick sends them. An order with no email gets a "Telepon
+ * Pemesan" row at once instead. All of it in one transaction: a Tagihan is
+ * never announced without somewhere to send.
+ *
+ * Announcing the same Tagihan again changes nothing: the family gets one
+ * email per reminder kind, however often the announcement is made.
  */
 export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbitInput): Promise<TagihanTerbitResult> {
   const parsed = tagihanTerbitSchema.safeParse(input);
@@ -97,24 +103,8 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
   return refusable<TagihanTerbitResult>(deps.db, async (tx): Promise<TagihanTerbitResult> => {
     await tx
       .insert(notificationsTagihanKontak)
-      .values({
-        tagihanId: data.tagihanId,
-        email: data.email,
-        nomorTagihan: data.nomorTagihan,
-        nomorPemesanan: data.nomorPemesanan,
-        total: data.total,
-        tagihanLink: data.link,
-      })
-      .onConflictDoUpdate({
-        target: notificationsTagihanKontak.tagihanId,
-        set: {
-          email: data.email,
-          nomorTagihan: data.nomorTagihan,
-          nomorPemesanan: data.nomorPemesanan,
-          total: data.total,
-          tagihanLink: data.link,
-        },
-      });
+      .values({ tagihanId: data.tagihanId, email: data.email })
+      .onConflictDoUpdate({ target: notificationsTagihanKontak.tagihanId, set: { email: data.email } });
 
     if (!data.email) {
       // A CS order with no email: the family must be called, and CS shares
@@ -145,7 +135,9 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       email: data.email,
       subject: terbit.subject,
       body: terbit.body,
-      sendAfter: now,
+      // "On issue" belongs to the Tagihan's reminder schedule, so it waits for
+      // the window like the H-1 and due-day reminders do.
+      sendAfter: tundaSampaiJamKirim(now),
     });
 
     let diingatkan = 0;
@@ -153,7 +145,7 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       for (const { macam, saat } of jadwalPengingatPayFirst(data.dueAt, now)) {
         const template = macam === "h_1" ? "tagihan_pengingat_h_1" : "tagihan_pengingat_hari_h";
         const pengingat = tagihanPengingatEmail(macam, emailInput);
-        await queueEmail(tx, now, {
+        const baru = await queueEmail(tx, now, {
           template,
           tagihanId: data.tagihanId,
           nomorTagihan: data.nomorTagihan,
@@ -163,7 +155,7 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
           body: pengingat.body,
           sendAfter: saat,
         });
-        diingatkan += 1;
+        if (baru) diingatkan += 1;
       }
     }
     return { ok: true, diingatkan };
@@ -174,13 +166,18 @@ export interface KirimJatuhTempo {
   terkirim: number;
   gagal: number;
   ditunda: number;
+  /** Dropped without a send: its Tagihan no longer waits for money, or the reminder reached the family a day late. */
   dibatalkan: number;
 }
 
+/** How long a tick holds a message while it sends it: longer than one send, short enough that a worker lost mid-send only costs a delay. */
+const KLAIM_MENIT = 10;
+
 /**
  * The worker's send tick (also registered on the scheduler): sends every
- * queued message whose time has come, idempotently (a run twice sends once:
- * the first run marks the row). Returns what it did.
+ * queued message whose time has come, idempotently — a run twice (or two runs
+ * at once) sends once, because a message is claimed before it is sent and the
+ * claim is the row's own `sendAfter`. Returns what it did.
  */
 export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): Promise<KirimJatuhTempo> {
   const due = await deps.db
@@ -191,10 +188,14 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
     .limit(200);
   const hasil: KirimJatuhTempo = { terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 };
   for (const pesan of due) {
-    if (pesan.tagihanId && (await sudahTentu(deps, pesan))) {
-      await mark(deps.db, pesan.id, { status: "dibatalkan" });
-      hasil.dibatalkan += 1;
-      continue;
+    if (!(await klaim(deps.db, pesan, now))) continue;
+    if (pesan.tagihanId && berlakuUntukTagihan(pesan.template)) {
+      const tagihan = await deps.tagihan.tagihan(pesan.tagihanId);
+      if (perluDibatalkan(pesan.template, tagihan, now)) {
+        await mark(deps.db, pesan.id, { status: "dibatalkan" });
+        hasil.dibatalkan += 1;
+        continue;
+      }
     }
     if (adalahPengingat(pesan.template) && !dalamJamKirim(now)) {
       await mark(deps.db, pesan.id, { sendAfter: tundaSampaiJamKirim(now) });
@@ -239,20 +240,21 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
 }
 
 /**
- * A message about a Tagihan that no longer waits for money is dropped rather
- * than sent: its reminders stop (spec, Notifications), and a Tagihan that is
- * already Lunas by the time the tick runs needs no "please pay". A Bukti
- * Pembayaran is the exception: the Tagihan is Lunas by definition, and its
- * receipt is the message the family is waiting for.
+ * A message about a Tagihan is dropped rather than sent once it no longer has
+ * to go out: its Tagihan settled (Lunas, Dibatalkan, Tidak Tertagih, or gone
+ * — its reminders stop, spec Notifications), or it is a reminder that reached
+ * the family a day late and would name the wrong day. A Bukti Pembayaran is
+ * the exception: its Tagihan is Lunas by definition, and the receipt is the
+ * message the family is waiting for.
  */
-async function sudahTentu(
-  deps: Pick<PesanKeluargaDeps, "db" | "tagihan">,
-  pesan: { template: string; tagihanId: string | null },
-): Promise<boolean> {
-  if (!pesan.tagihanId || pesan.template === "bukti_pembayaran_terbit") return false;
-  if (!adalahPengingat(pesan.template) && !TRANSAKSIONAL_TEMPLATES.includes(pesan.template)) return false;
-  const tagihan = await deps.tagihan.tagihan(pesan.tagihanId);
-  return !tagihan || !TAGIHAN_MENUNGGU_UANG.includes(tagihan.status);
+function perluDibatalkan(template: string, tagihan: Tagihan | null, now: Date): boolean {
+  if (!tagihan || !TAGIHAN_MENUNGGU_UANG.includes(tagihan.status)) return true;
+  return pengingatKetinggalan(template, tagihan.dueAt, now);
+}
+
+/** Whether this module's stop rule applies to the template at all (never to the receipt). */
+function berlakuUntukTagihan(template: string): boolean {
+  return adalahTemplateEmail(template) && template !== "bukti_pembayaran_terbit";
 }
 
 /** Every logged message about one Tagihan, oldest first: what its order page shows. */
@@ -286,8 +288,37 @@ async function queueEmail(
     body: string;
     sendAfter: Date;
   },
-): Promise<void> {
-  await db.insert(notificationsMessage).values({ ...message, channel: "email", status: "menunggu", attempts: 0, sentAt: null, createdAt: now });
+): Promise<boolean> {
+  // One message per Tagihan per template, whatever queues it twice: the
+  // announcement replayed, an effect run again, a tick run twice.
+  const inserted = await db
+    .insert(notificationsMessage)
+    .values({ ...message, channel: "email", status: "menunggu", attempts: 0, sentAt: null, createdAt: now })
+    .onConflictDoNothing()
+    .returning({ id: notificationsMessage.id });
+  return inserted.length > 0;
+}
+
+/**
+ * Claims one due message for the tick that is sending it: the row's
+ * `send_after` moves forward as the claim, in one statement, so a tick that
+ * runs twice (or a second worker) leaves the message to the first. The claim
+ * is only a lease — a worker that dies mid-send costs the family a delay, not
+ * a message.
+ */
+async function klaim(db: Database, pesan: { id: string; sendAfter: Date }, now: Date): Promise<boolean> {
+  const claimed = await db
+    .update(notificationsMessage)
+    .set({ sendAfter: new Date(now.getTime() + KLAIM_MENIT * 60_000) })
+    .where(
+      and(
+        eq(notificationsMessage.id, pesan.id),
+        eq(notificationsMessage.status, "menunggu"),
+        eq(notificationsMessage.sendAfter, pesan.sendAfter),
+      ),
+    )
+    .returning({ id: notificationsMessage.id });
+  return claimed.length > 0;
 }
 
 async function mark(

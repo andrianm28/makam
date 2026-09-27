@@ -1,4 +1,5 @@
-import type { IssueTagihanInput } from "@/domain/billing";
+import type { IssueTagihanInput, Tagihan } from "@/domain/billing";
+import type { TagihanTerbitInput } from "@/domain/notifications";
 import type { Rupiah } from "@/lib/rupiah";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { signedInAdminPlatform } from "./identity";
@@ -45,24 +46,35 @@ export async function siapkanOperator(setup: PesanSetup) {
 }
 
 /** Issues a pay-first Perpanjangan Tagihan (due 3×24 h after issue) and announces it to `email` (null: a CS order with no email). */
-export async function terbitkanPerpanjangan(setup: PesanSetup, email: string | null) {
-  const issued = await setup.billing.issueTagihan(perpanjanganCheckout());
+export async function terbitanPerpanjangan(setup: PesanSetup, email: string | null) {
+  const tagihan = await terbitanTagihan(setup);
+  const announced = await setup.notifications.tagihanTerbit(pengumumanTagihan(tagihan, email));
+  if (!announced.ok) throw new Error(`announce refused: ${announced.reason}`);
+  return { tagihan, diingatkan: announced.diingatkan };
+}
+
+/** The same Tagihan, issued but not yet announced: a test announces it itself, to run the announcement twice. */
+export async function terbitanTagihan(setup: PesanSetup, overrides: Partial<IssueTagihanInput> = {}): Promise<Tagihan> {
+  const issued = await setup.billing.issueTagihan(perpanjanganCheckout(overrides));
   if (!issued.ok) throw new Error(`Tagihan refused: ${issued.reason}`);
-  const tagihan = issued.tagihan;
-  const announced = await setup.notifications.tagihanTerbit({
+  return issued.tagihan;
+}
+
+/** What a checkout hands the module the moment it issues a Tagihan: the Tagihan, its payment moment and the address on the order. */
+export function pengumumanTagihan(
+  tagihan: Tagihan,
+  email: string | null,
+  momentKind: TagihanTerbitInput["momentKind"] = "perpanjangan",
+): TagihanTerbitInput {
+  return {
     tagihanId: tagihan.id,
-    nomorTagihan: tagihan.nomorTagihan,
-    kind: tagihan.kind,
-    momentKind: "perpanjangan",
-    nomorPemesanan: tagihan.nomorPemesanan,
+    momentKind,
     email,
     perihal: "Perpanjangan Makam di Taman Makam Contoh",
     total: tagihan.total,
-    issuedAt: tagihan.issuedAt,
     dueAt: tagihan.dueAt,
     link: tagihan.link,
-    placeName: tagihan.placeName,
-  });
-  if (!announced.ok) throw new Error(`announce refused: ${announced.reason}`);
-  return { tagihan, diingatkan: announced.diingatkan };
+    nomorTagihan: tagihan.nomorTagihan,
+    nomorPemesanan: tagihan.nomorPemesanan,
+  };
 }

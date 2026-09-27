@@ -75,7 +75,7 @@ export {
   type TagihanTerbitResult,
 } from "./pesan-keluarga";
 /** The event table and the reminder rules, as the spec lists them, for anything that reports on them. */
-export { ATURAN_PENGINGAT, MAKS_PERCOBAAN, MOMEN_PAY_FIRST, TABEL_ACARA, TEMPLATE_EMAIL } from "./acara";
+export { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAKTU_TEMPLATE } from "./acara";
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
 export const pushSubscriptionSchema = z.object({

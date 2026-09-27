@@ -1,69 +1,63 @@
 import { describe, expect, it } from "vitest";
-import { ATURAN_PENGINGAT, MAKS_PERCOBAAN, MOMEN_PAY_FIRST, TABEL_ACARA, TEMPLATE_EMAIL } from "@/domain/notifications";
+import { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAKTU_TEMPLATE } from "@/domain/notifications";
 
 /**
- * The event table and the reminder rules the spec lists, as the module
- * publishes them. What the window and the backoff do to real messages is
- * covered through the public send tick in `pesan-keluarga.test.ts` and
- * `telepon-pemesan.test.ts`.
+ * The event table and the reminder rules as the module publishes them, for
+ * anything that reports on them (AC 1: the table is in code, the email
+ * templates listed in one place). What the window and the retries do to real
+ * messages is covered through the public send tick in
+ * `pesan-keluarga.test.ts` and `telepon-pemesan.test.ts`.
  */
 describe("Tabel acara: every domain event decides recipient, channel, template and timing", () => {
-  it("a Tagihan issued goes to the family email as a transactional message, at any hour", () => {
-    expect(TABEL_ACARA.tagihan_terbit).toEqual({
-      penerima: "email_pemesan",
-      kanal: "email",
-      template: "tagihan_terbit",
+  it.each([
+    ["tagihan_terbit", "tagihan_terbit", "pengingat"],
+    ["tagihan_pengingat", "tagihan_pengingat_h_1", "pengingat"],
+    ["bukti_pembayaran_terbit", "bukti_pembayaran_terbit", "transaksional"],
+  ] as const)("%s goes to the family by email, %s, %s", (acara, template, waktu) => {
+    expect(TABEL_ACARA[acara]).toEqual({ penerima: "email_pemesan", kanal: "email", template, waktu });
+  });
+
+  it("a Peringatan Staf goes to the Akun Staf by push and email, at any hour", () => {
+    expect(TABEL_ACARA.peringatan_staf).toEqual({
+      penerima: "akun_staf",
+      kanal: "push_dan_email",
+      template: "peringatan_staf",
       waktu: "transaksional",
     });
   });
 
-  it("a Tagihan reminder goes to the family email inside the 08:00–20:00 window", () => {
-    expect(TABEL_ACARA.tagihan_pengingat).toMatchObject({
-      penerima: "email_pemesan",
-      kanal: "email",
-      waktu: "pengingat",
-    });
-  });
-
-  it("a Bukti Pembayaran issued goes to the family email as a transactional message", () => {
-    expect(TABEL_ACARA.bukti_pembayaran_terbit).toEqual({
-      penerima: "email_pemesan",
-      kanal: "email",
-      template: "bukti_pembayaran_terbit",
-      waktu: "transaksional",
-    });
-  });
-
-  it("lists every family email template in one place", () => {
+  it("lists every family email template in one place, and times each of them once", () => {
     expect([...TEMPLATE_EMAIL]).toEqual([
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
       "bukti_pembayaran_terbit",
     ]);
+    expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
+  });
+
+  it("times the Tagihan on issue as a reminder, inside 08:00–20:00 WIB", () => {
+    // The spec's reminder table puts "on issue" with H-1 and the due day, and
+    // all of them inside the window.
+    expect(WAKTU_TEMPLATE.tagihan_terbit).toBe("pengingat");
+    expect(TABEL_ACARA.tagihan_terbit.waktu).toBe("pengingat");
   });
 });
 
 describe("Aturan pengingat Tagihan: exactly one rule per Tagihan kind, never stacked", () => {
-  it("names the schedule and the ticket that owns it for every payment moment", () => {
+  it("names the schedule of every payment moment, and nothing but a schedule", () => {
     expect(ATURAN_PENGINGAT).toEqual({
-      perpanjangan: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-      pengurusan_berkas: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-      layanan: { jadwal: "saat terbit, H-1 dan hari jatuh tempo", pemilik: "ticket-20" },
-      terencana: { jadwal: "sekali, sekitar 4 jam sebelum hold berakhir", pemilik: "ticket-37" },
-      paket_cycle: { jadwal: "H-7 (saat terbit) dan H-1", pemilik: "ticket-54" },
-      saat_duka: { jadwal: "H+3, H+7, H+14, H+30", pemilik: "ticket-29" },
-      pemakaman_hak_pakai_ada: { jadwal: "H+3, H+7, H+14, H+30", pemilik: "ticket-29" },
+      perpanjangan: "saat terbit, H-1 dan hari jatuh tempo",
+      pengurusan_berkas: "saat terbit, H-1 dan hari jatuh tempo",
+      layanan: "saat terbit, H-1 dan hari jatuh tempo",
+      terencana: "sekali, sekitar 4 jam sebelum hold berakhir",
+      paket_cycle: "H-7 (saat terbit) dan H-1",
+      saat_duka: "H+3, H+7, H+14, H+30",
+      pemakaman_hak_pakai_ada: "H+3, H+7, H+14, H+30",
     });
   });
 
-  it("schedules reminders only for the pay-first moments this ticket builds", () => {
-    expect([...MOMEN_PAY_FIRST].sort()).toEqual(["layanan", "pengurusan_berkas", "perpanjangan"]);
-  });
-});
-
-describe("Ulangi: 3 retries with backoff, then a phone-call row", () => {
-  it("sends at most 4 times: the first send plus 3 retries", () => {
-    expect(MAKS_PERCOBAAN).toBe(4);
+  it("covers every payment moment a Tagihan can be issued for, so no kind is left without a rule", () => {
+    expect(Object.keys(ATURAN_PENGINGAT).sort()).toEqual([...MACAM_MOMEN_TAGIHAN].sort());
   });
 });
