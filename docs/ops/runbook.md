@@ -50,7 +50,6 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.counts.enc` | the row counts of that night, what a restore is checked against |
 | `/opt/makam-v1/<env>/backup-passphrase` | 0600, `openssl rand -base64 32`; encrypts the database Dump. **Keep an offline copy** (below) |
-| `/opt/makam-v1/<env>/glitchtip-heartbeat` | the GlitchTip Heartbeat URL the backup pings when it is done (optional) |
 
 After changing any file under `deploy/` or `docker-compose.prod.yml` on
 `main`, run `deploy/install-host.sh` from an up-to-date, clean checkout of
@@ -433,9 +432,16 @@ timer:
 
 | What | Unit | When (WIB) |
 |---|---|---|
-| `makam-backup-db --env <env>` | `makam-<env>-db-backup.timer` | nightly 02:15 |
-| `makam-backup-files --env <env>` | `makam-<env>-files-backup.timer` | nightly 03:15 |
-| `makam-restore-test --env <env>` | `makam-<env>-restore-test.timer` | Mondays 04:15 |
+| `makam-backup-db --env staging` | `makam-staging-db-backup.timer` | nightly 02:15 |
+| `makam-backup-files --env staging` | `makam-staging-files-backup.timer` | nightly 03:15 |
+| `makam-restore-test --env staging` | `makam-staging-restore-test.timer` | Mondays 04:15 |
+
+**Only the `makam-staging-*` units are installed.** The scripts also take
+`--env prod` because production will run the very same ones, but there is no
+`makam-prod-db-backup.timer` or `makam-prod-restore-test.timer` in
+`deploy/systemd/`, and nothing enables one: those come with production (ticket
+65), together with the `makam-prod` environment itself. Until then the only way
+these run is staging's timers or your own hand.
 
 A nightly backup nobody has ever restored is a hope, not a backup, so the third
 one is not optional bookkeeping: it restores the newest Dump into a throwaway
@@ -449,8 +455,10 @@ salt (OpenSSL's own default, 10 000, is a test default; 600 000 costs about a
 second per file and these are read rarely). The script has no default and no
 fallback: with no passphrase it refuses and writes nothing, because an
 unencrypted Dump of the database is worse than no Dump. The file must hold
-**one line**: `openssl enc` would silently use only the first, and the script
-refuses a longer one rather than encrypt with less than it looks like.
+**one line** (`openssl enc` would silently use only the first) and must be
+**mode 0600**: a passphrase any other account on this host can read is no
+passphrase, so both scripts refuse and say so rather than trust a mode an
+operator gets by accident.
 
 ```bash
 umask 077
@@ -479,16 +487,20 @@ Two files per night, sharing a UTC timestamp: `makam-<stamp>.dump.enc` (a
 (one `table=count` line per table of the public schema, the row counts of that
 exact night). The counts are what a restore is checked against, so a restore
 can be proved lossless without the source database. The dump is written to a
-`.part` name and renamed only when complete, so an interrupted run never leaves
-a half Dump that looks like a good night, and the two scripts prune only their
-own files older than 7 days: the FileStore tar, ticket 72's pre-migrate dump
-and anything else in that directory are never touched.
+`.part` name and renamed only when complete; a trap removes the `.part` files on
+every way out, and a run killed so hard the trap could not run leaves one that
+the next night's pruning collects. The two scripts prune only their own files
+older than 7 days: the FileStore tar, ticket 72's pre-migrate dump and anything
+else in that directory are never touched.
 
-Both scripts **fail closed on space**: they refuse when the filesystem holding
-`/opt/makam-v1` has less than twice what the work needs (2 × database size for a
-Dump, 2 × Dump size for a restore), and refuse when the size or the free space
-cannot be read at all. The host has ~20 GB free at 76 % use; ticket 73 adds the
-85 % warning. A refusal exits 78, logs at `err`, and writes nothing.
+Both scripts **fail closed on space**, each on the filesystem that will actually
+hold its data: `makam-backup-db` on the one holding
+`/opt/makam-v1/<env>/backups/db` (2 × the database size), `makam-restore-test`
+on the one holding **Docker's data directory** (2 × the Dump size) — a restored
+database lives in the container's writable layer, not under `/opt/makam-v1`. A
+size or a free-space figure that cannot be read is treated as no space at all.
+The host has ~20 GB free at 76 % use; ticket 73 adds the 85 % warning. Every
+refusal exits 78, logs at `err`, and writes nothing.
 
 ### The restore check
 
@@ -500,16 +512,17 @@ docker ps -a --filter label=makam.role=restore-test            # what is left ov
 ```
 
 It starts `makam-restoretest-<env>-<timestamp>` from the same Postgres image by
-digest that staging runs, with **no published port, no volume, no restart
-policy**, restores into it, and then checks that every table of that night is
-there (the recorded counts, plus a fixed floor of core tables: `identity_user`,
-`identity_session`, `inventory_petak`, `inventory_pemakaman`, `lokasi_mitra`,
-`tagihan`, `bukti_pembayaran`, `audit_entry`, `operator_settings_version`,
-`scheduler_heartbeat`) and that each holds at least the rows it had that night.
-The container is removed whether the check passed or failed — on failure the
-last 20 lines of its Postgres log are printed first, and `--keep` leaves it for
-inspection (`docker rm -f <name>` when done). Nothing of the running
-environment is touched: the Dump is read, the live database is not.
+digest that staging runs, with **no network at all** (`--network none`, so
+nothing on the host can reach it), no published port, no restart policy and
+nothing of the environment mounted in — the image's own anonymous volume holds
+the restored data, under Docker's directory. It restores into it, then checks
+that every table of that night is there (the recorded counts, plus a fixed
+floor of core tables listed once in `deploy/bin/makam-backup-lib` as
+`REQUIRED_TABLES`) and that each holds at least the rows it had that night. The
+container is removed whether the check passed or failed — on failure the last
+20 lines of its Postgres log are printed first, and `--keep` leaves it for
+inspection (`docker rm -f <name>` when done). Nothing of the running environment
+is touched: the Dump is read, the live database is not.
 
 A failed check exits 1 and logs at `err` (`journalctl -t makam-restore-test -p
 err`). It means one of: the Dump is unreadable (truncated write, wrong
@@ -567,22 +580,34 @@ docker volume rm makam-staging_pgdata-restore
 
 ### Knowing it ran (alerting)
 
-`makam-backup-db` and `makam-restore-test` log to the journal (`makam-db-backup`,
-`makam-restore-test`; failures at `err`, so `systemctl --failed` and
-`journalctl -t makam-db-backup -p err` show them), and the units are enabled by
-`deploy/install-host.sh`.
+**The journal is what the beta has.** `makam-backup-db` and
+`makam-restore-test` log every run (`makam-db-backup`, `makam-restore-test`) and
+every failure at `err` priority, so a missed or failed night is:
 
-For the part a journal cannot do — telling someone when the timer stops firing
-altogether — create one GlitchTip **uptime monitor of type Heartbeat** in
-GlitchTip (Alerts → Monitors → New → Heartbeat; the built-in type, no account or
-credential beyond GlitchTip's own) and leave the URL it gives you in
-`/opt/makam-v1/staging/glitchtip-heartbeat` (0600). Give it an interval of 26 h:
-the ping is expected once a night, so a single missed night (26 h without one)
-already alerts, and the two spare hours keep a timer that ran a few minutes late
-from firing. Both scripts then `curl` that URL after a successful run. A ping
-that fails is logged as a warning and never fails the run: the Dump is the work,
-the ping only says it happened. A second monitor on the same URL with an 8-day
-interval covers the weekly restore check.
+```bash
+systemctl --failed
+journalctl -t makam-db-backup -t makam-restore-test -p err --since '3 days ago'
+systemctl list-timers 'makam-staging-db-backup.timer' 'makam-staging-restore-test.timer'
+ls -la /opt/makam-v1/staging/backups/db/     # a night older than 36 h is a problem
+```
+
+**A monitor that pings you is a separate decision, and nothing in the backup
+path calls out to the network.** If you want one, create a GlitchTip **uptime
+monitor of type Heartbeat** in GlitchTip (Alerts → Monitors → New → Heartbeat;
+the built-in type, no account or credential beyond GlitchTip's own) and ping it
+yourself — by hand, from a timer of your own, or from the deploy workflow — with
+the URL GlitchTip gives you:
+
+```bash
+curl -fsS -o /dev/null -w '%{http_code}\n' 'https://glitchtip-web:8000/api/0/heartbeat/<key>/<hash>'
+```
+
+Give the nightly monitor an interval of 26 h (one ping a night; a single missed
+night already alerts, and the spare hours keep a late run from firing) and a
+second one with an 8-day interval for the weekly restore check. A heartbeat URL
+is itself a secret — anyone holding it can mark the monitor healthy — so keep it
+out of the repo, out of the journal and out of the backup scripts' environment.
+The `Uptime alarm` section above is the same idea for the app itself.
 
 ## dev.makam.co.id and its rollback
 

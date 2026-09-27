@@ -22,9 +22,11 @@ DB_NAME=makam
 # emergency) and cost about a second each at 600 000, so the work factor is spent
 # where it protects the passphrase rather than on the nightly run.
 CIPHER_ARGS=(-aes-256-cbc -pbkdf2 -iter 600000 -md sha256)
-# Tables a restore must have whatever the recorded counts say, one from each
-# module that owns data. The counts cover every table (so a lost table is caught
-# anyway); this is the floor that catches a counts file that was itself lost.
+# The tables a restore must have whatever the recorded counts say: one from every
+# module that owns data, so a schema that lost a module cannot pass. The counts
+# of a night cover every table anyway; this is the floor under a counts file
+# that was itself lost. This list is the one place it exists: the runbook and the
+# ticket point here rather than repeating it.
 REQUIRED_TABLES=(
   identity_user
   identity_session
@@ -54,6 +56,30 @@ err() { logger -p user.err -t "$LOG_TAG" "$*"; echo "$*" >&2; }
 # "the operator has to fix this" code.
 refuse() { err "refusing: $*"; exit 78; }
 
+# The passphrase both scripts encrypt and decrypt with, read from a file the
+# operator keeps (never a command line, never an environment they set) and held
+# in PASSPHRASE for the openssl calls, which take it from their own environment
+# as BACKUP_PASSPHRASE. It is refused unless the file is one line and readable
+# by its owner alone: a passphrase any other account on this host can read is
+# the one thing that would undo the encryption, and the mode an operator gets by
+# accident (umask 022) is exactly that.
+read_passphrase() {
+  local file=$1 hint=$2 mode
+  [ -r "$file" ] || refuse "missing $file ($hint)"
+  PASSPHRASE=$(cat "$file")
+  [ -n "$PASSPHRASE" ] || refuse "$file is empty"
+  case "$PASSPHRASE" in
+    *$'\n'*) refuse "$file has more than one line; openssl would use only the first" ;;
+  esac
+  mode=$(stat -c %a "$file" 2> /dev/null)
+  case "$mode" in
+    '' | *[!0-7]*) refuse "could not read the mode of $file; not decrypting anything with it" ;;
+  esac
+  if (( 0$mode & 0077 )); then
+    refuse "$file is mode $mode, readable by more than its owner; the Dump would be no better than plaintext: chmod 600 $file"
+  fi
+}
+
 # Free bytes on the filesystem that holds the given path. MAKAM_BACKUP_FREE_BYTES
 # replaces the probe for tests; the rule it feeds (twice what the Dump needs) is
 # still the one below. A probe that cannot answer is treated as no space at all.
@@ -62,47 +88,42 @@ free_bytes() {
     printf '%s' "$MAKAM_BACKUP_FREE_BYTES"
     return
   fi
-  df -B1 --output=avail "$1" 2> /dev/null | tail -n 1 | tr -d '[:space:]'
+  df -B1 --output=avail "$1" 2> /dev/null | tail -n 1 | tr -d '[:space:]' || true
 }
 
-# Bytes as whole MiB, rounded: a host with gigabytes to spare reads the same as
-# a test that hands the rule a megabyte.
-mib() { awk -v bytes="$1" 'BEGIN { printf "%.0f", bytes / 1048576 }'; }
+# Where Docker keeps container layers, which for a restore is where the restored
+# database actually lands: not under $MAKAM_ROOT, so the free space that matters
+# is the filesystem holding this.
+docker_data_dir() { docker info --format '{{.DockerRootDir}}' 2> /dev/null | tail -n 1 | tr -d '[:space:]' || true; }
 
-# The Dump of a database, its encrypted copy and the restored copy all have to
-# fit: refuse when the filesystem has less than twice the size of the database
-# (the two copies, so a half-finished restore never eats the space the running
-# one needs). Fails closed: an unreadable size or a missing free_bytes answer
-# stops the run instead of filling the disk.
+# A byte count as something a person reads: KiB, MiB or GiB, whichever keeps it
+# above one, because "0 MiB free" is a useless thing to print in a refusal.
+size() {
+  awk -v bytes="$1" 'BEGIN {
+    if (bytes >= 1073741824) printf "%.1f GiB", bytes / 1073741824
+    else if (bytes >= 1048576) printf "%.0f MiB", bytes / 1048576
+    else printf "%.0f KiB", bytes / 1024
+  }'
+}
+
+# Both the Dump and the copy a restore leaves behind have to fit: refuse when
+# the filesystem that will hold them has less than twice what the work needs, so
+# a half-finished run never eats the space the running one needs. Fails closed
+# with the exit 78 the runbook promises: a size or a free-space answer that does
+# not read as a byte count stops the run instead of passing for "no space
+# needed". $1 is the path whose filesystem must hold it, $2 the bytes needed and
+# $3 what it is, for the message.
 require_free_space() {
-  local dir=$1 needed=$2 free
-  [ -n "$needed" ] || refuse "could not read the size of $3; not writing a Dump to a disk of unknown size"
-  free=$(free_bytes "$dir")
+  local path=$1 needed=$2 what=$3 free
+  case "$needed" in
+    '' | *[!0-9]* | 0) refuse "could not read the size of $what; not writing to a filesystem of unknown size" ;;
+  esac
+  free=$(free_bytes "$path")
   case "$free" in
-    '' | *[!0-9]*) refuse "could not read the free space of $dir; not writing a Dump" ;;
+    '' | *[!0-9]*) refuse "could not read the free space of $path; not touching a disk that cannot answer" ;;
   esac
   if [ "$free" -lt "$needed" ]; then
-    err "refusing: $dir has $(mib "$free") MiB free, less than twice the $(mib "$needed") MiB the Dump of $3 needs"
+    err "refusing: $path has $(size "$free") free, less than twice the $(size "$needed") $what needs"
     exit 78
-  fi
-}
-
-# Tell GlitchTip's uptime monitor the job ran. The monitor is a Heartbeat, whose
-# URL the operator creates once in GlitchTip's own UI and leaves in
-# $MAKAM_ROOT/<env>/glitchtip-heartbeat (or MAKAM_HEARTBEAT_URL); it is the only
-# new thing either script can be told about, and it needs no credential here: a
-# heartbeat URL is itself the secret, it is never written to the journal. A
-# monitor that never hears from us is exactly what it is for, so a failed ping
-# is logged and the run still counts as done: the Dump itself is what matters.
-heartbeat() {
-  local env_name=$1 what=$2 url="" file
-  file=$MAKAM_ROOT/$env_name/glitchtip-heartbeat
-  if [ -r "$file" ]; then
-    url=$(cat "$file")
-  fi
-  url=${MAKAM_HEARTBEAT_URL:-$url}
-  [ -n "$url" ] || return 0
-  if ! curl -fsS -m 10 -o /dev/null "$url"; then
-    err "WARNING GlitchTip heartbeat ($what) failed: $url did not answer"
   fi
 }

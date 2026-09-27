@@ -5,10 +5,6 @@
 # FileStore tar, ticket 60) and with ticket 72's pre-migrate dump: same host,
 # same 7-day window, separate files, so losing one backup never loses another.
 #
-#   makam-backup-db --env staging|prod
-#   makam-backup-db --env staging --container <name>   # a Postgres other than
-#                                                       # the compose default
-#
 # The Dump is client-side encrypted with the passphrase in
 # $MAKAM_ROOT/<env>/backup-passphrase (0600, never in the repo), and each night
 # writes two files that share a timestamp:
@@ -19,9 +15,11 @@
 # The counts are what makam-restore-test checks a restore against, so a restore
 # can be proved lossless without the source database. The Dump goes through a
 # pipe (pg_dump on the container's local socket, no password anywhere), is
-# written under a temporary name and only renamed once it is complete, and
-# fails closed: with less than twice the free space it needs, with no
-# passphrase, or with a size it could not read, it writes nothing at all.
+# written under a .part name and renamed only when complete, and a trap removes
+# those .part files on every way out, so an interrupted run leaves no half Dump
+# that looks like a good night. It fails closed: with less than twice the free
+# space it needs, with no usable passphrase, or with a size it could not read,
+# it writes nothing at all (exit 78).
 set -euo pipefail
 
 MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
@@ -32,7 +30,20 @@ ENV_NAME=""
 # shellcheck source=deploy/bin/makam-backup-lib
 . "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
 
-usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() {
+  cat <<'USAGE'
+usage: makam-backup-db --env staging|prod [--container <name>]
+
+  --env        the environment whose database is dumped
+  --container  the Postgres container to dump from; default
+               makam-<env>-postgres-1, the name docker-compose.prod.yml gives it
+  -h, --help   this text
+
+The description above, and what the Dumps are, are in the comment at the top of
+this script; docs/ops/runbook.md has "Database backup and restore".
+USAGE
+  exit "${1:-0}"
+}
 
 SOURCE_CONTAINER=""
 while [ $# -gt 0 ]; do
@@ -43,6 +54,8 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
 done
+# `prod` is ticket 65's: no makam-prod-* unit is installed yet, and the runbook
+# says so. The value is here because that environment will run the same script.
 case "$ENV_NAME" in
   staging|prod) ;;
   *) echo "--env must be staging or prod" >&2; exit 64 ;;
@@ -50,22 +63,20 @@ esac
 [ -n "$SOURCE_CONTAINER" ] || SOURCE_CONTAINER="makam-$ENV_NAME-postgres-1"
 
 DEST="$MAKAM_ROOT/$ENV_NAME/backups/db"
-PASSPHRASE_FILE=${MAKAM_BACKUP_PASSPHRASE_FILE:-$MAKAM_ROOT/$ENV_NAME/backup-passphrase}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 DUMP="makam-$STAMP.dump.enc"
 COUNTS="makam-$STAMP.counts.enc"
+PART_DUMP="$DEST/makam-$STAMP.dump.enc.part"
+PART_COUNTS="$DEST/makam-$STAMP.counts.enc.part"
 
-# The passphrase comes from a file, never from a command line, and never from
-# the environment the operator sets: 0600 on the host, read once here. One line:
-# `openssl enc` uses the first line of its password, so a longer passphrase would
-# silently be a shorter one.
-[ -r "$PASSPHRASE_FILE" ] || refuse "missing $PASSPHRASE_FILE (create it with: umask 077; openssl rand -base64 32 > $PASSPHRASE_FILE)"
-PASSPHRASE=$(cat "$PASSPHRASE_FILE")
-[ -n "$PASSPHRASE" ] || refuse "$PASSPHRASE_FILE is empty"
-case "$PASSPHRASE" in
-  *"
-"*) refuse "$PASSPHRASE_FILE has more than one line; openssl would use only the first" ;;
-esac
+# Every way out takes the .part files with it, a SIGTERM from systemd's timeout
+# or `systemctl stop` included, and leaves the exit code of the run as it was.
+cleanup() { rm -f "$PART_DUMP" "$PART_COUNTS"; }
+trap cleanup EXIT
+
+install -d -m 0700 "$DEST"
+read_passphrase "$MAKAM_ROOT/$ENV_NAME/backup-passphrase" "create it with: umask 077; openssl rand -base64 32 > $MAKAM_ROOT/$ENV_NAME/backup-passphrase"
+export BACKUP_PASSPHRASE="$PASSPHRASE"
 
 if [ "$(docker inspect -f '{{.State.Running}}' "$SOURCE_CONTAINER" 2> /dev/null || true)" != true ]; then
   err "ERROR container $SOURCE_CONTAINER is not running; no Dump taken"
@@ -73,43 +84,35 @@ if [ "$(docker inspect -f '{{.State.Running}}' "$SOURCE_CONTAINER" 2> /dev/null 
 fi
 
 # The size of the database being dumped, for the free-space rule below. A size
-# that does not answer must not read as zero free space needed.
-DB_SIZE=$(docker exec "$SOURCE_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select pg_database_size('$DB_NAME')" 2> /dev/null | tr -d '[:space:]')
-case "$DB_SIZE" in
-  '' | *[!0-9]* | 0) refuse "could not read the size of $DB_NAME in $SOURCE_CONTAINER; no Dump taken" ;;
-esac
-require_free_space "$MAKAM_ROOT" $((DB_SIZE * 2)) "$DB_NAME"
+# that does not answer must not read as "no space needed".
+DB_SIZE=$(docker exec "$SOURCE_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "select pg_database_size('$DB_NAME')" 2> /dev/null | tr -d '[:space:]' || true)
+# The Dump lands in $DEST, so $DEST's filesystem is the one that has to hold it.
+require_free_space "$DEST" $((DB_SIZE * 2)) "the Dump of $DB_NAME"
 
-install -d -m 0700 "$DEST"
-export BACKUP_PASSPHRASE="$PASSPHRASE"
-
-# The dump and the row counts, both written under a temporary name and renamed
-# only when complete, so an interrupted run can never leave a half Dump that
-# looks like a good night.
-PART="$DEST/.makam-$STAMP.dump.enc.part"
 if ! docker exec "$SOURCE_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc --no-owner --no-privileges \
-  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$PART" -pass env:BACKUP_PASSPHRASE; then
+  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$PART_DUMP" -pass env:BACKUP_PASSPHRASE; then
   err "ERROR pg_dump of $SOURCE_CONTAINER or its encryption failed; nothing was written"
-  rm -f "$PART"
   exit 1
 fi
 
 # Every table in the public schema as `table=count` lines, which the restore
 # check reads back to prove a restore lost nothing.
 if ! docker exec "$SOURCE_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -Atc "$COUNTS_QUERY" \
-  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$DEST/.makam-$STAMP.counts.enc.part" -pass env:BACKUP_PASSPHRASE; then
+  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$PART_COUNTS" -pass env:BACKUP_PASSPHRASE; then
   err "ERROR the row counts of $SOURCE_CONTAINER or their encryption failed; no Dump kept"
-  rm -f "$DEST/.makam-$STAMP.counts.enc.part"
   exit 1
 fi
 
-mv "$PART" "$DEST/$DUMP"
-mv "$DEST/.makam-$STAMP.counts.enc.part" "$DEST/$COUNTS"
+mv "$PART_DUMP" "$DEST/$DUMP"
+mv "$PART_COUNTS" "$DEST/$COUNTS"
 
 # Only this script's own files, older than the window: the FileStore tar, the
-# pre-migrate dump (ticket 72) and anything an operator put there stay.
-find "$DEST" -maxdepth 1 -name 'makam-*.dump.enc' -mtime "+$RETENTION_DAYS" -delete
-find "$DEST" -maxdepth 1 -name 'makam-*.counts.enc' -mtime "+$RETENTION_DAYS" -delete
+# pre-migrate dump (ticket 72) and anything an operator put there stay. A .part
+# file younger than the window belongs to a run going on right now, so the age
+# is what separates an orphan from a colleague. -mmin, not -mtime: 7 days is
+# 7 days, where -mtime +7 would keep a file until it was 8 days old.
+find "$DEST" -maxdepth 1 -name 'makam-*.dump.enc' -mmin "+$((RETENTION_DAYS * 24 * 60))" -delete
+find "$DEST" -maxdepth 1 -name 'makam-*.counts.enc' -mmin "+$((RETENTION_DAYS * 24 * 60))" -delete
+find "$DEST" -maxdepth 1 -name 'makam-*.part' -mmin "+$((RETENTION_DAYS * 24 * 60))" -delete
 
-log "dumped $SOURCE_CONTAINER ($DB_NAME, $(mib "$DB_SIZE") MiB) to $DEST/$DUMP, pruned dumps older than ${RETENTION_DAYS}d"
-heartbeat "$ENV_NAME" dumped
+log "dumped $SOURCE_CONTAINER ($DB_NAME, $(size "$DB_SIZE")) to $DEST/$DUMP, pruned dumps older than ${RETENTION_DAYS}d"

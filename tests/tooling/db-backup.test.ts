@@ -4,14 +4,15 @@
 // CI run them.
 //
 // The Dump is taken from a Postgres container this file starts (the same image
-// by digest as staging and CI, its own name and label, published on 127.0.0.1
-// only so this test can migrate it and put rows in it). Nothing here needs the
-// host's makam-staging or makam-prod project, and the throwaway restore
-// container the script starts is never published at all.
+// by digest as staging and CI, its own name and labels, published on 127.0.0.1
+// only so this test can migrate it and put rows in it). Both that container and
+// the ones the restore check starts carry makam.worktree, so `npm run clean`
+// reaches them if a run dies on this host that four agents share. Nothing here
+// needs the host's makam-staging or makam-prod project, and the throwaway
+// restore container gets no network at all.
 import { execFile } from "node:child_process";
-import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
-import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,7 +83,7 @@ async function freshRoot(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), "makam-db-backup-"));
   tempRoots.push(dir);
   await mkdir(path.join(dir, ENV_NAME), { recursive: true });
-  await writeFile(path.join(dir, PASSPHRASE_FILE), `${PASSPHRASE}\n`, { mode: 0o600 });
+  await writeFile(path.join(dir, ENV_NAME, PASSPHRASE_FILE), `${PASSPHRASE}\n`, { mode: 0o600 });
   return dir;
 }
 
@@ -93,7 +94,12 @@ function runScript(script: string, args: string[], env: Record<string, string>):
     execFile(
       script,
       args,
-      { env: { ...process.env, MAKAM_ROOT: "", MAKAM_BACKUP_PASSPHRASE_FILE: "", ...env }, timeout: 300_000 },
+      {
+        // MAKAM_WORKTREE: the restore script labels its throwaway container as
+        // this worktree's, so `npm run clean` reaches it if this run dies.
+        env: { ...process.env, MAKAM_ROOT: "", MAKAM_WORKTREE: root, ...env },
+        timeout: 300_000,
+      },
       (error, stdout, stderr) => {
         resolve({ code: error ? ((error as { code?: number }).code ?? 1) : 0, stdout, stderr });
       },
@@ -106,10 +112,21 @@ function runScript(script: string, args: string[], env: Record<string, string>):
  * host runs makam-staging, and a test must never read from it.
  */
 const backup = (dir: string, args: string[] = [], env: Record<string, string> = {}) =>
-  runScript(backupScript, ["--env", ENV_NAME, "--container", sourceName, ...args], { MAKAM_ROOT: dir, MAKAM_BACKUP_PASSPHRASE_FILE: path.join(dir, PASSPHRASE_FILE), ...env });
+  runScript(backupScript, ["--env", ENV_NAME, "--container", sourceName, ...args], { MAKAM_ROOT: dir, ...env });
 
 const restoreCheck = (dir: string, args: string[] = [], env: Record<string, string> = {}) =>
-  runScript(restoreScript, ["--env", ENV_NAME, ...args], { MAKAM_ROOT: dir, MAKAM_BACKUP_PASSPHRASE_FILE: path.join(dir, PASSPHRASE_FILE), ...env });
+  runScript(restoreScript, ["--env", ENV_NAME, ...args], { MAKAM_ROOT: dir, ...env });
+
+/** Where the scripts look for the passphrase, this test's own MAKAM_ROOT. */
+const passphraseOf = (dir: string) => path.join(dir, ENV_NAME, PASSPHRASE_FILE);
+
+/** Replaces the passphrase, with the mode asked for: what an operator's umask gives. */
+async function setPassphrase(dir: string, contents: string, mode = 0o600): Promise<string> {
+  const file = passphraseOf(dir);
+  await writeFile(file, contents);
+  await chmod(file, mode);
+  return file;
+}
 
 async function filesIn(dir: string, suffix: string): Promise<string[]> {
   const entries = await readdir(path.join(dir, ENV_NAME, "backups/db")).catch(() => [] as string[]);
@@ -136,6 +153,9 @@ beforeAll(async () => {
   const port = await freePort();
   await docker([
     "run", "-d", "--name", sourceName,
+    // Labelled as this worktree's, so `npm run clean` reaches it after a
+    // crashed run: no compose project to prove it by.
+    "--label", `makam.worktree=${root}`,
     "--label", "makam.role=t64-dump-source",
     "-e", "POSTGRES_USER=makam", "-e", "POSTGRES_DB=makam", "-e", "POSTGRES_PASSWORD=makam",
     "-p", `127.0.0.1:${port}:5432`,
@@ -233,7 +253,7 @@ describe("the nightly Dump of the database", () => {
     // One byte short of the rule: refused, and nothing written at all.
     const refused = await backup(dir, [], { MAKAM_BACKUP_FREE_BYTES: String(needed - 1) });
     expect(refused.code).toBe(78);
-    expect(refused.stderr).toMatch(/\d+ MiB free, less than twice the \d+ MiB/);
+    expect(refused.stderr).toMatch(/\d+ (KiB|MiB|GiB) free, less than twice the \d+ (KiB|MiB|GiB)/);
     expect(await readdir(path.join(dir, ENV_NAME, "backups/db")).catch(() => [])).toEqual([]);
 
     // Exactly twice: the rule is "less than", so this is enough.
@@ -241,25 +261,67 @@ describe("the nightly Dump of the database", () => {
     expect(await filesIn(dir, ".dump.enc")).toHaveLength(1);
   }, 120_000);
 
+  it("refuses with the documented exit code when the free space cannot be read at all", async () => {
+    const dir = await freshRoot();
+    // A probe that answers with something no byte count: fail closed with the
+    // runbook's exit 78 and its own message, not whatever `set -e` decides.
+    const unreadable = await backup(dir, [], { MAKAM_BACKUP_FREE_BYTES: "unknown" });
+    expect(unreadable.code).toBe(78);
+    expect(unreadable.stderr).toContain("could not read the free space");
+    expect(await readdir(path.join(dir, ENV_NAME, "backups/db")).catch(() => [])).toEqual([]);
+  }, 120_000);
+
   it("writes no Dump without a passphrase to encrypt it with", async () => {
     const dir = await freshRoot();
-    const missing = await backup(dir, [], { MAKAM_BACKUP_PASSPHRASE_FILE: path.join(dir, "not-here") });
+    await rm(passphraseOf(dir));
+    const missing = await backup(dir);
     expect(missing.code).toBe(78);
     expect(missing.stderr).toContain("refusing");
+    expect(missing.stderr).toContain(passphraseOf(dir));
 
-    const empty = path.join(dir, "empty-passphrase");
-    await writeFile(empty, "");
-    const blank = await backup(dir, [], { MAKAM_BACKUP_PASSPHRASE_FILE: empty });
-    expect(blank.code).toBe(78);
+    await setPassphrase(dir, "");
+    expect((await backup(dir)).code).toBe(78);
 
     // `openssl enc` would silently use only the first line of a two-line file.
-    const twoLines = path.join(dir, "two-line-passphrase");
-    await writeFile(twoLines, `${PASSPHRASE}\nand-a-second-line\n`, { mode: 0o600 });
-    const longer = await backup(dir, [], { MAKAM_BACKUP_PASSPHRASE_FILE: twoLines });
+    await setPassphrase(dir, `${PASSPHRASE}\nand-a-second-line\n`);
+    const longer = await backup(dir);
     expect(longer.code).toBe(78);
     expect(longer.stderr).toContain("more than one line");
 
     expect(await readdir(path.join(dir, ENV_NAME, "backups/db")).catch(() => [])).toEqual([]);
+  }, 120_000);
+
+  it("refuses a passphrase any other account on this host could read", async () => {
+    const dir = await freshRoot();
+    // What an operator gets by accident: `openssl rand > file` under umask 022.
+    const file = await setPassphrase(dir, `${PASSPHRASE}\n`, 0o644);
+
+    const result = await backup(dir);
+
+    expect(result.code).toBe(78);
+    expect(result.stderr).toContain("mode 644");
+    expect(result.stderr).toContain(`chmod 600 ${file}`);
+    expect(await readdir(path.join(dir, ENV_NAME, "backups/db")).catch(() => [])).toEqual([]);
+  }, 120_000);
+
+  it("collects a .part file an interrupted run left, and leaves a colleague's alone", async () => {
+    const dir = await freshRoot();
+    const backups = path.join(dir, ENV_NAME, "backups/db");
+    await mkdir(backups, { recursive: true });
+    // An orphan from a run that was killed (TimeoutStartSec, systemctl stop):
+    // the trap could not run, so the next night's pruning has to.
+    const orphan = path.join(backups, "makam-20260101T000000Z.dump.enc.part");
+    await writeFile(orphan, "half a dump");
+    const old = new Date(Date.now() - 8 * 86_400_000);
+    await utimes(orphan, old, old);
+    // A run going on right now: younger than the window, so not ours to touch.
+    const running = path.join(backups, "makam-99999999T000000Z.counts.enc.part");
+    await writeFile(running, "a colleague's run");
+
+    expect((await backup(dir)).code).toBe(0);
+
+    expect(await readdir(backups)).toContain(path.basename(running));
+    expect(await readdir(backups)).not.toContain(path.basename(orphan));
   }, 120_000);
 });
 
@@ -345,40 +407,52 @@ describe("the restore check", () => {
   it("fails when the passphrase is not the one the Dump was encrypted with, and leaves nothing behind", async () => {
     const dir = await freshRoot();
     expect((await backup(dir)).code).toBe(0);
-    const other = path.join(dir, "another-passphrase");
-    await writeFile(other, "a-different-passphrase\n", { mode: 0o600 });
+    await setPassphrase(dir, "a-different-passphrase\n");
 
-    const result = await restoreCheck(dir, [], { MAKAM_BACKUP_PASSPHRASE_FILE: other });
+    const result = await restoreCheck(dir);
 
     expect(result.code).toBe(1);
     expect(await newRestoreContainers()).toEqual([]);
   }, 300_000);
 
-  it("pings the GlitchTip heartbeat after a Dump, and never fails a Dump over it", async () => {
+  it("runs the restore where nothing can reach it, and leaves it where clean can find it", async () => {
     const dir = await freshRoot();
-    const pings: string[] = [];
-    const server = createHttpServer((request, response) => {
-      pings.push(request.url ?? "");
-      response.end("ok");
-    });
-    const port = await new Promise<number>((resolve) => {
-      server.listen(0, "127.0.0.1", () => resolve((server.address() as { port: number }).port));
-    });
-    try {
-      // Where the operator leaves it on the host: a file beside the passphrase.
-      await writeFile(path.join(dir, ENV_NAME, "glitchtip-heartbeat"), `http://127.0.0.1:${port}/api/0/heartbeat/makam/dump\n`);
-      expect((await backup(dir)).code).toBe(0);
-      expect(pings).toEqual(["/api/0/heartbeat/makam/dump"]);
+    expect((await backup(dir)).code).toBe(0);
+    const [dump] = await filesIn(dir, ".dump.enc");
+    await writeFile(dumpFile(dir, dump), "PGDMP not really");
 
-      // A monitor that does not answer is a warning, not a failed backup: the
-      // Dump is the work, the ping only says it happened.
-      pings.length = 0;
-      const silent = await backup(dir, [], { MAKAM_HEARTBEAT_URL: "http://127.0.0.1:1/heartbeat" });
-      expect(silent.code).toBe(0);
-      expect(silent.stderr).toContain("WARNING GlitchTip heartbeat");
-      expect(pings).toEqual([]);
+    // --keep so there is a container to inspect.
+    expect((await restoreCheck(dir, ["--keep"])).code).toBe(1);
+
+    try {
+      const [name] = await newRestoreContainers();
+      expect(name).toBeDefined();
+      const inspected = JSON.parse(await docker(["inspect", name]))[0] as {
+        HostConfig: { NetworkMode: string; PortBindings: Record<string, unknown> | null; PublishAllPorts: boolean };
+        Mounts: { Type: string; Name?: string; Source?: string; Destination: string }[];
+        Config: { Labels: Record<string, string> };
+      };
+      // No network at all: the restored database is reachable from nothing,
+      // not even from another container on this host.
+      expect(inspected.HostConfig.NetworkMode).toBe("none");
+      expect(inspected.HostConfig.PortBindings ?? {}).toEqual({});
+      expect(inspected.HostConfig.PublishAllPorts).toBe(false);
+      // Nothing of the environment's is mounted in: no makam volume, and every
+      // mount under Docker's own directory. The one that is there is the
+      // anonymous volume the Postgres image brings for its data, which is why the
+      // free-space check reads Docker's directory and not /opt/makam-v1.
+      const dockerDir = await docker(["info", "--format", "{{.DockerRootDir}}"]);
+      expect(inspected.Mounts.length).toBeGreaterThan(0);
+      expect(inspected.Mounts.every((mount) => mount.Type === "volume")).toBe(true);
+      expect(inspected.Mounts.map((mount) => mount.Name ?? "").join(" ")).not.toContain("makam");
+      expect(
+        inspected.Mounts.filter((mount) => !(mount.Source ?? "").startsWith(`${dockerDir}/`)),
+      ).toEqual([]);
+      // Labelled as this worktree's, so `npm run clean` reaches it if this run
+      // dies before its own afterAll (planStackCleanup, tests/tooling/worktree.test.ts).
+      expect(inspected.Config.Labels["makam.worktree"]).toBe(root);
     } finally {
-      await new Promise((resolve) => server.close(resolve));
+      for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
     }
-  }, 120_000);
+  }, 300_000);
 });
