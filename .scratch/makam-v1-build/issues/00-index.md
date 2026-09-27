@@ -25,7 +25,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | resolved | 16, 74 |
 | [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | resolved | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | resolved | 18 |
-| [20](20-notifications-core.md) | Notifications module core | ready-for-agent | 17, 18, 82 |
+| [20](20-notifications-core.md) | Notifications module core | resolved | 17, 18, 82 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
 | [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | ready-for-agent | 18, 20, 21, 22 |
@@ -268,7 +268,7 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 | [74](74-brand-foundation-and-staff-shell.md) | Brand foundation and the staff shell, with the Admin Platform home | resolved | — |
 | [75](75-command-palette-and-alert-bell.md) | Command palette (⌘K) and the Peringatan Staf bell | resolved | 74 |
 | [76](76-lokasi-mitra-list-and-detail-redesign.md) | Lokasi Mitra list and detail on the list and detail patterns | resolved | 74 |
-| [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74, 82 |
+| [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | resolved | 74, 82 |
 | [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | resolved | 74 |
 | [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | resolved | 74 |
 | [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | resolved | 74, 82 |

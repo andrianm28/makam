@@ -4,6 +4,7 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
@@ -68,18 +69,19 @@ export function serverRuntime(): ServerRuntime {
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
-    const notifications = createNotifications({
-      db: database.db,
-      clock: adapters.clock,
-      email: adapters.email,
-      webPush: adapters.webPush,
-      identity,
-      audit,
-      reportError,
-    });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    const notifications = composeNotifications({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      identity,
+      billing,
+      reportError,
+    });
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -104,7 +106,15 @@ export function serverRuntime(): ServerRuntime {
       billing,
       inventory,
       fieldwork,
-      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
+      queues: createQueues({
+        db: database.db,
+        clock: adapters.clock,
+        audit,
+        lokasi,
+        fieldwork,
+        billing,
+        notifications,
+      }),
       pemesanan: composePemesanan({
         db: database.db,
         clock: adapters.clock,
@@ -113,6 +123,7 @@ export function serverRuntime(): ServerRuntime {
         inventory,
         billing,
         identity,
+        notifications,
       }),
     };
   }
