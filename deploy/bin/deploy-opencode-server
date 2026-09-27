@@ -1,0 +1,6 @@
+#!/bin/bash
+# deploy backend opencode server (packages/server)
+# needs bun / node, env DB, etc.
+cd /tmp/opencode-docs-build/packages/server || exit 1
+# build if needed; for Effect server often run directly
+exec bun src/routes.ts 2>&1 | tee -a /var/log/opencode-server.log
