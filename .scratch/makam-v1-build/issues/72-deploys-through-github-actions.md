@@ -1,6 +1,6 @@
 # Signed pull-based deploys: GitHub Deployment statuses, staging smoke test, production promotion and rollback
 
-Status: ready-for-agent
+Status: in-progress
 Blocked by: 71
 Spec: Implementation Decisions > Architecture (CI/CD, production); ADR 0002 (second amendment of 2026-09-26); docs/ops/runbook.md
 
@@ -38,6 +38,10 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 
 ## Comments
 
+- 2026-09-27 — **Code merged to main** (`f1e5571`), with the owner's explicit approval recorded below. Status is **`in-progress`, not `resolved`**, deliberately: everything buildable is on `main` (signed digest verified *before* `migrate`; one digest for both environments with the browser DSN served at runtime instead of baked in; GitHub Deployment statuses; a staging smoke gate; owner-only production promotion and rollback with an automatic rollback on a failed health check; a pre-migrate `pg_dump` on production; plus ticket 71's follow-ups — the migration baseline reads the running production digest, a narrowed `.gitleaks.toml`, a destructive-DDL checker that also flags TRUNCATE and new UNIQUE/FOREIGN KEY/CHECK, a stricter `seed-representative`, and CI triggered once per commit). Three review rounds: Standards 3 HARD + Spec 2 missing + 3, all fixed, re-reviewed clean.
+  - **Still open, and nobody can close them from here:** AC 8's GlitchTip release path needs `GLITCHTIP_AUTH_TOKEN`; AC 9's rehearsal (promote `makam-prod` through 127.0.0.1:3100 with sandbox keys, a forced failing health check showing the automatic rollback, an unsigned image refused) needs real cosign keys. Until `COSIGN_STAGING_PRIVATE_KEY` exists the `sign` job stays red on every `main` push — the intended fail-closed direction: `deploy-gate` does not depend on it, and the host refuses an unsigned image with exit 77/78.
+  - **Merge interaction:** the conflict with ticket 64 in `deploy/install-host.sh` was resolved by union — this ticket's deploy/verify/GlitchTip-release scripts and the `prod` directory, ticket 64's database backup scripts and the sourced `makam-backup-lib` (0644), the passphrase warning *before* the five timers are enabled, and this ticket's note that `makam-prod-deploy.timer` is installed but never enabled.
+  - Unblocks nothing by itself: 73 still reads as blocked by 72, but 72's code is now on `main`, so 73 can start. The owner has been asked to confirm that reading rather than treating 73 as blocked on paper.
 - 2026-09-27 — **Owner decision, settled: the owner approves the merge of this ticket into `main`.** The standing "ask before anything touching production" rule is waived for ticket 72 specifically; it is the only ticket that had that hold. Merge still waits for the two review axes and the re-review to be clean and the branch's CI green. The rehearsal (AC 9) and the credentials below stay open and are *not* a precondition for the merge — without keys the `sign` job fails hard and the deploy is refused with exit 78, which is the intended safe direction.
 
 - 2026-09-27 — Orchestrator: Standards axis on `cd70da0` found 3 HARD to fix in the next pass (do these before merge; the merge also needs the owner's explicit OK):
