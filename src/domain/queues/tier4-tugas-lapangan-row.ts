@@ -4,20 +4,16 @@
  * later ticket's row) and a Kunjungan Verifikasi already covered by the
  * Lokasi-revisit row (`./tier4-lokasi-rows.ts`).
  */
-import { addWibDays, wib, wibDateOf } from "@/lib/time/jakarta";
+import { wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
-
-function overdueFrom(plannedDate: string): Date {
-  return addWibDays(wib(plannedDate), 1);
-}
+import { fetchTugasAndLokasi, overdueFrom } from "./tier4-shared";
 
 export const otherTugasLapanganRowType: AntreanRowType = {
   key: "tugas_lapangan_lain",
   tier: 4,
   label: "Tugas Lapangan lain",
   async rows(deps: AntreanRowDeps, by): Promise<RawAntreanRow[]> {
-    const [tugas, lokasiMitra] = await Promise.all([deps.fieldwork.allTugasLapangan(by), deps.lokasi.allLokasiMitra(by)]);
-    const lokasiById = new Map(lokasiMitra.map((item) => [item.id, item]));
+    const { tugas, lokasiById } = await fetchTugasAndLokasi(deps, by);
     const today = wibDateOf(deps.clock.now());
     const rows: RawAntreanRow[] = [];
     for (const item of tugas) {

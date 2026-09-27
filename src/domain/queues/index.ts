@@ -2,9 +2,11 @@
  * Work Queues: the Antrean (spec, domain module 14; ticket 17). A projection
  * of domain state: each row type (`./registry.ts`) is a query plus a deadline
  * rule, and rows close themselves when the state they read moves on. This
- * ticket delivers the framework plus its first three, Tier 4, row types
- * (`./tier4-lokasi-rows.ts`, `./tier4-tugas-lapangan-row.ts`); Tier 1–3 types
- * arrive with their own tickets and need no change here beyond the registry.
+ * ticket delivers the framework plus its first four row types: Tier 4's three
+ * (`./tier4-lokasi-rows.ts`, `./tier4-tugas-lapangan-row.ts`) and Tier 2's
+ * Pembayaran Perlu Ditinjau (`./tier2-pembayaran-perlu-ditinjau-row.ts`,
+ * spec-missing, from ticket 19's review). The rest of Tier 1–3 arrive with
+ * their own tickets and need no change here beyond the registry.
  *
  * Owns tables: antrean_ambil (Ambil claims), catatan_internal (Catatan
  * Internal threads).
@@ -14,6 +16,7 @@
  */
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
+import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
@@ -42,6 +45,8 @@ export interface QueuesModuleDeps {
   lokasi: Pick<Lokasi, "allLokasiMitra">;
   /** The Antrean's Tier 4 rows read every Tugas Lapangan. */
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
+  /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
+  billing: Pick<Billing, "pembayaranPerluDitinjau">;
 }
 
 export interface Queues {

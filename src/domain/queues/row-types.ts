@@ -3,6 +3,7 @@
  * type is a query plus a deadline rule and the link to its subject, so adding
  * one needs no change to the Antrean UI or aggregator (`./antrean.ts`).
  */
+import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
@@ -15,6 +16,7 @@ export interface AntreanRowDeps {
   clock: Clock;
   lokasi: Pick<Lokasi, "allLokasiMitra">;
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
+  billing: Pick<Billing, "pembayaranPerluDitinjau">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

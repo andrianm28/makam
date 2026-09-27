@@ -9,7 +9,14 @@ import { publishOnTestDatabase } from "./publish";
  */
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
-  const queues = createQueues({ db, clock: setup.clock, audit: setup.audit, lokasi: setup.lokasi, fieldwork: setup.fieldwork });
+  const queues = createQueues({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    fieldwork: setup.fieldwork,
+    billing: setup.billing,
+  });
   return { ...setup, queues };
 }
 

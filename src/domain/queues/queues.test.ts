@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { PENGATURAN_OPERATOR, resolvePembayaranPerluDitinjauForTest } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn, nextTestIp } from "../../../tests/support/identity";
 import {
@@ -34,6 +35,34 @@ async function secondAdminPlatform(setup: QueuesSetup, admin: Actor, email = "ad
   const actor = await setup.identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
   return actor;
+}
+
+/** A Mitra Jasa: invited by `admin` and logged in with a Kode Masuk, for the Catatan Internal "hidden from" test. */
+async function signedInMitraJasa(setup: QueuesSetup, admin: Actor, email = "mitra.jasa@contoh.id"): Promise<Actor> {
+  const invited = await setup.identity.inviteStaff(admin, { email, phoneNumber: "085555555555", role: "mitra_jasa" });
+  if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
+  const { cookies } = await logIn(setup, email);
+  const actor = await setup.identity.actorFromCookies(cookies);
+  if (!actor) throw new Error("not signed in");
+  return actor;
+}
+
+/** A Pemesan: a plain family account, logged in with a Kode Masuk and holding no staff role. */
+async function signedInPemesan(setup: QueuesSetup, email = "keluarga@contoh.id"): Promise<Actor> {
+  const { cookies } = await logIn(setup, email);
+  const actor = await setup.identity.actorFromCookies(cookies);
+  if (!actor) throw new Error("not signed in");
+  return actor;
+}
+
+/** A Pembayaran Perlu Ditinjau Billing could not tie to any Tagihan, recorded through a real webhook. */
+async function pembayaranTidakDikenal(setup: QueuesSetup, admin: Actor, amountRupiah = 500_000) {
+  const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
+  if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
+  const payment = await setup.payments.createPayment({ reference: "referensi-tak-dikenal", amountRupiah, description: "Pembayaran QRIS" });
+  const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+  if (received.ok !== true || received.outcome !== "perlu_ditinjau") throw new Error("unreachable");
+  return received;
 }
 
 describe("Antrean: Tier 4 Lokasi kunjungan ulang and syarat tayang ulang", () => {
@@ -131,6 +160,30 @@ describe("Antrean: Tier 4 Lokasi kunjungan ulang and syarat tayang ulang", () =>
     expect(published.ok).toBe(true);
 
     expect((await setup.queues.antrean(admin)).filter((row) => row.subjectId === lokasiMitra.id)).toHaveLength(0);
+  });
+
+  it("opens the same revisit row for a Kunjungan Verifikasi made with the general 'Buat Tugas Lapangan' form's own field shape, not only 'Minta kunjungan ulang' preset one: both submit to the same fieldwork.createTugasLapangan, so there is no separate 'diminta' flag to gate on", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const { lokasiMitra, petugas } = await publishedLokasiMitra(setup, admin);
+
+    // The general form lets Admin Platform type its own subject and address, and leave the pin blank; unlike "Minta
+    // kunjungan ulang", which always hides in the Lokasi's own name, address and pin.
+    const viaGeneralForm = await setup.fieldwork.createTugasLapangan(admin, {
+      type: "kunjungan_verifikasi",
+      subject: "Kunjungan ulang manual",
+      lokasiId: lokasiMitra.id,
+      address: "Jl. Manual No. 9",
+      pin: null,
+      plannedDate: "2026-10-12",
+      assigneeAccountId: petugas.accountId,
+    });
+    if (!viaGeneralForm.ok) throw new Error("unreachable");
+
+    const row = (await setup.queues.antrean(admin)).find(
+      (item) => item.type === "lokasi_kunjungan_ulang" && item.subjectId === lokasiMitra.id,
+    );
+    expect(row).toMatchObject({ tier: 4, subjectLabel: lokasiMitra.name });
   });
 });
 
@@ -237,6 +290,53 @@ describe("Antrean: sorting and deadlines", () => {
     const row = (await setup.queues.antrean(admin)).find((item) => item.type === "lokasi_kunjungan_ulang");
     expect(row?.pastDeadline).toBe(false);
   });
+
+  it("sorts by tier first, before deadline: a Tier 2 row comes before every Tier 4 row even with no deadline of its own", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const petugas = await signedInPetugasLapangan(setup, admin);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const overdue = await setup.fieldwork.createTugasLapangan(admin, {
+      type: "cek_denah",
+      subject: "Cek Denah",
+      lokasiId: lokasiMitra.id,
+      address: lokasiMitra.address,
+      pin: null,
+      plannedDate: "2026-09-20",
+      assigneeAccountId: petugas.accountId,
+    });
+    if (!overdue.ok) throw new Error("unreachable");
+    await pembayaranTidakDikenal(setup, admin);
+
+    const rows = await setup.queues.antrean(admin);
+    expect(rows[0]).toMatchObject({ tier: 2, type: "pembayaran_perlu_ditinjau" });
+    const firstTier4Index = rows.findIndex((row) => row.tier === 4);
+    expect(firstTier4Index).toBeGreaterThan(0);
+  });
+});
+
+describe("Antrean: Tier 2 Pembayaran Perlu Ditinjau (spec-missing, ticket 19's review)", () => {
+  it("shows a Pembayaran Perlu Ditinjau Billing could not settle a Tagihan with: Tier 2, alerting, no deadline", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+
+    await pembayaranTidakDikenal(setup, admin, 500_000);
+
+    const row = (await setup.queues.antrean(admin)).find((item) => item.type === "pembayaran_perlu_ditinjau");
+    expect(row).toMatchObject({ tier: 2, alerts: true, pastDeadline: false, deadline: null, ambil: null });
+    expect(row?.subjectLabel).toContain("Rp 500.000");
+  });
+
+  it("closes itself once Billing's own list no longer names it (ticket 31 resolves it for real, usually by a refund)", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    await pembayaranTidakDikenal(setup, admin);
+    const [entry] = await setup.billing.pembayaranPerluDitinjau();
+
+    await resolvePembayaranPerluDitinjauForTest(db, entry.id);
+
+    expect((await setup.queues.antrean(admin)).some((row) => row.type === "pembayaran_perlu_ditinjau")).toBe(false);
+  });
 });
 
 describe("Antrean: Ambil", () => {
@@ -286,12 +386,14 @@ describe("Antrean: Ambil", () => {
 });
 
 describe("Antrean: Catatan Internal", () => {
-  it("Admin Platform adds a Catatan Internal on any row or order, hidden from every other staff role", async () => {
+  it("Admin Platform adds a Catatan Internal on any row or order, hidden from the Pemesan, Mitra Jasa, Admin Lokasi and Petugas Lapangan", async () => {
     const setup = queuesOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const { lokasiMitra } = await publishedLokasiMitra(setup, admin);
     const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id], "083333333344");
     const petugas = await signedInPetugasLapangan(setup, admin, "petugas.dua@contoh.id");
+    const mitraJasa = await signedInMitraJasa(setup, admin);
+    const pemesan = await signedInPemesan(setup);
 
     const added = await setup.queues.tambahCatatanInternal(admin, {
       subjectKind: "lokasi_mitra",
@@ -306,12 +408,20 @@ describe("Antrean: Catatan Internal", () => {
 
     expect(await setup.queues.catatanInternal(adminLokasi, "lokasi_mitra", lokasiMitra.id)).toHaveLength(0);
     expect(await setup.queues.catatanInternal(petugas, "lokasi_mitra", lokasiMitra.id)).toHaveLength(0);
+    expect(await setup.queues.catatanInternal(mitraJasa, "lokasi_mitra", lokasiMitra.id)).toHaveLength(0);
+    expect(await setup.queues.catatanInternal(pemesan, "lokasi_mitra", lokasiMitra.id)).toHaveLength(0);
 
     expect(
       await setup.queues.tambahCatatanInternal(adminLokasi, { subjectKind: "lokasi_mitra", subjectId: lokasiMitra.id, body: "x" }),
     ).toEqual({ ok: false, reason: "tidak_berwenang" });
     expect(
       await setup.queues.tambahCatatanInternal(petugas, { subjectKind: "lokasi_mitra", subjectId: lokasiMitra.id, body: "x" }),
+    ).toEqual({ ok: false, reason: "tidak_berwenang" });
+    expect(
+      await setup.queues.tambahCatatanInternal(mitraJasa, { subjectKind: "lokasi_mitra", subjectId: lokasiMitra.id, body: "x" }),
+    ).toEqual({ ok: false, reason: "tidak_berwenang" });
+    expect(
+      await setup.queues.tambahCatatanInternal(pemesan, { subjectKind: "lokasi_mitra", subjectId: lokasiMitra.id, body: "x" }),
     ).toEqual({ ok: false, reason: "tidak_berwenang" });
 
     const entries = await setup.audit.entriesAbout({ kind: "catatan_internal", id: seenByAdmin[0].id });

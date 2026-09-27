@@ -85,6 +85,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
+    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -95,10 +96,10 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       operatorSettings,
       tariffs,
-      billing: composeBilling({ env, db: database.db, adapters, operatorSettings, reportError }),
+      billing,
       inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
       fieldwork,
-      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork }),
+      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
     };
   }
   return globalForRuntime.__makamRuntime;

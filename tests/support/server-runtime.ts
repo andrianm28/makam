@@ -75,7 +75,7 @@ export function testServerRuntime() {
       billing,
       inventory,
       fieldwork,
-      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork }),
+      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
     };
   }
   afterAll(async () => {
