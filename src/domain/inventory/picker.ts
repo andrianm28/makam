@@ -6,11 +6,13 @@
  * Terencana.
  */
 import { eq, sql } from "drizzle-orm";
+import { wibDateOf } from "@/lib/time/jakarta";
 import type { InventoryDeps } from "./deps";
 import { loadBloks, loadCells, loadKavlingByBlok, type CellRow, type PetakKind } from "./grid";
-import { forStatus, hakPakaiByTarget, type HakPakaiRow } from "./hak-pakai-reads";
+import { forStatus, hakPakaiByTarget, type HakPakaiRow, type PemakamanRow } from "./hak-pakai-reads";
 import { inventoryPemakaman, inventoryPlotHold } from "./schema";
 import { deriveKavlingStatus, derivePetakStatus, type KavlingStatus, type PetakStatus } from "./status";
+import { addYears } from "./tenure";
 
 /**
  * What the picker may do with one Petak Makam or Kavling Keluarga. Only
@@ -48,18 +50,24 @@ export interface PublicDenahBlok {
   name: string;
   rows: number;
   cols: number;
+  /** How many units of this Blok a Pemesan may pick (a Kavling Keluarga counts as one); the Blok tab's own count. */
+  tersedia: number;
   cells: PublicDenahCell[];
   kavling: PublicDenahKavling[];
 }
 
 export interface PublicDenah {
   lokasiId: string;
+  /** How many units a Pemesan may pick at this Lokasi Mitra right now, across every Blok. */
+  tersedia: number;
   bloks: PublicDenahBlok[];
 }
 
 /** The Lokasi Mitra's own tumpang rules, as the picker reads them off the Lokasi module's public profile. */
 export interface AturanTumpang {
   allowed: boolean;
+  /** Boleh tumpang: how many years must have passed since the last burial. */
+  minYears: number;
   maxLayers: number;
   /** A released plot (its Hak Pakai ended, it is not cleared yet) may still take a tumpang. */
   onReleased: boolean;
@@ -73,6 +81,10 @@ export interface PilihanFacts {
   held: boolean;
   /** How many are already buried in it. */
   layers: number;
+  /** The date of the last burial in it ("YYYY-MM-DD"), or null when none is recorded. */
+  terakhirPemakaman: string | null;
+  /** The day this is read on, as a WIB calendar date ("YYYY-MM-DD"): the minimum years are counted to it. */
+  hariIni: string;
   /** Whether its Hak Pakai has been released (ended or cancelled) while the plot is not cleared yet. */
   released: boolean;
   tumpang: AturanTumpang;
@@ -105,10 +117,19 @@ export function pilihanOf(facts: PilihanFacts): { status: PilihanStatus; tumpang
   }
 }
 
-/** Whether this Terisi plot can still take a tumpang: a released one only when the Lokasi Mitra allows it, a live one within its layer limit. */
+/**
+ * Whether this Terisi plot can still take a tumpang (spec, Inventory > Hak Pakai,
+ * "boleh tumpang: the minimum years since the last Pemakaman and the most layers in
+ * one Petak Makam", and "tumpang on released plots allowed"). Three facts decide it,
+ * whichever they apply to: the Lokasi Mitra allows tumpang at all, a released plot
+ * needs `tumpangOnReleasedPlots` as well, the last burial is at least `minYears` old,
+ * and a layer is still free. A plot with no recorded burial has no years to wait for,
+ * so only the Lokasi Mitra's own rule is left to read.
+ */
 function bisaTumpang(facts: PilihanFacts): boolean {
-  if (facts.released) return facts.tumpang.onReleased;
-  return facts.tumpang.allowed && facts.layers < facts.tumpang.maxLayers;
+  if (facts.released ? !facts.tumpang.onReleased : !facts.tumpang.allowed) return false;
+  if (facts.layers >= facts.tumpang.maxLayers) return false;
+  return facts.terakhirPemakaman === null || addYears(facts.terakhirPemakaman, facts.tumpang.minYears) <= facts.hariIni;
 }
 
 /** A Hak Pakai that has ended (Berakhir) or been cancelled, so the plot underneath it is free again. */
@@ -119,6 +140,10 @@ function isReleased(hakPakai: HakPakaiRow | null): boolean {
 interface PickerFacts {
   byPetak: Map<string, HakPakaiRow>;
   layers: Map<string, number>;
+  /** The date of the last burial in each Petak Makam, for the minimum years a tumpang waits. */
+  terakhir: Map<string, string>;
+  /** The day this read happens, as a WIB calendar date. */
+  hariIni: string;
   held: Set<string>;
   tumpang: AturanTumpang;
 }
@@ -129,56 +154,72 @@ export async function publicDenah(deps: InventoryDeps, lokasiId: string): Promis
   if (!profile?.terencanaAktif) return null;
   const tumpang: AturanTumpang = {
     allowed: profile.tumpang.allowed,
+    minYears: profile.tumpang.minYears,
     maxLayers: profile.tumpang.maxLayers,
     onReleased: profile.tumpang.onReleasedPlots,
   };
   const bloks = await loadBloks(deps.db, lokasiId);
-  if (bloks.length === 0) return { lokasiId, bloks: [] };
+  if (bloks.length === 0) return { lokasiId, tersedia: 0, bloks: [] };
 
-  const [allCells, allKavling, { byPetak }, layers, held] = await Promise.all([
+  const [allCells, allKavling, { byPetak }, pemakaman, held] = await Promise.all([
     Promise.all(bloks.map((blok) => loadCells(deps.db, blok.id))),
     Promise.all(bloks.map((blok) => loadKavlingByBlok(deps.db, blok.id))),
     hakPakaiByTarget(deps.db, lokasiId),
-    pemakamanLayers(deps, lokasiId),
+    pemakamanPerPetak(deps, lokasiId),
     heldUnits(deps, lokasiId),
   ]);
-  const facts: PickerFacts = { byPetak, layers, held, tumpang };
+  const facts: PickerFacts = {
+    byPetak,
+    layers: jumlahPerPetak(pemakaman),
+    terakhir: terakhirPerPetak(pemakaman),
+    hariIni: wibDateOf(deps.clock.now()),
+    held,
+    tumpang,
+  };
 
-  return {
-    lokasiId,
-    bloks: bloks.map((blok, index) => {
+  const tampil = bloks.map((blok, index) => {
       const cells = allCells[index];
       const membersByKavling = new Map<string, string[]>();
       for (const cell of cells) {
         if (!cell.kavlingId) continue;
         membersByKavling.set(cell.kavlingId, [...(membersByKavling.get(cell.kavlingId) ?? []), cell.id]);
       }
+    const cellsTampil = cells.map((cell) => publicCell(cell, facts));
+    const kavlingTampil = [...allKavling[index].values()].map((row) => {
+      const memberIds = membersByKavling.get(row.id) ?? [];
+      const withBurial = memberIds.filter((id) => facts.layers.get(id) !== 0).length;
       return {
-        id: blok.id,
-        name: blok.name,
-        rows: blok.rows,
-        cols: blok.cols,
-        cells: cells.map((cell) => publicCell(cell, facts)),
-        kavling: [...allKavling[index].values()].map((row) => {
-          const memberIds = membersByKavling.get(row.id) ?? [];
-          const withBurial = memberIds.filter((id) => (layers.get(id) ?? 0) > 0).length;
-          return {
-            id: row.id,
-            nomorKavling: row.nomorKavling,
-            jenisMakamId: row.jenisMakamId,
-            status: pilihanOf({
-              perluVerifikasi: memberIds.some((id) => cells.find((cell) => cell.id === id)?.perluVerifikasi),
-              status: deriveKavlingStatus({ hakPakai: forStatus(byPetak.get(row.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman: withBurial }),
-              held: held.has(row.id),
-              layers: 0,
-              released: false,
-              tumpang,
-            }).status,
-          };
-        }),
+        id: row.id,
+        nomorKavling: row.nomorKavling,
+        jenisMakamId: row.jenisMakamId,
+        status: pilihanOf({
+          perluVerifikasi: memberIds.some((id) => cells.find((cell) => cell.id === id)?.perluVerifikasi),
+          status: deriveKavlingStatus({ hakPakai: forStatus(byPetak.get(row.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman: withBurial }),
+          held: held.has(row.id),
+          layers: 0,
+          terakhirPemakaman: null,
+          hariIni: facts.hariIni,
+          released: false,
+          tumpang,
+        }).status,
       };
-    }),
-  };
+    });
+    return {
+      id: blok.id,
+      name: blok.name,
+      rows: blok.rows,
+      cols: blok.cols,
+      tersedia: hitungTersedia(cellsTampil, kavlingTampil),
+      cells: cellsTampil,
+      kavling: kavlingTampil,
+    };
+  });
+  return { lokasiId, tersedia: tampil.reduce((total, blok) => total + blok.tersedia, 0), bloks: tampil };
+}
+
+/** How many units of a Blok a Pemesan may pick, counting a Kavling Keluarga as one: the Blok tab's own count. */
+function hitungTersedia(cells: PublicDenahCell[], kavling: PublicDenahKavling[]): number {
+  return cells.filter((cell) => cell.status === "bisa_dipilih").length + kavling.filter((satu) => satu.status === "bisa_dipilih").length;
 }
 
 function publicCell(cell: CellRow, facts: PickerFacts): PublicDenahCell {
@@ -191,20 +232,34 @@ function publicCell(cell: CellRow, facts: PickerFacts): PublicDenahCell {
     status: derivePetakStatus({ tidakTersediaReason: cell.tidakTersediaReason, hakPakai: forStatus(hakPakai) }),
     held: facts.held.has(cell.id),
     layers: facts.layers.get(cell.id) ?? 0,
+    terakhirPemakaman: facts.terakhir.get(cell.id) ?? null,
+    hariIni: facts.hariIni,
     released: isReleased(hakPakai),
     tumpang: facts.tumpang,
   });
   return { ...base, jenisMakamId: cell.jenisMakamId, status: pilihan.status, tumpangSaja: pilihan.tumpangSaja };
 }
 
-/** How many are buried in each Petak Makam of a Lokasi Mitra. */
-async function pemakamanLayers(deps: InventoryDeps, lokasiId: string): Promise<Map<string, number>> {
-  const rows = await deps.db
-    .select({ petakId: inventoryPemakaman.petakId, jumlah: sql<number>`count(*)::int` })
-    .from(inventoryPemakaman)
-    .where(eq(inventoryPemakaman.lokasiId, lokasiId))
-    .groupBy(inventoryPemakaman.petakId);
-  return new Map(rows.map((row) => [row.petakId, row.jumlah]));
+/** Every Pemakaman of a Lokasi Mitra, oldest first, by the Petak Makam it is in. */
+async function pemakamanPerPetak(deps: InventoryDeps, lokasiId: string): Promise<PemakamanRow[]> {
+  return deps.db.select().from(inventoryPemakaman).where(eq(inventoryPemakaman.lokasiId, lokasiId)).orderBy(inventoryPemakaman.date);
+}
+
+/** How many are buried in each Petak Makam. */
+function jumlahPerPetak(pemakaman: readonly PemakamanRow[]): Map<string, number> {
+  const jumlah = new Map<string, number>();
+  for (const satu of pemakaman) jumlah.set(satu.petakId, (jumlah.get(satu.petakId) ?? 0) + 1);
+  return jumlah;
+}
+
+/** The date of the last burial in each Petak Makam, which is what a tumpang's minimum years are counted from. */
+function terakhirPerPetak(pemakaman: readonly PemakamanRow[]): Map<string, string> {
+  const terakhir = new Map<string, string>();
+  for (const satu of pemakaman) {
+    const ada = terakhir.get(satu.petakId);
+    if (ada === undefined || satu.date > ada) terakhir.set(satu.petakId, satu.date);
+  }
+  return terakhir;
 }
 
 /** The Petak Makam and Kavling Keluarga a Pemesanan Terencana in progress holds at a Lokasi Mitra, by unit id. */
@@ -221,15 +276,7 @@ export async function tersediaUntukTerencana(deps: InventoryDeps, lokasiIds: rea
   const counts: Record<string, number> = {};
   for (const lokasiId of lokasiIds) {
     const denah = await publicDenah(deps, lokasiId);
-    counts[lokasiId] = denah
-      ? denah.bloks.reduce(
-          (total, blok) =>
-            total +
-            blok.cells.filter((cell) => cell.status === "bisa_dipilih").length +
-            blok.kavling.filter((kavling) => kavling.status === "bisa_dipilih").length,
-          0,
-        )
-      : 0;
+    counts[lokasiId] = denah?.tersedia ?? 0;
   }
   return counts;
 }

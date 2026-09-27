@@ -228,7 +228,12 @@ export const inventoryPlotHold = pgTable(
     kavlingId: uuid("kavling_id").references(() => inventoryKavling.id),
     /** The Nomor Pemesanan of the order holding it, e.g. `MKM-2026-000123`. */
     nomorPemesanan: text("nomor_pemesanan").notNull(),
-    /** Null while the hold is only placed; set when the payment hold starts running at the Lokasi Mitra's confirmation. */
+    /**
+     * Null while the hold is only placed (the order is Diajukan). **Ticket 37**
+     * writes it when the Lokasi Mitra confirms and the payment hold starts running,
+     * which is what the pay-first Tagihan's due date is set from; the lapse tick of
+     * the same ticket releases a hold whose deadline has passed.
+     */
     sampai: at("sampai"),
     placedAt: at("placed_at").notNull(),
   },

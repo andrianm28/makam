@@ -5,6 +5,8 @@
  * (readable, and what a family would read out loud), never as database ids.
  */
 
+import type { PilihanTerencana } from "@/domain/pemesanan";
+
 export type LangkahTerencana = "lokasi" | "petak" | "data" | "terkirim";
 
 export interface TerencanaParams {
@@ -17,6 +19,13 @@ export interface TerencanaParams {
   kavling?: string | null;
   /** The Nomor Pemesanan of a placed order, for the confirmation. */
   nomor?: string | null;
+  /**
+   * Why the family is back on the Denah: the module's own reason key and the plot it
+   * is about, so the screen says the same thing "Lanjut" and Kirim would (the reason
+   * is read as a word by `pesanPeriksa`, never shown as itself).
+   */
+  alasan?: string | null;
+  petakGagal?: string | null;
   /** The Lokasi step's filters, so a back link keeps them. */
   kota?: string | null;
   harga?: string | null;
@@ -33,6 +42,8 @@ export function terencanaPath(params: TerencanaParams): string {
   if (params.petak?.length) query.set("petak", params.petak.join(","));
   if (params.kavling) query.set("kavling", params.kavling);
   if (params.nomor) query.set("terkirim", params.nomor);
+  if (params.alasan) query.set("alasan", params.alasan);
+  if (params.petakGagal) query.set("petakGagal", params.petakGagal);
   if (params.kota) query.set("kota", params.kota);
   if (params.harga) query.set("harga", params.harga);
   if (params.fasilitas?.length) query.set("fasilitas", params.fasilitas.join(","));
@@ -41,7 +52,7 @@ export function terencanaPath(params: TerencanaParams): string {
 }
 
 /** The chosen units as a URL carries them: several Petak Makam, or one Kavling Keluarga. */
-export function pilihanDariParams(petak: string | undefined, kavling: string | undefined): { petak: string[]; kavling: string | null } {
+export function pilihanDariParams(petak: string | undefined, kavling: string | undefined): PilihanTerencana {
   return {
     petak: (petak ?? "").split(",").map((satu) => satu.trim()).filter(Boolean),
     kavling: kavling?.trim() || null,

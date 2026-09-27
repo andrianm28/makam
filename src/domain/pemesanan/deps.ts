@@ -37,8 +37,8 @@ export interface TerencanaQuery {
   city?: string;
   /** Every one of these must be checked. */
   facilities?: LokasiFacility[];
-  /** Only Lokasi Mitra whose cheapest Hak Pakai all-in total falls in this band. */
-  harga?: "hingga_10_juta" | "10_sampai_25_juta" | "di_atas_25_juta";
+  /** Only Lokasi Mitra whose cheapest buyable Hak Pakai all-in total falls in this band (all of them within the payment cap). */
+  harga?: "hingga_3_juta" | "3_sampai_6_juta" | "di_atas_6_juta";
 }
 
 /**

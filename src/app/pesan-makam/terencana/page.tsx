@@ -5,7 +5,8 @@ import { ArrowLeft, Check, MapPin } from "lucide-react";
 import { kirimKodeMasuk } from "@/app/masuk/actions";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
-import type { TerencanaQuery } from "@/domain/pemesanan";
+import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type TerencanaQuery, type UnitTerencana } from "@/domain/pemesanan";
+import { pesanBatasPembayaran, pesanPeriksa } from "@/lib/terencana-pesan";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { DataKirim } from "./data-kirim";
@@ -23,13 +24,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** The Lokasi step's price bands, as the URL carries them. */
-const hargaBands = [
-  ["hingga_10_juta", "Hingga Rp 10 jt"],
-  ["10_sampai_25_juta", "Rp 10–25 jt"],
-  ["di_atas_25_juta", "Di atas Rp 25 jt"],
-] as const;
-
 /** The facility filters the Lokasi step offers. */
 const filterFasilitas: LokasiFacility[] = ["parkir", "musala", "akses_ambulans"];
 
@@ -40,23 +34,32 @@ function satu(nilai: string | string[] | undefined): string | undefined {
 export default async function TerencanaPage({ searchParams }: PageProps<"/pesan-makam/terencana">) {
   const params = await searchParams;
   const kota = satu(params.kota) ?? null;
-  const harga = hargaBands.map(([nilai]) => nilai).find((nilai) => nilai === satu(params.harga)) ?? null;
+  const harga = HARGA_BANDS.map((band) => band.key).find((nilai) => nilai === satu(params.harga)) ?? null;
   const fasilitas = (satu(params.fasilitas) ?? "")
     .split(",")
     .filter((nilai): nilai is LokasiFacility => (filterFasilitas as string[]).includes(nilai));
   const pilihan = pilihanDariParams(satu(params.petak), satu(params.kavling));
   const lokasiId = satu(params.lokasiId);
   const langkah = satu(params.langkah);
+  // A refusal that sent the family back from Data & kirim: the module's own words, read
+  // from the URL, so the Denah says what Kirim would have said about the same plot.
+  const ditolak = { reason: satu(params.alasan), nomor: satu(params.petakGagal) ?? null };
+  const pesanKembali = ditolak.reason ? pesanPeriksa({ ok: false, reason: ditolak.reason, nomor: ditolak.nomor, sisa: [] } as PilihanDitolak) : null;
 
   if (lokasiId && langkah === "terkirim" && satu(params.terkirim)) return <Terkirim lokasiId={lokasiId} nomor={satu(params.terkirim)!} />;
   if (lokasiId && langkah === "data" && (pilihan.petak.length > 0 || pilihan.kavling)) {
     return <DataKirimScreen lokasiId={lokasiId} pilihan={pilihan} />;
   }
-  if (lokasiId) return <PilihPetakScreen lokasiId={lokasiId} pilihan={pilihan} filter={{ kota, harga, fasilitas }} />;
+  if (lokasiId) return <PilihPetakScreen lokasiId={lokasiId} pilihan={pilihan} filter={{ kota, harga, fasilitas }} pesan={pesanKembali} />;
   return <PilihLokasiScreen filter={{ kota, harga, fasilitas }} />;
 }
 
 type Filter = { kota: string | null; harga: TerencanaQuery["harga"] | null; fasilitas: LokasiFacility[] };
+
+/** The chosen plots the read resolved, as the Server Action takes them: Petak Makam or Kavling Keluarga by id. */
+function unitsDari(unit: readonly UnitTerencana[]) {
+  return unit.map((satu) => (satu.jenis === "kavling" ? { kavlingId: satu.id } : { petakId: satu.id }));
+}
 
 /** The progress bar with a way back (spec, Booking wizards: one decision per screen). */
 function Progress({ langkah, total, backHref, backLabel }: { langkah: number; total: number; backHref: string; backLabel: string }) {
@@ -112,9 +115,13 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
           </Chip>
         ))}
         <span className="mx-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
-        {hargaBands.map(([nilai, label]) => (
-          <Chip key={nilai} on={filter.harga === nilai} href={terencanaPath({ ...filter, harga: filter.harga === nilai ? null : nilai })}>
-            {label}
+        {HARGA_BANDS.map((band) => (
+          <Chip
+            key={band.key}
+            on={filter.harga === band.key}
+            href={terencanaPath({ ...filter, harga: filter.harga === band.key ? null : band.key })}
+          >
+            {band.label}
           </Chip>
         ))}
         {filterFasilitas.map((nilai) => {
@@ -199,11 +206,14 @@ function Chip({ on, href, children }: { on: boolean; href: string; children: Rea
 }
 
 /** Step 2: the Denah, priced at this instant. */
-async function PilihPetakScreen({ lokasiId, pilihan, filter }: { lokasiId: string; pilihan: { petak: string[]; kavling: string | null }; filter: Filter }) {
+async function PilihPetakScreen({ lokasiId, pilihan, filter, pesan }: { lokasiId: string; pilihan: PilihanTerencana; filter: Filter; pesan: string | null }) {
   const { pemesanan } = serverRuntime();
-  const [denah, actor] = await Promise.all([pemesanan.denahTerencana(lokasiId), currentActor()]);
+  // The read takes the URL's numbers and answers with the units it resolved and their price, so a
+  // pick the Denah no longer knows (renumbered away, or a link from before) is simply not shown chosen.
+  const [denah, actor] = await Promise.all([pemesanan.denahTerencana(lokasiId, pilihan), currentActor()]);
   if (!denah) notFound();
   const tampilan = denahView(denah);
+  const unitOf = denah.unit.map(({ jenis, id, nomor }) => ({ jenis, id, nomor }));
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
@@ -217,32 +227,47 @@ async function PilihPetakScreen({ lokasiId, pilihan, filter }: { lokasiId: strin
           </Link>
         </p>
       </div>
-      <DenahPicker denah={tampilan} petakAwal={pilihan.petak} kavlingAwal={pilihan.kavling} sudahMasuk={actor !== null} />
+      <DenahPicker
+        denah={tampilan}
+        petak={denah.unit.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor)}
+        kavling={denah.unit.find((satu) => satu.jenis === "kavling")?.nomor ?? null}
+        unitOf={unitOf}
+        sudahMasuk={actor !== null}
+        pesanKembali={pesan}
+        pesanBatas={denah.total.dalamBatas ? null : pesanBatasPembayaran(denah.total.total)}
+      />
     </main>
   );
 }
 
 /** Step 3: the family's data, the Syarat, and the Kode Masuk that proves the email at Kirim. */
-async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; pilihan: { petak: string[]; kavling: string | null } }) {
+async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; pilihan: PilihanTerencana }) {
   const { pemesanan, operatorSettings } = serverRuntime();
-  const [denah, actor, pengaturan] = await Promise.all([pemesanan.denahTerencana(lokasiId), currentActor(), operatorSettings.current()]);
+  const [denah, actor, pengaturan] = await Promise.all([pemesanan.denahTerencana(lokasiId, pilihan), currentActor(), operatorSettings.current()]);
   if (!denah) notFound();
   const tampilan = denahView(denah);
+  const units = unitsDari(denah.unit);
 
-  // The picked numbers are resolved to the units the order holds, so the action
-  // sends ids and a number that names nothing here is never placed.
-  const cells = new Map(tampilan.blok.flatMap((blok) => blok.cells.map((cell) => [cell.nomor ?? "", cell] as const)));
-  const kavling = new Map(tampilan.blok.flatMap((blok) => blok.kavling.map((satu) => [satu.nomor, satu] as const)));
-  const units = pilihan.kavling
-    ? kavling.has(pilihan.kavling)
-      ? [{ kavlingId: kavling.get(pilihan.kavling)!.id }]
-      : []
-    : pilihan.petak.map((nomor) => (cells.has(nomor) ? [{ petakId: cells.get(nomor)!.id }] : [])).flat();
-  if (units.length !== pilihan.petak.length + (pilihan.kavling ? 1 : 0)) notFound();
+  // The check "Lanjut" made, read again: a plot taken in between sends the family back to the
+  // Denah with the module's own words and the picks that are still good, never a 404.
+  const dicek = await pemesanan.periksaPilihanTerencana({ lokasiId, units });
+  if (!dicek.ok) {
+    redirect(
+      terencanaPath({
+        langkah: "petak",
+        lokasiId,
+        // Every pick that is still good stays chosen; the plot that went is named in the message.
+        petak: dicek.sisa.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor),
+        kavling: dicek.sisa.find((satu) => satu.jenis === "kavling")?.nomor ?? null,
+        alasan: dicek.reason,
+        petakGagal: dicek.nomor,
+      }),
+    );
+  }
 
-  const ringkasan = pilihan.kavling
-    ? `Kavling Keluarga ${pilihan.kavling} · ${tampilan.lokasi.name}`
-    : `${pilihan.petak.length} Petak · ${pilihan.petak.join(", ")} · ${tampilan.lokasi.name}`;
+  const ringkasan = denah.unit
+    .map((satu) => (satu.jenis === "kavling" ? `Kavling Keluarga ${satu.nomor}` : satu.nomor))
+    .join(", ");
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-16">
@@ -287,8 +312,8 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
           Nomor Pemesanan <span className="font-mono font-semibold text-foreground">{tampil.nomor}</span>
         </p>
         <p className="text-body text-foreground">
-          {tampil.ringkasan} di {tampil.lokasiNama} kini ditahan untuk Anda. Lokasi Mitra akan mengonfirmasi pesanan ini pada hari kerja berikutnya; setelah itu
-          Tagihan terbit dan Anda punya 24 jam untuk membayar. Kabar berikutnya kami kirim ke email Anda.
+          {tampil.ringkasan} di {tampil.lokasiNama} kini ditahan untuk Anda. Lokasi Mitra akan mengonfirmasi pesanan ini pada hari kerja berikutnya; setelah itu Tagihan
+          terbit dan dikirim ke email Anda, dan Anda punya 24 jam untuk membayar.
         </p>
         <ul className="flex flex-col gap-1 text-small text-muted-foreground">
           {tampil.unit.map((satu) => (

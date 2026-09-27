@@ -1,9 +1,8 @@
 import { formatBulanTahun } from "@/lib/format-tanggal";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
-import type { DenahTerencana, KartuTerencana, PemesananTerencanaOrder } from "@/domain/pemesanan";
+import type { BarisTotal, DenahTerencana, KartuTerencana, PemesananTerencanaOrder } from "@/domain/pemesanan";
 import type { PilihanStatus } from "@/domain/inventory";
-import { quoteLineLabel } from "@/lib/quote-line-label";
-import { formatRupiah, type Rupiah } from "@/lib/rupiah";
+import { formatRupiah } from "@/lib/rupiah";
 
 /**
  * What the wizard's screens show, as plain values: the module's reads turned into
@@ -79,17 +78,40 @@ export interface BlokView {
   name: string;
   rows: number;
   cols: number;
+  /** How many units of this Blok a Pemesan may pick, as the read counted them: the Blok tab's own number. */
+  tersedia: number;
   cells: SelView[];
   kavling: KavlingView[];
+}
+
+/** What a priced line is called on the picker: the glossary term, plus the plot it prices. */
+export interface BarisView {
+  label: string;
+  amount: number;
+}
+
+function barisView(line: BarisTotal): BarisView {
+  switch (line.kind) {
+    case "harga_hak_pakai":
+      return { label: `Harga Hak Pakai · ${line.nomor ?? ""}`, amount: line.amount };
+    case "biaya_layanan_platform":
+      return { label: "Biaya Layanan Platform · Makam.co.id", amount: line.amount };
+    case "biaya_pemakaman":
+      return { label: "Biaya Pemakaman", amount: line.amount };
+    default:
+      return { label: line.kind, amount: line.amount };
+  }
 }
 
 export interface DenahView {
   lokasi: { id: string; name: string; city: string };
   blok: BlokView[];
-  /** What one unit of each Jenis Makam costs, for the total as the family taps. */
-  harga: { jenisMakamId: string; jenisMakamName: string; hargaHakPakai: Rupiah; biayaLayananPlatform: Rupiah }[];
+  /** How many units a Pemesan may pick at this Lokasi Mitra right now. */
+  tersedia: number;
+  /** What the chosen plots cost, priced by the domain: the lines, the total, and whether v1 may be paid for it. */
+  total: { lines: BarisView[]; total: number; dalamBatas: boolean };
   /** The "Nanti" line: the current Biaya Pemakaman + Biaya Layanan Platform of one later burial. */
-  nanti: { total: number; baris: { label: string; amount: number }[] } | null;
+  nanti: { total: number; baris: BarisView[] } | null;
   /** The Syarat to be shown before Kirim, as the Lokasi Mitra's policy reads now. */
   syarat: SyaratView;
   /** The Admin Lokasi to reach about a plot that can only be a tumpang; null before one is picked. */
@@ -113,7 +135,7 @@ export function syaratLines(syarat: SyaratView): string[] {
 
 export function denahView(denah: DenahTerencana): DenahView {
   const nomorKavling = new Map(denah.blok.flatMap((blok) => blok.kavling.map((satu) => [satu.id, satu.nomorKavling] as const)));
-  const jenisNama = new Map(denah.harga.map((satu) => [satu.jenisMakamId, satu.jenisMakamName]));
+  const jenisNama = new Map(denah.jenisMakam.map((satu) => [satu.id, satu.name] as const));
   return {
     lokasi: { id: denah.lokasi.id, name: denah.lokasi.name, city: denah.lokasi.city },
     blok: denah.blok.map((blok) => {
@@ -128,6 +150,7 @@ export function denahView(denah: DenahTerencana): DenahView {
         name: blok.name,
         rows: blok.rows,
         cols: blok.cols,
+        tersedia: blok.tersedia,
         cells: blok.cells.map((cell) => ({
           id: cell.id,
           row: cell.row,
@@ -149,10 +172,9 @@ export function denahView(denah: DenahTerencana): DenahView {
         })),
       };
     }),
-    harga: denah.harga,
-    nanti: denah.nanti
-      ? { total: denah.nanti.total, baris: denah.nanti.lines.map((line) => ({ label: quoteLineLabel(line), amount: line.amount })) }
-      : null,
+    tersedia: denah.tersedia,
+    total: { lines: denah.total.lines.map(barisView), total: denah.total.total, dalamBatas: denah.total.dalamBatas },
+    nanti: denah.nanti ? { total: denah.nanti.total, baris: denah.nanti.lines.map(barisView) } : null,
     syarat: {
       masaPembatalanDays: denah.syarat.masaPembatalanDays,
       refundPercent: denah.syarat.refundAfterMasaPembatalanPercent,

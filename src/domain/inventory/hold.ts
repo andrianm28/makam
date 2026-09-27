@@ -28,7 +28,7 @@ export interface TahanInput {
 export type TahanResult =
   | { ok: true; /** The units now held, as the order records them. */ units: ({ petakId: string } | { kavlingId: string })[] }
   | { ok: false; reason: "tanpa_unit" }
-  | { ok: false; reason: "unit_campur"; petak: string; kavling: string }
+  | { ok: false; reason: "unit_campur" }
   | { ok: false; reason: "unit_ganda"; unit: string }
   /** A unit that is not a pickable Petak Makam or Kavling Keluarga of this Lokasi Mitra. */
   | { ok: false; reason: "unit_tidak_ditemukan"; unit: string }
@@ -46,6 +46,32 @@ const unitSchema = z
 const inputSchema = z.object({ lokasiId: z.uuid(), units: z.array(unitSchema).min(1).max(100), nomorPemesanan: z.string().trim().min(1).max(60) });
 
 /**
+ * Whether a proposed selection is one an order may hold: several Petak Makam (any
+ * Blok, any Jenis Makam) **or** one whole Kavling FAMILY, never a mix and never the
+ * same plot twice, because a Kavling Keluarga is one indivisible unit under one Hak
+ * Pakai (spec, Hak Pakai). A pure rule, so the picker's screen and the order's own
+ * check answer the same question.
+ */
+export function bolehDitahan(units: readonly TahanUnit[]): BolehDitahanResult {
+  if (units.length === 0) return { ok: false, reason: "tanpa_unit" };
+  const petak = units.filter((unit) => unit.petakId !== undefined);
+  const kavling = units.filter((unit) => unit.kavlingId !== undefined);
+  if (petak.length > 0 && kavling.length > 0) return { ok: false, reason: "unit_campur" };
+  const seen = new Set<string>();
+  for (const unit of units) {
+    const id = unit.petakId ?? unit.kavlingId!;
+    if (seen.has(id)) return { ok: false, reason: "unit_ganda", unit: id };
+    seen.add(id);
+  }
+  return { ok: true };
+}
+
+export type BolehDitahanResult =
+  | { ok: true }
+  | { ok: false; reason: "tanpa_unit" | "unit_campur" }
+  | { ok: false; reason: "unit_ganda"; unit: string };
+
+/**
  * Places the hold on every named unit, all or none, and refuses with the first
  * unit that cannot be taken. It answers with exactly the state the picker's Denah
  * shows, so a plot refused here is the plot drawn as unpickable there.
@@ -58,17 +84,8 @@ export async function tahan(deps: InventoryDeps, input: TahanInput): Promise<Tah
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "tanpa_unit" };
   const { lokasiId, units, nomorPemesanan } = parsed.data;
-  const petak = units.filter((unit) => unit.petakId !== undefined);
-  const kavling = units.filter((unit) => unit.kavlingId !== undefined);
-  if (petak.length > 0 && kavling.length > 0) {
-    return { ok: false, reason: "unit_campur", petak: petak[0].petakId!, kavling: kavling[0].kavlingId! };
-  }
-  const seen = new Set<string>();
-  for (const unit of units) {
-    const id = unit.petakId ?? unit.kavlingId!;
-    if (seen.has(id)) return { ok: false, reason: "unit_ganda", unit: id };
-    seen.add(id);
-  }
+  const boleh = bolehDitahan(units);
+  if (!boleh.ok) return boleh;
 
   // One lock for the whole Lokasi Mitra's hold namespace, taken before any read:
   // two submissions naming the same plot queue here instead of both reading it free.
@@ -126,7 +143,17 @@ function sudahDiambil(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { code?: string }).code === "23505";
 }
 
-/** Releases every hold one order placed, so its plots can be picked again; releasing an order that holds nothing is harmless. */
+/**
+ * Releases every hold one order placed, so its plots can be picked again
+ * (spec, Inventory > Denah: "a plot hold for Terencana is placed at submission and
+ * released on decline, withdrawal or lapse"). **Ticket 37** (the Lokasi Mitra's
+ * confirmation, and the payment hold it starts) and **ticket 38** (Pembatalan) are
+ * its callers: each of them releases this order's hold in the same transaction as
+ * the status change that ends it. Nothing calls it until then, which is why
+ * `placeTerencana` + `lepasTahan` are locked by a test in the Pemesanan module's
+ * `terencana.test.ts` ("a declined order's plots are free for another family").
+ * Releasing an order that holds nothing is harmless.
+ */
 export async function lepasTahan(deps: InventoryDeps, nomorPemesanan: string): Promise<LepasTahanResult> {
   const released = await deps.db
     .delete(inventoryPlotHold)

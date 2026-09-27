@@ -22,21 +22,45 @@ import type { PemesananDeps, TerencanaQuery } from "./deps";
 import {
   denahTerencana,
   kotaTerencana,
+  periksaPilihanTerencana,
   placeTerencana,
   pilihanTerencana,
   terencanaOf,
   type DenahTerencana,
   type KartuTerencana,
   type PemesananTerencanaOrder,
+  type PeriksaPilihanInput,
+  type PeriksaPilihanResult,
+  type PilihanTerencana,
   type PlaceTerencanaResult,
 } from "./terencana";
 
 export type { PemesananDeps, PemesananNotifikasi, Pemesan, TerencanaQuery } from "./deps";
 export type { CalonPenghuniTerencana, PemegangHakTerencana, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
-export type { HargaUnit, RincianTerencana } from "./harga-terencana";
 export { pemesananTerencanaStatuses } from "./schema";
-export { totalTerencana } from "./harga-terencana";
-export type { DenahTerencana, KartuTerencana, PemesananTerencanaOrder, PlaceTerencanaInput, PlaceTerencanaResult } from "./terencana";
+export { HARGA_BANDS } from "./terencana";
+export {
+  TERENCANA_MAKS_UNIT,
+  periksaPilihanTerencanaSchema,
+  placeTerencanaSchema,
+  terencanaCalonPenghuniSchema,
+  terencanaPemegangHakSchema,
+  terencanaUnitSchema,
+} from "./skema-terencana";
+export type { PeriksaPilihanTerencanaInput, PlaceTerencanaInput } from "./skema-terencana";
+export type {
+  BarisTotal,
+  DenahTerencana,
+  KartuTerencana,
+  PemesananTerencanaOrder,
+  PeriksaPilihanInput,
+  PeriksaPilihanResult,
+  PilihanDitolak,
+  PilihanTerencana,
+  PlaceTerencanaResult,
+  TotalTerencana,
+  UnitTerencana,
+} from "./terencana";
 
 /** The Pemesanan Terencana wizard: its three steps and the order it places. */
 export interface Pemesanan {
@@ -44,8 +68,18 @@ export interface Pemesanan {
   pilihanTerencana(query?: TerencanaQuery): Promise<KartuTerencana[]>;
   /** Every city with at least one of them, for that step's city filter. */
   kotaTerencana(): Promise<string[]>;
-  /** Step 2, "Petak": the Denah of one of them, priced at this instant, with the "Nanti" line and the Syarat shown before Kirim. */
-  denahTerencana(lokasiId: string): Promise<DenahTerencana | null>;
+  /**
+   * Step 2, "Petak": the Denah of one of them, with the chosen plots (if any) priced
+   * at this instant by `quote()`, the "Nanti" line and the Syarat to be shown before Kirim.
+   */
+  denahTerencana(lokasiId: string, pilihan?: PilihanTerencana): Promise<DenahTerencana | null>;
+  /**
+   * Whether a chosen selection can still be ordered, read now: the several-Petak or
+   * one-Kavling rule, then every unit against the Denah. A refusal names the plot and
+   * hands back the picks that are still good, so a plot taken meanwhile costs the
+   * family one pick and not the whole wizard. Both "Lanjut" and Kirim go through it.
+   */
+  periksaPilihanTerencana(input: PeriksaPilihanInput): Promise<PeriksaPilihanResult>;
   /** Step 3, "Kirim": places the order — it holds every chosen plot, takes a Nomor Pemesanan and snapshots the Syarat. */
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
@@ -56,7 +90,8 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
   return {
     pilihanTerencana: (query) => pilihanTerencana(deps, query),
     kotaTerencana: () => kotaTerencana(deps),
-    denahTerencana: (lokasiId) => denahTerencana(deps, lokasiId),
+    denahTerencana: (lokasiId, pilihan) => denahTerencana(deps, lokasiId, pilihan),
+    periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (db, pemesan, nomor) => terencanaOf({ db }, pemesan, nomor),
   };

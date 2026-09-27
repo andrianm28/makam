@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-masuk/state";
 import { pemesananResource } from "@/domain/identity";
-import { pesanGuard, pesanKirim } from "@/lib/terencana-pesan";
+import { periksaPilihanTerencanaSchema } from "@/domain/pemesanan";
+import { pesanGuard, pesanKirim, pesanPeriksa } from "@/lib/terencana-pesan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
@@ -21,6 +22,24 @@ import { terencanaPath } from "./tautan";
  *   guard's first two steps the way Masuk does: the Kode Masuk proves the email
  *   and creates or finds the Akun, and the same request places the order for it.
  */
+
+/**
+ * "Lanjut", the wizard's own step between the Denah and Data & kirim: it asks the
+ * Pemesanan module whether the chosen plots can still be ordered, and words a
+ * refusal the same way Kirim does. No auth and no role: it changes nothing, it only
+ * reads whether a plot is still free, which the public Denah already shows.
+ */
+export async function lanjutPilihPetak(input: unknown): Promise<LanjutState> {
+  const parsed = periksaPilihanTerencanaSchema.safeParse(input);
+  if (!parsed.success) return { status: "gagal", message: pesanPeriksa({ ok: false, reason: "tanpa_unit", nomor: null, sisa: [] }), sisa: [] };
+  const hasil = await serverRuntime().pemesanan.periksaPilihanTerencana(parsed.data);
+  return hasil.ok ? { status: "ok" } : { status: "gagal", message: pesanPeriksa(hasil), sisa: hasil.sisa };
+}
+
+export type LanjutState =
+  | { status: "ok" }
+  /** The plot is gone: the message says which, and `sisa` are the picks that are still good. */
+  | { status: "gagal"; message: string; sisa: { jenis: "petak" | "kavling"; id: string; nomor: string; jenisMakamId: string; jenisMakamName: string }[] };
 
 /** Kirim for a Pemesan already signed in; a visitor with no session is answered with "perlu_kode_masuk". */
 export async function kirimPesananTerencana(draft: unknown): Promise<KirimState> {

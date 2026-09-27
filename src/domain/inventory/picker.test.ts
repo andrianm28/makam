@@ -8,21 +8,14 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
+function semua(denah: PublicDenah) {
+  return denah.bloks.flatMap((blok) => blok.cells);
+}
+
 function selof(denah: PublicDenah, nomor: string) {
   const cell = semua(denah).find((satu) => satu.nomorMakam === nomor);
   if (!cell) throw new Error(`no cell ${nomor}`);
   return cell;
-}
-
-/** A cell by its place on the Denah, for a Jalan or Bukan Petak, which carry no Nomor Makam. */
-function di(denah: PublicDenah, row: number, col: number) {
-  const cell = semua(denah).find((satu) => satu.row === row && satu.col === col);
-  if (!cell) throw new Error(`no cell ${row}-${col}`);
-  return cell;
-}
-
-function semua(denah: PublicDenah) {
-  return denah.bloks.flatMap((blok) => blok.cells);
 }
 
 describe("the Denah a Pemesan picks plots on", () => {
@@ -38,18 +31,35 @@ describe("the Denah a Pemesan picks plots on", () => {
     expect(selof(denah!, "A-02").status).toBe("bisa_dipilih");
     expect(selof(denah!, "A-03").status).toBe("terisi");
     expect(selof(denah!, "A-04").status).toBe("tidak_tersedia");
-    expect(denah!.bloks.flatMap((blok) => blok.cells).filter((cell) => cell.status === "perlu_verifikasi")).toHaveLength(4); // Blok B, still to clear
-    expect(di(denah!, 0, 5)).toMatchObject({ kind: "jalan", nomorMakam: null, status: null });
-    expect(di(denah!, 1, 5)).toMatchObject({ kind: "bukan_petak", nomorMakam: null, status: null });
+    expect(semua(denah!).filter((cell) => cell.status === "perlu_verifikasi")).toHaveLength(4); // Blok B, still to clear
+    expect(denah!.bloks[0].cells.filter((cell) => cell.kind === "jalan")).toMatchObject([{ row: 0, col: 5, nomorMakam: null, status: null }]);
+    expect(denah!.bloks[0].cells.filter((cell) => cell.kind === "bukan_petak")).toMatchObject([{ row: 1, col: 5, nomorMakam: null, status: null }]);
     expect(denah!.bloks[0].kavling).toMatchObject([{ nomorKavling: "A-K01", status: "bisa_dipilih" }]);
     // A Kavling Keluarga is picked whole, so its member Petak carry no price of their own.
     expect(selof(denah!, "A-05")).toMatchObject({ jenisMakamId: null, kavlingId: denah!.bloks[0].kavling[0].id });
+  });
+
+  it("counts, per Blok and for the whole Denah, how many units a Pemesan may pick", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+
+    const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+
+    // Blok A: A-01, A-02, A-07, A-08 and the one Kavling Keluarga; Blok B is still to clear.
+    expect(denah?.bloks.map((blok) => [blok.name, blok.tersedia])).toEqual([
+      ["A", 5],
+      ["B", 0],
+    ]);
+    expect(denah?.tersedia).toBe(5);
   });
 
   it("says a Terisi Petak that can still take a tumpang is for the Admin Lokasi to arrange, not pickable", async () => {
     const setup = publishOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const fixture = await terencanaLokasi(setup, admin);
+    // Both plots were buried on 14 June 2026 and this Lokasi Mitra waits three years before a tumpang.
+    setup.clock.set(new Date("2029-07-01T02:00:00.000Z"));
 
     // A-09 sits under a live Hak Pakai with one layer and room for a second.
     const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
@@ -71,6 +81,25 @@ describe("the Denah a Pemesan picks plots on", () => {
 
     expect(selof(denah!, "A-09")).toMatchObject({ status: "terisi", tumpangSaja: false });
     expect(selof(denah!, "A-10")).toMatchObject({ status: "terisi", tumpangSaja: false });
+  });
+
+  it("a plot whose last burial is younger than the minimum years is not a tumpang yet, live or released", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    // Three years is this Lokasi Mitra's minimum since the last burial, and both plots were buried in June 2026.
+    const fixture = await terencanaLokasi(setup, admin);
+    await releasedPetak(setup, "A-10", fixture.sel);
+    expect((await setup.clock.now()).toISOString()).toBe("2026-10-01T02:00:00.000Z");
+
+    const terlaluSoon = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+    expect(selof(terlaluSoon!, "A-10")).toMatchObject({ status: "terisi", tumpangSaja: false });
+
+    // Time moves on: three years after the burial (14 June 2026) the released plot may take a tumpang again.
+    setup.clock.set(new Date("2029-07-01T02:00:00.000Z"));
+    const cukup = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+    expect(selof(cukup!, "A-10")).toMatchObject({ status: "terisi", tumpangSaja: true });
+    // A-09's own Hak Pakai is still live, so it is a tumpang all along.
+    expect(selof(cukup!, "A-09")).toMatchObject({ status: "terisi", tumpangSaja: true });
   });
 
   it("is no Denah at a Lokasi Mitra that is not listed for Terencana", async () => {

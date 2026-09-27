@@ -1,34 +1,30 @@
 import { z } from "zod";
+import { terencanaCalonPenghuniSchema, terencanaPemegangHakSchema, terencanaUnitSchema, TERENCANA_MAKS_UNIT } from "@/domain/pemesanan/skema-terencana";
 
 /**
- * What the Terencana wizard's "Data & kirim" screen holds, and what its Kirim
- * hands the Server Action: the draft as one value and the state a Kirim answers
- * with. No wording of the module's facts here, only the shape a screen collects
- * and this boundary validates (AGENTS.md).
+ * What the Terencana wizard's "Data & kirim" screen holds, and what its Kirim hands
+ * the Server Action: the draft as one value and the state a Kirim answers with. The
+ * units, the Pemegang Hak and the Calon Penghuni are the Pemesanan module's own shapes,
+ * so a form cannot ask for more than an order takes; the words below are this screen's.
+ *
+ * Those schemas are the one deep import in the wizard, and they are here for a
+ * measurable reason: this file is a Client Component, and a bundler keeps a module
+ * whole, so a *value* taken from `@/domain/pemesanan` would drag the module's
+ * database graph (its transaction helper opens a connection) into the browser and the
+ * build would fail. `skema-terencana.ts` is nothing but `zod`, so the same
+ * `placeTerencanaSchema` the Server Action validates with is the one the form uses.
+ * The Server Action re-validates the whole draft with `placeTerencanaSchema` before
+ * the module sees it, so nothing reaches the module unvalidated.
  */
-
-/** One unit the picker chose: a Petak Makam, or one whole Kavling Keluarga. */
-export const unitSchema = z.union([z.object({ petakId: z.string().uuid() }).strict(), z.object({ kavlingId: z.string().uuid() }).strict()]);
 
 export const draftSchema = z.object({
   pemesanName: z.string().trim().min(1, "Tulis nama lengkap Anda.").max(200),
   email: z.email("Alamat email tidak valid. Contoh: nama@contoh.id."),
   phoneNumber: z.string().trim().min(1, "Tulis nomor telepon.").max(30),
   lokasiId: z.string().uuid(),
-  units: z.array(unitSchema).min(1),
-  pemegangHak: z.discriminatedUnion("mode", [
-    z.object({ mode: z.literal("pemesan") }),
-    z.object({
-      mode: z.literal("lain"),
-      name: z.string().trim().min(1, "Tulis nama Pemegang Hak.").max(200),
-      phoneNumber: z.string().trim().min(1, "Tulis nomor telepon Pemegang Hak.").max(30),
-      email: z.string().trim().max(320),
-    }),
-  ]),
-  calonPenghuni: z.discriminatedUnion("mode", [
-    z.object({ mode: z.literal("saya") }),
-    z.object({ mode: z.literal("lain"), name: z.string().trim().min(1, "Tulis nama Calon Penghuni.").max(200) }),
-  ]),
+  units: z.array(terencanaUnitSchema).min(1).max(TERENCANA_MAKS_UNIT),
+  pemegangHak: terencanaPemegangHakSchema,
+  calonPenghuni: terencanaCalonPenghuniSchema,
 });
 
 export type DraftTerencana = z.infer<typeof draftSchema>;

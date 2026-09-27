@@ -1,53 +1,81 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, type MutableRefObject } from "react";
+import { useRef, useState, useTransition, type MutableRefObject } from "react";
 import { Check, Info, Minus, Phone, Plus, X } from "lucide-react";
-import { totalTerencana } from "@/domain/pemesanan/harga-terencana";
+import type { TahanUnit } from "@/domain/inventory";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { lanjutPilihPetak, type LanjutState } from "./actions";
 import type { DenahView, KavlingView, SelView } from "./tampilan";
 import { terencanaPath } from "./tautan";
 
 /**
  * Step 2 of the Terencana wizard, "Pilih petak": the Denah with Blok tabs, the
  * legend of every state, the detail of the cell a family taps, and the total with
- * the "Nanti" line. Only cleared Tersedia Petak and a whole Tersedia Kavling
- * Keluarga can be picked; a Terisi plot that can still take a tumpang is not
- * pickable and says whom to ask instead. Every change to the selection is a URL,
- * so the browser's back button lands on the same Denah.
+ * the "Nanti" line.
+ *
+ * The picker **renders what the domain read says** and decides no rule of its own: the
+ * Denah's states and its counts come from `inventory.publicDenah`, the total and whether
+ * it is within the payment cap come from `pemesanan.denahTerencana`, and "Lanjut" asks
+ * `pemesanan.periksaPilihanTerencana` through a Server Action. A tap that would make a
+ * selection the order could never take (a Petak beside a Kavling Keluarga) changes
+ * nothing and says so in the screen's own words, rather than quietly dropping the other
+ * picks. The selection itself is the URL, so the browser's back button lands on the same
+ * Denah and every step is shareable.
+ *
+ * It imports no value from a domain module: everything a family reads is a prop the
+ * server-rendered page computed (`pesanBatas`, `pesanKembali`), because a Client
+ * Component that reaches through a domain's public interface for a value drags that
+ * module's database graph into the browser.
  */
 export function DenahPicker({
   denah,
-  petakAwal,
-  kavlingAwal,
+  petak,
+  kavling,
+  unitOf,
   sudahMasuk,
+  pesanKembali = null,
+  pesanBatas = null,
 }: {
   denah: DenahView;
-  petakAwal: string[];
-  kavlingAwal: string | null;
+  /** The chosen Petak Makam, by the number the URL carries. */
+  petak: string[];
+  /** The chosen Kavling Keluarga, by its number. */
+  kavling: string | null;
+  /** The unit a number stands for, as the read resolved it (empty when it names nothing here). */
+  unitOf: readonly { nomor: string; jenis: "petak" | "kavling"; id: string }[];
   /** A signed-in Pemesan skips the Kode Masuk at Kirim. */
   sudahMasuk: boolean;
+  /** What the module said when this family was sent back here from Data & kirim, shown until it is dismissed. */
+  pesanKembali?: string | null;
+  /** What the read said about a total past the payment cap, or null when the total is within it. */
+  pesanBatas?: string | null;
 }) {
   const router = useRouter();
   const [blokId, setBlokId] = useState(denah.blok[0]?.id ?? "");
   const [ukuran, setUkuran] = useState(40);
   const [fokus, setFokus] = useState<SelView | null>(null);
   const [pesan, setPesan] = useState<string | null>(null);
-  const [pilihan, setPilihan] = useState<PilihanPicker>({ petak: petakAwal, kavling: kavlingAwal });
+  // The message a refusal on arrival shows; a dismissed one ("" here) never comes back.
+  const tampilPesan = pesan ?? pesanKembali;
+  const [lanjut, lanjutkan] = useTransition();
   const pinchRef = useRef<{ d: number; u: number } | null>(null);
 
   const blok = denah.blok.find((satu) => satu.id === blokId) ?? denah.blok[0];
-  const semuaSel = denah.blok.flatMap((satu) => satu.cells);
   const semuaKavling = denah.blok.flatMap((satu) => satu.kavling);
-  const kavlingTerpilih = semuaKavling.find((satu) => satu.nomor === pilihan.kavling) ?? null;
+  const kavlingTerpilih = semuaKavling.find((satu) => satu.nomor === kavling) ?? null;
   const unitDipilih = [
-    ...pilihan.petak.map((nomor) => ({ nomor, jenisMakamId: semuaSel.find((cell) => cell.nomor === nomor)?.jenisMakamId ?? "" })),
-    ...(kavlingTerpilih ? [{ nomor: kavlingTerpilih.nomor, jenisMakamId: kavlingTerpilih.jenisMakamId }] : []),
-  ];
-  const rincian = totalTerencana(denah.harga, unitDipilih.map((unit) => unit.jenisMakamId));
+    ...petak.map((nomor) => ({ nomor, unit: unitOf.find((satu) => satu.nomor === nomor) })),
+    ...(kavlingTerpilih ? [{ nomor: kavlingTerpilih.nomor, unit: unitOf.find((satu) => satu.nomor === kavlingTerpilih.nomor) }] : []),
+  ].filter((satu) => satu.unit);
   const ada = unitDipilih.length > 0;
+  const total = denah.total;
+
+  const terapkan = (baru: PilihanPicker) => {
+    router.replace(terencanaPath({ langkah: "petak", lokasiId: denah.lokasi.id, ...baru }), { scroll: false });
+  };
 
   /** Tapping a cell: pick it, unpick it, or say why it cannot be picked. */
   function ketuk(cell: SelView) {
@@ -56,14 +84,22 @@ export function DenahPicker({
       const satu = semuaKavling.find((satu2) => satu2.id === cell.kavling!.id);
       if (!satu) return;
       if (satu.status !== "bisa_dipilih") {
-        setPesan(kavlingSentence(satu));
+        setPesan(`Kavling Keluarga ${satu.nomor} ${alasanKavling(satu)}`);
         return;
       }
-      if (pilihan.kavling === satu.nomor) {
+      if (kavling === satu.nomor) {
         terapkan({ petak: [], kavling: null });
         return;
       }
-      setPesan(pilihan.petak.length > 0 ? "Kavling Keluarga dipilih utuh sebagai satu unit, jadi petak yang tadi Anda pilih kami lepas." : null);
+      // A Kavling Keluarga is one indivisible unit, so a tap never quietly drops the
+      // Petak beside it: the screen says the module's own words and leaves the
+      // selection alone. The rule itself lives in `bolehDitahan` (Inventory) and is
+      // enforced by `periksaPilihanTerencana` (Pemesanan), so Lanjut and Kirim refuse it.
+      if (petak.length > 0) {
+        setPesan("Kavling Keluarga dipilih utuh sebagai satu unit, jadi tidak bisa digabung dengan petak lain. Lepas dulu petak yang Anda pilih.");
+        return;
+      }
+      setPesan(null);
       terapkan({ petak: [], kavling: satu.nomor });
       return;
     }
@@ -71,27 +107,37 @@ export function DenahPicker({
       setPesan(cell.tumpangSaja ? tumpangSentence(cell, denah) : petakSentence(cell));
       return;
     }
-    if (pilihan.kavling) {
-      setPesan("Petak tidak bisa digabung dengan Kavling Keluarga, jadi kavling yang tadi Anda pilih kami lepas.");
-    } else {
-      setPesan(null);
+    if (kavling) {
+      setPesan("Petak tidak bisa digabung dengan Kavling Keluarga. Lepas dulu kavling itu, atau pilih petak saja.");
+      return;
     }
-    const next = pilihan.petak.includes(cell.nomor!) ? pilihan.petak.filter((nomor) => nomor !== cell.nomor) : [...pilihan.petak, cell.nomor!];
-    terapkan({ petak: next, kavling: pilihan.kavling });
+    setPesan(null);
+    terapkan({ petak: petak.includes(cell.nomor!) ? petak.filter((nomor) => nomor !== cell.nomor) : [...petak, cell.nomor!], kavling: null });
   }
 
-  function terapkan(baru: PilihanPicker) {
-    setPilihan(baru);
-    router.replace(terencanaPath({ langkah: "petak", lokasiId: denah.lokasi.id, ...baru }), { scroll: false });
+  /**
+   * "Lanjut" is a real step through the domain: a plot may have been taken while the
+   * family was choosing, and the answer keeps the picks that are still good.
+   */
+  function keData() {
+    lanjutkan(async () => {
+      const units: TahanUnit[] = unitDipilih.map((satu) => (satu.unit!.jenis === "kavling" ? { kavlingId: satu.unit!.id } : { petakId: satu.unit!.id }));
+      const hasil: LanjutState = await lanjutPilihPetak({ lokasiId: denah.lokasi.id, units });
+      if (hasil.status === "ok") {
+        router.push(terencanaPath({ langkah: "data", lokasiId: denah.lokasi.id, petak, kavling }));
+        return;
+      }
+      // The picks that are still good stay chosen; the plot that went is shown as Dipesan on the next read.
+      setPesan(hasil.message);
+    });
   }
 
-  const terpilih = (cell: SelView) => (cell.kavling ? pilihan.kavling === cell.kavling.nomor : pilihan.petak.includes(cell.nomor ?? ""));
+  const terpilih = (cell: SelView) => (cell.kavling ? kavling === cell.kavling.nomor : petak.includes(cell.nomor ?? ""));
 
   return (
     <div className="flex flex-col gap-6">
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Blok">
         {denah.blok.map((satu) => {
-          const bisa = hitungTersedia(satu);
           const aktif = satu.id === blok?.id;
           return (
             <button
@@ -110,18 +156,18 @@ export function DenahPicker({
             >
               <span className="text-body leading-tight font-semibold">{satu.name}</span>
               <span className={cn("text-caption leading-tight", aktif ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                {bisa > 0 ? `${bisa} bisa dipilih` : "tidak ada yang tersedia"}
+                {satu.tersedia > 0 ? `${satu.tersedia} bisa dipilih` : "tidak ada yang tersedia"}
               </span>
             </button>
           );
         })}
       </div>
 
-      {pesan ? (
+      {tampilPesan ? (
         <div role="status" className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2.5 text-body text-info-soft-foreground">
           <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p className="flex-1">{pesan}</p>
-          <button type="button" onClick={() => setPesan(null)} className="text-small font-semibold underline underline-offset-2">
+          <p className="flex-1">{tampilPesan}</p>
+          <button type="button" onClick={() => setPesan("")} className="text-small font-semibold underline underline-offset-2">
             Oke
           </button>
         </div>
@@ -131,7 +177,7 @@ export function DenahPicker({
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-small text-muted-foreground">
-              {blok ? `${blok.name} · ${hitungTersedia(blok)} bisa dipilih` : null}
+              {blok ? `${blok.name} · ${blok.tersedia} bisa dipilih` : null}
             </p>
             <div className="flex shrink-0 overflow-hidden rounded-lg border border-border bg-card">
               <button type="button" aria-label="Perkecil denah" onClick={() => setUkuran(Math.max(24, ukuran - 8))} className="inline-flex size-10 items-center justify-center hover:bg-accent">
@@ -143,15 +189,7 @@ export function DenahPicker({
             </div>
           </div>
           {blok ? (
-            <Grid
-              blok={blok}
-              ukuran={ukuran}
-              setUkuran={setUkuran}
-              pinchRef={pinchRef}
-              terpilih={terpilih}
-              ketuk={ketuk}
-              kavlingDipilih={pilihan.kavling}
-            />
+            <Grid blok={blok} ukuran={ukuran} setUkuran={setUkuran} pinchRef={pinchRef} terpilih={terpilih} ketuk={ketuk} kavlingDipilih={kavling} />
           ) : null}
           <ul className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-small text-foreground">
             <Legend swatch="border-2 border-sage-strong bg-card" label="Tersedia, bisa dipilih" />
@@ -167,6 +205,7 @@ export function DenahPicker({
               swatch="bg-neutral-soft after:absolute after:bottom-0.5 after:right-0.5 after:size-1.5 after:rounded-full after:bg-sage-strong"
               label="Terisi, bisa untuk tumpang (hubungi Admin Lokasi)"
             />
+            <li className="col-span-2 text-muted-foreground">Petak yang warnanya redup tetap bisa diketuk, dan alasannya muncul di panel di bawah denah.</li>
           </ul>
           <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
         </div>
@@ -174,28 +213,22 @@ export function DenahPicker({
         <aside className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
             <p className="text-title-3 text-foreground">Pilihan Anda</p>
-            <p className="text-body text-muted-foreground">{ada ? ringkasan(pilihan.petak, kavlingTerpilih) : "Belum ada petak dipilih. Ketuk petak yang Tersedia di denah."}</p>
-            {ada && rincian.total !== null ? (
-              <div className="flex flex-col gap-1 text-body tabular-nums">
-                {unitDipilih.map((unit) => (
-                  <div key={unit.nomor} className="flex justify-between gap-3">
-                    <span className="text-muted-foreground">Harga Hak Pakai · {unit.nomor}</span>
-                    <span>{formatRupiah(denah.harga.find((satu) => satu.jenisMakamId === unit.jenisMakamId)?.hargaHakPakai ?? 0)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">Biaya Layanan Platform · Makam.co.id</span>
-                  <span>{formatRupiah(rincian.biayaLayananPlatform)}</span>
+            <p className="text-body text-muted-foreground">{ada ? ringkasan(petak, kavlingTerpilih) : "Belum ada petak dipilih. Ketuk petak yang Tersedia di denah."}</p>
+            <div className="flex flex-col gap-1 text-body tabular-nums">
+              {total.lines.map((baris, index) => (
+                <div key={`${baris.label}-${index}`} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">{baris.label}</span>
+                  <span>{formatRupiah(baris.amount)}</span>
                 </div>
-                <div className="mt-1 flex justify-between gap-3 border-t border-border pt-1 font-semibold">
-                  <span>Total</span>
-                  <span>{formatRupiah(rincian.total)}</span>
-                </div>
+              ))}
+              <div className="mt-1 flex justify-between gap-3 border-t border-border pt-1 font-semibold">
+                <span>Total</span>
+                <span>{formatRupiah(total.total)}</span>
               </div>
-            ) : null}
-            {!rincian.dalamBatas ? (
+            </div>
+            {pesanBatas ? (
               <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-small text-warning-soft-foreground">
-                Total pilihan ini melewati batas pembayaran Rp 10.000.000 lewat QRIS, jadi jumlah ini tidak kami terima. Kurangi jumlah petak yang dipilih.
+                {pesanBatas}
               </p>
             ) : null}
             {denah.nanti ? (
@@ -206,13 +239,8 @@ export function DenahPicker({
                 </p>
               </div>
             ) : null}
-            <Button
-              type="button"
-              size="lg"
-              disabled={!ada || !rincian.dalamBatas}
-              onClick={() => router.push(terencanaPath({ langkah: "data", lokasiId: denah.lokasi.id, ...pilihan }))}
-            >
-              Lanjut
+            <Button type="button" size="lg" disabled={!ada || !total.dalamBatas || lanjut} onClick={keData}>
+              {lanjut ? "Memeriksa…" : "Lanjut"}
             </Button>
             <p className="text-caption text-muted-foreground">
               {sudahMasuk ? "Anda sudah masuk, jadi Data & kirim tidak meminta Kode Masuk lagi." : "Kode Masuk dikirim ke email Anda di langkah Data & kirim, bukan di sini."}
@@ -227,10 +255,6 @@ export function DenahPicker({
 export interface PilihanPicker {
   petak: string[];
   kavling: string | null;
-}
-
-function hitungTersedia(blok: DenahView["blok"][number]): number {
-  return blok.cells.filter((cell) => cell.status === "bisa_dipilih").length + blok.kavling.filter((satu) => satu.status === "bisa_dipilih").length;
 }
 
 /** The Blok's grid of cells, scrollable on a phone and pinch-zoomable. */
@@ -296,7 +320,11 @@ function Grid({
   );
 }
 
-/** One Denah cell: a Jalan and a Bukan Petak are drawn as they are, a Petak Makam is a button. */
+/**
+ * One Denah cell. A cell that cannot be picked stays tappable, as prototype v2
+ * decided: tapping it opens the detail panel, which says which state keeps it out
+ * of a selection and, for a plot that can only be a tumpang, whom to ask.
+ */
 function Cell({ cell, terpilih, ketuk }: { cell: SelView; terpilih: boolean; ketuk: (cell: SelView) => void }) {
   if (cell.kind === "jalan") return <div className="rounded-sm bg-highlight" aria-hidden />;
   if (cell.kind === "bukan_petak") return <div className="rounded-sm border border-dashed border-border" aria-hidden />;
@@ -404,10 +432,9 @@ function badgeClass(status: string | null): string {
       return "bg-warning-soft text-warning-soft-foreground";
     default:
       return "bg-neutral-soft text-neutral-soft-foreground";
-  }
+    }
 }
 
-/** The legend's word for a state, and the same word on a cell's badge. */
 function statusLabel(status: string | null): string | null {
   switch (status) {
     case "bisa_dipilih":
@@ -446,10 +473,8 @@ function petakSentence(cell: SelView): string {
   }
 }
 
-function kavlingSentence(kavling: KavlingView): string {
-  return kavling.status === "sedang_dipesan"
-    ? `Kavling Keluarga ${kavling.nomor} sedang dipesan keluarga lain, jadi tidak bisa dipilih.`
-    : `Kavling Keluarga ${kavling.nomor} sudah dipakai, jadi tidak bisa dipilih.`;
+function alasanKavling(kavling: KavlingView): string {
+  return kavling.status === "sedang_dipesan" ? "sedang dipesan keluarga lain, jadi tidak bisa dipilih." : "sudah dipakai, jadi tidak bisa dipilih.";
 }
 
 /** A Terisi plot that can still take a tumpang: a tumpang is arranged with the Admin Lokasi, not bought here. */

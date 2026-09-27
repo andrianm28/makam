@@ -112,9 +112,10 @@ export function serverRuntime(): ServerRuntime {
         inventory,
         billing,
         identity,
-        // TODO(ticket 20): pass `notifikasi: notifications` here. The Pemesanan module announces a new
-        // Terencana order to the Lokasi Mitra's staff through the Notifications module, never from the
-        // wizard; that module has no such message yet, so the seam stays the no-op composition default.
+        // `notifikasi: notifications` lands here as soon as there is a message for a new Terencana
+        // order: the Pemesanan module never sends one itself. Its first real family message is
+        // Notifications' Tagihan one (`tagihanTerbit`), which the Lokasi Mitra's confirmation issues
+        // (ticket 37), so the seam stays the composition root's no-op until then.
       }),
       fieldwork,
       queues: createQueues({
