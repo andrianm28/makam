@@ -1,11 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { buktiLabels, frekuensiLabels } from "@/lib/layanan-labels";
+import { ConfirmDialog } from "@/components/makam/confirm-dialog";
+import { frekuensiLabels } from "@/lib/layanan-labels";
+import type { Bukti, JenisLayanan } from "@/domain/layanan";
 import type { FormState } from "../../form-state";
 import {
   buatPaket,
+  hapusLayanan,
   hapusPaket,
   hapusVarian,
   simpanHargaDki,
@@ -66,16 +69,18 @@ function Select({
   name,
   options,
   defaultValue,
+  onChange,
 }: {
   label: string;
   name: string;
   options: readonly (readonly [string, string])[];
   defaultValue?: string;
+  onChange?: (value: string) => void;
 }) {
   return (
     <label className={labelClass}>
       {label}
-      <select className={inputClass} name={name} defaultValue={defaultValue}>
+      <select className={inputClass} name={name} defaultValue={defaultValue} onChange={onChange ? (event) => onChange(event.target.value) : undefined}>
         {options.map(([value, text]) => (
           <option key={value} value={value}>
             {text}
@@ -112,16 +117,28 @@ function Submit({ pending, children }: { pending: boolean; children: React.React
   );
 }
 
-const buktiOptions = Object.entries(buktiLabels) as readonly (readonly [string, string])[];
 const frekuensiOptions = Object.entries(frekuensiLabels) as readonly (readonly [string, string])[];
 
+/**
+ * The kinds of Layanan a form offers, each with the proof its kind requires: the
+ * server page builds this from the catalog module (a client component never
+ * imports a value from the domain), and the form only picks a row.
+ */
+export interface PilihanJenis {
+  value: JenisLayanan;
+  label: string;
+  /** The proof this kind carries, and what it requires, in the words the screen shows. */
+  bukti: Bukti;
+  proofLabel: string;
+}
+
 /** One Layanan's own fields, shared by the add and the change form. */
-function LayananFields({ defaults }: { defaults?: { name: string; description: string; bukti: string; leadTimeDays: number; bisaHariH: boolean; adaDiPetakKosong: boolean; teksLabel: string | null } }) {
+function LayananFields({ options, defaults }: { options: PilihanJenis[]; defaults?: { name: string; description: string; jenis: JenisLayanan; leadTimeDays: number; bisaHariH: boolean; adaDiPetakKosong: boolean; teksLabel: string | null } }) {
   return (
     <>
       <Field label="Nama" name="name" required maxLength={120} defaultValue={defaults?.name} placeholder="mis. Pembersihan Makam" />
       <TextArea label="Keterangan" name="description" placeholder="Apa saja yang dikerjakan." />
-      <Select label="Bukti yang harus dilampirkan" name="bukti" options={buktiOptions} defaultValue={defaults?.bukti ?? "foto_sesudah"} />
+      <JenisPicker options={options} defaultJenis={defaults?.jenis ?? options[0]?.value ?? "pembersihan"} />
       <Field
         label="Paling cepat dikerjakan (hari)"
         name="leadTimeDays"
@@ -134,19 +151,45 @@ function LayananFields({ defaults }: { defaults?: { name: string; description: s
       <Field label="Isian bebas (opsional)" name="teksLabel" maxLength={200} defaultValue={defaults?.teksLabel ?? ""} placeholder="mis. Teks nisan" />
       <div className="flex flex-col gap-2 sm:col-span-3">
         <Flag label="Bisa ditambahkan pada hari pemakaman (bisa hari-H)" name="bisaHariH" defaultChecked={defaults?.bisaHariH} />
-        <Flag label="Berah di petak yang belum ada jenazah" name="adaDiPetakKosong" defaultChecked={defaults?.adaDiPetakKosong} />
+        <Flag label="Boleh di petak yang belum ada jenazah" name="adaDiPetakKosong" defaultChecked={defaults?.adaDiPetakKosong} />
       </div>
       <input type="hidden" name="reason" value="" />
     </>
   );
 }
 
+/**
+ * The kind of Layanan and the proof it requires. The proof is the kind's, not a
+ * choice: the form shows what this kind needs and carries it in a hidden field,
+ * which the module checks against the kind (a stale form cannot claim another).
+ */
+function JenisPicker({ options, defaultJenis }: { options: PilihanJenis[]; defaultJenis: JenisLayanan }) {
+  const [jenis, setJenis] = useState<JenisLayanan>(defaultJenis);
+  const dipilih = options.find((one) => one.value === jenis) ?? options[0];
+  return (
+    <>
+      <Select
+        label="Jenis Layanan"
+        name="jenis"
+        options={options.map((one) => [one.value, one.label] as const)}
+        defaultValue={defaultJenis}
+        onChange={(value) => setJenis(value as JenisLayanan)}
+      />
+      <div className="flex flex-col gap-1 text-sm font-medium sm:col-span-3">
+        <span>Bukti yang wajib dilampirkan</span>
+        <span className="font-normal text-muted-foreground">{dipilih?.proofLabel} (wajib oleh jenis ini, tidak bisa diganti)</span>
+        <input type="hidden" name="bukti" value={dipilih?.bukti ?? "foto_sesudah"} readOnly />
+      </div>
+    </>
+  );
+}
+
 /** Admin Platform adds a Layanan to the catalog, with one Pilihan per line. */
-export function TambahLayananForm() {
+export function TambahLayananForm({ options }: { options: PilihanJenis[] }) {
   const [state, action, pending] = useActionState(tambahLayanan, idle);
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-3">
-      <LayananFields />
+      <LayananFields options={options} />
       <TextArea label="Pilihan (satu per baris)" name="varian" rows={3} placeholder={"Reguler\nLengkap"} />
       <div className="flex flex-col gap-2 sm:col-span-3">
         <Submit pending={pending}>Tambah Layanan</Submit>
@@ -159,14 +202,16 @@ export function TambahLayananForm() {
 /** Admin Platform changes one Layanan's own fields (never its Pilihan). */
 export function UbahLayananForm({
   layanan,
+  options,
 }: {
-  layanan: { id: string; name: string; description: string; bukti: string; leadTimeDays: number; bisaHariH: boolean; adaDiPetakKosong: boolean; teksLabel: string | null };
+  layanan: { id: string; name: string; description: string; jenis: JenisLayanan; leadTimeDays: number; bisaHariH: boolean; adaDiPetakKosong: boolean; teksLabel: string | null };
+  options: PilihanJenis[];
 }) {
   const [state, action, pending] = useActionState(ubahLayanan, idle);
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-3">
       <input type="hidden" name="layananId" value={layanan.id} />
-      <LayananFields defaults={layanan} />
+      <LayananFields options={options} defaults={layanan} />
       <div className="flex flex-col gap-2 sm:col-span-3">
         <Submit pending={pending}>Simpan perubahan</Submit>
         <Feedback state={state} />
@@ -188,18 +233,59 @@ export function TambahVarianForm({ layananId }: { layananId: string }) {
   );
 }
 
-/** One Pilihan removed from the catalog. */
-export function HapusVarianForm({ variantId }: { variantId: string }) {
+/** One Pilihan removed from the catalog: with a reason, confirmed (it cannot be undone). */
+export function HapusVarianForm({ variantId, name }: { variantId: string; name: string }) {
   const [state, action, pending] = useActionState(hapusVarian, idle);
+  const formId = `hapus-varian-${variantId}`;
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
-      <input type="hidden" name="layananVariantId" value={variantId} />
-      <Field label="Alasan (opsional)" name="reason" maxLength={500} />
-      <Button type="submit" variant="destructive" disabled={pending}>
-        Hapus Pilihan
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="layananVariantId" value={variantId} />
+      </form>
+      <ConfirmDialog
+        formId={formId}
+        pending={pending}
+        variant="destructive"
+        confirmLabel="Hapus Pilihan"
+        title={`Hapus Pilihan ${name}?`}
+        description="Pilihan ini hilang dari katalog dan tidak bisa dikembalikan."
+        reason={{ name: "reason", label: "Alasan", placeholder: "Alasan penghapusan, untuk Audit Log" }}
+        trigger={
+          <Button type="button" variant="destructive" size="sm">
+            Hapus Pilihan
+          </Button>
+        }
+      />
       <Feedback state={state} />
-    </form>
+    </div>
+  );
+}
+
+/** One Layanan removed from the catalog with its Pilihan: with a reason, confirmed. */
+export function HapusLayananForm({ layananId, name }: { layananId: string; name: string }) {
+  const [state, action, pending] = useActionState(hapusLayanan, idle);
+  const formId = `hapus-layanan-${layananId}`;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="layananId" value={layananId} />
+      </form>
+      <ConfirmDialog
+        formId={formId}
+        pending={pending}
+        variant="destructive"
+        confirmLabel="Hapus Layanan"
+        title={`Hapus Layanan ${name}?`}
+        description="Layanan ini beserta seluruh Pilihan-nya hilang dari katalog dan tidak bisa dikembalikan. Hanya bisa dihapus kalau belum pernah ditawarkan di Lokasi Mitra mana pun dan belum masuk Paket Layanan."
+        reason={{ name: "reason", label: "Alasan", placeholder: "Alasan penghapusan, untuk Audit Log" }}
+        trigger={
+          <Button type="button" variant="destructive" size="sm">
+            Hapus Layanan
+          </Button>
+        }
+      />
+      <Feedback state={state} />
+    </div>
   );
 }
 
@@ -268,19 +354,32 @@ export function TawarkanLayananForm({ lokasiId, variantId, today }: { lokasiId: 
   );
 }
 
-/** Stop a Lokasi Mitra offering one Pilihan. */
-export function StopLayananForm({ lokasiId, variantId }: { lokasiId: string; variantId: string }) {
+/** Stop a Lokasi Mitra offering one Pilihan: with a reason, confirmed. */
+export function StopLayananForm({ lokasiId, variantId, name }: { lokasiId: string; variantId: string; name: string }) {
   const [state, action, pending] = useActionState(stopLayanan, idle);
+  const formId = `stop-layanan-${variantId}`;
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
-      <input type="hidden" name="lokasiId" value={lokasiId} />
-      <input type="hidden" name="layananVariantId" value={variantId} />
-      <Field label="Alasan (opsional)" name="reason" maxLength={500} />
-      <Button type="submit" variant="destructive" disabled={pending}>
-        Berhenti menawarkan
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="lokasiId" value={lokasiId} />
+        <input type="hidden" name="layananVariantId" value={variantId} />
+      </form>
+      <ConfirmDialog
+        formId={formId}
+        pending={pending}
+        variant="destructive"
+        confirmLabel="Berhenti menawarkan"
+        title={`Berhenti menawarkan ${name}?`}
+        description="Lokasi Mitra ini berhenti menawarkannya, jadi harganya tidak lagi tampil di halaman publiknya. Bisa ditawarkan lagi kapan saja, dengan harga baru."
+        reason={{ name: "reason", label: "Alasan", placeholder: "Alasan penghentian, untuk Audit Log" }}
+        trigger={
+          <Button type="button" variant="destructive" size="sm">
+            Berhenti menawarkan
+          </Button>
+        }
+      />
       <Feedback state={state} />
-    </form>
+    </div>
   );
 }
 
@@ -352,17 +451,30 @@ export function UbahPaketForm({
   );
 }
 
-/** Admin Platform removes a Paket Layanan. */
-export function HapusPaketForm({ paketId }: { paketId: string }) {
+/** Admin Platform removes a Paket Layanan: with a reason, confirmed. */
+export function HapusPaketForm({ paketId, name }: { paketId: string; name: string }) {
   const [state, action, pending] = useActionState(hapusPaket, idle);
+  const formId = `hapus-paket-${paketId}`;
   return (
-    <form action={action} className="flex flex-wrap items-end gap-2">
-      <input type="hidden" name="paketId" value={paketId} />
-      <Field label="Alasan (opsional)" name="reason" maxLength={500} />
-      <Button type="submit" variant="destructive" disabled={pending}>
-        Hapus Paket Layanan
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="paketId" value={paketId} />
+      </form>
+      <ConfirmDialog
+        formId={formId}
+        pending={pending}
+        variant="destructive"
+        confirmLabel="Hapus Paket Layanan"
+        title={`Hapus Paket Layanan ${name}?`}
+        description="Definisi Paket ini hilang dan tidak bisa dikembalikan."
+        reason={{ name: "reason", label: "Alasan", placeholder: "Alasan penghapusan, untuk Audit Log" }}
+        trigger={
+          <Button type="button" variant="destructive" size="sm">
+            Hapus Paket Layanan
+          </Button>
+        }
+      />
       <Feedback state={state} />
-    </form>
+    </div>
   );
 }

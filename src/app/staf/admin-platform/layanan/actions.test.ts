@@ -3,7 +3,7 @@ import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
 import { authenticatorCode } from "../../../../../tests/support/totp";
-import { simpanHargaDki, tambahLayanan, tandaiBolehDiTpu, tawarkanLayanan } from "./actions";
+import { hapusLayanan, simpanHargaDki, tambahLayanan, tandaiBolehDiTpu, tawarkanLayanan } from "./actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => import("../../../../../tests/support/next-request"));
@@ -37,10 +37,11 @@ function form(values: Record<string, string>): FormData {
   return data;
 }
 
-/** A Layanan in the catalog, typed as the form does. */
+/** A Layanan in the catalog, typed as the form does: its kind, and the proof that kind requires. */
 const layanan = {
   name: "Pembersihan Makam",
   description: "Membersihkan dan merapikan makam.",
+  jenis: "pembersihan",
   bukti: "foto_sebelum_dan_sesudah",
   leadTimeDays: "3",
   teksLabel: "",
@@ -78,6 +79,16 @@ describe("the Katalog Layanan Server Actions", () => {
     expect(await server.runtime().layanan.katalog()).toEqual([]);
   });
 
+  it("refuses a proof that is not the kind's own, and says which proof the kind takes", async () => {
+    await signInAsAdminPlatform();
+    // What a stale or tampered form would send for a Pembersihan Makam.
+    expect(await tambahLayanan({ status: "idle" }, form({ ...layanan, bukti: "foto_dan_video" }))).toEqual({
+      status: "gagal",
+      message: "Bukti untuk Pembersihan Makam adalah Foto sebelum dan sesudah; bukti tidak bisa dipilih bebas.",
+    });
+    expect(await server.runtime().layanan.katalog()).toEqual([]);
+  });
+
   it("a signed-out caller is refused, and the catalog stays empty", async () => {
     expect(await tambahLayanan({ status: "idle" }, form(layanan))).toEqual({
       status: "gagal",
@@ -88,7 +99,7 @@ describe("the Katalog Layanan Server Actions", () => {
 
   it("marks a Pilihan for TPU DKI, and takes a new DKI price for it", async () => {
     await signInAsAdminPlatform();
-    await tambahLayanan({ status: "idle" }, form({ ...layanan, name: "Batu Nisan", bukti: "foto_sesudah" }));
+    await tambahLayanan({ status: "idle" }, form({ ...layanan, name: "Batu Nisan", jenis: "nisan", bukti: "foto_sesudah" }));
     const [marmer] = (await server.runtime().layanan.katalog())[0].varian;
 
     expect(await tandaiBolehDiTpu({ status: "idle" }, form({ layananVariantId: marmer.id, boleh: "true", reason: "" }))).toEqual({
@@ -100,6 +111,35 @@ describe("the Katalog Layanan Server Actions", () => {
       form({ layananVariantId: marmer.id, amount: "600.000", effectiveOn: "2026-10-01", reason: "" }),
     )).toEqual({ status: "berhasil", message: "Harga di TPU DKI Rp 600.000 berlaku mulai 1 Oktober 2026." });
     expect(await server.runtime().tariffs.hargaLayananDki(marmer.id, server.clock.now())).toMatchObject({ amount: 600_000 });
+  });
+
+  it("removes a Layanan from the catalog with a reason, and refuses one that is in use", async () => {
+    await signInAsAdminPlatform();
+    await tambahLayanan({ status: "idle" }, form(layanan));
+    const [ditarik] = (await server.runtime().layanan.katalog())[0].varian;
+    const actor = (await server.runtime().identity.actorFromCookies(browser.cookieHeader()))!;
+    const dibuat = await server.runtime().lokasi.createLokasiMitra(actor, {
+      name: "Makam Wakaf Al-Ikhlas",
+      pengelolaName: "Yayasan Al-Ikhlas",
+      address: "Jl. Raya Pondok Rangon No. 1",
+      city: "Kota Jakarta Timur",
+    });
+    if (!dibuat.ok) throw new Error(`Lokasi Mitra refused: ${dibuat.reason}`);
+    await tawarkanLayanan(
+      { status: "idle" },
+      form({ lokasiId: dibuat.lokasiMitra.id, layananVariantId: ditarik.id, amount: "500.000", effectiveOn: "2026-10-01", reason: "" }),
+    );
+
+    const katalog = (await server.runtime().layanan.katalog())[0];
+    expect(await hapusLayanan({ status: "idle" }, form({ layananId: katalog.id, reason: "" }))).toEqual({
+      status: "gagal",
+      message: "Alasan paling banyak 500 huruf.",
+    });
+    expect(await hapusLayanan({ status: "idle" }, form({ layananId: katalog.id, reason: "Pensiun" }))).toEqual({
+      status: "gagal",
+      message: "Layanan ini masih dipakai: salah satu Pilihan-nya pernah ditawarkan di sebuah Lokasi Mitra atau masuk sebuah Paket Layanan.",
+    });
+    expect(await server.runtime().layanan.katalog()).toHaveLength(1);
   });
 
   it("offers a Pilihan at a Lokasi Mitra with that place's price, so the page can show it", async () => {

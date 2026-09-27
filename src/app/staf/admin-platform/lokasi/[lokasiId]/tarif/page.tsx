@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Actor } from "@/domain/identity";
-import type { JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
+import type { HargaLayananVersion, JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
 import { formatTanggal, formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
@@ -164,14 +164,46 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
 }
 
 /**
+ * Every price version one Pilihan had at this Lokasi Mitra, oldest first: an old
+ * price is read back, never rewritten, and this is where that history is read.
+ * Nothing yet is nothing on screen.
+ */
+function RiwayatVersi({ versions }: { versions: readonly HargaLayananVersion[] | undefined }) {
+  if (!versions || versions.length === 0) return null;
+  return (
+    <details>
+      <summary className="cursor-pointer">Riwayat versi ({versions.length})</summary>
+      <ul className="mt-2 flex flex-col gap-1">
+        {versions.map((version) => (
+          <li key={version.seq}>
+            {formatRupiah(version.amount)} berlaku {formatTanggal(version.effectiveOn)} · dicatat {formatWib(version.enteredAt)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
  * Which Layanan this Lokasi Mitra offers and what it charges: the catalog is
  * global, the price is this place's own, and a Pilihan with no price in force is
  * never shown to a family.
  */
 async function LayananLokasiSection({ actor, lokasiId, today }: { actor: Actor; lokasiId: string; today: string }) {
-  const { layanan, adapters } = serverRuntime();
+  const { layanan, tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
   const penawaran = await layanan.asStaff(actor).lokasiLayanan(lokasiId, now);
+  // Every price version this Lokasi Mitra has for its offered variants, so an old
+  // price can still be read back, as the other tariffs on this page do.
+  const riwayat = new Map(
+    await Promise.all(
+      penawaran.flatMap((entry) =>
+        entry.varian
+          .filter((varian) => varian.ditawarkan)
+          .map(async (varian) => [varian.id, await tariffs.hargaLayananLokasiHistory(lokasiId, varian.id)] as const),
+      ),
+    ),
+  );
 
   return (
     <Section
@@ -199,9 +231,12 @@ async function LayananLokasiSection({ actor, lokasiId, today }: { actor: Actor; 
                 </summary>
                 <div className="mt-3 flex flex-col gap-3">
                   <TawarkanLayananForm lokasiId={lokasiId} variantId={varian.id} today={today} />
-                  {varian.ditawarkan ? <StopLayananForm lokasiId={lokasiId} variantId={varian.id} /> : null}
+                  {varian.ditawarkan ? (
+                    <StopLayananForm lokasiId={lokasiId} variantId={varian.id} name={`${entry.layanan.name} — ${varian.name}`} />
+                  ) : null}
                 </div>
               </details>
+              <RiwayatVersi versions={riwayat.get(varian.id)} />
             </div>
           ))}
         </div>

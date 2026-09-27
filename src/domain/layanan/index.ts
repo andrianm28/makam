@@ -24,13 +24,15 @@
  * This module is the catalog, the offers and the prices.
  */
 import type { Actor } from "@/domain/identity";
-import type { AllInPrice } from "@/domain/tariffs";
+import type { SetHargaLayananInput } from "@/domain/tariffs";
 import type { LayananDeps } from "./deps";
 import {
   createLayanan as createLayananEntry,
+  hapusLayanan,
   katalog,
   ubahLayanan as ubahLayananEntry,
   type CreateLayananResult,
+  type HapusLayananResult,
   type LayananTerbaca,
   type NewLayanan,
   type PerubahanLayanan,
@@ -62,18 +64,19 @@ import {
   layananDiLokasi,
   penawaranLokasi,
   penawaranTpu,
+  type HargaLayanan,
   type LayananDiLokasi,
   type LayananDiTempat,
   type Tempat,
 } from "./harga";
 
 export type { LayananDeps } from "./deps";
-export { buktiValues, frekuensiValues } from "./schema";
-export type { Bukti, Frekuensi } from "./schema";
-export type { AllInPrice } from "@/domain/tariffs";
-export { proofOf } from "./katalog";
+export { buktiPerJenis, buktiValues, frekuensiValues, jenisLayananValues } from "./schema";
+export type { Bukti, Frekuensi, JenisLayanan } from "./schema";
+export { buktiOf, proofOf } from "./katalog";
 export type {
   CreateLayananResult,
+  HapusLayananResult,
   LayananKatalog,
   LayananTerbaca,
   NewLayanan,
@@ -84,7 +87,7 @@ export type {
 export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLayanan, VarianLayanan } from "./varian";
 export type { StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
-export type { LayananDiLokasi, LayananDiTempat, Tempat, VarianDitawarkan } from "./harga";
+export type { HargaLayanan, LayananDiLokasi, LayananDiTempat, Tempat, VarianDitawarkan } from "./harga";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -101,8 +104,12 @@ export interface Layanan {
    * encoded. Audited.
    */
   tandaiBolehDiTpu(by: Actor, layananVariantId: string, input: { boleh: boolean; reason: string | null }): Promise<TandaiBolehDiTpuResult>;
-  /** Admin Platform switches one Layanan variant on at a Lokasi Mitra; audited on that Lokasi. */
-  tawarkanLayanan(by: Actor, lokasiId: string, layananVariantId: string, input: { reason: string | null }): Promise<TawarkanLayananResult>;
+  /**
+   * Admin Platform switches one Layanan variant on at a Lokasi Mitra with that
+   * place's price for it: one decision, one transaction, two Entri Audits on that
+   * Lokasi. A price the Tariffs module refuses leaves no offering behind.
+   */
+  tawarkanLayanan(by: Actor, lokasiId: string, layananVariantId: string, input: SetHargaLayananInput): Promise<TawarkanLayananResult>;
   /** Admin Platform stops a Lokasi Mitra offering a Layanan variant; audited on that Lokasi. */
   stopLayanan(by: Actor, lokasiId: string, layananVariantId: string, input: { reason: string | null }): Promise<StopLayananResult>;
   /** Admin Platform defines a Paket Layanan: its items and its frequency; audited. */
@@ -111,6 +118,12 @@ export interface Layanan {
   ubahPaket(by: Actor, paketId: string, input: PerubahanPaket): Promise<UbahPaketResult>;
   /** Admin Platform removes a Paket Layanan definition; audited. */
   hapusPaket(by: Actor, paketId: string, input: { reason: string | null }): Promise<HapusPaketResult>;
+  /**
+   * Admin Platform removes a Layanan from the catalog with its variants; refused
+   * while a Lokasi Mitra was ever offered one of them or a Paket Layanan contains
+   * one; audited.
+   */
+  hapusLayanan(by: Actor, layananId: string, input: { reason: string | null }): Promise<HapusLayananResult>;
   /** Every Layanan of the one global catalog, by name, with its variants and the proof each requires. */
   katalog(): Promise<LayananTerbaca[]>;
   /** Every Paket Layanan, by name, with its items. */
@@ -133,7 +146,7 @@ export interface Layanan {
    * `quote()`. Null where it is not offered, which is every place where one of
    * its items is not.
    */
-  hargaPaket(paketId: string, di: Tempat, at: Date): Promise<AllInPrice | null>;
+  hargaPaket(paketId: string, di: Tempat, at: Date): Promise<HargaLayanan | null>;
 }
 
 export function createLayanan(deps: LayananDeps): Layanan {
@@ -148,6 +161,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     buatPaket: (by, input) => buatPaket(deps, by, input),
     ubahPaket: (by, paketId, input) => ubahPaket(deps, by, paketId, input),
     hapusPaket: (by, paketId, input) => hapusPaket(deps, by, paketId, input),
+    hapusLayanan: (by, layananId, input) => hapusLayanan(deps, by, layananId, input),
     katalog: () => katalog(deps.db),
     paket: () => semuaPaket(deps.db),
     penawaranLokasi: (lokasiId, at) => penawaranLokasi(deps, lokasiId, at),

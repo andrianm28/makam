@@ -27,16 +27,13 @@ export type QuoteLine =
   /** A Retribusi Pemda, collected at cost: for an IPTM. */
   | { kind: "retribusi_pemda"; retribusi: "iptm" }
   /**
-   * One Layanan variant at a Lokasi Mitra, at that place's price. The names
-   * come from the Layanan catalog, which owns them, so the line (and every page
-   * and Tagihan that shows it) says which Layanan and which variant it is.
+   * One Layanan variant at a Lokasi Mitra, at that place's price. It carries the
+   * variant's id only: its name belongs to the Layanan catalog, the only module
+   * that reads it, so a name can never drift from the variant it names.
    */
-  | { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string; namaLayanan: string; namaVarian: string }
-  /**
-   * One Layanan variant at a DKI TPU, at the DKI price (the same in every TPU).
-   * The names come from the Layanan catalog, as above.
-   */
-  | { kind: "layanan_dki"; layananVariantId: string; namaLayanan: string; namaVarian: string };
+  | { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string }
+  /** One Layanan variant at a DKI TPU, at the DKI price (the same in every TPU); its name, as above. */
+  | { kind: "layanan_dki"; layananVariantId: string };
 
 /**
  * Who provides a line: the Lokasi Mitra for its tariff lines, the Operator for
@@ -67,8 +64,8 @@ export type QuotedLine =
   /** `setorRetribusi`: a non-zero Retribusi Pemda must be paid on to the Pemda (a Setor Retribusi row); Rp 0 needs none. */
   | (QuotedLineBase & { kind: "retribusi_pemda"; retribusi: "iptm"; setorRetribusi: boolean })
   | (QuotedLineBase & { kind: "biaya_layanan_platform" })
-  | (QuotedLineBase & { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string; namaLayanan: string; namaVarian: string })
-  | (QuotedLineBase & { kind: "layanan_dki"; layananVariantId: string; namaLayanan: string; namaVarian: string });
+  | (QuotedLineBase & { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string })
+  | (QuotedLineBase & { kind: "layanan_dki"; layananVariantId: string });
 
 export interface Quote {
   ok: true;
@@ -111,19 +108,8 @@ const quoteLineSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("biaya_pengurusan"), pengurusan: z.enum(["pemakaman", "berkas"]) }),
   z.object({ kind: z.literal("retribusi_pemda"), retribusi: z.literal("iptm") }),
-  z.object({
-    kind: z.literal("layanan_lokasi"),
-    lokasiId: idSchema,
-    layananVariantId: idSchema,
-    namaLayanan: z.string().min(1).max(120),
-    namaVarian: z.string().min(1).max(120),
-  }),
-  z.object({
-    kind: z.literal("layanan_dki"),
-    layananVariantId: idSchema,
-    namaLayanan: z.string().min(1).max(120),
-    namaVarian: z.string().min(1).max(120),
-  }),
+  z.object({ kind: z.literal("layanan_lokasi"), lokasiId: idSchema, layananVariantId: idSchema }),
+  z.object({ kind: z.literal("layanan_dki"), layananVariantId: idSchema }),
 ]);
 
 /** A line priced at an instant, with when its version started and when the next one starts. */
@@ -346,8 +332,6 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
           kind: "layanan_lokasi",
           lokasiId: line.lokasiId,
           layananVariantId: line.layananVariantId,
-          namaLayanan: line.namaLayanan,
-          namaVarian: line.namaVarian,
           amount,
           // The Lokasi Mitra provides its own Layanan, so the price carries its attribution.
           provider: { kind: "lokasi_mitra", lokasiId: line.lokasiId },
@@ -364,8 +348,6 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
         (amount, _version, schedule) => ({
           kind: "layanan_dki",
           layananVariantId: line.layananVariantId,
-          namaLayanan: line.namaLayanan,
-          namaVarian: line.namaVarian,
           amount,
           provider: { kind: "operator" },
           ...schedule,

@@ -43,7 +43,7 @@ describe("the fixed-price variants of a Layanan", () => {
     const { adminLokasi, lokasiMitra } = await lokasiFixture(setup, admin);
 
     expect(await setup.layanan.hapusVarian(adminLokasi, varian.id, { reason: null })).toEqual({ ok: false, reason: "tidak_berwenang" });
-    expect(await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, varian.id, { reason: null })).toEqual({ ok: true });
+    expect(await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, varian.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null })).toMatchObject({ ok: true });
     expect(await setup.layanan.hapusVarian(admin, varian.id, { reason: null })).toEqual({ ok: false, reason: "varian_terpakai" });
 
     // The offering is kept with the moment it stopped, so the variant stays part of the Lokasi's history.
@@ -102,12 +102,12 @@ describe("changing a Layanan", () => {
   it("is audited with the entry before it and the one after it", async () => {
     const setup = layananOnTestDatabase(db);
     const { admin, layanan } = await catalogFixture(setup);
-    await setup.layanan.createLayanan(admin, newLayananInput({ name: "Laporan Foto/Video", varian: ["Reguler"] }));
+    await setup.layanan.createLayanan(admin, newLayananInput({ name: "Laporan Foto/Video", jenis: "laporan", varian: ["Reguler"] }));
 
     const changed = await setup.layanan.ubahLayanan(admin, layanan.id, {
-      ...newLayananInput({ name: "Pembersihan Makam Berkala", leadTimeDays: 5, bukti: "foto_sesudah", description: "Perawatan berkala." }),
+      ...newLayananInput({ name: "Pembersihan Makam Berkala", leadTimeDays: 5, description: "Perawatan berkala." }),
     });
-    expect(changed).toMatchObject({ ok: true, layanan: { name: "Pembersihan Makam Berkala", leadTimeDays: 5, bukti: "foto_sesudah" } });
+    expect(changed).toMatchObject({ ok: true, layanan: { name: "Pembersihan Makam Berkala", leadTimeDays: 5, jenis: "pembersihan" } });
     expect(await setup.layanan.ubahLayanan(admin, layanan.id, newLayananInput({ name: " laporan   foto/video " }))).toEqual({
       ok: false,
       reason: "nama_sudah_ada",
@@ -121,8 +121,8 @@ describe("changing a Layanan", () => {
       expect.objectContaining({ action: "layanan.buat" }),
       {
         action: "layanan.ubah",
-        before: { name: "Pembersihan Makam", leadTimeDays: 3, bukti: "foto_sebelum_dan_sesudah", varian: ["Reguler"] },
-        after: { name: "Pembersihan Makam Berkala", leadTimeDays: 5, bukti: "foto_sesudah", varian: ["Reguler"] },
+        before: { name: "Pembersihan Makam", leadTimeDays: 3, jenis: "pembersihan", bukti: "foto_sebelum_dan_sesudah", varian: ["Reguler"] },
+        after: { name: "Pembersihan Makam Berkala", leadTimeDays: 5, jenis: "pembersihan", bukti: "foto_sebelum_dan_sesudah", varian: ["Reguler"] },
         reason: null,
       },
     ]);
@@ -136,7 +136,7 @@ async function nisanFixture(setup: LayananSetup, admin: Actor) {
     newLayananInput({
       name: "Batu Nisan",
       description: "Pesan dan pasang batu nisan.",
-      bukti: "foto_sesudah",
+      jenis: "nisan",
       leadTimeDays: 14,
       adaDiPetakKosong: false,
       teksLabel: "Teks nisan",

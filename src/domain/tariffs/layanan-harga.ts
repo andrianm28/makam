@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { authorize, lokasiMitraResource, tarifGlobalResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -62,7 +62,10 @@ const auditOf: Record<BukuLayanan, { action: "tarif.ubah_harga_layanan" | "tarif
 
 const hargaSchema = z.object({ amount: rupiahSchema, effectiveOn: effectiveOnSchema });
 
-function toVersion(row: { amount: Rupiah; effectiveOn: string; inForceFrom: Date; seq: number; enteredAt: Date }): HargaLayananVersion {
+/** A stored version row: which variant it is for, plus the shared version columns and its amount. */
+type VersionRow = { layananVariantId: string; amount: Rupiah; effectiveOn: string; inForceFrom: Date; seq: number; enteredAt: Date };
+
+function toVersion(row: VersionRow): HargaLayananVersion {
   return { amount: row.amount, ...versionTimesOf(row) };
 }
 
@@ -70,11 +73,68 @@ function snapshot(version: HargaLayananVersion) {
   return { amount: version.amount, effectiveOn: version.effectiveOn };
 }
 
-/** Every version of one Layanan variant in one price book, in entry order (none is ever changed or deleted). */
-export function versionsOfLayanan(db: Database, buku: BukuLayanan, layananVariantId: string): Promise<HargaLayananVersion[]> {
+/**
+ * Every version of one Layanan variant in one price book, in entry order (none
+ * is ever changed or deleted).
+ *
+ * The Lokasi price book belongs to a Lokasi Mitra, so it is read by that place
+ * **and** that variant: reading it by variant alone would mix in another place's
+ * price books, and the Entri Audit's "before" would be a version this write does
+ * not replace.
+ */
+export function versionsOfLayanan(
+  db: Database,
+  buku: BukuLayanan,
+  layananVariantId: string,
+  lokasiId: string | null = null,
+): Promise<HargaLayananVersion[]> {
   if (!isUuid(layananVariantId)) return Promise.resolve([]);
-  const table = tabelBuku[buku];
-  return selectVersions(db, table, eq(table.layananVariantId, layananVariantId), toVersion);
+  if (buku === "harga_layanan") {
+    if (lokasiId === null || !isUuid(lokasiId)) return Promise.resolve([]);
+    return selectVersions(
+      db,
+      tariffLayananVersion,
+      and(eq(tariffLayananVersion.layananVariantId, layananVariantId), eq(tariffLayananVersion.lokasiId, lokasiId)),
+      toVersion,
+    );
+  }
+  return selectVersions(db, tabelBuku[buku], eq(tabelBuku[buku].layananVariantId, layananVariantId), toVersion);
+}
+
+/**
+ * Every Layanan variant's price at one Lokasi Mitra in force at `at`, keyed by
+ * variant id: one read for the whole place instead of one per variant, for the
+ * staff screen that lists them all. A variant that is not offered there is in
+ * the map too, when it has a price: that screen shows what is still unfinished.
+ */
+export async function hargaLayananLokasiSemua(
+  db: Database,
+  lokasiId: string,
+  at: Date,
+): Promise<Map<string, HargaLayananVersion>> {
+  if (!isUuid(lokasiId)) return new Map();
+  const rows: VersionRow[] = await db
+    .select()
+    .from(tariffLayananVersion)
+    .where(eq(tariffLayananVersion.lokasiId, lokasiId))
+    .orderBy(asc(tariffLayananVersion.layananVariantId), asc(tariffLayananVersion.inForceFrom), asc(tariffLayananVersion.seq));
+  return inForcePerVariant(rows, at);
+}
+
+/**
+ * The versions in force per variant out of one place's whole price book, in the
+ * read order the book is stored in (variant, then in force, then entry): the
+ * last one in force for a variant is the one that counts.
+ */
+function inForcePerVariant(rows: readonly VersionRow[], at: Date): Map<string, HargaLayananVersion> {
+  const inForce = new Map<string, HargaLayananVersion>();
+  for (const row of rows) {
+    const version = toVersion(row);
+    if (version.inForceFrom.getTime() > at.getTime()) continue;
+    const current = inForce.get(row.layananVariantId);
+    if (!current || version.inForceFrom.getTime() >= current.inForceFrom.getTime()) inForce.set(row.layananVariantId, version);
+  }
+  return inForce;
 }
 
 /** The version of one price book in force at `at`, or null when none was yet. */
@@ -88,14 +148,8 @@ export function layananDkiVersionList(db: Database, layananVariantId: string): P
 }
 
 /** Every version of one Layanan variant's price at one Lokasi Mitra, in entry order. */
-export async function hargaLayananLokasiHistory(db: Database, lokasiId: string, layananVariantId: string): Promise<HargaLayananVersion[]> {
-  if (!isUuid(lokasiId) || !isUuid(layananVariantId)) return [];
-  return selectVersions(
-    db,
-    tariffLayananVersion,
-    and(eq(tariffLayananVersion.lokasiId, lokasiId), eq(tariffLayananVersion.layananVariantId, layananVariantId)),
-    toVersion,
-  );
+export function hargaLayananLokasiHistory(db: Database, lokasiId: string, layananVariantId: string): Promise<HargaLayananVersion[]> {
+  return versionsOfLayanan(db, "harga_layanan", layananVariantId, lokasiId);
 }
 
 /** The price of one Layanan variant at one Lokasi Mitra in force at `at`, or null when none was. */
@@ -133,7 +187,7 @@ async function writeHarga(
 
   return writeVersion(deps, now, (tx) => lockLayananHarga(tx, `${buku}.${lokasiId ?? ""}.${layananVariantId}`), {
     effectiveOn: parsed.data.effectiveOn,
-    versions: (tx) => versionsOfLayanan(tx, buku, layananVariantId),
+    versions: (tx) => versionsOfLayanan(tx, buku, layananVariantId, lokasiId),
     insert: async (tx, inForceFrom) => {
       const [row] = await tx
         .insert(tabelBuku[buku])

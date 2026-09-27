@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { buktiValues, frekuensiValues } from "@/domain/layanan";
+import { buktiOf, buktiValues, frekuensiValues, jenisLayananValues } from "@/domain/layanan";
+import { buktiLabels, jenisLayananLabels } from "@/lib/layanan-labels";
 import { layananKatalogResource, lokasiMitraResource, type Actor, type Resource } from "@/domain/identity";
 import { guarded } from "@/server/guard";
 import { rupiahInput } from "@/server/rupiah-input";
@@ -29,6 +30,7 @@ type LayananResult =
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["buatPaket"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["ubahPaket"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["hapusPaket"]>>
+  | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["hapusLayanan"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setHargaLayananDki"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setTarifMitraJasa"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setHargaLayananLokasi"]>>;
@@ -45,7 +47,11 @@ function refusalMessage(refusal: LayananRefusal): string {
     case "nama_sudah_ada":
       return "Sudah ada nama ini di katalog.";
     case "layanan_tidak_valid":
-      return "Layanan ini tidak bisa disimpan: periksa nama, bukti, waktu paling awal (0–365 hari) dan daftar Pilihan.";
+      return "Layanan ini tidak bisa disimpan: periksa nama, jenis Layanan, waktu paling awal (0–365 hari) dan daftar Pilihan.";
+    case "bukti_tidak_cocok":
+      return `Bukti untuk ${jenisLayananLabels[refusal.jenis]} adalah ${buktiLabels[buktiOf(refusal.jenis)]}; bukti tidak bisa dipilih bebas.`;
+    case "layanan_terpakai":
+      return "Layanan ini masih dipakai: salah satu Pilihan-nya pernah ditawarkan di sebuah Lokasi Mitra atau masuk sebuah Paket Layanan.";
     case "paket_tidak_valid":
       return "Paket Layanan ini tidak bisa disimpan: pilih sedikit satu Pilihan, tanpa duplikat, dan frekuensinya salah satu dari empat.";
     case "varian_terpakai":
@@ -71,6 +77,9 @@ const reason = z
 const layananFields = {
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500),
+  jenis: z.enum(jenisLayananValues),
+  // Not a free choice: the proof belongs to the kind, and the module refuses any
+  // other value, so the hidden field the form carries is checked, never trusted.
   bukti: z.enum(buktiValues),
   leadTimeDays: z.coerce.number().int().min(0).max(365),
   bisaHariH: z.boolean(),
@@ -82,6 +91,13 @@ const layananFields = {
     .transform((value) => value || null),
   reason,
 };
+
+/** A reason the Audit Log needs before a removal or a stop goes through. */
+const alasanDiperlukan = z
+  .string()
+  .trim()
+  .min(1, "reason")
+  .max(500);
 
 const newLayananSchema = z.object({
   ...layananFields,
@@ -97,8 +113,9 @@ const ubahLayananSchema = z.object({ layananId: z.uuid(), ...layananFields });
 /** What each form field says when it is not valid, in Bahasa Indonesia. */
 const fieldMessages: Record<string, string> = {
   name: "Isi nama (paling banyak 120 huruf).",
+  jenis: "Pilih jenis Layanan.",
+  bukti: "Bukti mengikuti jenis Layanan; muat ulang halaman lalu coba lagi.",
   description: "Keterangan paling banyak 500 huruf.",
-  bukti: "Pilih bukti yang harus dilampirkan.",
   leadTimeDays: "Isi waktu paling awal dalam hari: bilangan bulat dari 0 sampai 365.",
   teksLabel: "Isian bebas paling banyak 200 huruf.",
   varian: "Isi sedikit satu Pilihan, satu nama per baris dan tanpa duplikat.",
@@ -126,7 +143,8 @@ async function write<S extends z.ZodType, R extends LayananResult>(options: {
   schema: S;
   input: Record<string, unknown>;
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
-  saved: (data: z.infer<S>) => string;
+  /** What the form says once the write is through: it may name the thing from the result, never from the form. */
+  saved: (data: z.infer<S>, written: Extract<R, { ok: true }>) => string;
   pages: (data: z.infer<S>) => string[];
 }): Promise<FormState> {
   const result = await guarded({
@@ -144,7 +162,8 @@ async function write<S extends z.ZodType, R extends LayananResult>(options: {
   const { data, written } = result.value;
   if (!written.ok) return { status: "gagal", message: refusalMessage(written as LayananRefusal) };
   for (const page of options.pages(data)) revalidatePath(page);
-  return { status: "berhasil", message: options.saved(data) };
+  // The cast is the narrowing a generic cannot do for itself, as in lokasi/actions.ts.
+  return { status: "berhasil", message: options.saved(data, written as Extract<R, { ok: true }>) };
 }
 
 /** Admin Platform adds a Layanan to the catalog with its first variants. */
@@ -156,6 +175,7 @@ export async function tambahLayanan(_previous: FormState, formData: FormData): P
     input: {
       name: formData.get("name"),
       description: field(formData, "description"),
+      jenis: formData.get("jenis"),
       bukti: formData.get("bukti"),
       leadTimeDays: field(formData, "leadTimeDays"),
       bisaHariH: checkbox(formData, "bisaHariH"),
@@ -180,6 +200,7 @@ export async function ubahLayanan(_previous: FormState, formData: FormData): Pro
       layananId: formData.get("layananId"),
       name: formData.get("name"),
       description: field(formData, "description"),
+      jenis: formData.get("jenis"),
       bukti: formData.get("bukti"),
       leadTimeDays: field(formData, "leadTimeDays"),
       bisaHariH: checkbox(formData, "bisaHariH"),
@@ -211,7 +232,7 @@ export async function hapusVarian(_previous: FormState, formData: FormData): Pro
   return write({
     action: "layanan.kelola",
     resource: () => layananKatalogResource(),
-    schema: z.object({ layananVariantId: id, reason }),
+    schema: z.object({ layananVariantId: id, reason: alasanDiperlukan }),
     input: { layananVariantId: formData.get("layananVariantId"), reason: field(formData, "reason") },
     run: (actor, data) => serverRuntime().layanan.hapusVarian(actor, data.layananVariantId, data),
     saved: () => "Pilihan dihapus dari katalog.",
@@ -303,7 +324,7 @@ export async function stopLayanan(_previous: FormState, formData: FormData): Pro
   return write({
     action: "layanan.tawarkan",
     resource: () => lokasiMitraResource(lokasiId),
-    schema: z.object({ lokasiId: id, layananVariantId: id, reason }),
+    schema: z.object({ lokasiId: id, layananVariantId: id, reason: alasanDiperlukan }),
     input: { lokasiId, layananVariantId: formData.get("layananVariantId"), reason: field(formData, "reason") },
     run: (actor, data) => serverRuntime().layanan.stopLayanan(actor, data.lokasiId, data.layananVariantId, data),
     saved: () => "Penawaran dihentikan.",
@@ -369,10 +390,23 @@ export async function hapusPaket(_previous: FormState, formData: FormData): Prom
   return write({
     action: "layanan.kelola",
     resource: () => layananKatalogResource(),
-    schema: z.object({ paketId: id, reason }),
+    schema: z.object({ paketId: id, reason: alasanDiperlukan }),
     input: { paketId: formData.get("paketId"), reason: field(formData, "reason") },
     run: (actor, data) => serverRuntime().layanan.hapusPaket(actor, data.paketId, data),
     saved: () => "Paket Layanan dihapus.",
+    pages: () => [KATALOG],
+  });
+}
+
+/** Admin Platform removes a Layanan from the catalog with its variants. */
+export async function hapusLayanan(_previous: FormState, formData: FormData): Promise<FormState> {
+  return write({
+    action: "layanan.kelola",
+    resource: () => layananKatalogResource(),
+    schema: z.object({ layananId: id, reason: alasanDiperlukan }),
+    input: { layananId: formData.get("layananId"), reason: field(formData, "reason") },
+    run: (actor, data) => serverRuntime().layanan.hapusLayanan(actor, data.layananId, data),
+    saved: (_data, written) => `Layanan ${written.nama} dihapus dari katalog.`,
     pages: () => [KATALOG],
   });
 }

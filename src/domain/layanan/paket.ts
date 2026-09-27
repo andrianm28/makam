@@ -3,6 +3,7 @@ import { z } from "zod";
 import { layananKatalogResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { LayananDeps } from "./deps";
 import { frekuensiValues, layananPaket, layananPaketItem, type Frekuensi } from "./schema";
+import { nameKeyOf, reasonOf } from "./nama";
 import { varianDenganLayanan, type VarianDenganLayanan } from "./varian";
 
 /**
@@ -57,13 +58,6 @@ const paketFieldsSchema = z.object({
 });
 
 const createSchema = paketFieldsSchema.extend({ itemIds: z.array(z.uuid()).min(1).max(50) });
-
-const reasonOf = (reason: string | null): string | null => reason?.trim() || null;
-
-/** The name folded for the one-name-per-catalog rule: lower case, single spaces. */
-function nameKeyOf(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
 
 function snapshotOf(paket: PaketLayanan) {
   return { name: paket.name, description: paket.description, frekuensi: paket.frekuensi, item: paket.item.map((one) => one.name) };

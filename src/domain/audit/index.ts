@@ -87,6 +87,8 @@ export type AuditAction =
   | "layanan.buat"
   /** Admin Platform changes a Layanan's own fields. */
   | "layanan.ubah"
+  /** Admin Platform removes a Layanan from the catalog, with its variants. */
+  | "layanan.hapus"
   /** Admin Platform adds a fixed-price variant to a Layanan. */
   | "layanan.tambah_varian"
   /** Admin Platform removes a variant from the catalog. */

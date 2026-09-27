@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import { layananKatalogResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { LayananDeps } from "./deps";
+import { nameKeyOf, reasonOf } from "./nama";
 import { layananLayanan, layananPaketItem, layananPenawaran, layananVarian } from "./schema";
 
 /**
@@ -24,11 +25,6 @@ export interface VarianLayanan {
 export type NewVarian = { name: string; reason: string | null };
 
 export const newVarianSchema = z.object({ name: z.string().trim().min(1).max(120) });
-
-/** The name folded for the one-variant-per-Layanan rule: lower case, single spaces. */
-export function nameKeyOf(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
 
 export type TambahVarianResult =
   | { ok: true; varian: VarianLayanan }
@@ -105,7 +101,7 @@ export async function tambahVarian(deps: LayananDeps, by: Actor, layananId: stri
       entity: { kind: "layanan", id: layananId },
       before: null,
       after: { name: inserted.varian.name },
-      reason: input.reason?.trim() || null,
+      reason: reasonOf(input.reason),
     });
     return { ok: true as const, varian: inserted.varian };
   });
@@ -143,7 +139,7 @@ export async function hapusVarian(deps: LayananDeps, by: Actor, layananVariantId
       entity: { kind: "layanan", id: before.layananId },
       before: { name: before.name },
       after: null,
-      reason: input.reason?.trim() || null,
+      reason: reasonOf(input.reason),
     });
     return { ok: true as const };
   });

@@ -1,7 +1,14 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn } from "../../../tests/support/identity";
-import { layananOnTestDatabase, newLayananInput, signedInAdminLokasi, signedInAdminPlatform, newLokasiMitra } from "../../../tests/support/layanan";
+import {
+  layananOnTestDatabase,
+  newLayananFor,
+  newLayananInput,
+  newLokasiMitra,
+  signedInAdminLokasi,
+  signedInAdminPlatform,
+} from "../../../tests/support/layanan";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -44,6 +51,7 @@ describe("the Layanan catalog", () => {
     const created = await setup.layanan.createLayanan(admin, {
       name: "Batu Nisan",
       description: "Batu nisan Custom, pesan dan pasang.",
+      jenis: "nisan",
       bukti: "foto_sesudah",
       leadTimeDays: 14,
       bisaHariH: false,
@@ -59,7 +67,7 @@ describe("the Layanan catalog", () => {
       {
         name: "Batu Nisan",
         description: "Batu nisan Custom, pesan dan pasang.",
-        bukti: "foto_sesudah",
+        jenis: "nisan",
         leadTimeDays: 14,
         bisaHariH: false,
         adaDiPetakKosong: false,
@@ -83,6 +91,7 @@ describe("the Layanan catalog", () => {
       newLayananInput({ varian: [] }),
       newLayananInput({ leadTimeDays: -1 }),
       newLayananInput({ leadTimeDays: 400 }),
+      newLayananInput({ jenis: "tanpa_jenis" as never }),
       newLayananInput({ bukti: "tanpa_foto" as never }),
       newLayananInput({ varian: ["Reguler", "Reguler"] }),
     ]) {
@@ -102,10 +111,36 @@ describe("the Layanan catalog", () => {
         actor: { accountId: admin.accountId, role: "admin_platform" },
         action: "layanan.buat",
         before: null,
-        after: expect.objectContaining({ name: "Pembersihan Makam", leadTimeDays: 3, varian: ["Reguler"] }),
+        after: expect.objectContaining({ name: "Pembersihan Makam", jenis: "pembersihan", bukti: "foto_sebelum_dan_sesudah", varian: ["Reguler"] }),
         reason: "Daftar v1",
       }),
     ]);
+  });
+});
+
+describe("removing a Layanan from the catalog", () => {
+  it("takes its Pilihan with it, is audited, and is refused while a Lokasi Mitra was ever offered one", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const { layanan, varian } = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", jenis: "laporan" });
+    const bunga = await newLayananFor(setup, admin, { name: "Bunga Ziarah", jenis: "bunga" });
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, varian.id, { amount: 300_000, effectiveOn: "2026-10-01", reason: null });
+
+    // Offered at a Lokasi Mitra, so the Layanan stays: its offering is history.
+    expect(await setup.layanan.hapusLayanan(admin, layanan.id, { reason: "Pensiun" })).toEqual({ ok: false, reason: "layanan_terpakai" });
+
+    // Never offered and never packed: it and its Pilihan go, audited.
+    expect(await setup.layanan.hapusLayanan(admin, bunga.layanan.id, { reason: "  Tidak dipakai lagi  " })).toEqual({
+      ok: true,
+      nama: "Bunga Ziarah",
+    });
+    expect((await setup.layanan.katalog()).map((one) => one.name)).toEqual(["Laporan Foto/Video"]);
+    expect(await setup.audit.entriesAbout({ kind: "layanan", id: bunga.layanan.id })).toMatchObject([
+      { action: "layanan.buat" },
+      { action: "layanan.hapus", before: { name: "Bunga Ziarah", varian: ["Reguler"] }, after: null, reason: "Tidak dipakai lagi" },
+    ]);
+    expect(await setup.layanan.hapusLayanan(admin, bunga.layanan.id, { reason: null })).toEqual({ ok: false, reason: "tidak_ditemukan" });
   });
 });
 
@@ -113,22 +148,51 @@ describe("the proof a Pekerjaan Layanan must show", () => {
   it("is derived per Layanan: a photo afterwards always, a photo before for Pembersihan Makam and Perawatan Rumput & Taman, a video for the Laporan Foto/Video", async () => {
     const setup = layananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
-    // The v1 catalog (decision ticket 09), each with the proof level the spec gives it.
+    // The v1 catalog (decision ticket 09), each with the kind that fixes its proof.
     const v1 = [
-      { name: "Bunga Ziarah", bukti: "foto_sesudah" },
-      { name: "Pembersihan Makam", bukti: "foto_sebelum_dan_sesudah" },
-      { name: "Perawatan Rumput & Taman", bukti: "foto_sebelum_dan_sesudah" },
-      { name: "Laporan Foto/Video Kondisi Makam", bukti: "foto_dan_video" },
+      { name: "Bunga Ziarah", jenis: "bunga" },
+      { name: "Pembersihan Makam", jenis: "pembersihan" },
+      { name: "Perawatan Rumput & Taman", jenis: "perawatan" },
+      { name: "Laporan Foto/Video Kondisi Makam", jenis: "laporan" },
     ] as const;
     for (const entry of v1) {
-      await setup.layanan.createLayanan(admin, newLayananInput({ name: entry.name, bukti: entry.bukti, varian: ["Reguler"] }));
+      await setup.layanan.createLayanan(admin, newLayananInput({ name: entry.name, jenis: entry.jenis, varian: ["Reguler"] }));
     }
     const proofByName = Object.fromEntries((await setup.layanan.katalog()).map((one) => [one.name, one.proof]));
 
-    // A photo afterwards is required every time; the other two follow the Layanan.
+    // A photo afterwards is required every time; the other two follow the kind.
     expect(proofByName["Bunga Ziarah"]).toEqual({ fotoSesudah: true, fotoSebelum: false, video: false });
     expect(proofByName["Pembersihan Makam"]).toEqual({ fotoSesudah: true, fotoSebelum: true, video: false });
     expect(proofByName["Perawatan Rumput & Taman"]).toEqual({ fotoSesudah: true, fotoSebelum: true, video: false });
     expect(proofByName["Laporan Foto/Video Kondisi Makam"]).toEqual({ fotoSesudah: true, fotoSebelum: false, video: true });
+  });
+
+  it("cannot be chosen freely: a Pembersihan Makam with a video proof, or a Laporan with only a photo, is refused and nothing is kept", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const { layanan, varian } = await newLayananFor(setup, admin, { name: "Pembersihan Makam", jenis: "pembersihan" });
+
+    // What a stale or tampered form would send: a proof the kind does not take.
+    for (const salah of [
+      newLayananInput({ name: "Pembersihan Makam", jenis: "pembersihan", bukti: "foto_dan_video" }),
+      newLayananInput({ name: "Laporan Foto/Video", jenis: "laporan", bukti: "foto_sesudah" }),
+      newLayananInput({ name: "Bunga Ziarah", jenis: "bunga", bukti: "foto_sebelum_dan_sesudah" }),
+    ]) {
+      expect(await setup.layanan.createLayanan(admin, salah)).toMatchObject({ ok: false, reason: "bukti_tidak_cocok" });
+    }
+    expect(await setup.layanan.ubahLayanan(admin, layanan.id, newLayananInput({ name: "Pembersihan Makam", jenis: "pembersihan", bukti: "foto_dan_video" }))).toMatchObject({
+      ok: false,
+      reason: "bukti_tidak_cocok",
+    });
+    // The refusal names the proof the kind does take, so the screen can say which.
+    expect(await setup.layanan.createLayanan(admin, newLayananInput({ name: "Laporan", jenis: "laporan", bukti: "foto_dan_video" }))).toMatchObject({ ok: true });
+    expect((await setup.layanan.katalog()).find((one) => one.name === "Pembersihan Makam")).toMatchObject({ jenis: "pembersihan" });
+    expect((await setup.layanan.katalog()).find((one) => one.name === "Pembersihan Makam")?.proof).toEqual({
+      fotoSesudah: true,
+      fotoSebelum: true,
+      video: false,
+    });
+    expect(varian.name).toBe("Reguler");
+    expect(await setup.audit.entriesAbout({ kind: "layanan", id: layanan.id })).toMatchObject([{ action: "layanan.buat" }]);
   });
 });

@@ -31,7 +31,7 @@ describe("who may enter a Layanan's price", () => {
       expect(await setup.tariffs.setTarifMitraJasa(who, varian.id, input)).toEqual({ ok: false, reason: "tidak_berwenang" });
     }
     expect(await setup.tariffs.hargaLayananLokasiHistory(lokasiMitra.id, varian.id)).toEqual([]);
-    expect(await setup.tariffs.hargaLayananHistory("harga_layanan_dki", varian.id)).toEqual([]);
+    expect(await setup.tariffs.hargaLayananDki(varian.id, now())).toBeNull();
     expect(await setup.audit.entriesAbout({ kind: "harga_layanan", id: varian.id })).toEqual([]);
   });
 });
@@ -78,6 +78,29 @@ describe("the price a Lokasi Mitra charges for a Layanan variant", () => {
     // The Lokasi's own Audit Log shows it, like every other write about that Lokasi.
     const untukLokasi = (await setup.audit.entriesForLokasi(lokasiMitra.id)).map((entry) => entry.action);
     expect(untukLokasi.filter((action) => action === "tarif.ubah_harga_layanan")).toHaveLength(2);
+  });
+
+  it("records the version it replaces from that same Lokasi Mitra, never another one's", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { admin, varian } = await catalogFixture(setup);
+    const satu = await newLokasiMitra(setup, admin, "Makam Wakaf Al-Ikhlas");
+    const lain = await newLokasiMitra(setup, admin, "Makam Swasta Al-Barkah");
+    // The same variant, priced at two places: a price book of one Lokasi Mitra is
+    // its own, so one place's new version never replaces the other's.
+    await setup.tariffs.setHargaLayananLokasi(admin, satu.id, varian.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null });
+    await setup.tariffs.setHargaLayananLokasi(admin, lain.id, varian.id, { amount: 700_000, effectiveOn: "2026-10-01", reason: null });
+
+    await setup.tariffs.setHargaLayananLokasi(admin, satu.id, varian.id, { amount: 550_000, effectiveOn: "2026-10-20", reason: null });
+    const untukSatu = (await setup.audit.entriesForLokasi(satu.id)).filter((entry) => entry.action === "tarif.ubah_harga_layanan");
+    expect(untukSatu.at(-1)).toMatchObject({
+      lokasiId: satu.id,
+      before: { amount: 500_000, effectiveOn: "2026-10-01" },
+      after: { amount: 550_000, effectiveOn: "2026-10-20" },
+    });
+    // Never the other place's 700.000, and that place keeps its own price.
+    expect(JSON.stringify(untukSatu.at(-1))).not.toContain("700000");
+    expect(await setup.tariffs.hargaLayananLokasi(lain.id, varian.id, now())).toMatchObject({ amount: 700_000 });
+    expect((await setup.audit.entriesForLokasi(lain.id)).at(-1)).toMatchObject({ before: null });
   });
 
   it("never lets an old version be changed or deleted", async () => {
@@ -147,10 +170,7 @@ describe("the Mitra Jasa rate of a Layanan variant", () => {
 
     // It is never a quote line, so no price a family ever sees can carry it: the
     // family pays the DKI price alone, with no Biaya Layanan Platform on top.
-    const quoted = await setup.tariffs.quote(
-      [{ kind: "layanan_dki", layananVariantId: varian.id, namaLayanan: "Pembersihan Makam", namaVarian: "Reguler" }],
-      now(),
-    );
+    const quoted = await setup.tariffs.quote([{ kind: "layanan_dki", layananVariantId: varian.id }], now());
     expect(quoted).toMatchObject({ ok: true, total: 600_000, lines: [{ kind: "layanan_dki", amount: 600_000 }] });
   });
 });

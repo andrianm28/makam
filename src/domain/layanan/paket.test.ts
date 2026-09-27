@@ -24,7 +24,7 @@ describe("the Paket Layanan Admin Platform defines", () => {
     const setup = layananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const { varian: pembersihan } = await newLayananFor(setup, admin);
-    const { varian: laporan } = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", bukti: "foto_dan_video", leadTimeDays: 1 });
+    const { varian: laporan } = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", jenis: "laporan", leadTimeDays: 1 });
 
     const created = await setup.layanan.buatPaket(admin, {
       name: "Paket Ziarah",
@@ -117,20 +117,17 @@ describe("the price of a Paket Layanan", () => {
     const { paket, varian } = await paketFixture(setup, admin);
 
     // Both items are offered at the Lokasi Mitra, each at that place's price.
-    for (const satu of [varian.pembersihan, varian.laporan]) {
-      await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, satu.id, { reason: null });
-    }
-    await setup.tariffs.setHargaLayananLokasi(admin, lokasiMitra.id, varian.pembersihan.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null });
-    await setup.tariffs.setHargaLayananLokasi(admin, lokasiMitra.id, varian.laporan.id, { amount: 300_000, effectiveOn: "2026-10-01", reason: null });
+    await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, varian.pembersihan.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null });
+    await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, varian.laporan.id, { amount: 300_000, effectiveOn: "2026-10-01", reason: null });
 
     // 500.000 + 300.000 + one Biaya Layanan Platform of 150.000 for the cycle's Tagihan.
     const harga = await setup.layanan.hargaPaket(paket.id, { kind: "lokasi_mitra", lokasiId: lokasiMitra.id }, now());
     expect(harga).toMatchObject({
       total: 950_000,
-      lines: [
-        { kind: "layanan_lokasi", layananVariantId: varian.pembersihan.id, amount: 500_000 },
-        { kind: "layanan_lokasi", layananVariantId: varian.laporan.id, amount: 300_000 },
-        { kind: "biaya_layanan_platform", amount: 150_000 },
+      parts: [
+        { label: "Layanan – Pembersihan Makam (Reguler)", amount: 500_000 },
+        { label: "Layanan – Laporan Foto/Video (Reguler)", amount: 300_000 },
+        { label: "Biaya Layanan Platform", amount: 150_000 },
       ],
     });
   });
@@ -145,17 +142,15 @@ describe("the price of a Paket Layanan", () => {
     const { paket, varian } = await paketFixture(setup, admin);
 
     for (const satu of [varian.pembersihan, varian.laporan]) {
-      await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, satu.id, { reason: null });
-      await setup.tariffs.setHargaLayananLokasi(admin, lokasiMitra.id, satu.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null });
+      await setup.layanan.tawarkanLayanan(admin, lokasiMitra.id, satu.id, { amount: 500_000, effectiveOn: "2026-10-01", reason: null });
     }
-    await setup.layanan.tawarkanLayanan(admin, kedua.id, varian.pembersihan.id, { reason: null });
-    await setup.tariffs.setHargaLayananLokasi(admin, kedua.id, varian.pembersihan.id, { amount: 450_000, effectiveOn: "2026-10-01", reason: null });
+    await setup.layanan.tawarkanLayanan(admin, kedua.id, varian.pembersihan.id, { amount: 450_000, effectiveOn: "2026-10-01", reason: null });
 
     // Two items at Rp 500.000 each plus the one Biaya Layanan Platform of the cycle.
     expect(await setup.layanan.hargaPaket(paket.id, { kind: "lokasi_mitra", lokasiId: lokasiMitra.id }, now())).toMatchObject({ total: 1_150_000 });
     expect(await setup.layanan.hargaPaket(paket.id, { kind: "lokasi_mitra", lokasiId: kedua.id }, now())).toBeNull();
-    // Nor where an item is offered but has no price: a free item is no item.
-    await setup.layanan.tawarkanLayanan(admin, kedua.id, varian.laporan.id, { reason: null });
+    // Nor where an item has a price but the Lokasi Mitra never switched it on.
+    await setup.tariffs.setHargaLayananLokasi(admin, kedua.id, varian.laporan.id, { amount: 300_000, effectiveOn: "2026-10-01", reason: null });
     expect(await setup.layanan.hargaPaket(paket.id, { kind: "lokasi_mitra", lokasiId: kedua.id }, now())).toBeNull();
   });
 
@@ -173,9 +168,9 @@ describe("the price of a Paket Layanan", () => {
     await setup.layanan.tandaiBolehDiTpu(admin, varian.laporan.id, { boleh: true, reason: null });
     expect(await setup.layanan.hargaPaket(paket.id, { kind: "tpu_dki" }, now())).toMatchObject({
       total: 1_000_000,
-      lines: [
-        { kind: "layanan_dki", amount: 500_000 },
-        { kind: "layanan_dki", amount: 500_000 },
+      parts: [
+        { label: "Layanan – Pembersihan Makam (Reguler)", amount: 500_000 },
+        { label: "Layanan – Laporan Foto/Video (Reguler)", amount: 500_000 },
       ],
     });
   });
@@ -192,7 +187,7 @@ describe("the price of a Paket Layanan", () => {
 /** A Paket of Pembersihan Makam and Laporan Foto/Video, with both items' variant ids. */
 async function paketFixture(setup: LayananSetup, admin: Actor) {
   const pembersihan = await newLayananFor(setup, admin, { name: "Pembersihan Makam" });
-  const laporan = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", bukti: "foto_dan_video", leadTimeDays: 1 });
+  const laporan = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", jenis: "laporan", leadTimeDays: 1 });
   const dibuat = await setup.layanan.buatPaket(admin, {
     name: "Paket Perawatan",
     description: "Membersihkan dan melaporkan kondisi makam.",

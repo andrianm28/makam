@@ -5,8 +5,8 @@ import { EmptyState } from "@/components/makam/empty-state";
 import { FormSection } from "@/components/makam/form-section";
 import { PageHeader } from "@/components/makam/page-header";
 import { authorize, layananKatalogResource } from "@/domain/identity";
-import type { Bukti, LayananTerbaca, PaketLayanan } from "@/domain/layanan";
-import { buktiLabels, frekuensiLabels, proofLabels } from "@/lib/layanan-labels";
+import { buktiOf, jenisLayananValues, proofOf, type LayananTerbaca, type PaketLayanan } from "@/domain/layanan";
+import { frekuensiLabels, jenisLayananLabels, proofLabels } from "@/lib/layanan-labels";
 import { formatRupiah } from "@/lib/rupiah";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -14,6 +14,7 @@ import { staffMenuActor } from "@/server/staff-area";
 import {
   BuatPaketForm,
   HargaDkiForm,
+  HapusLayananForm,
   HapusPaketForm,
   HapusVarianForm,
   TambahLayananForm,
@@ -33,6 +34,18 @@ interface Pilihan {
   variantName: string;
   bolehDiTpu: boolean;
 }
+
+/**
+ * The kinds of Layanan the forms offer, each with the proof its kind requires,
+ * built here on the server: a client component never imports a value from the
+ * domain (that would pull the tables into the browser bundle).
+ */
+const jenisOptions = jenisLayananValues.map((value) => ({
+  value,
+  label: jenisLayananLabels[value],
+  bukti: buktiOf(value),
+  proofLabel: proofLabels(proofOf(value)),
+}));
 
 function pilihanOf(katalog: LayananTerbaca[]): Pilihan[] {
   return katalog.flatMap((layanan) =>
@@ -72,7 +85,7 @@ export default async function LayananPage() {
       />
 
       <FormSection title="Tambah Layanan">
-        <TambahLayananForm />
+        <TambahLayananForm options={jenisOptions} />
       </FormSection>
 
       {katalog.length === 0 ? (
@@ -116,25 +129,26 @@ function LayananCard({
         <CardHeader>
           <CardTitle id={`layanan-${layanan.id}`}>{layanan.name}</CardTitle>
           <CardDescription>
-            {layanan.description || "Tanpa keterangan."} · Bisa hari-H: {layanan.bisaHariH ? "ya" : "tidak"} · Berah di petak kosong:{" "}
+            {layanan.description || "Tanpa keterangan."} · Bisa hari-H: {layanan.bisaHariH ? "ya" : "tidak"} · Boleh di petak kosong:{" "}
             {layanan.adaDiPetakKosong ? "ya" : "tidak"} · paling cepat {layanan.leadTimeDays} hari setelah dipesan
             {layanan.teksLabel ? ` · isian: ${layanan.teksLabel}` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-small text-muted-foreground">
-            Bukti ({buktiLabels[layanan.bukti as Bukti]}): {proofLabels(layanan.proof)}
+            {jenisLayananLabels[layanan.jenis]} · Bukti wajib: {proofLabels(layanan.proof)}
           </p>
 
           <details>
             <summary className="cursor-pointer text-sm font-medium">Ubah Layanan ini</summary>
             <div className="mt-3">
               <UbahLayananForm
+                options={jenisOptions}
                 layanan={{
                   id: layanan.id,
                   name: layanan.name,
                   description: layanan.description,
-                  bukti: layanan.bukti,
+                  jenis: layanan.jenis,
                   leadTimeDays: layanan.leadTimeDays,
                   bisaHariH: layanan.bisaHariH,
                   adaDiPetakKosong: layanan.adaDiPetakKosong,
@@ -172,9 +186,11 @@ function LayananCard({
               </details>
 
               <TandaiBolehDiTpuForm variantId={varian.id} boleh={varian.bolehDiTpu} />
-              <HapusVarianForm variantId={varian.id} />
+              <HapusVarianForm variantId={varian.id} name={`${layanan.name} — ${varian.name}`} />
             </div>
           ))}
+
+          <HapusLayananForm layananId={layanan.id} name={layanan.name} />
         </CardContent>
       </Card>
     </section>
@@ -216,7 +232,7 @@ function PaketList({ paket, item }: { paket: PaketLayanan[]; item: readonly { id
                 />
               </div>
             </details>
-            <HapusPaketForm paketId={satu.id} />
+            <HapusPaketForm paketId={satu.id} name={satu.name} />
           </CardContent>
         </Card>
       ))}

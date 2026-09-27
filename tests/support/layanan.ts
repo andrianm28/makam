@@ -1,6 +1,6 @@
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import { createLayanan as createLayananModule, type NewLayanan } from "@/domain/layanan";
+import { buktiOf, createLayanan as createLayananModule, type NewLayanan } from "@/domain/layanan";
 import { publishOnTestDatabase, publishedLokasiMitra, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "./publish";
 import { setLokasiMitraStatusForTest } from "./lokasi";
 /**
@@ -18,12 +18,17 @@ export type LayananSetup = ReturnType<typeof layananOnTestDatabase>;
 
 export { newLokasiMitra, publishedLokasiMitra, setLokasiMitraStatusForTest, signedInAdminLokasi, signedInAdminPlatform };
 
-/** A Layanan of the v1 catalog, typed as an Admin Platform would enter it. */
+/**
+ * A Layanan of the v1 catalog, typed as an Admin Platform would enter it: the
+ * kind (`jenis`) and the proof that kind requires, which is what the form carries.
+ */
 export function newLayananInput(overrides: Partial<NewLayanan> = {}): NewLayanan {
+  const jenis = overrides.jenis ?? "pembersihan";
   return {
     name: "Pembersihan Makam",
     description: "Membersihkan dan merapikan makam.",
-    bukti: "foto_sebelum_dan_sesudah",
+    jenis,
+    bukti: buktiOf(jenis),
     leadTimeDays: 3,
     bisaHariH: false,
     adaDiPetakKosong: true,

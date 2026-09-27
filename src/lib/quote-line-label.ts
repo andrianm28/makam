@@ -21,6 +21,8 @@ export function quoteLineLabel(line: QuotedLine): string {
       return "Biaya Layanan Platform";
     case "layanan_lokasi":
     case "layanan_dki":
-      return `Layanan – ${line.namaLayanan} (${line.namaVarian})`;
+      // A Layanan line names no Layanan: those words belong to the Layanan module,
+      // which reads its own catalog and labels its own prices.
+      return "Layanan";
   }
 }

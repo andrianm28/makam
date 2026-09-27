@@ -4,15 +4,32 @@ import { sql } from "drizzle-orm";
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
 /**
- * The proof a Pekerjaan Layanan must show, as the catalog carries it (spec,
- * Layanan > Catalog: a photo afterwards always, a photo before for Pembersihan
- * Makam and Perawatan Rumput & Taman, a video for the Laporan Foto/Video).
- * What each one requires is derived from it in `proofOf` (the photo afterwards
- * is never optional); the three values are exactly the three rows that rule
- * names.
+ * The proof a Pekerjaan Layanan must show (spec, Layanan > Catalog), derived
+ * from what the Layanan *is*, never chosen freely: a photo afterwards always, a
+ * photo before for Pembersihan Makam and Perawatan Rumput & Taman, a video for
+ * the Laporan Foto/Video.
+ *
+ * `jenis_layanan` is therefore the catalog's closed list of v1 (decision ticket
+ * 09: Bunga, Batu Nisan, Pembersihan Makam, Perawatan Rumput & Taman, Laporan
+ * Foto/Video; no custom items per Lokasi in v1). A new kind of Layanan is a new
+ * `jenis` here, with its proof beside it, never a proof an Admin Platform may
+ * pick: the level is the kind's, and `proofOf` derives what it requires.
  */
+export const jenisLayananValues = ["bunga", "nisan", "pembersihan", "perawatan", "laporan"] as const;
+export type JenisLayanan = (typeof jenisLayananValues)[number];
+
+/** The three proof levels the catalog's rule produces, as they are carried and shown. */
 export const buktiValues = ["foto_sesudah", "foto_sebelum_dan_sesudah", "foto_dan_video"] as const;
 export type Bukti = (typeof buktiValues)[number];
+
+/** What each kind of Layanan requires as proof (spec, Catalog): the photo afterwards is never optional. */
+export const buktiPerJenis: Record<JenisLayanan, Bukti> = {
+  bunga: "foto_sesudah",
+  nisan: "foto_sesudah",
+  pembersihan: "foto_sebelum_dan_sesudah",
+  perawatan: "foto_sebelum_dan_sesudah",
+  laporan: "foto_dan_video",
+};
 
 /** How often a Paket Layanan repeats (spec, Paket Layanan). */
 export const frekuensiValues = ["sekali", "bulanan", "tiga_bulanan", "tahunan"] as const;
@@ -22,7 +39,8 @@ export type Frekuensi = (typeof frekuensiValues)[number];
  * Owned by the Layanan module: one Layanan of the one global catalog, kept by
  * Admin Platform. Its fixed-price variants are in `layanan_varian` and its
  * price at each place is a versioned tariff (the Tariffs module), never a
- * price of its own: there is no free pricing.
+ * price of its own: there is no free pricing. Its proof is not a column: it is
+ * what `jenis_layanan` requires (`buktiPerJenis`).
  *
  * `name_key` is the name folded for the one-name-per-catalog rule: lower case,
  * single spaces.
@@ -34,7 +52,8 @@ export const layananLayanan = pgTable(
     name: text("name").notNull(),
     nameKey: text("name_key").notNull(),
     description: text("description").notNull(),
-    bukti: text("bukti", { enum: buktiValues }).notNull(),
+    /** What kind of Layanan this is, which fixes the proof it requires. */
+    jenis: text("jenis", { enum: jenisLayananValues }).notNull(),
     /** The minimum days between ordering and the target date (0 = the same day). */
     leadTimeDays: integer("lead_time_days").notNull(),
     /** May be added at a Saat Duka checkout, targeted at the burial itself. */

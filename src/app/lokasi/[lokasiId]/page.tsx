@@ -6,6 +6,7 @@ import { lokasiFacilities, weekdays, type JamOperasional, type LokasiFacility, t
 import type { AllInPrice, Tenure } from "@/domain/tariffs";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, embedMapUrl, mapsQueryFor } from "@/lib/maps";
+import type { HargaLayanan } from "@/domain/layanan";
 import { quoteLineLabel } from "@/lib/quote-line-label";
 import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
@@ -25,6 +26,32 @@ function tenureLabel(tenure: Tenure): string {
 }
 
 /** The all-in total, with its parts (each quote line) in small print ("Harga berlaku sejak", "Harga baru mulai"). */
+/** One Layanan variant's all-in price: the total, its parts (each named from the catalog), and when it changes. */
+function LayananLine({ label, harga }: { label: string; harga: HargaLayanan }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-body font-medium">{label}</span>
+        <span className="text-lg font-semibold">{formatRupiah(harga.total)}</span>
+      </div>
+      <ul className="text-small text-muted-foreground">
+        {harga.parts.map((part) => (
+          <li key={part.label} className="flex justify-between gap-2">
+            <span>{part.label}</span>
+            <span>{formatRupiah(part.amount)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-small text-muted-foreground">Harga berlaku sejak {formatTanggalPanjang(harga.inForceSince)}</p>
+      {harga.scheduledChange ? (
+        <p className="text-small text-muted-foreground">
+          Harga baru {formatRupiah(harga.scheduledChange.total)} mulai {formatTanggalPanjang(harga.scheduledChange.effectiveOn)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function AllInLine({ label, price }: { label: string; price: AllInPrice }) {
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border p-3">
@@ -197,7 +224,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 </p>
                 {entry.layanan.description ? <p className="text-small text-muted-foreground">{entry.layanan.description}</p> : null}
                 {entry.varian.map((varian) => (
-                  <AllInLine key={varian.id} label={varian.name} price={varian.harga} />
+                  <LayananLine key={varian.id} label={varian.name} harga={varian.harga} />
                 ))}
               </div>
             ))

@@ -41,6 +41,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "tarif.ubah_tarif_mitra_jasa": "Tarif Mitra Jasa diubah",
   "layanan.buat": "Layanan ditambahkan ke katalog",
   "layanan.ubah": "Layanan diubah",
+  "layanan.hapus": "Layanan dihapus dari katalog",
   "layanan.tambah_varian": "Pilihan Layanan ditambahkan",
   "layanan.hapus_varian": "Pilihan Layanan dihapus",
   "layanan.tandai_tpu_dki": "Tanda boleh di TPU DKI diubah",
