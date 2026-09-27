@@ -1,6 +1,6 @@
 # Encrypted Postgres backups to S3 Jakarta and restore test
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 07
 Spec: Implementation Decisions > Architecture (backups); ADR 0002
 
@@ -16,6 +16,12 @@ Split from ticket 07 on 2026-09-25. Daily client-side-encrypted backups of the `
 - [ ] The runbook in `docs/ops/` gains backup and restore sections.
 
 ## Comments
+
+- 2026-09-27 — **Merged to main** (`e8603cc`; the merge commit is `427e536` plus the `origin/main` merge). Built against the **beta rescope** in the 2026-09-26 entry, not the stale "What to build": a nightly `pg_dump -Fc` encrypted client-side (aes-256-cbc, PBKDF2 600k), kept 7 days on the host, plus a weekly restore check into a throwaway container. Two-axis review then a fix pass then a re-review **16/16 clean**. What the review caught and what fixed: a GlitchTip Heartbeat `curl` that leaked its URL into the journal (it was scope creep nobody asked for — removed from the scripts, kept as a runbook instruction); `.part` files that accumulated forever because `makam-backup-db` had no `trap`; the documented "refuse … exit 78" contract silently becoming exit 1 under `set -e`; a passphrase whose 0600 mode was never checked; throwaway containers `npm run clean` could not reach; and a comment claiming an isolation that `docker run` without `--network` does not give. Verified by hand: `43 tables checked, each with the rows of that night, from makam-20260927T080536Z.dump.enc in 7s`, exit 0, no container left behind — and 43 is exactly the number of `pgTable` declarations in `src/domain/*/schema.ts`.
+  - **Left to the owner** (not a code gap): write the per-env passphrase with `openssl rand -base64 32` into `/opt/makam-v1/<env>/backup-passphrase`, mode 0600, and keep an offline copy — losing it makes every backup unreadable. Then run `deploy/install-host.sh` to install the `makam-staging-db-backup` and `makam-staging-restore-test` timers, and create the GlitchTip Heartbeat (26 h) if you want the alert.
+  - **Not this ticket:** pgBackRest to S3, WAL archiving and PITR stay in v2 (blocked by 03); the pre-migrate `pg_dump` belongs to ticket 72 and, per the owner's decision recorded here and in 72's AC 19, is never copied off this host. Disk warnings at 85 % belong to ticket 73.
+  - Unblocks nothing in the code; it removes one of ticket 65's gates (65 waits on 60, 64, 68 and 86).
+
 
 - 2026-09-26 — Research (read-only; no code, containers or AWS touched). **Recommendation: pgBackRest 2.59.1**, not wal-g.
   - Why: PG 18 supported since v2.55 (Apr 2025), current 2.59.1 (Aug 2026) is in the same PGDG `trixie-pgdg` apt repo our `postgres:18.6` image is built from (`2.59.1-1.pgdg13+1`), so it installs version-matched with one `apt-get`. Built in: client-side `aes-256-cbc` encryption, time-based retention plus expire after every backup, `verify`, `info --output=json` for monitoring, backup annotations, block incremental, restore `--archive-mode=off` for throwaway restores, and an upstream least-privilege S3 policy. wal-g (v3.0.9, Aug 2026) has good libsodium encryption, but PG 14–18 only entered its integration CI on 2026-08-25 (PR #2504, after the last release), retention is a separate `delete retain` job, and its docs warn that retention ordering breaks after major upgrades unless you pass `--use-sentinel-time`. Caveat: pgBackRest's homepage now lists Crunchy Data as a *past* sponsor. Releases continue, but re-check this at each major PG upgrade.
