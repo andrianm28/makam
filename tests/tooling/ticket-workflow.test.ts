@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   indexRows,
@@ -44,8 +45,11 @@ const MARKER = "Two-axis review";
  * review record, not to grade history.
  *
  * 43 is the boundary, and the tickets below it are the ones that merged before
- * the discipline had a marker at all (18 of them resolved: 7 already carry the
- * marker, 11 do not). Those gaps are historical and are not reconstructed here.
+ * the discipline had a marker at all. How many of them carry no record at all is
+ * a measurement of history, so it is pinned in a test below rather than only
+ * written here: a number that lives in a comment drifts silently, and one
+ * already had (AGENTS.md said nine where the tree says eleven). Those gaps are
+ * historical and are not reconstructed here.
  *
  * Above 43 the discipline *was* in force when those tickets merged, so they are
  * what a plain `>= 43` rule would fail on today. GRACE below names them: 17
@@ -73,30 +77,65 @@ const RATCHET_FROM = 43;
 /** The resolved tickets at or above RATCHET_FROM that predate this guard. */
 const GRACE = [60, 61, 63, 66, 67, 68, 70, 71, 73, 75, 76, 77, 78, 80, 82, 83, 85];
 
-/** Every ticket file in the tree, in number order (the order on disk is read into nothing). */
-function readTickets(): Ticket[] {
-  return readdirSync(ISSUES)
-    .filter((name) => /^\d\d-.*\.md$/.test(name) && name !== INDEX)
-    .map((name) => {
-      const text = readFileSync(new URL(name, ISSUES), "utf8");
-      return { number: Number(name.slice(0, 2)), name, status: ticketStatus(text), comments: ticketComments(text) };
-    })
-    .sort((a, b) => a.number - b.number);
+/**
+ * The tree the guard reads, or the reason it could not be read.
+ *
+ * `.scratch/` is tracked, so on any real checkout it is there; a CI image or a
+ * shallow export that leaves it out would otherwise throw ENOENT from module
+ * scope, which fails the whole file at *collection* with a stack trace and
+ * takes the other 49 tests with it, saying nothing about tickets. So the read
+ * answers with a message instead, and every check below starts from that
+ * message: a tree that could not be read is not a tree with nothing wrong in
+ * it, and a green check over an empty list would be the exact failure this
+ * guard is for.
+ */
+type Tree = { issueFiles: string[]; indexText: string; tickets: Ticket[]; problem: string | null };
+
+function readTree(issues: URL = ISSUES): Tree {
+  const empty: Tree = { issueFiles: [], indexText: "", tickets: [], problem: null };
+  try {
+    const issueFiles = readdirSync(issues);
+    const tickets = issueFiles
+      .filter((name) => /^\d\d-.*\.md$/.test(name) && name !== INDEX)
+      .map((name) => {
+        const text = readFileSync(new URL(name, issues), "utf8");
+        return { number: Number(name.slice(0, 2)), name, status: ticketStatus(text), comments: ticketComments(text) };
+      })
+      .sort((a, b) => a.number - b.number);
+    return { issueFiles, indexText: readFileSync(new URL(INDEX, issues), "utf8"), tickets, problem: null };
+  } catch (cause) {
+    const code = (cause as NodeJS.ErrnoException).code ?? "unknown error";
+    return {
+      ...empty,
+      problem: `00-index.md / the issues directory could not be read at ${fileURLToPath(issues)} (${code}) — the guard needs the tracked .scratch/ tree, so this is a checkout problem, not a ticket problem`,
+    };
+  }
 }
 
-const indexText = readFileSync(new URL(INDEX, ISSUES), "utf8");
-/** The directory listing itself, so a green check can be told from an empty one. */
-const issueFiles = readdirSync(ISSUES);
-const tickets = readTickets();
+const tree = readTree();
+const { issueFiles, indexText, tickets } = tree;
 const offenders = reviewMarkerProblems(tickets, RATCHET_FROM, MARKER);
 
+/** The rule's problems, behind the reason the tree may not have been readable. */
+function treeProblems<T>(problems: T[]): (T | string)[] {
+  return tree.problem === null ? problems : [tree.problem, ...problems];
+}
+
 describe("the ticket workflow discipline", () => {
+  it("reads the tree, or says why it could not be read", () => {
+    // The three checks below are wrapped in this, so a checkout without the
+    // tracked .scratch/ tree fails all of them with the reason rather than
+    // passing three of them over an empty list.
+    expect(tree.problem, tree.problem ?? "the tree was read").toBeNull();
+  });
+
   it("reads every ticket in the tree before it checks anything", () => {
     // A guard that read nothing would pass on every violation it exists to
     // catch, so the files it is about are checked rather than assumed: as many
     // as the index has rows, one Status each, one file per number, and every
     // file's name carrying the number it was read under.
     const rows = indexRows(indexText);
+    expect(treeProblems([])).toEqual([]);
     expect(tickets.length, "no ticket files were read").toBeGreaterThan(0);
     expect(tickets.length, "a ticket file the index lists was not read").toBe(rows.size);
     // The naming rule is handed the directory listing, not a filtered one, and
@@ -115,7 +154,7 @@ describe("the ticket workflow discipline", () => {
     // The merge step flips both in one commit, so the two copies cannot differ,
     // and a difference means one of them was missed. Each problem names the
     // ticket, both values and the file that is wrong.
-    expect(statusSyncProblems(tickets, indexText)).toEqual([]);
+    expect(treeProblems(statusSyncProblems(tickets, indexText))).toEqual([]);
   });
 
   it("keeps the counts 00-index.md's own summary sentence states", () => {
@@ -123,14 +162,41 @@ describe("the ticket workflow discipline", () => {
     // goes stale the moment a Status is flipped and the sentence is not re-read.
     // No counts are written here on purpose: the sentence is the tree's, and a
     // number copied into a test goes stale the same way the sentence does.
-    expect(summaryProblems(indexText, tickets)).toEqual([]);
+    // What the rule compares, today: the total, the count of every status, and
+    // the numbers in parentheses where the sentence lists them (ready-for-human,
+    // wontfix and in-progress) — all of which the current index states correctly.
+    expect(treeProblems(summaryProblems(indexText, tickets))).toEqual([]);
   });
 
   it("requires every resolved ticket at or above the ratchet to carry the marker", () => {
     // Equality in both directions: an offender that is not in GRACE is a merge
     // without a review record, and a name left in GRACE is a gap that no longer
     // exists and has to come off the list.
-    expect(offenders, "a resolved ticket at or above the ratchet has no review marker; write it, or name it in GRACE if it predates the guard").toEqual(GRACE);
+    expect(treeProblems(offenders), "a resolved ticket at or above the ratchet has no review marker; write it, or name it in GRACE if it predates the guard").toEqual(GRACE);
+  });
+
+  it("keeps the history it claims below the ratchet, as a number and not a comment", () => {
+    // The comment on RATCHET_FROM says how much review history is missing below
+    // the boundary. Written as prose that number drifts (AGENTS.md said nine
+    // where the tree says eleven), so it is measured here, and the parts are
+    // counted separately because the two halves mean different things: one is
+    // records that exist in another wording, the other is tickets whose merge
+    // left nothing at all. The second sum is what stops the pinned 11 from
+    // being a count taken over a subset of the tree.
+    const under = (withMarker: boolean): Ticket[] =>
+      tickets.filter(
+        (ticket) => ticket.status === "resolved" && ticket.number < RATCHET_FROM && ticket.comments.some((section) => section.includes(MARKER)) === withMarker,
+      );
+    const over = (withMarker: boolean): Ticket[] =>
+      tickets.filter(
+        (ticket) => ticket.status === "resolved" && ticket.number >= RATCHET_FROM && ticket.comments.some((section) => section.includes(MARKER)) === withMarker,
+      );
+    const notResolved = tickets.filter((ticket) => ticket.status !== "resolved");
+    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(7);
+    expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
+    // Every ticket is in exactly one of the five buckets, so the pinned numbers
+    // cannot be counting a slice while something else goes unaccounted for.
+    expect(under(true).length + under(false).length + over(true).length + over(false).length + notResolved.length).toBe(tickets.length);
   });
 
   it("keeps GRACE sorted, unique, inside the ratchet and made of real resolved tickets", () => {
@@ -316,9 +382,10 @@ describe("the index summary-sentence rule", () => {
   });
 
   it("catches a named number list that has gone stale", () => {
-    // The index names the tickets of some statuses in parentheses; those lists
-    // go stale the same way the counts do, and the real index has one wrong
-    // today (in-progress says (87), and 72 is in progress too).
+    // The index names the tickets of some statuses in parentheses (today:
+    // ready-for-human, wontfix and in-progress), and those lists go stale the
+    // same way the counts do — a ticket that changes status leaves its number
+    // behind in the sentence.
     expect(summaryProblems(sentence(2, "1 resolved, 1 in-progress (07)"), [one("resolved"), one("in-progress", 8)])).toEqual([
       "00-index.md: the summary sentence lists in-progress tickets (07), the tree has (08)",
     ]);
@@ -332,22 +399,39 @@ describe("the index summary-sentence rule", () => {
 
   it("refuses to guess when the item list is not the format it reads", () => {
     // A sentence the rule cannot read would sit green on the exact failure it
-    // exists to catch, so the format is refused rather than skipped.
+    // exists to catch, so the format is refused rather than skipped. The message
+    // points at the line and quotes the part it stopped on, because a format
+    // described only in the abstract is a problem the reader has to find by eye.
     const problems = summaryProblems(sentence(2, "1 resolved and 1 ready-for-agent"), [one("resolved"), one("ready-for-agent")]);
     expect(problems[0]).toContain("not in the format this rule reads");
     expect(problems[0]).toContain('expected the summary sentence to read "<count> tickets (as of YYYY-MM-DD): <count> resolved, <count> ready-for-agent, …"');
+    expect(problems[0]).toContain("line 3:");
+    expect(problems[0]).toMatch(/"and 1 ready-for-agent/);
+  });
+
+  it("quotes the line it could not read, from where it stopped", () => {
+    // The index's paragraph is one long line, so a quote has to start where the
+    // reading stopped: a quote of the line's first 72 characters would show the
+    // reader the header they have already read and cut off the part that failed.
+    const problems = summaryProblems(sentence(2, "1 resolved, 2 ready-for-agent and 1 wontfix"), [one("resolved")]);
+    expect(problems[0]).toMatch(/line 3: "and 1 wontfix/);
+    expect(problems[0], "the quote starts at the sentence header, so it hides the part that failed").not.toMatch(/line 3: "2 tickets/);
+  });
+
+  it("points at the prose line when there is no sentence at all", () => {
+    const problems = summaryProblems("# index\n\nNothing counted here.\n", [one("resolved")]);
+    expect(problems[0]).toContain("no summary sentence to check");
+    expect(problems[0]).toContain('line 3: "Nothing counted here."');
   });
 
   it("never puts a count in the message that says which format it reads", () => {
     // Whoever chases a red build copies what the message says, so a message
-    // that names counts becomes an instruction to write numbers that were
-    // already stale. The problems that do quote counts name both sides.
-    const unreadable = ["# index\n\nNothing counted here.\n", "# index\n\n87 tickets (as of 2026-09-27): 1 resolved and 1 ready-for-agent.\n"];
-    for (const index of unreadable) {
-      const message = summaryProblems(index, [one("resolved")])[0];
-      expect(message).toMatch(/<count>|no summary sentence/);
-      expect(message, `a frozen count in the format hint: ${message}`).not.toMatch(/\d+ (resolved|ready-for-agent|ready-for-human|wontfix|in-progress)/);
-    }
+    // that names counts as the expected value becomes an instruction to write
+    // numbers that were already stale. Quoting the file's own text is the
+    // opposite: that is what the file says, not what it should say.
+    const message = summaryProblems("# index\n\nNothing counted here.\n", [one("resolved")])[0];
+    expect(message).toMatch(/<count>|no summary sentence/);
+    expect(message, `a frozen count in the format hint: ${message}`).not.toMatch(/\d+ (resolved|ready-for-agent|ready-for-human|wontfix|in-progress)/);
   });
 
   it("refuses a count written where a name should be", () => {
@@ -369,6 +453,52 @@ describe("the index summary-sentence rule", () => {
     const blind: Ticket = { number: 8, name: "08.md", status: null, comments: [] };
     const problems = summaryProblems(sentence(2, "1 resolved"), [one("resolved"), blind]);
     expect(problems).toEqual(["ticket 08: 08.md has no Status: line, so it cannot be counted"]);
+  });
+
+  it("refuses a sentence whose header is not the format it reads", () => {
+    const problems = summaryProblems("# index\n\n87 tickets as of 2026-09-27: 1 resolved.\n", [one("resolved")]);
+    expect(problems[0]).toContain("no summary sentence to check");
+    expect(problems[0]).toMatch(/line 3: "87 tickets as of 2026-09-27: 1 resolved\."/);
+  });
+});
+
+describe("reading the tree", () => {
+  it("answers with a message when the issues directory is not there", () => {
+    // A checkout without the tracked .scratch/ tree used to throw ENOENT from
+    // module scope, which fails the file at collection and takes every other
+    // test with it, saying nothing about tickets. The message has to name the
+    // path it looked at, so the reader can tell which tree is missing.
+    const missing = readTree(new URL("file:///tmp/makam-no-such-scratch-9f21/"));
+    expect(missing.problem).toContain("/tmp/makam-no-such-scratch-9f21/");
+    expect(missing.problem).toContain("the guard needs the tracked .scratch/ tree");
+    expect(missing.problem).toContain("ENOENT");
+    expect(missing.tickets).toEqual([]);
+    expect(missing.indexText).toBe("");
+  });
+
+  it("fails the checks over an unreadable tree instead of passing them empty", () => {
+    // The failure mode this exists to stop: the three rules handed an empty list
+    // find nothing wrong in it, and a green build then says the tree is clean.
+    // Over the real tree the same wrapper adds nothing, which is the other half
+    // of the claim — asserted in "reads every ticket in the tree".
+    const missing = readTree(new URL("file:///tmp/makam-no-such-scratch-9f21/"));
+    const reported = <T,>(problems: T[]): (T | string)[] => (missing.problem === null ? problems : [missing.problem, ...problems]);
+    expect(reported(statusSyncProblems(missing.tickets, missing.indexText))).toEqual([missing.problem]);
+    // The summary rule complains about the empty text as well, on top of the
+    // reason it could not be read; the reason comes first either way.
+    expect(reported(summaryProblems(missing.indexText, missing.tickets))[0]).toBe(missing.problem);
+    expect(reported(reviewMarkerProblems(missing.tickets, RATCHET_FROM, MARKER))).toEqual([missing.problem]);
+    // And the rules on their own really do return nothing, or next to nothing,
+    // over an empty list — which is why the wrapper is what turns a missing tree
+    // into a red build.
+    expect(statusSyncProblems(missing.tickets, missing.indexText)).toEqual([]);
+    expect(reviewMarkerProblems(missing.tickets, RATCHET_FROM, MARKER)).toEqual([]);
+  });
+
+  it("reads the real tree, so the three checks above are not passing an empty list", () => {
+    expect(tree.problem, tree.problem ?? "the tree was read").toBeNull();
+    expect(tickets.length).toBeGreaterThan(0);
+    expect(indexText).toContain("tickets (as of");
   });
 });
 

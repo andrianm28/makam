@@ -182,9 +182,17 @@ const EXPECTED =
  */
 export function summaryProblems(index: string, tickets: Ticket[]): string[] {
   const sentence = SUMMARY.exec(index);
-  if (sentence === null) return [`00-index.md: no summary sentence to check (${EXPECTED})`];
-  const items = parseItems(index.slice(sentence.index + sentence[0].length));
-  if (items === null) return [`00-index.md: the summary sentence is not in the format this rule reads (${EXPECTED})`];
+  if (sentence === null) {
+    return [`00-index.md: no summary sentence to check; the first line of prose is at ${where(index, firstProse(index))} (${EXPECTED})`];
+  }
+  // The item list starts where the header ends, so that is the quote a reader
+  // needs: a format problem is always in the list, never in the header.
+  const listStart = sentence.index + sentence[0].length;
+  const parsed = parseItems(index.slice(listStart));
+  if (parsed.at !== null) {
+    return [`00-index.md: the summary sentence is not in the format this rule reads; it stops parsing at ${where(index, listStart + parsed.at)} (${EXPECTED})`];
+  }
+  const items = parsed.items;
 
   const counts = new Map<string, number>();
   const numbers = new Map<string, number[]>();
@@ -226,22 +234,50 @@ function list(tickets: number[]): string {
   return tickets.map(number).join(", ");
 }
 
-/** The sentence's item list, or null when it is not in the format this reads. */
-function parseItems(rest: string): SummaryItem[] | null {
+/**
+ * The sentence's item list, and where parsing gave up on it (`at` is the offset
+ * into `rest`, so the caller can point at the exact spot in the index). The
+ * offset is the point of this: a format problem the message only describes in
+ * the abstract is a problem the reader has to find by eye.
+ */
+function parseItems(rest: string): { items: SummaryItem[]; at: number | null } {
+  const start = rest.length - rest.trimStart().length;
+  let skipped = 0;
   let text = rest.trim();
   const items: SummaryItem[] = [];
   for (;;) {
     SUMMARY_ITEM.lastIndex = 0;
     const match = SUMMARY_ITEM.exec(text);
-    if (match === null) return null;
+    if (match === null) return { items, at: start + skipped };
     const numbers = match[3] === undefined ? null : match[3].split(",").map((part) => Number(part.trim()));
-    if (numbers !== null && numbers.some((number) => !Number.isInteger(number))) return null;
+    if (numbers !== null && numbers.some((value) => !Number.isInteger(value))) return { items, at: start + skipped };
     items.push({ count: Number(match[1]), status: match[2], numbers });
     const after = text.slice(SUMMARY_ITEM.lastIndex);
-    if (after === "" || after.startsWith(".")) return items;
-    if (!after.startsWith(", ")) return null;
+    if (after === "" || after.startsWith(".")) return { items, at: null };
+    if (!after.startsWith(", ")) return { items, at: start + skipped + SUMMARY_ITEM.lastIndex };
+    skipped += SUMMARY_ITEM.lastIndex + 2;
     text = after.slice(2).trim();
   }
+}
+
+/**
+ * `line 3: "…"` — which line a message is about, and a short quote from where
+ * the reading stopped. The quote starts at the offset rather than at the
+ * beginning of the line, because the index's paragraph is one long line and the
+ * part worth quoting is the tail of it.
+ */
+function where(index: string, offset: number): string {
+  const at = Math.max(0, offset);
+  const line = index.slice(0, at).split("\n").length;
+  const text = index.slice(at).split("\n")[0].trim();
+  return `line ${line}: "${text.length <= 72 ? text : `${text.slice(0, 71)}…`}"`;
+}
+
+/** The offset of the first line of prose, which is where the sentence has to be. */
+function firstProse(index: string): number {
+  const lines = index.split("\n");
+  const at = lines.findIndex((line) => line.trim() !== "" && !line.startsWith("#"));
+  return at < 0 ? 0 : lines.slice(0, at).join("\n").length + (at === 0 ? 0 : 1);
 }
 
 /**
