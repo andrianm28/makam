@@ -21,15 +21,21 @@ export interface KodeMasukFormProps {
   submitLabel?: string;
   /** The CS WhatsApp contact from Pengaturan Operator (`current()`); null while it is not entered. */
   csContact: CsContact | null;
+  /**
+   * The email the code is sent to without asking for it again: the wizard's
+   * "Data & kirim" already collected it (spec, Booking wizards: the email field
+   * with the Kode Masuk at Kirim, prefilled). Masuk leaves it empty.
+   */
+  defaultEmail?: string;
 }
 
 /**
  * The Kode Masuk: one email field, then the 6-digit code sent to it. The
  * code logs into the Akun of that email or creates it (spec, Identity &
- * Access), so the same form serves Masuk and, later, Kirim in the booking
- * wizards. Under the email field: "Tidak punya email? Minta bantuan CS".
+ * Access), so the same form serves Masuk and Kirim in the booking wizards.
+ * Under the email field: "Tidak punya email? Minta bantuan CS".
  */
-export function KodeMasukForm({ requestAction, verifyAction, submitLabel = "Masuk", csContact }: KodeMasukFormProps) {
+export function KodeMasukForm({ requestAction, verifyAction, submitLabel = "Masuk", csContact, defaultEmail }: KodeMasukFormProps) {
   const [state, request, requesting] = useActionState(requestAction, initialKodeMasukRequestState);
   const [changingEmail, setChangingEmail] = useState(false);
   const sent = useLastSent(state, () => setChangingEmail(false));
@@ -62,7 +68,7 @@ export function KodeMasukForm({ requestAction, verifyAction, submitLabel = "Masu
           autoComplete="email"
           inputMode="email"
           placeholder="nama@contoh.id"
-          defaultValue={state.status === "gagal" ? state.email : sent?.email}
+          defaultValue={state.status === "gagal" ? state.email : (sent?.email ?? defaultEmail ?? "")}
           required
           className="h-11 px-3"
         />

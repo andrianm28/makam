@@ -8,7 +8,5 @@ export function isUuid(id: string): boolean {
   return idSchema.safeParse(id).success;
 }
 
-/** Folds a name or number for a uniqueness check: lower case, single internal spaces, trimmed. */
-export function foldKey(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
+/** Folds a name or number for a uniqueness check; the one rule, shared (`@/lib/fold-key`). */
+export { foldKey } from "@/lib/fold-key";

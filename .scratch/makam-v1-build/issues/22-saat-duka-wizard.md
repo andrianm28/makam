@@ -1,6 +1,6 @@
 # Pemesanan Saat Duka wizard at a Lokasi Mitra
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 16, 82
 Spec: Domain modules > 6. Pemesanan (Saat Duka); Public site > Booking wizards; stories 17, 18, 20, 21, 22, 24, 25, 26, 28
 
@@ -38,6 +38,7 @@ _Superseded 2026-09-26 (ADR 0004): this whole section; the email on "Data & kiri
 
 ## Comments
 
+- 2026-09-27 — Built on branch `ticket-22-saat-duka-wizard`. Module `src/domain/pemesanan` (owns `pemesanan_makam`): `pilihanSaatDuka()` and `placeSaatDuka()` + `orderOf()`; the Nomor Pemesanan comes from Billing's own MKM series inside the order's transaction, so nothing is numbered twice. Wizard at `/pesan-makam/saat-duka` (Pilih makam → Data & kirim) and the order at `/pesanan/[nomor]`; migration `0017_pemesanan_makam.sql`. **For ticket 20**: the one integration point is `PemesananNotifikasi` (`pemesananDiajukan`), wired in `src/composition/pemesanan.ts` to a documented no-op until Notifications has a family message — pass the runtime's `notifications` there and nothing else in the wizard changes. Also new: `inventory.tersediaPerJenisMakam()`, `lokasi.bukaSekarang()`, the Kontak Siaga's and Admin Lokasi's `name`, `KodeMasukForm`'s optional `defaultEmail`, and the dev-only `seed-saat-duka` CLI (e2e) that gives a stack one Terverifikasi Lokasi Mitra with cleared Tersedia Petak.
 - 2026-09-26 — Decided with the user: variant D of prototype 18 stays the flow; only its styling is new (brand tokens, Plus Jakarta Sans, Forest primary buttons on Ivory, no Lora), settled in the public prototype (ticket 26) before the build.
 - 2026-09-26 — ADR 0004: Data & kirim asks for email (required) and phone; Kirim sends an email Kode Masuk that creates or logs into the Akun; "Tidak punya email? Minta bantuan CS" replaces the WhatsApp-outage pointer; CS / Admin Platform may submit on the family's behalf, possibly with no Akun, and attach the order later by Nomor Pemesanan. Now blocked by 82. The same email field rule applies to 36, 40, 44 and 50.
 - 2026-09-26 — Decided with the user from the public prototype (https://claude.ai/artifact/SYuh5fzc8TjkWQ5aoecYiF, branch worktree-agent-ab5e1eadecba063e3, commit 3607d88): the wizard header keeps only the logo and "Tanya CS" (no site menu or footer); on Pilih makam the primary action sits in the sticky bar, on Data & kirim Kirim sits at the end of the form after the "belum ada yang dibayar" note; the Kode Masuk step opens inline under the form (no separate screen); cards of a Lokasi with more than one Jenis Makam are grouped per Lokasi with the out-of-hours notice and Kontak Siaga shown once per Lokasi, Lokasi ordered by their cheapest all-in total; the city filter defaults to "Semua kota" for a first-time visitor (last choice or the deep-linked Lokasi's city otherwise).

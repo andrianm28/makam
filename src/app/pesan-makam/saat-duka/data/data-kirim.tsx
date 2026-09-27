@@ -1,0 +1,368 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type ReactNode } from "react";
+import { ArrowRight, Check, Mail } from "lucide-react";
+import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
+import {
+  initialKodeMasukVerifyState,
+  type CsContact,
+  type KodeMasukRequestState,
+  type KodeMasukVerifyState,
+} from "@/components/kode-masuk/state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "../progress";
+import { kirimPesanan, verifikasiKodeMasukDanKirim } from "../actions";
+import { initialKirimState, type DraftSaatDuka, type KirimState } from "../draft";
+import type { KartuView } from "../tampilan";
+import { formatRupiah } from "@/lib/rupiah";
+import { cn } from "@/lib/utils";
+
+export interface DataKirimProps {
+  draft: Pick<DraftSaatDuka, "lokasiId" | "jenisMakamId" | "email" | "pemesanName" | "phoneNumber">;
+  /** The card this screen is about, with the total its order would carry. */
+  kartu: KartuView;
+  lokasi: { id: string; name: string; city: string };
+  /** A signed-in Pemesan skips the Kode Masuk at Kirim. */
+  sudahMasuk: boolean;
+  /** Sends the Kode Masuk to the typed email (the Masuk action, reused as the spec says). */
+  mintaKodeMasuk: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
+  csContact: CsContact | null;
+}
+
+/**
+ * "Data & kirim": the family, the Almarhum, the Pemegang Hak (defaulting to
+ * "Saya sendiri", never the Almarhum), the note that nothing is paid now, and
+ * the Kode Masuk that opens inline under the form when there is no session yet.
+ * The draft lives here, so the Kode Masuk step can place the order with it.
+ */
+export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact }: DataKirimProps) {
+  const router = useRouter();
+  const [isi, setisi] = useState<Isi>({
+    ...draft,
+    almarhumName: "",
+    tanggalWafat: "",
+    rencanaPemakamanAt: "",
+    keinginanPenempatan: "",
+  });
+  const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
+  const [hasil, setHasil] = useState<KirimState>(initialKirimState);
+  const [mengirim, kirim] = useTransition();
+
+  const kirimPesananSekarang = () => kirim(async () => setHasil(await kirimPesanan(draftLengkap(isi, pemegangHak))));
+  const kodeMasukTerbuka = hasil.status === "perlu_kode_masuk";
+  const sudahDikirim = hasil.status === "selesai";
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-40">
+      <Progress
+        langkah={2}
+        total={2}
+        onBack={() => router.push(`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`)}
+        backLabel="Pilih makam"
+      />
+      <div className="mt-6 flex flex-col gap-6">
+        <div>
+          <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
+          <p className="mt-1 text-body-lg text-muted-foreground">
+            Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-soft px-4 py-3">
+          <p className="min-w-0 text-body text-brand-soft-foreground">
+            <span className="font-semibold">{kartu.jenisMakamName}</span> · {lokasi.name}
+          </p>
+          <Link
+            href={`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`}
+            className="shrink-0 text-body font-semibold text-brand underline underline-offset-2"
+          >
+            Ganti
+          </Link>
+        </div>
+
+        <Fieldset legend="Data Anda">
+          <Field id="pemesan-nama" label="Nama lengkap">
+            <Input
+              id="pemesan-nama"
+              value={isi.pemesanName}
+              onChange={(event) => setisi({ ...isi, pemesanName: event.target.value })}
+              autoComplete="name"
+              placeholder="Nama sesuai KTP"
+              className="h-11"
+            />
+          </Field>
+          <Field
+            id="pemesan-email"
+            label="Email"
+            hint="Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Semua kabar pesanan juga dikirim ke sini."
+          >
+            <Input
+              id="pemesan-email"
+              type="email"
+              required
+              value={isi.email}
+              onChange={(event) => setisi({ ...isi, email: event.target.value })}
+              autoComplete="email"
+              placeholder="nama@contoh.id"
+              className="h-11"
+            />
+          </Field>
+          <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar Lokasi Mitra dan tim kami bisa menelepon bila perlu.">
+            <Input
+              id="pemesan-telepon"
+              type="tel"
+              required
+              value={isi.phoneNumber}
+              onChange={(event) => setisi({ ...isi, phoneNumber: event.target.value })}
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="08xx-xxxx-xxxx"
+              className="h-11"
+            />
+          </Field>
+        </Fieldset>
+
+        <Fieldset legend="Almarhum">
+          <Field id="almarhum" label="Nama almarhum / almarhumah">
+            <Input
+              id="almarhum"
+              required
+              value={isi.almarhumName}
+              onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
+              className="h-11"
+            />
+          </Field>
+          <Field id="wafat" label="Tanggal wafat">
+            <Input
+              id="wafat"
+              type="date"
+              required
+              value={isi.tanggalWafat}
+              onChange={(event) => setisi({ ...isi, tanggalWafat: event.target.value })}
+              className="h-11"
+            />
+          </Field>
+        </Fieldset>
+
+        <Fieldset legend="Rencana pemakaman" note="Boleh dikosongkan; Lokasi Mitra akan menghubungi Anda.">
+          <Field id="waktu" label="Waktu pemakaman yang direncanakan" optional>
+            <Input
+              id="waktu"
+              type="datetime-local"
+              value={isi.rencanaPemakamanAt}
+              onChange={(event) => setisi({ ...isi, rencanaPemakamanAt: event.target.value })}
+              className="h-11"
+            />
+          </Field>
+          <Field
+            id="penempatan"
+            label="Keinginan penempatan"
+            optional
+            hint="Misalnya dekat makam keluarga, bila memungkinkan. Lokasi Mitra yang menentukan petaknya."
+          >
+            <textarea
+              id="penempatan"
+              rows={2}
+              value={isi.keinginanPenempatan}
+              onChange={(event) => setisi({ ...isi, keinginanPenempatan: event.target.value })}
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+            />
+          </Field>
+        </Fieldset>
+
+        <Fieldset legend="Pemegang Hak" note="Yang berhak atas makam ini, misalnya untuk memperpanjang atau pemakaman berikutnya.">
+          <Pilihan
+            label="Pemegang Hak"
+            value={pemegangHak.mode}
+            onChange={(mode) =>
+              setPemegangHak(
+                mode === "pemesan"
+                  ? { mode: "pemesan" }
+                  : { mode: "lain", name: "", phoneNumber: "", email: "" },
+              )
+            }
+            options={[
+              ["pemesan", "Saya sendiri"],
+              ["lain", "Anggota keluarga lain"],
+            ]}
+          />
+          {pemegangHak.mode === "lain" ? (
+            <div className="flex flex-col gap-4 border-t border-border pt-4">
+              <Field id="ph-nama" label="Nama Pemegang Hak">
+                <Input
+                  id="ph-nama"
+                  required
+                  value={pemegangHak.name}
+                  onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
+                  className="h-11"
+                />
+              </Field>
+              <Field id="ph-telepon" label="Nomor telepon Pemegang Hak">
+                <Input
+                  id="ph-telepon"
+                  type="tel"
+                  required
+                  value={pemegangHak.phoneNumber}
+                  onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
+                  inputMode="tel"
+                  className="h-11"
+                />
+              </Field>
+              <Field id="ph-email" label="Email Pemegang Hak" optional hint="Bila diisi, makam ini tampil di Akun dengan email tersebut.">
+                <Input
+                  id="ph-email"
+                  type="email"
+                  value={pemegangHak.email}
+                  onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
+                  className="h-11"
+                />
+              </Field>
+            </div>
+          ) : null}
+        </Fieldset>
+
+        <div className="rounded-xl bg-info-soft p-4 text-body text-info-soft-foreground">
+          <p className="font-semibold">Belum ada yang dibayar sekarang.</p>
+          <p className="mt-1">
+            Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan jatuh tempo 3×24 jam setelah pemakaman. Pemakaman tetap
+            berjalan. Dokumen boleh diunggah nanti atau dibawa saat hari pemakaman.
+          </p>
+        </div>
+
+        {kodeMasukTerbuka ? (
+          <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">
+            <p className="flex items-center gap-2 text-title-3 text-foreground">
+              <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode Masuk
+            </p>
+            <KodeMasukForm
+              requestAction={mintaKodeMasuk}
+              verifyAction={verifikasiDengan(draftLengkap(isi, pemegangHak))}
+              submitLabel="Kirim pesanan"
+              defaultEmail={isi.email}
+              csContact={csContact}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Button
+              type="button"
+              size="lg"
+              disabled={mengirim || sudahDikirim}
+              onClick={kirimPesananSekarang}
+              className="h-13 px-6 text-body-lg"
+            >
+              {mengirim ? "Mengirim…" : "Kirim pesanan"} <ArrowRight aria-hidden />
+            </Button>
+            <p className="text-center text-small text-muted-foreground">
+              {sudahMasuk
+                ? "Kirim pesanan. Tidak ada yang dibayar sekarang."
+                : "Kami mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda."}
+            </p>
+            {hasil.status === "gagal" ? (
+              <p role="alert" className="text-center text-sm text-destructive">
+                {hasil.message}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-caption text-muted-foreground">Total semua biaya</span>
+            <span className="block text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</span>
+          </span>
+          <span className="text-caption text-muted-foreground">{kartu.masaHakPakai}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The draft the Server Action receives, with the Pemegang Hak the screen chose. */
+function draftLengkap(isi: Isi, pemegangHak: DraftSaatDuka["pemegangHak"]): DraftSaatDuka {
+  return { ...isi, pemegangHak };
+}
+
+/** The fields "Data & kirim" holds, as the draft starts (the choice always begins at "Saya sendiri"). */
+type Isi = Omit<DraftSaatDuka, "pemegangHak">;
+
+/**
+ * The Kode Masuk step's own verify action: a correct code places the order with
+ * the draft this screen holds and lands the family on its order page. Its
+ * refusals are the Kode Masuk form's own `{ status: "gagal", message }`.
+ */
+function verifikasiDengan(draft: DraftSaatDuka) {
+  return async (state: KodeMasukVerifyState, formData: FormData): Promise<KodeMasukVerifyState> => {
+    const hasil = await verifikasiKodeMasukDanKirim(draft, state, formData);
+    return hasil.status === "gagal" ? { status: "gagal", message: hasil.message } : initialKodeMasukVerifyState;
+  };
+}
+
+function Fieldset({ legend, note, children }: { legend: string; note?: string; children: ReactNode }) {
+  return (
+    <fieldset className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+      <legend className="sr-only">{legend}</legend>
+      <div>
+        <p className="text-title-3 text-foreground">{legend}</p>
+        {note ? <p className="mt-0.5 text-small text-muted-foreground">{note}</p> : null}
+      </div>
+      {children}
+    </fieldset>
+  );
+}
+
+function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-body font-medium text-foreground">
+        {label}
+        {optional ? <span className="font-normal text-muted-foreground"> (opsional)</span> : null}
+      </label>
+      {children}
+      {hint ? <p className="text-small text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function Pilihan({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={label}>
+      {options.map(([value_, text]) => (
+        <button
+          key={value_}
+          type="button"
+          role="radio"
+          aria-checked={value === value_}
+          onClick={() => onChange(value_)}
+          className={cn(
+            "flex h-12 items-center gap-3 rounded-lg border px-4 text-left text-body-lg",
+            value === value_ ? "border-primary bg-brand-soft font-medium text-brand-soft-foreground" : "border-input bg-card",
+          )}
+        >
+          <span
+            className={cn("inline-flex size-4 items-center justify-center rounded-full border-2", value === value_ ? "border-primary bg-primary text-primary-foreground" : "border-border-strong")}
+            aria-hidden
+          >
+            {value === value_ ? <Check className="size-3" /> : null}
+          </span>
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}

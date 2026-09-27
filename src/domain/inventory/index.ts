@@ -16,7 +16,7 @@
  * serve Admin Platform.
  */
 import type { Actor } from "@/domain/identity";
-import type { AvailabilityCount } from "./availability";
+import { availability, type AvailabilityCount } from "./availability";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
@@ -105,6 +105,12 @@ export interface Inventory {
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
+  /**
+   * Every Jenis Makam's count of cleared Tersedia units at this Lokasi Mitra
+   * (a Kavling Keluarga counts as one); no actor, for the listing that offers
+   * only what is available.
+   */
+  tersediaPerJenisMakam(lokasiId: string): Promise<AvailabilityCount[]>;
 }
 
 export function createInventory(deps: InventoryDeps): Inventory {
@@ -124,5 +130,6 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
+    tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
   };
 }

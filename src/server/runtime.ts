@@ -4,14 +4,16 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
+import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
+import type { Pemesanan } from "@/domain/pemesanan";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -38,6 +40,8 @@ export interface ServerRuntime {
   fieldwork: Fieldwork;
   /** Work Queues: the Antrean, Ambil and Catatan Internal. */
   queues: Queues;
+  /** Pemesanan Makam: the Saat Duka wizard's list, its Kirim and the order page. */
+  pemesanan: Pemesanan;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -86,6 +90,7 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
     });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -97,9 +102,18 @@ export function serverRuntime(): ServerRuntime {
       operatorSettings,
       tariffs,
       billing,
-      inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
+      inventory,
       fieldwork,
       queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
+      pemesanan: composePemesanan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        identity,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;
