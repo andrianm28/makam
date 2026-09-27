@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { staffRoles, type StaffRole } from "@/domain/identity";
-import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, staffPalette } from "./staff-navigation";
+import { isActiveItem, lokasiSwitchHref, menuRole, staffBreadcrumbs, staffMenu, staffPage, staffPalette } from "./staff-navigation";
 
 /** A menu as its reader sees it: group labels and item labels, in order. */
 function outline(groups: ReturnType<typeof staffMenu>) {
@@ -138,6 +138,34 @@ describe("where a staff page sits in the menu", () => {
     expect(staffPage(`/staf/admin-lokasi/${lokasiId}/audit-log`).lokasiId).toBe(lokasiId);
     expect(staffPage("/staf/admin-lokasi").lokasiId).toBeUndefined();
     expect(staffPage(`/staf/admin-platform/lokasi/${lokasiId}`).lokasiId).toBeUndefined();
+  });
+});
+
+describe("the header Lokasi switcher's target", () => {
+  const second = "7a2e1d90-5b3c-4e8f-a1d2-3c4b5a697881";
+  const blokId = "b1a1c4d8-2e3f-4a5b-9c6d-7e8f9a0b1c2d";
+
+  it("on the Beranda, it goes to the target Lokasi's Beranda", () => {
+    expect(lokasiSwitchHref(`/staf/admin-lokasi/${lokasiId}`, lokasiId, second)).toBe(`/staf/admin-lokasi/${second}`);
+  });
+
+  it("on Jam Operasional or Audit Log, it keeps the same page for the target Lokasi", () => {
+    expect(lokasiSwitchHref(`/staf/admin-lokasi/${lokasiId}/jam-operasional`, lokasiId, second)).toBe(
+      `/staf/admin-lokasi/${second}/jam-operasional`,
+    );
+    expect(lokasiSwitchHref(`/staf/admin-lokasi/${lokasiId}/audit-log`, lokasiId, second)).toBe(
+      `/staf/admin-lokasi/${second}/audit-log`,
+    );
+  });
+
+  it("on the Denah list, it keeps Denah for the target Lokasi", () => {
+    expect(lokasiSwitchHref(`/staf/admin-lokasi/${lokasiId}/denah`, lokasiId, second)).toBe(`/staf/admin-lokasi/${second}/denah`);
+  });
+
+  it("on one Blok's Denah editor (a Blok of the current Lokasi only), it falls back to the target Lokasi's Denah list", () => {
+    expect(lokasiSwitchHref(`/staf/admin-lokasi/${lokasiId}/denah/${blokId}`, lokasiId, second)).toBe(
+      `/staf/admin-lokasi/${second}/denah`,
+    );
   });
 });
 

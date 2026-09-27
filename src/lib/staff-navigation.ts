@@ -310,6 +310,24 @@ export function menuRole(pathname: string, held: readonly StaffRole[]): StaffRol
   return role && held.includes(role) ? role : held[0];
 }
 
+/**
+ * The header Lokasi switcher's target when moving from `pathname` (scoped to
+ * `currentLokasiId`) to `targetLokasiId`: the same page for the target Lokasi
+ * when that still makes sense (Beranda, Jam Operasional, Audit Log, the Denah
+ * list), otherwise the target Lokasi's Denah list (a Blok belongs to one
+ * Lokasi only) or its Beranda.
+ */
+export function lokasiSwitchHref(pathname: string, currentLokasiId: string, targetLokasiId: string): string {
+  const base = `${AL}/${currentLokasiId}`;
+  const targetBase = `${AL}/${targetLokasiId}`;
+  if (pathname === base || !pathname.startsWith(`${base}/`)) return targetBase;
+  const rest = pathname.slice(base.length); // e.g. "/jam-operasional", "/denah", "/denah/<blokId>"
+  const [, first, ...deeper] = rest.split("/");
+  if (first === "denah") return deeper.length > 0 ? `${targetBase}/denah` : `${targetBase}${rest}`;
+  if (first === "jam-operasional" || first === "audit-log") return `${targetBase}${rest}`;
+  return targetBase;
+}
+
 /** Whether a menu item is the current place: its page, or a page under it. */
 export function isActiveItem(item: NavItem, pathname: string): boolean {
   if (!item.href) return false;

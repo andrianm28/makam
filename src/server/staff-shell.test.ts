@@ -90,6 +90,22 @@ describe("the staff shell", () => {
     expect((await staffShell())?.lokasiNames).toEqual({ [lokasiId]: "Makam Wakaf Al-Ikhlas" });
   });
 
+  it("carries the signed-in Admin Lokasi's own Lokasi Mitra for the header's Lokasi switcher; empty for an Admin Platform", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    const other = await server.runtime().lokasi.createLokasiMitra(admin, {
+      name: "TPU Keluarga Sentosa",
+      pengelolaName: "Yayasan Sentosa",
+      address: "Jl. Sentosa No. 2",
+      city: "Kota Depok",
+    });
+    if (!other.ok) throw new Error(other.reason);
+
+    expect((await staffShell())?.adminLokasi).toEqual([]);
+
+    await signInAsAdminLokasi(server, admin, lokasiId);
+    expect((await staffShell())?.adminLokasi).toEqual([{ id: lokasiId, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang" }]);
+  });
+
   it("carries the signed-in Akun's Peringatan Staf bell: the unread count and the latest, each with the page of its subject", async () => {
     const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
     const adminLokasi = await signInAsAdminLokasi(server, admin, lokasiId);

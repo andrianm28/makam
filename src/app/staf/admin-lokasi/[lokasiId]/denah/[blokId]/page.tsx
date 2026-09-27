@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isPortConfigured } from "@/adapters/live/not-configured";
 import { serverRuntime } from "@/server/runtime";
-import { adminLokasiScope, LokasiSwitcher } from "../../../scope";
+import { adminLokasiScope } from "../../../scope";
 import { DenahEditor } from "./denah-editor";
 
 /** Admin Lokasi: one Blok's Denah editor. */
 export default async function BlokDenahPage({ params }: PageProps<"/staf/admin-lokasi/[lokasiId]/denah/[blokId]">) {
   const { lokasiId, blokId } = await params;
-  const { actor, lokasiMitra, current } = await adminLokasiScope(lokasiId);
+  const { actor, current } = await adminLokasiScope(lokasiId);
   const runtime = serverRuntime();
   const reads = runtime.inventory.asStaff(actor);
   const [denah, tariffs] = await Promise.all([
@@ -22,7 +22,6 @@ export default async function BlokDenahPage({ params }: PageProps<"/staf/admin-l
 
   return (
     <>
-      <LokasiSwitcher lokasiMitra={lokasiMitra} current={current.id} />
       <Link href={`/staf/admin-lokasi/${current.id}/denah`} className="text-sm underline underline-offset-4">
         Denah {current.name}
       </Link>
