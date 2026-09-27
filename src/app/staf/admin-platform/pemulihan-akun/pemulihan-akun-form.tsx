@@ -1,16 +1,48 @@
 "use client";
 
-import { useActionState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { startTransition, useActionState, useId } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { FieldError } from "@/components/makam/form-section";
+import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { FormState } from "../../form-state";
+import { ServerResult, idleFormState } from "../../form-feedback";
 import { pulihkanAkun } from "./actions";
+import { pulihkanAkunSchema, type PulihkanAkunInput } from "./schema";
 
 /** The Akun picked by its id (from the staff roster), shown instead of the email field. */
 export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string } | null }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(pulihkanAkun, { status: "idle" });
+  const errorPrefix = useId();
+  const [state, submit, pending] = useActionState(pulihkanAkun, idleFormState);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    control,
+    formState: { errors },
+  } = useForm<PulihkanAkunInput>({
+    resolver: zodResolver(pulihkanAkunSchema, { error: pesanKesalahan }),
+    defaultValues: akun ? { accountId: akun.id, newEmail: "", reason: "" } : { currentEmail: "", newEmail: "", reason: "" },
+  });
+
+  const describedBy = (field: keyof PulihkanAkunInput) => (errors[field] ? `${errorPrefix}-${field}` : undefined);
+
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form
+      noValidate
+      className="flex flex-col gap-3"
+      onSubmit={handleSubmit((data) => {
+        const formData = new FormData();
+        if (data.accountId) formData.set("accountId", data.accountId);
+        if (data.currentEmail) formData.set("currentEmail", data.currentEmail);
+        formData.set("newEmail", data.newEmail);
+        formData.set("ktpCheck", data.ktpCheck);
+        if (data.ktpChecked) formData.set("ktpChecked", data.ktpChecked);
+        formData.set("reason", data.reason);
+        startTransition(() => submit(formData));
+      })}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         {akun ? (
           <p className="flex flex-col gap-1 text-sm font-medium">
@@ -18,49 +50,83 @@ export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string 
             <span className="font-normal" data-testid="pemulihan-akun-terpilih">
               {akun.label}
             </span>
-            <input type="hidden" name="accountId" value={akun.id} />
+            <input type="hidden" {...register("accountId")} />
           </p>
         ) : (
           <label className="flex flex-col gap-1 text-sm font-medium">
             Email Akun sekarang
-            <Input name="currentEmail" type="email" required placeholder="nama@contoh.id" className="h-10 px-3" />
+            <Input
+              {...register("currentEmail")}
+              type="email"
+              placeholder="nama@contoh.id"
+              aria-invalid={errors.currentEmail ? true : undefined}
+              aria-describedby={describedBy("currentEmail")}
+              className="h-10 px-3"
+            />
+            <FieldError id={describedBy("currentEmail")} message={errors.currentEmail?.message} />
           </label>
         )}
         <label className="flex flex-col gap-1 text-sm font-medium">
           Email baru
-          <Input name="newEmail" type="email" required placeholder="nama.baru@contoh.id" className="h-10 px-3" />
+          <Input
+            {...register("newEmail")}
+            type="email"
+            placeholder="nama.baru@contoh.id"
+            aria-invalid={errors.newEmail ? true : undefined}
+            aria-describedby={describedBy("newEmail")}
+            className="h-10 px-3"
+          />
+          <FieldError id={describedBy("newEmail")} message={errors.newEmail?.message} />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Foto atau scan KTP
         <input
-          name="ktpCheck"
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
-          required
+          aria-invalid={errors.ktpCheck ? true : undefined}
+          aria-describedby={describedBy("ktpCheck")}
           className="text-sm"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setValue("ktpCheck", file as File, { shouldValidate: true });
+          }}
         />
+        <FieldError id={describedBy("ktpCheck")} message={errors.ktpCheck?.message} />
       </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input name="ktpChecked" type="checkbox" value="ya" required />
-        KTP sudah dicek: cocok dengan data Akun
-      </label>
+      <Controller
+        name="ktpChecked"
+        control={control}
+        render={({ field }) => (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={field.value === "ya"}
+              onBlur={field.onBlur}
+              aria-invalid={errors.ktpChecked ? true : undefined}
+              aria-describedby={describedBy("ktpChecked")}
+              onChange={(event) => field.onChange(event.target.checked ? "ya" : undefined)}
+            />
+            KTP sudah dicek: cocok dengan data Akun
+          </label>
+        )}
+      />
+      <FieldError id={describedBy("ktpChecked")} message={errors.ktpChecked?.message} />
       <label className="flex flex-col gap-1 text-sm font-medium">
         Alasan
-        <Input name="reason" required maxLength={500} className="h-10 px-3" />
+        <Input
+          {...register("reason")}
+          maxLength={500}
+          aria-invalid={errors.reason ? true : undefined}
+          aria-describedby={describedBy("reason")}
+          className="h-10 px-3"
+        />
+        <FieldError id={describedBy("reason")} message={errors.reason?.message} />
       </label>
       <Button type="submit" disabled={pending} className="self-start">
         Pulihkan Akun
       </Button>
-      {state.status === "berhasil" ? (
-        <p role="status" className="text-sm text-success-soft-foreground">
-          {state.message}
-        </p>
-      ) : state.status === "gagal" ? (
-        <p role="alert" className="text-sm text-destructive">
-          {state.message}
-        </p>
-      ) : null}
+      <ServerResult state={state} />
     </form>
   );
 }

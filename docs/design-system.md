@@ -206,11 +206,12 @@ makam compositions (`src/components/makam/`):
 | `RoleSwitcher` | Switch between the staff roles one Akun holds. Hidden when it holds one. |
 | `LokasiSwitcher` | Header control for an Admin Lokasi of several Lokasi Mitra: switches which one the current page is scoped to, keeping the same kind of page where that still makes sense. Hidden when it works on one. |
 | `BottomNav` | Mitra Jasa and Petugas Lapangan's phone navigation: their whole menu as up to 4 tappable items, in place of the sheet sidebar. |
+| `FormSection` | One titled section of a Form-pattern page (section heading + description + fields); pages compose PageHeader + one or more FormSection. |
+| `FieldError` | The inline error under one field (a `role="alert"` message, nothing when valid), worded by `pesanKesalahan` (the Indonesian Zod error function). |
 | `ThemeToggle` | Terang, Gelap, Ikuti perangkat (staff area only). |
 | `BrandLogo`, `BrandMark` | The interim logo. |
 | `ThemeProvider` | next-themes, with the public pages held to light. |
-
-Still to come with the slices that first need them: `FormSection`.
+| `StaffToaster` | The staff area's Sonner toast host (`src/app/staf/layout.tsx` mounts it, so every staff form can report its result); the public pages are held to light and get none. |
 
 ## Usage rules
 
@@ -218,7 +219,7 @@ Still to come with the slices that first need them: `FormSection`.
 |---|---|
 | Many records of one kind | **List**: PageHeader + DataTable. Search always; at most one filter up front; pagination at 8–25 rows. |
 | One record | **Detail**: PageHeader with status and facts, tabs (each tab a URL), panels with a border. |
-| Changing settings or a record | **Form**: PageHeader + form sections, the same Zod schema as the Server Action, errors inline under the field, a toast with the result. |
+| Changing settings or a record | **Form**: PageHeader + FormSection, react-hook-form with the same Zod schema the Server Action uses (`zodResolver(schema, { error: pesanKesalahan })`), errors inline under the field (FieldError), the result twice over — inline and as a Sonner toast (`ServerResult`, `src/app/staf/form-feedback.tsx`). |
 | Work to do today | **Queue / dashboard**: StatCards (4 max) and a task list, most urgent first. |
 | An action that can't be undone, or needs a reason for the Audit Log | ConfirmDialog. Never a toast with undo. |
 | A standing notice about the page | Inline banner (`bg-info-soft`, `bg-warning-soft`), not a toast. |

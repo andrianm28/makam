@@ -5,7 +5,6 @@ import { z } from "zod";
 import { hariLiburNasionalResource, type Actor } from "@/domain/identity";
 import {
   hariLiburNasionalSchema,
-  tanggalSchema,
   type AddHariLiburNasionalResult,
   type RemoveHariLiburNasionalResult,
 } from "@/domain/lokasi";
@@ -13,6 +12,7 @@ import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
+import { hapusHariLiburSchema } from "./schema";
 
 type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 
@@ -59,7 +59,7 @@ export async function tambahHariLibur(_previous: FormState, formData: FormData):
 /** Admin Platform removes a Hari Libur Nasional from the list. */
 export async function hapusHariLibur(_previous: FormState, formData: FormData): Promise<FormState> {
   return hariLiburWrite({
-    schema: z.object({ date: tanggalSchema, reason: z.string().trim().max(500) }),
+    schema: hapusHariLiburSchema,
     input: { date: formData.get("date"), reason: formData.get("reason") ?? "" },
     run: (actor, data) => serverRuntime().lokasi.removeHariLiburNasional(actor, { date: data.date, reason: data.reason || null }),
     saved: "Hari Libur Nasional dihapus.",
