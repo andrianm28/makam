@@ -6,6 +6,7 @@ import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
+import { composePemesanan } from "@/composition/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
@@ -52,7 +53,7 @@ export function testServerRuntime() {
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -74,6 +75,8 @@ export function testServerRuntime() {
       tariffs,
       billing,
       inventory,
+      // Ticket 20's family message is not built yet, so the composition's no-op seam is used here too.
+      pemesanan: composePemesanan({ db: database.db, clock: adapters.clock, lokasi, tariffs, inventory, billing, identity }),
       fieldwork,
       queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
     };

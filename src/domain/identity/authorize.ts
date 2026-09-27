@@ -121,7 +121,11 @@ export type Action =
   /** Ambil an Antrean row: a soft claim, visible to all and takeable by anyone (Admin Platform only). */
   | "antrean.ambil"
   /** Add a Catatan Internal to an Antrean row or an order (Admin Platform only; never shown to the Pemesan, Mitra Jasa or Admin Lokasi). */
-  | "catatan_internal.tambah";
+  | "catatan_internal.tambah"
+  /** Place a Pemesanan Makam of one's own (the wizard's Kirim), for the Lokasi Mitra and plots chosen. */
+  | "pemesanan.buat"
+  /** Read one's own Pemesanan Makam by its Nomor Pemesanan. */
+  | "pemesanan.lihat";
 
 /** What the action is done to. */
 export type Resource =
@@ -137,7 +141,9 @@ export type Resource =
   | { kind: "hari_libur_nasional" }
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
-  | { kind: "antrean" };
+  | { kind: "antrean" }
+  /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
+  | { kind: "pemesanan_makam"; accountId: string };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -205,6 +211,11 @@ export function tugasLapanganResource(id: string): Resource {
 /** The Antrean: its rows, counter strip, Ambil claims and Catatan Internal threads (Admin Platform only). */
 export function antreanResource(): Resource {
   return { kind: "antrean" };
+}
+
+/** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
+export function pemesananResource(accountId: string): Resource {
+  return { kind: "pemesanan_makam", accountId };
 }
 
 export type Authorization =
@@ -329,5 +340,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "antrean.ambil":
     case "catatan_internal.tambah":
       return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;
+    case "pemesanan.buat":
+    case "pemesanan.lihat":
+      // An Akun places and reads its own orders only, as itself; CS placing one
+      // on a family's behalf (with or without an Akun of its own) is a later ticket.
+      return resource.kind === "pemesanan_makam" && resource.accountId === actor.accountId ? allowed : denied;
   }
 }

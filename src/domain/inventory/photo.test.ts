@@ -93,7 +93,7 @@ describe("a Blok's site-plan photo", () => {
     expect(isPortConfigured(setup.files)).toBe(true);
     expect(isPortConfigured(filesDown)).toBe(false);
 
-    const inventoryWithoutFiles = createInventory({ db, clock: setup.clock, audit: setup.audit, files: filesDown, tariffs: setup.tariffs });
+    const inventoryWithoutFiles = createInventory({ db, clock: setup.clock, audit: setup.audit, files: filesDown, tariffs: setup.tariffs, lokasi: setup.lokasi });
     const refused = await inventoryWithoutFiles.uploadBlokPhoto(fixture.adminLokasi, fixture.lokasiMitra.id, blok.id, {
       body: jpegBytes,
       contentType: "image/jpeg",

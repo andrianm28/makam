@@ -99,6 +99,7 @@ export {
   authorize,
   hariLiburNasionalResource,
   lokasiMitraResource,
+  pemesananResource,
   semuaLokasiMitraResource,
   needsTotp,
   pengaturanOperatorResource,

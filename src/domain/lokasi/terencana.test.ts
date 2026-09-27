@@ -10,6 +10,7 @@ import {
 } from "../../../tests/support/publish";
 import { denahFixture, newBlok } from "../../../tests/support/inventory";
 import type { Actor } from "@/domain/identity";
+import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -94,6 +95,27 @@ describe("switching Pemesanan Terencana on", () => {
     await setup.lokasi.activateTerencana(admin, lokasiMitra.id, { hasPetakPerluVerifikasi: false });
 
     expect(await setup.lokasi.activateTerencana(admin, lokasiMitra.id, { hasPetakPerluVerifikasi: true })).toEqual({ ok: true });
+  });
+
+  it("a policy may still change while it is on (only switching it on is activateTerencana's own job)", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    await recordCekDenahViaFieldwork(setup, admin, lokasiMitra.id);
+    await setup.lokasi.activateTerencana(admin, lokasiMitra.id, { hasPetakPerluVerifikasi: false });
+
+    const changed = await setup.lokasi.setPoliciesAndFlags(admin, lokasiMitra.id, {
+      policies: { ...DEFAULT_POLICIES, masaPembatalanDays: 14, refundAfterMasaPembatalanPercent: 25 },
+      flags: { ...DEFAULT_FLAGS, pemesananTerencanaAktif: true },
+    });
+
+    expect(changed).toEqual({ ok: true });
+    expect(await setup.lokasi.lokasiMitra(admin, lokasiMitra.id)).toMatchObject({
+      lokasiMitra: {
+        policies: { masaPembatalanDays: 14, refundAfterMasaPembatalanPercent: 25 },
+        flags: { pemesananTerencanaAktif: true },
+      },
+    });
   });
 
   it("an Admin Lokasi (not Admin Platform) cannot switch it on", async () => {

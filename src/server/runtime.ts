@@ -4,6 +4,7 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
@@ -12,6 +13,7 @@ import { createInventory, type Inventory } from "@/domain/inventory";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
+import type { Pemesanan } from "@/domain/pemesanan";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -32,8 +34,10 @@ export interface ServerRuntime {
   tariffs: Tariffs;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
-  /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga). */
+  /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga) and the plot hold a Terencana order places. */
   inventory: Inventory;
+  /** Pemesanan: the booking wizards' orders (the Terencana wizard, ticket 36). */
+  pemesanan: Pemesanan;
   /** Field Work: Tugas Lapangan for Petugas Lapangan (Kunjungan Verifikasi, Cek Denah). */
   fieldwork: Fieldwork;
   /** Work Queues: the Antrean, Ambil and Catatan Internal. */
@@ -86,6 +90,7 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
     });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -97,7 +102,19 @@ export function serverRuntime(): ServerRuntime {
       operatorSettings,
       tariffs,
       billing,
-      inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
+      inventory,
+      pemesanan: composePemesanan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        identity,
+        // TODO(ticket 20): pass `notifikasi: notifications` here. The Pemesanan module announces a new
+        // Terencana order to the Lokasi Mitra's staff through the Notifications module, never from the
+        // wizard; that module has no such message yet, so the seam stays the no-op composition default.
+      }),
       fieldwork,
       queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
     };

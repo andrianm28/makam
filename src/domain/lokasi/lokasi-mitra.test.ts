@@ -313,6 +313,7 @@ describe("the policies and flags of a Lokasi Mitra", () => {
     expect(await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: created.id })).toEqual(entriesBefore);
   });
 
+
   it("refuse values outside the rules: a negative period, K below 1, a refund above 100%, tumpang under 2 layers", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

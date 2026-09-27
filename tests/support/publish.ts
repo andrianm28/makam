@@ -49,7 +49,7 @@ export function publishOnTestDatabase(db: Database) {
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
     reportError: (error, context) => reportedErrors.push({ error, context }),
   });
-  return { ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
+  return { db, ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }
 
 export type PublishSetup = ReturnType<typeof publishOnTestDatabase>;
