@@ -41,6 +41,20 @@ import {
   type SetBiayaPemakamanInput,
   type SetBiayaPemakamanResult,
 } from "./biaya-pemakaman";
+import {
+  hargaLayananLokasiHistory,
+  hargaLayananInForce,
+  hargaLayananLokasiInForce,
+  setHargaLayananDki,
+  setHargaLayananLokasi,
+  setTarifMitraJasa,
+  tarifMitraJasaInForce,
+  versionsOfLayanan,
+  type BukuLayanan,
+  type HargaLayananVersion,
+  type SetHargaLayananInput,
+  type SetHargaLayananResult,
+} from "./layanan-harga";
 
 export type { TariffDeps } from "./deps";
 export type { GlobalTariffKey, GlobalTariffVersion, SetGlobalTariffInput, SetGlobalTariffResult } from "./global-tariffs";
@@ -59,6 +73,7 @@ export type { Provider, Quote, QuoteLine, QuoteRefusal, QuoteResult, QuotedLine 
 export type { AllInPrice, JenisMakamCard, LokasiPublicPricing } from "./public-pricing";
 export type { MarkTariffsCheckedResult, MissingTariff, TariffsChecked } from "./tariffs-checked";
 export type { StaffTariffReads, TariffReads } from "./reads";
+export type { BukuLayanan, HargaLayananVersion, SetHargaLayananInput, SetHargaLayananResult } from "./layanan-harga";
 
 /** The "tarif diperiksa" mark as the public sees it: when, and whether a tariff changed since; never who. */
 export interface PublicTariffsChecked {
@@ -92,6 +107,35 @@ export interface Tariffs extends TariffReads {
   ): Promise<SetJenisMakamTariffResult>;
   /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount); audited on that Lokasi. */
   setBiayaPemakaman(by: Actor, lokasiId: string, input: SetBiayaPemakamanInput): Promise<SetBiayaPemakamanResult>;
+  /**
+   * Admin Platform enters a new price for one Layanan variant at one Lokasi Mitra;
+   * audited on that Lokasi. A variant with no price in force cannot be offered, so
+   * there is no free pricing.
+   */
+  setHargaLayananLokasi(
+    by: Actor,
+    lokasiId: string,
+    layananVariantId: string,
+    input: SetHargaLayananInput,
+  ): Promise<SetHargaLayananResult>;
+  /** Admin Platform enters a new DKI price for one Layanan variant (the same in every TPU); audited. */
+  setHargaLayananDki(by: Actor, layananVariantId: string, input: SetHargaLayananInput): Promise<SetHargaLayananResult>;
+  /** Admin Platform enters a new Mitra Jasa rate for one Layanan variant; audited, and never shown to a Pemesan. */
+  setTarifMitraJasa(by: Actor, layananVariantId: string, input: SetHargaLayananInput): Promise<SetHargaLayananResult>;
+  /** The price of one Layanan variant at one Lokasi Mitra, in force at `at` (null when none is). */
+  hargaLayananLokasi(lokasiId: string, layananVariantId: string, at: Date): Promise<HargaLayananVersion | null>;
+  /** The DKI price of one Layanan variant, in force at `at` (null when none is). */
+  hargaLayananDki(layananVariantId: string, at: Date): Promise<HargaLayananVersion | null>;
+  /**
+   * The Mitra Jasa rate of one Layanan variant in force at `at`, for Admin Platform
+   * only: it is what the Operator pays, so a Pemesan and an Admin Lokasi never read
+   * it (they get null). It is never part of a quote.
+   */
+  mitraJasaRate(by: Actor, layananVariantId: string, at: Date): Promise<HargaLayananVersion | null>;
+  /** Every price version of one Layanan variant at one Lokasi Mitra, in entry order. */
+  hargaLayananLokasiHistory(lokasiId: string, layananVariantId: string): Promise<HargaLayananVersion[]>;
+  /** Every version of one price book of one Layanan variant, in entry order (the staff history). */
+  hargaLayananHistory(buku: BukuLayanan, layananVariantId: string): Promise<HargaLayananVersion[]>;
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" for the publish gate; audited on that Lokasi. */
   markTariffsChecked(by: Actor, lokasiId: string, input: { reason: string | null }): Promise<MarkTariffsCheckedResult>;
   /** The latest "tarif diperiksa" mark of a Terverifikasi Lokasi Mitra (when, never who), or null. */
@@ -115,6 +159,15 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     createJenisMakam: (by, lokasiId, input) => createJenisMakam(deps, by, lokasiId, input),
     setJenisMakamTariff: (by, jenisMakamId, input) => setJenisMakamTariff(deps, by, jenisMakamId, input),
     setBiayaPemakaman: (by, lokasiId, input) => setBiayaPemakaman(deps, by, lokasiId, input),
+    setHargaLayananLokasi: (by, lokasiId, layananVariantId, input) =>
+      setHargaLayananLokasi(deps, by, lokasiId, layananVariantId, input),
+    setHargaLayananDki: (by, layananVariantId, input) => setHargaLayananDki(deps, by, layananVariantId, input),
+    setTarifMitraJasa: (by, layananVariantId, input) => setTarifMitraJasa(deps, by, layananVariantId, input),
+    hargaLayananLokasi: (lokasiId, layananVariantId, at) => hargaLayananLokasiInForce(deps.db, lokasiId, layananVariantId, at),
+    hargaLayananDki: (layananVariantId, at) => hargaLayananInForce(deps.db, "harga_layanan_dki", layananVariantId, at),
+    mitraJasaRate: (by, layananVariantId, at) => tarifMitraJasaInForce(deps.db, by, layananVariantId, at),
+    hargaLayananLokasiHistory: (lokasiId, layananVariantId) => hargaLayananLokasiHistory(deps.db, lokasiId, layananVariantId),
+    hargaLayananHistory: (buku, layananVariantId) => versionsOfLayanan(deps.db, buku, layananVariantId),
     markTariffsChecked: (by, lokasiId, input) => markTariffsChecked(deps, by, lokasiId, input),
   };
 }

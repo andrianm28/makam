@@ -10,6 +10,7 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
+import { createLayanan, type Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -31,6 +32,8 @@ export interface ServerRuntime {
   operatorSettings: OperatorSettings;
   /** Tariffs: versioned price books and the all-in `quote()`. */
   tariffs: Tariffs;
+  /** Layanan: the global catalog, which Layanan each Lokasi offers, and the Paket Layanan. */
+  layanan: Layanan;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
   /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga). */
@@ -68,6 +71,7 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     const notifications = composeNotifications({
       env,
@@ -97,6 +101,7 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       operatorSettings,
       tariffs,
+      layanan,
       billing,
       inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
       fieldwork,

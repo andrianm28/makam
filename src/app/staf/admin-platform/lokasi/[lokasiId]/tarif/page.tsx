@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Actor } from "@/domain/identity";
 import type { JenisMakamPrice, StaffTariffReads } from "@/domain/tariffs";
 import { formatTanggal, formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -13,6 +14,7 @@ import {
   NewJenisMakamForm,
   TariffsCheckedForm,
 } from "../../../tarif/tarif-forms";
+import { StopLayananForm, TawarkanLayananForm } from "../../../layanan/layanan-forms";
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: React.ReactNode }) {
   return (
@@ -155,6 +157,55 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
           </details>
         ) : null}
       </Section>
+
+      <LayananLokasiSection actor={actor} lokasiId={lokasiMitra.id} today={today} />
     </>
+  );
+}
+
+/**
+ * Which Layanan this Lokasi Mitra offers and what it charges: the catalog is
+ * global, the price is this place's own, and a Pilihan with no price in force is
+ * never shown to a family.
+ */
+async function LayananLokasiSection({ actor, lokasiId, today }: { actor: Actor; lokasiId: string; today: string }) {
+  const { layanan, adapters } = serverRuntime();
+  const now = adapters.clock.now();
+  const penawaran = await layanan.asStaff(actor).lokasiLayanan(lokasiId, now);
+
+  return (
+    <Section
+      id="layanan"
+      title="Layanan"
+      description="Layanan yang ditawarkan Lokasi Mitra ini, beserta harganya. Tanpa harga yang berlaku, sebuah Pilihan tidak tayang di halaman publik Lokasi ini."
+    >
+      {penawaran.length === 0 ? <p className="text-muted-foreground">Katalog Layanan masih kosong.</p> : null}
+      {penawaran.map((entry) => (
+        <div key={entry.layanan.id} className="flex flex-col gap-2">
+          <h3 className="font-medium">{entry.layanan.name}</h3>
+          {entry.varian.map((varian) => (
+            <div key={varian.id} className="flex flex-col gap-1 border-t pt-3">
+              <p>
+                <span className="font-medium">{varian.name}</span> ·{" "}
+                {varian.ditawarkan
+                  ? varian.harga
+                    ? `ditawarkan ${formatRupiah(varian.harga.amount)} · berlaku sejak ${formatTanggal(varian.harga.effectiveOn)}`
+                    : "ditawarkan, tapi belum ada harga yang berlaku"
+                  : "belum ditawarkan"}
+              </p>
+              <details>
+                <summary className="cursor-pointer">
+                  {varian.ditawarkan ? "Harga baru atau berhenti menawarkannya" : "Tawarkan di Lokasi Mitra ini"}
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  <TawarkanLayananForm lokasiId={lokasiId} variantId={varian.id} today={today} />
+                  {varian.ditawarkan ? <StopLayananForm lokasiId={lokasiId} variantId={varian.id} /> : null}
+                </div>
+              </details>
+            </div>
+          ))}
+        </div>
+      ))}
+    </Section>
   );
 }

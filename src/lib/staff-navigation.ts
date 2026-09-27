@@ -7,6 +7,7 @@ import {
   ClipboardListIcon,
   ClockIcon,
   FileClockIcon,
+  FlowerIcon,
   GridIcon,
   InboxIcon,
   LayoutDashboardIcon,
@@ -91,6 +92,13 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               href: `${AP}/tarif`,
               icon: ReceiptIcon,
               description: "Biaya Layanan Platform, Biaya Pengurusan dan Retribusi Pemda, per versi dengan tanggal berlaku.",
+            },
+            {
+              label: "Katalog Layanan",
+              href: `${AP}/layanan`,
+              icon: FlowerIcon,
+              description:
+                "Daftar Layanan global, tanda boleh di TPU DKI, harga TPU DKI dan tarif Mitra Jasa, serta Paket Layanan.",
             },
             {
               label: "Hari Libur Nasional",

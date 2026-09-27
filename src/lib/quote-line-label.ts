@@ -19,5 +19,8 @@ export function quoteLineLabel(line: QuotedLine): string {
       return "Retribusi Pemda (IPTM)";
     case "biaya_layanan_platform":
       return "Biaya Layanan Platform";
+    case "layanan_lokasi":
+    case "layanan_dki":
+      return `Layanan – ${line.namaLayanan} (${line.namaVarian})`;
   }
 }

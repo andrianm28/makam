@@ -182,6 +182,7 @@ describe("the command palette (role visibility on the server)", () => {
         items: [
           { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },
           { label: "Tarif global", href: "/staf/admin-platform/tarif" },
+          { label: "Katalog Layanan", href: "/staf/admin-platform/layanan" },
           { label: "Hari Libur Nasional", href: "/staf/admin-platform/hari-libur" },
         ],
       },

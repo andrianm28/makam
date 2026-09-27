@@ -84,8 +84,12 @@ export type Action =
   | "lokasi.ubah_rekening"
   /** Change which Admin Lokasi a Lokasi Mitra has: invite or remove one (Admin Platform only). */
   | "lokasi.atur_admin_lokasi"
-  /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
+  /** Enter tariffs: a Lokasi Mitra's (Jenis Makam, Biaya Pemakaman, a Layanan's price, the "tarif diperiksa" mark) or the global ones (Admin Platform only). */
   | "tarif.ubah"
+  /** Keep the Layanan catalog: add or change a Layanan, its variants, the "boleh di TPU DKI" mark and the Paket Layanan (Admin Platform only). */
+  | "layanan.kelola"
+  /** Switch the Layanan a Lokasi Mitra offers on or off (Admin Platform only). */
+  | "layanan.tawarkan"
   /** Set a Lokasi Mitra's Jam Operasional and pick its Kontak Siaga (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "lokasi.atur_operasional"
   /** Keep the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar (Admin Platform only). */
@@ -136,6 +140,7 @@ export type Resource =
   | { kind: "lokasi_mitra_semua" }
   | { kind: "lokasi_mitra"; lokasiId: string }
   | { kind: "tarif_global" }
+  | { kind: "layanan_katalog" }
   | { kind: "hari_libur_nasional" }
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
@@ -187,6 +192,11 @@ export function lokasiMitraResource(lokasiId: string): Resource {
 /** The global tariffs: Biaya Layanan Platform, DKI Biaya Pengurusan, Retribusi Pemda. */
 export function tarifGlobalResource(): Resource {
   return { kind: "tarif_global" };
+}
+
+/** The Layanan catalog: its Layanan, variants, the "boleh di TPU DKI" mark and the Paket Layanan (Admin Platform only). */
+export function layananKatalogResource(): Resource {
+  return { kind: "layanan_katalog" };
 }
 
 /** The Hari Libur Nasional list (the Admin Platform Hari Kerja calendar). */
@@ -300,6 +310,12 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return (resource.kind === "lokasi_mitra" || resource.kind === "tarif_global") && holds("admin_platform")
         ? allowed
         : denied;
+    case "layanan.kelola":
+      // The Layanan catalog, the TPU mark and the Paket Layanan are the Operator's own (spec, Identity & Access): Admin Platform only.
+      return resource.kind === "layanan_katalog" && holds("admin_platform") ? allowed : denied;
+    case "layanan.tawarkan":
+      // Which Layanan a Lokasi Mitra offers is its own tariff line, so Admin Platform switches it on or off.
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "hari_libur.ubah":
       return resource.kind === "hari_libur_nasional" && holds("admin_platform") ? allowed : denied;
     case "denah.lihat":

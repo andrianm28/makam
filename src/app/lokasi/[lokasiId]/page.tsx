@@ -93,9 +93,10 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   const profile = await lokasi.publicLokasiMitra(lokasiId);
   if (!profile) notFound();
 
-  const [pricing, photoUrls] = await Promise.all([
+  const [pricing, photoUrls, layanan] = await Promise.all([
     tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
     lokasi.publicVisitPhotoUrls(lokasiId),
+    serverRuntime().layanan.penawaranLokasi(lokasiId, adapters.clock.now()),
   ]);
 
   const mapsQuery = mapsQueryFor(profile);
@@ -171,6 +172,36 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
           )}
           {pricing.biayaPemakaman ? <AllInLine label="Biaya Pemakaman" price={pricing.biayaPemakaman} /> : null}
           {pricing.biayaPemakamanTumpang ? <AllInLine label="Biaya Pemakaman (tumpang)" price={pricing.biayaPemakamanTumpang} /> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Layanan</CardTitle>
+          <CardDescription>
+            Layanan yang bisa dipesan untuk makam di lokasi ini. Harganya sudah termasuk semua biaya yang akan
+            ditagihkan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {layanan.length === 0 ? (
+            <p className="text-muted-foreground">Belum ada Layanan yang bisa dipesan di lokasi ini.</p>
+          ) : (
+            layanan.map((entry) => (
+              <div key={entry.layanan.id} className="flex flex-col gap-2">
+                <p className="text-body font-semibold">
+                  {entry.layanan.name}
+                  {entry.layanan.bisaHariH ? (
+                    <span className="text-small font-normal text-muted-foreground"> · bisa diberikan hari pemakaman</span>
+                  ) : null}
+                </p>
+                {entry.layanan.description ? <p className="text-small text-muted-foreground">{entry.layanan.description}</p> : null}
+                {entry.varian.map((varian) => (
+                  <AllInLine key={varian.id} label={varian.name} price={varian.harga} />
+                ))}
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
