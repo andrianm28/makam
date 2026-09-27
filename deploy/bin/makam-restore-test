@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# makam-restore-test: restores the newest Dump of an environment into a
+# throwaway Postgres and checks it (ADR 0002, beta UAT amendment), run weekly by
+# makam-<env>-restore-test.timer and by hand. A backup nobody has ever restored
+# is a hope, not a backup.
+#
+#   makam-restore-test --env staging|prod
+#   makam-restore-test --env staging --dump <file>   # a specific night
+#   makam-restore-test --env staging --keep          # leave the container for inspection
+#
+# The throwaway Postgres is named makam-restoretest-<env>-<UTC timestamp>,
+# carries the label makam.role=restore-test, publishes no port and mounts no
+# volume, and is removed again whether the check passed or failed (--keep leaves
+# it for inspection). Nothing of the environment it restores is touched: the
+# Dump is read, the running database is not, and this script needs no
+# connection to it.
+#
+# The check is a comparison, not a hope: each night's Dump comes with the row
+# counts of the night it was taken (makam-<timestamp>.counts.enc), so every
+# table of that night must be in the restore, with at least as many rows. A
+# restore that is short of a row, or missing a table, fails the check and is
+# logged at err priority.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+LOG_TAG=makam-restore-test
+KEEP=0
+DUMP_OVERRIDE=""
+
+# shellcheck source=deploy/bin/makam-backup-lib
+. "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
+
+usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+ENV_NAME=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --dump) DUMP_OVERRIDE=${2:?}; shift 2 ;;
+    --keep) KEEP=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+BACKUPS="$MAKAM_ROOT/$ENV_NAME/backups/db"
+PASSPHRASE_FILE=${MAKAM_BACKUP_PASSPHRASE_FILE:-$MAKAM_ROOT/$ENV_NAME/backup-passphrase}
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+NAME="makam-restoretest-$ENV_NAME-$STAMP"
+
+[ -r "$PASSPHRASE_FILE" ] || refuse "missing $PASSPHRASE_FILE (the Dump cannot be decrypted without it)"
+PASSPHRASE=$(cat "$PASSPHRASE_FILE")
+[ -n "$PASSPHRASE" ] || refuse "$PASSPHRASE_FILE is empty"
+case "$PASSPHRASE" in
+  *"
+"*) refuse "$PASSPHRASE_FILE has more than one line; openssl would use only the first" ;;
+esac
+
+# The newest Dump is the one with the last timestamp in its name, which is also
+# the order `ls` gives them in.
+if [ -n "$DUMP_OVERRIDE" ]; then
+  DUMP=$DUMP_OVERRIDE
+  [ -r "$DUMP" ] || refuse "no such dump: $DUMP"
+else
+  DUMP=$(find "$BACKUPS" -maxdepth 1 -name 'makam-*.dump.enc' | sort | tail -n 1)
+  [ -n "$DUMP" ] || refuse "no Dump in $BACKUPS; run makam-backup-db --env $ENV_NAME first"
+fi
+# The counts of the same night: without them there is nothing to check against.
+COUNTS="${DUMP%.dump.enc}.counts.enc"
+[ -r "$COUNTS" ] || refuse "no row counts beside $DUMP ($COUNTS); a Dump that cannot be checked is not one to restore"
+
+# A restored database is a whole second copy of the Dump on the same disk, plus
+# the container's own overhead. A size that does not answer must not read as
+# zero free space needed.
+DUMP_BYTES=$(stat -c %s "$DUMP")
+case "$DUMP_BYTES" in
+  '' | *[!0-9]* | 0) refuse "could not read the size of $DUMP; no restore started" ;;
+esac
+require_free_space "$MAKAM_ROOT" $((DUMP_BYTES * 2)) "the Dump of $DUMP"
+
+started=$(date +%s)
+container_up=0
+cleanup() {
+  local code=$?
+  if [ "$container_up" = 1 ]; then
+    if [ "$KEEP" = 1 ]; then
+      echo "left $NAME in place for inspection (docker rm -f $NAME when done)" >&2
+    else
+      if [ "$code" != 0 ]; then
+        docker logs --tail 20 "$NAME" >&2 2>&1 || true
+      fi
+      docker rm -f "$NAME" > /dev/null 2>&1 || true
+    fi
+  fi
+}
+trap cleanup EXIT
+
+# No port, no volume, no restart: nothing outside can reach this database, and
+# it is gone the moment the check ends.
+docker run -d --name "$NAME" \
+  --label makam.role=restore-test \
+  --restart no --memory 1g --cpus 1 --shm-size 256m \
+  -e POSTGRES_HOST_AUTH_METHOD=trust \
+  "$PG_IMAGE" > /dev/null
+container_up=1
+
+# Over TCP on 127.0.0.1, never over the socket: the image runs a temporary
+# server while it initialises, and that one listens on the socket alone.
+for _ in $(seq 1 120); do
+  if docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1 \
+  || { err "ERROR $NAME never became ready"; exit 1; }
+
+export BACKUP_PASSPHRASE="$PASSPHRASE"
+if ! openssl enc -d "${CIPHER_ARGS[@]}" -in "$DUMP" -pass env:BACKUP_PASSPHRASE \
+  | docker exec -i "$NAME" pg_restore -U postgres -d postgres --no-owner --no-privileges --exit-on-error; then
+  err "ERROR restoring $DUMP into $NAME"
+  exit 1
+fi
+
+psql() { docker exec "$NAME" psql -U postgres -d postgres -Atc "$1" 2> /dev/null; }
+recorded=$(openssl enc -d "${CIPHER_ARGS[@]}" -in "$COUNTS" -pass env:BACKUP_PASSPHRASE)
+[ -n "$recorded" ] || { err "ERROR $COUNTS decrypted to nothing; there is nothing to check the restore against"; exit 1; }
+restored=$(psql "$COUNTS_QUERY")
+printf '%s\n' "$restored"
+
+# Every table that night had must be in the restore, core ones included: the
+# counts cover them all, and the core ones are the floor under a lost counts file.
+missing=$(comm -23 \
+  <({ printf '%s\n' "$recorded" | cut -d= -f1; printf '%s\n' "${REQUIRED_TABLES[@]}"; } | sort -u) \
+  <(printf '%s\n' "$restored" | cut -d= -f1 | sort -u))
+[ -z "$missing" ] || {
+  err "ERROR $DUMP has tables the restore does not: $(printf '%s' "$missing" | tr '\n' ' ')"
+  exit 1
+}
+
+# And each with at least the rows it had that night: fewer means the restore
+# lost something.
+short=$(awk -F= '
+  NR == FNR { recorded[$1] = $2; next }
+  { restored[$1] = $2 }
+  END { for (table in recorded) if (restored[table] + 0 < recorded[table] + 0) print table ": " restored[table] " of " recorded[table] }
+' <(printf '%s\n' "$recorded") <(printf '%s\n' "$restored"))
+[ -z "$short" ] || { err "ERROR the restore of $DUMP is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
+
+checked=$(printf '%s\n' "$restored" | grep -c .)
+echo "$checked tables checked, each with the rows of that night, from $(basename "$DUMP") in $(( $(date +%s) - started ))s"
+log "restored $(basename "$DUMP") in $(( $(date +%s) - started ))s: $checked tables, none short of its rows"
+
+heartbeat "$ENV_NAME" restored

@@ -44,9 +44,13 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/admin-credentials.txt` | GlitchTip superuser login |
 | `/opt/makam-v1/glitchtip/api-token.txt` | GlitchTip API token (ops scripts) |
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
-| `/etc/systemd/system/makam-staging-{deploy,health,files-backup}.{service,timer}` | from `deploy/systemd/` |
+| `/etc/systemd/system/makam-staging-{deploy,health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/` |
 | `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
 | `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz` | nightly FileStore tar, kept 7 days (`makam-backup-files`) |
+| `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
+| `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.counts.enc` | the row counts of that night, what a restore is checked against |
+| `/opt/makam-v1/<env>/backup-passphrase` | 0600, `openssl rand -base64 32`; encrypts the database Dump. **Keep an offline copy** (below) |
+| `/opt/makam-v1/<env>/glitchtip-heartbeat` | the GlitchTip Heartbeat URL the backup pings when it is done (optional) |
 
 After changing any file under `deploy/` or `docker-compose.prod.yml` on
 `main`, run `deploy/install-host.sh` from an up-to-date, clean checkout of
@@ -392,9 +396,10 @@ container (`docker run --rm -v makam-<env>_files:/data:ro …`, read-only, so
 the backup itself cannot touch what it is backing up) and writes
 `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz`, then
 deletes its own tar files older than 7 days. This is the files half of the
-beta's nightly-backup plan (ticket 64 rescoped for the beta: a nightly
-encrypted `pg_dump` kept 7 days, the same window); the two run as separate
-units so losing one backup never touches the other.
+beta's nightly-backup plan; the database half is "Database backup and restore"
+below (ticket 64 rescoped for the beta: a nightly encrypted `pg_dump` kept 7
+days, the same window); the two run as separate units so losing one backup never
+touches the other.
 
 ```bash
 # What's backed up, and when
@@ -417,6 +422,167 @@ sudo systemctl start makam-staging-deploy.timer
 The beta holds no real personal or payment data (dummy content, SumoPod
 sandbox, ticket 86's read-only catalog import), so losing the host loses the
 beta's data — an accepted risk for the beta only (ADR 0002).
+
+## Database backup and restore
+
+The database half of the same nightly plan (ticket 64, ADR 0002 beta UAT
+amendment). The beta keeps **encrypted `pg_dump` files on the host, 7 days**;
+pgBackRest to S3 with WAL archiving and PITR is v2 work, blocked by ticket 03
+(AWS account). Three things therefore have to be true, and each has its own
+timer:
+
+| What | Unit | When (WIB) |
+|---|---|---|
+| `makam-backup-db --env <env>` | `makam-<env>-db-backup.timer` | nightly 02:15 |
+| `makam-backup-files --env <env>` | `makam-<env>-files-backup.timer` | nightly 03:15 |
+| `makam-restore-test --env <env>` | `makam-<env>-restore-test.timer` | Mondays 04:15 |
+
+A nightly backup nobody has ever restored is a hope, not a backup, so the third
+one is not optional bookkeeping: it restores the newest Dump into a throwaway
+Postgres and checks it against that night's row counts.
+
+### The passphrase (one thing a human must do)
+
+The Dump is encrypted on the client with OpenSSL (already on this host),
+aes-256-cbc with PBKDF2-HMAC-SHA256 at 600 000 iterations and a per-file random
+salt (OpenSSL's own default, 10 000, is a test default; 600 000 costs about a
+second per file and these are read rarely). The script has no default and no
+fallback: with no passphrase it refuses and writes nothing, because an
+unencrypted Dump of the database is worse than no Dump. The file must hold
+**one line**: `openssl enc` would silently use only the first, and the script
+refuses a longer one rather than encrypt with less than it looks like.
+
+```bash
+umask 077
+openssl rand -base64 32 > /opt/makam-v1/staging/backup-passphrase   # 0600
+```
+
+**Keep an offline copy of that file somewhere off this host** (Andrian holds
+these, with the other secrets): every Dump of the environment is unreadable
+without it, and there is no way around the encryption to get one back. Rotating
+it means the Dumps taken with the old passphrase can no longer be read, so
+restore what you still need, take a fresh Dump, and only then replace the file.
+
+### What a night's Dump is
+
+```bash
+ls -la /opt/makam-v1/staging/backups/db/
+journalctl -t makam-db-backup -n 20 --no-pager
+systemctl list-timers 'makam-*-backup.timer' 'makam-*-restore-test.timer'
+
+# Dump now instead of waiting for the timer
+/opt/makam-v1/bin/makam-backup-db --env staging
+```
+
+Two files per night, sharing a UTC timestamp: `makam-<stamp>.dump.enc` (a
+`pg_dump -Fc` of the whole `makam` database) and `makam-<stamp>.counts.enc`
+(one `table=count` line per table of the public schema, the row counts of that
+exact night). The counts are what a restore is checked against, so a restore
+can be proved lossless without the source database. The dump is written to a
+`.part` name and renamed only when complete, so an interrupted run never leaves
+a half Dump that looks like a good night, and the two scripts prune only their
+own files older than 7 days: the FileStore tar, ticket 72's pre-migrate dump
+and anything else in that directory are never touched.
+
+Both scripts **fail closed on space**: they refuse when the filesystem holding
+`/opt/makam-v1` has less than twice what the work needs (2 × database size for a
+Dump, 2 × Dump size for a restore), and refuse when the size or the free space
+cannot be read at all. The host has ~20 GB free at 76 % use; ticket 73 adds the
+85 % warning. A refusal exits 78, logs at `err`, and writes nothing.
+
+### The restore check
+
+```bash
+/opt/makam-v1/bin/makam-restore-test --env staging             # newest Dump
+/opt/makam-v1/bin/makam-restore-test --env staging --dump /opt/makam-v1/staging/backups/db/makam-<stamp>.dump.enc
+/opt/makam-v1/bin/makam-restore-test --env staging --keep      # leave the container after a failure
+docker ps -a --filter label=makam.role=restore-test            # what is left over (should be empty)
+```
+
+It starts `makam-restoretest-<env>-<timestamp>` from the same Postgres image by
+digest that staging runs, with **no published port, no volume, no restart
+policy**, restores into it, and then checks that every table of that night is
+there (the recorded counts, plus a fixed floor of core tables: `identity_user`,
+`identity_session`, `inventory_petak`, `inventory_pemakaman`, `lokasi_mitra`,
+`tagihan`, `bukti_pembayaran`, `audit_entry`, `operator_settings_version`,
+`scheduler_heartbeat`) and that each holds at least the rows it had that night.
+The container is removed whether the check passed or failed — on failure the
+last 20 lines of its Postgres log are printed first, and `--keep` leaves it for
+inspection (`docker rm -f <name>` when done). Nothing of the running
+environment is touched: the Dump is read, the live database is not.
+
+A failed check exits 1 and logs at `err` (`journalctl -t makam-restore-test -p
+err`). It means one of: the Dump is unreadable (truncated write, wrong
+passphrase), the schema is not what the counts say, or rows are missing. A
+`refusing` message (exit 78) means there was no Dump to restore, or no room for
+one.
+
+### Restoring by hand (the real thing)
+
+Only for a database that is already lost, and only with a decision: restoring
+loses every write since the Dump was taken. Migrations are forward-only, so the
+restored database is on an **older schema** than the image that is running —
+migrate forward with the current image before serving traffic again. The
+Postgres 18 image keeps its data in `<volume>/18/docker`, which is why the copy
+below moves the `18` directory and not the volume root.
+
+```bash
+sudo systemctl stop makam-staging-deploy.timer        # otherwise it redeploys
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S stop web worker                                    # keep the old data until the new one works
+
+D=/opt/makam-v1/staging/backups/db/makam-<stamp>.dump.enc
+# 1. A volume of its own, so the running one is untouched until the restore is
+#    known to be good.
+docker volume create makam-staging_pgdata-restore
+docker run -d --name makam-manual-restore -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -e POSTGRES_DB=makam -e POSTGRES_USER=makam \
+  -v makam-staging_pgdata-restore:/var/lib/postgresql \
+  postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+until docker exec makam-manual-restore pg_isready -h 127.0.0.1 -U makam -d makam; do sleep 1; done
+
+# 2. Decrypt straight into it. The passphrase never reaches a command line, only
+#    the environment of this one openssl.
+BACKUP_PASSPHRASE=$(cat /opt/makam-v1/staging/backup-passphrase) \
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -in "$D" -pass env:BACKUP_PASSPHRASE \
+  | docker exec -i makam-manual-restore pg_restore -U makam -d makam --no-owner --no-privileges --exit-on-error
+
+# 3. Swap it in: the old data directory is moved aside (not deleted), the restored
+#    one is copied in, and the app comes back.
+docker stop makam-manual-restore && docker rm makam-manual-restore
+$S stop postgres
+docker run --rm -v makam-staging_pgdata-restore:/from -v makam-staging_pgdata:/to alpine:3.22.1 \
+  sh -c 'mv /to/18 /to/18.old && cp -a /from/18 /to/18'
+$S up -d --wait web worker
+$S run --rm migrate                                   # forward-only, to the current schema
+curl -s https://dev.makam.co.id/api/health | jq .ok    # true
+
+# 4. Only now: start the deploy timer and remove what is left of the old one.
+sudo systemctl start makam-staging-deploy.timer
+docker volume rm makam-staging_pgdata-restore
+# (later, once the app has been healthy for a while: remove /to/18.old out of
+#  makam-staging_pgdata by hand. No `docker * prune` ever runs on this host.)
+```
+
+### Knowing it ran (alerting)
+
+`makam-backup-db` and `makam-restore-test` log to the journal (`makam-db-backup`,
+`makam-restore-test`; failures at `err`, so `systemctl --failed` and
+`journalctl -t makam-db-backup -p err` show them), and the units are enabled by
+`deploy/install-host.sh`.
+
+For the part a journal cannot do — telling someone when the timer stops firing
+altogether — create one GlitchTip **uptime monitor of type Heartbeat** in
+GlitchTip (Alerts → Monitors → New → Heartbeat; the built-in type, no account or
+credential beyond GlitchTip's own) and leave the URL it gives you in
+`/opt/makam-v1/staging/glitchtip-heartbeat` (0600). Give it an interval of 26 h:
+the ping is expected once a night, so a single missed night (26 h without one)
+already alerts, and the two spare hours keep a timer that ran a few minutes late
+from firing. Both scripts then `curl` that URL after a successful run. A ping
+that fails is logged as a warning and never fails the run: the Dump is the work,
+the ping only says it happened. A second monitor on the same URL with an 8-day
+interval covers the weekly restore check.
 
 ## dev.makam.co.id and its rollback
 
@@ -677,6 +843,7 @@ Never paste values into the repo, a ticket or chat.
 | `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. The email copy of each Peringatan Staf is unaffected. |
 | Staging Postgres password | see "Rotating a Postgres password" below |
+| Staging `backup-passphrase` (the database Dump) | **Not rotatable in place**: the passphrase decrypts every Dump, so the old one is needed to read them. Restore (or copy aside) every Dump you still need, then `openssl rand -base64 32 > /opt/makam-v1/staging/backup-passphrase` (0600), then `makam-backup-db --env staging` for a Dump the new passphrase can read, then destroy the offline copy of the old one. Restoring an older Dump needs its own passphrase back in place while it is restored. |
 | GlitchTip `SECRET_KEY` | new `openssl rand -hex 32` in `glitchtip.env`, then `$G up -d web worker`. Logins end. |
 | GlitchTip Postgres password | see "Rotating a Postgres password" below |
 | DSN (project key) | GlitchTip UI → project → *Client Keys*: create a new key, put the new DSN (host `glitchtip-web:8000`) in `SENTRY_DSN`, `makam-deploy --env staging --force`, then delete the old key |
