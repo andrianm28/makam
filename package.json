@@ -18,6 +18,7 @@
     "db:generate": "drizzle-kit generate",
     "migrate": "tsx src/cli/migrate.ts",
     "seed:admin": "tsx src/cli/seed-admin.ts",
+    "import:katalog-lama": "tsx src/cli/import-katalog-lama.ts",
     "reset-totp": "tsx src/cli/reset-totp.ts",
     "verify-email": "tsx src/cli/verify-email.ts",
     "email-check": "tsx src/cli/email-check.ts",

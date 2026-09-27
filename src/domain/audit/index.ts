@@ -47,6 +47,8 @@ export type AuditAction =
   | "akun.totp_daftar"
   /** `reset-totp`: ops clears an Admin Platform's TOTP enrolment. */
   | "akun.totp_reset"
+  /** An old app's catalog code is bound to the Lokasi Mitra or Jenis Makam the import created from it (ticket 86). */
+  | "katalog_lama.impor"
   /** Admin Platform changes Pengaturan Operator. */
   | "pengaturan_operator.ubah"
   /** An Akun Staf turns push on for a Perangkat Push. */

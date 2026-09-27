@@ -21,6 +21,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "akun.ubah_telepon": "Ubah nomor telepon",
   "akun.totp_daftar": "Authenticator didaftarkan",
   "akun.totp_reset": "Authenticator direset",
+  "katalog_lama.impor": "Katalog aplikasi lama diimpor",
   "pengaturan_operator.ubah": "Pengaturan Operator diubah",
   "akun.push_aktifkan": "Perangkat Push diaktifkan",
   "akun.push_matikan": "Perangkat Push dimatikan",

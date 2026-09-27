@@ -1,0 +1,90 @@
+{
+  "format": "makam.katalog-lama/v1",
+  "dieksporPada": "2026-09-27",
+  "lokasi": [
+    {
+      "kode": "TPU-BT-01",
+      "nama": "TPU Contoh Satu",
+      "pengelola": "PJT Contoh Satu",
+      "alamat": "Jl. Contoh No. 1, Kota Contoh",
+      "kota": "Kota Contoh",
+      "titik": { "lat": -6.2, "lng": 106.865 },
+      "fasilitas": ["parkir", "musala", "toilet"],
+      "catatanFasilitas": "Fasilitas contoh, bukan data sebenarnya.",
+      "statusTerbit": "published",
+      "biayaPemakaman": { "biayaPemakaman": 750000, "biayaPemakamanTumpang": 1000000 },
+      "jenisMakam": [
+        {
+          "kode": "TPU-BT-01-STD",
+          "nama": "Makam Standar",
+          "deskripsi": "Petak satu lantai, 10 tahun.",
+          "hargaHakPakai": 3500000,
+          "masaHak": { "jenis": "tahun", "tahun": 10 },
+          "hargaPerpanjangan": 1750000
+        },
+        {
+          "kode": "TPU-BT-01-DLX",
+          "nama": "Makam Deluxe",
+          "deskripsi": "Petak sendiri, seumur hidup.",
+          "hargaHakPakai": 12000000,
+          "masaHak": { "jenis": "selamanya" },
+          "hargaPerpanjangan": null
+        }
+      ]
+    },
+    {
+      "kode": "WKF-BGR-02",
+      "nama": "Makam Wakaf Contoh Dua",
+      "pengelola": "Yayasan Contoh Dua",
+      "alamat": "Jl. Contoh Kedua No. 2",
+      "kota": "Kabupaten Contoh",
+      "googleMapsUrl": "https://www.google.com/maps/@-6.6,107.0,16z",
+      "fasilitas": [],
+      "catatanFasilitas": "",
+      "statusTerbit": "draft",
+      "jenisMakam": [
+        {
+          "kode": "WKF-BGR-02-STD",
+          "nama": "Makam Wakaf Standar",
+          "deskripsi": "Petak wakaf, 5 tahun.",
+          "hargaHakPakai": 2000000,
+          "masaHak": { "jenis": "tahun", "tahun": 5 },
+          "hargaPerpanjangan": 1000000,
+          "berlakuMulai": "2026-10-01"
+        }
+      ]
+    },
+    {
+      "kode": "TPU-CMG-03",
+      "nama": "TPU Contoh Tiga",
+      "pengelola": "PJT Contoh Tiga",
+      "alamat": "Jl. Patriot No. 3, Kota Contoh",
+      "kota": "Kota Contoh",
+      "titik": null,
+      "fasilitas": ["air_bersih"],
+      "catatanFasilitas": "",
+      "statusTerbit": "unpublished",
+      "jenisMakam": [
+        {
+          "kode": "TPU-CMG-03-STD",
+          "nama": "Makam Standar",
+          "deskripsi": "Petak satu lantai, seumur hidup.",
+          "hargaHakPakai": 1500000,
+          "masaHak": { "jenis": "selamanya" },
+          "hargaPerpanjangan": null
+        },
+        {
+          "kode": "TPU-CMG-03-PKG",
+          "nama": "Paket Contoh",
+          "deskripsi": "Harga di aplikasi lama hanya sebuah rentang indikatif.",
+          "hargaIndikatif": {
+            "min": 4000000,
+            "max": 7200000,
+            "sumber": "Estimasi internal (data contoh)",
+            "berlakuMulai": null
+          }
+        }
+      ]
+    }
+  ]
+}
