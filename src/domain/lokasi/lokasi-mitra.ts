@@ -169,12 +169,16 @@ export async function isTerverifikasi(deps: LokasiDeps, lokasiId: string): Promi
   return row?.status === "terverifikasi";
 }
 
-/** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher). */
+/** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher, the Antrean's Tier 4 Lokasi rows). */
 export interface LokasiMitraSummary {
   id: string;
   name: string;
   city: string;
   status: LokasiMitraStatus;
+  /** When this Lokasi Mitra became Terverifikasi (publish gate, ticket 16); null before. */
+  publishedAt: Date | null;
+  /** Admin Platform's last "still meets the publish gate" confirmation (ticket 17's Tier 4 row); null before the first one. */
+  publishGateRecheckedAt: Date | null;
 }
 
 const summaryColumns = {
@@ -182,6 +186,8 @@ const summaryColumns = {
   name: lokasiMitraTable.name,
   city: lokasiMitraTable.city,
   status: lokasiMitraTable.status,
+  publishedAt: lokasiMitraTable.publishedAt,
+  publishGateRecheckedAt: lokasiMitraTable.publishGateRecheckedAt,
 };
 
 /** Every Lokasi Mitra, by name, for Admin Platform; nothing for anyone else. */
@@ -355,6 +361,7 @@ export type LokasiMitraWriteAction = Extract<
   | "lokasi.atur_operasional"
   | "lokasi.catat_kunjungan_verifikasi"
   | "lokasi.catat_cek_denah"
+  | "lokasi.konfirmasi_syarat_tayang"
 >;
 
 /** What a write changes on the row, and the Entri Audit's before and after. */

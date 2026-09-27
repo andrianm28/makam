@@ -12,6 +12,7 @@ import { createInventory, type Inventory } from "@/domain/inventory";
 import { createNotifications, type Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
+import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -35,6 +36,8 @@ export interface ServerRuntime {
   inventory: Inventory;
   /** Field Work: Tugas Lapangan for Petugas Lapangan (Kunjungan Verifikasi, Cek Denah). */
   fieldwork: Fieldwork;
+  /** Work Queues: the Antrean, Ambil and Catatan Internal. */
+  queues: Queues;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -73,6 +76,15 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const fieldwork = createFieldwork({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      identity,
+      notifications,
+      lokasi,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -85,15 +97,8 @@ export function serverRuntime(): ServerRuntime {
       tariffs,
       billing: composeBilling({ env, db: database.db, adapters, operatorSettings, reportError }),
       inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
-      fieldwork: createFieldwork({
-        db: database.db,
-        clock: adapters.clock,
-        files: adapters.files,
-        audit,
-        identity,
-        notifications,
-        lokasi,
-      }),
+      fieldwork,
+      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork }),
     };
   }
   return globalForRuntime.__makamRuntime;

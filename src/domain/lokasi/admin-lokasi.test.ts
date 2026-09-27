@@ -73,8 +73,22 @@ describe("Admin Lokasi of a Lokasi Mitra", () => {
     const adminLokasi = await signedInAdminLokasi(setup, admin, [first.id, second.id]);
 
     expect(await setup.lokasi.lokasiMitraOfAdminLokasi(adminLokasi)).toEqual([
-      { id: first.id, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang" },
-      { id: second.id, name: "Makam Yayasan Bumi Damai", city: "Kota Jakarta Timur", status: "belum_tayang" },
+      {
+        id: first.id,
+        name: "Makam Wakaf Al-Ikhlas",
+        city: "Kota Jakarta Timur",
+        status: "belum_tayang",
+        publishedAt: null,
+        publishGateRecheckedAt: null,
+      },
+      {
+        id: second.id,
+        name: "Makam Yayasan Bumi Damai",
+        city: "Kota Jakarta Timur",
+        status: "belum_tayang",
+        publishedAt: null,
+        publishGateRecheckedAt: null,
+      },
     ]);
     expect((await setup.lokasi.allLokasiMitra(admin)).map((lokasi) => lokasi.name)).toEqual([
       "Makam Keluarga Sentosa",

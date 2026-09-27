@@ -93,6 +93,7 @@ export {
 export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
+  antreanResource,
   auditLogLokasiResource,
   auditLogResource,
   authorize,

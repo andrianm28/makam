@@ -89,7 +89,12 @@ import {
   type RecordCekDenahResult,
   type RecordKunjunganVerifikasiResult,
 } from "./kunjungan";
-import { publishLokasiMitra, type PublishInput, type PublishLokasiMitraResult } from "./publish";
+import {
+  publishLokasiMitra,
+  recordPublishGateMasihTerpenuhi,
+  type PublishInput,
+  type PublishLokasiMitraResult,
+} from "./publish";
 import { activateTerencana, type ActivateTerencanaInput, type ActivateTerencanaResult } from "./terencana";
 import {
   publicLokasiMitra,
@@ -318,6 +323,12 @@ export interface Lokasi {
    */
   publish(by: Actor, lokasiId: string, input: PublishInput): Promise<PublishLokasiMitraResult>;
   /**
+   * Admin Platform records that this Lokasi Mitra still meets the publish
+   * gate, closing the Antrean's Tier 4 "publish-gate check" row (ticket 17),
+   * audited.
+   */
+  recordPublishGateMasihTerpenuhi(by: Actor, lokasiId: string): Promise<WriteResult>;
+  /**
    * Admin Platform switches "Pemesanan Terencana aktif" on, only once every
    * Petak is cleared and a Cek Denah is done. `input.hasPetakPerluVerifikasi`
    * is the Inventory module's own fact; the caller reads it.
@@ -370,6 +381,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     recordCekDenah: (by, lokasiId, input) => recordCekDenah(deps, by, lokasiId, input),
     cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
+    recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
     activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),

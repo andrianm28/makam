@@ -154,7 +154,13 @@ describe("the command palette (role visibility on the server)", () => {
     const shell = await staffShell();
     expect(Object.keys(shell!.palette)).toEqual(["admin_platform"]);
     expect(shell!.palette.admin_platform).toEqual([
-      { label: "Kerja harian", items: [{ label: "Beranda", href: "/staf/admin-platform" }] },
+      {
+        label: "Kerja harian",
+        items: [
+          { label: "Beranda", href: "/staf/admin-platform" },
+          { label: "Antrean", href: "/staf/admin-platform/antrean" },
+        ],
+      },
       {
         label: "Lokasi dan harga",
         items: [

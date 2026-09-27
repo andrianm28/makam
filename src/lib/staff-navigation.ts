@@ -63,7 +63,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           label: "Kerja harian",
           items: [
             beranda(AP, "Ringkasan Lokasi Mitra, Akun Staf, Hari Libur Nasional dan Pengaturan Operator."),
-            { label: "Antrean", icon: InboxIcon, description: SEGERA },
+            {
+              label: "Antrean",
+              href: `${AP}/antrean`,
+              icon: InboxIcon,
+              description: "Setiap baris kerja terbuka, per tier dan tenggat; Ambil dan Catatan Internal.",
+            },
           ],
         },
         {
