@@ -17,8 +17,8 @@ export const draftSchema = z.object({
   phoneNumber: z.string().trim().min(1, "Tulis nomor telepon.").max(30),
   almarhumName: z.string().trim().min(1, "Tulis nama almarhum / almarhumah.").max(200),
   tanggalWafat: z.iso.date("Tanggal wafat belum benar."),
-  /** The planned burial as a `datetime-local` input holds it; empty when the family has none. */
-  rencanaPemakamanAt: z.string().trim(),
+  /** The planned burial as a `datetime-local` input holds it (a local WIB time); empty when the family has none. */
+  rencanaPemakamanAt: z.union([z.iso.datetime({ local: true, message: "Waktu pemakaman yang direncanakan belum benar." }), z.literal("")]),
   keinginanPenempatan: z.string().trim().max(1000),
   pemegangHak: z.discriminatedUnion("mode", [
     z.object({ mode: z.literal("pemesan") }),
@@ -35,14 +35,27 @@ export const draftSchema = z.object({
 
 export type DraftSaatDuka = z.infer<typeof draftSchema>;
 
-/** What a Kirim answers: placed, waiting for the Kode Masuk that proves the email, or refused in words. */
+/**
+ * The fields "Data & kirim" collects, each named as the draft names it, with
+ * the Pemegang Hak's own fields one level down (`pemegangHak.name`). The draft
+ * schema's Zod issues are keyed by exactly these, so a refusal can say which
+ * field to fix without the screen mapping names of its own.
+ */
+export type MasalahDraft = Readonly<Record<string, string>>;
+
+/**
+ * What a Kirim answers: placed, waiting for the Kode Masuk that proves the email,
+ * or refused in words. A refused draft also says which field to fix, so each
+ * message lands under the field that caused it (the design system's inline
+ * errors) instead of only under the button.
+ */
 export type KirimState =
   | { status: "idle" }
   /** The order is placed; the visitor is on its page. */
   | { status: "selesai"; nomor: string }
   /** No session yet: the Kode Masuk step opens under the form. */
   | { status: "perlu_kode_masuk" }
-  | { status: "gagal"; message: string };
+  | { status: "gagal"; message: string; pesan?: MasalahDraft };
 
 export const initialKirimState: KirimState = { status: "idle" };
 

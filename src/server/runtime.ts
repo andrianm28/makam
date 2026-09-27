@@ -12,7 +12,7 @@ import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
-import { createNotifications, type Notifications } from "@/domain/notifications";
+import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { createQueues, type Queues } from "@/domain/queues";
@@ -91,8 +91,8 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
+    // One place picks live or fake (AGENTS.md); the wizard's messages go out through Notifications.
     globalForRuntime.__makamRuntime = {
       env,
       database,

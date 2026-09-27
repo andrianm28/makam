@@ -2,9 +2,10 @@
  * The Saat Duka wizard's "Pilih makam" list (spec, stories 17–20; ticket 22).
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { kartuAwal, type GrupSaatDuka, type PilihanSaatDuka } from "@/domain/pemesanan";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { belumTeverifikasiLokasi, pemesananOnTestDatabase, terverifikasiLokasi } from "../../../tests/support/pemesanan";
+import { belumTeverifikasiLokasi, pemesananOnTestDatabase, pemesanDenganEmail, terverifikasiLokasi } from "../../../tests/support/pemesanan";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -66,14 +67,47 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
     expect(grup.map((satu) => satu.pilihan[0].harga.total)).toEqual([9_650_000, 9_900_000]);
   });
 
-  it("filters by kota", async () => {
+  it("filters by kota, so a remembered city really leaves the other city's cards out", async () => {
     const setup = pemesananOnTestDatabase(db);
     await terverifikasiLokasi(setup, { name: "Makam Timur" });
-    await terverifikasiLokasi(setup, { name: "Makam Barat", city: "Kota Jakarta Barat" });
+    await terverifikasiLokasi(setup, { name: "Makam Barat", city: "Kota Jakarta Barat", hargaHakPakai: 7_750_000 });
 
+    // "Semua kota" is the first-time visitor: both Lokasi Mitra, cheapest first.
+    expect((await setup.pemesanan.pilihanSaatDuka()).map((satu) => satu.lokasi.name)).toEqual(["Makam Timur", "Makam Barat"]);
     expect((await setup.pemesanan.pilihanSaatDuka({ city: "Kota Jakarta Barat" })).map((satu) => satu.lokasi.name)).toEqual(["Makam Barat"]);
     expect((await setup.pemesanan.pilihanSaatDuka({ city: "Kota Jakarta Timur" })).map((satu) => satu.lokasi.name)).toEqual(["Makam Timur"]);
     expect(await setup.pemesanan.pilihanSaatDuka({ city: "Kota Surabaya" })).toEqual([]);
+  });
+
+  it("prices the one card the visitor chose, so the total on Data & kirim is the one the order carries", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await terverifikasiLokasi(setup, { petak: { rows: 2, cols: 2 } });
+    await terverifikasiLokasi(setup, { name: "Makam Lain", city: "Kota Jakarta Barat" });
+
+    const [grup] = await setup.pemesanan.pilihanSaatDuka({ lokasiId: fixture.lokasiMitra.id, jenisMakamId: fixture.jenisMakam.id });
+
+    expect(grup.lokasi.id).toBe(fixture.lokasiMitra.id);
+    expect(grup.pilihan).toHaveLength(1);
+    expect(grup.pilihan[0].harga.total).toBe(9_650_000);
+    expect(grup.konfirmasi.bukaSekarang).toBe(true);
+    // A card that is not on the list is no card, not a fallback to another one.
+    expect(await setup.pemesanan.pilihanSaatDuka({ lokasiId: fixture.lokasiMitra.id, jenisMakamId: "00000000-0000-4000-8000-000000000000" })).toEqual([]);
+    expect(await setup.pemesanan.pilihanSaatDuka({ lokasiId: "00000000-0000-4000-8000-000000000000" })).toEqual([]);
+  });
+
+  it("starts on the Lokasi Mitra the visitor came from, and on the list's first card otherwise", () => {
+    // The read's own order: cheapest all-in total first, Lokasi Mitra by Lokasi Mitra.
+    const grup: GrupSaatDuka[] = [
+      { lokasi: { id: "lokasi-murah", name: "Makam Murah", city: "Kota Jakarta Barat" }, konfirmasi: belum, pilihan: [kartu("jenis-murah-a", 9_650_000), kartu("jenis-murah-b", 9_700_000)] },
+      { lokasi: { id: "lokasi-mahal", name: "Makam Mahal", city: "Kota Jakarta Timur" }, konfirmasi: belum, pilihan: [kartu("jenis-mahal", 9_900_000)] },
+    ];
+
+    // The deep link decides which Lokasi Mitra, and that one's cheapest card.
+    expect(kartuAwal(grup, "lokasi-mahal")).toEqual({ lokasiId: "lokasi-mahal", jenisMakamId: "jenis-mahal" });
+    // No Lokasi Mitra to preselect: the list's own order, never a second opinion of it.
+    expect(kartuAwal(grup, null)).toEqual({ lokasiId: "lokasi-murah", jenisMakamId: "jenis-murah-a" });
+    expect(kartuAwal(grup, "lokasi-yang-tidak-ada")).toEqual({ lokasiId: "lokasi-murah", jenisMakamId: "jenis-murah-a" });
+    expect(kartuAwal([], "lokasi-murah")).toBeNull();
   });
 
   it("hides a Jenis Makam whose all-in total would pass the QRIS cap, because v1 takes no such order", async () => {
@@ -110,6 +144,23 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
     expect(grup.konfirmasi.kontakSiaga).toMatchObject({ accountId: expect.any(String), phoneNumber: expect.stringContaining("+6283") });
   });
 
+  it("names the Kontak Siaga once the wizard's Kode Masuk has learned the name it typed", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const lokasi = await terverifikasiLokasi(setup);
+    // The Kontak Siaga is the Admin Lokasi of that Lokasi Mitra, the account the
+    // fixture logs in as `lokasi.saat-duka-1@contoh.id`.
+    expect((await setup.pemesanan.pilihanSaatDuka())[0].konfirmasi.kontakSiaga?.name).toBe("");
+
+    await pemesanDenganEmail(setup, "lokasi.saat-duka-1@contoh.id", "Hajjah Siti Aminah");
+
+    const [grup] = await setup.pemesanan.pilihanSaatDuka();
+    expect(grup.konfirmasi.kontakSiaga).toMatchObject({ accountId: lokasi.adminLokasi.accountId, name: "Hajjah Siti Aminah" });
+
+    // A second order through the same wizard never replaces a name the Akun has.
+    await pemesanDenganEmail(setup, "lokasi.saat-duka-1@contoh.id", "Siti Aminah");
+    expect((await setup.pemesanan.pilihanSaatDuka())[0].konfirmasi.kontakSiaga?.name).toBe("Hajjah Siti Aminah");
+  });
+
   it("counts two hours of Jam Operasional, not two wall-clock hours, across a closing time", async () => {
     const setup = pemesananOnTestDatabase(db);
     await terverifikasiLokasi(setup);
@@ -131,4 +182,17 @@ async function cellsOfPetak(setup: ReturnType<typeof pemesananOnTestDatabase>, l
   const denah = await setup.inventory.asStaff(lokasi.adminLokasi).blok(lokasi.lokasiMitra.id, lokasi.blok.id);
   if (!denah) throw new Error("Blok not found");
   return denah.cells;
+}
+
+/** One group of the list a hand picks, so the cheapest-first order is the fixture's, not the read's. */
+const belum = { bukaSekarang: true, batas: { ok: true as const, at: new Date(0) }, kontakSiaga: null };
+
+function kartu(jenisMakamId: string, total: number): PilihanSaatDuka {
+  return {
+    jenisMakamId,
+    jenisMakamName: jenisMakamId,
+    tenure: { kind: "tahun", years: 5 },
+    tersedia: 4,
+    harga: { total, lines: [], inForceSince: "2026-10-01", scheduledChange: null },
+  };
 }

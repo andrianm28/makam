@@ -1,14 +1,15 @@
 import type { WorkingTimeResult } from "@/domain/lokasi";
-import type { PemesananStatus } from "@/domain/pemesanan";
+import type { PemesananDiajukan } from "@/domain/pemesanan";
 import type { Tenure } from "@/domain/tariffs";
-import type { StatusKey } from "@/components/makam/status-badge";
-import { formatTanggalJam } from "@/lib/time/jakarta";
+import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import type { PushNotification } from "@/ports/web-push";
 
 /**
- * How the Pemesanan module's words reach a family: the Bahasa Indonesia for
- * every refusal a Kirim can meet, the Masa Hak Pakai a card states, and the
- * confirmation promise the working-time calculator answers. The module carries
- * the facts; the wording lives here, once.
+ * How the Pemesanan module's words reach a family and a staff member: the Bahasa
+ * Indonesia for every refusal a Kirim can meet, the Masa Hak Pakai a card
+ * states, the confirmation promise the working-time calculator answers, and the
+ * Peringatan Staf a new order raises. The module carries the facts; the wording
+ * lives here, once.
  */
 
 /** Every reason a Kirim can be refused: the module's own, and the guard's. */
@@ -66,7 +67,36 @@ export function konfirmasiLabel(batas: WorkingTimeResult): string {
     : "Lokasi Mitra ini belum punya jam buka, jadi belum ada janji konfirmasi.";
 }
 
-/** A Pemesanan Makam's status as the shared status vocabulary spells it. */
-export function pemesananStatusKey(status: PemesananStatus): StatusKey {
-  return status;
+/**
+ * The Peringatan Staf a new order raises: the email a Lokasi Mitra's staff
+ * read, and the push that shows on a lock screen. The push carries no personal
+ * data (Notifications refuses that), so the order is named by its Nomor
+ * Pemesanan and its Lokasi Mitra; the email may carry the rest. `url` is the
+ * Lokasi Mitra's page in the staff area, where its orders are confirmed.
+ */
+export function stafSaatDukaBaruAlert(
+  order: PemesananDiajukan,
+): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  const pemakaman = order.rencanaPemakamanAt
+    ? `Rencana pemakaman: ${formatTanggalJam(order.rencanaPemakamanAt)} (Lokasi Mitra yang menentukan hari).`
+    : "Rencana pemakaman: belum ada; hubungi keluarga untuk waktunya.";
+  const tenggat = order.konfirmasiDueAt ? `Konfirmasi paling lambat ${formatTanggalJam(order.konfirmasiDueAt)}.` : "Lokasi Mitra ini belum punya jam operasional, jadi belum ada janji konfirmasi.";
+  return {
+    email: {
+      subject: `Pesan Saat Duka baru ${order.nomor}`,
+      text: [
+        `${order.pemesan.name} memesan satu ${order.jenisMakamName} untuk ${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}.`,
+        `Lokasi Mitra: ${order.lokasi.name}.`,
+        pemakaman,
+        tenggat,
+        order.pemesan.phoneNumber ? `Telepon Pemesan: ${order.pemesan.phoneNumber}.` : "Pemesan belum memberi nomor telepon.",
+        `Nomor Pemesanan: ${order.nomor}. Buka halaman Lokasi Mitra ini di aplikasi staf untuk mengonfirmasi.`,
+      ].join("\n"),
+    },
+    push: {
+      title: "Pesan Saat Duka baru",
+      body: `${order.lokasi.name} · ${order.nomor}`,
+      url: `/staf/admin-lokasi/${order.lokasi.id}`,
+    },
+  };
 }

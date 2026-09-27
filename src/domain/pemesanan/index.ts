@@ -17,18 +17,20 @@ import { pilihanSaatDuka, type GrupSaatDuka, type PilihanSaatDukaQuery } from ".
 import { placeSaatDuka, type PlaceSaatDukaInput, type PlaceSaatDukaResult } from "./saat-duka";
 import { orderOf, type PemesananOrder } from "./reads";
 
-export type { PemesananDeps, Pemesan, PemesananNotifikasi } from "./deps";
+export type { PemesananDeps, Pemesan, PemesananDiajukan, PemesananNotifikasi } from "./deps";
 export type { GrupSaatDuka, PilihanSaatDuka, PilihanSaatDukaQuery } from "./pilihan";
-export { JAM_KONFIRMASI_SAAT_DUKA } from "./pilihan";
+export { JAM_KONFIRMASI_SAAT_DUKA, kartuAwal } from "./pilihan";
 export type { PemegangHakInput, PlaceSaatDukaInput, PlaceSaatDukaResult } from "./saat-duka";
-export type { PemesananOrder } from "./reads";
+export type { LangkahOrder, PemesananOrder } from "./reads";
+export { timelineOrder } from "./reads";
 export type { PemegangHak, PemesananKind, PemesananStatus } from "./schema";
 
 export interface Pemesanan {
   /**
    * The Saat Duka "Pilih makam" list: every Terverifikasi Lokasi Mitra that
    * still has a Jenis Makam with cleared Tersedia units, each priced all-in
-   * and within the QRIS cap, cheapest first, filtered by kota. No actor.
+   * and within the QRIS cap, cheapest first, filtered by kota, and narrowed to
+   * the one card "Data & kirim" prices again. No actor.
    */
   pilihanSaatDuka(query?: PilihanSaatDukaQuery): Promise<GrupSaatDuka[]>;
   /**

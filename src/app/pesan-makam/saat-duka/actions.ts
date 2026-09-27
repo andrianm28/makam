@@ -6,10 +6,11 @@ import { z } from "zod";
 import { identityMessage, type IdentityRefusal } from "@/components/kode-masuk/state";
 import { pemesananResource } from "@/domain/identity";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
+import { codeInput, emailInput } from "@/server/code-inputs";
 import { guarded, GuardRejected } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
-import { draftSchema, KOTA_PILIHAN, pesananPath, type DraftSaatDuka, type KirimState } from "./draft";
+import { draftSchema, KOTA_PILIHAN, pesananPath, type DraftSaatDuka, type KirimState, type MasalahDraft } from "./draft";
 
 /*
  * The wizard's three thin Server Actions (AGENTS.md), in this order:
@@ -20,8 +21,10 @@ import { draftSchema, KOTA_PILIHAN, pesananPath, type DraftSaatDuka, type KirimS
  * - `verifikasiKodeMasukDanKirim` is the login itself, so it skips the guard's
  *   first two steps the way Masuk does: the Kode Masuk proves the email and
  *   creates or finds the Akun, and the same request places the order for it.
- * - `ingatKota` remembers the city the visitor filtered by; it changes no
- *   domain data, only their own filter for the next visit.
+ * - `ingatKota` remembers the city the visitor filtered by; it is the third
+ *   documented exception in AGENTS.md — it changes no domain data, only the
+ *   visitor's own filter for the next visit, and a first-time visitor is not
+ *   signed in yet.
  */
 
 /**
@@ -35,33 +38,38 @@ export async function kirimPesanan(draft: unknown): Promise<KirimState> {
     resource: (actor) => pemesananResource(actor.accountId),
     schema: draftSchema,
     input: draft,
-    run: (actor, data) => kirim({ accountId: actor.accountId, email: actor.email }, data),
+    // The email on the draft is what the module checks against the Akun, never
+    // the session's own: a signed-in Pemesan's field is read-only, so the two
+    // agree, and a request that says otherwise is refused rather than ignored.
+    run: (actor, data) => kirim({ accountId: actor.accountId, email: data.email }, data),
   });
   if (hasil.ok) return hasil.value;
   if (hasil.error === "belum_masuk") return { status: "perlu_kode_masuk" };
+  if (hasil.error === "input_tidak_valid") {
+    const pesan = masalah(hasil.issues ?? []);
+    return { status: "gagal", pesan, message: isianMessage(pesan) };
+  }
   return { status: "gagal", message: pemesananMessage(hasil.error) };
 }
 
-/**
- * The Kode Masuk step: a correct code creates or finds the Akun of that email,
- * logs it in, and places the order in the same request, landing the family on
- * the order page. A refusal says why, in identity's own words.
- */
+/** The Kode Masuk step: a correct code creates or finds the Akun of that email, logs it in, and places the order in the same request, landing the family on the order page. A refusal says why, in identity's own words. */
 export async function verifikasiKodeMasukDanKirim(draft: unknown, _state: KirimState, formData: FormData): Promise<KirimState> {
   const parsedDraft = draftSchema.safeParse(draft);
-  if (!parsedDraft.success) return { status: "gagal", message: isianMessage(parsedDraft.error) };
-  const parsedCode = z
-    .object({ email: z.email(), code: z.string().regex(/^\d{6}$/, "Masukkan 6 angka Kode Masuk dari email Anda.") })
-    .safeParse({ email: formData.get("email"), code: formData.get("code") });
-  if (!parsedCode.success) return { status: "gagal", message: parsedCode.error.issues[0]?.message ?? "Masukkan Kode Masuk dari email Anda." };
+  if (!parsedDraft.success) {
+    const pesan = masalah(parsedDraft.error.issues);
+    return { status: "gagal", pesan, message: isianMessage(pesan) };
+  }
+  const parsedCode = kodeMasukSchema.safeParse({ email: formData.get("email"), code: formData.get("code") });
+  if (!parsedCode.success) return { status: "gagal", message: "Masukkan 6 angka Kode Masuk dari email Anda." };
 
   const { identity, adapters } = serverRuntime();
-  const login = await identity.verifyKodeMasuk(parsedCode.data);
+  const login = await identity.verifyKodeMasuk({ ...parsedCode.data, name: parsedDraft.data.pemesanName });
   if (!login.ok) return { status: "gagal", message: identityMessage(login.reason as IdentityRefusal, undefined, adapters.clock.now()) };
   await setSessionCookies(login.session.cookies);
 
-  const hasil = await kirim({ accountId: login.account.id, email: login.account.email }, parsedDraft.data);
-  if (hasil.status !== "selesai") return hasil;
+  // The address the Kode Masuk actually proved is the one on the order, and the
+  // screen has just said which address the code went to.
+  const hasil = await kirim({ accountId: login.account.id, email: login.account.email }, parsedDraft.data);  if (hasil.status !== "selesai") return hasil;
   redirect(pesananPath(hasil.nomor));
 }
 
@@ -93,26 +101,33 @@ async function kirim(pemesan: { accountId: string; email: string }, draft: Draft
     jenisMakamId: draft.jenisMakamId,
     almarhumName: draft.almarhumName,
     tanggalWafat: draft.tanggalWafat,
-    rencanaPemakamanAt: waktuRencana(draft.rencanaPemakamanAt),
-    keinginanPenempatan: draft.keinginanPenempatan === "" ? null : draft.keinginanPenempatan,
-    pemegangHak:
-      draft.pemegangHak.mode === "pemesan"
-        ? { mode: "pemesan" }
-        : { mode: "lain", name: draft.pemegangHak.name, phoneNumber: draft.pemegangHak.phoneNumber, email: draft.pemegangHak.email },
+    // The screen's own values: the module reads the plan as WIB and an empty field as none.
+    rencanaPemakamanAt: draft.rencanaPemakamanAt,
+    keinginanPenempatan: draft.keinginanPenempatan,
+    pemegangHak: draft.pemegangHak,
   });
   if (!hasil.ok) return { status: "gagal", message: pemesananMessage(hasil.reason) };
   return { status: "selesai", nomor: hasil.pemesanan.nomor };
 }
 
-/** The planned burial time as a `datetime-local` input holds it, read as WIB; null when it was left empty. */
-function waktuRencana(typed: string): Date | null {
-  const [tanggal, jam = "00:00"] = typed.split("T");
-  if (!tanggal || !jam) return null;
-  const waktu = new Date(`${tanggal}T${jam}:00+07:00`);
-  return Number.isNaN(waktu.getTime()) ? null : waktu;
+/** The Kode Masuk at Kirim, in the shape the Kode Masuk on Masuk uses. */
+const kodeMasukSchema = z.object({ email: emailInput, code: codeInput });
+
+/**
+ * One message per field, keyed by the field that has to be fixed
+ * (`pemegangHak.name` for a Pemegang Hak's own name), in the order the schema
+ * complained: the first is the one to say under the button.
+ */
+function masalah(issues: readonly z.core.$ZodIssue[]): MasalahDraft {
+  const satuPerField: Record<string, string> = {};
+  for (const issue of issues) {
+    const field = issue.path.join(".");
+    if (field !== "" && !(field in satuPerField)) satuPerField[field] = issue.message;
+  }
+  return satuPerField;
 }
 
 /** The first thing wrong with the draft, in the words the field itself would use. */
-function isianMessage(hasil: z.ZodError): string {
-  return hasil.issues[0]?.message ?? "Periksa lagi isian Anda.";
+function isianMessage(issues: MasalahDraft): string {
+  return Object.values(issues)[0] ?? "Periksa lagi isian Anda.";
 }

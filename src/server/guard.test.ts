@@ -68,9 +68,11 @@ describe("a guarded Server Action", () => {
     expect(result).toEqual({ ok: false, error: "tidak_berwenang" });
   });
 
-  it("rejects input that fails its Zod schema", async () => {
+  it("rejects input that fails its Zod schema, and says which field to fix", async () => {
     await signIn();
-    expect(await signOutOwnAccount({ perangkat: "" })).toEqual({ ok: false, error: "input_tidak_valid" });
+    const ditolak = await signOutOwnAccount({ perangkat: "" });
+    expect(ditolak).toMatchObject({ ok: false, error: "input_tidak_valid" });
+    expect(ditolak.ok === false && ditolak.issues?.map((issue) => issue.path)).toEqual([["perangkat"]]);
   });
 
   it("refuses an Admin Platform who has not passed TOTP with perlu_totp, before running anything", async () => {

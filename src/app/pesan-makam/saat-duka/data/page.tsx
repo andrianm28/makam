@@ -23,13 +23,17 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
   const { pemesanan, operatorSettings } = serverRuntime();
   const actor = await currentActor();
 
-  // The card is priced again here, so the total a family reads on this screen is the one its order carries.
+  // The one card is priced again by the module, so the total a family reads on
+  // this screen is the one its order will carry. A URL without both ids names no
+  // card at all, rather than the first one the list happens to have.
   const [daftar, pengaturan] = await Promise.all([
-    pemesanan.pilihanSaatDuka(),
+    satuNilai(lokasiId) && satuNilai(jenisMakamId)
+      ? pemesanan.pilihanSaatDuka({ lokasiId: satuNilai(lokasiId), jenisMakamId: satuNilai(jenisMakamId) })
+      : Promise.resolve([]),
     operatorSettings.current(),
   ]);
-  const grup = daftar.find((satu) => satu.lokasi.id === satuNilai(lokasiId));
-  const kartu = grup?.pilihan.find((satu) => satu.jenisMakamId === satuNilai(jenisMakamId));
+  const grup = daftar[0];
+  const kartu = grup?.pilihan[0];
   if (!grup || !kartu) notFound();
 
   return (

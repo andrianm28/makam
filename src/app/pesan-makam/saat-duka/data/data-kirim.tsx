@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
-import { ArrowRight, Check, Mail } from "lucide-react";
+import { ArrowRight, Check, ChevronUp, Mail } from "lucide-react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import {
   initialKodeMasukVerifyState,
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "../progress";
 import { kirimPesanan, verifikasiKodeMasukDanKirim } from "../actions";
-import { initialKirimState, type DraftSaatDuka, type KirimState } from "../draft";
+import { initialKirimState, type DraftSaatDuka, type KirimState, type MasalahDraft } from "../draft";
 import type { KartuView } from "../tampilan";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
@@ -49,11 +49,14 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
   });
   const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
+  const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
 
   const kirimPesananSekarang = () => kirim(async () => setHasil(await kirimPesanan(draftLengkap(isi, pemegangHak))));
   const kodeMasukTerbuka = hasil.status === "perlu_kode_masuk";
   const sudahDikirim = hasil.status === "selesai";
+  /** What each field has to fix, from the draft the Server Action refused (docs/design-system.md). */
+  const salah: MasalahDraft = hasil.status === "gagal" ? (hasil.pesan ?? {}) : {};
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-40">
@@ -84,20 +87,26 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         </div>
 
         <Fieldset legend="Data Anda">
-          <Field id="pemesan-nama" label="Nama lengkap">
+          <Field id="pemesan-nama" label="Nama lengkap" error={salah.pemesanName}>
             <Input
               id="pemesan-nama"
               value={isi.pemesanName}
               onChange={(event) => setisi({ ...isi, pemesanName: event.target.value })}
               autoComplete="name"
               placeholder="Nama sesuai KTP"
+              aria-invalid={salah.pemesanName ? true : undefined}
               className="h-11"
             />
           </Field>
           <Field
             id="pemesan-email"
             label="Email"
-            hint="Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Semua kabar pesanan juga dikirim ke sini."
+            error={salah.email}
+            hint={
+              sudahMasuk
+                ? "Email akun Anda. Kode Masuk sudah dilewati, jadi Kabar pesanan dan Tagihan Anda dikirim ke email ini."
+                : "Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Semua kabar pesanan juga dikirim ke sini."
+            }
           >
             <Input
               id="pemesan-email"
@@ -107,10 +116,14 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               onChange={(event) => setisi({ ...isi, email: event.target.value })}
               autoComplete="email"
               placeholder="nama@contoh.id"
-              className="h-11"
+              aria-invalid={salah.email ? true : undefined}
+              // A signed-in Pemesan's address is already proven: it is the account's
+              // Email Terverifikasi, so the field only says which one it is.
+              readOnly={sudahMasuk}
+              className={cn("h-11", sudahMasuk && "bg-muted text-muted-foreground")}
             />
           </Field>
-          <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar Lokasi Mitra dan tim kami bisa menelepon bila perlu.">
+          <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar Lokasi Mitra dan tim kami bisa menelepon bila perlu." error={salah.phoneNumber}>
             <Input
               id="pemesan-telepon"
               type="tel"
@@ -120,40 +133,44 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               autoComplete="tel"
               inputMode="tel"
               placeholder="08xx-xxxx-xxxx"
+              aria-invalid={salah.phoneNumber ? true : undefined}
               className="h-11"
             />
           </Field>
         </Fieldset>
 
         <Fieldset legend="Almarhum">
-          <Field id="almarhum" label="Nama almarhum / almarhumah">
+          <Field id="almarhum" label="Nama almarhum / almarhumah" error={salah.almarhumName}>
             <Input
               id="almarhum"
               required
               value={isi.almarhumName}
               onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
+              aria-invalid={salah.almarhumName ? true : undefined}
               className="h-11"
             />
           </Field>
-          <Field id="wafat" label="Tanggal wafat">
+          <Field id="wafat" label="Tanggal wafat" error={salah.tanggalWafat}>
             <Input
               id="wafat"
               type="date"
               required
               value={isi.tanggalWafat}
               onChange={(event) => setisi({ ...isi, tanggalWafat: event.target.value })}
+              aria-invalid={salah.tanggalWafat ? true : undefined}
               className="h-11"
             />
           </Field>
         </Fieldset>
 
         <Fieldset legend="Rencana pemakaman" note="Boleh dikosongkan; Lokasi Mitra akan menghubungi Anda.">
-          <Field id="waktu" label="Waktu pemakaman yang direncanakan" optional>
+          <Field id="waktu" label="Waktu pemakaman yang direncanakan" optional error={salah.rencanaPemakamanAt} hint="Waktu Indonesia (WIB).">
             <Input
               id="waktu"
               type="datetime-local"
               value={isi.rencanaPemakamanAt}
               onChange={(event) => setisi({ ...isi, rencanaPemakamanAt: event.target.value })}
+              aria-invalid={salah.rencanaPemakamanAt ? true : undefined}
               className="h-11"
             />
           </Field>
@@ -191,16 +208,17 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           />
           {pemegangHak.mode === "lain" ? (
             <div className="flex flex-col gap-4 border-t border-border pt-4">
-              <Field id="ph-nama" label="Nama Pemegang Hak">
+              <Field id="ph-nama" label="Nama Pemegang Hak" error={salah["pemegangHak.name"]}>
                 <Input
                   id="ph-nama"
                   required
                   value={pemegangHak.name}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
+                  aria-invalid={salah["pemegangHak.name"] ? true : undefined}
                   className="h-11"
                 />
               </Field>
-              <Field id="ph-telepon" label="Nomor telepon Pemegang Hak">
+              <Field id="ph-telepon" label="Nomor telepon Pemegang Hak" error={salah["pemegangHak.phoneNumber"]}>
                 <Input
                   id="ph-telepon"
                   type="tel"
@@ -208,15 +226,23 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   value={pemegangHak.phoneNumber}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
                   inputMode="tel"
+                  aria-invalid={salah["pemegangHak.phoneNumber"] ? true : undefined}
                   className="h-11"
                 />
               </Field>
-              <Field id="ph-email" label="Email Pemegang Hak" optional hint="Bila diisi, makam ini tampil di Akun dengan email tersebut.">
+              <Field
+                id="ph-email"
+                label="Email Pemegang Hak"
+                optional
+                error={salah["pemegangHak.email"]}
+                hint="Bila diisi, makam ini tampil di Akun dengan email tersebut."
+              >
                 <Input
                   id="ph-email"
                   type="email"
                   value={pemegangHak.email}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
+                  aria-invalid={salah["pemegangHak.email"] ? true : undefined}
                   className="h-11"
                 />
               </Field>
@@ -252,7 +278,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               size="lg"
               disabled={mengirim || sudahDikirim}
               onClick={kirimPesananSekarang}
-              className="h-13 px-6 text-body-lg"
+              className="h-12 px-6 text-body-lg"
             >
               {mengirim ? "Mengirim…" : "Kirim pesanan"} <ArrowRight aria-hidden />
             </Button>
@@ -261,25 +287,69 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                 ? "Kirim pesanan. Tidak ada yang dibayar sekarang."
                 : "Kami mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda."}
             </p>
-            {hasil.status === "gagal" ? (
-              <p role="alert" className="text-center text-sm text-destructive">
-                {hasil.message}
-              </p>
-            ) : null}
+            {/* A refusal the domain owns has no field of its own, so it is said once, under the button. */}
+            {hasil.status === "gagal" && !hasil.pesan ? <PesanGagal message={hasil.message} /> : null}
           </div>
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <span className="min-w-0 flex-1">
-            <span className="block text-caption text-muted-foreground">Total semua biaya</span>
-            <span className="block text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</span>
-          </span>
-          <span className="text-caption text-muted-foreground">{kartu.masaHakPakai}</span>
+      <StickyBar kartu={kartu} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
+    </div>
+  );
+}
+
+/**
+ * The sticky "Total semua biaya" bar, and the itemised lines it expands to (the
+ * same one "Pilih makam" carries, so the total a family reads here is the total
+ * it chose there).
+ */
+function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+      <div className="mx-auto max-w-3xl px-4">
+        {terbuka ? (
+          <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
+            {kartu.rincian.map((baris) => (
+              <div key={baris.label} className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">{baris.label}</dt>
+                <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
+              </div>
+            ))}
+            <p className="text-small text-muted-foreground">
+              Belum ada yang dibayar sekarang. Tagihan terbit setelah Lokasi Mitra mengonfirmasi.
+            </p>
+          </dl>
+        ) : null}
+        <div className="flex items-center gap-3 py-3">
+          <button
+            type="button"
+            onClick={() => setTerbuka(!terbuka)}
+            aria-expanded={terbuka}
+            aria-controls="rincian-total"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-caption text-muted-foreground">Total semua biaya</span>
+              <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
+                {formatRupiah(kartu.total)}
+              </span>
+            </span>
+            <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !terbuka && "rotate-180")} aria-hidden />
+            <span className="sr-only">{terbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span>
+          </button>
+          <span className="shrink-0 text-caption text-muted-foreground">{kartu.masaHakPakai}</span>
         </div>
       </div>
     </div>
+  );
+}
+
+/** The one message a refusal without a field of its own is said with. */
+function PesanGagal({ message }: { message: string }) {
+  return (
+    <p role="alert" className="text-center text-small text-destructive">
+      {message}
+    </p>
   );
 }
 
@@ -316,7 +386,26 @@ function Fieldset({ legend, note, children }: { legend: string; note?: string; c
   );
 }
 
-function Field({ id, label, hint, optional, children }: { id: string; label: string; hint?: string; optional?: boolean; children: ReactNode }) {
+/**
+ * One field: its label, the input, and what is wrong with it right under the
+ * input, where the person who has to fix it is looking (docs/design-system.md:
+ * "errors inline under the field").
+ */
+function Field({
+  id,
+  label,
+  hint,
+  optional,
+  error,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  optional?: boolean;
+  error?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-body font-medium text-foreground">
@@ -324,7 +413,13 @@ function Field({ id, label, hint, optional, children }: { id: string; label: str
         {optional ? <span className="font-normal text-muted-foreground"> (opsional)</span> : null}
       </label>
       {children}
-      {hint ? <p className="text-small text-muted-foreground">{hint}</p> : null}
+      {error ? (
+        <p id={`${id}-galat`} role="alert" className="text-small text-destructive">
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="text-small text-muted-foreground">{hint}</p>
+      ) : null}
     </div>
   );
 }

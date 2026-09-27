@@ -5,7 +5,12 @@ import { currentActor } from "./session";
 
 export type GuardError = "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid";
 
-export type Guarded<R> = { ok: true; value: R } | { ok: false; error: GuardError };
+/**
+ * A refused action. `issues` rides along with `input_tidak_valid`, so the form
+ * can say which field to fix (the design system's inline errors) without
+ * validating the input a second time: the guard is where it was validated.
+ */
+export type Guarded<R> = { ok: true; value: R } | { ok: false; error: GuardError; issues?: readonly z.core.$ZodIssue[] };
 
 /** Thrown by a Server Action that has no state to return its guard refusal in (e.g. a plain form action). */
 export class GuardRejected extends Error {
@@ -38,7 +43,7 @@ export async function guarded<S extends z.ZodType, R>(options: {
   if (!authorization.allowed) return { ok: false, error: authorization.reason };
 
   const parsed = options.schema.safeParse(options.input);
-  if (!parsed.success) return { ok: false, error: "input_tidak_valid" };
+  if (!parsed.success) return { ok: false, error: "input_tidak_valid", issues: parsed.error.issues };
 
   return { ok: true, value: await options.run(actor, parsed.data) };
 }

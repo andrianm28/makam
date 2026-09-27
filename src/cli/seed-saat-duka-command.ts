@@ -12,13 +12,13 @@ import { z } from "zod";
 import { FakeEmailSender } from "@/adapters/memory";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeNotifications } from "@/composition/notifications";
 import { createAdapters } from "@/composition/adapters";
 import { createDatabase, type Database } from "@/db/client";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Actor, Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
-import { createNotifications } from "@/domain/notifications";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
@@ -83,19 +83,11 @@ export async function seedSaatDukaCommand(
     try {
       const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
-      const notifications = createNotifications({
-        db: database.db,
-        clock: adapters.clock,
-        email: adapters.email,
-        webPush: adapters.webPush,
-        identity,
-        audit,
-        reportError: () => {},
-      });
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
       const modul: Modul = {
         db: database.db,
         adapters,

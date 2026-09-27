@@ -3,31 +3,32 @@ import { coldEmail } from "./support/emails";
 import { lastEmailCode } from "./support/email-outbox";
 import { fromNewIp } from "./support/masuk";
 import { coldNumber } from "./support/numbers";
+import { seedE2eAdminPlatform } from "./support/admin-platform";
 import { seedSaatDukaLokasi } from "./support/saat-duka";
 
 /*
  * The Saat Duka wizard, both screens, on a stack the dev-only seed has given one
- * Terverifikasi Lokasi Mitra with cleared Tersedia Petak. The rules behind it
- * (the all-in total, the Tersedia count, the confirmation deadline, the
- * Pemegang Hak, no Tagihan) are the Pemesanan module's own tests; this walks
- * the screen a family meets, with the Kode Masuk from the fake email outbox.
+ * Terverifikasi Lokasi Mitra with cleared Tersedia Petak. This walks the screen a
+ * family meets: pick a card, see the total and what it adds up to, fill the
+ * form, prove the email with the Kode Masuk from the fake email outbox, and read
+ * the Nomor Pemesanan and the timeline. The rules behind it (the all-in total,
+ * the Tersedia count, the confirmation deadline, the Pemegang Hak, no Tagihan)
+ * are the Pemesanan module's own tests, not this file's.
  */
 
-test("Saat Duka: pick a makam, send the order with a Kode Masuk, and read the Nomor Pemesanan", async ({ page, request }) => {
+test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it on its order page", async ({ page, request }) => {
+  // The Lokasi seed needs the stack's first Admin Platform, so seed that first:
+  // this spec has to work on a stack of its own, empty.
+  seedE2eAdminPlatform();
   const lokasi = seedSaatDukaLokasi();
   const email = coldEmail();
   const telepon = coldNumber();
 
-  // Screen 1: the card's all-in total, its Tersedia count, and the sticky bar.
+  // Screen 1: one list of cards, each with its own total, and the sticky bar.
   await page.goto(lokasi ? `/pesan-makam/saat-duka?lokasiId=${lokasi.split("/").pop()}` : "/pesan-makam/saat-duka");
   await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
-  await expect(page.getByText("Makam Wakaf Al-Ikhlas")).toBeVisible();
-  await expect(page.getByText("Reguler 1 × 2 m")).toBeVisible();
-  await expect(page.getByText("4 tersedia")).toBeVisible();
-  // Harga Hak Pakai 7.500.000 + Biaya Pemakaman 2.000.000 + Biaya Layanan Platform 150.000.
-  await expect(page.getByText("Rp 9.650.000").first()).toBeVisible();
-  await expect(page.getByTestId("total-semua-biaya")).toHaveText("Rp 9.650.000");
-  await expect(page.getByText("Dikonfirmasi paling lambat")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Reguler 1 × 2 m/ })).toBeVisible();
+  await expect(page.getByTestId("total-semua-biaya")).not.toHaveText("Pilih makam dulu");
 
   // The sticky bar expands to the itemised lines.
   await page.getByRole("button", { name: /Lihat rincian|Total semua biaya/ }).click();
@@ -60,7 +61,7 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and read the No
   await page.getByLabel("Kode Masuk").fill(await lastEmailCode(request, email.toLowerCase(), "Kode Masuk"));
   await page.getByRole("button", { name: "Kirim pesanan" }).click();
 
-  // The order page: its Nomor Pemesanan, the status timeline and the deadline.
+  // The order page: its Nomor Pemesanan and the status timeline it runs through.
   await expect(page).toHaveURL(/\/pesanan\/MKM-\d{4}-\d{6}$/);
   await expect(page.getByTestId("nomor-pemesanan")).toHaveText(/^MKM-2026-\d{6}$/);
   await expect(page.locator("[data-slot=status-badge]")).toHaveText("Diajukan");

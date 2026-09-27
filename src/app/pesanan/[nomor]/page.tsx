@@ -7,7 +7,6 @@ import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder } from "@/domain/pemesanan";
-import { pemesananStatusKey } from "@/lib/pemesanan-labels";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
@@ -45,7 +44,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
           </span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={pemesananStatusKey(order.status)} />
+          <StatusBadge status={order.status} />
           <span className="text-small text-muted-foreground">Diajukan {formatTanggalJam(order.diajukanAt)}</span>
         </div>
       </header>
@@ -53,12 +52,12 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
       {order.konfirmasiDueAt ? (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
-          Kabar berikutnya kami kirim ke email Anda.
+          Statusnya bisa Anda ikuti di halaman ini.
         </p>
       ) : (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
-          {order.lokasi.name} belum membuka jam operasionalnya. Begitu ada, Lokasi Mitra mengonfirmasi pesanan ini dan kami
-          mengabari lewat email Anda.
+          {order.lokasi.name} belum membuka jam operasionalnya. Begitu ada, Lokasi Mitra mengonfirmasi pesanan ini dan
+          statusnya berubah di halaman ini.
         </p>
       )}
 
@@ -112,33 +111,34 @@ async function orderFor(params: Promise<{ nomor: string }>): Promise<PemesananOr
   return serverRuntime().pemesanan.orderOf(parsed.data, { accountId: actor.accountId });
 }
 
-/** The statuses this kind of order runs through, with the ones behind the current one marked as reached. */
+/**
+ * The order's status timeline: the steps the Pemesanan module says this order
+ * runs through, with the ones it has reached ticked. Which step that is belongs
+ * to the module, not to this screen.
+ */
 function Timeline({ order }: { order: PemesananOrder }) {
-  const sampai = order.track.indexOf(order.status);
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-title-3 text-foreground">Status pesanan</h2>
       <ol className="flex flex-col gap-2">
-        {order.track.map((status, index) => {
-          const tercapai = index <= sampai && sampai >= 0;
-          return (
-            <li key={status} className="flex items-center gap-3 text-body">
-              <span
-                className={cn(
-                  "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-                  tercapai ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
-                )}
-                aria-hidden
-              >
-                {tercapai ? <Check className="size-3.5" /> : null}
-              </span>
-              <span className={cn(tercapai ? "font-medium text-foreground" : "text-muted-foreground")}>
-                {statusVocabulary[pemesananStatusKey(status)].label}
-              </span>
-            </li>
-          );
-        })}
+        {order.langkah.map((step) => (
+          <li key={step.status} className="flex items-center gap-3 text-body">
+            <span
+              className={cn(
+                "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
+                step.tercapai ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
+              )}
+              aria-hidden
+            >
+              {step.tercapai ? <Check className="size-3.5" /> : null}
+            </span>
+            <span className={cn(step.tercapai ? "font-medium text-foreground" : "text-muted-foreground")}>
+              {statusVocabulary[step.status].label}
+            </span>
+          </li>
+        ))}
       </ol>
+      {order.alasan ? <p className="text-small text-muted-foreground">Alasan: {order.alasan}</p> : null}
     </section>
   );
 }

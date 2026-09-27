@@ -20,10 +20,18 @@ export interface PilihMakamProps {
   kota: string | null;
   /** The "Pilih makam" URL to come back to, keeping the deep-linked Lokasi. */
   kembali: string;
-  /** The Lokasi Mitra the visitor came from, preselected. */
+  /** The Lokasi Mitra the visitor came from; null when the list decides alone. */
   preselect: string | null;
+  /**
+   * The card the screen starts on, which the Pemesanan module chose: the deep
+   * linked Lokasi Mitra's cheapest card, else the list's own first one.
+   */
+  awal: KartuAwal | null;
   csContact: CsContact | null;
 }
+
+/** The ids of the card "Pilih makam" starts on, as the Pemesanan module's `kartuAwal` returns it. */
+export type KartuAwal = { lokasiId: string; jenisMakamId: string } | null;
 
 /**
  * "Pilih makam": every Lokasi Mitra that still has a Jenis Makam with a cleared
@@ -32,9 +40,9 @@ export interface PilihMakamProps {
  * selected card carries on to "Data & kirim" in its URL, so the browser's back
  * button returns to the same choice.
  */
-export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, awal, csContact }: PilihMakamProps) {
   const router = useRouter();
-  const [terpilih, setTerpilih] = useState<{ lokasiId: string; kartu: KartuView } | null>(() => awal(grup, preselect));
+  const [terpilih, setTerpilih] = useState<{ lokasiId: string; kartu: KartuView } | null>(() => kartuAwalDari(grup, awal));
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const total = terpilih?.kartu.total ?? null;
 
@@ -133,11 +141,11 @@ export function PilihMakam({ grup, semuaKota, kota, kembali, preselect, csContac
   );
 }
 
-/** The Lokasi Mitra the visitor came from, or the cheapest card of the first group. */
-function awal(grup: GrupView[], preselect: string | null) {
-  const dariLokasi = grup.find((satu) => satu.lokasiId === preselect);
-  const kartu = dariLokasi?.pilihan[0] ?? grup[0]?.pilihan[0];
-  return kartu ? { lokasiId: (dariLokasi ?? grup[0]).lokasiId, kartu } : null;
+/** The chosen card as the screen holds it: the group it is in, and the card itself. */
+function kartuAwalDari(grup: GrupView[], awal: KartuAwal) {
+  const group = grup.find((satu) => satu.lokasiId === awal?.lokasiId);
+  const kartu = group?.pilihan.find((satu) => satu.jenisMakamId === awal?.jenisMakamId);
+  return group && kartu ? { lokasiId: group.lokasiId, kartu } : null;
 }
 
 /** "Semua kota" and every city, as one filter: each a form that remembers the choice for the next visit. */

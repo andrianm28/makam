@@ -1,7 +1,7 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananNotifikasi } from "@/domain/pemesanan";
+import type { PemesananDiajukan, PemesananNotifikasi } from "@/domain/pemesanan";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
@@ -16,10 +16,18 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
  * `diumumkan`, standing in for the Notifications module the wizard hands it in
  * production.
  */
-export function pemesananOnTestDatabase(db: Database) {
+/**
+ * Lokasi, Tariffs, Inventory, Field Work, Billing and Pemesanan together on the
+ * test Postgres, sharing one fake Clock, FileStore, Identity, Audit Log and
+ * Notifications. By default every announcement the Pemesanan module makes is
+ * collected in `diumumkan`, standing in for the Notifications module; with
+ * `{ notifications: true }` the real module sends the Peringatan Staf the
+ * announcement raises, which is how the wizard's own wiring is checked.
+ */
+export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
   const setup = publishOnTestDatabase(db);
-  const diumumkan: { nomor: string; lokasiId: string; email: string | null }[] = [];
-  const notifikasi: PemesananNotifikasi = {
+  const diumumkan: PemesananDiajukan[] = [];
+  const terkumpul: PemesananNotifikasi = {
     pemesananDiajukan: async (order) => {
       diumumkan.push(order);
     },
@@ -32,7 +40,8 @@ export function pemesananOnTestDatabase(db: Database) {
     inventory: setup.inventory,
     billing: setup.billing,
     identity: setup.identity,
-    notifikasi,
+    notifikasi: options.notifications ? undefined : terkumpul,
+    notifications: options.notifications ? setup.notifications : undefined,
   });
   return { ...setup, pemesanan, diumumkan };
 }
@@ -238,13 +247,21 @@ export async function belumTeverifikasiLokasi(setup: PemesananSetup, name = "Mak
   return { admin, lokasiMitra: dibuat.lokasiMitra };
 }
 
-/** A Pemesan with a proven email: a Kode Masuk created the Akun, as it does at Kirim. */
-export async function pemesanDenganEmail(setup: PemesananSetup, email: string) {
-  const sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
+/**
+ * A Pemesan with a proven email: a Kode Masuk created the Akun, as it does at
+ * Kirim, with `name` the name "Data & kirim" held.
+ */
+export async function pemesanDenganEmail(setup: PemesananSetup, email: string, name?: string) {
+  let sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
+  // A second login to the same email within 60 s waits for "Kirim ulang", as a person would.
+  if (!sent.ok && sent.reason === "tunggu_kirim_ulang") {
+    setup.clock.set(sent.retryAt);
+    sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
+  }
   if (!sent.ok) throw new Error(`Kode Masuk not sent: ${sent.reason}`);
   const code = setup.email.sent.filter((message) => message.to === sent.email).at(-1)?.text.match(/\b(\d{6})\b/)?.[1];
   if (!code) throw new Error("no Kode Masuk was sent");
-  const login = await setup.identity.verifyKodeMasuk({ email, code });
+  const login = await setup.identity.verifyKodeMasuk(name === undefined ? { email, code } : { email, code, name });
   if (!login.ok) throw new Error(`login failed: ${login.reason}`);
   return { pemesan: { accountId: login.account.id, email: login.account.email } };
 }
@@ -266,8 +283,8 @@ export function orderSaatDuka(lokasi: Awaited<ReturnType<typeof saatDukaFixture>
     jenisMakamId: lokasi.jenisMakam.id,
     almarhumName: "Siti Aminah",
     tanggalWafat: "2026-09-30",
-    rencanaPemakamanAt: null,
-    keinginanPenempatan: null,
+    rencanaPemakamanAt: "",
+    keinginanPenempatan: "",
     pemegangHak: { mode: "pemesan" as const },
   };
 }

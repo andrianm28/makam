@@ -14,13 +14,35 @@ const tracks: Record<PemesananKind, readonly PemesananStatus[]> = {
   tumpang: ["diajukan", "dikonfirmasi", "dimakamkan", "selesai"],
 };
 
+/** The statuses that end a Pemesanan Makam where it stands, short of the steps it never took. */
+const endings: readonly PemesananStatus[] = ["ditolak", "dibatalkan"];
+
+/** One step of the order page's timeline, and whether the order has reached it. */
+export interface LangkahOrder {
+  status: PemesananStatus;
+  tercapai: boolean;
+}
+
+/**
+ * The steps a Pemesanan Makam of that kind shows at that status, oldest first,
+ * with the ones behind the current one reached. A Ditolak or Dibatalkan order
+ * shows the steps it did take and the ending, never the ones it never reached,
+ * so a rejected order never reads as one that reached Dimakamkan.
+ */
+export function timelineOrder(kind: PemesananKind, status: PemesananStatus): LangkahOrder[] {
+  const track = tracks[kind];
+  const langkah = endings.includes(status) && !track.includes(status) ? [track[0], status] : [...track];
+  const sampai = langkah.indexOf(status);
+  return langkah.map((satu, index) => ({ status: satu, tercapai: sampai >= 0 && index <= sampai }));
+}
+
 /** One Pemesanan Makam as its own Pemesan reads it. */
 export interface PemesananOrder {
   nomor: string;
   kind: PemesananKind;
   status: PemesananStatus;
-  /** The statuses this kind runs through, in order, for the timeline. */
-  track: readonly PemesananStatus[];
+  /** The steps this order's timeline shows, with the ones behind its status reached. */
+  langkah: readonly LangkahOrder[];
   /** The Lokasi Mitra as it was named at submission, with its id for its page. */
   lokasi: { id: string; name: string };
   /** The Jenis Makam as it was named at submission; null for a TPU order, which has no plot. */
@@ -59,7 +81,7 @@ export async function orderOf(
     nomor: row.nomor,
     kind: row.kind,
     status: row.status,
-    track: tracks[row.kind],
+    langkah: timelineOrder(row.kind, row.status),
     lokasi: { id: row.lokasiId, name: row.lokasiName },
     jenisMakam: row.jenisMakamId && row.jenisMakamName ? { id: row.jenisMakamId, name: row.jenisMakamName } : null,
     pemesan: { name: row.pemesanName, email: row.email, phoneNumber: row.phoneNumber },

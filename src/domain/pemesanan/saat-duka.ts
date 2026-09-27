@@ -7,6 +7,7 @@
 import { refusable } from "@/db/unit-of-work";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
 import { foldKey } from "@/lib/fold-key";
+import { wib } from "@/lib/time/jakarta";
 import { pemesananMakam, type PemegangHak } from "./schema";
 import { JAM_KONFIRMASI_SAAT_DUKA, saatDukaHarga } from "./pilihan";
 import type { Pemesan, PemesananDeps } from "./deps";
@@ -14,10 +15,10 @@ import type { Pemesan, PemesananDeps } from "./deps";
 /** The Pemegang Hak as the screen offers it: the Pemesan, or someone else named on the order. */
 export type PemegangHakInput =
   | { mode: "pemesan" }
-  | { mode: "lain"; name: string; phoneNumber: string; email: string | null };
+  | { mode: "lain"; name: string; phoneNumber: string; email: string };
 
 export interface PlaceSaatDukaInput {
-  /** The Akun placing the order and the Email Terverifikasi proven to it at Kirim. */
+  /** The Akun placing the order and the Email Terverifikasi it was proven to. */
   pemesan: Pemesan;
   /** The Pemesan's name as typed on "Data & kirim". */
   pemesanName: string;
@@ -28,10 +29,13 @@ export interface PlaceSaatDukaInput {
   almarhumName: string;
   /** The date of death, a WIB calendar date (`YYYY-MM-DD`). */
   tanggalWafat: string;
-  /** The burial the family plans, if it has one; the Lokasi agrees the day at confirmation. */
-  rencanaPemakamanAt: Date | null;
-  /** A placement wish, if it has one. */
-  keinginanPenempatan: string | null;
+  /**
+   * The burial the family plans, as "Data & kirim" holds it: the `datetime-local`
+   * value read as WIB (`YYYY-MM-DDTHH:mm`), empty when the family has no plan.
+   */
+  rencanaPemakamanAt: string;
+  /** A placement wish as typed; empty when the family has none. */
+  keinginanPenempatan: string;
   pemegangHak: PemegangHakInput;
 }
 
@@ -84,6 +88,8 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
 
   const batas = await deps.lokasi.serviceHoursDeadline(input.lokasiId, JAM_KONFIRMASI_SAAT_DUKA, now);
   const konfirmasiDueAt = batas.ok ? batas.at : null;
+  const rencana = rencanaPemakamanAt(input.rencanaPemakamanAt);
+  const phoneNumber = phoneOf(input.phoneNumber);
   const placed = await refusable(deps.db, async (tx) => {
     // The Nomor Pemesanan is taken inside this transaction, so a rolled-back order gives its number back.
     const nomor = await deps.billing.within(tx).nextNomorPemesanan();
@@ -100,11 +106,11 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
         pemesanAccountId: akun.id,
         pemesanName,
         email: akun.email,
-        phoneNumber: phoneOf(input.phoneNumber),
+        phoneNumber,
         almarhumName,
         tanggalWafat: input.tanggalWafat,
-        rencanaPemakamanAt: input.rencanaPemakamanAt,
-        keinginanPenempatan: input.keinginanPenempatan,
+        rencanaPemakamanAt: rencana,
+        keinginanPenempatan: teksAtauKosong(input.keinginanPenempatan),
         pemegangHak: pemegangHak.value,
         konfirmasiDueAt,
         diajukanAt: now,
@@ -114,8 +120,30 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
   });
   if (!placed.ok) return placed;
 
-  await deps.notifikasi.pemesananDiajukan({ nomor: placed.pemesanan.nomor, lokasiId: lokasi.id, email: akun.email });
+  await deps.notifikasi.pemesananDiajukan({
+    nomor: placed.pemesanan.nomor,
+    lokasi: { id: lokasi.id, name: lokasi.name },
+    jenisMakamName: kartu.jenisMakam.name,
+    almarhum: { name: almarhumName, tanggalWafat: input.tanggalWafat },
+    pemesan: { name: pemesanName, phoneNumber },
+    rencanaPemakamanAt: rencana,
+    konfirmasiDueAt,
+    penerima: await penerimaOf(deps, lokasi.id),
+  });
   return placed;
+}
+
+/**
+ * Every Akun Staf that must see a new order at that Lokasi Mitra: its Admin
+ * Lokasi, and its Kontak Siaga when that is one of them (it always is, while it
+ * is still Admin Lokasi here). Once each: a Lokasi Mitra's staff never hears
+ * the same order twice.
+ */
+async function penerimaOf(deps: PemesananDeps, lokasiId: string): Promise<{ accountId: string }[]> {
+  const [adminLokasi, kontakSiaga] = await Promise.all([deps.identity.adminLokasiOf(lokasiId), deps.lokasi.kontakSiagaOf(lokasiId)]);
+  const ids = new Set(adminLokasi.map((akun) => akun.accountId));
+  if (kontakSiaga) ids.add(kontakSiaga.accountId);
+  return [...ids].map((accountId) => ({ accountId }));
 }
 
 /**
@@ -140,9 +168,26 @@ function pemegangHakOf(
       mode: "lain",
       name,
       phoneNumber: phoneOf(input.pemegangHak.phoneNumber),
-      email: normaliseEmail(input.pemegangHak.email ?? "") || null,
+      email: normaliseEmail(input.pemegangHak.email) || null,
     },
   };
+}
+
+/**
+ * The planned burial as the `datetime-local` input holds it, read as WIB
+ * (AGENTS.md: all wall-clock reasoning is Asia/Jakarta, `@/lib/time/jakarta`);
+ * null when the family left it empty.
+ */
+function rencanaPemakamanAt(typed: string): Date | null {
+  const trimmed = typed.trim();
+  if (trimmed === "") return null;
+  return wib(trimmed);
+}
+
+/** A free-text field as typed, or null when the field was left empty. */
+function teksAtauKosong(typed: string): string | null {
+  const trimmed = typed.trim();
+  return trimmed === "" ? null : trimmed;
 }
 
 /** A contact number in canonical form; one that is not an Indonesian number is kept as typed, never as a login. */

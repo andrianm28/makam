@@ -44,6 +44,9 @@ export const JAM_KONFIRMASI_SAAT_DUKA = 2;
 export interface PilihanSaatDukaQuery {
   /** Exact kota / kabupaten; every city when none is given ("Semua kota"). */
   city?: string;
+  /** Only this Lokasi Mitra; with `jenisMakamId`, only that one card ("Data & kirim" prices the choice again). */
+  lokasiId?: string;
+  jenisMakamId?: string;
 }
 
 /**
@@ -54,7 +57,7 @@ export interface PilihanSaatDukaQuery {
  */
 export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDukaQuery = {}): Promise<GrupSaatDuka[]> {
   const at = deps.clock.now();
-  const lokasiMitra = await deps.lokasi.publicLokasiMitraList(query.city ? { city: query.city } : {});
+  const lokasiMitra = await deps.lokasi.publicLokasiMitraList(query.lokasiId ? { id: query.lokasiId } : query.city ? { city: query.city } : {});
   const grup = await Promise.all(
     lokasiMitra.map(async (lokasi): Promise<GrupSaatDuka | null> => {
       const [pricing, tertila] = await Promise.all([
@@ -75,7 +78,10 @@ export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDuk
           };
         }),
       );
-      const priced = pilihan.filter((one): one is PilihanSaatDuka => one !== null).sort((a, b) => a.harga.total - b.harga.total);
+      const priced = pilihan
+        .filter((one): one is PilihanSaatDuka => one !== null)
+        .filter((one) => !query.jenisMakamId || one.jenisMakamId === query.jenisMakamId)
+        .sort((a, b) => a.harga.total - b.harga.total);
       if (priced.length === 0) return null;
       return { lokasi: { id: lokasi.id, name: lokasi.name, city: lokasi.city }, konfirmasi: await konfirmasi(deps, lokasi.id), pilihan: priced };
     }),
@@ -83,6 +89,18 @@ export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDuk
   return grup
     .filter((one): one is GrupSaatDuka => one !== null)
     .sort((a, b) => a.pilihan[0].harga.total - b.pilihan[0].harga.total);
+}
+
+/**
+ * The card "Pilih makam" starts on: the Lokasi Mitra the visitor came from with
+ * its cheapest card, else the cheapest card of the list. It is the list's own
+ * order that decides, so a screen never keeps a second opinion of it.
+ */
+export function kartuAwal(grup: GrupSaatDuka[], lokasiId: string | null): { lokasiId: string; jenisMakamId: string } | null {
+  const dariLokasi = grup.find((satu) => satu.lokasi.id === lokasiId);
+  const group = dariLokasi ?? grup[0];
+  const kartu = group?.pilihan[0];
+  return group && kartu ? { lokasiId: group.lokasi.id, jenisMakamId: kartu.jenisMakamId } : null;
 }
 
 /** The count of cleared Tersedia units per Jenis Makam, zero for one that has none. */
