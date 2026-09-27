@@ -14,7 +14,7 @@
  * selection instead. Pinch or the +/- buttons zoom.
  */
 import { useRef, useState } from "react";
-import { Minus, Plus, Users } from "lucide-react";
+import { LogIn, Minus, Plus, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** The four Petak Makam statuses (CONTEXT.md); only meaningful when `kind` is `"petak"`. */
@@ -24,7 +24,8 @@ export interface DenahGridCell {
   id: string;
   row: number;
   col: number;
-  kind: "petak" | "jalan" | "bukan_petak";
+  /** A Petak Makam, a Jalan, a Bukan Petak or a Pintu Masuk; only a Petak is ever sellable. */
+  kind: "petak" | "jalan" | "bukan_petak" | "pintu_masuk";
   /** What the cell shows: usually the Nomor Makam with the Blok's prefix trimmed. */
   label: string;
   status?: DenahCellStatus;
@@ -52,6 +53,12 @@ export function denahCellClass(cell: DenahGridCell, isSelected: boolean): string
       cellBase,
       isSelected ? "bg-forest text-primary-foreground" : "border border-dashed border-border-strong bg-transparent text-muted-foreground hover:bg-accent cursor-pointer",
     );
+  // The way into the Lokasi Mitra: a solid mark, so it reads as orientation rather than as an empty plot.
+  if (cell.kind === "pintu_masuk")
+    return cn(
+      cellBase,
+      isSelected ? "bg-forest text-primary-foreground" : "border-2 border-forest bg-brand-soft text-brand-soft-foreground hover:bg-accent cursor-pointer",
+    );
   return cn(cellBase, isSelected ? "bg-forest text-primary-foreground" : statusClass(cell.status));
 }
 
@@ -64,6 +71,7 @@ export function DenahLegend() {
       <LegendItem swatch="bg-[repeating-linear-gradient(135deg,var(--muted)_0_4px,var(--border-strong)_4px_6px)]" label="Petak Makam, Tidak Tersedia" />
       <LegendItem swatch="bg-highlight/35" label="Jalan" />
       <LegendItem swatch="border border-dashed border-border-strong" label="Bukan Petak (pohon, bangunan, lahan)" />
+      <LegendItem swatch="border-2 border-forest bg-brand-soft" pintu label="Pintu Masuk (cara masuk lokasi)" />
       <LegendItem swatch="border-2 border-sage bg-card" kavling label="Bagian Kavling Keluarga (ikon keluarga)" />
       <LegendItem swatch="bg-forest" label="Dipilih" />
       <LegendItem swatch="bg-card" dot label="Perlu Verifikasi" />
@@ -71,12 +79,13 @@ export function DenahLegend() {
   );
 }
 
-function LegendItem({ swatch, label, dot, kavling }: { swatch: string; label: string; dot?: boolean; kavling?: boolean }) {
+function LegendItem({ swatch, label, dot, kavling, pintu }: { swatch: string; label: string; dot?: boolean; kavling?: boolean; pintu?: boolean }) {
   return (
     <li className="flex items-center gap-2 text-foreground">
       <span className={cn("relative size-4 shrink-0 rounded", swatch)} aria-hidden>
         {dot ? <span className="absolute -top-1 -right-1 size-2 rounded-full bg-warning" /> : null}
         {kavling ? <Users className="absolute -bottom-0.5 -left-0.5 size-2.5 text-sage-strong" /> : null}
+        {pintu ? <LogIn className="absolute inset-0 m-auto size-2.5 text-forest" /> : null}
       </span>
       {label}
     </li>
@@ -205,6 +214,7 @@ export function DenahGrid({ title, rows, cols, cells, selected, onSelectedChange
                     >
                       {cell.kind === "petak" && cell.perluVerifikasi ? <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-warning" aria-hidden /> : null}
                       {cell.kind === "petak" && cell.partOfKavling && !isSelected ? <Users className="absolute bottom-0.5 left-0.5 size-2.5 text-sage-strong" aria-hidden /> : null}
+                      {cell.kind === "pintu_masuk" ? <LogIn className="size-3.5" aria-hidden /> : null}
                       {cell.kind === "petak" ? displayLabel : ""}
                     </button>
                   );

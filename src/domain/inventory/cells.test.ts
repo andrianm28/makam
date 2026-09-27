@@ -47,6 +47,23 @@ describe("bulk-editing a Blok's cells", () => {
     expect(after.filter((cell) => cell.nomorMakam === restored.nomorMakam)).toHaveLength(1);
   });
 
+  it("marks selected cells as Pintu Masuk: they keep no Nomor Makam and no Jenis Makam", async () => {
+    const setup = inventoryOnTestDatabase(db);
+    const fixture = await denahFixture(setup);
+    const blok = await newBlok(setup, fixture);
+    const cells = await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok.id);
+
+    const result = await setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, blok.id, {
+      cellIds: [cells[0].id, cells[1].id],
+      kind: "pintu_masuk",
+    });
+    expect(result).toMatchObject({ ok: true, outcome: { changedIds: [cells[0].id, cells[1].id] } });
+
+    const after = await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok.id);
+    expect(after[0]).toMatchObject({ kind: "pintu_masuk", nomorMakam: null, jenisMakamId: null, kavlingId: null, perluVerifikasi: false });
+    expect(after[1].kind).toBe("pintu_masuk");
+  });
+
   it("a Petak Makam with a Hak Pakai or Pemakaman can't be retyped: it is skipped, not changed", async () => {
     const setup = inventoryOnTestDatabase(db);
     const fixture = await denahFixture(setup);
@@ -76,6 +93,20 @@ describe("bulk-editing a Blok's cells", () => {
       kind: "jalan",
     });
     expect(result).toEqual({ ok: false, reason: "sel_terkunci", skippedUsed: [cells[0].id], skippedKavling: [] });
+  });
+
+  it("a Petak Makam with a Hak Pakai or Pemakaman can't become a Pintu Masuk either: the domain refuses, not only the button", async () => {
+    const setup = inventoryOnTestDatabase(db);
+    const fixture = await denahFixture(setup);
+    const blok = await newBlok(setup, fixture);
+    const cells = await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok.id);
+    await markPetakUsedForTest(db, cells[0].id, setup.clock.now());
+
+    const refused = await setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, blok.id, { cellIds: [cells[0].id], kind: "pintu_masuk" });
+    expect(refused).toEqual({ ok: false, reason: "sel_terkunci", skippedUsed: [cells[0].id], skippedKavling: [] });
+
+    const after = await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok.id);
+    expect(after[0]).toMatchObject({ kind: "petak", nomorMakam: "A-01" });
   });
 
   it("sets the Jenis Makam of selected Petak Makam in bulk", async () => {

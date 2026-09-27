@@ -22,3 +22,13 @@ export function lockBlok(tx: Database, blokId: string): Promise<void> {
 export function lockLokasiInventory(tx: Database, lokasiId: string): Promise<void> {
   return lockInventory(tx, `lokasi.${lokasiId}`);
 }
+
+/**
+ * One Lokasi Mitra's plot holds at a time, the namespace `tahan` places them in
+ * (spec, Inventory > Denah). Everything that reads a hold to decide on it takes
+ * this lock, so a hold and the Denah edit that would take the plot away from it
+ * queue instead of both reading the other as not there yet.
+ */
+export function lockTahan(tx: Database, lokasiId: string): Promise<void> {
+  return lockInventory(tx, `tahan.${lokasiId}`);
+}

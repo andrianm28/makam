@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Hash, Layers, MousePointerSquareDashed, Route, TreePine, Users, X } from "lucide-react";
+import { Hash, Layers, LogIn, MousePointerSquareDashed, Route, TreePine, Users, X } from "lucide-react";
 import { DenahGrid, DenahLegend, type DenahCellStatus, type DenahEdge, type DenahGridCell } from "@/components/denah/grid";
 import type { DenahCell, DenahKavling } from "@/domain/inventory";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,13 @@ interface JenisMakamOption {
   id: string;
   name: string;
 }
+
+/** What a cell that is not a Petak Makam is called, in the editor's own words (CONTEXT.md). */
+const namaJenisSel = {
+  jalan: "Jalan",
+  bukan_petak: "Bukan Petak",
+  pintu_masuk: "Pintu Masuk",
+} as const;
 
 interface BlokInfo {
   id: string;
@@ -67,7 +74,7 @@ export function DenahEditor({
         row: cell.row,
         col: cell.col,
         kind: cell.kind,
-        label: shortLabel(cell.nomorMakam, blok.name),
+        label: cell.kind === "petak" ? shortLabel(cell.nomorMakam, blok.name) : namaJenisSel[cell.kind],
         status: cell.kind === "petak" ? gridStatus(cell.status) : undefined,
         perluVerifikasi: cell.perluVerifikasi,
         partOfKavling: Boolean(cell.kavlingId),
@@ -248,7 +255,7 @@ function ActionBar({
   onBatal,
 }: {
   jumlah: number;
-  onJadikan: (kind: "petak" | "jalan" | "bukan_petak") => void;
+  onJadikan: (kind: "petak" | "jalan" | "bukan_petak" | "pintu_masuk") => void;
   onAturJenis: () => void;
   onBuatKavling: () => void;
   onUbahNomor: () => void;
@@ -266,6 +273,7 @@ function ActionBar({
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5">
           <ActionButton icon={Route} label="Jadikan Jalan" onClick={() => onJadikan("jalan")} />
           <ActionButton icon={TreePine} label="Jadikan Bukan Petak" onClick={() => onJadikan("bukan_petak")} />
+          <ActionButton icon={LogIn} label="Jadikan Pintu Masuk" onClick={() => onJadikan("pintu_masuk")} />
           <ActionButton icon={Layers} label="Jadikan Petak Makam" onClick={() => onJadikan("petak")} />
           <ActionButton icon={Layers} label="Atur Jenis Makam" onClick={onAturJenis} />
           <ActionButton icon={Users} label="Buat Kavling" onClick={onBuatKavling} />
@@ -323,7 +331,8 @@ function DetailPanel({
         <button type="button" onClick={onClose} aria-label="Tutup detail" className="absolute top-2 right-2 inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
           <X className="size-4" />
         </button>
-        <p className="text-title-3 text-foreground">{cell.kind === "jalan" ? "Jalan" : "Bukan Petak"}</p>
+        <p className="text-title-3 text-foreground">{namaJenisSel[cell.kind]}</p>
+        {cell.kind === "pintu_masuk" ? <p className="mt-1 text-sm text-muted-foreground">Petak yang belum dipakai bisa dijadikan Pintu Masuk, dan sebaliknya. Petak yang sedang dipesan tidak bisa, sampai pesanannya selesai atau tidak jadi.</p> : null}
       </div>
     );
   }

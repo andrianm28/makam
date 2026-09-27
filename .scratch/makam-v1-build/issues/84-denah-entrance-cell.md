@@ -1,6 +1,6 @@
 # Pintu Masuk on the Denah
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 13, 36
 Spec: Domain modules > Inventory (Denah); story 40; decided with the user 2026-09-26 (public prototype v2, question 7)
 
@@ -10,12 +10,19 @@ Families picking a Petak on the Denah can't orient themselves: there is no entra
 
 ## Acceptance criteria
 
-- [ ] A Pintu Masuk cell type in the Denah editor (single or bulk), never a Petak, never pickable; a used Petak can't become one.
-- [ ] The Terencana Denah picker shows it with a clear icon and legend entry.
-- [ ] CONTEXT.md gains the term (with Blok, Jalan, Bukan Petak).
-- [ ] Tests at the inventory module seam; the change is audited like other Denah edits.
+- [x] A Pintu Masuk cell type in the Denah editor (single or bulk), never a Petak, never pickable; a used Petak can't become one.
+- [x] The Terencana Denah picker shows it with a clear icon and legend entry.
+- [x] CONTEXT.md gains the term (with Blok, Jalan, Bukan Petak).
+- [x] Tests at the inventory module seam; the change is audited like other Denah edits.
 
 ## Comments
 
 - 2026-09-27 — **Owner decision, settled: the `sel_dipesan` rule stays, and it is recorded as a decision rather than left as an undocumented asymmetry.** Ticket 84's four ACs do not ask for a hold rule; the builder added one, because a Terencana hold is a promise about a Petak Makam (priced by its Jenis Makam, read back by its Nomor Makam) and a Pintu Masuk is by definition never one, so a hold left on it could neither be priced nor picked up nor ever turn back into a plot. The Spec review noted the reason is not symmetric: the same argument would cover a Jalan and a Bukan Petak, which are deliberately left unlocked. The owner chose to **accept the rule as written** and to follow up on the two unlocked kinds, rather than widen this ticket or drop the lock. Do not re-open this in a later review of 84.
 - 2026-09-27 — **Follow-up, not a blocker for 84:** tickets 13 (Denah builder) and 36 (Terencana picker) own the question of whether a **Jalan** or a **Bukan Petak** that an open plot hold names may be retyped. Both are still on the Denah and can become a Petak again from the same action bar, so their hold releases the ordinary way — but the asymmetry above should be closed deliberately rather than by omission. Raise it when 13 or 36 is next touched; do not fix it inside 84.
+
+- 2026-09-27 — **What it is**: a fourth `inventoryPetakKinds` value, `pintu_masuk`, beside `petak` / `jalan` / `bukan_petak`. It carries no Nomor Makam, no Jenis Makam and no Kavling, exactly like a Jalan and a Bukan Petak, so every existing rule that only ever prices, sells, holds or clears a `petak` keeps holding: `publicDenah` gives it `status: null`, `tahan` refuses it as `unit_tidak_ditemukan`, `clearPetak` finds no Petak, `createKavling` refuses it, `availability` skips it, and the Pemesanan module prices nothing for it. The Admin Lokasi marks it from the same action bar as a Jalan ("Jadikan Pintu Masuk"), so one cell is a single-cell change and a rectangle a bulk one, and the picker draws it as a door (lucide `LogIn`, a solid Forest mark) with its own legend entry in the picker and in the shared staff legend.
+- 2026-09-27 — **Never a Petak, in the domain and not only in the UI**: a Petak that has had a Hak Pakai or Pemakaman is *skipped* by `setCellKind` like any other retyping (`sel_terkunci` / `skippedUsed`), and that is the AC's "a used Petak can't become one" — a button being absent is not the rule. Two tests hold it down: one on a used Petak, one on a held plot.
+- 2026-09-27 — **Aman_AT_CONCURRENCY, decided in the domain**: a Petak Makam an open plot hold names **cannot become a Pintu Masuk**, refused as `sel_dipesan` (naming the cells) rather than skipped. The Terencana hold is a promise about a Petak Makam — it is priced by its Jenis Makam and read back by its Nomor Makam — while a Pintu Masuk is by definition never one: a hold left on it could neither be priced nor picked up nor ever turn back into a plot, so the order would sit on a cell that is stuck. The hold is also *temporary* (it goes on decline, withdrawal or lapse through `lepasTahan`), so refusing is honest while the wait is short; the Admin Lokasi retries the same edit afterwards. A **Jalan or a Bukan Petak is deliberately not covered**: that cell is still on the Denah, can become a Petak again from the same action bar, and its hold releases the ordinary way, so retyping one is a different question from tickets 13 and 36 and is left exactly as they built it. Both sides now take the **same** advisory lock: `lockTahan` in `src/domain/inventory/locks.ts` is the hold namespace's lock, `tahan` takes it before it reads the Denah, and `setCellKind` takes it before it reads the holds, so a submission and a retyping queue rather than each reading the other as not there yet. The test that runs both at once asserts the invariant rather than one outcome: exactly one of the two is refused, and the cell ends either a held Petak or an unpickable entrance.
+- 2026-09-27 — **No migration.** `kind` is a `text` column and `inventory_petak_kind_fields_check` only ever tells `'petak'` from the rest, so a fourth value needs no DDL: `npm run db:generate` answers "No schema changes, nothing to migrate", the journal is untouched, and no number is taken (so nothing to renumber against 43/86/49's 0021–0023). The schema comment says so, so the next agent does not go looking for the file.
+- 2026-09-27 — **Also**: `CONTEXT.md` gains **Pintu Masuk** under Places (term, meaning, `_Avoid_`), the Denah entry lists four cell types, the spec's Inventory > Denah line names it, and the audit entry stays the one Denah edit action, `denah.ubah_jenis_sel` (its own description now names the fourth type). No ticket number in any copy the Admin Lokasi or a Pemesan reads; the wording is "Pintu Masuk (cara masuk lokasi)" in both legends.
+- 2026-09-27 — **Verification**: `npm run lint` and `npm run typecheck` clean; `npm run test:shared` 153 files / 1494 tests green; `npm run build` compiled. Five tests are new (2 in `cells.test.ts`, 3 in `hold.test.ts`); no e2e, since CI runs it on `main` and the ticket asks for none.

@@ -47,7 +47,8 @@ export interface SelView {
   id: string;
   row: number;
   col: number;
-  kind: "petak" | "jalan" | "bukan_petak";
+  /** A Petak Makam, a Jalan, a Bukan Petak or a Pintu Masuk; only a Petak is pickable. */
+  kind: "petak" | "jalan" | "bukan_petak" | "pintu_masuk";
   /** The Nomor Makam, or the Nomor Kavling of the Kavling Keluarga this cell belongs to. */
   nomor: string | null;
   /** The Kavling Keluarga this cell belongs to, if any: it is picked whole, never one cell of it. */

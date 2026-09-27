@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 42 resolved, 36 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 43 resolved, 35 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -305,7 +305,7 @@ The user accepted the eight recommendations from the public prototype v2 (Terenc
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [84](84-denah-entrance-cell.md) | Pintu Masuk on the Denah | ready-for-agent | 13, 36 |
+| [84](84-denah-entrance-cell.md) | Pintu Masuk on the Denah | resolved | 13, 36 |
 
 ## Decisions 2026-09-26 (beta UAT push)
 

@@ -1,9 +1,10 @@
 /**
  * Inventory (spec, domain module 5, Lokasi Mitra only): the Denah (a grid per
- * Blok of Petak Makam, Jalan and Bukan Petak cells, and Kavling Keluarga —
- * ticket 13), Hak Pakai / Pemegang Hak / Pemakaman and the Petak clearing
- * flow (ticket 14), derived Petak / Kavling status and availability, and
- * Petak renumbering with a hidden alias for old numbers.
+ * Blok of Petak Makam, Jalan, Bukan Petak and Pintu Masuk cells, and Kavling
+ * Keluarga — ticket 13), Hak Pakai / Pemegang Hak / Pemakaman and the Petak
+ * clearing flow (ticket 14), the Terencana plot hold and its picker read
+ * (ticket 36), the Pintu Masuk cell (ticket 84), derived Petak / Kavling status
+ * and availability, and Petak renumbering with a hidden alias for old numbers.
  *
  * Owns tables: inventory_blok, inventory_petak, inventory_kavling,
  * inventory_hak_pakai, inventory_pemegang_hak, inventory_pemakaman,
@@ -86,7 +87,7 @@ export interface Inventory {
   asStaff(by: Actor): StaffInventoryReads;
   /** An Admin Lokasi creates a Blok on its own Lokasi's Denah. */
   createBlok(by: Actor, lokasiId: string, input: NewBlokInput): Promise<CreateBlokResult>;
-  /** Bulk-turns selected Denah cells into Petak Makam, Jalan or Bukan Petak. */
+  /** Bulk-turns selected Denah cells into Petak Makam, Jalan, Bukan Petak or Pintu Masuk; a used cell is skipped and a held plot is never retyped. */
   setCellKind(by: Actor, lokasiId: string, blokId: string, input: SetCellKindInput): Promise<SetCellKindResult>;
   /** Bulk-sets the Jenis Makam of selected Petak Makam. */
   setJenisMakam(by: Actor, lokasiId: string, blokId: string, input: SetJenisMakamInput): Promise<SetJenisMakamResult>;

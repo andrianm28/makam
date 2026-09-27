@@ -23,7 +23,7 @@ Said of a Lokasi Mitra that is still being onboarded and is not yet listed: ever
 _Avoid_: Draft, nonaktif, pending
 
 **Denah**:
-The plot map of a Lokasi Mitra: one grid per Blok in which each cell is a Petak Makam, a Jalan or Bukan Petak, drawn by the Admin Lokasi; the Terencana plot picker shows it.
+The plot map of a Lokasi Mitra: one grid per Blok in which each cell is a Petak Makam, a Jalan, a Bukan Petak or a Pintu Masuk, drawn by the Admin Lokasi; the Terencana plot picker shows it.
 _Avoid_: Peta (for the plot map), site plan, layout
 
 **Blok**:
@@ -37,6 +37,10 @@ _Avoid_: Path, lorong (as the cell type)
 **Bukan Petak**:
 A Denah cell that is neither a Petak Makam nor a Jalan (a tree, a building, unopened land), shown to the Pemesan as neutral space.
 _Avoid_: Kosong (a Petak Makam can be empty), void
+
+**Pintu Masuk**:
+A Denah cell that marks the way into a Lokasi Mitra's grounds, so a family can find where to enter on the map. It is never a Petak Makam, so it can never be sold, held or picked, and a plot an open Pemesanan Terencana holds can never be turned into one. The Admin Lokasi marks it, like a Jalan or a Bukan Petak, and the picker draws it with a door.
+_Avoid_: Gerbang (as the cell type), Entrance, Gate, Arah (as the cell type)
 
 **Jam Operasional**:
 The weekly hours and Tanggal Tutup of a Lokasi Mitra, inside which its Saat Duka confirmation promise runs. A Lokasi Mitra has none until its Admin Lokasi saves one; until then no confirmation promise or Hari Kerja deadline can be made for it.
