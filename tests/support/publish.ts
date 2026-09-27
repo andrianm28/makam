@@ -18,24 +18,6 @@ import { signedInAdminLokasi } from "./lokasi";
 export function publishOnTestDatabase(db: Database) {
   const setup = inventoryOnTestDatabase(db);
   const webPush = new FakeWebPush();
-  const notifications = createNotifications({
-    db,
-    clock: setup.clock,
-    email: setup.email,
-    webPush,
-    identity: setup.identity,
-    audit: setup.audit,
-    reportError: () => {},
-  });
-  const fieldwork = createFieldwork({
-    db,
-    clock: setup.clock,
-    files: setup.files,
-    audit: setup.audit,
-    identity: setup.identity,
-    notifications,
-    lokasi: setup.lokasi,
-  });
   const operatorSettings = createOperatorSettings({ db, clock: setup.clock, audit: setup.audit });
   const payments = new FakePaymentProvider({ clock: setup.clock });
   const reportedErrors: { error: unknown; context: Record<string, unknown> }[] = [];
@@ -48,6 +30,26 @@ export function publishOnTestDatabase(db: Database) {
     documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
     reportError: (error, context) => reportedErrors.push({ error, context }),
+  });
+  const notifications = createNotifications({
+    db,
+    clock: setup.clock,
+    email: setup.email,
+    webPush,
+    identity: setup.identity,
+    audit: setup.audit,
+    reportError: () => {},
+    tagihan: billing,
+    dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
+  });
+  const fieldwork = createFieldwork({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    identity: setup.identity,
+    notifications,
+    lokasi: setup.lokasi,
   });
   return { ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }

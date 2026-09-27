@@ -21,6 +21,8 @@ Make the repo self-sufficient for Claude Code cloud sessions: vendored skills, r
 
 ## Comments
 
+- 2026-09-27 — **Owner decision: keep the vendored copies** (asked and answered this session). The evidence now says the plugin covers them: `.claude/settings.json` registers the `mattpocock` marketplace and enables `mattpocock-skills@mattpocock`, and in this session `ask-matt` and `resolving-merge-conflicts` both resolved from the plugin's synced path (`~/.agents/skills/…`), never from `.claude/skills/`. The owner still wants `.claude/skills/` in the repo as a fallback, so this acceptance criterion stays open on purpose — not because the plugin is missing. Delete the vendored copies (keeping `.claude/hooks/` and `.claude/settings.json`) and switch AGENTS.md to name `mattpocock-skills:<skill>` whenever the owner decides the fallback is no longer worth its drift.
+
 ### 2026-09-26 — first cloud trial (branch `ticket-87-cloud-trial`)
 
 - **mattpocock-skills plugin: not loaded.** `ListPlugins` returns nothing and no `mattpocock-skills:*` skill is listed; the only synced plugin is Anthropic's `session-start-hook`. The skills the session sees (`code-review`, `tdd`, …) come from the vendored `.claude/skills/`. Per the acceptance criterion the vendored copies **stay**, AGENTS.md unchanged. Re-check once the owner installs/enables the plugin for this environment.

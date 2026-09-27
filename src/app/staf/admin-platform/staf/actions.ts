@@ -1,31 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { staffRoles, stafResource, type InviteStaffResult } from "@/domain/identity";
+import { stafResource, type InviteStaffResult } from "@/domain/identity";
 import { guarded } from "@/server/guard";
-import { phoneNumberInput } from "@/server/phone-number-input";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
-
-
-const inviteSchema = z.object({
-  // Empty is let through: the identity module refuses a missing email (email_wajib) with its own message.
-  email: z.string().trim().max(254),
-  phoneNumber: phoneNumberInput,
-  role: z.enum(staffRoles),
-  reason: z.string().trim().max(500).optional(),
-});
+import { nonaktifkanStafSchema, undangStafSchema } from "./schema";
 
 /** Admin Platform sends an Undangan Staf. */
 export async function undangStaf(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
     action: "staf.undang",
     resource: () => stafResource(),
-    schema: inviteSchema,
+    schema: undangStafSchema,
     input: {
       email: formData.get("email"),
       phoneNumber: formData.get("phoneNumber"),
@@ -64,14 +54,12 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
   }
 }
 
-const deactivateSchema = z.object({ accountId: z.string().min(1).max(64), reason: z.string().trim().max(500) });
-
 /** Admin Platform deactivates an Akun Staf. */
 export async function nonaktifkanStaf(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
     action: "staf.nonaktifkan",
     resource: () => stafResource(),
-    schema: deactivateSchema,
+    schema: nonaktifkanStafSchema,
     input: { accountId: formData.get("accountId"), reason: formData.get("reason") },
     run: (actor, data) => serverRuntime().identity.deactivateStaff(actor, data),
   });

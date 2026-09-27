@@ -42,6 +42,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "hari_libur.hapus": "Hari Libur Nasional dihapus",
   "catatan_internal.tulis": "Catatan Internal",
   "antrean.ambil": "Baris Antrean diambil",
+  "telepon_pemesan.catat_panggilan": "Panggilan Pemesan dicatat",
   "denah.buat_blok": "Blok dibuat",
   "denah.ubah_jenis_sel": "Jenis sel diubah",
   "denah.atur_jenis_makam": "Jenis Makam diatur",

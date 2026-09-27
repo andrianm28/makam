@@ -37,7 +37,7 @@ function form(values: Record<string, string>): FormData {
 }
 
 describe("Simpan Pengaturan Operator (Server Action)", () => {
-  it("a refused save hands back what was typed, so the form keeps it for the one fix", async () => {
+  it("a refused save says which value to fix and keeps nothing, leaving the form to keep what was typed", async () => {
     await signInAsAdminPlatform();
     const typed = {
       legalName: "PT Jaya Korpora Prima",
@@ -51,7 +51,25 @@ describe("Simpan Pengaturan Operator (Server Action)", () => {
 
     const state = await simpanPengaturanOperator({ status: "idle" }, form(typed));
 
-    expect(state).toEqual({ status: "gagal", message: expect.stringContaining("Nomor WhatsApp CS"), typed });
+    expect(state).toEqual({ status: "gagal", message: expect.stringContaining("Nomor WhatsApp CS") });
     expect(await server.runtime().operatorSettings.current()).toBeNull();
+  });
+
+  it("a refused save needs a value, and says which one by the name its field carries", async () => {
+    await signInAsAdminPlatform();
+    const kosong = {
+      legalName: "PT Jaya Korpora Prima",
+      address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
+      phone: "(021) 555-0101",
+      email: "halo@makam.co.id",
+      csWhatsApp: "08115550101",
+      csReplyHours: "",
+      reason: "Isian awal",
+    };
+
+    expect(await simpanPengaturanOperator({ status: "idle" }, form(kosong))).toEqual({
+      status: "gagal",
+      message: "Jam balas CS wajib diisi.",
+    });
   });
 });

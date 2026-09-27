@@ -7,8 +7,21 @@ import { actingRole, type LokasiDeps, type NotFound } from "./lokasi-mitra";
 import { lokasiHariLiburNasional } from "./schema";
 import { adminPlatformCalendar, type HariLiburNasional } from "./working-time";
 
+/** The most characters a Hari Libur Nasional's name may be typed in. */
+export const HARI_LIBUR_NASIONAL_NAME_MAX = 120;
+
 /** A valid Hari Libur Nasional: a real date and a name. */
-export const hariLiburNasionalSchema = z.object({ date: tanggalSchema, name: z.string().trim().min(1).max(120) });
+export const hariLiburNasionalSchema = z.object({
+  date: tanggalSchema,
+  name: z.string().trim().min(1).max(HARI_LIBUR_NASIONAL_NAME_MAX),
+});
+
+/** A Hari Libur Nasional to take off the list: its date, and optionally why. */
+export const hapusHariLiburSchema = z.object({ date: tanggalSchema, reason: z.string().trim().max(500) });
+
+/** Both shapes as a form or a Server Action holds them. */
+export type HariLiburNasionalInput = z.infer<typeof hariLiburNasionalSchema>;
+export type HapusHariLiburInput = z.infer<typeof hapusHariLiburSchema>;
 
 /** The Hari Libur Nasional list Admin Platform keeps, by date. */
 export async function hariLiburNasional(deps: Pick<LokasiDeps, "db">): Promise<HariLiburNasional[]> {
