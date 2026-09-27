@@ -1,6 +1,6 @@
 # Worktree tooling hardening (follow-ups from ticket 83)
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: AGENTS.md "Worktrees on the shared host"; docs/ops/runbook.md; ticket 83's review
 
