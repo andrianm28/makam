@@ -1,7 +1,7 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { Pemesanan, PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import type { PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";

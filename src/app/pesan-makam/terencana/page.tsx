@@ -291,7 +291,7 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
 
 /** After Kirim: the order as its own Pemesan reads it back, with the Syarat from its own snapshot. */
 async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }) {
-  const { pemesanan, database } = serverRuntime();
+  const { pemesanan } = serverRuntime();
   const actor = await currentActor();
   // The Kode Masuk at Kirim signed this Akun in; without it there is no order of theirs to read here.
   if (!actor) redirect(terencanaPath({ langkah: "petak", lokasiId }));
