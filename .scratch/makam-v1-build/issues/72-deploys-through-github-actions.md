@@ -24,6 +24,8 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 
 ## Comments
 
+- 2026-09-27 — **Owner decision, settled: the owner approves the merge of this ticket into `main`.** The standing "ask before anything touching production" rule is waived for ticket 72 specifically; it is the only ticket that had that hold. Merge still waits for the two review axes and the re-review to be clean and the branch's CI green. The rehearsal (AC 9) and the credentials below stay open and are *not* a precondition for the merge — without keys the `sign` job fails hard and the deploy is refused with exit 78, which is the intended safe direction.
+
 - 2026-09-27 — Orchestrator: Standards axis on `cd70da0` found 3 HARD to fix in the next pass (do these before merge; the merge also needs the owner's explicit OK):
   1. **Runtime DSN never reaches the browser for static pages.** `src/app/layout.tsx:40` — `npm run build` shows `/` and `/_not-found` as `○ (Static)` and `.next/server/app/index.html` holds the *build-time* DSN (`https://buildtimekey@…/9`); in an image built without the build arg it is `""` forever. This defeats the one-digest-both-environments AC, and `e2e/smoke.spec.ts` (`if (dsn) …`) cannot catch it because it is skipped when the DSN is empty. Needs an on-demand/on-demand route or `connection()`.
   2. **cosign pinned by tag, not digest.** `COSIGN: ghcr.io/sigstore/cosign/cosign:v2.6.1` in `ci.yml` (job `sign`), `promote.yml` and `rollback.yml` — that image reads `COSIGN_*_PRIVATE_KEY`, so an unpinned tag is a supply-chain hole (AGENTS.md: pin a new image by digest; runbook: every image by digest).
