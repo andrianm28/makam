@@ -75,7 +75,17 @@ export default async function BerandaPage() {
                 <Card className="h-full">
                   <CardContent className="flex flex-col items-start gap-2 pt-6">
                     <Icon className="size-6 text-brand" aria-hidden="true" />
-                    <h3 className="text-title-3 font-semibold">{tile.label}</h3>
+                    {/* A tile that leads somewhere is a link; one that does not yet is a
+                        heading that says so, never a dead link (docs/design-system.md). */}
+                    <h3 className="text-title-3 font-semibold">
+                      {tile.href ? (
+                        <Link href={tile.href} className="hover:underline">
+                          {tile.label}
+                        </Link>
+                      ) : (
+                        tile.label
+                      )}
+                    </h3>
                     <p className="text-body text-muted-foreground">{tile.summary}</p>
                     <p className="text-small text-muted-foreground">{tile.description}</p>
                     <CsLink contact={contact} className="mt-1 text-body" label={`Tanya CS soal ${tile.label}`} />

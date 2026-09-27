@@ -3,9 +3,10 @@ import { homepageHero, homepageTiles, homepageTrust } from "./homepage-content";
 
 /**
  * The Beranda's hero, tile row and trust strip (spec, Public site and routing
- * decisions > Home; the release plan: Perpanjang Makam, Layanan Makam, Urus di
- * TPU DKI and Wakaf Tanah are not in this release, so they say so and name the
- * CS instead of opening a page that does not exist).
+ * decisions > Home). Perpanjang Makam and Layanan Makam are arranged at the Makam
+ * keluarga hub and open it with that action preselected; Urus di TPU DKI and Wakaf
+ * Tanah are in a later release, so they say so and name the CS instead of opening a
+ * page that does not exist.
  */
 describe("the Beranda's hero", () => {
   it("leads with the brand master message and the tagline", () => {
@@ -39,11 +40,19 @@ describe("the Beranda's tile row", () => {
     ]);
   });
 
-  it("opens no page while the service is not in this release, and points at the CS", () => {
-    for (const tile of homepageTiles) {
-      expect(tile.href).toBeUndefined();
-      expect(tile.description).toBe("Segera hadir.");
+  it("opens the Makam keluarga hub with the action preselected, and leaves the two that are not there yet alone", () => {
+    // Perpanjang Makam and Layanan Makam are arranged at the hub (spec, Public site and
+    // routing decisions), so their tiles open it with that action chosen; Urus di TPU DKI
+    // and Wakaf Tanah are still later releases and say so, with no link to a page that is
+    // not there and no date.
+    const byLabel = new Map(homepageTiles.map((tile) => [tile.label, tile]));
+    expect(byLabel.get("Perpanjang Makam")?.href).toBe("/makam-keluarga?aksi=perpanjang");
+    expect(byLabel.get("Layanan Makam")?.href).toBe("/makam-keluarga?aksi=layanan");
+    for (const label of ["Urus di TPU DKI", "Wakaf Tanah"]) {
+      expect(byLabel.get(label)?.href, label).toBeUndefined();
+      expect(byLabel.get(label)?.description, label).toBe("Segera hadir.");
     }
+    expect(homepageTiles.map((tile) => tile.description).join(" ")).not.toMatch(/\d{4}/);
   });
 
   it("carries an icon and one line each, in Bahasa Indonesia", () => {

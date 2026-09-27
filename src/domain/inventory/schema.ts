@@ -268,3 +268,23 @@ export const inventoryPetakAlias = pgTable(
   },
   (table) => [index("inventory_petak_alias_lokasi_nomor_idx").on(table.lokasiId, table.nomorMakamKey)],
 );
+
+/**
+ * Owned by the Inventory module: one attempt at the Makam keluarga hub's
+ * lookup, counted per IP so the grave numbers of a cemetery cannot be guessed
+ * through (spec, Inventory > lookup; ticket 34, AC "lookup is rate-limited to
+ * prevent enumeration"). A row is written for every attempt, a hit as much as a
+ * miss — an enumeration is made of misses — and it carries nothing but the IP
+ * and the time: the question that was asked is never kept, because a record of
+ * which numbers a visitor tried is a list of the numbers that exist.
+ */
+export const inventoryCariMakamAttempt = pgTable(
+  "inventory_cari_makam_attempt",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The caller's IP as the host's proxy reports it (src/server/client-ip.ts); unknown ones share one bucket. */
+    ip: text("ip").notNull(),
+    dicobaAt: at("dicoba_at").notNull(),
+  },
+  (table) => [index("inventory_cari_makam_attempt_ip_idx").on(table.ip, table.dicobaAt)],
+);

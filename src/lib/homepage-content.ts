@@ -4,14 +4,16 @@
  * or a deadline, so no value is read from the database and none can go stale.
  * Everything a number would say is read on the page that owns it.
  *
- * The tile row is honest about the release: Perpanjang Makam, Layanan Makam,
- * Urus di TPU DKI and Wakaf Tanah arrive in later releases, so a tile names what
- * the service is, says "Segera hadir." and offers the CS — never a link to a
- * page that is not there, and never a date (docs/design-system.md, voice and
- * tone).
+ * The tile row is honest about the release. Perpanjang Makam and Layanan Makam
+ * open the Makam keluarga hub with that action preselected (spec, Public site and
+ * routing decisions), which is where each of them is arranged; Urus di TPU DKI and
+ * Wakaf Tanah arrive in later releases, so their tiles name what the service is,
+ * say "Segera hadir." and offer the CS — never a link to a page that is not there,
+ * and never a date (docs/design-system.md, voice and tone).
  */
 import type { LucideIcon } from "lucide-react";
 import { Flower2Icon, HandCoinsIcon, LandmarkIcon, RefreshCcwIcon } from "lucide-react";
+import { tileKeHub } from "@/lib/makam-keluarga-content";
 
 /** What a tile says about a service that is in a later release. */
 const SEGERA_HADIR = "Segera hadir.";
@@ -67,14 +69,19 @@ export const homepageHero: HomepageHero = {
 export const homepageTiles: HomepageTile[] = [
   {
     label: "Perpanjang Makam",
+    // The tile opens the Makam keluarga hub with Perpanjang already chosen (spec, Public site
+    // and routing decisions): the hub owns the branch, and the Perpanjang flow itself arrives
+    // with a later ticket, which the hub says in its own words.
+    href: tileKeHub.perpanjang,
     summary: "Memperpanjang Hak Pakai Petak Makam atau Kavling Keluarga di Lokasi Mitra, beserta masa tenggangnya.",
-    description: SEGERA_HADIR,
+    description: "Mulai dari Makam Keluarga: cari dulu nomor makamnya.",
     icon: RefreshCcwIcon,
   },
   {
     label: "Layanan Makam",
+    href: tileKeHub.layanan,
     summary: "Perawatan makam dari daftar layanan: bunga, nisan, pembersihan dan pemotongan rumput.",
-    description: SEGERA_HADIR,
+    description: "Mulai dari Makam Keluarga: cari dulu nomor makamnya.",
     icon: Flower2Icon,
   },
   {

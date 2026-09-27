@@ -19,6 +19,7 @@ import type { Actor } from "@/domain/identity";
 import type { Database } from "@/db/client";
 import { availability, type AvailabilityCount } from "./availability";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
+import { cariMakam, makamPemegangHak, type HasilCariMakam, type MakamDitemukan, type PermintaanDariIP } from "./cari-makam";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
@@ -51,6 +52,8 @@ export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, Tah
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
 export { pilihanOf } from "./picker";
+export type { HasilCariMakam, MakamDitemukan, PetakDitemukan, PermintaanCariMakam, PermintaanDariIP } from "./cari-makam";
+export { CARI_MAKAM_ATTEMPT_KEPT_MS, CARI_MAKAM_JENDELA_MENIT, CARI_MAKAM_MAKS_PER_IP, KUNCI_HASIL_CARI_MAKAM, pruneCariMakamAttempts } from "./cari-makam";
 export type {
   AddEdgeResult,
   AvailabilityCount,
@@ -129,6 +132,21 @@ export interface Inventory {
   tahan(input: TahanInput): Promise<TahanResult>;
   /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
   lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
+  /**
+   * Where a grave is, for a family with no session: by Lokasi + Nomor Makam (the
+   * current one or one it was renumbered from, which is never shown), by Lokasi
+   * + Nomor Kavling, or by Lokasi + Almarhum name + year of death. Answers with
+   * Almarhum names, numbers, Hak Pakai status and end date only — never the
+   * Pemegang Hak's — and with the whole Kavling Keluarga when the match is one
+   * of its Petak. Rate-limited per IP against enumeration.
+   */
+  cariMakam(input: PermintaanDariIP): Promise<HasilCariMakam>;
+  /**
+   * Every grave whose current Pemegang Hak recorded this email, at any Lokasi
+   * Mitra: the Makam tab a signed-in Akun sees as shortcuts into the hub. An
+   * email that is not an email, or holds nothing, is an empty list.
+   */
+  makamPemegangHak(input: { email: string }): Promise<MakamDitemukan[]>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
   /**
@@ -160,6 +178,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
+    cariMakam: (input) => cariMakam(deps, input),
+    makamPemegangHak: (input) => makamPemegangHak(deps, input),
     within: (tx) => createInventory({ ...deps, db: tx }),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
   };
