@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type MutableRefObject } from "react";
-import { Check, Info, Minus, Phone, Plus, X } from "lucide-react";
+import { Check, Info, LogIn, Minus, Phone, Plus, X } from "lucide-react";
 import type { TahanUnit } from "@/domain/inventory";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
@@ -201,6 +201,7 @@ export function DenahPicker({
             <Legend swatch="border-2 border-dashed border-sage-strong" label="Kavling Keluarga (satu unit)" />
             <Legend swatch="bg-highlight" label="Jalan" />
             <Legend swatch="border border-dashed border-border" label="Bukan petak (pohon, bangunan)" />
+            <Legend swatch="border-2 border-primary bg-brand-soft" pintu label="Pintu Masuk (cara masuk lokasi)" />
             <Legend
               swatch="bg-neutral-soft after:absolute after:bottom-0.5 after:right-0.5 after:size-1.5 after:rounded-full after:bg-sage-strong"
               label="Terisi, bisa untuk tumpang (hubungi Admin Lokasi)"
@@ -328,6 +329,13 @@ function Grid({
 function Cell({ cell, terpilih, ketuk }: { cell: SelView; terpilih: boolean; ketuk: (cell: SelView) => void }) {
   if (cell.kind === "jalan") return <div className="rounded-sm bg-highlight" aria-hidden />;
   if (cell.kind === "bukan_petak") return <div className="rounded-sm border border-dashed border-border" aria-hidden />;
+  // A Pintu Masuk is how a family finds its way in, so it is drawn as a door rather than left blank.
+  if (cell.kind === "pintu_masuk")
+    return (
+      <div className="flex items-center justify-center rounded-sm border-2 border-primary bg-brand-soft text-primary" title="Pintu Masuk" aria-hidden>
+        <LogIn className="size-3.5" />
+      </div>
+    );
   // A member Petak of a Kavling Keluarga is not a unit of its own: the outline around it is what is picked.
   if (cell.kavling) return <div className="rounded-sm bg-accent" aria-hidden />;
   return (
@@ -372,10 +380,12 @@ function Kotak({ kavling, ukuran, gap, pad, dipilih }: { kavling: KavlingView; u
   );
 }
 
-function Legend({ swatch, label }: { swatch: string; label: string }) {
+function Legend({ swatch, label, pintu }: { swatch: string; label: string; pintu?: boolean }) {
   return (
     <li className="flex items-center gap-2">
-      <span className={cn("relative size-4 shrink-0 rounded", swatch)} aria-hidden />
+      <span className={cn("relative size-4 shrink-0 rounded", swatch)} aria-hidden>
+        {pintu ? <LogIn className="absolute inset-0 m-auto size-2.5 text-primary" /> : null}
+      </span>
       {label}
     </li>
   );

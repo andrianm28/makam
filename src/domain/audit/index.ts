@@ -93,7 +93,7 @@ export type AuditAction =
   | "telepon_pemesan.catat_panggilan"
   /** An Admin Lokasi creates a Blok on its Denah (size, numbering pattern, initial Jenis Makam). */
   | "denah.buat_blok"
-  /** An Admin Lokasi turns selected Denah cells into Petak Makam, Jalan or Bukan Petak. */
+  /** An Admin Lokasi turns selected Denah cells into Petak Makam, Jalan, Bukan Petak or Pintu Masuk. */
   | "denah.ubah_jenis_sel"
   /** An Admin Lokasi sets the Jenis Makam of selected Petak Makam. */
   | "denah.atur_jenis_makam"

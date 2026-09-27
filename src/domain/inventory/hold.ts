@@ -5,9 +5,10 @@
  * so "another family already took this plot" is a fact of one transaction rather
  * than a promise on a page.
  */
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { InventoryDeps } from "./deps";
+import { lockTahan } from "./locks";
 import { publicDenah } from "./picker";
 import { inventoryPlotHold } from "./schema";
 
@@ -95,7 +96,9 @@ export async function tahan(deps: InventoryDeps, input: TahanInput): Promise<Tah
 
   // One lock for the whole Lokasi Mitra's hold namespace, taken before any read:
   // two submissions naming the same plot queue here instead of both reading it free.
-  await deps.db.execute(sql`select pg_advisory_xact_lock(hashtext(${`inventory.tahan.${lokasiId}`}))`);
+  // A Denah edit that would take a held plot away (`setCellKind` into a Pintu Masuk)
+  // takes the same lock, so the two cannot interleave either.
+  await lockTahan(deps.db, lokasiId);
 
   const denah = await publicDenah(deps, lokasiId);
   const nomorOf = new Map<string, string>();
@@ -168,18 +171,26 @@ export async function lepasTahan(deps: InventoryDeps, nomorPemesanan: string): P
   return { ok: true, released: released.length };
 }
 
+/**
+ * Which of these Petak Makam an open plot hold already names at this Lokasi
+ * Mitra (spec, Inventory > Denah: the Terencana hold is placed at submission).
+ * The Denah edit that must not take a held plot away reads it through here, so
+ * one wording of "sedang dipesan" answers both.
+ */
+export async function petakDipesan(db: InventoryDeps["db"], lokasiId: string, petakIds: readonly string[]): Promise<string[]> {
+  if (petakIds.length === 0) return [];
+  const rows = await db
+    .select({ petakId: inventoryPlotHold.petakId })
+    .from(inventoryPlotHold)
+    .where(and(eq(inventoryPlotHold.lokasiId, lokasiId), inArray(inventoryPlotHold.petakId, [...petakIds])));
+  return rows.flatMap((row) => (row.petakId ? [row.petakId] : []));
+}
+
 /** Which of these units an open hold already names. */
 async function ditahan(deps: Pick<InventoryDeps, "db">, lokasiId: string, units: TahanUnit[]): Promise<Set<string>> {
   const petakIds = units.flatMap((unit) => (unit.petakId ? [unit.petakId] : []));
   const kavlingIds = units.flatMap((unit) => (unit.kavlingId ? [unit.kavlingId] : []));
-  const held = new Set<string>();
-  if (petakIds.length > 0) {
-    const rows = await deps.db
-      .select({ petakId: inventoryPlotHold.petakId })
-      .from(inventoryPlotHold)
-      .where(and(eq(inventoryPlotHold.lokasiId, lokasiId), inArray(inventoryPlotHold.petakId, petakIds)));
-    for (const row of rows) if (row.petakId) held.add(row.petakId);
-  }
+  const held = new Set<string>(await petakDipesan(deps.db, lokasiId, petakIds));
   if (kavlingIds.length > 0) {
     const rows = await deps.db
       .select({ kavlingId: inventoryPlotHold.kavlingId })

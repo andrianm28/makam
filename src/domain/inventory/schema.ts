@@ -61,18 +61,26 @@ export const inventoryKavling = pgTable(
   (table) => [uniqueIndex("inventory_kavling_lokasi_nomor_idx").on(table.lokasiId, table.nomorKavlingKey)],
 );
 
-/** A Denah cell's kind: a Petak Makam, a Jalan (path) or Bukan Petak (neutral space). */
-export const inventoryPetakKinds = ["petak", "jalan", "bukan_petak"] as const;
+/**
+ * A Denah cell's kind: a Petak Makam, a Jalan (path), a Bukan Petak (neutral
+ * space) or a Pintu Masuk (the way into the Lokasi Mitra, so a family can
+ * orient itself on the Denah). Only a `petak` cell can ever be picked, sold or
+ * held, which is why the three others carry no Nomor Makam at all.
+ *
+ * `pintu_masuk` needs no migration: the column is `text`, and the check below
+ * only ever tells a `petak` from the rest.
+ */
+export const inventoryPetakKinds = ["petak", "jalan", "bukan_petak", "pintu_masuk"] as const;
 
 /**
  * Owned by the Inventory module: one cell of a Blok's grid, at `row`/`col`
  * (0-based, no gaps). Only a `petak` cell carries `nomor_makam` and
- * `jenis_makam_id`; a Jalan or Bukan Petak cell keeps both null. `kavling_id`
- * is set only for a `petak` cell that is part of a Kavling Keluarga.
- * `perlu_verifikasi` starts true for every new Petak (spec: not assignable or
- * sellable until the Admin Lokasi clears it, ticket 14). `first_used_at`
- * mirrors the one on `inventory_kavling` (see there); ticket 14's Hak Pakai
- * and Pemakaman are what will set it for real.
+ * `jenis_makam_id`; a Jalan, a Bukan Petak and a Pintu Masuk keep both null.
+ * `kavling_id` is set only for a `petak` cell that is part of a Kavling
+ * Keluarga. `perlu_verifikasi` starts true for every new Petak (spec: not
+ * assignable or sellable until the Admin Lokasi clears it, ticket 14).
+ * `first_used_at` mirrors the one on `inventory_kavling` (see there); ticket
+ * 14's Hak Pakai and Pemakaman are what will set it for real.
  */
 export const inventoryPetak = pgTable(
   "inventory_petak",

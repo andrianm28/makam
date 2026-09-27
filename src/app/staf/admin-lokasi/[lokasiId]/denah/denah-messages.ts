@@ -23,8 +23,12 @@ export function denahRefusalMessage(reason: string, extra?: Record<string, unkno
       if (skippedKavling) parts.push(`${skippedKavling} sel bagian dari Kavling Keluarga`);
       return `Semua sel yang dipilih terkunci (${parts.join(", ")}). Sel yang pernah dipakai tidak bisa dihapus, dipindah, atau diganti jenisnya; pisahkan Kavling Keluarga dulu untuk mengubah jenis sel atau Jenis Makam-nya.`;
     }
+    case "sel_dipesan": {
+      const dipesan = (extra?.dipesan as unknown[] | undefined)?.length ?? 0;
+      return `Sel yang dipilih sedang dipesan oleh Pemesanan Terencana (${dipesan} sel), jadi tidak bisa dijadikan Pintu Masuk. Tunggu pesanan itu selesai atau tidak jadi, lalu ubah lagi.`;
+    }
     case "bukan_petak":
-      return "Kavling Keluarga hanya boleh dari Petak Makam. Lepaskan Jalan dan Bukan Petak dari pilihan.";
+      return "Kavling Keluarga hanya boleh dari Petak Makam. Lepaskan Jalan, Bukan Petak dan Pintu Masuk dari pilihan.";
     case "kurang_dari_dua":
       return "Kavling Keluarga paling sedikit 2 Petak. Pilih petak lain yang bersebelahan.";
     case "tidak_bersambung":

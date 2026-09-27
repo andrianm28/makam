@@ -132,6 +132,66 @@ describe("holding the plots a Pemesanan Terencana chooses", () => {
     expect(await statusOf(setup, fixture, "A-01")).toBe("sedang_dipesan");
   });
 
+  it("never lets a Pintu Masuk be held: an entrance is not a plot, so no order can take it", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const { "A-02": a02 } = await ids(setup, fixture, ["A-02"]);
+    // The Admin Lokasi turns a cleared Petak into the way into the Lokasi Mitra.
+    const diubah = await setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, fixture.blok.id, { cellIds: [a02], kind: "pintu_masuk" });
+    if (!diubah.ok) throw new Error(`setCellKind refused: ${diubah.reason}`);
+
+    const pintu = (await setup.inventory.publicDenah(fixture.lokasiMitra.id))!.bloks[0].cells.find((cell) => cell.id === a02);
+    const tahan = (units: { petakId?: string; kavlingId?: string }[]) =>
+      refusable(setup.db, (tx) => setup.inventory.within(tx).tahan({ lokasiId: fixture.lokasiMitra.id, units, nomorPemesanan: "MKM-2026-000001" }));
+
+    expect(pintu).toMatchObject({ kind: "pintu_masuk", status: null, nomorMakam: null, jenisMakamId: null });
+    expect(await tahan([{ petakId: a02 }])).toMatchObject({ ok: false, reason: "unit_tidak_ditemukan" });
+    // And it never counts as something a family may pick.
+    expect(await setup.inventory.tersediaUntukTerencana([fixture.lokasiMitra.id])).toEqual({ [fixture.lokasiMitra.id]: 4 });
+  });
+
+  it("keeps a Petak Makam a Pemesanan Terencana holds out of becoming a Pintu Masuk, and frees it once the order is gone", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const { "A-01": a01 } = await ids(setup, fixture, ["A-01"]);
+    await refusable(setup.db, (tx) => setup.inventory.within(tx).tahan({ lokasiId: fixture.lokasiMitra.id, units: [{ petakId: a01 }], nomorPemesanan: "MKM-2026-000001" }));
+
+    const refused = await setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, fixture.blok.id, { cellIds: [a01], kind: "pintu_masuk" });
+    expect(refused).toEqual({ ok: false, reason: "sel_dipesan", dipesan: [a01] });
+    // The plot the order holds is untouched, still the plot it holds.
+    expect(await statusOf(setup, fixture, "A-01")).toBe("sedang_dipesan");
+    const selA01 = (await setup.inventory.publicDenah(fixture.lokasiMitra.id))!.bloks[0].cells.find((cell) => cell.id === a01);
+    expect(selA01).toMatchObject({ kind: "petak", nomorMakam: "A-01" });
+
+    // The order is gone (declined, withdrawn or lapsed), so the cell is free to become one.
+    await setup.inventory.lepasTahan("MKM-2026-000001");
+    const boleh = await setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, fixture.blok.id, { cellIds: [a01], kind: "pintu_masuk" });
+    expect(boleh).toMatchObject({ ok: true, outcome: { changedIds: [a01] } });
+  });
+
+  it("keeps a plot held and retyped as a Pintu Masuk consistent when both happen at once", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const { "A-01": a01 } = await ids(setup, fixture, ["A-01"]);
+    const tahan = (nomorPemesanan: string) =>
+      refusable(setup.db, (tx) => setup.inventory.within(tx).tahan({ lokasiId: fixture.lokasiMitra.id, units: [{ petakId: a01 }], nomorPemesanan }));
+    const jadikanPintu = () => setup.inventory.setCellKind(fixture.adminLokasi, fixture.lokasiMitra.id, fixture.blok.id, { cellIds: [a01], kind: "pintu_masuk" });
+
+    const [dipesan, dijadikan] = await Promise.all([tahan("MKM-2026-000001"), jadikanPintu()]);
+
+    // Whichever queued second reads the other's write, so one of the two is refused; never both.
+    expect(dipesan.ok !== dijadikan.ok).toBe(true);
+    if (!dipesan.ok) expect(dipesan.reason).toBe("unit_tidak_ditemukan");
+    if (!dijadikan.ok) expect(dijadikan).toEqual({ ok: false, reason: "sel_dipesan", dipesan: [a01] });
+
+    const sel = (await setup.inventory.publicDenah(fixture.lokasiMitra.id))!.bloks[0].cells.find((cell) => cell.id === a01);
+    if (dipesan.ok) expect(sel).toMatchObject({ kind: "petak", status: "sedang_dipesan" });
+    else expect(sel).toMatchObject({ kind: "pintu_masuk", status: null, nomorMakam: null });
+  });
+
   it("an order that no longer holds its plots (declined, withdrawn, lapsed) frees them again", async () => {
     const setup = publishOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
