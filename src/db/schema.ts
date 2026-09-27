@@ -12,6 +12,7 @@ export * from "@/domain/notifications/schema";
 export * from "@/domain/operator-settings/schema";
 export * from "@/domain/scheduler/schema";
 export * from "@/domain/lokasi/schema";
+export * from "@/domain/katalog-lama/schema";
 export * from "@/domain/tariffs/schema";
 export * from "@/domain/billing/schema";
 export * from "@/domain/pemesanan/schema";

@@ -25,7 +25,9 @@ export type PublishLokasiMitraResult =
   | WriteRefusal
   | NotFound
   | { ok: false; reason: "gerbang_belum_terpenuhi"; gate: PublishGate }
-  | { ok: false; reason: "status_tidak_bisa_diterbitkan" };
+  | { ok: false; reason: "status_tidak_bisa_diterbitkan" }
+  /** Example data standing in for a cemetery is never listed (ticket 86), gate met or not. */
+  | { ok: false; reason: "data_contoh_tidak_bisa_diterbitkan" };
 
 /**
  * Admin Platform publishes a Lokasi Mitra: Belum Tayang → Terverifikasi, only
@@ -57,6 +59,8 @@ export async function publishLokasiMitra(
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     // Not belum_tayang any more (including a race that just published it): nothing to do here, and a no-op transaction cannot commit.
     if (row.status !== "belum_tayang") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
+    // Example data is never listed, so it never passes the gate whatever it holds.
+    if (row.dataContoh) return { ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" } as const;
 
     const gate = publishGate({
       agreement: { signedOn: row.agreementSignedOn, scanUploaded: row.agreementScanFileKey !== null },

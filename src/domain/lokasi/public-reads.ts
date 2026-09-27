@@ -68,15 +68,19 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
 
 /**
  * One Terverifikasi (listed) Lokasi Mitra's public profile; null for an
- * unknown id or one not (yet, or no longer) Terverifikasi. No actor: this is
- * the public Lokasi page's own read.
+ * unknown id, one not (yet, or no longer) Terverifikasi, or one marked as
+ * example data whatever its status says (ticket 86). No actor: this is the
+ * public Lokasi page's own read.
  */
 export async function publicLokasiMitra(deps: { db: Database }, lokasiId: string): Promise<PublicLokasiMitra | null> {
   if (!isLokasiId(lokasiId)) return null;
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
-  if (!row || row.status !== "terverifikasi") return null;
+  if (!row || row.status !== "terverifikasi" || row.dataContoh) return null;
   return toPublicLokasiMitra(row);
 }
+
+/** Not example data: the one condition every public listing shares. */
+const bukanDataContoh = eq(lokasiMitraTable.dataContoh, false);
 
 /** One card of the Daftar Lokasi Makam directory. */
 export interface PublicLokasiMitraCard {
@@ -118,13 +122,14 @@ function toCard(row: Row): PublicLokasiMitraCard {
  * Every Terverifikasi Lokasi Mitra, by name, for the Daftar Lokasi Makam
  * directory: filtered by city (exact) and by facilities (every one checked), and
  * by "Pemesanan Terencana aktif" for the Terencana wizard's own list. No actor: a
- * Lokasi still Belum Tayang, Ditangguhkan or Berhenti is never listed here.
+ * Lokasi still Belum Tayang, Ditangguhkan or Berhenti is never listed here, nor
+ * one marked as example data (ticket 86).
  */
 export async function publicLokasiMitraList(
   deps: { db: Database },
   query: PublicLokasiMitraQuery = {},
 ): Promise<PublicLokasiMitraCard[]> {
-  const conditions = [eq(lokasiMitraTable.status, "terverifikasi")];
+  const conditions = [eq(lokasiMitraTable.status, "terverifikasi"), bukanDataContoh];
   if (query.city) conditions.push(eq(lokasiMitraTable.city, query.city));
   if (query.terencana) conditions.push(sql`${lokasiMitraTable.flags} ->> 'pemesananTerencanaAktif' = 'true'`);
   if (query.id) conditions.push(eq(lokasiMitraTable.id, query.id));
@@ -159,7 +164,7 @@ export async function publicLokasiMitraCities(deps: { db: Database }): Promise<s
   const rows = await deps.db
     .selectDistinct({ city: lokasiMitraTable.city })
     .from(lokasiMitraTable)
-    .where(eq(lokasiMitraTable.status, "terverifikasi"))
+    .where(and(eq(lokasiMitraTable.status, "terverifikasi"), bukanDataContoh))
     .orderBy(asc(lokasiMitraTable.city));
   return rows.map((row) => row.city);
 }

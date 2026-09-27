@@ -45,6 +45,8 @@ export interface LokasiMitra {
   pin: { lat: number; lng: number } | null;
   facilities: { checked: LokasiFacility[]; note: string };
   status: LokasiMitraStatus;
+  /** Example data standing in for a cemetery: never published, never listed (ticket 86). */
+  dataContoh: boolean;
   agreement: { signedOn: string | null; scanUploaded: boolean };
   /**
    * Set by a completed Kunjungan Verifikasi (fieldwork module, ticket 15):
@@ -157,16 +159,17 @@ export async function readLokasiMitra(deps: LokasiDeps, by: Actor, lokasiId: str
 /**
  * Whether a Lokasi Mitra is Terverifikasi, i.e. listed: the one question
  * public reads (pages, prices) ask, so they never serve a Lokasi still Belum
- * Tayang, or one Ditangguhkan or Berhenti. Needs no actor: it reveals nothing
- * a public page would not. The publish gate (ticket 16) sets the status.
+ * Tayang, or one Ditangguhkan or Berhenti, or one marked as example data
+ * whatever its status says (ticket 86). Needs no actor: it reveals nothing a
+ * public page would not. The publish gate (ticket 16) sets the status.
  */
 export async function isTerverifikasi(deps: LokasiDeps, lokasiId: string): Promise<boolean> {
   if (!isLokasiId(lokasiId)) return false;
   const [row] = await deps.db
-    .select({ status: lokasiMitraTable.status })
+    .select({ status: lokasiMitraTable.status, dataContoh: lokasiMitraTable.dataContoh })
     .from(lokasiMitraTable)
     .where(eq(lokasiMitraTable.id, lokasiId));
-  return row?.status === "terverifikasi";
+  return row?.status === "terverifikasi" && !row.dataContoh;
 }
 
 /** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher, the Antrean's Tier 4 Lokasi rows). */
@@ -175,6 +178,8 @@ export interface LokasiMitraSummary {
   name: string;
   city: string;
   status: LokasiMitraStatus;
+  /** Example data, never listed (ticket 86): the Admin Platform list has to say so. */
+  dataContoh: boolean;
   /** When this Lokasi Mitra became Terverifikasi (publish gate, ticket 16); null before. */
   publishedAt: Date | null;
   /** Admin Platform's last "still meets the publish gate" confirmation (ticket 17's Tier 4 row); null before the first one. */
@@ -186,6 +191,7 @@ const summaryColumns = {
   name: lokasiMitraTable.name,
   city: lokasiMitraTable.city,
   status: lokasiMitraTable.status,
+  dataContoh: lokasiMitraTable.dataContoh,
   publishedAt: lokasiMitraTable.publishedAt,
   publishGateRecheckedAt: lokasiMitraTable.publishGateRecheckedAt,
 };
@@ -428,6 +434,7 @@ function toLokasiMitra(row: Row): LokasiMitra {
     pin: pinOf(row),
     facilities: { checked: row.facilities, note: row.facilitiesNote },
     status: row.status,
+    dataContoh: row.dataContoh,
     agreement: { signedOn: row.agreementSignedOn, scanUploaded: row.agreementScanFileKey !== null },
     kunjunganVerifikasi:
       row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,

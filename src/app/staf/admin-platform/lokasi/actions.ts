@@ -59,6 +59,8 @@ const refusalMessages: Record<LokasiRefusal, string> = {
   bukan_admin_lokasi_di_sini: "Akun ini bukan Admin Lokasi di Lokasi Mitra ini.",
   gerbang_belum_terpenuhi: "Belum bisa: syarat di atas belum semuanya terpenuhi.",
   status_tidak_bisa_diterbitkan: "Lokasi Mitra ini sudah tidak Belum Tayang: statusnya tidak bisa diterbitkan lewat sini.",
+  data_contoh_tidak_bisa_diterbitkan:
+    "Lokasi Mitra ini ditandai sebagai data contoh, jadi tidak pernah bisa diterbitkan.",
 };
 
 type LokasiWriteResult = { ok: true } | { ok: false; reason: LokasiRefusal };

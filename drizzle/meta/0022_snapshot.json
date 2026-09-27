@@ -1,6 +1,6 @@
 {
-  "id": "ee1641ee-f565-4396-a909-e7eaae9c282f",
-  "prevId": "5b969753-ba61-4159-be07-0f69e958995f",
+  "id": "bd7432af-653e-4ac5-990b-c962a9110037",
+  "prevId": "a71ef38a-6e64-485f-b1b8-6f7be515e8b2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2923,6 +2923,98 @@
       },
       "isRLSEnabled": false
     },
+    "public.katalog_lama_jenis_makam": {
+      "name": "katalog_lama_jenis_makam",
+      "schema": "",
+      "columns": {
+        "kode": {
+          "name": "kode",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lokasi_kode": {
+          "name": "lokasi_kode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_makam_id": {
+          "name": "jenis_makam_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diklaim_pada": {
+          "name": "diklaim_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diimpor_pada": {
+          "name": "diimpor_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diimpor_oleh": {
+          "name": "diimpor_oleh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.katalog_lama_lokasi": {
+      "name": "katalog_lama_lokasi",
+      "schema": "",
+      "columns": {
+        "kode": {
+          "name": "kode",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diklaim_pada": {
+          "name": "diklaim_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diimpor_pada": {
+          "name": "diimpor_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diimpor_oleh": {
+          "name": "diimpor_oleh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.lokasi_hari_libur_nasional": {
       "name": "lokasi_hari_libur_nasional",
       "schema": "",
@@ -3006,6 +3098,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "data_contoh": {
+          "name": "data_contoh",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "facilities": {
           "name": "facilities",
@@ -3135,6 +3234,123 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tpu_dki": {
+      "name": "tpu_dki",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pin_lat": {
+          "name": "pin_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pin_lng": {
+          "name": "pin_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_source": {
+          "name": "data_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "menerima_makam_baru": {
+          "name": "menerima_makam_baru",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flag_updated_at": {
+          "name": "flag_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "tpu_dki_name_key_idx": {
+          "name": "tpu_dki_name_key_idx",
+          "columns": [
+            {
+              "expression": "name_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tpu_dki_name_idx": {
+          "name": "tpu_dki_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

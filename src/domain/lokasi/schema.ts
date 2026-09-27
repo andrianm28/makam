@@ -22,6 +22,13 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   pinLat: doublePrecision("pin_lat"),
   pinLng: doublePrecision("pin_lng"),
   status: text("status", { enum: lokasiMitraStatuses }).notNull(),
+  /**
+   * This row is example data standing in for a cemetery, not a real one
+   * (ticket 86's import of a source whose own catalog is entirely example
+   * data). The Lokasi module refuses to publish such a row and every public
+   * read leaves it out, whatever its status says.
+   */
+  dataContoh: boolean("data_contoh").notNull().default(false),
   /** Keys of `lokasiFacilities` (./profile.ts), in checklist order. */
   facilities: jsonb("facilities").$type<LokasiFacility[]>().notNull(),
   facilitiesNote: text("facilities_note").notNull(),

@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 41 resolved, 37 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 42 resolved, 36 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -313,6 +313,6 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 
 | # | Title | Status | Blocked by |
 |---|---|---|---|
-| [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | ready-for-agent | 12 |
+| [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | resolved | 12 |
 
 | [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |
