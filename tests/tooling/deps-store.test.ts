@@ -1,8 +1,8 @@
-import { mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync, mkdirSync, symlinkSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { entriesToPrune, linkTree, sealTree, storeKey } from "../../scripts/lib/deps-store.mjs";
+import { LOCK_TIMEOUT_MS, entriesToPrune, linkTree, lockAlive, sameFilesystem, sealTree, storeKey } from "../../scripts/lib/deps-store.mjs";
 
 const node22 = { nodeVersion: "v22.23.2", platform: "linux", arch: "x64" };
 
@@ -74,10 +74,66 @@ describe("linking a worktree's node_modules from the store", () => {
     expect(() => statSync(path.join(target, "stale"))).toThrow();
     expect(statSync(path.join(target, "pkg", "lib", "index.js")).isFile()).toBe(true);
   });
+
+  it("sees two directories on one filesystem as the same", () => {
+    const { store, target } = fixture();
+    mkdirSync(target, { recursive: true });
+    expect(sameFilesystem(store, target)).toBe(true);
+  });
+
+  // /proc is procfs, never the worktree's filesystem: it stands in for a
+  // store on another filesystem (MAKAM_DEPS_STORE across a mount).
+  it("refuses a store on another filesystem before deleting the worktree's node_modules", () => {
+    const { target } = fixture();
+    mkdirSync(target, { recursive: true });
+    writeFileSync(path.join(target, "keep.js"), "mine\n");
+
+    expect(sameFilesystem("/proc", target)).toBe(false);
+    try {
+      linkTree("/proc", target);
+      expect.unreachable("a store on another filesystem must not link");
+    } catch (error) {
+      // The same contract `npm run deps` branches on: code EXDEV, target untouched.
+      expect((error as NodeJS.ErrnoException).code).toBe("EXDEV");
+    }
+    expect(readFileSync(path.join(target, "keep.js"), "utf8")).toBe("mine\n");
+  });
 });
 
-describe("pruning the shared dependency store", () => {
-  const worktrees: Record<string, string | undefined> = {
+describe("the store's install lock", () => {
+  let dir: string;
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  function lock(owner?: string, ageMs = 0) {
+    dir = mkdtempSync(path.join(tmpdir(), "makam-deps-lock-"));
+    const lockDir = path.join(dir, "entry.lock");
+    mkdirSync(lockDir);
+    if (owner !== undefined) writeFileSync(path.join(lockDir, "owner"), owner);
+    if (ageMs > 0) {
+      const old = new Date(Date.now() - ageMs);
+      utimesSync(lockDir, old, old);
+    }
+    return lockDir;
+  }
+  const deadPid = () => { throw new Error("ESRCH"); };
+
+  it("treats a lock whose owner file never appeared as alive while fresh, dead past the timeout", () => {
+    expect(LOCK_TIMEOUT_MS).toBeGreaterThan(0);
+    expect(lockAlive(lock())).toBe(true);
+    expect(lockAlive(lock(undefined, LOCK_TIMEOUT_MS + 60_000))).toBe(false);
+  });
+
+  it("treats a same-host owner with no such process as dead, a live one as alive", () => {
+    expect(lockAlive(lock("some-host:123", 0), { hostname: "some-host", kill: deadPid })).toBe(false);
+    expect(lockAlive(lock("some-host:123"), { hostname: "some-host", kill: () => {} })).toBe(true);
+  });
+
+  it("trusts a lock owned on another host, whose processes it cannot see", () => {
+    expect(lockAlive(lock("other-host:123"), { hostname: "some-host", kill: deadPid })).toBe(true);
+  });
+});
+
+describe("pruning the shared dependency store", () => {  const worktrees: Record<string, string | undefined> = {
     "/wt/a": "linux-x64-node22-aaaa",
     "/wt/b": "linux-x64-node24-bbbb",
     "/wt/moved-on": "linux-x64-node22-aaaa",

@@ -18,7 +18,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { entriesToPrune, linkTree, sealTree, storeKey } from "./lib/deps-store.mjs";
+import { entriesToPrune, linkTree, lockAlive, sealTree, storeKey } from "./lib/deps-store.mjs";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const store = process.env.MAKAM_DEPS_STORE ?? path.join(os.homedir(), ".cache", "makam", "deps");
@@ -30,20 +30,6 @@ function read(file) {
     return readFileSync(file, "utf8").trim();
   } catch {
     return undefined;
-  }
-}
-
-/** @param {string} lock */
-function lockAlive(lock) {
-  const owner = read(path.join(lock, "owner"));
-  if (!owner) return existsSync(lock); // just created, owner not written yet
-  const [host, pid] = owner.split(":");
-  if (host !== os.hostname()) return true; // cannot tell; assume alive
-  try {
-    process.kill(Number(pid), 0);
-    return true;
-  } catch {
-    return false;
   }
 }
 

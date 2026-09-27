@@ -19,6 +19,36 @@ export function isNoSuchObject(error: unknown): boolean {
   return /no such (object|container)/i.test(String(error));
 }
 
+/** True when docker failed because its daemon is not reachable (down, or not permitted), not because an object is missing. */
+export function isDaemonDown(error: unknown): boolean {
+  return /cannot connect to the docker daemon|is the docker daemon running|permission denied.*docker daemon|no such file or directory.*docker\.sock/i.test(
+    String(error),
+  );
+}
+
+export type RemovalResult = {
+  removed: string[];
+  failed: { id: string; error: unknown }[];
+};
+
+/** Removes each id in turn, keeping going past failures so one stuck object never hides the rest. */
+export async function removeEach(
+  ids: string[],
+  remove: (id: string) => Promise<unknown>,
+): Promise<RemovalResult> {
+  const removed: string[] = [];
+  const failed: { id: string; error: unknown }[] = [];
+  for (const id of ids) {
+    try {
+      await remove(id);
+      removed.push(id);
+    } catch (error) {
+      failed.push({ id, error });
+    }
+  }
+  return { removed, failed };
+}
+
 /** Non-empty output lines. */
 export function lines(output: string): string[] {
   return output.split("\n").map((line) => line.trim()).filter(Boolean);
