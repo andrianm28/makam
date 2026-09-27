@@ -244,6 +244,10 @@ One mapping in `StatusBadge` (`statusVocabulary`, checked by `src/components/mak
 | `belum_dibayar` | Belum Dibayar | warning | Waiting for payment |
 | `diajukan` | Diajukan | info | Waiting on someone else |
 | `dikonfirmasi` | Dikonfirmasi | success | Accepted, going ahead |
+| `dimakamkan` | Dimakamkan | success | The burial is done |
+| `selesai` | Selesai | success | Nothing left to do |
+| `ditolak` | Ditolak | warning | The Lokasi Mitra declined; another is needed |
+| `dibatalkan` | Dibatalkan | neutral | Ended before it happened, by the family or CS |
 
 New statuses join this table (and the component) before they appear on a screen. Danger is kept for "past a deadline"; don't use red for ordinary negative states.
 

@@ -1,0 +1,16 @@
+# The production deploy timer. Installed but NOT enabled by
+# deploy/install-host.sh: the owner turns it on when production should follow
+# ghcr :latest on its own (ticket 65). Every tick deploys only a digest signed
+# with the production key, and a tick during a deploy just exits.
+[Unit]
+Description=Deploy makam-prod from ghcr every 2 minutes
+Requires=makam-prod-deploy.service
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Unit=makam-prod-deploy.service
+
+[Install]
+WantedBy=timers.target

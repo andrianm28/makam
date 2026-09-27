@@ -1,5 +1,5 @@
 {
-  "id": "eac8bd5b-5de5-4ad7-9540-3e6455577659",
+  "id": "5b969753-ba61-4159-be07-0f69e958995f",
   "prevId": "8d5a5874-a012-4b99-9f06-045af7b65e5c",
   "version": "7",
   "dialect": "postgresql",
@@ -2774,440 +2774,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.layanan_layanan": {
-      "name": "layanan_layanan",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bukti": {
-          "name": "bukti",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lead_time_days": {
-          "name": "lead_time_days",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "bisa_hari_h": {
-          "name": "bisa_hari_h",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ada_di_petak_kosong": {
-          "name": "ada_di_petak_kosong",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "teks_label": {
-          "name": "teks_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_account_id": {
-          "name": "created_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "layanan_layanan_name_idx": {
-          "name": "layanan_layanan_name_idx",
-          "columns": [
-            {
-              "expression": "name_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "layanan_layanan_lead_time_check": {
-          "name": "layanan_layanan_lead_time_check",
-          "value": "\"layanan_layanan\".\"lead_time_days\" between 0 and 365"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.layanan_paket": {
-      "name": "layanan_paket",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "frekuensi": {
-          "name": "frekuensi",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_account_id": {
-          "name": "created_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.layanan_paket_item": {
-      "name": "layanan_paket_item",
-      "schema": "",
-      "columns": {
-        "paket_id": {
-          "name": "paket_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "posisi": {
-          "name": "posisi",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "layanan_paket_item_paket_idx": {
-          "name": "layanan_paket_item_paket_idx",
-          "columns": [
-            {
-              "expression": "paket_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "posisi",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "layanan_paket_item_paket_id_layanan_paket_id_fk": {
-          "name": "layanan_paket_item_paket_id_layanan_paket_id_fk",
-          "tableFrom": "layanan_paket_item",
-          "tableTo": "layanan_paket",
-          "columnsFrom": [
-            "paket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "layanan_paket_item_layanan_variant_id_layanan_varian_id_fk": {
-          "name": "layanan_paket_item_layanan_variant_id_layanan_varian_id_fk",
-          "tableFrom": "layanan_paket_item",
-          "tableTo": "layanan_varian",
-          "columnsFrom": [
-            "layanan_variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.layanan_penawaran": {
-      "name": "layanan_penawaran",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_account_id": {
-          "name": "created_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stopped_at": {
-          "name": "stopped_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stopped_by_account_id": {
-          "name": "stopped_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "layanan_penawaran_lokasi_varian_idx": {
-          "name": "layanan_penawaran_lokasi_varian_idx",
-          "columns": [
-            {
-              "expression": "lokasi_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "layanan_variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "layanan_penawaran_layanan_variant_id_layanan_varian_id_fk": {
-          "name": "layanan_penawaran_layanan_variant_id_layanan_varian_id_fk",
-          "tableFrom": "layanan_penawaran",
-          "tableTo": "layanan_varian",
-          "columnsFrom": [
-            "layanan_variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.layanan_varian": {
-      "name": "layanan_varian",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "layanan_id": {
-          "name": "layanan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "boleh_di_tpu": {
-          "name": "boleh_di_tpu",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_account_id": {
-          "name": "created_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "layanan_varian_layanan_name_idx": {
-          "name": "layanan_varian_layanan_name_idx",
-          "columns": [
-            {
-              "expression": "layanan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "layanan_varian_layanan_id_layanan_layanan_id_fk": {
-          "name": "layanan_varian_layanan_id_layanan_layanan_id_fk",
-          "tableFrom": "layanan_varian",
-          "tableTo": "layanan_layanan",
-          "columnsFrom": [
-            "layanan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.lokasi_hari_libur_nasional": {
       "name": "lokasi_hari_libur_nasional",
       "schema": "",
@@ -3992,6 +3558,192 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.pemesanan_makam": {
+      "name": "pemesanan_makam",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nomor": {
+          "name": "nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_name": {
+          "name": "lokasi_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_makam_id": {
+          "name": "jenis_makam_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "jenis_makam_name": {
+          "name": "jenis_makam_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemesan_account_id": {
+          "name": "pemesan_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemesan_name": {
+          "name": "pemesan_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "almarhum_name": {
+          "name": "almarhum_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal_wafat": {
+          "name": "tanggal_wafat",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rencana_pemakaman_at": {
+          "name": "rencana_pemakaman_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keinginan_penempatan": {
+          "name": "keinginan_penempatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemegang_hak": {
+          "name": "pemegang_hak",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "konfirmasi_due_at": {
+          "name": "konfirmasi_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tagihan_id": {
+          "name": "tagihan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diajukan_at": {
+          "name": "diajukan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pemesanan_makam_nomor_idx": {
+          "name": "pemesanan_makam_nomor_idx",
+          "columns": [
+            {
+              "expression": "nomor",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_makam_pemesan_idx": {
+          "name": "pemesanan_makam_pemesan_idx",
+          "columns": [
+            {
+              "expression": "pemesan_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_makam_lokasi_idx": {
+          "name": "pemesanan_makam_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.antrean_ambil": {
       "name": "antrean_ambil",
       "schema": "",
@@ -4587,303 +4339,6 @@
         "tariff_jenis_makam_version_tenure_check": {
           "name": "tariff_jenis_makam_version_tenure_check",
           "value": "\"tariff_jenis_makam_version\".\"tenure_years\" is null or (\"tariff_jenis_makam_version\".\"tenure_years\" >= 1 and \"tariff_jenis_makam_version\".\"harga_perpanjangan\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.tariff_layanan_dki_version": {
-      "name": "tariff_layanan_dki_version",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "seq": {
-          "name": "seq",
-          "type": "bigserial",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_on": {
-          "name": "effective_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "in_force_from": {
-          "name": "in_force_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_at": {
-          "name": "entered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_by_account_id": {
-          "name": "entered_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "tariff_layanan_dki_version_idx": {
-          "name": "tariff_layanan_dki_version_idx",
-          "columns": [
-            {
-              "expression": "layanan_variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "in_force_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "seq",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "tariff_layanan_dki_version_amount_check": {
-          "name": "tariff_layanan_dki_version_amount_check",
-          "value": "\"tariff_layanan_dki_version\".\"amount\" between 0 and 100000000000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.tariff_layanan_version": {
-      "name": "tariff_layanan_version",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "seq": {
-          "name": "seq",
-          "type": "bigserial",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_on": {
-          "name": "effective_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "in_force_from": {
-          "name": "in_force_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_at": {
-          "name": "entered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_by_account_id": {
-          "name": "entered_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "tariff_layanan_version_idx": {
-          "name": "tariff_layanan_version_idx",
-          "columns": [
-            {
-              "expression": "lokasi_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "layanan_variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "in_force_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "seq",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "tariff_layanan_version_amount_check": {
-          "name": "tariff_layanan_version_amount_check",
-          "value": "\"tariff_layanan_version\".\"amount\" between 0 and 100000000000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.tariff_mitra_jasa_version": {
-      "name": "tariff_mitra_jasa_version",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "seq": {
-          "name": "seq",
-          "type": "bigserial",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_on": {
-          "name": "effective_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "in_force_from": {
-          "name": "in_force_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_at": {
-          "name": "entered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entered_by_account_id": {
-          "name": "entered_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "tariff_mitra_jasa_version_idx": {
-          "name": "tariff_mitra_jasa_version_idx",
-          "columns": [
-            {
-              "expression": "layanan_variant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "in_force_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "seq",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "tariff_mitra_jasa_version_amount_check": {
-          "name": "tariff_mitra_jasa_version_amount_check",
-          "value": "\"tariff_mitra_jasa_version\".\"amount\" between 0 and 100000000000"
         }
       },
       "isRLSEnabled": false

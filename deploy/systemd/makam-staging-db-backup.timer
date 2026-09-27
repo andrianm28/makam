@@ -1,0 +1,12 @@
+# Runs makam-backup-db nightly at 02:15 WIB, before the FileStore tar (03:15)
+# and the health checks, and clear of the nightly deploy window.
+[Unit]
+Description=Nightly makam-staging database backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

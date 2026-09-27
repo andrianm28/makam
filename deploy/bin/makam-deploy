@@ -5,41 +5,73 @@
 # ghcr read:packages login), or by hand for a rollback. No inbound SSH key and
 # no GitHub secret: the host polls ghcr for the image CI pushed from `main`.
 #
-#   makam-deploy --env staging                  follow :latest (what the timer runs)
-#   makam-deploy --env staging --tag sha-<git>  deploy / roll back to an exact tag
-#   makam-deploy --env staging --tag X --local  use a local image, no pull (tests)
-#   makam-deploy --env staging --force          redeploy even if already current
+#   makam-deploy --env staging                     follow ghcr :latest and deploy that digest
+#   makam-deploy --env staging --tag sha-<git>     deploy / roll back to an exact tag
+#   makam-deploy --env staging --digest sha256:... deploy an exact digest (a promotion)
+#   makam-deploy --env staging --tag X --local     a local image, no pull and no signature (tests)
+#   makam-deploy --env staging --force             redeploy even if already current
 #
 # Order, and what a failure leaves running:
 #   1. pull the image           fails -> nothing touched
-#   2. run --rm migrate         fails -> nothing restarted; old web/worker keep running
-#   3. up -d --wait             fails -> exit 1; roll back with --tag <previous>
-#   4. /api/health must be 200  fails -> exit 2 (deployed, but unhealthy)
+#   2. verify the signature     unsigned or wrongly signed -> nothing touched
+#   3. pg_dump (prod only)      fails -> nothing touched
+#   4. run --rm migrate         fails -> nothing restarted; old web/worker keep running
+#   5. up -d --wait             fails -> automatic roll back to the previous digest
+#   6. /api/health must be 200  fails -> automatic roll back to the previous digest
+#   7. create the GlitchTip release for the commit (best effort, never fatal)
+#
+# A mutable tag is only a pointer: whatever it names is resolved to a digest, the
+# digest's cosign signature is checked against this environment's public key, and
+# the digest is what runs. Staging and production have separate keys, so neither
+# host accepts the other's images. The database is never rolled back: migrations
+# are forward-only, so rolling the image back only works while the previous
+# image still tolerates the new schema.
+#
+# Exit codes:
+#   0   deployed and healthy, or already on that digest
+#   1   pull, snapshot, migrate or up failed, or the health check never came
+#       back and the roll back to the previous digest worked
+#   2   the roll back to the previous digest failed as well: the new, unhealthy
+#       image is what is still running, which is the one state needing a human
+#   64  usage
+#   77  the image is unsigned or signed with another key (nothing was touched)
+#   78  the host or the env file is not set up for a deploy
 #
 # Refuses to run (exit 78) unless <env>.env names MAKAM_PROJECT=makam-<env> and
-# the matching MAKAM_APP_ENV (staging / production), and refuses any image
-# other than ghcr.io/andrianm28/makam. Pruning only ever untags that
-# repository's sha-<40 hex> tags.
+# the matching MAKAM_APP_ENV (staging / production), and refuses any image other
+# than ghcr.io/andrianm28/makam. Pruning only ever untags that repository's
+# sha-<40 hex> tags.
 #
 # Files under $MAKAM_ROOT/<env>/ (see docs/ops/runbook.md):
 #   compose.yml     copy of docker-compose.prod.yml (installed by deploy/install-host.sh)
 #   <env>.env       secrets + settings, mode 0600, never in the repo
-#   deployed.env    MAKAM_TAG / MAKAM_RELEASE of the running release (written after success)
+#   cosign.pub      this environment's cosign public key (installed by deploy/install-host.sh)
+#   deployed.env    MAKAM_TAG / MAKAM_DIGEST / MAKAM_DEPLOY_REF / MAKAM_RELEASE of the running release
 #   deploy.log      one line per step
+#   backups/db/     pg_dump snapshots, production only
 set -euo pipefail
 
 MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
 ENV_NAME=""
 TAG=""
+DIGEST=""
 LOCAL=0
 FORCE=0
+VERIFY_IMAGE="$MAKAM_ROOT/bin/makam-verify-image"
+STATUS_SCRIPT="$MAKAM_ROOT/bin/makam-deploy-status"
+RELEASE_SCRIPT="$MAKAM_ROOT/bin/makam-glitchtip-release"
+# How long /api/health has to answer 200 after `up`, in seconds. 180 on a host:
+# the worker's first heartbeat on an empty database takes about 90 s.
+HEALTH_WAIT=${MAKAM_HEALTH_WAIT:-180}
+HEALTH_INTERVAL=${MAKAM_HEALTH_INTERVAL:-5}
 
-usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --env) ENV_NAME=${2:?}; shift 2 ;;
     --tag) TAG=${2:?}; shift 2 ;;
+    --digest) DIGEST=${2:?}; shift 2 ;;
     --local) LOCAL=1; shift ;;
     --force) FORCE=1; shift ;;
     -h|--help) usage 0 ;;
@@ -51,6 +83,8 @@ case "$ENV_NAME" in
   prod) APP_ENV_EXPECTED=production ;;
   *) echo "--env must be staging or prod" >&2; exit 64 ;;
 esac
+[ -n "$TAG" ] && [ -n "$DIGEST" ] && { echo "use --tag or --digest, not both" >&2; exit 64; }
+true
 
 # The only image this script deploys or prunes.
 ALLOWED_IMAGE=ghcr.io/andrianm28/makam
@@ -98,70 +132,172 @@ compose() {
   docker compose -p "$PROJECT" -f "$DIR/compose.yml" --env-file "$ENV_FILE" --env-file "$DEPLOYED_FILE" "$@"
 }
 current_tag() { sed -n 's/^MAKAM_TAG=//p' "$DEPLOYED_FILE" | tail -n 1; }
+current_digest() { sed -n 's/^MAKAM_DIGEST=//p' "$DEPLOYED_FILE" | tail -n 1; }
 revision_of() { docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1" 2>/dev/null || true; }
-
-pull() {
-  docker pull -q "$IMAGE:$1" > /dev/null || { log "ERROR pull $IMAGE:$1 failed; nothing changed"; exit 1; }
+digest_of() { docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$1" 2>/dev/null | head -n 1 | sed -n 's/.*@//p'; }
+record_release() {
+  printf 'MAKAM_TAG=%s\nMAKAM_DIGEST=%s\nMAKAM_DEPLOY_REF=:%s@%s\nMAKAM_RELEASE=%s\nPREVIOUS_TAG=%s\nDEPLOYED_AT=%s\n' \
+    "$1" "$2" "$1" "$2" "${REV:-$1}" "$PREVIOUS" "$(date -Is)" > "$DEPLOYED_FILE"
 }
-
-# 1. Resolve and pull the target image.
-if [ -z "$TAG" ]; then
-  pull latest
-  REV=$(revision_of "$IMAGE:latest")
-  [ -n "$REV" ] || { log "ERROR $IMAGE:latest has no revision label"; exit 1; }
-  TAG="sha-$REV"
-  # CI pushes sha-<commit> alongside latest; deploy the immutable tag.
-  pull "$TAG"
-  if [ "$(docker image inspect -f '{{.Id}}' "$IMAGE:latest")" != "$(docker image inspect -f '{{.Id}}' "$IMAGE:$TAG")" ]; then
-    log "ERROR $IMAGE:latest and :$TAG differ; nothing changed"
-    exit 1
-  fi
-elif [ "$LOCAL" = 1 ]; then
-  docker image inspect "$IMAGE:$TAG" > /dev/null 2>&1 || { log "ERROR local image $IMAGE:$TAG not found"; exit 1; }
-else
-  pull "$TAG"
-fi
-REV=$(revision_of "$IMAGE:$TAG")
-PREVIOUS=$(current_tag)
+pull() { docker pull -q "$1" > /dev/null || { log "ERROR pull $1 failed; nothing changed"; exit 1; }; }
 
 running() { [ -n "$(compose ps --status running -q "$1" 2>/dev/null)" ]; }
-if [ "$FORCE" = 0 ] && [ "$TAG" = "$PREVIOUS" ] && running web && running worker; then
-  echo "$PROJECT already on $TAG"
+
+# GitHub Deployment + status, so the deploy is visible in the repository. Best
+# effort: a missing token or a GitHub outage must never fail a deploy.
+status() {
+  [ -x "$STATUS_SCRIPT" ] || return 0
+  "$STATUS_SCRIPT" --env "$ENV_NAME" "$@" >> "$LOG" 2>&1 || true
+}
+
+# 7. The GlitchTip release for the commit that is now running, so its first
+# error event has a release (and the source maps ci.yml uploaded for that commit)
+# to point at. Best effort like `status`: reporting never fails a deploy.
+release() {
+  [ -x "$RELEASE_SCRIPT" ] || return 0
+  [ -n "${REV:-}" ] || return 0
+  "$RELEASE_SCRIPT" --env "$ENV_NAME" --release "$REV" >> "$LOG" 2>&1 || true
+}
+
+# Put the previous digest back after a failed `up` or health check. The
+# migrations stay: they are forward-only, so this only works while the previous
+# image tolerates the new schema (runbook, "Forward-only migrations").
+roll_back() {
+  if [ -z "${PREVIOUS_DIGEST:-}" ]; then
+    log "ERROR no previous digest recorded, nothing to roll back to; $TAG is running and unhealthy"
+    return 1
+  fi
+  export MAKAM_TAG="$PREVIOUS" MAKAM_DIGEST="$PREVIOUS_DIGEST" \
+    MAKAM_DEPLOY_REF=":$PREVIOUS@$PREVIOUS_DIGEST" MAKAM_RELEASE="$PREVIOUS"
+  if ! docker pull -q "$IMAGE@$PREVIOUS_DIGEST" > /dev/null 2>&1 \
+    || ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
+    log "ERROR roll back to $PREVIOUS_DIGEST failed; $TAG ($DIGEST) is still running"
+    return 1
+  fi
+  # deployed.env must keep describing what is running, not what was tried.
+  printf '%s' "$PREVIOUS_RECORD" > "$DEPLOYED_FILE"
+  log "rolled back to $PREVIOUS ($PREVIOUS_DIGEST)"
+}
+
+# Keep the five newest sha-<commit> tags of the allowed image (the running one,
+# the previous one and three more); only untags, never another repository.
+prune() {
+  { docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}}' \
+    | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 }' \
+    | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
+    | tail -n +4 | while read -r old; do docker image rm "$ALLOWED_IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
+}
+
+# Production only: a snapshot before the migration, so a bad migration has
+# something to compare against. Never restored automatically (runbook,
+# "Production (ticket 65)").
+snapshot() {
+  local dir="$DIR/backups/db" file
+  mkdir -p "$dir"
+  chmod 0700 "$dir"
+  file="$dir/makam-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  if ! compose exec -T postgres pg_dump -U makam -d makam -Fc > "$file" 2>> "$LOG"; then
+    log "ERROR pg_dump failed; refusing to migrate production"
+    rm -f "$file"
+    exit 1
+  fi
+  chmod 0600 "$file"
+  find "$dir" -name 'makam-*.dump' -type f | sort | head -n -7 | xargs -r rm -f
+  log "snapshot $file"
+}
+
+# 1. Resolve the target to a digest. A tag is only ever a pointer to one.
+if [ -n "$DIGEST" ]; then
+  pull "$IMAGE@$DIGEST"
+  REV=$(revision_of "$IMAGE@$DIGEST")
+  TAG="sha-${REV:-unknown}"
+elif [ -n "$TAG" ]; then
+  if [ "$LOCAL" = 1 ]; then
+    docker image inspect "$IMAGE:$TAG" > /dev/null 2>&1 || { log "ERROR local image $IMAGE:$TAG not found"; exit 1; }
+  else
+    pull "$IMAGE:$TAG"
+  fi
+  DIGEST=$(digest_of "$IMAGE:$TAG")
+  [ -n "$DIGEST" ] || { log "ERROR $IMAGE:$TAG has no digest; refusing to deploy a tag with no digest"; exit 1; }
+  REV=$(revision_of "$IMAGE:$TAG")
+else
+  # The timer: ghcr :latest moves only after a `main` run passed every gate and
+  # CI signed the image, so following it means following the newest signed digest.
+  pull "$IMAGE:latest"
+  DIGEST=$(digest_of "$IMAGE:latest")
+  [ -n "$DIGEST" ] || { log "ERROR $IMAGE:latest has no digest; nothing changed"; exit 1; }
+  REV=$(revision_of "$IMAGE:latest")
+  TAG="sha-${REV:-unknown}"
+fi
+
+PREVIOUS=$(current_tag)
+PREVIOUS_DIGEST=$(current_digest)
+# What deployed.env said before this run, so a roll back can put it back.
+PREVIOUS_RECORD=$(cat "$DEPLOYED_FILE")
+
+# 2. The signature. An unsigned or wrongly signed image never reaches `migrate`
+#    and is never pulled into a running state.
+if [ "$LOCAL" = 1 ]; then
+  [ "$ENV_NAME" = prod ] && refuse "--local is not allowed for production"
+  log "WARNING signature NOT verified (--local, tests only)"
+else
+  verify_status=0
+  "$VERIFY_IMAGE" --env "$ENV_NAME" --image "$IMAGE" --digest "$DIGEST" >> "$LOG" 2>&1 || verify_status=$?
+  if [ "$verify_status" -ne 0 ]; then
+    log "ERROR refusing $IMAGE@$DIGEST: signature check exited $verify_status; nothing changed"
+    status state failure "$TAG is unsigned or signed with another key; not deployed"
+    exit 77
+  fi
+  log "signature ok for $DIGEST"
+fi
+
+if [ "$FORCE" = 0 ] && [ "$DIGEST" = "$PREVIOUS_DIGEST" ] && running web && running worker; then
+  echo "$PROJECT already on $TAG ($DIGEST)"
   exit 0
 fi
 
-log "deploy $IMAGE:$TAG (revision ${REV:-unknown}); running: ${PREVIOUS:-none}"
-export MAKAM_TAG="$TAG" MAKAM_RELEASE="${REV:-$TAG}"
+log "deploy $IMAGE@$DIGEST ($TAG, revision ${REV:-unknown}); running: ${PREVIOUS:-(none)} ${PREVIOUS_DIGEST:-(none)}"
+status begin --digest "$DIGEST" --tag "$TAG" --description "Deploy $TAG to $PROJECT"
+status state in_progress "migrate and restart $PROJECT on $TAG"
+export MAKAM_TAG="$TAG" MAKAM_DIGEST="$DIGEST" MAKAM_DEPLOY_REF=":$TAG@$DIGEST" MAKAM_RELEASE="${REV:-$TAG}"
 
-# 2. Migrate with the new image. web/worker are not touched unless this succeeds.
+# 3. A production snapshot, before the migration.
+[ "$ENV_NAME" = prod ] && snapshot
+
+# 4. Migrate with the new image. web/worker are not touched unless this succeeds.
 if ! compose run --rm --quiet-pull migrate >> "$LOG" 2>&1; then
-  log "ERROR migrate failed for $TAG; web/worker left running ${PREVIOUS:-(none)}; see $LOG"
+  log "ERROR migrate failed for $TAG; web/worker left running ${PREVIOUS:-(none)}; nothing restarted"
+  status state failure "migrate failed on $TAG; ${PREVIOUS:-(nothing)} still running"
   exit 1
 fi
 log "migrate ok"
 
-# 3. Restart web and worker on the new image.
+# 5. Restart web and worker on the verified digest.
 if ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
-  log "ERROR up failed for $TAG; roll back with: makam-deploy --env $ENV_NAME --tag ${PREVIOUS:-<previous>}"
+  log "ERROR up failed for $TAG; rolling back to ${PREVIOUS:-(none)}"
+  status state failure "up failed on $TAG; rolling back to ${PREVIOUS:-(none)}"
+  roll_back || exit 2
   exit 1
 fi
-printf 'MAKAM_TAG=%s\nMAKAM_RELEASE=%s\nPREVIOUS_TAG=%s\nDEPLOYED_AT=%s\n' \
-  "$TAG" "${REV:-$TAG}" "$PREVIOUS" "$(date -Is)" > "$DEPLOYED_FILE"
-log "web and worker up on $TAG"
+record_release "$TAG" "$DIGEST"
+log "web and worker up on $TAG ($DIGEST)"
 
-# 4. Health: DB reachable and a fresh worker heartbeat (first beat takes ~90 s).
-for _ in $(seq 1 36); do
+# 6. Health: DB reachable and a fresh worker heartbeat.
+deadline=$(( $(date +%s) + HEALTH_WAIT ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
   if curl -fs -m 5 -o /dev/null "http://127.0.0.1:$WEB_PORT/api/health"; then
-    log "healthy on $TAG"
-    # Keep the five newest sha-<commit> tags of the allowed image (the running
-    # one, the previous one and three more); only untags, never another repository.
-    { docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}}' \
-      | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 }' \
-      | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
-      | tail -n +4 | while read -r old; do docker image rm "$ALLOWED_IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
+    log "healthy on $TAG ($DIGEST)"
+    status state success "$TAG ($DIGEST) healthy"
+    release
+    prune
     exit 0
   fi
-  sleep 5
+  sleep "$HEALTH_INTERVAL"
 done
-log "ERROR $TAG deployed but /api/health is not 200 after 180 s; roll back with: makam-deploy --env $ENV_NAME --tag ${PREVIOUS:-<previous>}"
-exit 2
+log "ERROR $TAG deployed but /api/health is not 200 after ${HEALTH_WAIT}s; rolling back to ${PREVIOUS:-(none)}"
+status state failure "$TAG ($DIGEST) never became healthy; rolling back to ${PREVIOUS:-(none)}"
+# Exit 1: the deploy failed and the previous digest is running again. Exit 2 is
+# reserved for a roll back that failed as well, so a timer or a monitor can tell
+# "recovered on its own" from "something is still broken".
+roll_back || exit 2
+exit 1

@@ -29,8 +29,10 @@ interface Statement {
 /** The destructive statements in a migration file that carry no `-- contract: <reason>` marker. */
 export function unmarkedDestructiveStatements(migration: string): DestructiveStatement[] {
   const found: DestructiveStatement[] = [];
-  for (const statement of splitStatements(migration)) {
-    const reason = destructiveReason(statement.code);
+  const statements = splitStatements(migration);
+  const created = createdTables(statements.map((statement) => statement.text));
+  for (const statement of statements) {
+    const reason = destructiveReason(statement.code, statement.text, created);
     if (!reason || hasContractMarker(statement.text)) continue;
     const firstCode = statement.code.search(/\S/);
     const lineStart = migration.lastIndexOf("\n", statement.start + firstCode - 1) + 1;
@@ -46,21 +48,97 @@ export function unmarkedDestructiveStatements(migration: string): DestructiveSta
 
 const IDENT = String.raw`(?:"\s*"|\w+)`; // identifiers are blanked to "  "
 
+/** `public."tagihan"` and `"tagihan"` both mean the table `tagihan`. */
+function tableKey(name: string): string {
+  return name
+    .split(".")
+    .pop()!
+    .replace(/^"(.*)"$/, "$1")
+    .toLowerCase();
+}
+
+const TABLE_NAME = String.raw`((?:"[^"]+"|\w+)(?:\s*\.\s*(?:"[^"]+"|\w+))?)`;
+
+/**
+ * Tables a migration file creates (`CREATE TABLE`), from the raw texts (quoted
+ * identifiers intact). A new constraint on one of them is expand: nothing runs
+ * against that table yet.
+ */
+function createdTables(texts: string[]): Set<string> {
+  const created = new Set<string>();
+  const pattern = new RegExp(String.raw`^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+|UNLOGGED\s+|GLOBAL\s+|LOCAL\s+)*TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${TABLE_NAME}`, "im");
+  for (const text of texts) {
+    for (const line of text.split("\n")) {
+      if (/^\s*--/.test(line)) continue;
+      const match = pattern.exec(line);
+      if (match) created.add(tableKey(match[1]));
+    }
+  }
+  return created;
+}
+
+/** The existing table a new constraint lands on: `ALTER TABLE x ...` or `CREATE [UNIQUE] INDEX ... ON x`. */
+function constraintTable(text: string): string {
+  const pattern = new RegExp(
+    String.raw`(?:ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+|ONLY\s+)?${TABLE_NAME}|CREATE\s+(?:UNIQUE\s+)?INDEX\b.*?\bON\s+(?:ONLY\s+)?${TABLE_NAME})`,
+    "i",
+  );
+  const match = pattern.exec(text);
+  return match ? tableKey(match[1] ?? match[2]) : "";
+}
 /** Why a statement (comments, strings and quoted identifiers blanked) is destructive, if it is. */
-function destructiveReason(code: string): string | undefined {
+function destructiveReason(code: string, text: string, created: Set<string>): string | undefined {
   // DROP NOT NULL only relaxes a column: that is expand.
   if (/\bDROP\b(?!\s+NOT\s+NULL\b)/i.test(code)) return "DROP";
   if (/\bRENAME\b/i.test(code)) return "RENAME";
+  if (/\bTRUNCATE\b/i.test(code)) return "TRUNCATE";
   if (/\bSET\s+NOT\s+NULL\b/i.test(code)) return "SET NOT NULL";
   if (new RegExp(String.raw`\bALTER\s+COLUMN\s+${IDENT}\s+(SET\s+DATA\s+)?TYPE\b`, "i").test(code)) return "type change";
+  // A new constraint on an existing table breaks the running release's writes
+  // (its rows may violate it): that is a contract step. A constraint on a
+  // table this same migration creates is expand (nothing runs against it yet).
+  const addedConstraint =
+    /^\s*CREATE\s+UNIQUE\s+INDEX\b/i.test(code) ||
+    /\bADD\s+(?:CONSTRAINT\b.*?)?(UNIQUE|PRIMARY\s+KEY|FOREIGN\s+KEY|REFERENCES|CHECK)\b/i.test(code);
+  if (addedConstraint && !created.has(constraintTable(text))) {
+    const kind = (code.match(/\bADD\s+(?:CONSTRAINT\b.*?)?(UNIQUE|PRIMARY\s+KEY|FOREIGN\s+KEY|REFERENCES|CHECK)\b/i)?.[1] ?? "UNIQUE")
+      .toUpperCase()
+      .replace(/\s+/g, " ");
+    if (kind === "FOREIGN KEY" || kind === "REFERENCES") return "new FOREIGN KEY constraint";
+    if (kind === "CHECK") return "new CHECK constraint";
+    return "new UNIQUE constraint";
+  }
   for (const added of code.matchAll(/\bADD\s+COLUMN\b([^,;]*)/gi)) {
     if (/\bNOT\s+NULL\b/i.test(added[1]) && !/\bDEFAULT\b/i.test(added[1])) return "NOT NULL column without a default";
   }
   return undefined;
 }
 
+/** A drizzle statement separator: neither code nor a comment, just a boundary. */
+function isBreakpoint(line: string): boolean {
+  return /^\s*-->\s*statement-breakpoint\s*$/.test(line);
+}
+
+function isComment(line: string): boolean {
+  return /^\s*--/.test(line);
+}
+
+/**
+ * Whether the statement carries a `-- contract: <reason>` marker on the
+ * line(s) directly above it: the contiguous `--` comment lines just before the
+ * statement's first code line. A marker above a blank line, a
+ * `--> statement-breakpoint` line or another statement does not count.
+ */
 function hasContractMarker(text: string): boolean {
-  return /--[ \t]*contract:[ \t]*\S/i.test(text);
+  const lines = text.split("\n");
+  const firstCode = lines.findIndex((line) => line.trim() !== "" && !isComment(line) && !isBreakpoint(line));
+  const header = firstCode === -1 ? lines : lines.slice(0, firstCode);
+  const directlyAbove: string[] = [];
+  for (let i = header.length - 1; i >= 0; i -= 1) {
+    if (!isComment(header[i])) break;
+    directlyAbove.unshift(header[i]);
+  }
+  return directlyAbove.some((line) => /--[ \t]*contract:[ \t]*\S/i.test(line));
 }
 
 /**

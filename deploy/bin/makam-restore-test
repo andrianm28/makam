@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# makam-restore-test: restores the newest Dump of an environment into a
+# throwaway Postgres and checks it (ADR 0002, beta UAT amendment), run weekly by
+# makam-<env>-restore-test.timer and by hand. A backup nobody has ever restored
+# is a hope, not a backup.
+#
+# The throwaway Postgres is named makam-restoretest-<env>-<UTC timestamp>,
+# carries the label makam.role=restore-test, gets no network at all, and mounts
+# nothing of the environment's: no port, no host directory, no makam volume (the
+# image brings its own anonymous volume for the data, under Docker's directory).
+# It is removed again whether the check passed or failed (--keep leaves it for
+# inspection). Nothing of the environment it restores is touched: the Dump is
+# read, the running database is not, and this script needs no connection to it.
+#
+# The check is a comparison, not a hope: each night's Dump comes with the row
+# counts of the night it was taken (makam-<timestamp>.counts.enc), so every
+# table of that night must be in the restore, with at least as many rows. A
+# restore that is short of a row, or missing a table, fails the check and is
+# logged at err priority.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+LOG_TAG=makam-restore-test
+KEEP=0
+DUMP_OVERRIDE=""
+
+# shellcheck source=deploy/bin/makam-backup-lib
+. "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
+
+usage() {
+  cat <<'USAGE'
+usage: makam-restore-test --env staging|prod [--dump <file>] [--keep]
+
+  --env   the environment whose newest Dump is restored (staging, prod)
+  --dump  a specific Dump, instead of the newest one
+  --keep  leave the throwaway container behind, to look at after a failure
+  -h, --help  this text
+
+The description above, and what the check compares, are in the comment at the
+top of this script; docs/ops/runbook.md has "Database backup and restore".
+USAGE
+  exit "${1:-0}"
+}
+
+ENV_NAME=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --dump) DUMP_OVERRIDE=${2:?}; shift 2 ;;
+    --keep) KEEP=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+# `prod` is ticket 65's: no makam-prod-* unit is installed yet, and the runbook
+# says so. The value is here because that environment will run the same script.
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+BACKUPS="$MAKAM_ROOT/$ENV_NAME/backups/db"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+NAME="makam-restoretest-$ENV_NAME-$STAMP"
+
+read_passphrase "$MAKAM_ROOT/$ENV_NAME/backup-passphrase" "the Dump cannot be decrypted without it"
+export BACKUP_PASSPHRASE="$PASSPHRASE"
+
+# The newest Dump is the one with the last timestamp in its name, which is also
+# the order `ls` gives them in.
+if [ -n "$DUMP_OVERRIDE" ]; then
+  DUMP=$DUMP_OVERRIDE
+  [ -r "$DUMP" ] || refuse "no such dump: $DUMP"
+else
+  DUMP=$(find "$BACKUPS" -maxdepth 1 -name 'makam-*.dump.enc' | sort | tail -n 1)
+  [ -n "$DUMP" ] || refuse "no Dump in $BACKUPS; run makam-backup-db --env $ENV_NAME first"
+fi
+# The counts of the same night: without them there is nothing to check against.
+COUNTS="${DUMP%.dump.enc}.counts.enc"
+[ -r "$COUNTS" ] || refuse "no row counts beside $DUMP ($COUNTS); a Dump that cannot be checked is not one to restore"
+
+# A restored database is a whole second copy of the Dump, and it lands in the
+# container's writable layer: under Docker's own directory, not under
+# $MAKAM_ROOT, so that is the filesystem whose free space is checked.
+DUMP_BYTES=$(stat -c %s "$DUMP")
+DATA_DIR=$(docker_data_dir)
+[ -n "$DATA_DIR" ] || refuse "could not read Docker's data directory; no restore started"
+require_free_space "$DATA_DIR" $((DUMP_BYTES * 2)) "the restore of $(basename "$DUMP")"
+
+started=$(date +%s)
+container_up=0
+cleanup() {
+  local code=$?
+  if [ "$container_up" = 1 ]; then
+    if [ "$KEEP" = 1 ]; then
+      echo "left $NAME in place for inspection (docker rm -f $NAME when done)" >&2
+    else
+      if [ "$code" != 0 ]; then
+        docker logs --tail 20 "$NAME" >&2 2>&1 || true
+      fi
+      docker rm -f "$NAME" > /dev/null 2>&1 || true
+    fi
+  fi
+}
+trap cleanup EXIT
+
+# No network, nothing of the environment mounted in, no restart policy: the
+# restored data has nowhere to go but this container, and nothing on the host can
+# reach it. A check run from a builder worktree also labels the container as that
+# worktree's, so `npm run clean` can reach it if a test run dies
+# (tests/tooling/db-backup.test.ts).
+label_args=(--label makam.role=restore-test)
+if [ -n "${MAKAM_WORKTREE:-}" ]; then
+  label_args+=(--label "makam.worktree=$MAKAM_WORKTREE")
+fi
+docker run -d --name "$NAME" \
+  "${label_args[@]}" \
+  --network none \
+  --restart no --memory 1g --cpus 1 --shm-size 256m \
+  -e POSTGRES_HOST_AUTH_METHOD=trust \
+  "$PG_IMAGE" > /dev/null
+container_up=1
+
+# Over TCP on 127.0.0.1 inside the container, never over the socket: the image
+# runs a temporary server while it initialises, and that one listens on the
+# socket alone. `docker exec` needs no network to reach it.
+for _ in $(seq 1 120); do
+  if docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1 \
+  || { err "ERROR $NAME never became ready"; exit 1; }
+
+if ! openssl enc -d "${CIPHER_ARGS[@]}" -in "$DUMP" -pass env:BACKUP_PASSPHRASE \
+  | docker exec -i "$NAME" pg_restore -U postgres -d postgres --no-owner --no-privileges --exit-on-error; then
+  err "ERROR restoring $DUMP into $NAME"
+  exit 1
+fi
+
+# psql in the throwaway container, quiet about its errors: a failure here is
+# reported by the checks below with the numbers, not by psql's own wording.
+psql_in() { docker exec "$NAME" psql -U postgres -d postgres -Atc "$1" 2> /dev/null; }
+recorded=$(openssl enc -d "${CIPHER_ARGS[@]}" -in "$COUNTS" -pass env:BACKUP_PASSPHRASE)
+[ -n "$recorded" ] || { err "ERROR $COUNTS decrypted to nothing; there is nothing to check the restore against"; exit 1; }
+restored=$(psql_in "$COUNTS_QUERY")
+printf '%s\n' "$restored"
+
+# Every table that night had must be in the restore, core ones included: the
+# counts cover them all, and REQUIRED_TABLES (in makam-backup-lib) is the floor
+# under a lost counts file.
+missing=$(comm -23 \
+  <({ printf '%s\n' "$recorded" | cut -d= -f1; printf '%s\n' "${REQUIRED_TABLES[@]}"; } | sort -u) \
+  <(printf '%s\n' "$restored" | cut -d= -f1 | sort -u))
+[ -z "$missing" ] || {
+  err "ERROR $DUMP has tables the restore does not: $(printf '%s' "$missing" | tr '\n' ' ')"
+  exit 1
+}
+
+# And each with at least the rows it had that night: fewer means the restore
+# lost something.
+short=$(awk -F= '
+  NR == FNR { recorded[$1] = $2; next }
+  { restored[$1] = $2 }
+  END { for (table in recorded) if (restored[table] + 0 < recorded[table] + 0) print table ": " restored[table] " of " recorded[table] }
+' <(printf '%s\n' "$recorded") <(printf '%s\n' "$restored"))
+[ -z "$short" ] || { err "ERROR the restore of $DUMP is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
+
+checked=$(printf '%s\n' "$restored" | grep -c .)
+echo "$checked tables checked, each with the rows of that night, from $(basename "$DUMP") in $(( $(date +%s) - started ))s"
+log "restored $(basename "$DUMP") in $(( $(date +%s) - started ))s: $checked tables, none short of its rows"

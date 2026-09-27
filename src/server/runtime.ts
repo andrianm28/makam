@@ -5,15 +5,17 @@ import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
+import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
 import { createLayanan, type Layanan } from "@/domain/layanan";
-import type { Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
+import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
+import type { Pemesanan } from "@/domain/pemesanan";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -42,6 +44,8 @@ export interface ServerRuntime {
   fieldwork: Fieldwork;
   /** Work Queues: the Antrean, Ambil and Catatan Internal. */
   queues: Queues;
+  /** Pemesanan Makam: the Saat Duka wizard's list, its Kirim and the order page. */
+  pemesanan: Pemesanan;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -91,6 +95,8 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
+    // One place picks live or fake (AGENTS.md); the wizard's messages go out through Notifications.
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -103,7 +109,7 @@ export function serverRuntime(): ServerRuntime {
       tariffs,
       layanan,
       billing,
-      inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
+      inventory,
       fieldwork,
       queues: createQueues({
         db: database.db,
@@ -112,6 +118,16 @@ export function serverRuntime(): ServerRuntime {
         lokasi,
         fieldwork,
         billing,
+        notifications,
+      }),
+      pemesanan: composePemesanan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        identity,
         notifications,
       }),
     };
