@@ -15,15 +15,18 @@ Orchestrator for makam.co.id v1 on `andrianm28/makam`. Talk to the owner in **Ba
 ## Queue (order)
 Critical path: 17 → 20 → 22 → 23 ∥ 26 → 24 → 25. Then 68 (SMTP; blocked by human ticket 04). Ops/UI in parallel slots: 72 → 73, 80, 78, 79, then 77 (after 17: both touch Admin Platform). 64 pending decision.
 
-## State at handoff
-- `main` = 8b3b0e9: ticket 16 merged (722ae7e) and marked resolved; CI green.
-- In flight (builders were running when this was written; check branch on origin before relaunching):
-  - 17 `ticket-17-antrean` (built in the main checkout `/home/user/makam`, uncommitted when handed off).
-  - 72 `ticket-72-signed-deploys` (worktree; fresh start, the old branch never reached origin).
-  - 78 `ticket-78-admin-lokasi-redesign` (worktree).
-  - 79 `ticket-79-field-roles-phones` (worktree).
-  - 80 `ticket-80-masuk-brand` @ 8b83d3c: built, pushed; Standards + Spec reviews were running. Builder found logo/Keluar on TOTP already present via `src/app/staf/layout.tsx` fallback; fixed headings to the type scale.
-- If a branch is missing on origin, its work was lost with the container: relaunch the builder from origin/main.
+## State at handoff (2026-09-27 ~03:10 UTC)
+- `main`: tickets 16 and 80 merged and marked resolved (last: 60fec6f + this handoff). CI green on both.
+- Ready to merge once branch CI is green (both review axes clean): **78** `ticket-78-admin-lokasi-redesign` @ 62552f9 (CI run 36290035158 was still running; merge through a separate worktree of origin/main, then flip Status to resolved in ticket file + `00-index.md`).
+- In review: **17** `ticket-17-antrean` @ a5cfe94. Standards: 0 hard; judgement calls: migration 0016 also carries two SET DEFAULT on inventory columns (ticket-14 drift, safe), and `overdueFrom` + fetch/map shape duplicated across the three Tier 4 row-type files (extract a shared helper). Spec review was still running; open reading to check: "revisit" = Kunjungan Verifikasi on a Lokasi no longer Belum Tayang (new `publishedAt`), not a purpose flag on fieldwork. Next: send Spec findings + the helper extraction to a builder, haiku re-review, merge.
+- Builders in flight (check origin for the branch before relaunching; missing branch = relaunch from origin/main):
+  - **72** `ticket-72-signed-deploys` (needs owner OK before merge: production pipeline).
+  - **79** `ticket-79-field-roles-phones`.
+  - **68** `ticket-68-smtp-emailsender` (SMTP adapter tested against a local SMTP container; real creds are human ticket 04).
+  - **chore** `chore-cloud-test-env`: skip deps-store read-only test as root, fix the Chromium PDF test's root cause, ESLint-ignore `.claude/worktrees/`. Once merged, the "two env-only failures" note below goes away.
+- **86 blocked**: needs a read-only catalog export from the old app's `makam_beta` DB (catalog tables only, no personal/order/payment data) or a session on the VPS. Asked the owner.
+- Unblocked once 17 merges: **20** (critical path), **77** (Admin Platform forms). Then 22 → 23 ∥ 26 → 24 → 25; 73 after 72.
+- Note: `npm run lint` in the main checkout also lints `.claude/worktrees/*` until the chore lands; builders lint their own files.
 
 ## Environment (cloud)
 - Docker pulls work; `npm test` ~3.5 min. **Two env-only failures to ignore**: `tests/tooling/deps-store.test.ts` (runs as root) and `src/adapters/live/chromium-pdf-renderer.test.ts` (Chromium makes no PDF). Worth a small ticket to make both skip/pass in cloud.
