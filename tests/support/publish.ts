@@ -57,6 +57,7 @@ export function publishOnTestDatabase(db: Database) {
 export type PublishSetup = ReturnType<typeof publishOnTestDatabase>;
 
 export { jenisMakamInput, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "./inventory";
+export { newTpuDki } from "./lokasi";
 
 const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 

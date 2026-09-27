@@ -26,6 +26,9 @@ function allInOf(q: Quote): AllInPrice {
   return { total: q.total, lines: q.lines, inForceSince: q.inForceSince, scheduledChange: q.scheduledChange };
 }
 
+/** A priced quote as a page or card shows it: the parts, and when the total changes. */
+export { allInOf };
+
 export interface JenisMakamCard {
   jenisMakam: JenisMakamPrice;
   tenure: Tenure;

@@ -126,6 +126,59 @@ describe("the Daftar Lokasi Makam directory (every Terverifikasi Lokasi Mitra)",
   });
 });
 
+describe("the Daftar Lokasi Makam with both kinds of Lokasi Makam in it", () => {
+  /** A TPU added by Admin Platform, as the dashboard does. */
+  const tpu = {
+    address: "Jl. TPU No. 1",
+    dataSource: "Dinas Pengguna Umum dan Prasarana",
+    pin: null,
+    menerimaMakamBaru: true,
+  };
+
+  it("lists Lokasi Mitra and TPUs together by name, and the type filter picks the kind", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup, "Makam Terverifikasi");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Bambu", city: "Kabupaten Bandung" });
+
+    expect((await setup.lokasi.publicLokasiMakamList()).map((card) => `${card.kind}:${card.name}`)).toEqual([
+      "lokasi_mitra:Makam Terverifikasi",
+      "tpu:TPU Bambu",
+      "tpu:TPU Koper",
+    ]);
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "tpu" })).map((card) => card.name)).toEqual(["TPU Bambu", "TPU Koper"]);
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "lokasi_mitra" })).map((card) => card.name)).toEqual([
+      "Makam Terverifikasi",
+    ]);
+  });
+
+  it("filters both kinds by the one city filter, and offers every city either kind is in", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup, "Makam Terverifikasi");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Bambu", city: "Kabupaten Bandung" });
+
+    expect((await setup.lokasi.publicLokasiMakamList({ city: "Kota Jakarta Timur" })).map((card) => card.name)).toEqual([
+      "Makam Terverifikasi",
+      "TPU Koper",
+    ]);
+    expect((await setup.lokasi.publicLokasiMakamList({ city: "Kabupaten Bandung" })).map((card) => card.name)).toEqual(["TPU Bambu"]);
+    expect(await setup.lokasi.publicLokasiMakamList({ city: "Kota Surabaya" })).toEqual([]);
+    expect(await setup.lokasi.publicLokasiMakamCities()).toEqual(["Kabupaten Bandung", "Kota Jakarta Timur"]);
+  });
+
+  it("never lists a Lokasi Mitra that is not Terverifikasi, whatever the filter", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup);
+    await newLokasiMitra(setup, admin, "Masih Belum Tayang");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "lokasi_mitra" })).map((card) => card.name)).toEqual([
+      "Makam Wakaf Al-Ikhlas",
+    ]);
+  });
+});
+
 describe("a Terverifikasi Lokasi Mitra's visit photo URLs", () => {
   it("signs one URL per Kunjungan Verifikasi photo; none for a Belum Tayang Lokasi", async () => {
     const setup = publishOnTestDatabase(db);

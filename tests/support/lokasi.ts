@@ -72,3 +72,22 @@ export { signedInAdminPlatform };
 export async function setLokasiMitraStatusForTest(db: Database, lokasiId: string, status: LokasiMitraStatus): Promise<void> {
   await db.update(lokasiMitraTable).set({ status }).where(eq(lokasiMitraTable.id, lokasiId));
 }
+
+/** A DKI TPU added by the signed-in Admin Platform, with the new-plot flag as found. */
+export async function newTpuDki(
+  setup: LokasiSetup,
+  admin: Awaited<ReturnType<typeof signedInAdminPlatform>>["actor"],
+  name = "TPU Kober",
+  menerimaMakamBaru = true,
+) {
+  const created = await setup.lokasi.createTpuDki(admin, {
+    name,
+    address: "Jl. TPU No. 1, Jakarta Timur",
+    city: "Kota Jakarta Timur",
+    pin: { lat: -6.2, lng: 106.9 },
+    dataSource: "Dinas Pengguna Umum dan Prasarana",
+    menerimaMakamBaru,
+  });
+  if (!created.ok) throw new Error(`TPU refused: ${created.reason}`);
+  return created.tpuDki;
+}
