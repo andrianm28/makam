@@ -5,6 +5,7 @@
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling, documentUrls } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
@@ -12,6 +13,7 @@ import { createDatabase } from "@/db/client";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { scheduledTicks } from "@/domain/scheduler";
+import { createTariffs } from "@/domain/tariffs";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
 import { startWorker } from "./runtime";
@@ -42,6 +44,10 @@ async function main() {
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+  // The Layanan module, for the monthly Mitra Jasa scorecard review row. It reads
+  // prices through Tariffs, so the worker composes the same price book the web does.
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
@@ -54,6 +60,7 @@ async function main() {
       lokasi,
       identity,
       notifikasi: pemesananNotifikasiDari(notifications),
+      layanan,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

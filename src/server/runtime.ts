@@ -4,6 +4,7 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
@@ -11,7 +12,7 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createLayanan, type Layanan } from "@/domain/layanan";
+import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -75,7 +76,7 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
+    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     const notifications = composeNotifications({
       env,
@@ -135,6 +136,7 @@ export function serverRuntime(): ServerRuntime {
         notifications,
         inventory,
         pemesanan,
+        layanan,
       }),
     };
   }

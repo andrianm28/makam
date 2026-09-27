@@ -17,6 +17,7 @@ export function schedulerContext(parts: {
   reportError?: ReportError;
   notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
   pemesanan?: SchedulerContext["pemesanan"];
+  layanan?: SchedulerContext["layanan"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -32,6 +33,7 @@ export function schedulerContext(parts: {
         identity: { adminLokasiOf: async () => [] },
         notifikasi: DIAMDIAM,
       } satisfies SchedulerContext["pemesanan"]),
+    layanan: parts.layanan ?? { tinjauSkorTick: async () => {} },
   };
 }
 

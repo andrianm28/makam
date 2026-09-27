@@ -168,7 +168,21 @@ export type AuditAction =
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** Admin Platform starts a Mitra Jasa's onboarding record and invites them to an email (ticket 55). */
+  | "mitra_jasa.buat"
+  /** Admin Platform records a Mitra Jasa's profile: name, NIK, home area, emergency contact, coverage. */
+  | "mitra_jasa.ubah_profil"
+  /** Admin Platform sets a Mitra Jasa's bank account, with the override note its name rule needs. */
+  | "mitra_jasa.ubah_rekening"
+  /** Admin Platform uploads a Mitra Jasa's KTP photo or the signed arrangement scan. */
+  | "mitra_jasa.unggah_berkas"
+  /** Admin Platform sets a Mitra Jasa Aktif, Ditangguhkan or Berhenti, with the reason. */
+  | "mitra_jasa.ubah_status"
+  /** A Mitra Jasa sets or takes off one of their own "Tidak tersedia" ranges. */
+  | "mitra_jasa.atur_tidak_tersedia"
+  /** Admin Platform records the monthly scorecard review. */
+  | "mitra_jasa.catat_tinjauan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

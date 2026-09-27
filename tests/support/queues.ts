@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createQueues } from "@/domain/queues";
 import { publishOnTestDatabase } from "./publish";
@@ -24,6 +25,14 @@ export function queuesOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -34,8 +43,9 @@ export function queuesOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     inventory: setup.inventory,
     pemesanan,
+    layanan,
   });
-  return { ...setup, pemesanan, queues };
+  return { ...setup, pemesanan, layanan, queues };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

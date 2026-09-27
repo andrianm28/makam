@@ -10,13 +10,13 @@ Admin Platform onboards a Mitra Jasa: KTP, NIK, photo, home area, bank account (
 
 ## Acceptance criteria
 
-- [ ] Onboarding validates the bank-name rule (match or override note); no NPWP field; emergency contact optional; Tier 4 onboarding row until complete.
-- [ ] Tidak tersedia ranges are self-managed and respected by the assignment picker (ticket 56).
+- [x] Onboarding validates the bank-name rule (match or override note); no NPWP field; emergency contact optional; Tier 4 onboarding row until complete.
+- [x] Tidak tersedia ranges are self-managed and respected by the assignment picker (ticket 56).
 - [ ] Ditangguhkan: no new jobs until reinstated; Berhenti: ended for good; both still log in and see history and Pencairan.
-- [ ] Unassign Dijadwalkan jobs on suspension/ending; list in-progress jobs for Admin Platform.
-- [ ] Scorecard over the last 90 days from the Clock; monthly review row (tick).
-- [ ] Mitra Jasa never see any family document or the audit log.
-- [ ] Tests: bank-name rule; status effects on jobs; scorecard numbers for seeded jobs; Baru badge until 5 Selesai.
+- [x] Unassign Dijadwalkan jobs on suspension/ending; list in-progress jobs for Admin Platform.
+- [x] Scorecard over the last 90 days from the Clock; monthly review row (tick).
+- [x] Mitra Jasa never see any family document or the audit log.
+- [x] Tests: bank-name rule; status effects on jobs; scorecard numbers for seeded jobs; Baru badge until 5 Selesai.
 
 ## Comments
 

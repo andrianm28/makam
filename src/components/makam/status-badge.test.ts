@@ -7,6 +7,7 @@ describe("the status vocabulary", () => {
     expect(Object.values(statusVocabulary).map((status) => status.label)).toEqual([
       "Belum Tayang",
       "Terverifikasi",
+      "Aktif",
       "Ditangguhkan",
       "Berhenti",
       "Terlambat",

@@ -3,13 +3,13 @@ import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
-import { createLayanan } from "@/domain/layanan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
@@ -44,7 +44,7 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
+    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
     const notifications = composeNotifications({
       env,
@@ -102,6 +102,7 @@ export function testServerRuntime() {
         notifications,
         inventory,
         pemesanan,
+        layanan,
       }),
     };
   }
