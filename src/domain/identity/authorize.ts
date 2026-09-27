@@ -109,7 +109,11 @@ export type Action =
   /** A completed Kunjungan Verifikasi updates the Lokasi's pin, facilities, photos and "dikunjungi" date (the fieldwork module, the visiting Petugas Lapangan). */
   | "lokasi.catat_kunjungan_verifikasi"
   /** A completed Cek Denah is recorded on the Lokasi (the fieldwork module, the checking Petugas Lapangan). */
-  | "lokasi.catat_cek_denah";
+  | "lokasi.catat_cek_denah"
+  /** Admin Platform publishes a Lokasi Mitra once the publish gate is met (Admin Platform only). */
+  | "lokasi.terbitkan"
+  /** Admin Platform switches "Pemesanan Terencana aktif" on once its own gate is met (Admin Platform only). */
+  | "lokasi.aktifkan_terencana";
 
 /** What the action is done to. */
 export type Resource =
@@ -271,6 +275,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.lihat_rekening":
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":
+    case "lokasi.terbitkan":
+    case "lokasi.aktifkan_terencana":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "tarif.ubah":
       // Only Admin Platform enters tariffs (spec, Identity & Access); an Admin Lokasi only reads them.

@@ -26,7 +26,15 @@ import type { PetakByNomor } from "./lookup";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
-import { staffInventoryReads, type BlokDenah, type DenahCell, type DenahKavling, type HakPakaiDetail, type StaffInventoryReads } from "./reads";
+import {
+  hasPetakPerluVerifikasi,
+  staffInventoryReads,
+  type BlokDenah,
+  type DenahCell,
+  type DenahKavling,
+  type HakPakaiDetail,
+  type StaffInventoryReads,
+} from "./reads";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
@@ -95,6 +103,8 @@ export interface Inventory {
   clearKavling(by: Actor, lokasiId: string, kavlingId: string, input: unknown): Promise<ClearKavlingResult>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
+  /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
+  hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
 }
 
 export function createInventory(deps: InventoryDeps): Inventory {
@@ -113,5 +123,6 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearPetak: (by, lokasiId, petakId, input) => clearPetak(deps, by, lokasiId, petakId, input),
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
+    hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
   };
 }

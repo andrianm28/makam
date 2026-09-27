@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import type { LokasiFlags, LokasiMitra, LokasiPolicies } from "@/domain/lokasi";
 import type { FormState } from "../../form-state";
 import {
+  aktifkanTerencana,
   buatLokasiMitra,
   lepasAdminLokasi,
   simpanDokumen,
   simpanKebijakan,
   simpanProfil,
   simpanRekening,
+  terbitkanLokasiMitra,
   undangAdminLokasi,
   unggahPerjanjian,
 } from "./actions";
@@ -324,5 +326,29 @@ export function RemoveAdminLokasiForm({ lokasiId, accountId }: { lokasiId: strin
       />
       <Feedback state={state} />
     </div>
+  );
+}
+
+/** Admin Platform's "Terbitkan" button: refused with the checklist above unless every publish-gate item is met. */
+export function PublishForm({ lokasiId, ready }: { lokasiId: string; ready: boolean }) {
+  const [state, action, pending] = useActionState(terbitkanLokasiMitra, idle);
+  return (
+    <form action={action} className="flex flex-col items-start gap-2">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <Submit pending={pending || !ready}>Terbitkan</Submit>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+/** Admin Platform's "Aktifkan Terencana" button: refused unless every Petak is cleared and a Cek Denah is done. */
+export function ActivateTerencanaForm({ lokasiId, ready }: { lokasiId: string; ready: boolean }) {
+  const [state, action, pending] = useActionState(aktifkanTerencana, idle);
+  return (
+    <form action={action} className="flex flex-col items-start gap-2">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <Submit pending={pending || !ready}>Aktifkan Pemesanan Terencana</Submit>
+      <Feedback state={state} />
+    </form>
   );
 }
