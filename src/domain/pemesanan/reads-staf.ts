@@ -11,6 +11,7 @@ import { and, count, desc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananStatus } from "./schema";
 import type { PemesananDeps } from "./deps";
+import { toPembayaranOrder, type PembayaranOrder } from "./pembayaran-order";
 
 /** One order's document on the Lokasi Mitra's checklist, as both sides see it. */
 export interface DokumenOrder {
@@ -40,6 +41,13 @@ export interface OrderStaf {
   konfirmasiDueAt: Date | null;
   diajukanAt: Date;
   alasan: string | null;
+  /**
+   * Where this order's money went, and what it agreed to bear: the same facts
+   * Payouts prices its Pencairan item from (ticket 30), so the Lokasi's own page
+   * cannot tell one story and the Pencairan run another.
+   */
+  pembayaran: PembayaranOrder["pembayaran"];
+  partnerShare: number;
   /** The Lokasi Mitra's document checklist, with what has arrived and what is ticked. */
   dokumen: DokumenOrder[];
 }
@@ -132,7 +140,7 @@ export async function konfirmasiTerlambat(deps: Pick<PemesananDeps, "db">, lokas
  * an Admin Lokasi sees its own Lokasi's orders only). Admin Platform may read
  * any order, as everywhere else in the staff area.
  */
-export async function orderUntukStaf(deps: Pick<PemesananDeps, "db">, by: Actor, nomor: string): Promise<OrderStaf | null> {
+export async function orderUntukStaf(deps: Pick<PemesananDeps, "db" | "billing">, by: Actor, nomor: string): Promise<OrderStaf | null> {
   const [row] = await deps.db.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, nomor));
   if (!row) return null;
   if (!authorize(by, "pemesanan.lihat_staf", lokasiMitraResource(row.lokasiId)).allowed) return null;
@@ -141,7 +149,7 @@ export async function orderUntukStaf(deps: Pick<PemesananDeps, "db">, by: Actor,
 
 /** Every order of the Lokasi Mitra this Admin Lokasi manages that is not finished yet, newest first: its work list. */
 export async function orderUntukStafTerbaru(
-  deps: Pick<PemesananDeps, "db">,
+  deps: Pick<PemesananDeps, "db" | "billing">,
   by: Actor,
   lokasiId: string,
 ): Promise<OrderStaf[]> {
@@ -155,8 +163,13 @@ export async function orderUntukStafTerbaru(
 }
 
 /** One order, its documents and all, as the staff reads it. */
-async function toOrderStaf(deps: Pick<PemesananDeps, "db">, row: Row): Promise<OrderStaf> {
+async function toOrderStaf(deps: Pick<PemesananDeps, "db" | "billing">, row: Row): Promise<OrderStaf> {
+  // The money facts come from the one projection Payouts reads, so the staff page and the
+  // Pencairan run can never tell two different stories about the same order.
+  const uang = toPembayaranOrder(row, row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null);
   return {
+    pembayaran: uang.pembayaran,
+    partnerShare: uang.partnerShare,
     nomor: row.nomor,
     kind: row.kind,
     status: row.status,

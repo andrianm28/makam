@@ -97,7 +97,14 @@ export type ReissueTagihanResult =
   | IssueRefusal
   | { ok: false; reason: "tidak_ditemukan" }
   /** Only an unpaid Tagihan (Belum Dibayar, Lewat Jatuh Tempo) can be cancelled and reissued. */
-  | { ok: false; reason: "tagihan_tidak_bisa_diganti" };
+  | { ok: false; reason: "tagihan_tidak_bisa_diganti" }
+  /**
+   * A pay-first Tagihan at or past its due date. A reissue keeps the original
+   * due date (spec, Billing: "a reissue never extends the time to pay"), so
+   * replacing it would hand the family a fresh Tagihan it can no longer pay:
+   * the action is refused and the order is placed again instead.
+   */
+  | { ok: false; reason: "batas_pembayaran_lewat" };
 
 export interface TagihanDeps extends EffectDeps {
   db: Database;
@@ -234,6 +241,8 @@ async function issueIn(
         amount: checked.total,
         method: { kind: "tanpa_pembayaran" },
         reference: null,
+        // A Rp 0 Tagihan has no money, so no proof and no reference: its Bukti Pembayaran is the waiver itself.
+        proofKey: null,
         header,
         paidAt: now,
       },
@@ -258,7 +267,10 @@ const REISSUABLE: readonly TagihanStatus[] = ["belum_dibayar", "lewat_jatuh_temp
  * Cancels an unpaid Tagihan and issues its replacement with these lines and a
  * new Nomor Tagihan, in one transaction. The replacement keeps the payment
  * moment, the addressee and the order, and its due date counts from the
- * original issue, so a reissue never extends the time to pay.
+ * original issue, so a reissue never extends the time to pay. A pay-first
+ * Tagihan at or past its due date is refused instead (its replacement would
+ * carry the due date that has already passed), whether or not the lapse tick
+ * has run.
  */
 export async function reissueTagihan(
   deps: TagihanDeps,
@@ -273,6 +285,8 @@ export async function reissueTagihan(
     const [old] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!old) return { ok: false, reason: "tidak_ditemukan" };
     if (!REISSUABLE.includes(old.status)) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
+    // The same rule a payment is held to, whether or not the lapse tick has run yet.
+    if (old.kind === "pay_first" && old.dueAt <= now) return { ok: false, reason: "batas_pembayaran_lewat" };
     const { anchorAt, ...moment } = storedMomentSchema.parse(old.moment) as StoredMoment;
     const reissued = await issueIn(
       tx,

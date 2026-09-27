@@ -37,7 +37,7 @@ async function main() {
   });
   const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, audit, reportError });
   const urls = documentUrls(env);
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.

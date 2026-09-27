@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
-import { centangDokumenSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
+import { BAYAR_LANGUNG_MAX_BYTES, bayarLangsungSchema, centangDokumenSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
@@ -51,6 +51,69 @@ export async function centangDokumen(_previous: PesananActionState, formData: Fo
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: "Dokumen ini tidak ada di daftar dokumen Lokasi Mitra." };
   return { status: "berhasil", message: `${result.value.nama} ditandai sudah ada.` };
+}
+
+/** What the direct payment form holds: the browser's File, bounded here and read in `run`. */
+const bayarLangsungForm = bayarLangsungSchema.extend({
+  bukti: z.instanceof(File).refine((file) => file.size > 0 && file.size <= BAYAR_LANGUNG_MAX_BYTES),
+});
+
+/**
+ * The Admin Lokasi of that Lokasi Mitra records that a family paid it directly,
+ * with the record it kept of the cash. The order's Tagihan becomes Lunas with a
+ * Bukti Pembayaran that names the Lokasi Mitra, and the order records that no
+ * tariff Pencairan is due for it and a platform-fee Potongan is owed instead.
+ */
+export async function catatPembayaranLangsung(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pembayaran.catat_langsung",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: bayarLangsungForm,
+    input: { nomor: formData.get("nomor"), bukti: formData.get("bukti") },
+    run: async (actor, data) =>
+      serverRuntime().pemesanan.catatPembayaranLangsung(actor, {
+        nomor: data.nomor,
+        bukti: { body: new Uint8Array(await data.bukti.arrayBuffer()), contentType: data.bukti.type },
+      }),
+  });
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  if (!result.value.ok) return { status: "gagal", message: bayarLangsungMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: `Pembayaran langsung dicatat. Bukti Pembayaran ${result.value.pembayaran.nomorBukti} terbit atas nama ${result.value.pembayaran.tagihan.nomorTagihan}.`,
+  };
+}
+
+/** Why a direct payment was refused, saying what to do next. */
+function bayarLangsungMessage(reason: string): string {
+  switch (reason) {
+    case "input_tidak_valid":
+      return "Lampirkan foto atau PDF bukti pembayaran yang diterima Lokasi Mitra.";
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan ini tidak ditemukan.";
+    case "tagihan_belum_ada":
+      return "Pesanan ini belum punya Tagihan. Konfirmasi pesanan lebih dulu, baru catat pembayarannya.";
+    case "sudah_ada_bayar_langsung":
+      return "Pembayaran langsung untuk pesanan ini sudah tercatat. Tidak bisa dicatat dua kali.";
+    case "tagihan_dibatalkan":
+      return "Tagihan pesanan ini sudah dibatalkan, jadi tidak bisa dibayar lagi.";
+    case "batas_pembayaran_lewat":
+      return "Tagihan ini sudah lewat batas pembayaran, jadi uang yang diterima tidak bisa dicatat di sini. Hubungi CS.";
+    case "bukti_tidak_didukung":
+      return "Bukti harus foto (JPG, PNG, WebP) atau PDF, paling besar 10 MB.";
+    case "penyimpanan_belum_tersedia":
+      return "Berkas bukti tidak tersimpan. Coba lagi; kalau tetap gagal, hubungi CS.";
+    case "pengaturan_operator_belum_diisi":
+      return "Pengaturan Operator belum diisi, jadi Bukti Pembayaran tidak bisa diterbitkan.";
+    case "perlu_totp":
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
+    default:
+      return "Periksa lagi isian Anda.";
+  }
 }
 
 /** The Admin Lokasi of that Lokasi Mitra logs the call its own failed message row asked for. */

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TersediaUnit } from "@/domain/inventory";
-import { centangDokumen, konfirmasiPesanan, type PesananActionState } from "./actions";
+import { formatRupiah } from "@/lib/rupiah";
+import { catatPembayaranLangsung, centangDokumen, konfirmasiPesanan, type PesananActionState } from "./actions";
 
 const idle: PesananActionState = { status: "idle" };
 
@@ -89,6 +90,61 @@ export function CentangDokumenForm({ lokasiId, nomor, nama, sudah }: { lokasiId:
           {state.message}
         </span>
       ) : null}
+    </form>
+  );
+}
+
+/**
+ * Catat Pembayaran Langsung (spec, Billing > Payment: "'Dibayar langsung ke
+ * Lokasi Mitra' by the Admin Lokasi with proof"): the family paid this Lokasi
+ * Mitra at its own gate, so the money never reached the Operator. Only that
+ * Lokasi Mitra's own Admin Lokasi may record it, and only Admin Platform may
+ * reverse it (a refund, which is its own step). The record of the cash is
+ * required: without it nothing is written.
+ */
+export function BayarLangsungForm({
+  lokasiId,
+  nomor,
+  namaLokasi,
+  total,
+  sudah,
+}: {
+  lokasiId: string;
+  nomor: string;
+  namaLokasi: string;
+  total: number;
+  sudah: boolean;
+}) {
+  const [state, action, pending] = useActionState(catatPembayaranLangsung, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="buktiLangsung" className="text-sm font-medium">
+          Bukti pembayaran diterima
+        </label>
+        <Input id="buktiLangsung" name="bukti" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required />
+        <p className="text-small text-muted-foreground">
+          Foto nota atau bukti transfer yang keluarga serahkan ke {namaLokasi}, atau PDF-nya (paling besar 10 MB). Berkasnya disimpan di
+          penyimpanan privat.
+        </p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" disabled={pending || sudah}>
+          {pending ? "Mencatat…" : `Catat pembayaran langsung ${formatRupiah(total)}`}
+        </Button>
+        {sudah ? (
+          <p className="text-small text-muted-foreground">
+            Pembayaran langsung untuk pesanan ini sudah tercatat. Pembatalannya hanya dapat diproses Admin Platform.
+          </p>
+        ) : null}
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

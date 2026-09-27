@@ -153,8 +153,21 @@ export interface PemesananDeps {
     | "lepasTahan"
     | "within"
   >;
-  /** For the Nomor Pemesanan series and a confirmed order's Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  /**
+   * For the Nomor Pemesanan series, a confirmed order's Tagihan, and settling
+   * it: a Harga Khusus replaces the Tagihan and a direct payment settles it,
+   * each `within` the order's own transaction.
+   */
+  billing: Pick<Billing, "within" | "tagihan" | "recordPayment" | "reissueTagihan">;
+  /**
+   * Whether a Pencairan has ever been issued for an order, by its Nomor
+   * Pemesanan (spec, Payouts: a partner share is frozen from then on, so an
+   * amount already transferred cannot change). The Payouts module owns that
+   * answer and is not built yet (ticket 32), so the composition root supplies
+   * nothing and no order has been paid out; when Payouts lands it is wired here
+   * and nothing else changes. See `tambahHargaKhusus`.
+   */
+  pencairanTerbit?: (nomorPemesanan: string) => Promise<boolean>;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

@@ -50,7 +50,7 @@ export async function seedTagihanCommand(
       const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, audit, reportError: () => {} });
 
       if (!(await operatorSettings.current())) {
         const admin = (await identity.staffAccounts()).find(

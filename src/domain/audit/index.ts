@@ -168,7 +168,15 @@ export type AuditAction =
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** Admin Platform records a Tagihan paid by hand, Transfer manual or Tunai, with its proof (ticket 30). */
+  | "pembayaran.catat_manual"
+  /** The Admin Lokasi of a Lokasi Mitra records that a family paid it directly, with proof (ticket 30). */
+  | "pembayaran.catat_langsung"
+  /** Admin Platform sets a Harga Khusus on an order: the Tagihan reissued with a negative Penyesuaian line (ticket 30). */
+  | "harga_khusus.ubah"
+  /** Admin Platform enters the share of a Harga Khusus the Lokasi Mitra agreed to bear, with its note (ticket 30). */
+  | "harga_khusus.partner_share";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

@@ -154,6 +154,14 @@ export const tagihanLine = pgTable(
 /**
  * Owned by the Billing module: one Bukti Pembayaran per payment of a Tagihan.
  * Append-only (the migration refuses UPDATE and DELETE).
+ *
+ * `proofKey` is the private FileStore key of the proof a payment outside the
+ * provider carries (a transfer slip, a cash receipt, the Lokasi Mitra's own
+ * record of a direct payment); null for a provider payment and for a Rp 0
+ * Tagihan, which has no money to prove. It is never part of the public
+ * `BuktiPembayaran`: the document page is open to anyone holding its link, and
+ * a payment slip is read through `urlBukti`, a short-lived signed URL, by
+ * Admin Platform alone.
  */
 export const buktiPembayaran = pgTable("bukti_pembayaran", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -168,6 +176,7 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
   method: jsonb("method").notNull(),
   /** The provider's or the transfer's reference, when there is one. */
   reference: text("reference"),
+  proofKey: text("proof_key"),
   /** Pengaturan Operator's header values in force when the Bukti was issued. */
   header: jsonb("header").notNull(),
 });

@@ -92,7 +92,7 @@ export async function settleIn(
   tx: Database,
   deps: EffectDeps,
   tagihanId: string,
-  payment: { method: PaymentMethod; reference: string | null; header: DocumentHeader; paidAt: Date },
+  payment: { method: PaymentMethod; reference: string | null; header: DocumentHeader; paidAt: Date; proofKey?: string | null },
   now: Date,
 ): Promise<SettleResult> {
   const [row] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
@@ -120,6 +120,7 @@ export async function settleIn(
       nomorPemesanan: row.nomorPemesanan,
       link: row.link,
       amount: row.total,
+      proofKey: payment.proofKey ?? null,
     },
     now,
   );
@@ -136,6 +137,8 @@ export interface Settling {
   amount: Rupiah;
   method: PaymentMethod;
   reference: string | null;
+  /** The private FileStore key of the payment's proof: a transfer slip, a cash receipt, a Lokasi Mitra's own record. Null when there is none. */
+  proofKey: string | null;
   header: DocumentHeader;
   paidAt: Date;
 }
@@ -157,6 +160,7 @@ export async function issueBuktiPembayaranIn(tx: Database, deps: EffectDeps, pay
       amount: payment.amount,
       method: payment.method,
       reference: payment.reference,
+      proofKey: payment.proofKey ?? null,
       header: payment.header,
     })
     .returning({ id: buktiPembayaran.id });

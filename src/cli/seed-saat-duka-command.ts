@@ -86,7 +86,7 @@ export async function seedSaatDukaCommand(
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, audit, reportError: () => {} });
       const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
       const modul: Modul = {
         db: database.db,

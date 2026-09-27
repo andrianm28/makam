@@ -109,6 +109,7 @@ export {
   staffRoles,
   semuaTugasLapanganResource,
   semuaTpuDkiResource,
+  tagihanResource,
   tarifGlobalResource,
   tpuDkiResource,
   tugasLapanganResource,

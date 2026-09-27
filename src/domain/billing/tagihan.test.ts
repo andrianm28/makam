@@ -166,6 +166,7 @@ describe("an issued Tagihan is immutable", () => {
 
     expect(Object.keys(billing).sort()).toEqual([
       "bayar",
+      "catatPembayaranManual",
       "documentByLink",
       "documentPdf",
       "issueTagihan",
@@ -176,6 +177,7 @@ describe("an issued Tagihan is immutable", () => {
       "recordPayment",
       "reissueTagihan",
       "tagihan",
+      "urlBukti",
       "within",
     ]);
   });
@@ -251,6 +253,31 @@ describe("an issued Tagihan is immutable", () => {
     });
 
     expect(reissued).toMatchObject({ ok: true, tagihan: { dueAt: wib("2026-10-04 10:00") } });
+  });
+
+  it("a pay-first Tagihan past its due date cannot be reissued, even before the lapse tick has run", async () => {
+    const { billing, clock } = await billingWithOperatorSettings(db);
+    clock.set(wib("2026-10-01 10:00"));
+    const perpanjangan = {
+      moment: { kind: "perpanjangan" },
+      addressee: { name: "Ahmad Fauzi", phoneNumber: "081298765432", accountId: null },
+      nomorPemesanan: null,
+      placeName: "Makam Wakaf Al-Ikhlas",
+      lines: [{ kind: "perpanjangan", label: "Perpanjangan Makam", amount: rp(750_000), provider: LOKASI }],
+    } satisfies IssueTagihanInput;
+    const original = await billing.issueTagihan(perpanjangan);
+    if (!original.ok) throw new Error("not issued");
+    // Due 3×24 h after issue, so at 2026-10-04 10:00 it is past due and would have lapsed by now.
+    clock.set(wib("2026-10-04 10:00"));
+
+    const reissued = await billing.reissueTagihan(original.tagihan.id, {
+      lines: [...perpanjangan.lines, { kind: "penyesuaian_harga_khusus", amount: rp(250_000) }],
+    });
+
+    expect(reissued).toEqual({ ok: false, reason: "batas_pembayaran_lewat" });
+    // The order is placed again instead: the original Tagihan is untouched, and no number was used.
+    expect(await billing.tagihan(original.tagihan.id)).toEqual(original.tagihan);
+    expect(await billing.issueTagihan(perpanjangan)).toMatchObject({ tagihan: { nomorTagihan: "TGH/2026/000002" } });
   });
 
   it("a Tagihan that is already Dibatalkan cannot be reissued, and an unknown one is not found", async () => {

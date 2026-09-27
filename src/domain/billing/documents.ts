@@ -2,7 +2,9 @@ import { asc, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
+import type { AuditLog } from "@/domain/audit";
 import type { Rupiah } from "@/lib/rupiah";
+import type { FileStore } from "@/ports/file-store";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import { buktiPembayaran } from "./schema";
 import { notPayableBecause, settleIn, type NotPayable } from "./settlement";
@@ -37,6 +39,8 @@ export interface RecordPaymentInput {
   reference: string | null;
   /** When the money was paid (e.g. the transfer's time on its proof); not in the future. Default: now. */
   paidAt?: Date;
+  /** The private FileStore key of a payment's proof, when it has one. */
+  proofKey?: string | null;
 }
 
 export type RecordPaymentResult =
@@ -51,20 +55,52 @@ export type RecordPaymentResult =
   | { ok: false; reason: "baris_tidak_valid" }
   | typeof noHeader;
 
+/** The deps recording a payment by hand needs: Billing's own, plus the FileStore and the Audit Log. */
+export type CatatPembayaranManualDeps = TagihanDeps & { files: FileStore; audit: AuditLog };
+
+/** `recordPayment`'s result, with whether this call is the payment that settled the Tagihan. */
+export type RecordPaymentInResult =
+  | { ok: true; bukti: BuktiPembayaran; settled: boolean }
+  | Exclude<RecordPaymentResult, { ok: true }>;
+
 /**
  * Records the payment of a Tagihan, paid at `input.paidAt` (default `now`):
  * a pay-first Tagihan paid at or after its due date is refused. It becomes Lunas and gets exactly
  * one Bukti Pembayaran (numbered BYR/…, headed with the Operator's values now
  * in force), and its downstream effects fire in the same transaction.
- * Recording it again returns the same Bukti. The manual and direct payment
- * paths build on this; the provider webhook settles the same way.
+ * Recording it again returns the same Bukti, with `settled` false, so a caller
+ * that has to tell the two apart can. The manual and direct payment paths build
+ * on this; the provider webhook settles the same way.
+ *
+ * Called on a `within(tx)` Billing it settles inside that transaction, which is
+ * how the module that owns an order records the payment and the order's own
+ * state of it in one commit.
  */
 export async function recordPayment(
   deps: TagihanDeps,
   tagihanId: string,
   input: RecordPaymentInput,
   now: Date,
-): Promise<RecordPaymentResult> {
+): Promise<RecordPaymentInResult> {
+  return refusable(deps.db, (tx) => recordPaymentIn(tx, deps, tagihanId, input, now));
+}
+
+/**
+ * `recordPayment` inside a transaction another module opened: it settles with
+ * `tx`, so the payment, its Bukti Pembayaran, its effects and whatever else the
+ * caller writes there (a Harga Khusus line on the order, an Entri Audit) commit
+ * or roll back together.
+ *
+ * `settled` is false when the Tagihan was Lunas already: the Bukti returned is
+ * then the one that earlier payment produced, not a second one.
+ */
+export async function recordPaymentIn(
+  tx: Database,
+  deps: TagihanDeps,
+  tagihanId: string,
+  input: RecordPaymentInput,
+  now: Date,
+): Promise<RecordPaymentInResult> {
   const method = paymentMethodSchema.safeParse(input.method);
   if (!method.success) return { ok: false, reason: "baris_tidak_valid" };
   if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
@@ -73,11 +109,15 @@ export async function recordPayment(
   const header = await currentHeader(deps.operatorSettings);
   if (!header) return noHeader;
   const reference = input.reference?.trim() || null;
-  const settled = await refusable(deps.db, (tx) =>
-    settleIn(tx, deps, tagihanId, { method: method.data, reference, header, paidAt: paidAt.data }, now),
+  const settled = await settleIn(
+    tx,
+    deps,
+    tagihanId,
+    { method: method.data, reference, header, paidAt: paidAt.data, proofKey: input.proofKey ?? null },
+    now,
   );
   if (!settled.ok) return settled;
-  return { ok: true, bukti: await buktiById(deps.db, settled.buktiId) };
+  return { ok: true, bukti: await buktiById(tx, settled.buktiId), settled: settled.settled };
 }
 
 /** A Bukti Pembayaran known to exist. */

@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import { createBilling, type Billing, type PaymentEffect } from "@/domain/billing";
 import { efekBuktiPembayaran } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
@@ -36,6 +37,7 @@ export function composeBilling(deps: {
   db: Database;
   adapters: Adapters;
   operatorSettings: Pick<OperatorSettings, "current">;
+  audit: AuditLog;
   reportError: ReportError;
 }): Billing {
   const urls = documentUrls(deps.env);
@@ -44,6 +46,9 @@ export function composeBilling(deps: {
     clock: deps.adapters.clock,
     operatorSettings: deps.operatorSettings,
     pdf: deps.adapters.pdf,
+    // A payment outside the PaymentProvider keeps its proof here (the private FileStore), and every one is audited.
+    files: deps.adapters.files,
+    audit: deps.audit,
     payments: deps.adapters.payments,
     ...urls,
     paymentEffects: paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl }),

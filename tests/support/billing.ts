@@ -45,6 +45,8 @@ export function billingOnTestDatabase(db: Database, options: BillingTestOptions 
     clock: setup.clock,
     operatorSettings,
     pdf,
+    files: setup.files,
+    audit: setup.audit,
     payments,
     documentPageUrl: (link) => `${TEST_DOCUMENT_ORIGIN}/dokumen/${link}`,
     publicDocumentUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,

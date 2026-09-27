@@ -1,7 +1,8 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
+import type { PaymentEffect } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import type { PemesananDeps, PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
@@ -26,8 +27,16 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
  * `{ notifications: true }` the real module sends the Peringatan Staf the
  * announcement raises, which is how the wizard's own wiring is checked.
  */
-export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
-  const setup = publishOnTestDatabase(db);
+export function pemesananOnTestDatabase(
+  db: Database,
+  options: {
+    notifications?: boolean;
+    paymentEffects?: PaymentEffect[];
+    /** Stands in for the Payouts module's own read, which ticket 32 brings (a share freezes once a Pencairan was issued). */
+    pencairanTerbit?: PemesananDeps["pencairanTerbit"];
+  } = {},
+) {
+  const setup = publishOnTestDatabase(db, { paymentEffects: options.paymentEffects });
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
@@ -56,6 +65,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     inventory: setup.inventory,
     billing: setup.billing,
     identity: setup.identity,
+    pencairanTerbit: options.pencairanTerbit,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });

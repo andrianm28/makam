@@ -118,7 +118,9 @@ describe("Bukti Pembayaran", () => {
     const first = await setup.billing.recordPayment(tagihan.id, payment);
     const second = await setup.billing.recordPayment(tagihan.id, payment);
 
-    expect(second).toEqual(first);
+    // The same Bukti, and the second call says it settled nothing.
+    expect(first).toMatchObject({ ok: true, settled: true });
+    expect(second).toEqual({ ...first, settled: false });
     expect(await setup.billing.nextDocumentNumber("BYR")).toBe("BYR/2026/000002");
   });
 

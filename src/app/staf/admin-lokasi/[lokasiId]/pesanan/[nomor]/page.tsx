@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatTanggal, formatTanggalJam, wibDateTimeLocal } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
-import { CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
+import { BayarLangsungForm, CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -101,6 +101,38 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
               pemakamanAwal={rencana}
             />
           </CardContent>
+        </Card>
+      ) : null}
+
+      {tagihan && tagihan.status !== "lunas" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pembayaran langsung</CardTitle>
+            <CardDescription>
+              Bila keluarga membayar {current.name} langsung, tanpa lewat Operator, catat di sini dengan bukti yang diterima. Tagihan
+              menjadi Lunas dan Bukti Pembayaran menyebut nama {current.name} sebagai penerima. Pembatalannya hanya dapat diproses Admin
+              Platform.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BayarLangsungForm
+              lokasiId={current.id}
+              nomor={order.nomor}
+              namaLokasi={current.name}
+              total={tagihan.total}
+              sudah={order.pembayaran.kind === "langsung_ke_lokasi_mitra"}
+            />
+          </CardContent>
+        </Card>
+      ) : order.pembayaran.kind === "langsung_ke_lokasi_mitra" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pembayaran langsung</CardTitle>
+            <CardDescription>
+              Keluarga membayar {current.name} langsung pada {formatTanggalJam(order.pembayaran.pada)}, dan itu tercatat di Tagihan{" "}
+              {tagihan?.nomorTagihan ?? ""}. Tidak ada tarif Pencairan untuk pesanan ini; biaya layanan platform menjadi Potongan.
+            </CardDescription>
+          </CardHeader>
         </Card>
       ) : null}
 

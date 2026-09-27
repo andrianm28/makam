@@ -17,8 +17,11 @@
  * PaymentProvider's webhook (authenticated by its signature).
  */
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
+import type { Actor } from "@/domain/identity";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Clock } from "@/ports/clock";
+import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider, WebhookRequest } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import {
@@ -28,7 +31,7 @@ import {
   type BillingDocument,
   type DocumentPdf,
   type RecordPaymentInput,
-  type RecordPaymentResult,
+  type RecordPaymentInResult,
 } from "./documents";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
 import {
@@ -39,6 +42,7 @@ import {
   type PaymentWebhookResult,
   type PembayaranPerluDitinjau,
 } from "./payment";
+import { catatPembayaranManual, urlBukti, type CatatPembayaranManualResult } from "./pembayaran-manual";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
 import type { ReportError } from "@/lib/observability/report-error";
 import {
@@ -57,7 +61,9 @@ export type { DocumentType } from "./numbering";
 export type { PaymentEffect, SettledPayment } from "./settlement";
 export type { NotPayable } from "./settlement";
 export type { BayarResult, PaymentWebhookResult, PembayaranPerluDitinjau, WebhookReviewReason } from "./payment";
-export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
+export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentInResult, RecordPaymentResult } from "./documents";
+export type { CatatPembayaranManualResult, PembayaranManualInput } from "./pembayaran-manual";
+export { BUKTI_PEMBAYARAN_MAX_BYTES, BUKTI_URL_SECONDS, pembayaranManualSchema } from "./pembayaran-manual";
 export { documentLinkSchema, QRIS_PAYMENT_CAP, withinPaymentCap, type DocumentHeader, type PaymentMethod } from "./shared";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
@@ -81,6 +87,10 @@ export interface BillingDeps {
   /** Every document is headed with the Operator's values in force when it is issued. */
   operatorSettings: Pick<OperatorSettings, "current">;
   pdf: PdfRenderer;
+  /** The private FileStore the proof of a payment outside the PaymentProvider is kept in. */
+  files: FileStore;
+  /** Every staff write on a payment (a manual one) records an Entri Audit here. */
+  audit: AuditLog;
   /** The absolute URL of a document's page (from its link), which the PdfRenderer opens. */
   documentPageUrl: (link: string) => string;
   payments: PaymentProvider;
@@ -101,10 +111,28 @@ export interface Billing {
   tagihan(tagihanId: string): Promise<Tagihan | null>;
   /**
    * Records the payment of a Tagihan: Lunas, with exactly one Bukti Pembayaran
-   * (recording it again returns the same one). A Dibatalkan Tagihan can't be
+   * (recording it again returns the same one, with `settled` false). A Dibatalkan Tagihan can't be
    * paid; Lewat Jatuh Tempo and Tidak Tertagih stay payable.
+   *
+   * On a `within(tx)` Billing it settles inside that transaction, which is how the module that
+   * owns an order records a payment and the order's own state of it in one commit.
    */
-  recordPayment(tagihanId: string, input: RecordPaymentInput): Promise<RecordPaymentResult>;
+  recordPayment(tagihanId: string, input: RecordPaymentInput): Promise<RecordPaymentInResult>;
+  /**
+   * Admin Platform records a Tagihan paid by hand — Transfer manual or Tunai —
+   * with an uploaded proof: Lunas, with exactly one Bukti Pembayaran whose
+   * method reads that method, and the same downstream effects a provider
+   * payment fires, in the transaction the Entri Audit is recorded in. The
+   * proof is required; a Tagihan that is Lunas, Dibatalkan or past its payment
+   * limit is refused before the file is stored.
+   */
+  catatPembayaranManual(by: Actor, input: unknown): Promise<CatatPembayaranManualResult>;
+  /**
+   * A short-lived signed URL for the proof of a Tagihan's payment (Admin
+   * Platform only), or null-ish: `tanpa_lampiran` for a provider payment and a
+   * Rp 0 Tagihan, which have no money to prove.
+   */
+  urlBukti(by: Actor, tagihanId: string): Promise<Awaited<ReturnType<typeof urlBukti>>>;
   /**
    * Bayar on a Tagihan's page (anyone with its link): the PaymentProvider's
    * payment page for it, created on the first click and reused while its link
@@ -169,6 +197,8 @@ export function createBilling(deps: BillingDeps): Billing {
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
+    catatPembayaranManual: (by, input) => catatPembayaranManual(deps, by, input, deps.clock.now()),
+    urlBukti: (by, tagihanId) => urlBukti(deps, by, tagihanId),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),

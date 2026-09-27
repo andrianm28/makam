@@ -76,7 +76,7 @@ export function serverRuntime(): ServerRuntime {
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, audit, reportError });
     const notifications = composeNotifications({
       env,
       db: database.db,

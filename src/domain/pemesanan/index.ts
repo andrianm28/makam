@@ -41,15 +41,10 @@ import {
   type OrderAntrean,
   type OrderStaf,
 } from "./reads-staf";
-import {
-  centangDokumen,
-  unggahDokumen,
-  urlDokumen,
-  urlDokumenUntukStaf,
-  type CentangDokumenInput,
-  type DokumenResult,
-  type UnggahDokumenInput,
-} from "./berkas";
+import { centangDokumen, unggahDokumen, urlDokumen, urlDokumenUntukStaf, type CentangDokumenInput, type DokumenResult, type UnggahDokumenInput } from "./berkas";
+import { catatPembayaranLangsung, type CatatPembayaranLangsungResult } from "./bayar-langsung";
+import { tambahHargaKhusus, type TambahHargaKhususResult } from "./harga-khusus";
+import { pembayaranOrder, type PembayaranOrder } from "./pembayaran-order";
 import { realertKonfirmasiSaatDukaTick } from "./realert";
 import {
   denahTerencana,
@@ -81,6 +76,11 @@ export { JAM_KONFIRMASI_SAAT_DUKA, kartuAwal } from "./pilihan";
 export type { PemegangHakInput, PlaceSaatDukaInput, PlaceSaatDukaResult } from "./saat-duka";
 export { konfirmasiSaatDukaSchema, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
 export type { DokumenOrder, OrderAntrean, OrderStaf } from "./reads-staf";
+export type { BayarLangsungInput, CatatPembayaranLangsungResult } from "./bayar-langsung";
+export type { HargaKhususInput, TambahHargaKhususResult } from "./harga-khusus";
+export type { PembayaranOrder } from "./pembayaran-order";
+export { BAYAR_LANGUNG_MAX_BYTES, bayarLangsungSchema } from "./bayar-langsung";
+export { hargaKhususSchema } from "./harga-khusus";
 export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";
 export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
@@ -182,29 +182,59 @@ export interface Pemesanan {
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
+  /**
+   * The Admin Lokasi of that Lokasi Mitra records that a family paid it directly,
+   * with its own record of the cash: the order's Tagihan is settled as
+   * "langsung ke Lokasi Mitra" (Lunas, one Bukti Pembayaran naming the Lokasi
+   * Mitra, the same downstream effects), and the order keeps the fact that no
+   * tariff Pencairan is due and a platform-fee Potongan is owed instead. Only
+   * Admin Platform may reverse it, and that is ticket 31's refund.
+   */
+  catatPembayaranLangsung(by: Actor, input: unknown): Promise<CatatPembayaranLangsungResult>;
+  /**
+   * Admin Platform sets a Harga Khusus on one order, with a reason: its Tagihan
+   * is cancelled and reissued with the reduction as its own negative line (never
+   * edited), the partner share the Lokasi Mitra agreed to bear is written on the
+   * order with its note (default 0), and both are audited. A resulting Rp 0
+   * Tagihan is Lunas at once.
+   */
+  tambahHargaKhusus(by: Actor, input: unknown): Promise<TambahHargaKhususResult>;
+  /**
+   * Where the money of one order went, for the Payouts module to price its
+   * Pencairan item from: the Lokasi Mitra, its Tagihan, the partner share and
+   * whether the money reached the Operator at all. No actor, and no family
+   * detail: it is the one projection, not the order page.
+   */
+  pembayaranOrder(nomor: string): Promise<PembayaranOrder | null>;
 }
 
 export function createPemesanan(deps: PemesananDeps): Pemesanan {
+  // No Pencairan has been issued for any order until the Payouts module exists to issue one
+  // (ticket 32), so a share is never frozen before then; see `PemesananDeps.pencairanTerbit`.
+  const depsLengkap: PemesananDeps = { pencairanTerbit: async () => false, ...deps };
   return {
-    pilihanSaatDuka: (query) => pilihanSaatDuka(deps, query),
-    placeSaatDuka: (input) => placeSaatDuka(deps, input),
-    orderOf: (nomor, pemesan) => orderOf(deps, pemesan, nomor),
-    konfirmasiSaatDuka: (by, input) => konfirmasiSaatDuka(deps, by, input),
-    orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
-    orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
-    antreanKonfirmasi: (lokasiId) => antreanKonfirmasi(deps, lokasiId),
-    konfirmasiLewatTenggat: () => konfirmasiLewatTenggat(deps, deps.clock.now()),
-    konfirmasiTerlambat: (lokasiId) => konfirmasiTerlambat(deps, lokasiId),
-    unggahDokumen: (pemesan, input) => unggahDokumen(deps, pemesan, input),
-    centangDokumen: (by, input) => centangDokumen(deps, by, input),
-    urlDokumen: (pemesan, nomor, nama) => urlDokumen(deps, pemesan, nomor, nama),
-    urlDokumenUntukStaf: (by, nomor, nama) => urlDokumenUntukStaf(deps, by, nomor, nama),
-    pilihanTerencana: (query) => pilihanTerencana(deps, query),
+    pilihanSaatDuka: (query) => pilihanSaatDuka(depsLengkap, query),
+    placeSaatDuka: (input) => placeSaatDuka(depsLengkap, input),
+    orderOf: (nomor, pemesan) => orderOf(depsLengkap, pemesan, nomor),
+    konfirmasiSaatDuka: (by, input) => konfirmasiSaatDuka(depsLengkap, by, input),
+    orderUntukStaf: (by, nomor) => orderUntukStaf(depsLengkap, by, nomor),
+    orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(depsLengkap, by, lokasiId),
+    antreanKonfirmasi: (lokasiId) => antreanKonfirmasi(depsLengkap, lokasiId),
+    konfirmasiLewatTenggat: () => konfirmasiLewatTenggat(depsLengkap, deps.clock.now()),
+    konfirmasiTerlambat: (lokasiId) => konfirmasiTerlambat(depsLengkap, lokasiId),
+    unggahDokumen: (pemesan, input) => unggahDokumen(depsLengkap, pemesan, input),
+    centangDokumen: (by, input) => centangDokumen(depsLengkap, by, input),
+    urlDokumen: (pemesan, nomor, nama) => urlDokumen(depsLengkap, pemesan, nomor, nama),
+    urlDokumenUntukStaf: (by, nomor, nama) => urlDokumenUntukStaf(depsLengkap, by, nomor, nama),
+    pilihanTerencana: (query) => pilihanTerencana(depsLengkap, query),
     kotaTerencana: () => kotaTerencana(deps),
-    denahTerencana: (lokasiId, pilihan) => denahTerencana(deps, lokasiId, pilihan),
-    periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
-    placeTerencana: (input) => placeTerencana(deps, input),
-    terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    denahTerencana: (lokasiId, pilihan) => denahTerencana(depsLengkap, lokasiId, pilihan),
+    periksaPilihanTerencana: (input) => periksaPilihanTerencana(depsLengkap, input),
+    placeTerencana: (input) => placeTerencana(depsLengkap, input),
+    terencanaOf: (nomor, pemesan) => terencanaOf(depsLengkap, pemesan, nomor),
+    catatPembayaranLangsung: (by, input) => catatPembayaranLangsung(depsLengkap, by, input),
+    tambahHargaKhusus: (by, input) => tambahHargaKhusus(depsLengkap, by, input),
+    pembayaranOrder: (nomor) => pembayaranOrder(depsLengkap, nomor),
   };
 }
 

@@ -1,6 +1,20 @@
-import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, customType, date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { RUPIAH_MAX, rupiahFromDatabase, type Rupiah } from "@/lib/rupiah";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+/**
+ * Whole rupiah in a Postgres `bigint`, converted exactly (never a float), as the
+ * Tariffs and Billing price columns keep it: the driver hands the value over as
+ * text and a stored amount outside Rp 0..RUPIAH_MAX is an error, not a rounded
+ * number. Every rupiah column also has a CHECK for that range.
+ */
+const rupiah = customType<{ data: Rupiah; driverData: string }>({
+  dataType: () => "bigint",
+  fromDriver: (value) => rupiahFromDatabase(value),
+  toDriver: (value) => String(value),
+});
 
 /**
  * Every Pemesanan Makam kind (CONTEXT.md): Saat Duka and Terencana at a Lokasi
@@ -104,6 +118,36 @@ export const pemesananMakam = pgTable(
     dikonfirmasiPada: at("dikonfirmasi_pada"),
     /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
     alasan: text("alasan"),
+    /**
+     * The share of a Harga Khusus the Lokasi Mitra agreed to bear (spec,
+     * Payouts: "Admin Platform may enter on the order the amount the Lokasi
+     * Mitra agreed to bear, with a required note (default 0)"; ticket 30). It
+     * lives on the order, not on a Tagihan, for the two reasons the spec gives:
+     * a reissue (a Harga Khusus is one) would lose it, and Pencairan is
+     * computed per order. Whole rupiah; **null means 0**, so the Operator bears
+     * the whole reduction (from the Biaya Layanan Platform first, then its own
+     * funds). Read by the Payouts module through `pembayaranOrder`.
+     */
+    partnerShare: rupiah("partner_share"),
+    /** Why the Lokasi Mitra agreed to bear it. Required whenever a share is entered. */
+    partnerShareNote: text("partner_share_note"),
+    /** The Admin Platform who entered it, and when. */
+    partnerShareOleh: text("partner_share_oleh"),
+    partnerSharePada: at("partner_share_pada"),
+    /**
+     * "Dibayar langsung ke Lokasi Mitra" (spec, Billing: the Admin Lokasi
+     * records it with proof): the family paid the Lokasi Mitra itself, so no
+     * money ever reached the Operator. The order therefore owes no tariff
+     * Pencairan and a platform-fee Potongan instead, which the Payouts module
+     * (ticket 32) reads through `pembayaranOrder`. Null while nobody recorded
+     * it. Only Admin Platform may reverse it, and that is ticket 31's refund
+     * machinery: nothing else may be written here.
+     */
+    bayarLangsungPada: at("bayar_langsung_pada"),
+    /** The Admin Lokasi of this Lokasi Mitra who recorded it. */
+    bayarLangsungOleh: text("bayar_langsung_oleh"),
+    /** The private FileStore key of the proof they uploaded with it. */
+    bayarLangsungBukti: text("bayar_langsung_bukti"),
     diajukanAt: at("diajukan_at").notNull(),
   },
   (table) => [
@@ -112,6 +156,7 @@ export const pemesananMakam = pgTable(
     index("pemesanan_makam_lokasi_idx").on(table.lokasiId),
     // The open work of one Lokasi Mitra: what its Antrean Lokasi and its Tier 1 late rows read.
     index("pemesanan_makam_status_lokasi_idx").on(table.status, table.lokasiId),
+    check("pemesanan_makam_partner_share_check", sql`${table.partnerShare} is null or ${table.partnerShare} between 0 and ${sql.raw(String(RUPIAH_MAX))}`),
   ],
 );
 

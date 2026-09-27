@@ -150,7 +150,27 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
   | "pemesanan.konfirmasi"
   /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /**
+   * Record a Tagihan paid by hand — Transfer manual or Tunai — with a proof
+   * file (Admin Platform only; spec, Billing > Payment). The proof is required,
+   * so this is never a second way of saying "it was paid" without one.
+   */
+  | "pembayaran.catat_manual"
+  /** Read the proof a payment outside the PaymentProvider carries (Admin Platform only). */
+  | "pembayaran.lihat_bukti"
+  /**
+   * Record that a family paid a Lokasi Mitra directly, with proof (that Lokasi
+   * Mitra's own Admin Lokasi only; spec, Billing > Payment). Only Admin Platform
+   * may reverse it, which is a refund and never this action.
+   */
+  | "pembayaran.catat_langsung"
+  /**
+   * Set a Harga Khusus on one order: its Tagihan is cancelled and reissued with
+   * a negative Penyesuaian line, and the partner share is entered with it
+   * (Admin Platform only; spec, Billing and Payouts).
+   */
+  | "harga_khusus.ubah";
 
 /** What the action is done to. */
 export type Resource =
@@ -170,6 +190,8 @@ export type Resource =
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
   | { kind: "antrean" }
+  /** A Tagihan of the Billing module, by its id. */
+  | { kind: "tagihan"; tagihanId: string }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string };
 
@@ -249,6 +271,11 @@ export function semuaTugasLapanganResource(): Resource {
 /** One Tugas Lapangan. */
 export function tugasLapanganResource(id: string): Resource {
   return { kind: "tugas_lapangan", id };
+}
+
+/** One Tagihan of the Billing module. */
+export function tagihanResource(tagihanId: string): Resource {
+  return { kind: "tagihan", tagihanId };
 }
 
 /** The Antrean: its rows, counter strip, Ambil claims and Catatan Internal threads (Admin Platform only). */
@@ -420,5 +447,20 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // checklists; Admin Platform does not confirm (spec, story 117: an
       // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "pembayaran.catat_manual":
+    case "pembayaran.lihat_bukti":
+      // Admin Platform records the payments money never reaches the provider
+      // with, and is the only staff that reads their proofs: a payment slip is
+      // the family's own, and a Lokasi Mitra's order is not a neighbour's to see.
+      return resource.kind === "tagihan" && holds("admin_platform") ? allowed : denied;
+    case "pembayaran.catat_langsung":
+      // A direct payment is the Lokasi Mitra's own fact, recorded by its Admin
+      // Lokasi (the money came in through its door); Admin Platform reverses it,
+      // which is a refund, not this write.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "harga_khusus.ubah":
+      // A Harga Khusus is the Operator's own decision on the money it collects,
+      // and only Admin Platform makes it (spec, Billing and Payouts).
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
   }
 }
