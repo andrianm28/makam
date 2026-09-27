@@ -24,6 +24,13 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 
 ## Comments
 
+- 2026-09-27 — Orchestrator: Standards axis on `cd70da0` found 3 HARD to fix in the next pass (do these before merge; the merge also needs the owner's explicit OK):
+  1. **Runtime DSN never reaches the browser for static pages.** `src/app/layout.tsx:40` — `npm run build` shows `/` and `/_not-found` as `○ (Static)` and `.next/server/app/index.html` holds the *build-time* DSN (`https://buildtimekey@…/9`); in an image built without the build arg it is `""` forever. This defeats the one-digest-both-environments AC, and `e2e/smoke.spec.ts` (`if (dsn) …`) cannot catch it because it is skipped when the DSN is empty. Needs an on-demand/on-demand route or `connection()`.
+  2. **cosign pinned by tag, not digest.** `COSIGN: ghcr.io/sigstore/cosign/cosign:v2.6.1` in `ci.yml` (job `sign`), `promote.yml` and `rollback.yml` — that image reads `COSIGN_*_PRIVATE_KEY`, so an unpinned tag is a supply-chain hole (AGENTS.md: pin a new image by digest; runbook: every image by digest).
+  3. **`tsx` fetched from the registry at run time.** `ci.yml` job `migrations` runs `npx tsx scripts/migrations/deployed-release.ts` before `setup-node` + `npm ci`, and that script is what picks the baseline image.
+  - Judgement calls: the 14-line cosign block is triplicated across the three workflows (extract a composite action); the same regex fixture is repeated in 4 `.gitleaks.toml` entries; `ci.yml` job `image` has a stale comment ("`latest` … is added by deploy-gate" — it is `sign` now); `docker-compose.prod.yml` `${MAKAM_DEPLOY_REF:-…}` without `MAKAM_TAG` still errors and the message offers an option that does not work.
+  - Clean: no `docker *prune` (the only `prune()` call is `docker image rm` of this repo's own image), no real secrets, signature verified before `migrate`, `MAKAM_DEPLOY_REF` digest-pinned, rollback never touches data, every action pinned by SHA, `cancel-in-progress: false` on the release paths.
+
 - 2026-09-26 — Follow-ups from ticket 71's re-review (do them here):
   - The migration upgrade test's baseline is `:latest`; once deploys follow signed digests, and once production lags staging, the baseline must be the digest running in production (else staging), and the very first run must cope with no baseline.
   - `.gitleaks.toml`: narrow the whole-file allowlists (e.g. `src/lib/env.ts`) to the specific keys/rules; one file per entry as the runbook says.
