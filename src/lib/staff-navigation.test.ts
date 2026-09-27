@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { staffRoles, type StaffRole } from "@/domain/identity";
+import { pageExists } from "../../tests/support/page-exists";
 import {
   bottomNavItems,
   bottomNavRoles,
@@ -95,8 +95,7 @@ describe("the staff menu of each role", () => {
     for (const group of staffMenu(role, { lokasiId })) {
       for (const item of group.items) {
         if (!item.href) continue;
-        const route = item.href.replace(lokasiId, "[lokasiId]");
-        expect(existsSync(`src/app${route}/page.tsx`), item.href).toBe(true);
+        expect(pageExists(item.href.replace(lokasiId, "[lokasiId]")), item.href).toBe(true);
       }
     }
   });

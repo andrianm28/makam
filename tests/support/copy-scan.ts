@@ -1,16 +1,17 @@
 import ts from "typescript";
 
-/** An internal ticket reference ("tiket 17") found in copy a user or staff member can see. */
-export type TicketMention = { line: number; text: string };
+/** Something forbidden found in copy a user or a staff member can see. */
+export type CopyMention = { line: number; text: string };
 
 const TICKET_NUMBER = /\btiket\s+\d+/i;
 
 /**
- * Finds ticket numbers in the text a page or action can show: string and template
- * literals and JSX text. Parsed with the TypeScript compiler, so comments and regex
- * literals are never mistaken for copy, and JSX text split over lines is read as one run.
+ * Finds anything matching `pattern` in the text a page or action can show: string
+ * and template literals and JSX text. Parsed with the TypeScript compiler, so
+ * comments and regex literals are never mistaken for copy, and JSX text split
+ * over lines is read as one run.
  */
-export function ticketMentions(source: string, fileName: string): TicketMention[] {
+export function copyMentions(source: string, fileName: string, pattern: RegExp): CopyMention[] {
   const file = ts.createSourceFile(
     fileName,
     source,
@@ -18,10 +19,10 @@ export function ticketMentions(source: string, fileName: string): TicketMention[
     true,
     fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const found: TicketMention[] = [];
+  const found: CopyMention[] = [];
   const visit = (node: ts.Node) => {
     const text = copyOf(node);
-    if (text !== null && TICKET_NUMBER.test(text.replace(/\s+/g, " "))) {
+    if (text !== null && pattern.test(text.replace(/\s+/g, " "))) {
       const { line } = file.getLineAndCharacterOfPosition(node.getStart(file));
       found.push({ line: line + 1, text: text.replace(/\s+/g, " ").trim() });
     }
@@ -29,6 +30,11 @@ export function ticketMentions(source: string, fileName: string): TicketMention[
   };
   visit(file);
   return found;
+}
+
+/** The internal build tickets ("tiket 17") that must never reach a screen. */
+export function ticketMentions(source: string, fileName: string): CopyMention[] {
+  return copyMentions(source, fileName, TICKET_NUMBER);
 }
 
 function copyOf(node: ts.Node): string | null {

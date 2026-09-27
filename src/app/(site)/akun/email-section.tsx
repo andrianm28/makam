@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { kirimKodeVerifikasi, konfirmasiVerifikasi, simpanNomorTelepon } from "@/app/akun/email-actions";
+import { kirimKodeVerifikasi, konfirmasiVerifikasi, simpanNomorTelepon } from "@/app/(site)/akun/email-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { initialEmailProfileState, initialEmailRequestState, type EmailProfileState } from "@/components/email/state";

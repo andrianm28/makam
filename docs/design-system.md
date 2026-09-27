@@ -212,6 +212,18 @@ makam compositions (`src/components/makam/`):
 | `BrandLogo`, `BrandMark` | The interim logo. |
 | `ThemeProvider` | next-themes, with the public pages held to light. |
 | `StaffToaster` | The staff area's Sonner toast host (`src/app/staf/layout.tsx` mounts it, so every staff form can report its result); the public pages are held to light and get none. |
+| `SiteFrame`, `SiteHeader`, `SiteFooter`, `PublicNavList`, `CsLink`, `ContentPage` | The public site's frame and its written pages' own frame (see The public site shell). |
+
+## The public site shell
+
+Every page a visitor reads without signing in, and Akun Saya, sit in the `(site)` route group and share one frame (`src/app/(site)/layout.tsx` → `SiteFrame`): the **top bar**, the page, and the **footer**. The booking wizards, the staff area, the Tagihan document pages and `/health` have their own frames and sit outside the group, so none of them grows a site menu it does not want.
+
+- **Top bar** (`SiteHeader`): the logo home, the menu from `md` up, and the **CS link**. Below `md` the menu is the drawer and the top bar keeps the logo, the CS link and the drawer's button.
+- **Menu** (`PublicNavList`, from `publicMenu()` in `src/lib/public-navigation.ts`): Pesan Makam · Makam Keluarga · Layanan · Wakaf Tanah · Daftar Lokasi, then Masuk or Akun Saya depending on the session. The top bar and the drawer render the *same* list from the *same* function, so they cannot drift. An item whose page is not built yet has **no href**: it is a muted row captioned "Segera" in the bar and "Segera hadir." in the drawer, never a dead link and never a date (the release plan). The active page carries `aria-current="page"`.
+- **CS link** (`CsLink`): a `wa.me` link to the number in Pengaturan Operator, answered by a person in the WhatsApp Business app (ADR 0004: no API, and no promise that a message is read). It is in the top bar, in the drawer, on each tile that is not here yet, and on Hubungi Kami; it renders nothing at all while Pengaturan Operator holds no number. In the top bar it is the icon alone on a phone, with its label as the icon's accessible name (`hideLabelOnPhone`), because a family in a hurry must reach a person in one tap, not two.
+- **Footer** (`SiteFooter`): the Operator's legal name, the content pages as a nav named "Halaman isi", and the year taken from the Clock in WIB. The legal name is read from Pengaturan Operator, so the footer cannot disagree with a Tagihan header; before one is entered the footer says nothing about who runs the site rather than naming a constant.
+- **Content pages** (`ContentPage` in `src/components/site/content-page.tsx`): one `h1` in Lora, an optional lead, then the copy. The copy itself lives in `src/lib/content-pages.ts` as content, never as domain data: no amount, count, deadline or opening hour is written in it, so it cannot go stale — those are read through their own public query on the page that shows them. Where a sentence needs a value the domain owns (the legal name), the page passes it in.
+- **Beranda** (hero, tile row, trust strip) reads its copy from `src/lib/homepage-content.ts`, for the same reason. The hero is Forest with the headline in Lora, a Sand "Pesan makam sekarang" captioned for a family that just lost someone, and "Siapkan makam untuk nanti" as a quieter link of its own — the planned entry is never a second button competing with the urgent one.
 
 ## Usage rules
 
