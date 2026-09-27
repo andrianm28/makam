@@ -130,6 +130,43 @@ describe("the Saat Duka TPU submission", () => {
     ).toBeNull();
   });
 
+  it("takes a non-DKI KTP whose Almarhum died in Jakarta, and a DKI KTP likewise, and adds no Pasal 17(2) letter to either", async () => {
+    const setup = pengurusanOnTestDatabase(db);
+    const fixture = await saatDukaTpuFixture(setup);
+
+    // Pasal 3: a TPU serves a DKI resident who died inside or outside Jakarta, and
+    // anyone else who died *inside* Jakarta (research `dki-tpu-burial-sequence.md` §6).
+    const nonDki = await setup.pengurusan.placeSaatDukaTpu(
+      orderSaatDukaTpu(fixture, {
+        kelayakan: { ktpDki: false, wafatDiJakarta: true },
+      }),
+    );
+    const dki = await setup.pengurusan.placeSaatDukaTpu(
+      orderSaatDukaTpu(fixture, {
+        kelayakan: { ktpDki: true, wafatDiJakarta: true },
+      }),
+    );
+
+    expect(nonDki).toMatchObject({
+      ok: true,
+      pengurusan: { nomor: "MKM-2026-000001" },
+    });
+    expect(dki).toMatchObject({
+      ok: true,
+      pengurusan: { nomor: "MKM-2026-000002" },
+    });
+    // The Pasal 17(2) letters are added by where the Almarhum died, never by the KTP:
+    // a death inside Jakarta needs none of them, whatever the KTP says.
+    const dokumen = await pengurusanOrder(setup, fixture, "MKM-2026-000001");
+    expect(dokumen?.dokumen.pengajuan.map((satu) => satu.nama)).toEqual(
+      DOKUMEN_PENGAJUAN_BARU,
+    );
+    const juga = await pengurusanOrder(setup, fixture, "MKM-2026-000002");
+    expect(juga?.dokumen.pengajuan.map((satu) => satu.nama)).toEqual(
+      DOKUMEN_PENGAJUAN_BARU,
+    );
+  });
+
   it("adds exactly the three Pasal 17(2) letters to a death outside Jakarta, and nothing at all to a KTP that is not a DKI one", async () => {
     const setup = pengurusanOnTestDatabase(db);
     const fixture = await saatDukaTpuFixture(setup);
