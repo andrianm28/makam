@@ -33,7 +33,7 @@ describe("reading the old app's catalog export", () => {
       alamat: "Jl. Contoh No. 1, Kota Contoh",
       kota: "Kota Contoh",
       pin: { lat: -6.2, lng: 106.865 },
-      fasilitas: ["parkir", "musala", "toilet"],
+      fasilitas: ["Area parkir", "Toilet Umum", "Lift roda kursi"],
       catatanFasilitas: "Fasilitas contoh, bukan data sebenarnya.",
       statusTerbit: "published",
     });
@@ -160,12 +160,48 @@ describe("reading the old app's catalog export", () => {
     expect(hasil.ok === false && hasil.reason === "bukan_ekspor_katalog" && hasil.detail).toContain("harga_sewa_bulanan");
   });
 
-  it("refuses a facility that is not on v1's list", () => {
+  it("reads the source's own facility labels and the cemetery-level indicative price, not a made-up list", () => {
     const dokumen = doc();
-    lokasi(dokumen)[0].fasilitas = ["parkir", "lift_roda_kursi"];
+    lokasi(dokumen)[0].fasilitas = ["Area parkir", "Toilet Umum"];
+    lokasi(dokumen)[0].pengelola = null;
+    lokasi(dokumen)[0].hargaIndikatif = { min: 3_000_000, max: 5_400_000, sumber: "Estimasi internal", berlakuMulai: null };
 
     const hasil = bacaEkspor(dokumen);
 
-    expect(hasil).toMatchObject({ ok: false, reason: "bukan_ekspor_katalog" });
+    expect(hasil.ok && hasil.ekspor.lokasi[0]).toMatchObject({
+      fasilitas: ["Area parkir", "Toilet Umum"],
+      pengelola: null,
+      hargaIndikatif: { min: 3_000_000, max: 5_400_000, sumber: "Estimasi internal", berlakuMulai: null },
+    });
+  });
+
+  it("refuses a free-text value that carries personal data, naming the field and never the value", () => {
+    for (const [field, value] of [
+      ["catatanFasilitas", "Hubungi 081200000000 untuk informasi"],
+      ["deskripsi", JSON.stringify({ no_hp: "081200000000" })],
+      ["pengelola", "contoh@makam.invalid"],
+      ["nama", "TPU Contoh, 연락 0812-3456-7890"],
+    ] as const) {
+      const dokumen = doc();
+      const target = field === "deskripsi" ? jenis(dokumen, 0) : lokasi(dokumen)[0];
+      target[field] = value;
+
+      const hasil = bacaEkspor(dokumen);
+
+      expect(hasil.ok).toBe(false);
+      expect(hasil.ok === false && hasil.reason).toBe("nilai_pii_dilarang");
+      expect(JSON.stringify(hasil)).not.toContain("081200000000");
+      expect(JSON.stringify(hasil)).not.toContain("makam.invalid");
+    }
+  });
+
+  it("refuses a free-text value that embeds a structured document, and reads a facility label with a comma", () => {
+    const dokumen = doc();
+    lokasi(dokumen)[0].catatanFasilitas = '[{"nama":"Warga"}]';
+
+    const hasil = bacaEkspor(dokumen);
+
+    expect(hasil).toMatchObject({ ok: false, reason: "nilai_pii_dilarang" });
+    expect(bacaEkspor({ ...doc(), lokasi: [{ ...lokasi(doc())[0], fasilitas: ["Parkir, toilet"] }] }).ok).toBe(true);
   });
 });

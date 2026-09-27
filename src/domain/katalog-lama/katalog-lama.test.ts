@@ -102,6 +102,27 @@ describe("the Katalog Lama ledger: the old app's catalog codes", () => {
     });
   });
 
+  it("binds a code and records its Entri Audit in one transaction: an audit that cannot be written leaves the code unbound", async () => {
+    const test = lokasiOnTestDatabase(db);
+    const katalog = createKatalogLama({ db, clock: test.clock, audit: test.audit });
+    const admin = (await signedInAdminPlatform(test)).actor;
+    const lokasiMitra = await newLokasiMitra(test, admin);
+    await katalog.claimLokasi(admin, { kode: "TPU-BT-01" });
+
+    // An Audit Log that cannot be written: the bind must not survive it, or the next run
+    // would skip a code bound with nothing in the Audit Log about it.
+    const tanpaAudit = createKatalogLama({
+      db,
+      clock: test.clock,
+      audit: { ...test.audit, staffWrite: () => Promise.reject(new Error("audit gagal")) },
+    });
+
+    await expect(
+      tanpaAudit.catatLokasi(admin, { kode: "TPU-BT-01", lokasiId: lokasiMitra.id, reason: null }),
+    ).rejects.toThrow("audit gagal");
+    expect(await katalog.lokasi("TPU-BT-01")).toMatchObject({ lokasiId: null, sudahTerikat: false });
+  });
+
   it("refuses a Jenis Makam claim under a Lokasi code that is not imported", async () => {
     const katalog = await setup();
 

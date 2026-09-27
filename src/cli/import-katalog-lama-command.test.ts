@@ -76,7 +76,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
     expect(hasil.output).toContain("Jenis Makam: 5 dibaca, 4 akan diimpor.");
     expect(hasil.output).toContain("Di luar cap QRIS Rp 10.000.000, tetap diimpor tapi tidak ditampilkan (1):");
     expect(hasil.output).toContain("TPU-BT-01-DLX: Rp 12.750.000");
-    expect(hasil.output).toContain("Pertanyaan untuk owner (3):");
+    expect(hasil.output).toContain("Pertanyaan untuk owner (5):");
     expect(hasil.output).toContain('Aplikasi lama menyimpan status terbit "draft"');
     expect(hasil.output).toContain('Data contoh di aplikasi lama (2 Lokasi): TPU-BT-01 (alamat diawali "Jl. Contoh")');
     expect(hasil.output).toContain("Katalog ini bukan data makam sungguhan");
@@ -101,7 +101,8 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
       city: "Kota Contoh",
       status: "belum_tayang",
       pin: { lat: -6.2, lng: 106.865 },
-      facilities: { checked: ["parkir", "musala", "toilet"], note: "Fasilitas contoh, bukan data sebenarnya." },
+      facilities: { checked: ["parkir", "toilet"], note: "Fasilitas contoh, bukan data sebenarnya." },
+      dataContoh: true,
     });
     const tarif = await tariffs.asStaff(admin).lokasiTariffs(lokasi.id, wib("2026-10-01 09:00"));
     expect(tarif.jenisMakam.map((jenis) => jenis.name)).toEqual(["Makam Deluxe", "Makam Standar"]);
@@ -146,7 +147,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
   });
 
   it("runs twice over the same export without creating anything twice", async () => {
-    const { lokasi, admin, katalog } = await modul();
+    const { lokasi, admin, katalog, audit, lokasiMitra: lokasiOf } = await modul();
     await importKatalogLamaCommand(["--sumber", CONTOH, "--tulis"], env(), { clock: clock() });
 
     const kedua = await importKatalogLamaCommand(["--sumber", CONTOH, "--tulis"], env(), { clock: clock() });
@@ -160,6 +161,8 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
       "TPU Contoh Tiga",
     ]);
     expect((await katalog.diimpor()).lokasi).toHaveLength(3);
+    const dibuat = await lokasiOf("TPU-BT-01");
+    expect((await audit.allEntriesForLokasi(dibuat.id)).map((entry) => entry.action)).toContain("lokasi.tandai_data_contoh");
   });
 
   it("refuses a code an interrupted import claimed but never bound, and names it", async () => {
@@ -205,7 +208,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
   });
 
   it("prints its usage when the source is missing, unreadable, or a flag is unknown", async () => {
-    const usage = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis]";
+    const usage = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis] [--izinkan-staging]";
 
     for (const argv of [
       [],
@@ -218,13 +221,62 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
     }
   });
 
-  it("refuses to run on staging or production", async () => {
+  it("marks every imported Lokasi Mitra as example data, the source's own marker or not", async () => {
+    const { lokasiMitra, audit } = await modul();
+
+    await importKatalogLamaCommand(["--sumber", CONTOH, "--tulis"], env(), { clock: clock() });
+
+    for (const kode of ["TPU-BT-01", "WKF-BGR-02", "TPU-CMG-03"]) {
+      const lokasi = await lokasiMitra(kode);
+      expect(lokasi.dataContoh).toBe(true);
+      const alasan = (await audit.allEntriesForLokasi(lokasi.id)).find((entry) => entry.action === "lokasi.tandai_data_contoh");
+      expect(alasan?.reason).toContain("impor katalog aplikasi lama");
+    }
+  });
+
+  it("is refused on staging without the named allowance, and always on production", async () => {
     for (const appEnv of ["staging", "production"]) {
       expect(await importKatalogLamaCommand(["--sumber", CONTOH], { ...env(), APP_ENV: appEnv }, { clock: clock() })).toEqual({
         exitCode: 1,
-        output: "Ditolak: import-katalog-lama hanya untuk development dan test.",
+        output:
+          appEnv === "production"
+            ? "Ditolak: import-katalog-lama tidak pernah jalan di production."
+            : 'Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).',
       });
     }
+    expect(
+      await importKatalogLamaCommand(["--sumber", CONTOH, "--tulis", "--izinkan-staging"], { ...env(), APP_ENV: "production" }, { clock: clock() }),
+    ).toEqual({ exitCode: 1, output: "Ditolak: import-katalog-lama tidak pernah jalan di production." });
+  });
+
+  it("runs on staging with the named allowance, and every write it makes says so in its reason", async () => {
+    const { lokasiMitra, audit } = await modul();
+    const staging = {
+      ...env(),
+      APP_ENV: "staging",
+      AUTH_SECRET: "s".repeat(32),
+      APP_BASE_URL: "https://makam.co.id",
+      TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+      SMTP_USER: "v1-user",
+      SMTP_PASSWORD: "v1-password",
+      EMAIL_FROM: "no-reply@makam.co.id",
+      SUMOPOD_API_KEY: "sumopod-key",
+      SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
+      VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+      VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+      VAPID_SUBJECT: "mailto:ops@makam.co.id",
+    } as Record<string, string>;
+
+    const hasil = await importKatalogLamaCommand(["--sumber", CONTOH, "--tulis", "--izinkan-staging"], staging, { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Ditulis: 3 Lokasi Mitra dan 4 Jenis Makam.");
+    const lokasi = await lokasiMitra("TPU-BT-01");
+    // Every reason the import can set names the allowance; the Lokasi module's own
+    // two writes take no reason at all, so they are null.
+    const reasons = (await audit.allEntriesForLokasi(lokasi.id)).map((entry) => entry.reason);
+    expect(reasons).toContain("impor katalog aplikasi lama (staging, --izinkan-staging)");
+    expect(reasons.filter((alasan) => alasan !== null).every((alasan) => String(alasan).includes("--izinkan-staging"))).toBe(true);
   });
 
   it("refuses a connection string for the old app's database, which this tool never opens", async () => {

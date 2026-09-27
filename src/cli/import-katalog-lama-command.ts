@@ -3,12 +3,14 @@
  * 86, ADR 0002's beta UAT amendment: the beta's katalog comes from the old app,
  * never its people).
  *
- * What it reads: one catalog export file the old app's owner produced
- * (src/cli/katalog-lama/ekspor.ts is the contract, the runbook has the
- * read-only query). What it writes: Lokasi Mitra, their profiles, their Jenis
- * Makam and their tariffs, through the Lokasi and Tariffs modules only, plus
- * the old code beside each of them in the Katalog Lama ledger, which is what
- * makes a second run over the same export create nothing twice.
+ * What it reads: one catalog export file the owner produced with the runbook's
+ * one read-only query (src/cli/katalog-lama/ekspor.ts is the contract, held to
+ * that query by a test). What it writes: Lokasi Mitra, their profiles, their
+ * Jenis Makam and their tariffs, through the Lokasi and Tariffs modules only,
+ * every one of them marked as example data so nothing it creates can be listed
+ * (the Lokasi module refuses to publish a marked one), plus the source's own
+ * code beside each of them in the Katalog Lama ledger, which is what makes a
+ * second run over the same export create nothing twice.
  *
  * What it never reads: a user, an Akun, an order, a Tagihan, a payment, a
  * document, an address of a person, a phone number, an email. A personal column
@@ -16,8 +18,10 @@
  * read. The old app's own database is never opened at all: a
  * KATALOG_LAMA_DATABASE_URL in the environment is refused, not used.
  *
- * Development and test only (never staging, never production), and a dry run
- * unless `--tulis` is given.
+ * A dry run unless `--tulis` is given. Development and test always; staging —
+ * the environment the beta for UAT runs on — only with the named allowance
+ * `--izinkan-staging`, which is refused by default and named in the reason of
+ * every write it makes. Production is refused outright.
  */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -38,7 +42,16 @@ import { cliFailure } from "./cli-failure";
 import { bacaEkspor, KATALOG_LAMA_FORMAT } from "./katalog-lama/ekspor";
 import { susunRencana, type Rencana, type RencanaLokasi } from "./katalog-lama/peta";
 
-const USAGE = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis]";
+const USAGE = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis] [--izinkan-staging]";
+
+/**
+ * The reason every write an import makes carries. On staging it names the
+ * allowance, so the Audit Log of every row says the row was created on the
+ * beta's own environment under an explicit `--izinkan-staging`, and by whom.
+ */
+function alasanImport(staging: boolean): string {
+  return staging ? `${IMPOR_KATALOG_LAMA} (staging, --izinkan-staging)` : IMPOR_KATALOG_LAMA;
+}
 
 /** What one run did, as the report counts it. */
 interface Hasil {
@@ -64,10 +77,10 @@ interface Modul {
 }
 
 /**
- * `npm run import:katalog-lama -- --sumber <berkas.json> [--tulis]`: imports the
- * old app's cemetery catalog into a development or test stack, refused on
- * staging and production. A dry run unless `--tulis`. Exit 0 done, 1 refused or
- * failed, 2 usage.
+ * `npm run import:katalog-lama -- --sumber <berkas.json> [--tulis] [--izinkan-staging]`:
+ * imports a cemetery catalog export into a development or test stack, or into
+ * staging under the named allowance (never into production). A dry run unless
+ * `--tulis`. Exit 0 done, 1 refused or failed, 2 usage.
  */
 export async function importKatalogLamaCommand(
   argv: string[],
@@ -76,23 +89,37 @@ export async function importKatalogLamaCommand(
 ): Promise<{ exitCode: number; output: string }> {
   let sumber: string;
   let tulis: boolean;
+  let izinkanStaging: boolean;
   try {
     const args = parseArgs({
       args: argv,
-      options: { sumber: { type: "string" }, tulis: { type: "boolean" } },
+      options: { sumber: { type: "string" }, tulis: { type: "boolean" }, "izinkan-staging": { type: "boolean" } },
       allowPositionals: false,
       strict: true,
     });
     if (!args.values.sumber) return { exitCode: 2, output: USAGE };
     sumber = args.values.sumber;
     tulis = args.values.tulis === true;
+    izinkanStaging = args.values["izinkan-staging"] === true;
   } catch {
     return { exitCode: 2, output: USAGE };
   }
 
   const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
-  if (!appEnv.success || !usesInMemoryFakes(appEnv.data)) {
-    return { exitCode: 1, output: "Ditolak: import-katalog-lama hanya untuk development dan test." };
+  if (!appEnv.success) {
+    return { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` };
+  }
+  // The beta for UAT runs on staging, so the import has to be able to run there: the
+  // allowance is named, refused by default, and every write it makes says so in the
+  // Audit Log. Production is refused outright, allowance or not.
+  if (appEnv.data === "production") {
+    return { exitCode: 1, output: "Ditolak: import-katalog-lama tidak pernah jalan di production." };
+  }
+  if (appEnv.data === "staging" && !izinkanStaging) {
+    return { exitCode: 1, output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan)." };
+  }
+  if (!usesInMemoryFakes(appEnv.data) && !izinkanStaging) {
+    return { exitCode: 1, output: "Ditolak: import-katalog-lama hanya untuk development, test, atau staging dengan allowance." };
   }
   if (source.KATALOG_LAMA_DATABASE_URL) {
     return {
@@ -116,6 +143,16 @@ export async function importKatalogLamaCommand(
   }
   const bacaan = bacaEkspor(dokumen);
   if (!bacaan.ok) {
+    if (bacaan.reason === "nilai_pii_dilarang") {
+      return {
+        exitCode: 1,
+        output: [
+          `Ditolak (nilai_pii_dilarang): ada data pribadi di dalam teks bebas (${[...new Set(bacaan.nilai.map((satu) => satu.alasan))].join(", ")}),`,
+          `jadi impor berhenti sebelum satu nilai pun ditulis: ${bacaan.nilai.map((satu) => satu.kolom).join(", ")}.`,
+          "Isi kolom katalog dengan teksnya sendiri, tanpa nomor telepon, email, atau dokumen yang ditempel.",
+        ].join(" "),
+      };
+    }
     if (bacaan.reason === "kolom_pii_dilarang") {
       return {
         exitCode: 1,
@@ -143,8 +180,8 @@ export async function importKatalogLamaCommand(
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const now = adapters.clock.now();
 
-      // Development and test only: the import acts as the stack's first Admin Platform, past TOTP, as a
-      // developer with the stack's shell could anyway. Every write it makes is audited under that Akun.
+      // An ops command, on a stack whose shell the operator already holds: the import acts as the
+      // stack's first Admin Platform, past TOTP. Every write it makes is audited under that Akun.
       const admin = (await identity.staffAccounts()).find(
         (account) => account.roles.includes("admin_platform") && !account.deactivated,
       );
@@ -166,7 +203,7 @@ export async function importKatalogLamaCommand(
         hariIni: wibDateOf(now),
       };
       const rencana = susunRencana(bacaan.ekspor, modul.hariIni);
-      const hasil = tulis ? await tulisRencana(rencana, modul) : hasilKosong();
+      const hasil = tulis ? await tulisRencana(rencana, modul, alasanImport(env.APP_ENV === "staging")) : hasilKosong();
       const sudahImpor = tulis ? null : await modul.katalog.diimpor();
 
       return {
@@ -196,7 +233,7 @@ function hasilKosong(): Hasil {
 }
 
 /** Creates every row of the plan the beta does not have yet, and counts what became of each. */
-async function tulisRencana(rencana: Rencana, modul: Modul): Promise<Hasil> {
+async function tulisRencana(rencana: Rencana, modul: Modul, alasan: string): Promise<Hasil> {
   const hasil = hasilKosong();
   for (const baris of rencana.lokasi) {
     const klaim = await modul.katalog.claimLokasi(modul.aktor, { kode: baris.kode });
@@ -212,7 +249,8 @@ async function tulisRencana(rencana: Rencana, modul: Modul): Promise<Hasil> {
       continue;
     }
 
-    const dibuat = await modul.lokasi.createLokasiMitra(modul.aktor, baris.lokasi);
+    const { name, pengelolaName, address, city } = baris.profil;
+    const dibuat = await modul.lokasi.createLokasiMitra(modul.aktor, { name, pengelolaName, address, city });
     if (!dibuat.ok) {
       hasil.ditolak.push(`${baris.kode} [lokasi]: ${dibuat.reason}`);
       continue;
@@ -223,24 +261,39 @@ async function tulisRencana(rencana: Rencana, modul: Modul): Promise<Hasil> {
       hasil.ditolak.push(`${baris.kode} [lokasi]: ${profil.reason}`);
       continue;
     }
-    await modul.katalog.catatLokasi(modul.aktor, { kode: baris.kode, lokasiId, reason: IMPOR_KATALOG_LAMA });
+    await modul.katalog.catatLokasi(modul.aktor, { kode: baris.kode, lokasiId, reason: alasan });
     hasil.lokasiDitulis += 1;
+
+    // Every imported row is marked as example data, because the import verifies
+    // nothing: no Kunjungan Verifikasi, no agreement, nothing a publish gate could
+    // read. So the Lokasi module refuses to publish or list any of them, and the
+    // owner clears the mark by hand (with its own reason) once a row is real. The
+    // source's own example marker, when it has one, is named in the reason.
+    const ditandai = await modul.lokasi.tandaiDataContoh(modul.aktor, lokasiId, {
+      dataContoh: true,
+      reason: baris.dataContoh
+        ? `${alasan}: sumber menandai baris ini sebagai data contoh`
+        : `${alasan}: belum diverifikasi Kunjungan Verifikasi`,
+    });
+    if (!ditandai.ok) {
+      hasil.ditolak.push(`${baris.kode} [data_contoh]: ${ditandai.reason}`);
+    }
 
     if (baris.biayaPemakaman) {
       const biaya = await modul.tariffs.setBiayaPemakaman(modul.aktor, lokasiId, {
         ...baris.biayaPemakaman,
         effectiveOn: modul.hariIni,
-        reason: IMPOR_KATALOG_LAMA,
+        reason: alasan,
       });
       if (!biaya.ok) hasil.ditolak.push(`${baris.kode} [biaya_pemakaman]: ${biaya.reason}`);
     }
-    await tulisJenisMakam(baris, lokasiId, modul, hasil);
+    await tulisJenisMakam(baris, lokasiId, modul, hasil, alasan);
   }
   return hasil;
 }
 
 /** Creates one Lokasi Mitra's Jenis Makam, each with its first tariff version. */
-async function tulisJenisMakam(baris: RencanaLokasi, lokasiId: string, modul: Modul, hasil: Hasil): Promise<void> {
+async function tulisJenisMakam(baris: RencanaLokasi, lokasiId: string, modul: Modul, hasil: Hasil, alasan: string): Promise<void> {
   for (const jenis of baris.jenisMakam) {
     const klaim = await modul.katalog.claimJenisMakam(modul.aktor, { kode: jenis.kode, lokasiKode: baris.kode });
     if (!klaim.ok) {
@@ -258,7 +311,7 @@ async function tulisJenisMakam(baris: RencanaLokasi, lokasiId: string, modul: Mo
         hargaPerpanjangan: jenis.hargaPerpanjangan,
         effectiveOn: jenis.effectiveOn,
       },
-      reason: IMPOR_KATALOG_LAMA,
+      reason: alasan,
     });
     if (!dibuat.ok) {
       hasil.ditolak.push(`${jenis.kode} [jenis_makam]: ${dibuat.reason}`);
@@ -267,7 +320,7 @@ async function tulisJenisMakam(baris: RencanaLokasi, lokasiId: string, modul: Mo
     await modul.katalog.catatJenisMakam(modul.aktor, {
       kode: jenis.kode,
       jenisMakamId: dibuat.jenisMakam.id,
-      reason: IMPOR_KATALOG_LAMA,
+      reason: alasan,
     });
     hasil.jenisDitulis += 1;
   }

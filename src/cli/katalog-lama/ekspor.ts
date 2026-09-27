@@ -1,10 +1,13 @@
 /**
- * The catalog export the old Laravel app's owner hands this tool (ticket 86).
+ * The catalog export an owner hands this tool (ticket 86). The old Laravel app
+ * is the source the runbook's query is written for, but nothing here is
+ * specific to it: the contract is a catalog.
  *
- * The old app's own database is never read here: its owner runs one read-only
- * query (docs/ops/runbook.md, "Importing the old app's cemetery catalog") and gives us
- * the result, so what crosses over is exactly the whitelisted catalog columns
- * and nothing else. This module is the contract that result must meet.
+ * The source's own database is never read here: its owner runs one read-only
+ * query (docs/ops/runbook.md, "Importing the old app's cemetery catalog") and
+ * gives us the result, so what crosses over is exactly the whitelisted catalog
+ * columns and nothing else. This module is the contract that result must meet,
+ * and a test holds the runbook's query to it.
  *
  * Two guards, in this order:
  *
@@ -16,7 +19,6 @@
  *    refused too, rather than imported silently.
  */
 import { z } from "zod";
-import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import type { Tenure } from "@/domain/tariffs";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 
@@ -52,6 +54,32 @@ export interface KolomPiiDitemukan {
   alasan: string;
 }
 
+/**
+ * The one position this tool takes on free-text values: a value that looks like
+ * personal data, or that embeds a structured document (a JSON object or array
+ * pasted into a note), is refused by name. The column-name guard above cannot
+ * see either, because both arrive in a field the catalog contract does have.
+ */
+export const nilaiPii: readonly { pola: RegExp; alasan: string }[] = [
+  ...kolomPii,
+  { pola: /[^\s@]+@[^\s@]+\.[a-z]{2,}/i, alasan: "alamat email" },
+  { pola: /(^|\D)(\+62|62|0)8(?:[\s-]?\d){7,12}(?!\d)/, alasan: "nomor telepon Indonesia" },
+  { pola: /[\[{]/, alasan: "dokumen tertanam (JSON)" },
+];
+
+/** Every free-text value in a document, in the order it appears, with its path. */
+export function nilaiPiiDi(value: unknown, path = ""): { kolom: string; alasan: string }[] {
+  if (Array.isArray(value)) return value.flatMap((entry, index) => nilaiPiiDi(entry, `${path}[${index}]`));
+  if (typeof value === "string") {
+    const cocok = nilaiPii.find(({ pola }) => pola.test(value));
+    return cocok ? [{ kolom: path, alasan: cocok.alasan }] : [];
+  }
+  if (value === null || typeof value !== "object") return [];
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) =>
+    nilaiPiiDi(entry, path ? `${path}.${key}` : key),
+  );
+}
+
 /** Every personal key in a document, in the order it appears, with its reason. */
 export function kolomPiiDi(value: unknown, path = ""): KolomPiiDitemukan[] {
   if (Array.isArray(value)) return value.flatMap((entry, index) => kolomPiiDi(entry, `${path}[${index}]`));
@@ -67,8 +95,6 @@ export function kolomPiiDi(value: unknown, path = ""): KolomPiiDitemukan[] {
   ];
 }
 
-const facilityKeys = Object.keys(lokasiFacilities) as [LokasiFacility, ...LokasiFacility[]];
-
 const teks = (max: number) => z.string().trim().max(max);
 const kode = z.string().trim().min(1).max(60);
 
@@ -80,7 +106,7 @@ const masaHakSchema = z.discriminatedUnion("jenis", [
 ]);
 
 /**
- * A price the old app only estimates: a range with a source, never a price
+ * A price the source only estimates: a range with a source, never a price
  * anything is sold at. The old app keeps these as `price_min` / `price_max`
  * with a `price_source`, and its own migration says a package price of that
  * kind "is not added to a cart, not quoted, not paid". v1's Harga Hak Pakai is
@@ -96,20 +122,20 @@ const hargaIndikatifSchema = z
   })
   .strict();
 
-/** One Jenis Makam of the old app: a class of grave, with a price or with an indicative range. */
+/** One Jenis Makam of the source: a class of grave, with a price or with an indicative range. */
 const jenisMakamSchema = z
   .object({
     kode,
     nama: z.string().trim().min(1).max(120),
     deskripsi: teks(500).default(""),
-    /** Whole rupiah, or null when the old app only had an indicative range. */
+    /** Whole rupiah, or null when the source only had an indicative range. */
     hargaHakPakai: rupiahSchema.nullable().default(null),
     masaHak: masaHakSchema.nullable().default(null),
     /** Per term; required for a fixed term, which the plan checks. */
     hargaPerpanjangan: rupiahSchema.nullable().default(null),
     hargaIndikatif: hargaIndikatifSchema.nullable().default(null),
     /**
-     * The date the old price came into force, when the old app kept one. A date
+     * The date the price came into force, when the source kept one. A date
      * before today is refused by the plan: v1 never rewrites a price that was
      * already in force, so the owner decides (the report counts these).
      */
@@ -146,25 +172,41 @@ function titikFromGoogleMapsUrl(url: string): { lat: number; lng: number } | nul
 
 const lokasiSchema = z
   .object({
-    /** The old app's own code for this cemetery: the key the import is idempotent on. */
+    /** The source's own code for this cemetery: the key the import is idempotent on. */
     kode,
     nama: z.string().trim().min(1).max(200),
-    pengelola: z.string().trim().min(1).max(200),
+    /**
+     * Who runs the cemetery, as the source names it; null when the source has
+     * none. v1's `pengelolaName` is required, so the plan refuses a Lokasi with
+     * none rather than inventing a placeholder name for a field a person reads.
+     */
+    pengelola: teks(200).nullable().default(null),
     alamat: z.string().trim().min(1).max(500),
     kota: z.string().trim().min(1).max(120),
-    /** A point in Indonesia, or a Google Maps URL to read it from; null when the old app had none. */
+    /** A point in Indonesia, or a Google Maps URL to read it from; null when the source had none. */
     titik: titikSchema.nullable().default(null),
     googleMapsUrl: z.string().trim().max(500).optional(),
-    fasilitas: z.array(z.enum(facilityKeys)).max(facilityKeys.length).default([]),
+    /**
+     * The source's own facility labels, verbatim: they are free text there, so
+     * the plan maps the ones it recognises onto v1's closed list and reports
+     * every other one instead of guessing which facility was meant.
+     */
+    fasilitas: z.array(teks(60)).max(20).default([]),
     catatanFasilitas: teks(1000).default(""),
     /**
-     * The old app's own publication status, as it stores it (`draft`,
+     * The source's own publication status, as it stores it (`draft`,
      * `published`, `unpublished`; research 2026-09-27, §1.3), or null when it
      * had none. It is a different axis from v1's Belum Tayang, so it is
      * carried into the report and asked about, never acted on: every imported
      * Lokasi Mitra starts Belum Tayang, as any other one does.
      */
     statusTerbit: teks(32).nullable().default(null),
+    /**
+     * The source's own estimate of what a grave here costs (the old app's
+     * `cemeteries.price_min` / `price_max`): a range, never a price anything is
+     * charged at. The plan reports it and asks; it never becomes a Tarif.
+     */
+    hargaIndikatif: hargaIndikatifSchema.nullable().default(null),
     biayaPemakaman: z
       .object({ biayaPemakaman: rupiahSchema, biayaPemakamanTumpang: rupiahSchema.nullable().default(null) })
       .strict()
@@ -192,31 +234,35 @@ const eksporSchema = z
   })
   .strict();
 
-/** A Jenis Makam of the old app, as the plan reads it. */
+/** A Jenis Makam of the source, as the plan reads it. */
 export interface KatalogLamaJenisMakam {
   kode: string;
   nama: string;
   deskripsi: string;
-  /** Null when the old app only had an indicative range: the plan refuses it. */
+  /** Null when the source only had an indicative range: the plan refuses it. */
   hargaHakPakai: Rupiah | null;
   masaHak: Tenure | null;
   hargaPerpanjangan: Rupiah | null;
-  /** A range the old app estimated, never charged; reported, never entered. */
+  /** A range the source estimated, never charged; reported, never entered. */
   hargaIndikatif: { min: Rupiah | null; max: Rupiah | null; sumber: string | null; berlakuMulai: string | null } | null;
   berlakuMulai: string | null;
 }
 
-/** A Lokasi Mitra of the old app, as the plan reads it. */
+/** A Lokasi Mitra of the source, as the plan reads it. */
 export interface KatalogLamaLokasi {
   kode: string;
   nama: string;
-  pengelola: string;
+  /** Null when the source names no one; the plan refuses the Lokasi rather than invent a name. */
+  pengelola: string | null;
   alamat: string;
   kota: string;
   pin: { lat: number; lng: number } | null;
-  fasilitas: LokasiFacility[];
+  /** The source's own labels, verbatim: the plan maps what it recognises and reports the rest. */
+  fasilitas: string[];
   catatanFasilitas: string;
   statusTerbit: string | null;
+  /** The source's own estimate for this cemetery: reported, never entered as a price. */
+  hargaIndikatif: { min: Rupiah | null; max: Rupiah | null; sumber: string | null; berlakuMulai: string | null } | null;
   biayaPemakaman: { biayaPemakaman: Rupiah; biayaPemakamanTumpang: Rupiah | null } | null;
   jenisMakam: KatalogLamaJenisMakam[];
 }
@@ -227,10 +273,23 @@ export interface KatalogLamaEkspor {
   lokasi: KatalogLamaLokasi[];
 }
 
+/**
+ * Every field each level of the contract has, so a test can hold the runbook's
+ * documented query to it: a field the contract adds and the query does not
+ * export (or a key the query writes and the contract has no field for) fails
+ * there rather than in an import.
+ */
+export const KUNCI_EKSPOR = Object.keys(eksporSchema.shape);
+export const KUNCI_LOKASI = Object.keys(lokasiSchema.shape);
+export const KUNCI_JENIS_MAKAM = Object.keys(jenisMakamSchema.shape);
+export const KUNCI_HARGA_INDIKATIF = Object.keys(hargaIndikatifSchema.shape);
+
 export type BacaEksporHasil =
   | { ok: true; ekspor: KatalogLamaEkspor }
   /** A personal column is in the document: refused by name, its value never read. */
   | { ok: false; reason: "kolom_pii_dilarang"; kolom: KolomPiiDitemukan[] }
+  /** A free-text value carries personal data or an embedded document: refused by name. */
+  | { ok: false; reason: "nilai_pii_dilarang"; nilai: { kolom: string; alasan: string }[] }
   /** Not a catalog export this tool understands: the first thing wrong with it. */
   | { ok: false; reason: "bukan_ekspor_katalog"; detail: string };
 
@@ -247,6 +306,8 @@ export function jalurDari(path: readonly PropertyKey[]): string {
 export function bacaEkspor(dokumen: unknown): BacaEksporHasil {
   const kolom = kolomPiiDi(dokumen);
   if (kolom.length > 0) return { ok: false, reason: "kolom_pii_dilarang", kolom };
+  const nilai = nilaiPiiDi(dokumen);
+  if (nilai.length > 0) return { ok: false, reason: "nilai_pii_dilarang", nilai };
   const parsed = eksporSchema.safeParse(dokumen);
   if (!parsed.success) {
     const [pertama] = parsed.error.issues;
@@ -271,6 +332,7 @@ export function bacaEkspor(dokumen: unknown): BacaEksporHasil {
         fasilitas: lokasi.fasilitas,
         catatanFasilitas: lokasi.catatanFasilitas,
         statusTerbit: lokasi.statusTerbit,
+        hargaIndikatif: lokasi.hargaIndikatif,
         biayaPemakaman: lokasi.biayaPemakaman,
         jenisMakam: lokasi.jenisMakam.map((jenis) => ({
           kode: jenis.kode,

@@ -153,15 +153,25 @@ the file. Name the catalog columns one by one — never `select *`, which is how
 a personal column would get into the file. The query below is written against
 the old app's real schema (`cemeteries`, `cemetery_packages`, `launch_cities`;
 research 2026-09-27, `.scratch/makam-v1-build/research/old-app-catalog-and-cutover-data.md`),
-with three deliberate choices:
+with three deliberate choices, and one rule over all of them: **a field that
+states a fact is only ever a source column, never a constant.** A dash in
+`pengelola` or a fixed pair of facilities would be a fact nobody claimed, read
+by a family on a cemetery's page.
 
 - `city` in the old app is a **code** (`launch_cities.code`), while v1's `city`
-  is the text a person reads, so the label is joined in;
-- `operator_name` is nullable in the old app and `pengelola_name` is not in v1,
-  so an empty one falls back to a dash for Admin Platform to correct;
+  is the text a person reads, so the label is joined in (and the raw code stands
+  in when no city row matches, which is a fact too);
+- `operator_name` is nullable there and v1's `pengelolaName` is not: a null
+  stays null and the import **refuses** that Lokasi (`pengelola_kosong`) rather
+  than inventing a name for it;
 - `facilities` is a json array of free-text labels and v1's is a closed list, so
-  the owner maps them by hand in the `jsonb_build_object` below. A label with no
-  match is left out rather than guessed at.
+  the query exports the labels verbatim and **the import** maps the ones it
+  recognises ("Area parkir" → `parkir`) and reports every other one by name,
+  rather than the owner hand-editing SQL.
+- `cemeteries.price_min` / `price_max` (the only price the old app has) and
+  `cemetery_packages.price_min` / `price_max` are exported as
+  `hargaIndikatif`: a clearly labelled range with its source, reported as a
+  question for the owner and **never** entered as a Tarif.
 
 ```bash
 # On the old app's own machine, with its own database credentials. Writes nothing.
@@ -172,28 +182,38 @@ select jsonb_pretty(jsonb_build_object(
   'lokasi', (
     select coalesce(jsonb_agg(baris), '[]'::jsonb) from (
       select jsonb_build_object(
-        'kode', c.slug,                        -- the old app's own code: the import is idempotent on it
+        'kode', c.slug,                          -- the source's own code: the import is idempotent on it
         'nama', c.name,
-        'pengelola', coalesce(nullif(c.operator_name, ''), '-'),
+        -- Null stays null: v1 needs someone who runs the cemetery, and a placeholder
+        -- there would be a name a family reads. The import refuses a Lokasi with none.
+        'pengelola', c.operator_name,
         'alamat', c.address,
-        'kota', coalesce(kota.label, c.city),  -- the old app stores a code, v1 the text
-        'titik', case when c.latitude is null then null
+        'kota', coalesce(kota.label, c.city),    -- the source stores a code; the label is its text
+        'titik', case when c.latitude is null or c.longitude is null then null
                       else jsonb_build_object('lat', c.latitude::float8, 'lng', c.longitude::float8) end,
-        'googleMapsUrl', c.google_maps_url,     -- a pin is read from this when there is no lat/lng
-        'fasilitas', '["parkir", "musala"]'::jsonb,  -- c.facilities, mapped by hand to v1's list
-        'catatanFasilitas', '',
-        'statusTerbit', c.publication_status,   -- draft | published | unpublished
-        'biayaPemakaman', null,                 -- the old app has no per-cemetery burial fee
+        'googleMapsUrl', c.google_maps_url,      -- a pin is read from this when there is no lat/lng
+        -- The source's own labels, verbatim: they are free text there, so the import maps
+        -- the ones it recognises and reports the rest rather than guessing a facility.
+        'fasilitas', c.facilities,
+        'catatanFasilitas', '',                  -- the source keeps no note; an empty note claims nothing
+        'statusTerbit', c.publication_status,    -- draft | published | unpublished
+        -- What the source estimates a grave here costs: a range, never a price anything
+        -- is charged at. The import reports it and asks; it never becomes a Tarif.
+        'hargaIndikatif', case when c.price_min is null and c.price_max is null then null
+                             else jsonb_build_object('min', c.price_min::bigint, 'max', c.price_max::bigint,
+                                                     'sumber', c.price_source,
+                                                     'berlakuMulai', c.price_effective_at::date) end,
+        'biayaPemakaman', null,                  -- the source has no per-cemetery burial fee
         'jenisMakam', coalesce((
           select jsonb_agg(jsonb_build_object(
                    'kode', p.id::text,
                    'nama', p.name,
                    'deskripsi', coalesce(p.description, ''),
-                   -- An indicative range is NOT a Harga Hak Pakai: no term, never charged at. It
-                   -- goes in hargaIndikatif, and the import asks what the real price should be.
-                   'hargaIndikatif', jsonb_build_object(
-                     'min', p.price_min::bigint, 'max', p.price_max::bigint,
-                     'sumber', p.price_source, 'berlakuMulai', p.price_effective_at::date),
+                   -- An indicative range is NOT a Harga Hak Pakai: no term, never charged at.
+                   'hargaIndikatif', case when p.price_min is null and p.price_max is null then null
+                                         else jsonb_build_object('min', p.price_min::bigint, 'max', p.price_max::bigint,
+                                                                 'sumber', p.price_source,
+                                                                 'berlakuMulai', p.price_effective_at::date) end,
                    'hargaHakPakai', null, 'masaHak', null, 'hargaPerpanjangan', null)
                  order by p.sort_order)
           from cemetery_packages p
@@ -211,14 +231,22 @@ SQL
 
 A price is whole rupiah (`3500000`, never `"3.500.000"` or `3500000.50`); a
 tenure is `{"jenis":"selamanya"}` or `{"jenis":"tahun","tahun":10}`; a fixed
-term needs its `hargaPerpanjangan`. `src/cli/katalog-lama/fixtures/katalog-lama-contoh.json`
-is a complete example of the format (synthetic names), and a field the format
-has no place for is refused rather than imported silently.
+term needs its `hargaPerpanjangan`; `hargaIndikatif` is a range, never a price.
+Free text may not carry a phone number, an email or a pasted document: the
+import refuses the whole export and names the field (`nilai_pii_dilarang`).
+`src/cli/katalog-lama/fixtures/katalog-lama-contoh.json` is a complete example
+of the format (synthetic names), and a field the format has no place for is
+refused rather than imported silently.
+
+A test holds this query to that contract
+(`tests/tooling/katalog-lama-runbook.test.ts`): every field the contract has,
+the query exports, and a fact field may not be a constant — so the two cannot
+drift apart, and a hand-written `"["parkir","musala"]"` fails the build.
 
 ### 2. Dry run, then write
 
 ```bash
-# Development or test only. A dry run unless --tulis.
+# Development, test, or staging with the named allowance. A dry run unless --tulis.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json
 # [import-katalog-lama] Mode dry-run: tidak ada yang ditulis.
 # Lokasi: 3 dibaca, 3 akan diimpor, 1 ditolak.
@@ -232,16 +260,34 @@ npm run import:katalog-lama -- --sumber ~/katalog-lama.json
 
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis
 # [import-katalog-lama] Ditulis: 3 Lokasi Mitra dan 4 Jenis Makam.
+
+# On the beta's own environment (staging): the allowance is named, refused by
+# default, and every write it makes says so in the Entri Audit reason.
+npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis --izinkan-staging
+# Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).  # without it
+# Ditolak: import-katalog-lama tidak pernah jalan di production.                 # production, always
 ```
 
 Against a worktree's local stack, `npm run stack -- up --build -d` first, then
-the same two commands with `DATABASE_URL` pointing at that stack (or inside it,
+the same commands with `DATABASE_URL` pointing at that stack (or inside it,
 `docker compose exec -T web npx tsx src/cli/import-katalog-lama.ts …`). A
 `seed:admin` must have run on the stack first: the import acts as that first
-Admin Platform, past TOTP, and every write it makes is audited under that Akun
-(`lokasi.buat`, `lokasi.ubah_profil`, `tarif.buat_jenis_makam`,
-`tarif.ubah_biaya_pemakaman`, `katalog_lama.impor`, all with the reason "impor
-katalog aplikasi lama").
+Admin Platform, past TOTP, and every write it makes is audited under that Akun.
+Which Entri Audit entries that is, exactly:
+
+- `lokasi.buat` and `lokasi.ubah_profil` (creating the Lokasi Mitra and its
+  profile) take **no reason** — the Lokasi module's own signature has none, so
+  those two entries are the import only by their actor and their subject;
+- `lokasi.tandai_data_contoh` (the example-data mark, see below) takes the
+  import's reason plus what the source said;
+- `tarif.buat_jenis_makam` and `tarif.ubah_biaya_pemakaman` take the import's
+  reason;
+- `katalog_lama.impor` binds the source's code to the v1 id, on the Lokasi
+  Mitra, with the same reason.
+
+On staging the reason is `impor katalog aplikasi lama (staging,
+--izinkan-staging)`, so the Audit Log of every row an import created on the
+beta's own environment says so.
 
 ### 3. What the report is saying
 
@@ -250,7 +296,16 @@ katalog aplikasi lama").
   (the markers the old app's seeder writes and its `PurgeExampleData` command
   asserts; research 2026-09-27, §1.3). Every row in the old `makam_beta`
   catalog is one of them, so read this line before showing the beta to a
-  tester: a fabricated address is not a cemetery.
+  tester: a fabricated address is not a cemetery. The import does not leave that
+  as a report line: it puts `data_contoh` on the Lokasi Mitra record itself, and
+  the Lokasi module then **refuses to publish it and leaves it out of every
+  public read** (`publish()` answers `data_contoh_tidak_bisa_diterbitkan`, and
+  the directory, the city filter and the public page skip it whatever its status
+  says). Every imported row is marked, not only the marked ones: an import
+  verifies nothing, so nothing it creates is ready to be listed. An operator who
+  has verified a row by hand clears the mark through
+  `lokasi.tandaiDataContoh(..., { dataContoh: false, reason })`, which is audited
+  with that reason.
 - **Ditolak** — a row that cannot come across, with the reason: a code used
   twice, two Jenis Makam with one name in a Lokasi, a price the old app only
   estimated (`harga_belum_dapat_dimasukkan`: an indicative range with no term,
@@ -258,9 +313,14 @@ katalog aplikasi lama").
   app had already put in force (v1 never rewrites a price that was already in
   force), or a refusal from the Lokasi or Tariffs module while writing. Nothing
   else was written for that row.
-- **Pertanyaan untuk owner** — read-only questions, never acted on: the old
-  app's publication status for a Lokasi it had not published, an indicative
-  price range, a price already in force, a Lokasi it had no price for.
+- **Pertanyaan untuk owner** — read-only questions, never acted on: a Lokasi
+  the source names nobody to run, a facility label that is not on v1's list, the
+  publication status of a Lokasi the source had not published, an indicative
+  price range (per Jenis Makam, or for the cemetery as a whole), a price already
+  in force, a Lokasi it had no price for.
+- **Ditolak `pengelola_kosong`** — the source names nobody to run that cemetery,
+  and v1 will not invent a name for a field a person reads. Fill `pengelola` in
+  the export and run it again; nothing else is written for that row.
 - **Di luar cap QRIS** — a Jenis Makam whose all-in total (Harga Hak Pakai plus
   the Lokasi's Biaya Pemakaman) passes Rp 10.000.000. It is imported and kept;
   the public pricing leaves it out, so no order can be taken for it (spec,
@@ -286,9 +346,11 @@ select id, name, created_at from lokasi_mitra where name = '<nama dari ekspor>';
 
 A claim with no `lokasi_id` and no Lokasi Mitra behind it is a claim nothing
 was built on: deleting that one row (by hand, on a development or test
-database only) is what lets the import create it. If a Lokasi Mitra does exist
-under that name, it was created and only the bind was lost — keep both rows and
-bind them by re-running nothing: say so in the ticket instead, since a second
+database only) is what lets the import create it. The bind and its Entri Audit
+are one transaction, so a bound row always has its entry and an unbound row never
+does — there is no state where a code is bound with nothing in the Audit Log
+about it. If a Lokasi Mitra does exist under that name, it was created and only
+the bind was lost: keep both rows and say so in the ticket, since a second
 Lokasi Mitra with the same name is the one outcome an import must never have.
 Never delete a bound row: the beta loses the trace of where that Lokasi came
 from.

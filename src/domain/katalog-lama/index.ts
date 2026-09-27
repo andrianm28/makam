@@ -1,6 +1,8 @@
 /**
- * Katalog Lama: the old Laravel app's catalog codes, kept beside the Lokasi
- * Mitra and Jenis Makam the import created from them (ticket 86).
+ * Katalog Lama: the catalog codes an import brought across, kept beside the
+ * Lokasi Mitra and Jenis Makam it created (ticket 86). The name is the role, not
+ * one source: any catalog export carries a stable code per row (the old app's
+ * `cemeteries.slug`, a CSV's own id), and that code is what the ledger keys on.
  *
  * Owns tables: katalog_lama_lokasi, katalog_lama_jenis_makam.
  *
@@ -21,14 +23,14 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
-import type { AuditLog } from "@/domain/audit";
+import type { AuditLog, RecordEntry } from "@/domain/audit";
 import { semuaLokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { katalogLamaJenisMakam, katalogLamaLokasi } from "./schema";
 
 /** A claim of an old catalog code, and whatever this import has bound to it. */
 export interface ImporLokasi {
-  /** The old app's own code for this cemetery. */
+  /** The source's own code for this Lokasi: the key the whole import is idempotent on. */
   kode: string;
   /** The Lokasi Mitra the Lokasi module created; null while the claim is unbound. */
   lokasiId: string | null;
@@ -149,22 +151,31 @@ export function createKatalogLama(deps: KatalogLamaDeps): KatalogLama {
     return row ? toImporJenisMakam(row) : null;
   }
 
-  /** One Entri Audit entry per bind: the old code beside the v1 id it became, on that Lokasi Mitra. */
+  /**
+   * The one Entri Audit entry a bind records: the old code beside the v1 id it
+   * became, on the Lokasi Mitra it names. It is written inside the bind's own
+   * transaction (`record`), never beside it: a bind that committed without its
+   * entry would be skipped by the next run with nothing to show for it.
+   */
   async function catatImport(
-    by: Actor,
-    input: { entity: "lokasi_mitra" | "jenis_makam"; id: string; lokasiId: string; kode: string; reason: string | null },
-  ): Promise<{ ok: true }> {
-    return deps.audit.staffWrite(deps.db, async (_tx, record) => {
-      await record({
-        actor: { accountId: by.accountId, role: "admin_platform" },
-        action: "katalog_lama.impor",
-        entity: { kind: input.entity, id: input.id },
-        lokasiId: input.lokasiId,
-        before: null,
-        after: { kode: input.kode, [input.entity === "lokasi_mitra" ? "lokasiId" : "jenisMakamId"]: input.id },
-        reason: input.reason,
-      });
-      return { ok: true as const };
+    record: RecordEntry,
+    input: {
+      aktorAccountId: string;
+      entity: "lokasi_mitra" | "jenis_makam";
+      id: string;
+      lokasiId: string;
+      kode: string;
+      reason: string | null;
+    },
+  ): Promise<void> {
+    await record({
+      actor: { accountId: input.aktorAccountId, role: "admin_platform" },
+      action: "katalog_lama.impor",
+      entity: { kind: input.entity, id: input.id },
+      lokasiId: input.lokasiId,
+      before: null,
+      after: { kode: input.kode, [input.entity === "lokasi_mitra" ? "lokasiId" : "jenisMakamId"]: input.id },
+      reason: input.reason,
     });
   }
 
@@ -188,24 +199,29 @@ export function createKatalogLama(deps: KatalogLamaDeps): KatalogLama {
       const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
       if (refusal) return refusal;
       const parsed = kodeDanUuid("lokasiId").parse(input);
-      const bound = await deps.db
-        .update(katalogLamaLokasi)
-        .set({ lokasiId: parsed.lokasiId, diimporPada: deps.clock.now(), diimporOleh: by.accountId })
-        .where(and(eq(katalogLamaLokasi.kode, kode(parsed.kode)), isNull(katalogLamaLokasi.lokasiId)))
-        .returning();
-      if (!bound[0]) {
-        return (await lokasiOf(parsed.kode))
-          ? { ok: false, reason: "sudah_diimpor" as const }
-          : { ok: false, reason: "tidak_diklaim" as const };
-      }
-      await catatImport(by, {
-        entity: "lokasi_mitra",
-        id: parsed.lokasiId,
-        lokasiId: parsed.lokasiId,
-        kode: parsed.kode,
-        reason: input.reason,
+      return deps.audit.staffWrite(deps.db, async (tx, record) => {
+        const [claim] = await tx
+          .select()
+          .from(katalogLamaLokasi)
+          .where(eq(katalogLamaLokasi.kode, kode(parsed.kode)))
+          .for("update");
+        if (!claim) return { ok: false as const, reason: "tidak_diklaim" as const };
+        if (claim.lokasiId !== null) return { ok: false as const, reason: "sudah_diimpor" as const };
+        const [bound] = await tx
+          .update(katalogLamaLokasi)
+          .set({ lokasiId: parsed.lokasiId, diimporPada: deps.clock.now(), diimporOleh: by.accountId })
+          .where(and(eq(katalogLamaLokasi.kode, parsed.kode), isNull(katalogLamaLokasi.lokasiId)))
+          .returning();
+        await catatImport(record, {
+          aktorAccountId: by.accountId,
+          entity: "lokasi_mitra",
+          id: parsed.lokasiId,
+          lokasiId: parsed.lokasiId,
+          kode: parsed.kode,
+          reason: input.reason,
+        });
+        return { ok: true as const, impor: toImporLokasi(bound) };
       });
-      return { ok: true, impor: toImporLokasi(bound[0]) };
     },
 
     jenisMakam: jenisMakamOf,
@@ -232,22 +248,31 @@ export function createKatalogLama(deps: KatalogLamaDeps): KatalogLama {
       const parsed = kodeDanUuid("jenisMakamId").parse(input);
       const klaim = await jenisMakamOf(parsed.kode);
       if (!klaim) return { ok: false, reason: "tidak_diklaim" };
-      const induk = await lokasiOf(klaim.lokasiKode);
-      if (!induk?.lokasiId) return { ok: false, reason: "lokasi_belum_diimpor" };
-      const bound = await deps.db
-        .update(katalogLamaJenisMakam)
-        .set({ jenisMakamId: parsed.jenisMakamId, diimporPada: deps.clock.now(), diimporOleh: by.accountId })
-        .where(and(eq(katalogLamaJenisMakam.kode, parsed.kode), isNull(katalogLamaJenisMakam.jenisMakamId)))
-        .returning();
-      if (!bound[0]) return { ok: false, reason: "sudah_diimpor" };
-      await catatImport(by, {
-        entity: "jenis_makam",
-        id: parsed.jenisMakamId,
-        lokasiId: induk.lokasiId,
-        kode: parsed.kode,
-        reason: input.reason,
+      const indukLokasiId = (await lokasiOf(klaim.lokasiKode))?.lokasiId ?? null;
+      if (!indukLokasiId) return { ok: false, reason: "lokasi_belum_diimpor" };
+      return deps.audit.staffWrite(deps.db, async (tx, record) => {
+        const [claim] = await tx
+          .select()
+          .from(katalogLamaJenisMakam)
+          .where(eq(katalogLamaJenisMakam.kode, parsed.kode))
+          .for("update");
+        if (!claim) return { ok: false as const, reason: "tidak_diklaim" as const };
+        if (claim.jenisMakamId !== null) return { ok: false as const, reason: "sudah_diimpor" as const };
+        const [bound] = await tx
+          .update(katalogLamaJenisMakam)
+          .set({ jenisMakamId: parsed.jenisMakamId, diimporPada: deps.clock.now(), diimporOleh: by.accountId })
+          .where(and(eq(katalogLamaJenisMakam.kode, parsed.kode), isNull(katalogLamaJenisMakam.jenisMakamId)))
+          .returning();
+        await catatImport(record, {
+          aktorAccountId: by.accountId,
+          entity: "jenis_makam",
+          id: parsed.jenisMakamId,
+          lokasiId: indukLokasiId,
+          kode: parsed.kode,
+          reason: input.reason,
+        });
+        return { ok: true as const, impor: toImporJenisMakam(bound) };
       });
-      return { ok: true, impor: toImporJenisMakam(bound[0]) };
     },
 
     async diimpor() {

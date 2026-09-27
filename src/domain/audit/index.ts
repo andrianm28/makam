@@ -61,6 +61,8 @@ export type AuditAction =
   | "lokasi.buat"
   /** Admin Platform records a Lokasi Mitra's profile (name, pengelola, address, city, pin, facilities). */
   | "lokasi.ubah_profil"
+  /** Admin Platform marks a Lokasi Mitra as example data, or clears the mark (ticket 86). */
+  | "lokasi.tandai_data_contoh"
   /** Admin Platform edits a Lokasi Mitra's document checklist. */
   | "lokasi.ubah_dokumen"
   /** Admin Platform sets a Lokasi Mitra's policies and flags. */

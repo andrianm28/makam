@@ -14,3 +14,5 @@ CREATE TABLE "katalog_lama_lokasi" (
 	"diimpor_pada" timestamp with time zone,
 	"diimpor_oleh" text
 );
+--> statement-breakpoint
+ALTER TABLE "lokasi_mitra" ADD COLUMN "data_contoh" boolean DEFAULT false NOT NULL;

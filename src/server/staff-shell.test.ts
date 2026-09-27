@@ -103,7 +103,7 @@ describe("the staff shell", () => {
     expect((await staffShell())?.adminLokasi).toEqual([]);
 
     await signInAsAdminLokasi(server, admin, lokasiId);
-    expect((await staffShell())?.adminLokasi).toEqual([{ id: lokasiId, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang", publishedAt: null, publishGateRecheckedAt: null }]);
+    expect((await staffShell())?.adminLokasi).toEqual([{ id: lokasiId, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur", status: "belum_tayang", dataContoh: false, publishedAt: null, publishGateRecheckedAt: null }]);
   });
 
   it("carries the signed-in Akun's Peringatan Staf bell: the unread count and the latest, each with the page of its subject", async () => {

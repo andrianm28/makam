@@ -72,6 +72,11 @@ import {
 import type { JamOperasional, Tanggal } from "./jam-operasional-schema";
 import type { HariLiburNasional, WorkingTimeResult } from "./working-time";
 import {
+  tandaiDataContoh,
+  type TandaiDataContohInput,
+  type TandaiDataContohResult,
+} from "./data-contoh";
+import {
   addHariLiburNasional,
   hariLiburNasional,
   nextHariLiburNasional,
@@ -192,6 +197,7 @@ export type {
   RecordKunjunganVerifikasiResult,
 } from "./kunjungan";
 export type { PublishInput, PublishLokasiMitraResult } from "./publish";
+export type { TandaiDataContohInput, TandaiDataContohResult } from "./data-contoh";
 export {
   terencanaSwitchGate,
   type ActivateTerencanaInput,
@@ -221,6 +227,11 @@ export interface Lokasi {
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
   /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
   updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput): Promise<UpdateProfileResult>;
+  /**
+   * Admin Platform marks a Lokasi Mitra as example data (with a reason), or clears
+   * the mark, audited. A marked one can never be published or listed (ticket 86).
+   */
+  tandaiDataContoh(by: Actor, lokasiId: string, input: TandaiDataContohInput): Promise<TandaiDataContohResult>;
   /** Admin Platform replaces the document checklist, audited. */
   setDocumentChecklist(by: Actor, lokasiId: string, input: { documentChecklist: string[] }): Promise<WriteResult>;
   /** Admin Platform sets the policies and flags together, audited; values outside the rules are refused. */
@@ -364,6 +375,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
     updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),
+    tandaiDataContoh: (by, lokasiId, input) => tandaiDataContoh(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
     setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),
     changeBankAccount: (by, lokasiId, input) => changeBankAccount(deps, by, lokasiId, input),

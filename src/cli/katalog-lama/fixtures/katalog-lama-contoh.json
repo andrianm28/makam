@@ -8,18 +8,31 @@
       "pengelola": "PJT Contoh Satu",
       "alamat": "Jl. Contoh No. 1, Kota Contoh",
       "kota": "Kota Contoh",
-      "titik": { "lat": -6.2, "lng": 106.865 },
-      "fasilitas": ["parkir", "musala", "toilet"],
+      "titik": {
+        "lat": -6.2,
+        "lng": 106.865
+      },
+      "fasilitas": [
+        "Area parkir",
+        "Toilet Umum",
+        "Lift roda kursi"
+      ],
       "catatanFasilitas": "Fasilitas contoh, bukan data sebenarnya.",
       "statusTerbit": "published",
-      "biayaPemakaman": { "biayaPemakaman": 750000, "biayaPemakamanTumpang": 1000000 },
+      "biayaPemakaman": {
+        "biayaPemakaman": 750000,
+        "biayaPemakamanTumpang": 1000000
+      },
       "jenisMakam": [
         {
           "kode": "TPU-BT-01-STD",
           "nama": "Makam Standar",
           "deskripsi": "Petak satu lantai, 10 tahun.",
           "hargaHakPakai": 3500000,
-          "masaHak": { "jenis": "tahun", "tahun": 10 },
+          "masaHak": {
+            "jenis": "tahun",
+            "tahun": 10
+          },
           "hargaPerpanjangan": 1750000
         },
         {
@@ -27,10 +40,18 @@
           "nama": "Makam Deluxe",
           "deskripsi": "Petak sendiri, seumur hidup.",
           "hargaHakPakai": 12000000,
-          "masaHak": { "jenis": "selamanya" },
+          "masaHak": {
+            "jenis": "selamanya"
+          },
           "hargaPerpanjangan": null
         }
-      ]
+      ],
+      "hargaIndikatif": {
+        "min": 3000000,
+        "max": 5400000,
+        "sumber": "Estimasi internal (data contoh)",
+        "berlakuMulai": null
+      }
     },
     {
       "kode": "WKF-BGR-02",
@@ -48,7 +69,10 @@
           "nama": "Makam Wakaf Standar",
           "deskripsi": "Petak wakaf, 5 tahun.",
           "hargaHakPakai": 2000000,
-          "masaHak": { "jenis": "tahun", "tahun": 5 },
+          "masaHak": {
+            "jenis": "tahun",
+            "tahun": 5
+          },
           "hargaPerpanjangan": 1000000,
           "berlakuMulai": "2026-10-01"
         }
@@ -61,7 +85,9 @@
       "alamat": "Jl. Patriot No. 3, Kota Contoh",
       "kota": "Kota Contoh",
       "titik": null,
-      "fasilitas": ["air_bersih"],
+      "fasilitas": [
+        "air_bersih"
+      ],
       "catatanFasilitas": "",
       "statusTerbit": "unpublished",
       "jenisMakam": [
@@ -70,7 +96,9 @@
           "nama": "Makam Standar",
           "deskripsi": "Petak satu lantai, seumur hidup.",
           "hargaHakPakai": 1500000,
-          "masaHak": { "jenis": "selamanya" },
+          "masaHak": {
+            "jenis": "selamanya"
+          },
           "hargaPerpanjangan": null
         },
         {

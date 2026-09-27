@@ -1,5 +1,5 @@
 {
-  "id": "726bd3a4-4791-4303-820f-6e1c7b822788",
+  "id": "e18d80bd-95d2-4ccb-9b26-3a79b4580592",
   "prevId": "5b969753-ba61-4159-be07-0f69e958995f",
   "version": "7",
   "dialect": "postgresql",
@@ -2949,6 +2949,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "data_contoh": {
+          "name": "data_contoh",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "facilities": {
           "name": "facilities",

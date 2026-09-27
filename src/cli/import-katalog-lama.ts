@@ -1,8 +1,8 @@
 /**
- * `npx tsx src/cli/import-katalog-lama.ts --sumber <berkas.json> [--tulis]`
- * (dev): imports the old Laravel app's cemetery catalog into a development or
- * test stack. A dry run unless `--tulis`; refused on staging and production.
- * Never opens the old app's database, only reads the catalog export file.
+ * `npx tsx src/cli/import-katalog-lama.ts --sumber <berkas.json> [--tulis] [--izinkan-staging]`:
+ * imports a cemetery catalog export into a development or test stack, or into
+ * staging under the named allowance (never production). A dry run unless
+ * `--tulis`. Never opens the source's database, only reads the export file.
  */
 import { cliFailure } from "./cli-failure";
 import { importKatalogLamaCommand } from "./import-katalog-lama-command";

@@ -28,6 +28,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "akun.email_verifikasi": "Verifikasi Email",
   "lokasi.buat": "Lokasi Mitra dibuat",
   "lokasi.ubah_profil": "Profil diubah",
+  "lokasi.tandai_data_contoh": "Ditandai data contoh",
   "lokasi.ubah_dokumen": "Daftar dokumen diubah",
   "lokasi.ubah_kebijakan": "Kebijakan diubah",
   "lokasi.ubah_rekening": "Rekening diubah",
