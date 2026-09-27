@@ -10,6 +10,7 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 
 ## Acceptance criteria
 
+<<<<<<< HEAD
 - [x] **Signing**: after ticket 71's gate passes on `main`, CI signs the image digest with cosign (staging key pair; private key as a GitHub secret, public key installed on the host by `deploy/install-host.sh`). `makam-deploy` verifies the signature before `migrate` and refuses (distinct exit code, logged) any unsigned or wrongly signed image. Tests show an unsigned image is refused.
 - [x] **Staging** follows the signed digest (not a mutable tag alone); the timer stays; each deploy step reports a GitHub Deployment and status (in_progress / success / failure, with the URL) using a fine-grained token limited to deployment statuses on this repository, stored on the host only.
 - [x] **One digest for both environments**: the browser GlitchTip DSN (`NEXT_PUBLIC_SENTRY_DSN`) stops being a build argument and becomes a runtime value served to the browser; a test shows one image reports to the DSN of the environment it runs in.
@@ -21,6 +22,19 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 - [x] **Concurrency**: signing, promotion and rollback run in groups that are never cancelled mid-way.
 - [ ] **Rehearsal**: `makam-prod` deployed once through the promotion on 127.0.0.1:3100 with sandbox keys and no nginx change; a forced failing healthcheck shows the automatic rollback; an unsigned image is refused. **Not run**: the promotion and the signature check both need real cosign key pairs, which do not exist yet (see `## Comments`). Both behaviours are covered by `tests/tooling/makam-deploy.test.ts`, which drives the real scripts against fakes.
 - [x] Runbook: signing keys (where they live, how to rotate), approving a promotion, rolling back, pausing deploys, reading deploy results in GitHub and `deploy.log`.
+=======
+- [ ] **Signing**: after ticket 71's gate passes on `main`, CI signs the image digest with cosign (staging key pair; private key as a GitHub secret, public key installed on the host by `deploy/install-host.sh`). `makam-deploy` verifies the signature before `migrate` and refuses (distinct exit code, logged) any unsigned or wrongly signed image. Tests show an unsigned image is refused.
+- [ ] **Staging** follows the signed digest (not a mutable tag alone); the timer stays; each deploy step reports a GitHub Deployment and status (in_progress / success / failure, with the URL) using a fine-grained token limited to deployment statuses on this repository, stored on the host only.
+- [ ] **One digest for both environments**: the browser GlitchTip DSN (`NEXT_PUBLIC_SENTRY_DSN`) stops being a build argument and becomes a runtime value served to the browser; a test shows one image reports to the DSN of the environment it runs in.
+- [ ] **Staging smoke gate**: after a staging deploy, a short Playwright smoke test runs from a hosted runner against `https://dev.makam.co.id` (health, home, Masuk page); its result is recorded against the digest, and promotion refuses a digest whose smoke test did not pass.
+- [ ] **Production promotion**: a `workflow_dispatch` "Promosikan ke produksi" that refuses unless `github.actor` is the repository owner, requires the release tag typed again, requires the digest to be the one deployed and healthy on staging, signs it with a separate **production** key, and creates `vYYYY.MM.DD-N` with generated release notes. The production host accepts only production-signed images.
+- [ ] **Rollback workflow**: owner-only `workflow_dispatch` re-promoting an earlier released digest (same signing), plus the by-hand `makam-deploy --tag` path in the runbook.
+- [ ] **Production safety in `makam-deploy --env prod`**: `pg_dump` snapshot before `migrate`, kept on the host with rotation and never copied off it (decided 2026-09-27, ticket 64: in v1 nothing goes off-host; off-host copies are v2, with the S3 work blocked by 03); failed `migrate` → nothing restarted; failed `up` or `/api/health` → automatic rollback to the previous tag and a failure status. Migrations are never rolled back automatically.
+- [ ] **Releases**: CI uploads source maps to GlitchTip for each image (release-scoped token as a GitHub secret) and each deploy creates a GlitchTip release for the commit.
+- [ ] **Concurrency**: signing, promotion and rollback run in groups that are never cancelled mid-way.
+- [ ] **Rehearsal**: `makam-prod` deployed once through the promotion on 127.0.0.1:3100 with sandbox keys and no nginx change; a forced failing healthcheck shows the automatic rollback; an unsigned image is refused. Live keys, the nginx switch and going live stay in ticket 65; production is not live before ticket 64.
+- [ ] Runbook: signing keys (where they live, how to rotate), approving a promotion, rolling back, pausing deploys, reading deploy results in GitHub and `deploy.log`.
+>>>>>>> origin/main
 
 ## Comments
 

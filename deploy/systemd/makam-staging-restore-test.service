@@ -1,0 +1,24 @@
+# Weekly restore of the newest makam-staging Dump into a throwaway Postgres,
+# checked against the row counts of the night it was taken
+# (docs/ops/runbook.md, "Database backup and restore"). Installed by
+# deploy/install-host.sh.
+[Unit]
+Description=Restore-check the newest makam-staging database backup
+Wants=network-online.target
+After=network-online.target docker.service makam-staging-db-backup.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-restore-test --env staging
+TimeoutStartSec=20min
+
+# Hardening. Like the backup it needs the docker socket (it starts a throwaway
+# Postgres), and writes nothing itself: the Dump is read, the restored database
+# lives in the container, which the script removes again.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/makam-v1
