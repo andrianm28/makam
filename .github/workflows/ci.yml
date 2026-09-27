@@ -122,12 +122,17 @@ jobs:
         run: |
           baseline=""
           for environment in production staging; do
-            deployment=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=$environment&per_page=1" \
-              --jq '.[0] // empty' 2>/dev/null || true)
-            if [ -n "$deployment" ]; then
+            # Only deployments that succeeded, newest first: the newest
+            # deployment of an environment is often a refused or rolled-back
+            # attempt, and that image is not what the host is running.
+            deployments=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=$environment&per_page=20" \
+              --jq '.[] | select(.state == "success") | @json' 2>/dev/null || true)
+            while IFS= read -r deployment; do
+              [ -n "$deployment" ] || continue
               candidate=$(printf '%s' "$deployment" | npx tsx scripts/migrations/deployed-release.ts "$GITHUB_REPOSITORY" 2>/dev/null || true)
-              if [ -n "$candidate" ]; then baseline="$candidate"; echo "Running release ($environment): $baseline"; break; fi
-            fi
+              if [ -n "$candidate" ]; then baseline="$candidate"; break; fi
+            done <<< "$deployments"
+            [ -n "$baseline" ] && { echo "Running release ($environment): $baseline"; break; }
           done
           [ -n "$baseline" ] && echo "RUNNING=$baseline" >> "$GITHUB_ENV"
           docker pull --quiet "$RUNNING"
@@ -198,6 +203,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            # The release is a build-time fact (the commit), not a secret: the
+            # SDK injects it into the bundle, and the same value is the release
+            # the `sourcemaps` job uploads under. Nothing environment-specific
+            # goes in here; the browser DSN stays a runtime value.
+            SENTRY_RELEASE=${{ github.sha }}
 
   e2e:
     name: E2E (Playwright against the pushed image)
@@ -348,6 +359,36 @@ jobs:
         with:
           sarif_file: trivy.sarif
           category: trivy-image
+
+  # Source maps to GlitchTip for this exact image (ticket 72, ADR 0002). It
+  # uploads from the pushed image, with the token as a GitHub secret, so no
+  # build and no image layer ever holds it. deploy-gate does not need this job:
+  # missing source maps cost readable stack traces, not a deploy.
+  sourcemaps:
+    name: Source maps to GlitchTip
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: image
+    if: needs.image.outputs.release == 'true'
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE: ${{ needs.image.outputs.ref }}
+      # The same value as the SENTRY_RELEASE build argument above: a release and
+      # its source maps are one thing, under one name.
+      RELEASE: ${{ github.sha }}
+      SENTRY_URL: ${{ vars.GLITCHTIP_URL }}
+      SENTRY_ORG: ${{ vars.GLITCHTIP_ORG }}
+      SENTRY_PROJECT: ${{ vars.GLITCHTIP_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_AUTH_TOKEN }}
+      # Pinned by digest like every other image here (Dependabot cannot see a
+      # docker run in a workflow, so this one is a manual bump, as cosign is).
+      SENTRY_CLI: ghcr.io/getsentry/sentry-cli:2.46.0@sha256:03db524ab5066f720a66aaeae46820e41fbcf4a6c0f60d326c81cb59aa0df6ee
+    steps:
+      - uses: ./.github/actions/ghcr-login
+      - name: Upload the source maps of that image
+        run: scripts/ci/upload-sourcemaps.sh
 
   # The gate every deploy waits for: it runs only when every check passed on the
   # pushed image, and hands on that exact image. It no longer moves `latest`:

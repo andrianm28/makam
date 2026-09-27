@@ -18,6 +18,7 @@
 #   4. run --rm migrate         fails -> nothing restarted; old web/worker keep running
 #   5. up -d --wait             fails -> automatic roll back to the previous digest
 #   6. /api/health must be 200  fails -> automatic roll back to the previous digest
+#   7. create the GlitchTip release for the commit (best effort, never fatal)
 #
 # A mutable tag is only a pointer: whatever it names is resolved to a digest, the
 # digest's cosign signature is checked against this environment's public key, and
@@ -28,8 +29,10 @@
 #
 # Exit codes:
 #   0   deployed and healthy, or already on that digest
-#   1   pull, snapshot, migrate or up failed
-#   2   deployed but /api/health never came back, and the roll back failed too
+#   1   pull, snapshot, migrate or up failed, or the health check never came
+#       back and the roll back to the previous digest worked
+#   2   the roll back to the previous digest failed as well: the new, unhealthy
+#       image is what is still running, which is the one state needing a human
 #   64  usage
 #   77  the image is unsigned or signed with another key (nothing was touched)
 #   78  the host or the env file is not set up for a deploy
@@ -56,6 +59,7 @@ LOCAL=0
 FORCE=0
 VERIFY_IMAGE="$MAKAM_ROOT/bin/makam-verify-image"
 STATUS_SCRIPT="$MAKAM_ROOT/bin/makam-deploy-status"
+RELEASE_SCRIPT="$MAKAM_ROOT/bin/makam-glitchtip-release"
 # How long /api/health has to answer 200 after `up`, in seconds. 180 on a host:
 # the worker's first heartbeat on an empty database takes about 90 s.
 HEALTH_WAIT=${MAKAM_HEALTH_WAIT:-180}
@@ -144,6 +148,15 @@ running() { [ -n "$(compose ps --status running -q "$1" 2>/dev/null)" ]; }
 status() {
   [ -x "$STATUS_SCRIPT" ] || return 0
   "$STATUS_SCRIPT" --env "$ENV_NAME" "$@" >> "$LOG" 2>&1 || true
+}
+
+# 7. The GlitchTip release for the commit that is now running, so its first
+# error event has a release (and the source maps ci.yml uploaded for that commit)
+# to point at. Best effort like `status`: reporting never fails a deploy.
+release() {
+  [ -x "$RELEASE_SCRIPT" ] || return 0
+  [ -n "${REV:-}" ] || return 0
+  "$RELEASE_SCRIPT" --env "$ENV_NAME" --release "$REV" >> "$LOG" 2>&1 || true
 }
 
 # Put the previous digest back after a failed `up` or health check. The
@@ -275,6 +288,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   if curl -fs -m 5 -o /dev/null "http://127.0.0.1:$WEB_PORT/api/health"; then
     log "healthy on $TAG ($DIGEST)"
     status state success "$TAG ($DIGEST) healthy"
+    release
     prune
     exit 0
   fi
@@ -282,5 +296,8 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 log "ERROR $TAG deployed but /api/health is not 200 after ${HEALTH_WAIT}s; rolling back to ${PREVIOUS:-(none)}"
 status state failure "$TAG ($DIGEST) never became healthy; rolling back to ${PREVIOUS:-(none)}"
+# Exit 1: the deploy failed and the previous digest is running again. Exit 2 is
+# reserved for a roll back that failed as well, so a timer or a monitor can tell
+# "recovered on its own" from "something is still broken".
 roll_back || exit 2
-exit 2
+exit 1

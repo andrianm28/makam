@@ -48,7 +48,8 @@ done
 
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/prod" "$ROOT/glitchtip" "$ROOT/nginx-backups"
 install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-image" \
-  "$REPO/deploy/bin/makam-deploy-status" "$REPO/deploy/bin/makam-healthcheck" \
+  "$REPO/deploy/bin/makam-deploy-status" "$REPO/deploy/bin/makam-glitchtip-release" \
+  "$REPO/deploy/bin/makam-healthcheck" \
   "$REPO/deploy/bin/makam-backup-files" "$ROOT/bin/"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/prod/compose.yml"

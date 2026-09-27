@@ -32,6 +32,7 @@ secret files 0600). None of it is in the repo.
 |---|---|
 | `/opt/makam-v1/bin/makam-deploy` | deploy script (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-healthcheck` | local watchdog (from `deploy/bin/`) |
+| `/opt/makam-v1/bin/makam-glitchtip-release` | creates the GlitchTip release for the deployed commit (from `deploy/bin/`) |
 | `/opt/makam-v1/staging/compose.yml` | copy of `docker-compose.prod.yml` |
 | `/opt/makam-v1/staging/staging.env` | staging secrets and settings (see below) |
 | `/opt/makam-v1/staging/deployed.env` | tag and release now running, and the previous tag (written by the deploy script) |
@@ -75,6 +76,9 @@ to run unless the first three match `--env`:
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
+| `NEXT_PUBLIC_SENTRY_DSN` | the public DSN of `/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt` | browser errors; a runtime value served in the page, never a build argument |
+| `MAKAM_GITHUB_TOKEN` | fine-grained token, "Deployments: write" only | the GitHub Deployment statuses of a deploy |
+| `MAKAM_GLITCHTIP_TOKEN` | GlitchTip auth token, `project:releases` write | the per-deploy GlitchTip release; without it the release is a logged no-op |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
 | `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
@@ -222,12 +226,13 @@ never checked twice. On `main` the job graph is:
 check (lint, typecheck, npm audit, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┐
 secrets (gitleaks) ────────────────────────────────────────────────────────────┤         ├→ deploy-gate ─→ sign (cosign, then tag :latest)
 migrations (upgrade from the running release) ─────────────────────────────────┴→ scan ─┘
+                                                                                      └→ sourcemaps
 ```
 
-Every job except `deploy-gate` and `sign` also runs on pull requests, except
-that there `image` builds without pushing and e2e and scan are skipped. The one
-"main only" rule is the `image` job's `release` output. A warm `main` run takes
-about 11 to 12 minutes.
+Every job except `deploy-gate`, `sign` and `sourcemaps` also runs on pull
+requests, except that there `image` builds without pushing and e2e, scan and
+`sourcemaps` are skipped. The one "main only" rule is the `image` job's `release`
+output. A warm `main` run takes about 11 to 12 minutes.
 
 - **check**: lint, typecheck, Vitest on a fresh Postgres, and `npm audit
   --omit=dev`, which fails on a critical advisory that has a fix (update the
@@ -241,14 +246,17 @@ about 11 to 12 minutes.
   the code; the history keeps it, so the rotation is what counts.
 - **migrations**: the upgrade test. It upgrades from **the digest production is
   actually running**, then staging, and only then the ghcr `latest` tag — read
-  from the newest GitHub Deployment that names a digest
+  from the newest GitHub Deployment **that succeeded** and names a digest
   (`scripts/migrations/deployed-release.ts`), because a deploy follows signed
-  digests and production lags staging. A host that has never deployed has no
-  baseline, which is not an error: the upgrade then starts from an empty
-  database. That release migrates the database with its own `migrate`, the
-  `seed-representative` script fills **every** table with a few rows (the run
-  fails if any table stays empty: an empty table would hide exactly the breakage
-  this test exists to catch), then this commit's migrations run on it (Vitest's
+  digests and production lags staging. The newest deployment of an environment
+  is often a refused or rolled-back attempt, and that image is not what anything
+  is running, so it is skipped in favour of the one before it. A host that has
+  never deployed has no baseline, which is not an error: the upgrade then starts
+  from an empty database. That release migrates the database with its own
+  `migrate`, the `seed-representative` script fills **every** table with a few
+  rows (the run fails if any table stays empty: an empty table would hide
+  exactly the breakage this test exists to catch), then this commit's migrations
+  run on it (Vitest's
   global setup) and the domain tests run on the result. Before that, every
   migration file the running release does not have is checked for destructive
   DDL (DROP, TRUNCATE, RENAME, SET NOT NULL, a type change, a NOT NULL column
@@ -282,6 +290,9 @@ about 11 to 12 minutes.
   host can never pick up an unsigned digest. It runs in its own `sign`
   concurrency group and is never cancelled. `latest` is only a *pointer*: the
   host resolves it to a digest and refuses anything the key did not sign.
+- **sourcemaps** sends this image's browser source maps to GlitchTip (see
+  "Source maps and releases" below). `deploy-gate` does not need it: missing
+  source maps cost readable stack traces, not a deploy.
 - **Accepting a finding** that cannot be fixed yet: add it to `.trivyignore`
   with the reason in a comment directly above and `exp:YYYY-MM-DD` at most 90
   days out (`tests/trivyignore.test.ts` enforces both), in a reviewed PR.
@@ -365,7 +376,21 @@ minutes as `ubuntu`, which has a `read:packages` ghcr login in
    writes `deployed.env` (`MAKAM_TAG`, `MAKAM_DIGEST`, `MAKAM_DEPLOY_REF`,
    `MAKAM_RELEASE`);
 7. waits up to 180 s for `/api/health` to return 200 (DB ok and a fresh worker
-   heartbeat) and rolls back to the previous digest if it never does.
+   heartbeat) and rolls back to the previous digest if it never does;
+8. creates the **GlitchTip release** for the commit that is now running (needs
+   `MAKAM_GLITCHTIP_TOKEN` in `staging.env`; see "Source maps and releases").
+   Best effort: no token or GlitchTip down is a logged no-op.
+
+Exit codes, so a timer or a monitor can tell one failure from another:
+
+| Code | Meaning |
+| ---- | ------- |
+| 0 | deployed and healthy, or already on that digest |
+| 1 | pull, snapshot, migrate or `up` failed, or the health check never came back **and the roll back worked** |
+| 2 | the roll back failed as well (or there was nothing to roll back to): the new, unhealthy image is what is still running |
+| 64 | usage |
+| 77 | unsigned, or signed with another key: nothing was touched |
+| 78 | this host is not set up for a deploy (no env file, no compose file, no cosign key) |
 
 Both units are hardened (`NoNewPrivileges`, `PrivateTmp`,
 `ProtectSystem=strict`). The deploy unit can write only `/opt/makam-v1` and
@@ -489,8 +514,10 @@ upgrade test reads the deployed digest rather than the tag.
   "Forward-only migrations" below;
 - a failed `migrate` restarts nothing;
 - a failed `up` or `/api/health` **rolls back automatically** to the previous
-  digest and exits 2. Migrations are never rolled back: rolling the image back
-  only works while the previous image tolerates the new schema.
+  digest and exits **1**; exit **2** is the case where that roll back failed as
+  well, so the new image is what is left running. Migrations are never rolled
+  back: rolling the image back only works while the previous image tolerates the
+  new schema.
 
 ### Forward-only migrations
 
@@ -644,12 +671,10 @@ Certbot reuses the host's existing ACME account. After that:
   `production`, anything else → `development`; `browserSentryEnvironment` in
   `src/lib/env.ts`). Filter by environment in GlitchTip. The `@smoke` spec
   checks the value really arrives in the page.
-- **Not yet**: uploading browser source maps per image, and creating a GlitchTip
-  release per deploy. Both need a GlitchTip **auth token** as a GitHub secret,
-  and source maps also need `SENTRY_ORG` / `SENTRY_PROJECT` and a release at
-  build time in `next.config.ts`, which is a build-time decision rather than a
-  runtime one. Until they exist `next.config.ts` deliberately carries no auth
-  token, and GlitchTip shows minified JavaScript with no source map.
+- **Source maps and releases**: uploading them per image and creating a release
+  per deploy is set up but **has never run**, because the credentials do not
+  exist yet — the exact steps are in "Source maps and releases" below. Until
+  they do, GlitchTip shows minified JavaScript with no source map.
 - Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`, via the
   SumoPod SMTP relay once ticket 04's email setup is done), then restart GlitchTip.
 
@@ -678,6 +703,98 @@ organisation creation are off. Events are kept 90 days
 (`GLITCHTIP_MAX_EVENT_LIFE_DAYS`). If the `glitchtip_ingest` network is ever
 removed (`down`), start GlitchTip before the next app deploy, because the app
 compose file expects that network.
+
+## Source maps and releases (GlitchTip)
+
+Two separate things, both named after the commit:
+
+- **Per image**, `ci.yml`'s `sourcemaps` job uploads the browser source maps of
+  the image it just pushed, with `sentry-cli sourcemaps upload`. The build
+  (`next.config.ts`, `src/lib/observability/sentry-build.ts`) only *generates*
+  them and the debug ids that match an artifact to its map
+  (`sourcemaps.disable: "disable-upload"`), so **no token ever exists in the
+  build or in an image layer**: the token is read by the workflow only. The
+  build leaves the maps in `/app/dist/sourcemaps`, moved out of `.next/static`
+  by `scripts/collect-sourcemaps.mjs` — the web server serves everything under
+  `.next/static`, and a map there is a public copy of the source. The cost is
+  image size: the maps stay in the image for the upload to pick up.
+- **Per deploy**, `makam-glitchtip-release` (called by `makam-deploy` after the
+  health check) creates the release for the running commit, so the release
+  exists before the first event names it. The release name is the commit, which
+  is also what `SENTRY_RELEASE` put in the bundle and what the upload used.
+
+Both are **best effort about credentials and best effort about failures**: no
+token is a logged no-op, and neither a GlitchTip outage nor an upload that fails
+turns into a failed deploy. A `sourcemaps` job that has a token and then fails
+*does* fail the run, because that is a real misconfiguration. Until the token
+exists, `sourcemaps` warns and exits 0, so `main` keeps shipping images. (The
+opposite of `COSIGN_STAGING_PRIVATE_KEY`: no signing key means no image is
+acceptable at all, which is why that job refuses instead.)
+
+### The one-time setup (a human, once)
+
+```bash
+# 1. A GlitchTip auth token, in the `makam` organisation, with
+#    "project:releases" and "project:source_maps" write.
+#    GlitchTip UI: your avatar -> Auth Tokens -> Create.
+#    (The ops token in /opt/makam-v1/glitchtip/api-token.txt works if it has them.)
+
+# 2. In GitHub: the token is a secret, the instance and names are variables.
+gh secret set GLITCHTIP_AUTH_TOKEN
+gh variable set GLITCHTIP_URL --body https://errors.makam.co.id
+gh variable set GLITCHTIP_ORG --body makam
+gh variable set GLITCHTIP_PROJECT --body makam-staging,makam-prod   # one image, two projects
+
+# 3. On the host, for the per-deploy release, in both env files (mode 0600):
+#    MAKAM_GLITCHTIP_TOKEN=<the same token>
+sudo chmod 600 /opt/makam-v1/staging/staging.env /opt/makam-v1/prod/prod.env
+
+# 4. Install the release script (it ships with the repo):
+deploy/install-host.sh
+```
+
+The next `main` run uploads the source maps of the image it builds, and the next
+deploy of that image creates its release. Images built before this has the
+credentials have no source maps and never will, so there is nothing to re-run for
+them.
+
+### Checking it worked
+
+```bash
+# CI: the sourcemaps job, and its "::warning title=source maps::" lines when skipped
+gh run list --workflow ci.yml --limit 3
+
+# The host: one line per deploy
+grep glitchtip-release /opt/makam-v1/staging/deploy.log | tail
+
+# GlitchTip: the release, and a real stack trace with source
+#   Releases (both projects) -> the commit sha
+#   Issues -> an issue -> Latest -> the event's frames are source, not chunk-XXXX
+```
+
+To upload one image by hand (after adding the token, without waiting for the next
+build), on any Linux machine with Docker and a checkout:
+
+```bash
+IMAGE=ghcr.io/andrianm28/makam@sha256:<digest> RELEASE=<commit> \
+  SENTRY_URL=https://errors.makam.co.id SENTRY_ORG=makam \
+  SENTRY_PROJECT=makam-staging SENTRY_AUTH_TOKEN=<token> \
+  scripts/ci/upload-sourcemaps.sh
+```
+
+Rotating the token: replace the secret and the two env files; the release name is
+the commit, so a new token uploads into the same releases.
+
+**If the `sourcemaps` job fails** (it only can, with a token in place): the log
+has `sentry-cli`'s own error. The usual cause would be the CLI not matching
+Turbopack's indexed maps (`sections`) to the debug ids it injects; the way out is
+then to let the SDK upload from the build itself, which needs the token as a
+buildkit secret (`secrets:` in the `image` job, `RUN --mount=type=secret` in the
+Dockerfile) rather than as a build argument, so it still never lands in a layer.
+
+**Not covered**: the *server* and *worker* source maps. The worker bundle already
+writes `dist/*.mjs.map` into the image, but nothing uploads them, so only the
+browser's stack traces are symbolicated.
 
 ## Test error (scrubbing check)
 
