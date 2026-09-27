@@ -89,6 +89,8 @@ export type AuditAction =
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
   | "antrean.ambil"
+  /** Admin Platform logs the "Telepon Pemesan" call, closing its row (ticket 20): never in the Admin Lokasi view. */
+  | "telepon_pemesan.catat_panggilan"
   /** An Admin Lokasi creates a Blok on its Denah (size, numbering pattern, initial Jenis Makam). */
   | "denah.buat_blok"
   /** An Admin Lokasi turns selected Denah cells into Petak Makam, Jalan or Bukan Petak. */

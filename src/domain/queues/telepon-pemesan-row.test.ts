@@ -1,0 +1,47 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { wib } from "@/lib/time/jakarta";
+import { PENGATURAN_OPERATOR } from "../../../tests/support/billing";
+import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { queuesOnTestDatabase, signedInAdminPlatform } from "../../../tests/support/queues";
+import { terbitkanPerpanjangan } from "../../../tests/support/notifications-messages";
+
+const { db, close } = testDatabase();
+afterAll(close);
+beforeEach(resetDatabase);
+
+describe("Antrean: Tier 2 Telepon Pemesan", () => {
+  it("a money message that finally fails opens a Tier 2 row that alerts, and logging the call closes it", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
+    if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    const { tagihan } = await terbitkanPerpanjangan(setup, "keluarga@contoh.id");
+
+    expect(await setup.queues.antrean(admin)).toEqual([]);
+
+    setup.email.failNextSend(4);
+    for (const jam of ["2026-10-01 10:00", "2026-10-01 10:15", "2026-10-01 11:15", "2026-10-01 15:15"]) {
+      setup.clock.set(wib(jam));
+      await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    }
+
+    const rows = await setup.queues.antrean(admin);
+    const telepon = rows.find((row) => row.type === "telepon_pemesan");
+    expect(telepon).toMatchObject({
+      tier: 2,
+      label: "Telepon Pemesan",
+      subjectKind: "telepon_pemesan",
+      alerts: true,
+      pastDeadline: false,
+      ambil: null,
+    });
+    expect(telepon?.subjectLabel).toContain(tagihan.nomorTagihan);
+
+    const [terbuka] = await setup.notifications.teleponPemesanTerbuka();
+    if (!terbuka) throw new Error("no Telepon Pemesan row");
+    const dicatat = await setup.notifications.catatPanggilan(admin, { teleponId: terbuka.id, hasil: "sudah_dihubungi" });
+    expect(dicatat.ok).toBe(true);
+    expect((await setup.queues.antrean(admin)).some((row) => row.type === "telepon_pemesan")).toBe(false);
+  });
+});

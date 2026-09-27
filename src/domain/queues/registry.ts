@@ -1,5 +1,6 @@
 import type { AntreanRowType } from "./row-types";
 import { pembayaranPerluDitinjauRowType } from "./tier2-pembayaran-perlu-ditinjau-row";
+import { teleponPemesanRowType } from "./telepon-pemesan-row";
 import { lokasiRevisitRowType, publishGateCheckRowType } from "./tier4-lokasi-rows";
 import { otherTugasLapanganRowType } from "./tier4-tugas-lapangan-row";
 
@@ -12,6 +13,7 @@ import { otherTugasLapanganRowType } from "./tier4-tugas-lapangan-row";
  */
 export const antreanRowTypes: AntreanRowType[] = [
   pembayaranPerluDitinjauRowType,
+  teleponPemesanRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,
   otherTugasLapanganRowType,

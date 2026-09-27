@@ -1,19 +1,22 @@
 import type { Database } from "@/db/client";
 import { createBilling, type Billing, type PaymentEffect } from "@/domain/billing";
+import { efekBuktiPembayaran } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { documentPagePath } from "@/lib/document-links";
 import type { RuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
 import type { Adapters } from "@/ports";
+import type { Clock } from "@/ports/clock";
 
 /**
  * The downstream effects of a payment (spec, Billing: Bukti Pemesanan /
  * Perpanjangan, Pencairan due, Pekerjaan Layanan scheduled, Hak Pakai
  * extended or created). The modules that own them register them here, the one
- * registry both the `web` runtime and the worker's retry tick use. None yet.
+ * registry both the `web` runtime and the worker's retry tick use. Built here:
+ * Notifications' Bukti Pembayaran receipt email (ticket 20).
  */
-export function paymentEffects(): readonly PaymentEffect[] {
-  return [];
+export function paymentEffects(deps: { clock: Clock; dokumenUrl: (link: string) => string }): readonly PaymentEffect[] {
+  return [efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl })];
 }
 
 /** Where a document's page lives: inside the container for the PdfRenderer, on the public site for payers. */
@@ -33,14 +36,15 @@ export function composeBilling(deps: {
   operatorSettings: Pick<OperatorSettings, "current">;
   reportError: ReportError;
 }): Billing {
+  const urls = documentUrls(deps.env);
   return createBilling({
     db: deps.db,
     clock: deps.adapters.clock,
     operatorSettings: deps.operatorSettings,
     pdf: deps.adapters.pdf,
     payments: deps.adapters.payments,
-    ...documentUrls(deps.env),
-    paymentEffects: paymentEffects(),
+    ...urls,
+    paymentEffects: paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl }),
     reportError: deps.reportError,
   });
 }
