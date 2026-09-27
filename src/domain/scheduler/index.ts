@@ -12,10 +12,10 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
-import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
+import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import type { Notifications } from "@/domain/notifications";
-import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
+import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -32,7 +32,7 @@ export interface SchedulerContext {
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20). */
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
-  /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23). */
+  /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
 }
 
@@ -66,12 +66,16 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
   // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
+  // Billing: a pay-after Tagihan whose recorded burial has passed its window becomes Lewat Jatuh Tempo (ticket 25).
+  { name: "billing.lewat_jatuh_tempo_pay_after", cron: "* * * * *", tick: lewatJatuhTempoPayAfterTagihanTick },
   // Billing: a downstream effect of a payment that failed is run again (ticket 19).
   { name: "billing.retry_payment_effects", cron: "*/10 * * * *", tick: retryFailedPaymentEffectsTick },
   // Notifications: queued family messages whose time has come are sent (ticket 20).
   { name: "notifications.kirim_pesan", cron: "* * * * *", tick: kirimPesanTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
+  // Pemesanan: the day after a burial it agreed, the Lokasi is asked to record it (ticket 25).
+  { name: "pemesanan.catat_pemakaman", cron: "* * * * *", tick: catatPemakamanPromptTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -85,4 +89,9 @@ async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Pemesanan module's "Catat Pemakaman" prompt (idempotent there too). */
+async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await catatPemakamanTick(ctx.pemesanan, now);
 }

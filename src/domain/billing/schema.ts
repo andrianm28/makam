@@ -11,6 +11,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { RUPIAH_MAX, rupiahFromDatabase, type Rupiah } from "@/lib/rupiah";
@@ -110,6 +111,17 @@ export const tagihan = pgTable(
     /** The Tagihan this one was issued to replace (cancel-and-reissue). */
     replacesId: uuid("replaces_id"),
     status: text("status", { enum: tagihanStatuses }).notNull(),
+    /**
+     * When a pay-after Tagihan first became **Lewat Jatuh Tempo**, from the
+     * facts recorded after it was issued: the burial that was **recorded**, plus
+     * the same window its printed due date used (spec, Billing: "Pay-after
+     * Tagihan become Lewat Jatuh Tempo, with the clock counted from the recorded
+     * burial date"). Null until the module that recorded the burial sets it
+     * (`setOverdueAnchor`), and never moved once set. `due_at` above stays the
+     * date printed on the document, planned date or not: a Tagihan is never
+     * reissued only because the burial went differently.
+     */
+    lewatJatuhTempoAt: at("lewat_jatuh_tempo_at"),
     cancelledAt: at("cancelled_at"),
     cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti"] }),
     replacedById: uuid("replaced_by_id"),
@@ -117,6 +129,8 @@ export const tagihan = pgTable(
   },
   (table) => [
     index("tagihan_lapse_idx").on(table.status, table.kind, table.dueAt),
+    // What the pay-after overdue tick reads.
+    index("tagihan_lewat_jatuh_tempo_idx").on(table.status, table.lewatJatuhTempoAt),
     check("tagihan_total_check", sql`${table.total} between 0 and ${sql.raw(String(RUPIAH_MAX))}`),
   ],
 );
@@ -171,6 +185,48 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
   /** Pengaturan Operator's header values in force when the Bukti was issued. */
   header: jsonb("header").notNull(),
 });
+
+/**
+ * Owned by the Billing module: one Bukti Pemesanan, the proof of the Hak Pakai a
+ * paid Pemesanan Makam bought (spec, Billing > Documents: "right only, no
+ * amounts, in the Lokasi Mitra's name"). Issued by the Pemesanan module in the
+ * transaction that makes its Tagihan Lunas, so the number, the document and the
+ * order's own Selesai status commit together.
+ *
+ * What it proves is copied here rather than read back through another module's
+ * tables: the Lokasi, the Petak Makam, the Pemegang Hak and the Hak Pakai's masa
+ * as they stood when the right was granted, the way a Tagihan keeps the Operator
+ * header values in force at issue. `pemesanan_id` names the order and has no
+ * foreign key: Billing does not own it, and it is unique, so one paid order can
+ * never be given two numbers.
+ */
+export const buktiPemesanan = pgTable(
+  "bukti_pemesanan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nomor: text("nomor").notNull().unique(),
+    link: text("link").notNull().unique(),
+    tagihanId: uuid("tagihan_id")
+      .notNull()
+      .references(() => tagihan.id),
+    pemesananId: text("pemesanan_id").notNull(),
+    nomorPemesanan: text("nomor_pemesanan").notNull(),
+    /** The Lokasi Mitra the right is against, named as it was named at submission. */
+    lokasiName: text("lokasi_name").notNull(),
+    petakNomor: text("petak_nomor").notNull(),
+    pemegangHakName: text("pemegang_hak_name").notNull(),
+    /** The first Pemakaman's date, the day the term counts from. */
+    masaMulai: date("masa_mulai", { mode: "string" }).notNull(),
+    /** The end of a fixed term; null for a Selamanya Jenis Makam. */
+    masaSelesai: date("masa_selesai", { mode: "string" }),
+    /** The Lokasi's "Petunjuk arah" link, so a family can find the gate again (spec, Maps on public pages). */
+    petunjukArah: text("petunjuk_arah"),
+    /** Pengaturan Operator's header values in force when the Bukti was issued. */
+    header: jsonb("header").notNull(),
+    issuedAt: at("issued_at").notNull(),
+  },
+  (table) => [uniqueIndex("bukti_pemesanan_pemesanan_idx").on(table.pemesananId)],
+);
 
 /**
  * Owned by the Billing module: each payment the PaymentProvider created for a

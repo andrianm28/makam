@@ -3,14 +3,16 @@
  * Built to dist/worker.mjs; run locally with `npm run worker`.
  */
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling, documentUrls } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, documentUrls, paymentEffects } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
+import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createTariffs } from "@/domain/tariffs";
 import { scheduledTicks } from "@/domain/scheduler";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -37,11 +39,23 @@ async function main() {
   });
   const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
-  const urls = documentUrls(env);
-  const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+  const urls = documentUrls(env);
+  const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError };
+  const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing: billingOn(billingComposition, database.db), reportError });
+  // The worker re-runs a payment's failed effects, so it holds the same registry the
+  // web runtime does: a Bukti Pemesanan that failed once must be issuable here too.
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+  const notifikasi = pemesananNotifikasiDari(notifications);
+  // One registry, handed to both the scheduler's retry tick and Billing below: a
+  // payment's failed effect is run again here, exactly as the web runtime would.
+  const efek = paymentEffects({
+    clock: adapters.clock,
+    dokumenUrl: urls.publicDocumentUrl,
+    buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+  });
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
@@ -50,10 +64,12 @@ async function main() {
       reportError,
       clock: adapters.clock,
       dokumenUrl: urls.publicDocumentUrl,
+      // The same registry Billing below holds: an effect that failed there is run again here, identically.
+      paymentEffects: efek,
       notifications,
       lokasi,
       identity,
-      notifikasi: pemesananNotifikasiDari(notifications),
+      notifikasi,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

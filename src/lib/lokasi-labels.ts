@@ -81,6 +81,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "denah.pakai_petak": "Petak dipakai untuk pesanan",
   "pemesanan.konfirmasi_saat_duka": "Pesanan Saat Duka dikonfirmasi",
   "pemesanan.centang_dokumen": "Dokumen ditandai sudah ada",
+  "pemakaman.catat": "Pemakaman dicatat",
+  "pemesanan.catat_pemakaman": "Pemakaman pesanan dicatat",
   "lokasi.konfirmasi_syarat_tayang": "Syarat tayang dikonfirmasi masih terpenuhi",
 };
 

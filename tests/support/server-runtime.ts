@@ -1,10 +1,10 @@
 import { afterAll, inject } from "vitest";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
-import { composePemesanan } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
@@ -45,17 +45,18 @@ export function testServerRuntime() {
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError: () => {} };
     const notifications = composeNotifications({
       env,
       db: database.db,
       adapters,
       audit,
       identity,
-      billing,
+      billing: billingOn(billingComposition, database.db),
       reportError: () => {},
     });
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    const notifikasi = pemesananNotifikasiDari(notifications);
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -73,9 +74,18 @@ export function testServerRuntime() {
       lokasi,
       tariffs,
       inventory,
-      billing,
+      operatorSettings,
+      billing: billingOn(billingComposition, database.db),
       identity,
-      notifications,
+      notifikasi,
+    });
+    const billing = composeBilling({
+      ...billingComposition,
+      paymentEffects: paymentEffects({
+        clock: adapters.clock,
+        dokumenUrl: documentUrls(env).publicDocumentUrl,
+        buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+      }),
     });
     holder.__makamRuntime = {
       env,

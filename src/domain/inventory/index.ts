@@ -20,6 +20,7 @@ import type { Actor } from "@/domain/identity";
 import { availability, type AvailabilityCount } from "./availability";
 import { beriHakPakai, tersediaUntukJenisMakam, type BeriHakPakaiResult, type TersediaUnit } from "./beri-hak-pakai";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
+import { catatPemakaman, type CatatPemakamanResult } from "./catat-pemakaman";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
@@ -31,6 +32,7 @@ import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
+  hakPakaiById,
   staffInventoryReads,
   type BlokDenah,
   type DenahCell,
@@ -85,6 +87,7 @@ export type {
 };
 export { MAX_BLOK_DIMENSION, BLOK_PHOTO_MAX_BYTES, edges as denahEdges, isValidPattern, kavlingPatternFrom, numberFromPattern };
 export { kavlingClearingSchema, petakClearingSchema };
+export { catatPemakamanSchema, type CatatPemakamanInput, type MasaHakPakai } from "./catat-pemakaman";
 
 export interface Inventory {
   /** Reads scoped to this actor (Admin Platform sees every Lokasi Mitra; an Admin Lokasi only its own). */
@@ -113,6 +116,19 @@ export interface Inventory {
   clearPetak(by: Actor, lokasiId: string, petakId: string, input: unknown): Promise<ClearingResult>;
   /** Clears a whole Kavling Keluarga the same way (its Hak Pakai, if any, covers every member Petak). */
   clearKavling(by: Actor, lokasiId: string, kavlingId: string, input: unknown): Promise<ClearKavlingResult>;
+  /**
+   * Records one Pemakaman on a Hak Pakai: the burial the Admin Lokasi made
+   * (Almarhum, date, Petak, layer) and, when it is the first, the start of that
+   * Hak Pakai's tenure clock with the fixed term's end date (ticket 25).
+   */
+  catatPemakaman(by: Actor, lokasiId: string, input: unknown): Promise<CatatPemakamanResult>;
+  /**
+   * One Hak Pakai by its id, with its current Pemegang Hak and its Pemakaman, or
+   * null. No actor: it exists for the document that proves a right (a Bukti
+   * Pemesanan), which the Pemesanan module reaches through the order that owns
+   * the plot. Staff screens read a Hak Pakai through `asStaff`.
+   */
+  hakPakaiById(hakPakaiId: string): Promise<HakPakaiDetail | null>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
@@ -177,6 +193,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     uploadBlokPhoto: (by, lokasiId, blokId, file) => uploadBlokPhoto(deps, by, lokasiId, blokId, file),
     clearPetak: (by, lokasiId, petakId, input) => clearPetak(deps, by, lokasiId, petakId, input),
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
+    catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
+    hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),

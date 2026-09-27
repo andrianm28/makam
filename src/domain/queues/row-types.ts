@@ -25,10 +25,11 @@ export interface AntreanRowDeps {
   notifications: Pick<Notifications, "teleponPemesanTerbuka">;
   /**
    * The Saat Duka confirmation rows read the Pemesanan module's own state: the
-   * Tier 1 "Konfirmasi Lokasi terlambat" row and the Antrean Lokasi's open
-   * confirmations (ticket 23). Never its tables.
+   * Tier 1 "Konfirmasi Lokasi terlambat" row, the Antrean Lokasi's open
+   * confirmations (ticket 23) and its "Catat Pemakaman" rows (ticket 25).
+   * Never its tables.
    */
-  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "antreanCatatPemakaman">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
 }

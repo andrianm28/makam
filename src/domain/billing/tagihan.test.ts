@@ -165,9 +165,14 @@ describe("an issued Tagihan is immutable", () => {
     const billing = billingOnTestDatabase(db).billing;
 
     expect(Object.keys(billing).sort()).toEqual([
+      // The Bukti Pemesanan is a document, not a line: it adds no way to change an
+      // issued Tagihan either, and is idempotent by the order it names (ticket 25).
+      "allBuktiPemesanan",
       "bayar",
+      "buktiPemesananById",
       "documentByLink",
       "documentPdf",
+      "issueBuktiPemesanan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
@@ -175,6 +180,9 @@ describe("an issued Tagihan is immutable", () => {
       "receivePaymentWebhook",
       "recordPayment",
       "reissueTagihan",
+      // The pay-after overdue clock, counted from the recorded burial: it sets a
+      // column of the Tagihan, never a line, and never the due date it was issued with.
+      "setOverdueAnchor",
       "tagihan",
       "within",
     ]);

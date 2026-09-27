@@ -1,7 +1,11 @@
+import { FakePdfRenderer } from "@/adapters/memory";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
+import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import { efekBuktiPembayaran } from "@/domain/notifications";
+import { efekBuktiPemesanan } from "@/domain/pemesanan";
+import type { PemesananBuktiPemesanan, PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
@@ -31,6 +35,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
+  /** Every Bukti Pemesanan the Pemesanan module announced (ticket 25). */
+  const buktiPemesanan: PemesananBuktiPemesanan[] = [];
   const terencana: TerencanaDiajukan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
@@ -42,10 +48,39 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     pesananDikonfirmasi: async (hasil) => {
       dikonfirmasi.push(hasil);
     },
+    pesananBuktiPemesanan: async (hasil) => {
+      buktiPemesanan.push(hasil);
+    },
     terencanaDiajukan: async (order) => {
       terencana.push(order);
     },
   };
+  // Billing composed the way the runtime composes it (src/server/runtime.ts): with its
+  // payment effects registered, so a payment that settles an order issues its Bukti
+  // Pemesanan and makes the order Selesai exactly as it does in production.
+  const deps = {
+    db,
+    clock: setup.clock,
+    operatorSettings: setup.operatorSettings,
+    pdf: new FakePdfRenderer(),
+    payments: setup.payments,
+    documentPageUrl: (link: string) => `http://127.0.0.1:3000/dokumen/${link}`,
+    publicDocumentUrl: (link: string) => `https://makam.test/dokumen/${link}`,
+    reportError: (error: unknown, context: Record<string, unknown>) => setup.reportedErrors.push({ error, context }),
+  };
+  const billing = createBilling({
+    ...deps,
+    paymentEffects: [
+      efekBuktiPembayaran({ clock: setup.clock, dokumenUrl: deps.publicDocumentUrl }),
+      efekBuktiPemesanan({
+        clock: setup.clock,
+        billingOn: (tx) => createBilling({ ...deps, db: tx }),
+        inventory: setup.inventory,
+        lokasi: setup.lokasi,
+        notifikasi: terkumpul,
+      }),
+    ],
+  });
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -54,12 +89,13 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     inventory: setup.inventory,
-    billing: setup.billing,
+    operatorSettings: setup.operatorSettings,
+    billing,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
+  return { ...setup, billing, pemesanan, diumumkan, dikonfirmasi, buktiPemesanan, terencana, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -69,7 +105,7 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).
  */
-export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
+export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "buktiPemesanan" | "terencana" | "notifikasi">;
 
 /**
  * Pengaturan Operator entered by the first Admin Platform, as every document

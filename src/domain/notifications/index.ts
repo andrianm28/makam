@@ -60,9 +60,11 @@ import {
 } from "./pesan-keluarga";
 import {
   pesanPemesanan,
+  pesananBuktiPemesanan,
   pesananDiajukan,
   pesananDikonfirmasi,
   type PesanPemesananResult,
+  type PesananBuktiPemesananInput,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
@@ -76,9 +78,11 @@ export {
   type TeleponPemesan,
 } from "./telepon-pemesan";
 export {
+  pesananBuktiPemesananSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
   type PesanPemesananResult,
+  type PesananBuktiPemesananInput,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
@@ -240,6 +244,12 @@ export interface Notifications {
    */
   pesananDiajukan(input: PesananDiajukanInput): Promise<PesanPemesananResult>;
   pesananDikonfirmasi(input: PesananDikonfirmasiInput): Promise<PesanPemesananResult>;
+  /**
+   * Announces the Bukti Pemesanan of a paid order: the link to the document that
+   * proves the right, by email (ADR 0004; ticket 25). An order with no email
+   * opens a call row, and CS hands the link over by hand.
+   */
+  pesananBuktiPemesanan(input: PesananBuktiPemesananInput): Promise<PesanPemesananResult>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
@@ -498,6 +508,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananDikonfirmasi(input) {
       return pesananDikonfirmasi(deps, input);
+    },
+
+    async pesananBuktiPemesanan(input) {
+      return pesananBuktiPemesanan(deps, input);
     },
 
     async pesanPemesanan(pemesananId) {

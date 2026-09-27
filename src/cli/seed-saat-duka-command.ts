@@ -4,7 +4,10 @@
  * Terverifikasi Lokasi Mitra the Saat Duka wizard can offer — a priced Jenis
  * Makam with cleared Tersedia Petak, a Jam Operasional and a Kontak Siaga — so
  * the wizard can be walked (and end-to-end tested) before real Lokasi Mitra
- * data exists. It changes nothing once the stack has a listed Lokasi Mitra.
+ * data exists. On a stack without Pengaturan Operator it first enters example
+ * values, as the stack's first Admin Platform (seeded by seed:admin): a Saat
+ * Duka confirmation issues a real Tagihan, which no document can be headed
+ * without. It changes nothing once the stack has a listed Lokasi Mitra.
  * Refused on staging and production. Exit 0 seeded or already there, 1 refused
  * or failed, 2 usage.
  */
@@ -36,6 +39,17 @@ const CONTOH_LOKASI = {
 };
 const ADMIN_LOKASI = { email: "lokasi.saat-duka@contoh.id", phoneNumber: "083333333333" };
 const PETUGAS = { email: "petugas.saat-duka@contoh.id", phoneNumber: "084444444444" };
+
+/** The example Pengaturan Operator a fresh local stack gets (never on staging or production). */
+const CONTOH_PENGATURAN_OPERATOR = {
+  legalName: "PT Jaya Korpora Prima",
+  address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
+  phone: "(021) 555-0101",
+  email: "halo@makam.co.id",
+  csWhatsApp: "0811-2222-3333",
+  csReplyHours: "dibalas mulai pukul 06:00",
+  reason: "Contoh untuk stack lokal (seed-saat-duka)",
+};
 
 /** Jam Operasional 07:00–15:00 WIB, Monday–Saturday, as the fixture's Admin Lokasi would type it. */
 const jamBuka = { opens: "07:00", closes: "15:00" };
@@ -108,6 +122,13 @@ export async function seedSaatDukaCommand(
 
       const admin = await adminPlatform(identity);
       if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
+
+      // A Tagihan cannot be issued without the Operator's header on its documents,
+      // and a Saat Duka confirmation issues one, so a fresh stack needs it.
+      if (!(await operatorSettings.current())) {
+        const entered = await operatorSettings.change(admin, CONTOH_PENGATURAN_OPERATOR);
+        if (!entered.ok) return { exitCode: 1, output: `Ditolak: Pengaturan Operator contoh tidak tersimpan (${entered.reason}).` };
+      }
 
       const terdaftar = await lokasi.publicLokasiMitraList();
       if (terdaftar.length > 0) {

@@ -5,10 +5,12 @@ import { z } from "zod";
 import { StatusBadge } from "@/components/makam/status-badge";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatTanggal, formatTanggalJam, wibDateTimeLocal } from "@/lib/time/jakarta";
+import { formatTanggal, formatTanggalJam, wibDateOf, wibDateTimeLocal } from "@/lib/time/jakarta";
+import { tagihanStatusText } from "@/lib/billing-labels";
+import { documentPagePath } from "@/lib/document-links";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
-import { CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
+import { CatatPemakamanForm, CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -39,13 +41,27 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
     ? await inventory.tersediaUntukJenisMakam(current.id, order.jenisMakam.id)
     : [];
   const tagihan = order.tagihanId ? await serverRuntime().billing.tagihan(order.tagihanId) : null;
+  const bukti = order.buktiPemesananId ? await serverRuntime().billing.buktiPemesananById(order.buktiPemesananId) : null;
   const rencana = order.rencanaPemakamanAt ? wibDateTimeLocal(order.rencanaPemakamanAt) : "";
+  const harusCatatPemakaman = order.status === "dikonfirmasi";
+  const hariIni = wibDateOf(serverRuntime().adapters.clock.now());
 
   return (
     <>
       <PageHeader
         title={`Pesanan ${order.nomor}`}
-        status={<StatusBadge status={order.status} />}
+        status={
+          // The two statuses are separate facts on separate clocks (AC 5): the order
+          // has reached Dimakamkan while its Tagihan is still Belum Dibayar, or the other way round.
+          <span className="flex flex-wrap items-center gap-2" data-testid="status-pesanan-tagihan">
+            <StatusBadge status={order.status} />
+            {tagihan ? (
+              <span className="text-caption text-muted-foreground">
+                Tagihan <span className="font-medium text-foreground">{tagihanStatusText(tagihan.status)}</span>
+              </span>
+            ) : null}
+          </span>
+        }
         description={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`}
       />
 
@@ -73,12 +89,15 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
             ) : null}
             {order.petakNomor ? <Baris label="Petak Makam" value={order.petakNomor} /> : null}
             {order.pemakamanAt ? <Baris label="Pemakaman" value={formatTanggalJam(order.pemakamanAt)} /> : null}
+            {order.pemakamanTanggal ? <Baris label="Pemakaman dicatat" value={formatTanggal(order.pemakamanTanggal)} /> : null}
             {tagihan ? (
               <>
-                <Baris label="Tagihan" value={`${tagihan.nomorTagihan} · ${tagihan.status.replace("_", " ")}`} />
+                <Baris label="Tagihan" value={tagihan.nomorTagihan} />
+                <Baris label="Status Tagihan" value={tagihanStatusText(tagihan.status)} />
                 <Baris label="Jatuh tempo" value={formatTanggalJam(tagihan.dueAt)} />
               </>
             ) : null}
+            {bukti ? <Baris label="Bukti Pemesanan" value={bukti.nomor} href={documentPagePath(bukti.link)} /> : null}
             {order.alasan ? <Baris label="Alasan" value={order.alasan} /> : null}
           </dl>
         </CardContent>
@@ -99,6 +118,27 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
               nomor={order.nomor}
               petak={petak}
               pemakamanAwal={rencana}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {harusCatatPemakaman ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Catat pemakaman</CardTitle>
+            <CardDescription>
+              Catat hari pemakaman benar-benar dilaksanakan. Masa Hak Pakai dihitung dari tanggal ini, dan keluarga punya tiga
+              hari dari tanggal ini untuk membayar Tagihan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CatatPemakamanForm
+              lokasiId={current.id}
+              nomor={order.nomor}
+              tanggalAwal={order.pemakamanAt ? wibDateOf(order.pemakamanAt) : hariIni}
+              layerAwal={order.pemakamanLayer ?? 1}
+              hariIni={hariIni}
             />
           </CardContent>
         </Card>
@@ -145,11 +185,19 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
   );
 }
 
-function Baris({ label, value }: { label: string; value: string }) {
+function Baris({ label, value, href }: { label: string; value: string; href?: string }) {
   return (
     <div className="flex flex-wrap justify-between gap-2">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium text-foreground">{value}</dd>
+      <dd className="text-right font-medium text-foreground">
+        {href ? (
+          <Link href={href} className="underline underline-offset-4">
+            {value}
+          </Link>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }

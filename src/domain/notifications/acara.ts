@@ -18,6 +18,7 @@ import { addWibDays, wib, wibDateOf, wibDayStart } from "@/lib/time/jakarta";
 export const TEMPLATE_EMAIL = [
   "pesanan_diajukan",
   "pesanan_dikonfirmasi",
+  "bukti_pemesanan_terbit",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
@@ -38,6 +39,7 @@ export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"> = {
   pesanan_diajukan: "transaksional",
   pesanan_dikonfirmasi: "transaksional",
+  bukti_pemesanan_terbit: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
@@ -66,6 +68,7 @@ export interface Acara {
 export const TABEL_ACARA: Record<
   | "pesanan_diajukan"
   | "pesanan_dikonfirmasi"
+  | "bukti_pemesanan_terbit"
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
@@ -89,6 +92,18 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pesanan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pesanan_dikonfirmasi,
+  },
+  /**
+   * The Bukti Pemesanan of a paid Pemesanan Makam: the link to the document
+   * that proves the right, at any hour (ticket 25). Like the other two order
+   * messages it is about the Lokasi Mitra's own work, so a send that keeps
+   * failing calls that Lokasi's Admin Lokasi rather than Admin Platform.
+   */
+  bukti_pemesanan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "bukti_pemesanan_terbit",
+    waktu: WAKTU_TEMPLATE.bukti_pemesanan_terbit,
   },
   tagihan_terbit: {
     penerima: "email_pemesan",

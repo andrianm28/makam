@@ -1,0 +1,1 @@
+ALTER TABLE "pemesanan_makam" ADD COLUMN "pemakaman_layer" integer;

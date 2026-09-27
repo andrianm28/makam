@@ -14,7 +14,7 @@ import { z } from "zod";
 import { queueFamilyEmail, type PesanKeluargaDeps, type PesanTercatat } from "./pesan-keluarga";
 import { notificationsMessage } from "./schema";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
-import { pesananDiajukanEmail, pesananDikonfirmasiEmail } from "./template";
+import { pesananBuktiPemesananEmail, pesananDiajukanEmail, pesananDikonfirmasiEmail } from "./template";
 
 const lokasiSchema = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) });
 const almarhumSchema = z.object({ name: z.string().trim().min(1).max(200), tanggalWafat: z.iso.date() });
@@ -146,6 +146,67 @@ export async function pesananDikonfirmasi(
   });
   await queueFamilyEmail(deps.db, now, {
     template: "pesanan_dikonfirmasi",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** What it announces when a paid order has earned its Bukti Pemesanan. */
+export const pesananBuktiPemesananSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320).nullable(),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  bukti: z.object({ nomor: z.string().trim().min(1).max(50), link: z.string().trim().min(1).max(100) }),
+  petakNomor: z.string().trim().min(1).max(60),
+  pemegangHakName: z.string().trim().min(1).max(200),
+  masa: z.object({ mulai: z.iso.date(), selesai: z.iso.date().nullable() }),
+});
+export type PesananBuktiPemesananInput = z.infer<typeof pesananBuktiPemesananSchema>;
+
+/**
+ * Announces the Bukti Pemesanan of a paid order: the link to the document that
+ * proves the right, in the family's own email (ADR 0004). An order with no email
+ * opens the call row instead, so the Lokasi's own staff hands the link over or
+ * CS does; the message asks nothing, so it goes at any hour.
+ */
+export async function pesananBuktiPemesanan(
+  deps: PesanKeluargaDeps,
+  input: PesananBuktiPemesananInput,
+): Promise<PesanPemesananResult> {
+  const parsed = pesananBuktiPemesananSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  if (!data.email) {
+    await bukaTeleponPemesan(deps.db, now, {
+      subjectKind: "pemesanan",
+      subjectId: data.pemesananId,
+      nomorPemesanan: data.nomor,
+      lokasiId: data.lokasi.id,
+      sebab: "tanpa_email",
+      perihal: `Pesanan ${data.nomor} di ${data.lokasi.name} sudah lunas: serahkan Bukti Pemesanan ${data.bukti.nomor} kepada keluarga.`,
+    });
+    return { ok: true };
+  }
+  const email = pesananBuktiPemesananEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    bukti: { nomor: data.bukti.nomor, tautan: deps.dokumenUrl(data.bukti.link) },
+    petakNomor: data.petakNomor,
+    pemegangHakName: data.pemegangHakName,
+    masa: data.masa,
+    tautan: deps.pesananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "bukti_pemesanan_terbit",
     pemesananId: data.pemesananId,
     nomorPemesanan: data.nomor,
     lokasiId: data.lokasi.id,

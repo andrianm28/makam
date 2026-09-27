@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
-import { documentLinkSchema, type BillingDocument, type NotPayable, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import { documentLinkSchema, type BillingDocument, type BuktiPemesanan, type BuktiPembayaran, type NotPayable, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
 import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
@@ -28,7 +28,9 @@ export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">)
     ? "Dokumen tidak ditemukan"
     : found.document.type === "tagihan"
       ? `Tagihan ${found.document.tagihan.nomorTagihan}`
-      : `Bukti Pembayaran ${found.document.bukti.nomorBukti}`;
+      : found.document.type === "bukti_pembayaran"
+        ? `Bukti Pembayaran ${found.document.bukti.nomorBukti}`
+        : `Bukti Pemesanan ${found.document.bukti.nomor}`;
   // A document's link is its only key: never indexed, never followed.
   return { title: `${title} · Makam.co.id`, robots: { index: false, follow: false } };
 }
@@ -55,8 +57,10 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
       <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
         {document.type === "tagihan" ? (
           <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
-        ) : (
+        ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
+        ) : (
+          <BuktiPemesananView bukti={document.bukti} />
         )}
       </article>
     </main>
@@ -152,6 +156,42 @@ function BuktiView({ bukti }: { bukti: BuktiPembayaran }) {
       />
       <Lines lines={bukti.tagihan.lines} total={bukti.amount} totalLabel="Total dibayar" />
       <p className="text-muted-foreground">Terima kasih. Pembayaran untuk Tagihan {bukti.tagihan.nomorTagihan} sudah kami terima dengan baik.</p>
+      <DocumentFoot header={bukti.header} />
+    </>
+  );
+}
+
+/**
+ * The Bukti Pemesanan (CONTEXT.md): the proof of the Hak Pakai a paid Pemesanan
+ * Makam bought, in the Lokasi Mitra's name. It names the right and nothing else —
+ * no amounts, because the money has its own Bukti Pembayaran — and the Lokasi's
+ * "Petunjuk arah" link, so a family can find the gate again.
+ */
+function BuktiPemesananView({ bukti }: { bukti: BuktiPemesanan }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Pemesanan" number={bukti.nomor} status="Diterbitkan" />
+      <Facts
+        facts={[
+          ["Nomor Pemesanan", bukti.nomorPemesanan],
+          ["Lokasi Mitra", bukti.lokasiName],
+          ["Petak Makam", bukti.petakNomor],
+          ["Pemegang Hak", bukti.pemegangHakName],
+          ["Masa Hak Pakai", bukti.masa.selesai ? `${formatTanggal(bukti.masa.mulai)} sampai ${formatTanggal(bukti.masa.selesai)}` : `${formatTanggal(bukti.masa.mulai)} · selamanya`],
+          ["Tanggal terbit", formatTanggalJam(bukti.issuedAt)],
+        ]}
+      />
+      <p className="text-muted-foreground">
+        Hak Pakai ini diberikan oleh {bukti.lokasiName} kepada {bukti.pemegangHakName}, dan sah tanpa batas waktu untuk Petak Makam{" "}
+        {bukti.petakNomor} sejak pemakaman pertama pada {formatTanggal(bukti.masa.mulai)}.
+      </p>
+      {bukti.petunjukArah ? (
+        <div className="print:hidden">
+          <a href={bukti.petunjukArah} target="_blank" rel="noreferrer noopener" className={buttonVariants({ variant: "outline" })}>
+            Petunjuk arah ke {bukti.lokasiName}
+          </a>
+        </div>
+      ) : null}
       <DocumentFoot header={bukti.header} />
     </>
   );

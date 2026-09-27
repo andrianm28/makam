@@ -60,8 +60,15 @@ export interface PemesananOrder {
    * two agreed. Null until the order is Dikonfirmasi (spec, story 29).
    */
   pemakaman: { petakNomor: string; at: Date } | null;
+  /** The day the burial was actually recorded, once it was; what the Hak Pakai's term counts from (ticket 25). */
+  pemakamanTanggal: string | null;
   /** The Tagihan issued when the Lokasi confirmed; null until then. Nothing is billed at submission. */
   tagihanId: string | null;
+  /**
+   * The Bukti Pemesanan issued when that Tagihan went Lunas: what proves the
+   * right, by its number and its page's link. Null until the payment settles.
+   */
+  buktiPemesanan: { id: string; nomor: string; link: string } | null;
   /** The Lokasi Mitra's document checklist with what has arrived and what is ticked (spec, stories 29, 120). */
   dokumen: DokumenOrder[];
   /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
@@ -76,7 +83,7 @@ export interface PemesananOrder {
  * `pemesanan.lihat` on the Akun's own orders).
  */
 export async function orderOf(
-  deps: Pick<PemesananDeps, "db" | "lokasi">,
+  deps: Pick<PemesananDeps, "db" | "lokasi" | "billing">,
   pemesan: { accountId: string },
   nomor: string,
 ): Promise<PemesananOrder | null> {
@@ -99,15 +106,25 @@ export async function orderOf(
     pemegangHak: row.pemegangHak,
     konfirmasiDueAt: row.konfirmasiDueAt,
     pemakaman: row.petakNomor && row.pemakamanAt ? { petakNomor: row.petakNomor, at: row.pemakamanAt } : null,
+    pemakamanTanggal: row.pemakamanTanggal,
     tagihanId: row.tagihanId,
+    buktiPemesanan: row.buktiPemesananId ? await buktiMilik(deps, row.buktiPemesananId) : null,
     dokumen: await dokumenMilik(deps, row.id, row.lokasiId),
     alasan: row.alasan,
     diajukanAt: row.diajukanAt,
   };
 }
 
-/** The order's own documents, with the Lokasi Mitra's checklist items it has none of yet. */
-async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
+/** The order's Bukti Pemesanan, read back through Billing's own public read (the document is Billing's row). */
+async function buktiMilik(
+  deps: Pick<PemesananDeps, "billing">,
+  buktiPemesananId: string,
+): Promise<{ id: string; nomor: string; link: string } | null> {
+  const bukti = await deps.billing.buktiPemesananById(buktiPemesananId);
+  return bukti && { id: bukti.id, nomor: bukti.nomor, link: bukti.link };
+}
+
+/** The order's own documents, with the Lokasi Mitra's checklist items it has none of yet. */async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
   const [rows, checklist] = await Promise.all([
     deps.db.select().from(pemesananBerkas).where(eq(pemesananBerkas.pemesananId, pemesananId)),
     deps.lokasi.documentChecklistOf(lokasiId),

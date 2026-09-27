@@ -150,7 +150,13 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
   | "pemesanan.konfirmasi"
   /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra records a Pemakaman on one of its plots
+   * (the operation that starts a fixed-term Hak Pakai's tenure clock). An Admin
+   * Platform does it only through that Lokasi, never for it (ticket 25).
+   */
+  | "pemakaman.catat";
 
 /** What the action is done to. */
 export type Resource =
@@ -419,6 +425,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // The Lokasi's own Admin Lokasi confirm its orders and tick their
       // checklists; Admin Platform does not confirm (spec, story 117: an
       // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "pemakaman.catat":
+      // Only the Lokasi Mitra's own Admin Lokasi records a burial on its ground
+      // (spec, Inventory > Operations); Admin Platform never does it for it.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

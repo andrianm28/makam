@@ -28,6 +28,34 @@ export async function masuk(page: Page, request: APIRequestContext, email: strin
   await page.getByRole("button", { name: "Masuk" }).click();
 }
 
+/**
+ * The same, for an email whose last Kode Masuk was asked for moments ago: one
+ * per email per 60 s, so a seed CLI that just signed that Akun in leaves the
+ * window closed. It asks again, waiting the window out, rather than failing on a
+ * screen that is behaving exactly as it should.
+ */
+export async function masukSetelahJeda(
+  page: Page,
+  request: APIRequestContext,
+  email: string,
+  options: { percobaan?: number; tungguMs?: number } = {},
+) {
+  const percobaan = options.percobaan ?? 12;
+  for (let ke = 0; ke < percobaan; ke += 1) {
+    await page.goto("/masuk");
+    await fromNewIp(page);
+    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: /Kirim Kode Masuk|Kirim ulang kode/ }).click();
+    if (await page.getByTestId("kode-masuk-email").waitFor({ timeout: 5_000 }).then(() => true, () => false)) break;
+    await page.waitForTimeout(options.tungguMs ?? 15_000);
+  }
+  await expect(page.getByTestId("kode-masuk-email")).toHaveText(email.toLowerCase());
+  await page.getByLabel("Kode Masuk").fill(await lastEmailCode(request, email.toLowerCase(), "Kode Masuk"));
+  await page.getByRole("button", { name: "Masuk" }).click();
+  // Wait for the login's own redirect to land, so a caller's next navigation is not raced by it.
+  await expect(page).toHaveURL(/\/(akun|staf)/, { timeout: 15_000 });
+}
+
 /** On the TOTP step, starts enrolment and returns the authenticator secret the screen shows. */
 export async function startTotpEnrolment(page: Page): Promise<string> {
   await expect(page).toHaveURL(/\/staf\/totp$/);

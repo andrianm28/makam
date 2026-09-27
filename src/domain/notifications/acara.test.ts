@@ -12,6 +12,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
   it.each([
     ["pesanan_diajukan", "pesanan_diajukan", "transaksional"],
     ["pesanan_dikonfirmasi", "pesanan_dikonfirmasi", "transaksional"],
+    ["bukti_pemesanan_terbit", "bukti_pemesanan_terbit", "transaksional"],
     ["tagihan_terbit", "tagihan_terbit", "pengingat"],
     ["tagihan_pengingat", "tagihan_pengingat_h_1", "pengingat"],
     ["bukti_pembayaran_terbit", "bukti_pembayaran_terbit", "transaksional"],
@@ -32,6 +33,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
     expect([...TEMPLATE_EMAIL]).toEqual([
       "pesanan_diajukan",
       "pesanan_dikonfirmasi",
+      "bukti_pemesanan_terbit",
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",

@@ -4,6 +4,7 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
+import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -49,6 +50,13 @@ export interface PemesananNotifikasi {
   pesananBelumDikonfirmasi(order: PemesananDiajukan): Promise<void>;
   /** The Lokasi's confirmation of an order: the family hears the plot, the contact, the checklist and the Tagihan. */
   pesananDikonfirmasi(hasil: PemesananDikonfirmasi): Promise<void>;
+  /**
+   * The Bukti Pemesanan of a paid order: the link to the document that proves the
+   * right (ADR 0004 — by email; an order with no email opens the call row, and
+   * CS shares the link by hand). It is a call of its own because it says
+   * something no other message does: the family now owns a plot, by name.
+   */
+  pesananBuktiPemesanan(hasil: PemesananBuktiPemesanan): Promise<void>;
   /**
    * A Pemesanan Terencana the Lokasi Mitra has to confirm. It is a call of its own
    * and not a variant of that first one because the two say different things: a
@@ -113,13 +121,29 @@ export interface PemesananDikonfirmasi {
   tagihan: { nomorTagihan: string; total: number; dueAt: Date; link: string };
 }
 
+/** The Bukti Pemesanan of a paid Pemesanan Makam, as its family is told about it. */
+export interface PemesananBuktiPemesanan {
+  pemesananId: string;
+  nomor: string;
+  /** The Email Terverifikasi the order was proven with; null when the order has none (CS shares the link by hand). */
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** The document itself: its number and the unguessable part of its page's link. */
+  bukti: { nomor: string; link: string };
+  /** The right it proves, so the email can name it before the family opens the link. */
+  petakNomor: string;
+  pemegangHakName: string;
+  masa: { mulai: string; selesai: string | null };
+}
+
 /**
  * What the Pemesanan module needs from its neighbours: only their public
  * functions, never their tables. It reads the Lokasi Mitra's listing and
- * working time from Lokasi, its prices from Tariffs, what is still Tersedia
- * and the Hak Pakai a confirmation creates from Inventory, the Nomor Pemesanan's
- * series and the Tagihan from Billing, and which Akun an email belongs to from
- * Identity.
+ * working time from Lokasi, its prices from Tariffs, what is still Tersedia,
+ * the Hak Pakai a confirmation creates and the one a Bukti Pemesanan names from
+ * Inventory, the Nomor Pemesanan's series, the Tagihan and the Bukti Pemesanan
+ * from Billing, and which Akun an email belongs to from Identity.
  */
 export interface PemesananDeps {
   db: Database;
@@ -146,6 +170,10 @@ export interface PemesananDeps {
     | "tersediaPerJenisMakam"
     // A Saat Duka confirmation assigns a cleared Tersedia Petak and reads the ones it offers.
     | "beriHakPakai"
+    // Recording the burial, which starts that Hak Pakai's tenure clock (ticket 25).
+    | "catatPemakaman"
+    // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
+    | "hakPakaiById"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"
@@ -153,8 +181,10 @@ export interface PemesananDeps {
     | "lepasTahan"
     | "within"
   >;
-  /** For the Nomor Pemesanan series and a confirmed order's Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  /** For the Nomor Pemesanan series, a confirmed order's Tagihan, the Bukti Pemesanan it earned, and the pay-after clock a recorded burial starts, all `within` the order's own transaction. */
+  billing: Pick<Billing, "within" | "tagihan" | "buktiPemesananById" | "issueBuktiPemesanan">;
+  /** Pengaturan Operator's header, which every document a payment issues is headed with (ticket 25). */
+  operatorSettings: Pick<OperatorSettings, "current">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

@@ -8,6 +8,8 @@ import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder } from "@/domain/pemesanan";
+import { tagihanStatusText } from "@/lib/billing-labels";
+import { documentPagePath } from "@/lib/document-links";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
 import { cn } from "@/lib/utils";
@@ -51,14 +53,38 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
             {order.nomor}
           </span>
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-testid="status-pesanan-tagihan">
           <StatusBadge status={order.status} />
+          {tagihan ? (
+            // The order and the money are two separate clocks (AC 5): a burial can
+            // be Dimakamkan while its Tagihan is still Belum Dibayar.
+            <span className="text-small text-muted-foreground">
+              Tagihan{" "}
+              <span className="font-medium text-foreground" data-testid="status-tagihan">
+                {tagihanStatusText(tagihan.status)}
+              </span>
+            </span>
+          ) : null}
           <span className="text-small text-muted-foreground">Diajukan {formatTanggalJam(order.diajukanAt)}</span>
         </div>
       </header>
 
-      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (
-        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
+      {order.buktiPemesanan ? (
+        <section className="flex flex-col gap-3" data-testid="bukti-pemesanan">
+          <h2 className="text-title-3 text-foreground">Bukti Pemesanan</h2>
+          <p className="rounded-xl bg-success-soft px-4 py-3 text-body text-success-soft-foreground">
+            Pembayaran sudah kami terima dan hak makamnya resmi. Simpan Bukti Pemesanan {order.buktiPemesanan.nomor} sebagai
+            bukti hak Anda.
+          </p>
+          <div>
+            <Link href={documentPagePath(order.buktiPemesanan.link)} className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
+              Buka Bukti Pemesanan
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
           Statusnya bisa Anda ikuti di halaman ini, dan kabar ini datang ke email Anda.
         </p>
@@ -157,6 +183,7 @@ function Dikonfirmasi({
       <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
         <Baris label="Petak Makam" value={order.pemakaman?.petakNomor ?? "menyusul"} />
         <Baris label="Pemakaman" value={order.pemakaman ? formatTanggalJam(order.pemakaman.at) : "menyusul"} />
+        {order.pemakamanTanggal ? <Baris label="Pemakaman dilaksanakan" value={formatTanggal(order.pemakamanTanggal)} /> : null}
         <Baris label="Lokasi Mitra" value={order.lokasi.name} href={`/lokasi/${order.lokasi.id}`} />
         <Baris
           label="Hubungi Lokasi Mitra"
@@ -164,7 +191,8 @@ function Dikonfirmasi({
         />
         {tagihan ? (
           <>
-            <Baris label="Tagihan" value={tagihan.nomorTagihan} />
+            <Baris label="Tagihan" value={tagihan.nomorTagihan} href={documentPagePath(tagihan.link)} />
+            <Baris label="Status pembayaran" value={tagihanStatusText(tagihan.status)} />
             <Baris label="Jatuh tempo" value={formatTanggalJam(tagihan.dueAt)} />
           </>
         ) : null}

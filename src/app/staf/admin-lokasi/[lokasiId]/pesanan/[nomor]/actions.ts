@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
-import { centangDokumenSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
+import { centangDokumenSchema, catatPemakamanOrderSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
@@ -33,6 +33,38 @@ export async function konfirmasiPesanan(_previous: PesananActionState, formData:
   return {
     status: "berhasil",
     message: `Pesanan ${result.value.pesanan.nomor} dikonfirmasi di Petak ${result.value.pesanan.petakNomor}. Tagihan ${result.value.tagihan.nomorTagihan} terbit.`,
+  };
+}
+
+/**
+ * The burial itself, the day it actually happened: the Hak Pakai's term starts
+ * here and the order becomes Dimakamkan (Selesai too, when its Tagihan has
+ * already been paid).
+ */
+export async function catatPemakaman(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pemakaman.catat",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: catatPemakamanOrderSchema,
+    input: {
+      nomor: formData.get("nomor"),
+      tanggal: formData.get("tanggal"),
+      layer: formData.get("layer") || undefined,
+    },
+    run: (actor, data) => serverRuntime().pemesanan.catatPemakaman(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: catatPemakamanMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: result.value.buktiPemesananNomor
+      ? `Pemakaman dicatat. Pesanan selesai dengan Bukti Pemesanan ${result.value.buktiPemesananNomor}.`
+      : `Pemakaman dicatat. Pesanan ${result.value.pesanan.nomor} sudah Dimakamkan.`,
   };
 }
 
@@ -75,6 +107,30 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
+}
+
+/** Why a burial could not be recorded, saying what to do next. */
+function catatPemakamanMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return "Pesanan tidak ditemukan.";
+    case "pesanan_belum_dikonfirmasi":
+      return "Pesanan ini belum dikonfirmasi, jadi belum ada petak untuk dimakamkan. Konfirmasi dulu.";
+    case "pemakaman_sudah_dicatat":
+      return "Pemakaman pesanan ini sudah dicatat. Yang dicatat adalah pemakaman pertama, dan itu yang menghitung.";
+    case "tanggal_pemakaman_tidak_valid":
+      return "Tanggal pemakaman tidak valid. Tanggal hari ini atau sebelumnya, sesuai zona waktu lokasi.";
+    case "tagihan_tidak_ditemukan":
+      return "Tagihan pesanan ini tidak ditemukan, jadi pemakaman tidak bisa dicatat. Periksa di Tagihan.";
+    case "hak_pakai_tidak_ditemukan":
+    case "petak_tidak_ditemukan":
+      return "Hak Pakai petak ini tidak ditemukan, jadi pemakaman tidak bisa dicatat. Periksa Denah Lokasi Mitra ini.";
+    case "perlu_totp":
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
+    default:
+      return "Periksa lagi isian Anda.";
+  }
 }
 
 /** Why a confirmation was refused, saying what to do next. */

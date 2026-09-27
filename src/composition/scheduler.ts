@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import type { PaymentEffect } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
@@ -14,6 +15,8 @@ export function composeSchedulerContext(deps: {
   reportError: ReportError;
   clock: Clock;
   dokumenUrl: (link: string) => string;
+  /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
+  paymentEffects?: readonly PaymentEffect[];
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
   identity: Pick<Identity, "adminLokasiOf">;
@@ -21,7 +24,7 @@ export function composeSchedulerContext(deps: {
 }): SchedulerContext {
   return {
     db: deps.db,
-    paymentEffects: paymentEffects({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }),
+    paymentEffects: deps.paymentEffects ?? paymentEffects({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }),
     reportError: deps.reportError,
     notifications: deps.notifications,
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },

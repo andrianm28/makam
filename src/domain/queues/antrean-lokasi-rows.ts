@@ -127,5 +127,36 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Catat Pemakaman" (Lainnya): every order of that Lokasi Mitra whose agreed
+ * burial day has passed with no Pemakaman recorded, so the Hak Pakai's term has
+ * not started and the family's Tagihan has no clock. The worker's prompt raises
+ * the row the day after the agreed burial, and the row closes itself the moment
+ * the burial is recorded (ticket 25). No deadline: the spec gives this row no
+ * SLA, and the burial it asks about has already happened.
+ */
+export const catatPemakamanRowType: AntreanLokasiRowType = {
+  key: "catat_pemakaman",
+  grup: "lainnya",
+  label: "Catat Pemakaman",
+  async rows(deps, _by, lokasiId) {
+    const order = await deps.pemesanan.antreanCatatPemakaman(lokasiId);
+    return order.map((satu) => ({
+      type: "catat_pemakaman",
+      label: "Catat Pemakaman",
+      subjectKind: "pemesanan_makam",
+      subjectId: satu.id,
+      subjectLabel: `${satu.nomor} · ${satu.almarhum.name}`,
+      href: pemakamanHref(lokasiId, satu.nomor),
+      deadline: null,
+    }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
-export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [konfirmasiSaatDukaRowType, pesanLokasiGagalRowType, petakPerluVerifikasiRowType];
+export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
+  konfirmasiSaatDukaRowType,
+  pesanLokasiGagalRowType,
+  petakPerluVerifikasiRowType,
+  catatPemakamanRowType,
+];
