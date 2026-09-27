@@ -41,6 +41,11 @@ export function formatWib(instant: Date): string {
   return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}.${parts.minute}.${parts.second} WIB`;
 }
 
+/** The calendar year of an instant in WIB (the public footer's copyright year). */
+export function yearInJakarta(instant: Date): number {
+  return Number(wibParts(instant).year);
+}
+
 /** The WIB calendar date of an instant, "YYYY-MM-DD" (the inverse of `wib("YYYY-MM-DD")` for midnight). */
 export function wibDateOf(instant: Date): string {
   const parts = wibParts(instant);

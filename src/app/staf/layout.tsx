@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { KeluarButton } from "@/app/akun/keluar-button";
+import { KeluarButton } from "@/app/(site)/akun/keluar-button";
 import { BrandLogo } from "@/components/makam/brand-logo";
 import { StaffToaster } from "@/components/makam/staff-toaster";
 import { staffShell } from "@/server/staff-area";

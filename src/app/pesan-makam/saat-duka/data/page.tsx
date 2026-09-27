@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DataKirim } from "./data-kirim";
 import { kartuView } from "../tampilan";
-import { kirimKodeMasuk } from "@/app/masuk/actions";
+import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { satuNilai } from "@/lib/search-param";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
