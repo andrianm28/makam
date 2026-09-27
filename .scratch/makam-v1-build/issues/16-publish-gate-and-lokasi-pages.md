@@ -1,6 +1,6 @@
 # Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 11, 12, 14, 15
 Spec: Domain modules > 3. Lokasi (publish gate, Terencana flag); Tariffs (all-in quote); stories 7, 8, 9, 10, 11, 12, 151
 
