@@ -14,7 +14,9 @@ import type {
  *
  * Every document here is named by its source and nothing else is:
  * - the two sets: `.scratch/makam-v1/issues/15-saat-duka-tpu-pengurusan.md`
- *   item 7 (lines 40-43), the decision taken with the user on 2026-09-25;
+ *   item 7 (lines 40-43), the decision taken with the user on 2026-09-25 — the
+ *   filing set's Surat Kuasa is a *bermaterai* one there, and the word is kept in
+ *   the name a family reads: it tells them to have a materai ready;
  * - the Tumpang additions and the consent: the same file, items 1 and 3;
  * - the Pasal 17(2) letters of a death outside Jakarta:
  *   `.scratch/makam-v1/research/04-cemetery-plot-regulation.md` §2.7 and
@@ -63,9 +65,9 @@ const pengajuanBaru: DokumenPemakamanDanPengajuan["pengajuan"] = [
     catatan: "Dari Lurah atau RT/RW di kelurahan tempat pemakaman.",
   },
   {
-    nama: "Surat Kuasa",
+    nama: "Surat Kuasa bermaterai",
     catatan:
-      "Dihasilkan platform untuk Anda tanda tangani, lalu diunggah di sini.",
+      "Dihasilkan platform di atas kertas bermaterai untuk Anda tanda tangani, lalu diunggah di sini.",
   },
   { nama: "KTP Pemegang Hak", catatan: "Fotokopi seluruh halaman." },
   { nama: "Kartu Keluarga Pemegang Hak", catatan: "Fotokopi." },
@@ -78,9 +80,9 @@ const pengajuanTumpang: DokumenPemakamanDanPengajuan["pengajuan"] = [
     catatan: "Dari Lurah atau RT/RW di kelurahan tempat pemakaman.",
   },
   {
-    nama: "Surat Kuasa",
+    nama: "Surat Kuasa bermaterai",
     catatan:
-      "Dihasilkan platform untuk Anda tanda tangani, lalu diunggah di sini.",
+      "Dihasilkan platform di atas kertas bermaterai untuk Anda tanda tangani, lalu diunggah di sini.",
   },
   { nama: "KTP Pemegang Hak", catatan: "Fotokopi seluruh halaman." },
   { nama: "Kartu Keluarga Pemegang Hak", catatan: "Fotokopi." },

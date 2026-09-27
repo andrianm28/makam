@@ -37,7 +37,7 @@ const DOKUMEN_PEMAKAMAN_BARU = [
 ];
 const DOKUMEN_PENGAJUAN_BARU = [
   "Surat laporan kematian dari kelurahan",
-  "Surat Kuasa",
+  "Surat Kuasa bermaterai",
   "KTP Pemegang Hak",
   "Kartu Keluarga Pemegang Hak",
 ];
