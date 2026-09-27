@@ -2,14 +2,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
 import { initialKodeMasukRequestState } from "@/components/kode-masuk/state";
-import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { lastEmailCodeTo } from "../../../tests/support/identity";
-import { browser } from "../../../tests/support/next-request";
-import { testServerRuntime } from "../../../tests/support/server-runtime";
+import { resetDatabase, testDatabase } from "../../../../tests/support/database";
+import { lastEmailCodeTo } from "../../../../tests/support/identity";
+import { browser } from "../../../../tests/support/next-request";
+import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { kirimKodeMasuk, masukDenganKodeMasuk } from "./actions";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/headers", () => import("../../../tests/support/next-request"));
+vi.mock("next/headers", () => import("../../../../tests/support/next-request"));
 
 const { close } = testDatabase();
 afterAll(close);

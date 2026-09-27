@@ -1,13 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FakeEmailSender } from "@/adapters/memory";
 import { initialEmailProfileState, initialEmailRequestState } from "@/components/email/state";
-import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { browser } from "../../../tests/support/next-request";
-import { testServerRuntime } from "../../../tests/support/server-runtime";
+import { resetDatabase, testDatabase } from "../../../../tests/support/database";
+import { browser } from "../../../../tests/support/next-request";
+import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { kirimKodeVerifikasi, simpanNomorTelepon } from "./email-actions";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/headers", () => import("../../../tests/support/next-request"));
+vi.mock("next/headers", () => import("../../../../tests/support/next-request"));
 vi.mock("next/cache", () => ({ refresh: () => {} }));
 
 const { close } = testDatabase();

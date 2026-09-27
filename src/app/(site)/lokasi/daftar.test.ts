@@ -1,15 +1,15 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { wib } from "@/lib/time/jakarta";
-import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import {
   jenisMakamInput,
   newTpuDki,
   publishOnTestDatabase,
   publishedLokasiMitra,
   type PublishSetup,
-} from "../../../tests/support/publish";
-import { signInAsAdminPlatform } from "../../../tests/support/server-sign-in";
-import { testServerRuntime } from "../../../tests/support/server-runtime";
+} from "../../../../tests/support/publish";
+import { signInAsAdminPlatform } from "../../../../tests/support/server-sign-in";
+import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { daftarLokasi } from "./daftar";
 
 vi.mock("server-only", () => ({}));

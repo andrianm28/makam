@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { EmailSection, PhoneSection } from "@/app/akun/email-section";
+import { EmailSection, PhoneSection } from "@/app/(site)/akun/email-section";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
