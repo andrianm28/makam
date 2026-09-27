@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormSection } from "@/components/makam/form-section";
+import { PageHeader } from "@/components/makam/page-header";
 import { authorize, pengaturanOperatorResource } from "@/domain/identity";
 import { operatorSettingsFields, type OperatorSettingsEntry } from "@/domain/operator-settings";
 import { formatWib } from "@/lib/time/jakarta";
@@ -18,17 +19,13 @@ export default async function PengaturanOperatorPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-semibold tracking-tight">Pengaturan Operator</h1>
+      <PageHeader
+        title="Pengaturan Operator"
+        description="Nilai acuan milik Operator yang dipakai di kop setiap Tagihan dan Bukti, halaman Hubungi Kami dan tautan “Minta bantuan CS”. Dokumen yang sudah terbit tetap memakai nilai yang berlaku saat diterbitkan."
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Berlaku sekarang</CardTitle>
-          <CardDescription>
-            Dipakai di kop setiap Tagihan dan Bukti, halaman Hubungi Kami dan tautan &ldquo;Minta bantuan CS&rdquo;.
-            Dokumen yang sudah terbit tetap memakai nilai yang berlaku saat diterbitkan.
-          </CardDescription>
-        </CardHeader>
-        <CardContent data-testid="pengaturan-berlaku">
+      <FormSection title="Berlaku sekarang">
+        <div data-testid="pengaturan-berlaku">
           {current ? (
             <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
               <dt className="text-muted-foreground">Nama resmi</dt>
@@ -51,20 +48,15 @@ export default async function PengaturanOperatorPage() {
               Belum diisi. Isi semua nilai di bawah sebelum peluncuran; tidak ada nilai bawaan.
             </p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </FormSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ubah</CardTitle>
-          <CardDescription>
-            Perubahan berlaku mulai saat disimpan dan tercatat di Audit Log (nilai sebelum dan sesudah).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PengaturanOperatorForm values={formValues} />
-        </CardContent>
-      </Card>
+      <FormSection
+        title="Ubah"
+        description="Perubahan berlaku mulai saat disimpan dan tercatat di Audit Log (nilai sebelum dan sesudah)."
+      >
+        <PengaturanOperatorForm values={formValues} />
+      </FormSection>
     </>
   );
 }

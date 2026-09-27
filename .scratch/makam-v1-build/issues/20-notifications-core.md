@@ -1,6 +1,6 @@
 # Notifications module core
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 17, 18, 82
 Spec: Domain modules > 15. Notifications; Adapter ports > EmailSender, WebPush; ADR 0004; stories 38, 172, 194
 
@@ -38,4 +38,5 @@ _2026-09-26, ADR 0004: the WhatsApp templates are retired; nothing is submitted 
 
 ## Comments
 
+- 2026-09-27 — Merged to main (`f50e494`). Two-axis review: Standards 3 hard (tick idempotency, ticket numbers as domain data, a term missing from CONTEXT.md) + Spec 2 (a deferred H-1 reminder that re-sent a stale "due tomorrow" on the due date; `tagihan_terbit` sent at 03:00 instead of inside 08:00–20:00) — all fixed and re-reviewed 8/8 clean. `Telepon Pemesan` added to CONTEXT.md under Operations. Follow-ups left: `pesanTagihan` is unused until ticket 22 has an order page (it hooks the row into the order page there); AC "shown on its order page" therefore lands with 22.
 - 2026-09-26 — ADR 0004: What to build and the criteria are rewritten above: email to families, push + email Peringatan Staf, the "Telepon Pemesan" row, no WhatsApp templates, no inbound auto-reply, statuses terkirim / gagal only (email has no "dibaca"). Now also blocked by 82 (the WhatsAppSender port is removed there). The amended 2026-09-25 notes about copies to an optional, unverified email are superseded: the email is the order's required, verified channel.

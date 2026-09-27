@@ -1,22 +1,25 @@
 import { createECDH, randomBytes } from "node:crypto";
 import { FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
+import type { Billing } from "@/domain/billing";
 import type { Actor, StaffRole } from "@/domain/identity";
 import { createNotifications } from "@/domain/notifications";
 import type { ReportError } from "@/lib/observability/report-error";
 import type { EmailSender } from "@/ports/email-sender";
 import type { PushSubscription, WebPush } from "@/ports/web-push";
+import { TEST_PUBLIC_ORIGIN, billingOnTestDatabase } from "./billing";
 import { actorOf, identityOnTestDatabase, logIn, signedInAdminPlatform } from "./identity";
 
 /**
- * The Notifications module next to identity on the test Postgres, sharing its
- * Clock, Audit Log and fake EmailSender (unless `email` gives Notifications its own).
+ * The Notifications module next to Billing and identity on the test Postgres,
+ * sharing the one fake Clock, Audit Log and fake EmailSender (unless `email`
+ * gives Notifications its own).
  */
 export function notificationsOnTestDatabase(
   db: Database,
   options: { email?: EmailSender; webPush?: WebPush } = {},
 ) {
-  const setup = identityOnTestDatabase(db);
+  const setup = billingOnTestDatabase(db);
   const webPush = new FakeWebPush();
   /** What error monitoring received. */
   const reported: { error: unknown; context: Parameters<ReportError>[1] }[] = [];
@@ -28,9 +31,19 @@ export function notificationsOnTestDatabase(
     reportError: (error, context) => reported.push({ error, context }),
     identity: setup.identity,
     audit: setup.audit,
+    tagihan: setup.billing,
+    dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
   });
   return { ...setup, webPush, notifications, reported };
 }
+
+/**
+ * The one Billing read Notifications needs (a Tagihan's status, to stop a
+ * reminder once the money is in) for a setup that composes no Billing of its
+ * own: no Tagihan is ever found. Tests that issue Tagihan messages use
+ * `notificationsOnTestDatabase`, which has the real module.
+ */
+export const TAGIHAN_TIDAK_ADA: Pick<Billing, "tagihan"> = { tagihan: async () => null };
 
 /** An Akun Staf holding `role`, invited by the first Admin Platform and logged in with a Kode Masuk. */
 export async function signedInStaff(

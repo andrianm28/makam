@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { KeluarButton } from "@/app/akun/keluar-button";
 import { BrandLogo } from "@/components/makam/brand-logo";
+import { StaffToaster } from "@/components/makam/staff-toaster";
 import { staffShell } from "@/server/staff-area";
 import { PushPanel } from "./push-panel";
 import { StaffShell } from "./staff-shell";
@@ -37,6 +38,7 @@ export default async function StafLayout({ children }: LayoutProps<"/staf">) {
           <PushPanel />
           {children}
         </main>
+        <StaffToaster />
       </div>
     );
   }
@@ -45,6 +47,7 @@ export default async function StafLayout({ children }: LayoutProps<"/staf">) {
     <StaffShell shell={shell} defaultSidebarOpen={sidebarOpen}>
       <PushPanel />
       {children}
+      <StaffToaster />
     </StaffShell>
   );
 }

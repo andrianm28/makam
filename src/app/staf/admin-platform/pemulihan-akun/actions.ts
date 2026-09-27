@@ -1,29 +1,19 @@
 "use server";
 
-import { z } from "zod";
 import { KTP_CHECK_MAX_BYTES, stafResource, type RecoverAccountResult } from "@/domain/identity";
-import { emailInput } from "@/server/code-inputs";
 import { guarded } from "@/server/guard";
+import { palingBesar } from "@/server/file-size-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-
-const schema = z.object({
-  // One of them: the Akun's id (picked from the staff roster) or its email on record.
-  accountId: z.string().trim().min(1).max(64).optional(),
-  currentEmail: emailInput.optional(),
-  newEmail: emailInput,
-  ktpCheck: z.instanceof(File).refine((file) => file.size <= KTP_CHECK_MAX_BYTES),
-  ktpChecked: z.literal("ya").optional(),
-  reason: z.string().trim().max(500),
-});
+import { pulihkanAkunSchema } from "./schema";
 
 /** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check. */
 export async function pulihkanAkun(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
     action: "akun.pemulihan",
     resource: () => stafResource(),
-    schema,
+    schema: pulihkanAkunSchema,
     input: {
       accountId: formData.get("accountId") ?? undefined,
       currentEmail: formData.get("currentEmail") ?? undefined,
@@ -43,7 +33,7 @@ export async function pulihkanAkun(_previous: FormState, formData: FormData): Pr
   });
   if (!result.ok) {
     if (result.error === "input_tidak_valid") {
-      return { status: "gagal", message: "Periksa lagi isian Anda. Berkas KTP paling besar 10 MB." };
+      return { status: "gagal", message: `Periksa lagi isian Anda. Berkas KTP ${palingBesar(KTP_CHECK_MAX_BYTES)}.` };
     }
     return { status: "gagal", message: guardMessage(result.error) };
   }
@@ -68,7 +58,7 @@ function refusal(refused: Extract<RecoverAccountResult, { ok: false }>): string 
     case "berkas_ktp_wajib":
       return "Unggah foto atau scan KTP.";
     case "berkas_ktp_tidak_didukung":
-      return "Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), paling besar 10 MB.";
+      return `Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), ${palingBesar(KTP_CHECK_MAX_BYTES)}.`;
     case "alasan_wajib":
       return "Tulis alasannya.";
     case "email_tidak_valid":

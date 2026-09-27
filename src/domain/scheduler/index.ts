@@ -14,6 +14,7 @@
 import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
+import type { Notifications } from "@/domain/notifications";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -28,6 +29,8 @@ export interface SchedulerContext {
   /** The downstream effects of a payment (src/composition/billing.ts), for re-running failed ones. */
   paymentEffects: readonly PaymentEffect[];
   reportError: ReportError;
+  /** Family messages due, sent through the worker (ticket 20). */
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -62,8 +65,14 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
   // Billing: a downstream effect of a payment that failed is run again (ticket 19).
   { name: "billing.retry_payment_effects", cron: "*/10 * * * *", tick: retryFailedPaymentEffectsTick },
+  // Notifications: queued family messages whose time has come are sent (ticket 20).
+  { name: "notifications.kirim_pesan", cron: "* * * * *", tick: kirimPesanTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
   await pruneIpRequests(ctx, now);
+}
+
+async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.notifications.kirimPesanJatuhTempo(now);
 }

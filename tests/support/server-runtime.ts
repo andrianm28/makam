@@ -3,12 +3,12 @@ import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeNotifications } from "@/composition/notifications";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
-import { createNotifications } from "@/domain/notifications";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
@@ -40,19 +40,19 @@ export function testServerRuntime() {
       overrides: { clock },
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
-    const notifications = createNotifications({
-      db: database.db,
-      clock: adapters.clock,
-      email: adapters.email,
-      webPush: adapters.webPush,
-      identity,
-      audit,
-      reportError: () => {},
-    });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+    const notifications = composeNotifications({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      identity,
+      billing,
+      reportError: () => {},
+    });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     const fieldwork = createFieldwork({
       db: database.db,
@@ -78,7 +78,15 @@ export function testServerRuntime() {
       // Ticket 20's family message is not built yet, so the composition's no-op seam is used here too.
       pemesanan: composePemesanan({ db: database.db, clock: adapters.clock, lokasi, tariffs, inventory, billing, identity }),
       fieldwork,
-      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
+      queues: createQueues({
+        db: database.db,
+        clock: adapters.clock,
+        audit,
+        lokasi,
+        fieldwork,
+        billing,
+        notifications,
+      }),
     };
   }
   afterAll(async () => {

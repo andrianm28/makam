@@ -209,7 +209,7 @@ async function issueIn(
       status: checked.total === 0 ? "lunas" : "belum_dibayar",
       paidAt: checked.total === 0 ? now : null,
     })
-    .returning({ id: tagihan.id });
+    .returning({ id: tagihan.id, link: tagihan.link });
   await tx.insert(tagihanLine).values(
     checked.lines.map((line, position) => ({
       tagihanId: row.id,
@@ -230,6 +230,7 @@ async function issueIn(
         tagihanId: row.id,
         nomorTagihan: nomor,
         nomorPemesanan: input.nomorPemesanan,
+        link: row.link,
         amount: checked.total,
         method: { kind: "tanpa_pembayaran" },
         reference: null,

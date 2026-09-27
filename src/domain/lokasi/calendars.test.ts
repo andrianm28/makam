@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { addWorkingDays } from "@/domain/lokasi";
+import { HARI_LIBUR_NASIONAL_NAME_MAX, addWorkingDays, hapusHariLiburSchema, hariLiburNasionalSchema } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
@@ -9,6 +9,28 @@ afterAll(close);
 beforeEach(resetDatabase);
 
 const natal = { date: "2026-12-25", name: "Hari Raya Natal" };
+
+/**
+ * Both Hari Libur shapes the form and its Server Action share live in this
+ * module: the one to add and the one to remove, so the page holds no shape of
+ * its own.
+ */
+describe("the shape of a Hari Libur Nasional, added or removed", () => {
+  const refusedFields = (parsed: { success: boolean; error?: { issues: { path: PropertyKey[] }[] } }) =>
+    parsed.success ? [] : parsed.error?.issues.map((issue) => issue.path.join("."));
+
+  it("adds: a real date and a name, refused past the name's one length", () => {
+    expect(hariLiburNasionalSchema.safeParse({ ...natal, name: "x".repeat(HARI_LIBUR_NASIONAL_NAME_MAX) }).success).toBe(true);
+    expect(
+      refusedFields(hariLiburNasionalSchema.safeParse({ ...natal, name: "x".repeat(HARI_LIBUR_NASIONAL_NAME_MAX + 1) })),
+    ).toEqual(["name"]);
+  });
+
+  it("removes: a listed date without a reason, and a bad date on its own field", () => {
+    expect(hapusHariLiburSchema.safeParse({ date: natal.date, reason: "" }).success).toBe(true);
+    expect(refusedFields(hapusHariLiburSchema.safeParse({ date: "bukan-tanggal", reason: "" }))).toEqual(["date"]);
+  });
+});
 
 describe("the Hari Libur Nasional list Admin Platform keeps", () => {
   it("Admin Platform adds a Hari Libur Nasional, audited; it is then not a Hari Kerja on the Admin Platform calendar", async () => {
