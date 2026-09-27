@@ -70,7 +70,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter — out of v1 (ADR 0004) | wontfix | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
 | [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | resolved | 09 |
-| [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | ready-for-agent | 04 |
+| [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | resolved | 04 |
 
 ## Story coverage
 
