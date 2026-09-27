@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { KTP_CHECK_MAX_BYTES } from "@/domain/identity";
-import { pulihkanAkunSchema } from "./schema";
+import { palingBesar } from "@/server/file-size-messages";
+import { PEMULIHAN_AKUN_REASON_MAX, pulihkanAkunSchema } from "./schema";
 
 function ktpFile(size: number): File {
   return new File([new Uint8Array(size)], "ktp.png", { type: "image/png" });
@@ -29,7 +30,19 @@ describe("pulihkanAkunSchema", () => {
     expect(parsed.success).toBe(false);
     if (parsed.success) return;
     expect(parsed.error.issues.map((issue) => issue.path.join("."))).toEqual(["ktpCheck"]);
-    expect(parsed.error.issues[0]?.message).toBe("Berkas KTP paling besar 10 MB.");
+    expect(parsed.error.issues[0]?.message).toBe(`Berkas KTP ${palingBesar(KTP_CHECK_MAX_BYTES)}.`);
+  });
+
+  it("takes the reason's length from the one number the form's maxLength reads", () => {
+    expect(pulihkanAkunSchema.safeParse({ ...valid, reason: "x".repeat(PEMULIHAN_AKUN_REASON_MAX) }).success).toBe(true);
+    const parsed = pulihkanAkunSchema.safeParse(
+      { ...valid, reason: "x".repeat(PEMULIHAN_AKUN_REASON_MAX + 1) },
+      { error: pesanKesalahan },
+    );
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(parsed.error.issues.map((issue) => issue.path.join("."))).toEqual(["reason"]);
+    expect(parsed.error.issues[0]?.message).toBe(`Paling panjang ${PEMULIHAN_AKUN_REASON_MAX} karakter.`);
   });
 
   it("reports a short new email on its own field", () => {

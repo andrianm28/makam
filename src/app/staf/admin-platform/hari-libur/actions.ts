@@ -5,6 +5,7 @@ import { z } from "zod";
 import { hariLiburNasionalResource, type Actor } from "@/domain/identity";
 import {
   hariLiburNasionalSchema,
+  hapusHariLiburSchema,
   type AddHariLiburNasionalResult,
   type RemoveHariLiburNasionalResult,
 } from "@/domain/lokasi";
@@ -12,7 +13,6 @@ import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { hapusHariLiburSchema } from "./schema";
 
 type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 

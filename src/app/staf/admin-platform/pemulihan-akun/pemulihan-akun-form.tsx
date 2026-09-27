@@ -1,15 +1,16 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { startTransition, useActionState, useId } from "react";
+import { startTransition, useActionState, useId, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ServerResult, idleFormState } from "../../form-feedback";
+import { useResetAfterSubmit } from "../../form-reset";
 import { pulihkanAkun } from "./actions";
-import { pulihkanAkunSchema, type PulihkanAkunInput } from "./schema";
+import { PEMULIHAN_AKUN_REASON_MAX, pulihkanAkunSchema, type PulihkanAkunInput } from "./schema";
 
 /** The Akun picked by its id (from the staff roster), shown instead of the email field. */
 export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string } | null }) {
@@ -20,11 +21,25 @@ export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string 
     handleSubmit,
     setValue,
     control,
+    reset,
     formState: { errors },
   } = useForm<PulihkanAkunInput>({
     resolver: zodResolver(pulihkanAkunSchema, { error: pesanKesalahan }),
     defaultValues: akun ? { accountId: akun.id, newEmail: "", reason: "" } : { currentEmail: "", newEmail: "", reason: "" },
   });
+
+  // Once the Email Terverifikasi has moved, the form is back to what it started
+  // with — including the file input, which `reset` cannot reach — so recovering
+  // the next Akun is a new entry, not the same one sent twice.
+  const ktpInput = useRef<HTMLInputElement>(null);
+  useResetAfterSubmit(
+    state,
+    () => (akun ? { accountId: akun.id, newEmail: "", reason: "" } : { currentEmail: "", newEmail: "", reason: "" }),
+    reset,
+    () => {
+      if (ktpInput.current) ktpInput.current.value = "";
+    },
+  );
 
   const describedBy = (field: keyof PulihkanAkunInput) => (errors[field] ? `${errorPrefix}-${field}` : undefined);
 
@@ -82,6 +97,7 @@ export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string 
       <label className="flex flex-col gap-1 text-sm font-medium">
         Foto atau scan KTP
         <input
+          ref={ktpInput}
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
           aria-invalid={errors.ktpCheck ? true : undefined}
@@ -116,7 +132,7 @@ export function PemulihanAkunForm({ akun }: { akun: { id: string; label: string 
         Alasan
         <Input
           {...register("reason")}
-          maxLength={500}
+          maxLength={PEMULIHAN_AKUN_REASON_MAX}
           aria-invalid={errors.reason ? true : undefined}
           aria-describedby={describedBy("reason")}
           className="h-10 px-3"

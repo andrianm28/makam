@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pesanKesalahan } from "@/components/makam/form-errors";
-import { pengaturanOperatorSchema } from "./schema";
+import { pengaturanOperatorLimits, pengaturanOperatorSchema } from "./schema";
 
 /** The Pengaturan Operator form validates with the same schema its Server Action uses. */
 describe("pengaturanOperatorSchema", () => {
@@ -35,5 +35,19 @@ describe("pengaturanOperatorSchema", () => {
     if (parsed.success) return;
     expect(parsed.error.issues.map((issue) => issue.path.join("."))).toEqual(["csWhatsApp"]);
     expect(parsed.error.issues[0]?.message).toBe("Wajib diisi.");
+  });
+
+  it("takes the most characters in each field from one number, the one the form's maxLength reads", () => {
+    for (const [field, limit] of Object.entries(pengaturanOperatorLimits)) {
+      const atLimit = pengaturanOperatorSchema.safeParse({ ...valid, [field]: "x".repeat(limit) });
+      expect({ field, ok: atLimit.success }).toEqual({ field, ok: true });
+
+      const parsed = pengaturanOperatorSchema.safeParse({ ...valid, [field]: "x".repeat(limit + 1) }, { error: pesanKesalahan });
+      expect({
+        field,
+        refused: parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join(".")),
+        message: parsed.success ? "" : parsed.error.issues[0]?.message,
+      }).toEqual({ field, refused: [field], message: `Paling panjang ${limit} karakter.` });
+    }
   });
 });

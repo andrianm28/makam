@@ -7,29 +7,41 @@ import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
 import { ServerResult, idleFormState } from "../../form-feedback";
+import { useResetAfterSubmit } from "../../form-reset";
 import { nonaktifkanStaf, undangStaf } from "./actions";
 import {
+  STAF_REASON_MAX,
   nonaktifkanStafSchema,
   undangStafSchema,
   type NonaktifkanStafInput,
   type UndangStafInput,
 } from "./schema";
+import type { RoleOption } from "./undangan-peran";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-/** Undangan Staf: the email it is addressed to, a phone number as contact, one role. */
-export function InviteForm({ roles }: { roles: { value: string; label: string }[] }) {
+/**
+ * Undangan Staf: the email it is addressed to, a phone number as contact, one
+ * role. `roles` and `defaultRole` come from the page, which asks the domain
+ * which roles it may hand out (`roleUndangan`, `roleUndanganAwal`), so the form
+ * names no role of its own.
+ */
+export function InviteForm({ roles, defaultRole }: { roles: RoleOption[]; defaultRole: RoleOption["value"] | undefined }) {
   const errorPrefix = useId();
   const [state, submit, pending] = useActionState(undangStaf, idleFormState);
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<UndangStafInput>({
     resolver: zodResolver(undangStafSchema, { error: pesanKesalahan }),
-    defaultValues: { email: "", phoneNumber: "", role: "petugas_lapangan", reason: "" },
+    defaultValues: { email: "", phoneNumber: "", role: defaultRole, reason: "" },
   });
+  // An invitation is one person: once it is sent the form is empty again, so the
+  // next one is a new entry and not a second copy refused by the domain.
+  useResetAfterSubmit(state, () => ({ email: "", phoneNumber: "", role: defaultRole, reason: "" }), reset);
 
   const describedBy = (field: keyof UndangStafInput) => (errors[field] ? `${errorPrefix}-${field}` : undefined);
 
@@ -91,7 +103,7 @@ export function InviteForm({ roles }: { roles: { value: string; label: string }[
         Catatan (opsional)
         <input
           {...register("reason")}
-          maxLength={500}
+          maxLength={STAF_REASON_MAX}
           aria-invalid={errors.reason ? true : undefined}
           aria-describedby={describedBy("reason")}
           className={inputClass}
@@ -115,11 +127,14 @@ export function DeactivateForm({ accountId }: { accountId: string }) {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<NonaktifkanStafInput>({
     resolver: zodResolver(nonaktifkanStafSchema, { error: pesanKesalahan }),
     defaultValues: { accountId, reason: "" },
   });
+  useResetAfterSubmit(state, () => ({ accountId, reason: "" }), reset);
+
   const reasonErrorId = errors.reason ? `${errorPrefix}-reason` : undefined;
 
   return (
@@ -140,7 +155,7 @@ export function DeactivateForm({ accountId }: { accountId: string }) {
       <input
         id={`alasan-${accountId}`}
         {...register("reason")}
-        maxLength={500}
+        maxLength={STAF_REASON_MAX}
         placeholder="Alasan"
         aria-invalid={errors.reason ? true : undefined}
         aria-describedby={reasonErrorId}

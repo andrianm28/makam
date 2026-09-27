@@ -3,19 +3,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startTransition, useActionState, useId } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
-import { hariLiburNasionalSchema } from "@/domain/lokasi";
+import { HARI_LIBUR_NASIONAL_NAME_MAX, hariLiburNasionalSchema, hapusHariLiburSchema } from "@/domain/lokasi";
+import type { HariLiburNasionalInput, HapusHariLiburInput } from "@/domain/lokasi";
 import { ServerResult, idleFormState } from "../../form-feedback";
+import { useResetAfterSubmit } from "../../form-reset";
 import { hapusHariLibur, tambahHariLibur } from "./actions";
-import { hapusHariLiburSchema, type HapusHariLiburInput } from "./schema";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
-type TambahHariLiburInput = z.infer<typeof hariLiburNasionalSchema>;
+/** The form starts empty: each Hari Libur Nasional is one entry, and a saved one is on the list already. */
+const kosong: HariLiburNasionalInput = { date: "", name: "" };
 
 /** Adds one Hari Libur Nasional to the list. */
 export function AddHariLiburForm() {
@@ -24,11 +25,13 @@ export function AddHariLiburForm() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
-  } = useForm<TambahHariLiburInput>({
+  } = useForm<HariLiburNasionalInput>({
     resolver: zodResolver(hariLiburNasionalSchema, { error: pesanKesalahan }),
-    defaultValues: { date: "", name: "" },
+    defaultValues: kosong,
   });
+  useResetAfterSubmit(state, () => kosong, reset);
 
   return (
     <form
@@ -56,7 +59,7 @@ export function AddHariLiburForm() {
         Nama hari libur
         <input
           {...register("name")}
-          maxLength={120}
+          maxLength={HARI_LIBUR_NASIONAL_NAME_MAX}
           placeholder="Hari Raya Natal"
           aria-invalid={errors.name ? true : undefined}
           aria-describedby={errors.name ? `${errorPrefix}-name` : undefined}
@@ -77,10 +80,13 @@ export function AddHariLiburForm() {
 /** Removes one Hari Libur Nasional from the list. */
 export function RemoveHariLiburForm({ date }: { date: string }) {
   const [state, submit, pending] = useActionState(hapusHariLibur, idleFormState);
-  const { register, handleSubmit } = useForm<HapusHariLiburInput>({
+  const { register, handleSubmit, reset } = useForm<HapusHariLiburInput>({
     resolver: zodResolver(hapusHariLiburSchema, { error: pesanKesalahan }),
     defaultValues: { date, reason: "" },
   });
+  // The row leaves the list after the save; until it does, its form is back to
+  // no reason at all, so a second click is not a second removal.
+  useResetAfterSubmit(state, () => ({ date, reason: "" }), reset);
 
   return (
     <form

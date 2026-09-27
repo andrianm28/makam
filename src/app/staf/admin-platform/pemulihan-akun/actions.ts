@@ -1,7 +1,8 @@
 "use server";
 
-import { stafResource, type RecoverAccountResult } from "@/domain/identity";
+import { KTP_CHECK_MAX_BYTES, stafResource, type RecoverAccountResult } from "@/domain/identity";
 import { guarded } from "@/server/guard";
+import { palingBesar } from "@/server/file-size-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
@@ -32,7 +33,7 @@ export async function pulihkanAkun(_previous: FormState, formData: FormData): Pr
   });
   if (!result.ok) {
     if (result.error === "input_tidak_valid") {
-      return { status: "gagal", message: "Periksa lagi isian Anda. Berkas KTP paling besar 10 MB." };
+      return { status: "gagal", message: `Periksa lagi isian Anda. Berkas KTP ${palingBesar(KTP_CHECK_MAX_BYTES)}.` };
     }
     return { status: "gagal", message: guardMessage(result.error) };
   }
@@ -57,7 +58,7 @@ function refusal(refused: Extract<RecoverAccountResult, { ok: false }>): string 
     case "berkas_ktp_wajib":
       return "Unggah foto atau scan KTP.";
     case "berkas_ktp_tidak_didukung":
-      return "Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), paling besar 10 MB.";
+      return `Berkas KTP harus foto JPG, PNG, WebP atau scan PDF (isi berkas diperiksa), ${palingBesar(KTP_CHECK_MAX_BYTES)}.`;
     case "alasan_wajib":
       return "Tulis alasannya.";
     case "email_tidak_valid":

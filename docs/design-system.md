@@ -219,7 +219,7 @@ makam compositions (`src/components/makam/`):
 |---|---|
 | Many records of one kind | **List**: PageHeader + DataTable. Search always; at most one filter up front; pagination at 8–25 rows. |
 | One record | **Detail**: PageHeader with status and facts, tabs (each tab a URL), panels with a border. |
-| Changing settings or a record | **Form**: PageHeader + FormSection, react-hook-form with the same Zod schema the Server Action uses (`zodResolver(schema, { error: pesanKesalahan })`), errors inline under the field (FieldError), the result twice over — inline and as a Sonner toast (`ServerResult`, `src/app/staf/form-feedback.tsx`). |
+| Changing settings or a record | **Form**: PageHeader + FormSection, react-hook-form with the same Zod schema the Server Action uses (`zodResolver(schema, { error: pesanKesalahan })`), errors inline under the field (FieldError), the result twice over — inline and as a Sonner toast (`ServerResult`, `src/app/staf/form-feedback.tsx`). The form carries `noValidate` and no `required`: the schema is the only rule, so nothing is refused twice in two languages, and a form on this pattern clears its fields once the save went through (`useResetAfterSubmit`, `src/app/staf/form-reset.ts`) so the next entry starts clean. |
 | Work to do today | **Queue / dashboard**: StatCards (4 max) and a task list, most urgent first. |
 | An action that can't be undone, or needs a reason for the Audit Log | ConfirmDialog. Never a toast with undo. |
 | A standing notice about the page | Inline banner (`bg-info-soft`, `bg-warning-soft`), not a toast. |

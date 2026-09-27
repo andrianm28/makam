@@ -5,8 +5,8 @@ import { pengaturanOperatorResource } from "@/domain/identity";
 import {
   operatorSettingsFields,
   type ChangeOperatorSettingsResult,
-  type OperatorSettingsField,
 } from "@/domain/operator-settings";
+import { operatorSettingsFieldLabels } from "@/lib/operator-settings-labels";
 import { guarded } from "@/server/guard";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
@@ -16,45 +16,33 @@ import { pengaturanOperatorSchema } from "./schema";
 
 const fields = [...operatorSettingsFields, "reason"] as const;
 
-/** The form's state: on a refusal it carries what was typed back, so a caller driving the action itself (not through react-hook-form) can put the one fix back in the fields. */
-export type PengaturanOperatorFormState = FormState & { typed?: Record<(typeof fields)[number], string> };
-
-/** Admin Platform saves Pengaturan Operator: a new version in force from now, audited. */
+/**
+ * Admin Platform saves Pengaturan Operator: a new version in force from now,
+ * audited. On a refusal nothing but the message comes back — the form on
+ * react-hook-form keeps what was typed in its own fields, for the one fix.
+ */
 export async function simpanPengaturanOperator(
-  _previous: PengaturanOperatorFormState,
+  _previous: FormState,
   formData: FormData,
-): Promise<PengaturanOperatorFormState> {
-  let typed: PengaturanOperatorFormState["typed"];
+): Promise<FormState> {
   const result = await guarded({
     action: "pengaturan_operator.ubah",
     resource: () => pengaturanOperatorResource(),
     schema: pengaturanOperatorSchema,
     input: Object.fromEntries(fields.map((name) => [name, formData.get(name) ?? ""])),
-    run: (actor, data) => {
-      typed = data;
-      return serverRuntime().operatorSettings.change(actor, data);
-    },
+    run: (actor, data) => serverRuntime().operatorSettings.change(actor, data),
   });
-  if (!result.ok) return { status: "gagal", message: guardMessage(result.error), typed };
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   const changed = result.value;
-  if (!changed.ok) return { status: "gagal", message: refusal(changed), typed };
+  if (!changed.ok) return { status: "gagal", message: refusal(changed) };
   revalidatePath("/staf/admin-platform/pengaturan-operator");
   return { status: "berhasil", message: "Pengaturan Operator disimpan dan berlaku mulai sekarang." };
 }
 
-const fieldLabels: Record<OperatorSettingsField, string> = {
-  legalName: "Nama resmi Operator",
-  address: "Alamat terdaftar",
-  phone: "Telepon Operator",
-  email: "Email Operator",
-  csWhatsApp: "Nomor WhatsApp CS",
-  csReplyHours: "Jam balas CS",
-};
-
 function refusal(refused: Extract<ChangeOperatorSettingsResult, { ok: false }>): string {
   switch (refused.reason) {
     case "isian_wajib":
-      return `${fieldLabels[refused.field]} wajib diisi.`;
+      return `${operatorSettingsFieldLabels[refused.field]} wajib diisi.`;
     case "email_tidak_valid":
       return "Email Operator tidak valid.";
     case "nomor_tidak_valid":

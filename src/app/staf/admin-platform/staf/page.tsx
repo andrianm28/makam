@@ -3,18 +3,19 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormSection } from "@/components/makam/form-section";
 import { PageHeader } from "@/components/makam/page-header";
-import { staffRoles } from "@/domain/identity";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { DeactivateForm, InviteForm } from "./staff-forms";
+import { roleUndangan, roleUndanganAwal } from "./undangan-peran";
 
 /** Admin Platform: send Undangan Staf, see open invites, deactivate Akun Staf. */
 export default async function StafAdminPage() {
   const actor = await staffMenuActor("admin_platform");
   const { identity } = serverRuntime();
   const [accounts, invites] = await Promise.all([identity.staffAccounts(), identity.openStaffInvites()]);
+  const roles = roleUndangan();
 
   return (
     <>
@@ -24,11 +25,7 @@ export default async function StafAdminPage() {
         title="Undang staf"
         description="Undangan dikirim ke email staf dan berlaku 7 hari. Peran didapat saat ia masuk dengan Kode Masuk ke email itu; akunnya dibuat saat itu bila belum ada. Nomor telepon dicatat sebagai kontak. Admin Lokasi diundang dari halaman Lokasi Mitra-nya."
       >
-        <InviteForm
-          roles={staffRoles
-            .filter((role) => role !== "admin_lokasi")
-            .map((role) => ({ value: role, label: staffRoleLabels[role] }))}
-        />
+        <InviteForm roles={roles} defaultRole={roleUndanganAwal(roles)} />
       </FormSection>
 
       <FormSection title="Undangan terbuka">
