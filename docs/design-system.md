@@ -185,7 +185,7 @@ Every staff role works inside one frame (`src/app/staf/layout.tsx` → `StaffShe
 - **Header**: breadcrumbs (`staffBreadcrumbs()`: role › menu item › the pages below, naming a Lokasi Mitra by its name), the **role switcher** (only for an Akun holding several staff roles), the **command palette** (⌘K / Ctrl+K, or its header search button), the **Peringatan Staf bell**, the **theme toggle** and the **account menu** (number and email, Akun Saya, Email, Keluar).
 - **Command palette** (`CommandPalette`, `src/app/staf/command-palette.tsx`): opens over the pages of the role currently showing in the sidebar only (`staffPalette()` in `src/lib/staff-navigation.ts`, computed server-side in `staffShell()` — the palette never lists a page the signed-in Akun's role may not open). Arrow keys move the highlight, Enter opens the highlighted page, typing filters by page and group name.
 - **Peringatan Staf bell** (`NotificationBell`, `src/app/staf/notification-bell.tsx`): the unread count and the latest Peringatan Staf of the signed-in Akun, each linking to its subject; opening it marks them read (`bacaPeringatanStaf`, `src/app/staf/alert-actions.ts`). Empty: "Belum ada Peringatan Staf."
-- **On phones** the sidebar is a sheet opened from the header's menu button, and the role switcher moves into the account menu. (Bottom navigation for the field roles is a later slice.)
+- **On phones** the sidebar is a sheet opened from the header's menu button, and the role switcher moves into the account menu. **Mitra Jasa and Petugas Lapangan** get a bottom navigation instead (`BottomNav`, `src/app/staf/staff-shell.tsx`): their whole menu, with no separate Beranda, as up to 4 tappable items (Mitra Jasa — Pekerjaan, Pencairan, Peringatan, Akun; Petugas Lapangan — Tugas, Jadwal, Peringatan, Akun), safe-area aware, 44 px touch targets; the sheet trigger hides on phones for these two roles, but their sidebar still works at `md` and up.
 - The shell appears only for a signed-in Akun Staf past the TOTP step (`staffShell()` in `src/server/staff-area.ts`); the TOTP step renders bare, light, with the logo and Keluar. Each page still checks its own access on the server.
 
 ## Components
@@ -205,11 +205,12 @@ makam compositions (`src/components/makam/`):
 | `ConfirmDialog` | An action that can't be undone, or needs a reason for the Audit Log: a title, a description, an optional required reason field, and a destructive or default confirm button. Wraps shadcn's `alert-dialog`. |
 | `RoleSwitcher` | Switch between the staff roles one Akun holds. Hidden when it holds one. |
 | `LokasiSwitcher` | Header control for an Admin Lokasi of several Lokasi Mitra: switches which one the current page is scoped to, keeping the same kind of page where that still makes sense. Hidden when it works on one. |
+| `BottomNav` | Mitra Jasa and Petugas Lapangan's phone navigation: their whole menu as up to 4 tappable items, in place of the sheet sidebar. |
 | `ThemeToggle` | Terang, Gelap, Ikuti perangkat (staff area only). |
 | `BrandLogo`, `BrandMark` | The interim logo. |
 | `ThemeProvider` | next-themes, with the public pages held to light. |
 
-Still to come with the slices that first need them: `FormSection`, the bottom navigation for field roles.
+Still to come with the slices that first need them: `FormSection`.
 
 ## Usage rules
 

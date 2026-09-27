@@ -1,7 +1,18 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { staffRoles, type StaffRole } from "@/domain/identity";
-import { isActiveItem, lokasiSwitchHref, menuRole, staffBreadcrumbs, staffMenu, staffPage, staffPalette } from "./staff-navigation";
+import {
+  bottomNavItems,
+  bottomNavRoles,
+  hasBottomNav,
+  isActiveItem,
+  lokasiSwitchHref,
+  menuRole,
+  staffBreadcrumbs,
+  staffMenu,
+  staffPage,
+  staffPalette,
+} from "./staff-navigation";
 
 /** A menu as its reader sees it: group labels and item labels, in order. */
 function outline(groups: ReturnType<typeof staffMenu>) {
@@ -40,9 +51,9 @@ describe("the staff menu of each role", () => {
     expect(outline(staffMenu("admin_lokasi"))).toEqual([["Lokasi ini", ["Beranda"]]]);
   });
 
-  it("Petugas Lapangan and Mitra Jasa keep their own menus, in the short forms of Tugas Lapangan and Pekerjaan Layanan", () => {
-    expect(outline(staffMenu("petugas_lapangan"))).toEqual([["Lapangan", ["Beranda", "Tugas"]]]);
-    expect(outline(staffMenu("mitra_jasa"))).toEqual([["Mitra Jasa", ["Beranda", "Pekerjaan", "Pencairan"]]]);
+  it("Petugas Lapangan and Mitra Jasa have no Beranda: their bottom navigation is their whole menu", () => {
+    expect(outline(staffMenu("petugas_lapangan"))).toEqual([["Lapangan", ["Tugas", "Jadwal", "Peringatan", "Akun"]]]);
+    expect(outline(staffMenu("mitra_jasa"))).toEqual([["Mitra Jasa", ["Pekerjaan", "Pencairan", "Peringatan", "Akun"]]]);
   });
 
   it("items whose page is not built yet open nothing (they show, disabled)", () => {
@@ -57,8 +68,11 @@ describe("the staff menu of each role", () => {
       "Pengaturan Operator",
       "Katalog Desain",
     ]);
-    expect(linked(staffMenu("petugas_lapangan"))).toEqual(["Beranda", "Tugas"]);
-    expect(linked(staffMenu("mitra_jasa"))).toEqual(["Beranda"]);
+  });
+
+  it("every Petugas Lapangan and Mitra Jasa bottom navigation item opens a real page: none is disabled", () => {
+    expect(linked(staffMenu("petugas_lapangan"))).toEqual(["Tugas", "Jadwal", "Peringatan", "Akun"]);
+    expect(linked(staffMenu("mitra_jasa"))).toEqual(["Pekerjaan", "Pencairan", "Peringatan", "Akun"]);
   });
 
   it.each(staffRoles)("every %s menu item says what it is for, and an unbuilt one says it is coming", (role) => {
@@ -66,6 +80,13 @@ describe("the staff menu of each role", () => {
       expect(item.description, item.label).toMatch(/\S/);
       if (!item.href) expect(item.description).toBe("Segera hadir.");
     }
+  });
+
+  it("Petugas Lapangan and Mitra Jasa are the two roles with a bottom navigation instead of a sidebar on phones", () => {
+    expect(bottomNavRoles).toEqual(["petugas_lapangan", "mitra_jasa"]);
+    expect(staffRoles.filter(hasBottomNav)).toEqual(["petugas_lapangan", "mitra_jasa"]);
+    expect(bottomNavItems("petugas_lapangan").map((item) => item.label)).toEqual(["Tugas", "Jadwal", "Peringatan", "Akun"]);
+    expect(bottomNavItems("mitra_jasa").map((item) => item.label)).toEqual(["Pekerjaan", "Pencairan", "Peringatan", "Akun"]);
   });
 
   it.each(staffRoles)("every %s menu link opens a page that exists", (role) => {
@@ -91,8 +112,12 @@ describe("where a staff page sits in the menu", () => {
     [`/staf/admin-lokasi/${lokasiId}`, "admin_lokasi", "Beranda"],
     [`/staf/admin-lokasi/${lokasiId}/jam-operasional`, "admin_lokasi", "Jam Operasional"],
     ["/staf/admin-lokasi", "admin_lokasi", "Beranda"],
-    ["/staf/petugas-lapangan", "petugas_lapangan", "Beranda"],
-    ["/staf/mitra-jasa", "mitra_jasa", "Beranda"],
+    // Neither field role has a Beranda any more: their bare home redirects to their first
+    // bottom navigation item (Tugas, Pekerjaan), so no menu item is active there.
+    ["/staf/petugas-lapangan", "petugas_lapangan", undefined],
+    ["/staf/petugas-lapangan/tugas", "petugas_lapangan", "Tugas"],
+    ["/staf/mitra-jasa", "mitra_jasa", undefined],
+    ["/staf/mitra-jasa/pekerjaan", "mitra_jasa", "Pekerjaan"],
     ["/staf/email", null, undefined],
   ])("%s belongs to %s, with %s as the one active item", (pathname, role, active) => {
     const page = staffPage(pathname);
@@ -111,7 +136,8 @@ describe("where a staff page sits in the menu", () => {
     [`/staf/admin-lokasi/${lokasiId}`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas"]],
     [`/staf/admin-lokasi/${lokasiId}/jam-operasional`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas", "Jam Operasional"]],
     ["/staf/admin-lokasi", ["Admin Lokasi", "Beranda"]],
-    ["/staf/mitra-jasa", ["Mitra Jasa", "Beranda"]],
+    ["/staf/petugas-lapangan/tugas", ["Petugas Lapangan", "Tugas"]],
+    ["/staf/mitra-jasa/pekerjaan", ["Mitra Jasa", "Pekerjaan"]],
     ["/staf/email", ["Email"]],
   ])("the breadcrumbs of %s read %j", (pathname, labels) => {
     const names = (id: string) => (id === lokasiId ? "Makam Wakaf Al-Ikhlas" : undefined);

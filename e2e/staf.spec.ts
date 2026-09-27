@@ -127,15 +127,17 @@ test("the invitee logs in with a Kode Masuk, holds both roles, and switches betw
   inviteePage = page;
   await masuk(page, request, invitee);
 
-  await expect(page).toHaveURL(/\/staf\/petugas-lapangan$/);
-  await expect(page.getByRole("heading", { name: "Petugas Lapangan" })).toBeVisible();
+  // Neither field role has a Beranda: their bare home redirects to their first bottom
+  // navigation item (Tugas, Pekerjaan), which is also their sidebar menu's first page.
+  await expect(page).toHaveURL(/\/staf\/petugas-lapangan\/tugas$/);
+  await expect(page.getByRole("heading", { name: "Tugas Lapangan" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
 
   await page.getByRole("button", { name: /Ganti peran/ }).click();
   await expect(page.getByRole("menuitem")).toHaveText(["Petugas Lapangan", "Mitra Jasa"]);
   await page.getByRole("menuitem", { name: "Mitra Jasa" }).click();
-  await expect(page).toHaveURL(/\/staf\/mitra-jasa$/);
+  await expect(page).toHaveURL(/\/staf\/mitra-jasa\/pekerjaan$/);
   await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
 
