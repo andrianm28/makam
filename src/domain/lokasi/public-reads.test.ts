@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
+import { catatCekDenah, signedInPetugasLapangan } from "../../../tests/support/fieldwork";
 import {
   newLokasiMitra,
   publishOnTestDatabase,
@@ -81,6 +83,46 @@ describe("the Daftar Lokasi Makam directory (every Terverifikasi Lokasi Mitra)",
     await publishedLokasi(setup);
 
     expect(await setup.lokasi.publicLokasiMitraCities()).toEqual(["Kota Jakarta Timur"]);
+  });
+
+  it("lists only the Lokasi Mitra that have switched Pemesanan Terencana on, when asked for those", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const petugas = await signedInPetugasLapangan(setup, admin);
+    const denganTerencana = await newLokasiMitra(setup, admin, "Makam Dengan Terencana");
+    const tanpaTerencana = await newLokasiMitra(setup, admin, "Makam Tanpa Terencana");
+    for (const lokasiMitra of [denganTerencana, tanpaTerencana]) {
+      // Each Lokasi Mitra needs its own Admin Lokasi, and a Kode Masuk waits 60 s.
+      setup.clock.advance({ minutes: 2 });
+      await readyToPublish(setup, admin, lokasiMitra.id);
+      const checked = await tariffsCheckedFact(setup, admin, lokasiMitra.id);
+      const published = await setup.lokasi.publish(admin, lokasiMitra.id, { tariffsChecked: checked });
+      if (!published.ok) throw new Error(`publish refused: ${JSON.stringify(published)}`);
+    }
+    await catatCekDenah(setup, admin, petugas, denganTerencana.id);
+    const switched = await setup.lokasi.activateTerencana(admin, denganTerencana.id, { hasPetakPerluVerifikasi: false });
+    if (!switched.ok) throw new Error(`Terencana refused: ${JSON.stringify(switched)}`);
+
+    const semua = await setup.lokasi.publicLokasiMitraList();
+    const untukTerencana = await setup.lokasi.publicLokasiMitraList({ terencana: true });
+
+    expect(semua.map((row) => row.id)).toEqual([denganTerencana.id, tanpaTerencana.id]);
+    expect(untukTerencana.map((row) => row.id)).toEqual([denganTerencana.id]);
+    expect(untukTerencana[0].terencanaAktif).toBe(true);
+  });
+
+  it("carries the tumpang rules the Denah picker needs", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin, lokasiMitra } = await publishedLokasi(setup);
+    const changed = await setup.lokasi.setPoliciesAndFlags(admin, lokasiMitra.id, {
+      policies: DEFAULT_POLICIES,
+      flags: { ...DEFAULT_FLAGS, tumpang: { allowed: true, minYears: 3, maxLayers: 4 }, tumpangOnReleasedPlots: true },
+    });
+    if (!changed.ok) throw new Error(`kebijakan refused: ${changed.reason}`);
+
+    const profile = await setup.lokasi.publicLokasiMitra(lokasiMitra.id);
+
+    expect(profile?.tumpang).toEqual({ allowed: true, minYears: 3, maxLayers: 4, onReleasedPlots: true });
   });
 });
 

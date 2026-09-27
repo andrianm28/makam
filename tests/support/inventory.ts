@@ -8,7 +8,7 @@ import { newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform, tariffsOnTe
 /** The Inventory module on the test Postgres, next to Tariffs and Lokasi, sharing their fake Clock and Audit Log. */
 export function inventoryOnTestDatabase(db: Database) {
   const setup = tariffsOnTestDatabase(db);
-  const inventory = createInventory({ db, clock: setup.clock, audit: setup.audit, files: setup.files, tariffs: setup.tariffs });
+  const inventory = createInventory({ db, clock: setup.clock, audit: setup.audit, files: setup.files, tariffs: setup.tariffs, lokasi: setup.lokasi });
   return { ...setup, inventory };
 }
 

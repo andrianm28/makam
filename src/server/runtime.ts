@@ -35,13 +35,13 @@ export interface ServerRuntime {
   tariffs: Tariffs;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
-  /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga). */
+  /** Inventory: the Denah (Blok, Petak Makam, Kavling Keluarga) and the plot hold a Terencana order places. */
   inventory: Inventory;
   /** Field Work: Tugas Lapangan for Petugas Lapangan (Kunjungan Verifikasi, Cek Denah). */
   fieldwork: Fieldwork;
   /** Work Queues: the Antrean, Ambil and Catatan Internal. */
   queues: Queues;
-  /** Pemesanan Makam: the Saat Duka wizard's list, its Kirim and the order page. */
+  /** Pemesanan Makam: both booking wizards (Saat Duka's list, Kirim and order page; Terencana's Denah, hold and order). */
   pemesanan: Pemesanan;
 }
 
@@ -91,8 +91,8 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
-    // One place picks live or fake (AGENTS.md); the wizard's messages go out through Notifications.
+    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     globalForRuntime.__makamRuntime = {
       env,
       database,

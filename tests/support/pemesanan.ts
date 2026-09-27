@@ -1,10 +1,11 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananNotifikasi } from "@/domain/pemesanan";
+import type { PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
+import type { TerencanaLokasi } from "./terencana";
 
 /** The publish fixture's Kunjungan Verifikasi photo, as a real upload is. */
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
@@ -27,9 +28,13 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
   const setup = publishOnTestDatabase(db);
   const diumumkan: PemesananDiajukan[] = [];
+  const terencana: TerencanaDiajukan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pemesananDiajukan: async (order) => {
       diumumkan.push(order);
+    },
+    terencanaDiajukan: async (order) => {
+      terencana.push(order);
     },
   };
   const pemesanan = composePemesanan({
@@ -43,10 +48,25 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan };
+  return { ...setup, pemesanan, diumumkan, terencana };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
+
+/** The ids of the Petak Makam and Kavling Keluarga the Terencana fixture's Denah shows, by the number they are known by. */
+export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, nomor: readonly string[]): Promise<Record<string, string>> {
+  const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+  const cells = denah?.bloks.flatMap((blok) => blok.cells) ?? [];
+  const kavling = denah?.bloks.flatMap((blok) => blok.kavling) ?? [];
+  const found = await Promise.all(
+    nomor.map(async (satu) => {
+      const id = cells.find((cell) => cell.nomorMakam === satu)?.id ?? kavling.find((satu2) => satu2.nomorKavling === satu)?.id;
+      if (!id) throw new Error(`no unit ${satu}`);
+      return [satu, id] as const;
+    }),
+  );
+  return Object.fromEntries(found);
+}
 
 /** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */
 const admins = new WeakMap<object, Promise<{ actor: Actor; cookies: string }>>();

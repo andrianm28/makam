@@ -51,7 +51,7 @@ export function publishOnTestDatabase(db: Database) {
     notifications,
     lokasi: setup.lokasi,
   });
-  return { ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
+  return { db, ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }
 
 export type PublishSetup = ReturnType<typeof publishOnTestDatabase>;

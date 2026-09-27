@@ -53,7 +53,7 @@ export function testServerRuntime() {
       billing,
       reportError: () => {},
     });
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,

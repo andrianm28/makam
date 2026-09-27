@@ -27,7 +27,7 @@ export function composePemesanan(
 }
 
 function notifikasiDari(notifications: Notifications | undefined): PemesananNotifikasi {
-  if (!notifications) return { pemesananDiajukan: async () => {} };
+  if (!notifications) return { pemesananDiajukan: async () => {}, terencanaDiajukan: async () => {} };
   return {
     pemesananDiajukan: async (order) => {
       const alert = stafSaatDukaBaruAlert(order);
@@ -35,5 +35,13 @@ function notifikasiDari(notifications: Notifications | undefined): PemesananNoti
         await notifications.sendStaffAlert({ to, kind: "staf_saat_duka_baru", ...alert });
       }
     },
+    // A Pemesanan Terencana needs a Peringatan Staf of its own, and Notifications has
+    // no kind for it yet: adding one belongs to the Lokasi Mitra's confirmation
+    // (ticket 37), which is also where the Antrean row showing the order lands. Until
+    // then this announcement is dropped, and nothing is lost but the message: the
+    // order is already written, its plots are held, and a placement never waits on a
+    // send. The Pemesanan module's own test records the call, so the seam is not a
+    // mechanism nothing can reach.
+    terencanaDiajukan: async () => {},
   };
 }

@@ -206,6 +206,50 @@ export const inventoryPemakaman = pgTable(
 );
 
 /**
+ * Owned by the Inventory module: one plot hold. A Pemesanan Terencana places it
+ * at submission and it is released on decline, withdrawal or lapse (spec,
+ * Inventory > Denah: "a plot hold for Terencana is placed at submission and
+ * released on decline, withdrawal or lapse"), so no second family can take the
+ * same Petak Makam or Kavling Keluarga. `nomor_pemesanan` names the order holding
+ * it (no foreign key across modules, as elsewhere); `sampai` is null while the
+ * hold is only placed and the order is still Diajukan, because the payment hold
+ * with its deadline starts when the Lokasi Mitra confirms (ticket 37).
+ *
+ * One row per held unit, which makes the open hold of a Petak Makam and of a
+ * Kavling Keluarga a uniqueness fact the database itself keeps: two submissions
+ * for the same plot cannot both commit.
+ */
+export const inventoryPlotHold = pgTable(
+  "inventory_plot_hold",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    petakId: uuid("petak_id").references(() => inventoryPetak.id),
+    kavlingId: uuid("kavling_id").references(() => inventoryKavling.id),
+    /** The Nomor Pemesanan of the order holding it, e.g. `MKM-2026-000123`. */
+    nomorPemesanan: text("nomor_pemesanan").notNull(),
+    /**
+     * Null while the hold is only placed (the order is Diajukan). **Ticket 37**
+     * writes it when the Lokasi Mitra confirms and the payment hold starts running,
+     * which is what the pay-first Tagihan's due date is set from; the lapse tick of
+     * the same ticket releases a hold whose deadline has passed.
+     */
+    sampai: at("sampai"),
+    placedAt: at("placed_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("inventory_plot_hold_petak_idx").on(table.petakId),
+    uniqueIndex("inventory_plot_hold_kavling_idx").on(table.kavlingId),
+    index("inventory_plot_hold_lokasi_idx").on(table.lokasiId),
+    index("inventory_plot_hold_nomor_idx").on(table.nomorPemesanan),
+    check(
+      "inventory_plot_hold_unit_check",
+      sql`(${table.petakId} is not null and ${table.kavlingId} is null) or (${table.petakId} is null and ${table.kavlingId} is not null)`,
+    ),
+  ],
+);
+
+/**
  * Owned by the Inventory module: a Petak Makam's earlier Nomor Makam, kept
  * once Admin Platform renumbers it (spec, story 169). Never shown; only a
  * lookup by the old number, and the Audit Log, ever read it.

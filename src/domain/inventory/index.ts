@@ -16,6 +16,7 @@
  * serve Admin Platform.
  */
 import type { Actor } from "@/domain/identity";
+import type { Database } from "@/db/client";
 import { availability, type AvailabilityCount } from "./availability";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
@@ -37,6 +38,8 @@ import {
 } from "./reads";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
+import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
+import { lepasTahan, tahan, type LepasTahanResult, type TahanInput, type TahanResult } from "./hold";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -44,6 +47,10 @@ export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput, NewPemakaman, NewPemegangHak } from "./clearing";
+export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
+export { bolehDitahan } from "./hold";
+export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
+export { pilihanOf } from "./picker";
 export type {
   AddEdgeResult,
   AvailabilityCount,
@@ -106,6 +113,25 @@ export interface Inventory {
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
   /**
+   * The Denah the Terencana wizard's picker draws, each Petak Makam and Kavling
+   * Keluarga saying whether it may be picked and why not; no actor, and null for
+   * a Lokasi Mitra that is not listed with Pemesanan Terencana on.
+   */
+  publicDenah(lokasiId: string): Promise<PublicDenah | null>;
+  /** How many units a Pemesan may pick at each of these Lokasi Mitra (a Kavling Keluarga counts as one); 0 for one not listed for Terencana. */
+  tersediaUntukTerencana(lokasiIds: readonly string[]): Promise<Record<string, number>>;
+  /**
+   * Holds the chosen Petak Makam (or one whole Kavling Keluarga) for a
+   * Pemesanan Terencana, all or nothing: refused, naming the first unit that is
+   * no longer pickable, when any of them is, so two orders for one plot can never
+   * both hold it. Take it `within` the order's own transaction.
+   */
+  tahan(input: TahanInput): Promise<TahanResult>;
+  /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
+  lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
+  /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
+  within(tx: Database): Inventory;
+  /**
    * Every Jenis Makam's count of cleared Tersedia units at this Lokasi Mitra
    * (a Kavling Keluarga counts as one); no actor, for the listing that offers
    * only what is available.
@@ -130,6 +156,11 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
+    publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
+    tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
+    tahan: (input) => tahan(deps, input),
+    lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
+    within: (tx) => createInventory({ ...deps, db: tx }),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
   };
 }

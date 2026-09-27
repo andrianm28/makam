@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { FileStore } from "@/ports/file-store";
 import { isLokasiId } from "./lokasi-mitra";
@@ -26,6 +26,12 @@ export interface PublicLokasiMitra {
   documentChecklist: string[];
   /** Only the two fields the public Pembatalan section needs. */
   pembatalan: { masaPembatalanDays: number; refundAfterMasaPembatalanPercent: number };
+  /**
+   * Boleh tumpang at this Lokasi Mitra, and whether a released (ended, not
+   * cleared) plot may still take one: what the Terencana picker's Denah says
+   * about a plot that can only be a tumpang.
+   */
+  tumpang: { allowed: boolean; minYears: number; maxLayers: number; onReleasedPlots: boolean };
   /** Until true, the page hides the Terencana entry (spec, story 151). */
   terencanaAktif: boolean;
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
@@ -46,6 +52,12 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
     pembatalan: {
       masaPembatalanDays: row.policies.masaPembatalanDays,
       refundAfterMasaPembatalanPercent: row.policies.refundAfterMasaPembatalanPercent,
+    },
+    tumpang: {
+      allowed: row.flags.tumpang.allowed,
+      minYears: row.flags.tumpang.minYears,
+      maxLayers: row.flags.tumpang.maxLayers,
+      onReleasedPlots: row.flags.tumpangOnReleasedPlots,
     },
     terencanaAktif: row.flags.pemesananTerencanaAktif,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
@@ -74,6 +86,8 @@ export interface PublicLokasiMitraCard {
   pin: { lat: number; lng: number } | null;
   facilities: LokasiFacility[];
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
+  /** Whether this Lokasi Mitra takes Pemesanan Terencana (the Terencana wizard's own filter). */
+  terencanaAktif: boolean;
 }
 
 export interface PublicLokasiMitraQuery {
@@ -82,6 +96,8 @@ export interface PublicLokasiMitraQuery {
   id?: string;
   /** Every one of these must be checked (spec, story 7: filterable by facilities). */
   facilities?: LokasiFacility[];
+  /** Only Lokasi Mitra that have switched "Pemesanan Terencana aktif" on (spec, story 39). */
+  terencana?: boolean;
 }
 
 function toCard(row: Row): PublicLokasiMitraCard {
@@ -93,13 +109,15 @@ function toCard(row: Row): PublicLokasiMitraCard {
     pin: pinOf(row),
     facilities: row.facilities,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
+    terencanaAktif: row.flags.pemesananTerencanaAktif,
   };
 }
 
 /**
  * Every Terverifikasi Lokasi Mitra, by name, for the Daftar Lokasi Makam
- * directory: filtered by city (exact) and by facilities (every one checked).
- * No actor: a Lokasi still Belum Tayang, Ditangguhkan or Berhenti is never listed here.
+ * directory: filtered by city (exact) and by facilities (every one checked), and
+ * by "Pemesanan Terencana aktif" for the Terencana wizard's own list. No actor: a
+ * Lokasi still Belum Tayang, Ditangguhkan or Berhenti is never listed here.
  */
 export async function publicLokasiMitraList(
   deps: { db: Database },
@@ -107,6 +125,7 @@ export async function publicLokasiMitraList(
 ): Promise<PublicLokasiMitraCard[]> {
   const conditions = [eq(lokasiMitraTable.status, "terverifikasi")];
   if (query.city) conditions.push(eq(lokasiMitraTable.city, query.city));
+  if (query.terencana) conditions.push(sql`${lokasiMitraTable.flags} ->> 'pemesananTerencanaAktif' = 'true'`);
   if (query.id) conditions.push(eq(lokasiMitraTable.id, query.id));
   const rows = await deps.db
     .select()
