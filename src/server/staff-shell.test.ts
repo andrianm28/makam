@@ -195,6 +195,15 @@ describe("the command palette (role visibility on the server)", () => {
 
     const shell = await staffShell();
     expect(Object.keys(shell!.palette)).toEqual(["petugas_lapangan", "mitra_jasa"]);
-    expect(hrefs(shell!.palette)).toEqual(["/staf/petugas-lapangan", "/staf/petugas-lapangan/tugas", "/staf/mitra-jasa"]);
+    expect(hrefs(shell!.palette)).toEqual([
+      "/staf/petugas-lapangan/tugas",
+      "/staf/petugas-lapangan/jadwal",
+      "/staf/petugas-lapangan/peringatan",
+      "/akun",
+      "/staf/mitra-jasa/pekerjaan",
+      "/staf/mitra-jasa/pencairan",
+      "/staf/mitra-jasa/peringatan",
+      "/akun",
+    ]);
   });
 });

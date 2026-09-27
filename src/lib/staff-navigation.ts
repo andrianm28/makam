@@ -1,6 +1,8 @@
 import {
   BanknoteIcon,
+  BellIcon,
   BriefcaseIcon,
+  CalendarClockIcon,
   CalendarXIcon,
   ClipboardListIcon,
   ClockIcon,
@@ -14,6 +16,7 @@ import {
   ReceiptIcon,
   SettingsIcon,
   UserRoundCheckIcon,
+  UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
 import type { StaffRole } from "@/domain/identity";
@@ -45,6 +48,9 @@ export interface NavGroup {
 const AP = staffRoleHome("admin_platform");
 const AL = staffRoleHome("admin_lokasi");
 const SEGERA = "Segera hadir.";
+
+/** Akun Saya: shared by every actor (Pemesan or staff), so it sits outside any role's own URL space. */
+const AKUN: NavItem = { label: "Akun", href: "/akun", icon: UserRoundIcon, description: "Email, nomor telepon dan Keluar." };
 
 function beranda(href: string, description: string): NavItem {
   return { label: "Beranda", href, icon: LayoutDashboardIcon, description, isBeranda: true };
@@ -152,33 +158,67 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
         },
       ];
     }
-    case "petugas_lapangan":
+    case "petugas_lapangan": {
+      const home = staffRoleHome("petugas_lapangan");
       return [
         {
           label: "Lapangan",
           items: [
-            beranda(staffRoleHome("petugas_lapangan"), "Pekerjaan lapangan Anda."),
             {
               label: "Tugas",
-              href: `${staffRoleHome("petugas_lapangan")}/tugas`,
+              href: `${home}/tugas`,
               icon: ClipboardListIcon,
               description: "Tugas Lapangan yang ditugaskan ke Anda: alamat, pin, tanggal rencana dan formulirnya.",
             },
+            { label: "Jadwal", href: `${home}/jadwal`, icon: CalendarClockIcon, description: SEGERA },
+            {
+              label: "Peringatan",
+              href: `${home}/peringatan`,
+              icon: BellIcon,
+              description: "Peringatan Staf yang dikirim ke Anda.",
+            },
+            AKUN,
           ],
         },
       ];
-    case "mitra_jasa":
+    }
+    case "mitra_jasa": {
+      const home = staffRoleHome("mitra_jasa");
       return [
         {
           label: "Mitra Jasa",
           items: [
-            beranda(staffRoleHome("mitra_jasa"), "Pekerjaan Layanan dan Pencairan Anda."),
-            { label: "Pekerjaan", icon: BriefcaseIcon, description: SEGERA },
-            { label: "Pencairan", icon: BanknoteIcon, description: SEGERA },
+            { label: "Pekerjaan", href: `${home}/pekerjaan`, icon: BriefcaseIcon, description: SEGERA },
+            { label: "Pencairan", href: `${home}/pencairan`, icon: BanknoteIcon, description: SEGERA },
+            {
+              label: "Peringatan",
+              href: `${home}/peringatan`,
+              icon: BellIcon,
+              description: "Peringatan Staf yang dikirim ke Anda.",
+            },
+            AKUN,
           ],
         },
       ];
+    }
   }
+}
+
+/**
+ * The two field roles whose phone shell is a bottom navigation instead of the
+ * sidebar-as-sheet (docs/design-system.md, "The staff shell"): each of their
+ * menu items sits in one group with no Beranda, so the whole menu is exactly
+ * the bottom navigation's items, in order.
+ */
+export const bottomNavRoles: readonly StaffRole[] = ["petugas_lapangan", "mitra_jasa"];
+
+export function hasBottomNav(role: StaffRole): boolean {
+  return (bottomNavRoles as readonly StaffRole[]).includes(role);
+}
+
+/** A field role's bottom navigation items, in order (its whole menu, one group). */
+export function bottomNavItems(role: StaffRole): NavItem[] {
+  return staffMenu(role).flatMap((group) => group.items);
 }
 
 export interface PaletteItem {

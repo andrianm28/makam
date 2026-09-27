@@ -49,7 +49,19 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { StaffRole } from "@/domain/identity";
 import type { StaffShell as StaffShellData } from "@/server/staff-area";
-import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, type NavGroup, type PaletteGroup } from "@/lib/staff-navigation";
+import {
+  bottomNavItems,
+  hasBottomNav,
+  isActiveItem,
+  menuRole,
+  staffBreadcrumbs,
+  staffMenu,
+  staffPage,
+  type NavGroup,
+  type NavItem,
+  type PaletteGroup,
+} from "@/lib/staff-navigation";
+import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
 
@@ -82,16 +94,24 @@ export function StaffShell({
   const roleHome = current.href;
   // The palette offers the current role's own pages, same as the sidebar menu above.
   const palette: PaletteGroup[] = shell.palette[role] ?? [];
+  // Mitra Jasa and Petugas Lapangan: a bottom navigation instead of the sheet sidebar on phones.
+  const bottomNav = hasBottomNav(role);
 
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen={defaultSidebarOpen}>
         <StaffSidebar menu={menu} roleLabel={roleLabel} roleHome={roleHome} pathname={pathname} />
         <SidebarInset className="min-w-0">
-          <ShellHeader shell={shell} role={page.role} pathname={pathname} palette={palette} />
-          <div className="mx-auto flex w-full max-w-(--page-max-width) flex-1 flex-col gap-6 px-(--page-gutter) pt-6 pb-16 md:pt-8">
+          <ShellHeader shell={shell} role={page.role} pathname={pathname} palette={palette} bottomNav={bottomNav} />
+          <div
+            className={cn(
+              "mx-auto flex w-full max-w-(--page-max-width) flex-1 flex-col gap-6 px-(--page-gutter) pt-6 pb-16 md:pt-8",
+              bottomNav && "pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+1.5rem)] md:pb-16",
+            )}
+          >
             {children}
           </div>
+          {bottomNav ? <BottomNav items={bottomNavItems(role)} roleLabel={roleLabel} pathname={pathname} /> : null}
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
@@ -174,11 +194,13 @@ function ShellHeader({
   role,
   pathname,
   palette,
+  bottomNav,
 }: {
   shell: StaffShellData;
   role: StaffRole | null;
   pathname: string;
   palette: PaletteGroup[];
+  bottomNav: boolean;
 }) {
   const trail = staffBreadcrumbs(pathname, (lokasiId) => shell.lokasiNames[lokasiId]);
   const current = trail[trail.length - 1];
@@ -186,7 +208,8 @@ function ShellHeader({
 
   return (
     <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md supports-backdrop-filter:bg-background/70 md:px-4">
-      <SidebarTrigger className="-ml-1" />
+      {/* Mitra Jasa and Petugas Lapangan navigate by the bottom navigation on phones: no sheet to open there. */}
+      <SidebarTrigger className={cn("-ml-1", bottomNav && "max-md:hidden")} />
       <Separator orientation="vertical" className="mx-1 h-5 max-md:hidden" />
       <Breadcrumb className="min-w-0 max-md:hidden">
         <BreadcrumbList className="flex-nowrap">
@@ -266,5 +289,48 @@ function AccountMenu({ shell, role }: { shell: StaffShellData; role: StaffRole |
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Mitra Jasa and Petugas Lapangan's phone shell: a bottom navigation instead
+ * of the sheet sidebar (docs/design-system.md, "The staff shell"), safe-area
+ * aware, with 44 px touch targets. Every item opens a real page, so none is
+ * disabled here.
+ */
+function BottomNav({ items, roleLabel, pathname }: { items: NavItem[]; roleLabel: string; pathname: string }) {
+  return (
+    <nav
+      aria-label={`Menu ${roleLabel}`}
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
+    >
+      <ul className="mx-auto flex h-(--bottom-nav-height) max-w-md items-stretch justify-around px-2">
+        {items.map((item) => {
+          const active = item.href ? isActiveItem(item, pathname) : false;
+          return (
+            <li key={item.label} className="flex flex-1">
+              <Link
+                href={item.href ?? "#"}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex min-h-(--touch-target) flex-1 flex-col items-center justify-center gap-1 rounded-md text-caption outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  active ? "font-medium text-brand-soft-foreground" : "text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-(--duration-fast)",
+                    active && "bg-brand-soft",
+                  )}
+                >
+                  <item.icon className="size-5" aria-hidden />
+                </span>
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }

@@ -1,5 +1,9 @@
-import { StaffRoleHome } from "../staff-role-home";
+import { redirect } from "next/navigation";
 
+/**
+ * Mitra Jasa has no separate Beranda: Pekerjaan, its first bottom
+ * navigation item, is its home (docs/design-system.md, "The staff shell").
+ */
 export default function MitraJasaPage() {
-  return <StaffRoleHome role="mitra_jasa" />;
+  redirect("/staf/mitra-jasa/pekerjaan");
 }
