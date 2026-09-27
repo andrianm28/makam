@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EmailSection, PhoneSection } from "./email-section";
+import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { currentActor } from "@/server/session";
@@ -27,22 +28,24 @@ export default async function AkunSayaPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Akun Saya</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        title="Akun Saya"
+        description={
+          <>
             Masuk dengan Kode Masuk ke <span data-testid="akun-login-email">{actor.email}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isStaff ? (
-            <Link href="/staf" className="text-sm font-medium underline underline-offset-4">
-              Area staf
-            </Link>
-          ) : null}
-          <KeluarButton />
-        </div>
-      </header>
+          </>
+        }
+        actions={
+          <>
+            {isStaff ? (
+              <Link href="/staf" className="text-sm font-medium text-brand underline underline-offset-4">
+                Area staf
+              </Link>
+            ) : null}
+            <KeluarButton />
+          </>
+        }
+      />
 
       <Card>
         <CardHeader>

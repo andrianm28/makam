@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     "dist/**",
     "test-results/**",
     "playwright-report/**",
+    // Other builder agents' worktrees, checked out alongside this one on the shared host
+    // (cloud sessions run from the repo root, so these are on disk even though `.git` ignores them).
+    ".claude/worktrees/**",
   ]),
 ]);
 

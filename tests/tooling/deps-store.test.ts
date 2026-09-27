@@ -41,14 +41,21 @@ describe("linking a worktree's node_modules from the store", () => {
     expect(readlinkSync(path.join(target, ".bin", "pkg"))).toBe("../pkg/lib/index.js");
   });
 
-  it("makes the store's files read-only, so no worktree can change them in place", () => {
-    const { store, target } = fixture();
-    sealTree(store);
-    linkTree(store, target);
+  // As root, the kernel ignores the write-protection bit for the owning user, so the write
+  // below would succeed and the assertion would be meaningless: root can always write a
+  // read-only file it owns. Skip only in that case, with the reason on the record; this
+  // still runs (and must still pass) for any non-root user, cloud sessions included.
+  it.skipIf(process.getuid?.() === 0)(
+    "makes the store's files read-only, so no worktree can change them in place",
+    () => {
+      const { store, target } = fixture();
+      sealTree(store);
+      linkTree(store, target);
 
-    expect(() => writeFileSync(path.join(target, "pkg", "lib", "index.js"), "changed")).toThrow(/EACCES|EPERM/);
-    expect(readFileSync(path.join(store, "pkg", "lib", "index.js"), "utf8")).toBe("module.exports = 1;\n");
-  });
+      expect(() => writeFileSync(path.join(target, "pkg", "lib", "index.js"), "changed")).toThrow(/EACCES|EPERM/);
+      expect(readFileSync(path.join(store, "pkg", "lib", "index.js"), "utf8")).toBe("module.exports = 1;\n");
+    },
+  );
 
   it("copies npm's hidden lockfile, which npm rewrites in place, so the store's copy stays intact", () => {
     const { store, target } = fixture();

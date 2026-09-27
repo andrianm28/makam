@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { LandPlot } from "lucide-react";
 import { serverRuntime } from "@/server/runtime";
-import { adminLokasiScope, LokasiSwitcher } from "../../scope";
+import { adminLokasiScope } from "../../scope";
 import { NewBlokForm } from "./new-blok-form";
 
 /** Admin Lokasi: every Blok of the current Lokasi Mitra's Denah, and the form to create one. */
 export default async function DenahPage({ params }: PageProps<"/staf/admin-lokasi/[lokasiId]/denah">) {
   const { lokasiId } = await params;
-  const { actor, lokasiMitra, current } = await adminLokasiScope(lokasiId);
+  const { actor, current } = await adminLokasiScope(lokasiId);
   const runtime = serverRuntime();
   const [bloks, tariffs] = await Promise.all([
     runtime.inventory.asStaff(actor).bloks(current.id),
@@ -16,7 +16,6 @@ export default async function DenahPage({ params }: PageProps<"/staf/admin-lokas
 
   return (
     <>
-      <LokasiSwitcher lokasiMitra={lokasiMitra} current={current.id} />
       <Link href={`/staf/admin-lokasi/${current.id}`} className="text-sm underline underline-offset-4">
         {current.name}
       </Link>

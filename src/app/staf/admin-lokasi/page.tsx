@@ -1,7 +1,9 @@
+import { MapPinnedIcon } from "lucide-react";
 import { redirect } from "next/navigation";
+import { EmptyState } from "@/components/makam/empty-state";
+import { PageHeader } from "@/components/makam/page-header";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { StaffRoleHome } from "../staff-role-home";
 
 /** The Admin Lokasi start: the first of its Lokasi Mitra (by name), or a note when it has none. */
 export default async function AdminLokasiPage() {
@@ -10,10 +12,13 @@ export default async function AdminLokasiPage() {
   if (first) redirect(`/staf/admin-lokasi/${first.id}`);
 
   return (
-    <StaffRoleHome role="admin_lokasi">
-      <p className="text-sm text-muted-foreground">
-        Akun Anda belum terhubung ke Lokasi Mitra mana pun. Minta Admin Platform mengundang Anda dari halaman Lokasi Mitra-nya.
-      </p>
-    </StaffRoleHome>
+    <>
+      <PageHeader title="Admin Lokasi" description="Lokasi Mitra yang Anda kelola." />
+      <EmptyState
+        icon={MapPinnedIcon}
+        title="Belum terhubung ke Lokasi Mitra"
+        description="Minta Admin Platform mengundang Anda dari halaman Lokasi Mitra-nya."
+      />
+    </>
   );
 }

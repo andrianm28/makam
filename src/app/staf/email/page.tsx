@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { EmailSection, PhoneSection } from "@/app/akun/email-section";
+import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
 import { currentActor } from "@/server/session";
@@ -19,7 +20,7 @@ export default async function StafEmailPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-semibold tracking-tight">Email</h1>
+      <PageHeader title="Email" description="Email Terverifikasi dan nomor telepon akun staf ini, terpisah dari akun keluarga." />
       <Card>
         <CardHeader>
           <CardTitle>Email akun staf</CardTitle>

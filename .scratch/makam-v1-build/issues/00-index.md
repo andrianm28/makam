@@ -70,7 +70,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [62](62-real-whatsapp-and-sms-adapters.md) | Real WhatsAppSender (kirim.dev) adapter — out of v1 (ADR 0004) | wontfix | 05, 20 |
 | [63](63-operator-settings.md) | Pengaturan Operator (Operator settings) | resolved | 09 |
 | [67](67-email-login.md) | Email login, Verifikasi email and the "Kirim lewat email" fallback | resolved | 09 |
-| [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | ready-for-agent | 04 |
+| [68](68-real-smtp-emailsender-adapter.md) | Real EmailSender adapter (SumoPod SMTP) | resolved | 04 |
 
 ## Story coverage
 
@@ -269,9 +269,9 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 | [75](75-command-palette-and-alert-bell.md) | Command palette (⌘K) and the Peringatan Staf bell | resolved | 74 |
 | [76](76-lokasi-mitra-list-and-detail-redesign.md) | Lokasi Mitra list and detail on the list and detail patterns | resolved | 74 |
 | [77](77-admin-platform-forms-redesign.md) | Admin Platform forms on the form pattern | ready-for-agent | 74, 82 |
-| [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | ready-for-agent | 74 |
+| [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | resolved | 74 |
 | [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | ready-for-agent | 74 |
-| [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74, 82 |
+| [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | resolved | 74, 82 |
 | [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | resolved | 74 |
 
 ## Decisions 2026-09-26 (WhatsApp out of v1)
