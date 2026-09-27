@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 44 resolved, 34 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 45 resolved, 33 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -54,7 +54,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | ready-for-agent | 45 |
 | [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | ready-for-agent | 31, 46 |
 | [48](48-perpanjangan-tpu.md) | Perpanjangan TPU (IPTM renewal) | ready-for-agent | 47 |
-| [49](49-layanan-catalog-and-paket-definitions.md) | Layanan catalog, prices and Paket Layanan definitions | ready-for-agent | 16 |
+| [49](49-layanan-catalog-and-paket-definitions.md) | Layanan catalog, prices and Paket Layanan definitions | resolved | 16 |
 | [50](50-layanan-order-at-lokasi-mitra.md) | Layanan order at a Lokasi Mitra and Admin Lokasi fulfilment | ready-for-agent | 19, 23, 34, 49 |
 | [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | ready-for-agent | 32, 50 |
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |

@@ -9,6 +9,7 @@ import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
+import { createLayanan } from "@/domain/layanan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
@@ -43,6 +44,7 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
     const notifications = composeNotifications({
       env,
@@ -85,6 +87,7 @@ export function testServerRuntime() {
       lokasi,
       operatorSettings,
       tariffs,
+      layanan,
       billing,
       inventory,
       fieldwork,

@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import { biayaPemakamanVersions } from "./biaya-pemakaman";
 import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
+import { hargaLayananLokasiHistory, layananDkiVersionList } from "./layanan-harga";
 import { z } from "zod";
 import { findJenisMakam, jenisMakamVersions, tenureSchema, type JenisMakam, type Tenure } from "./jenis-makam";
 import { idSchema } from "./ids";
@@ -24,7 +25,15 @@ export type QuoteLine =
   /** The Operator's Biaya Pengurusan at a DKI TPU: one that arranges a burial, or filing only. */
   | { kind: "biaya_pengurusan"; pengurusan: "pemakaman" | "berkas" }
   /** A Retribusi Pemda, collected at cost: for an IPTM. */
-  | { kind: "retribusi_pemda"; retribusi: "iptm" };
+  | { kind: "retribusi_pemda"; retribusi: "iptm" }
+  /**
+   * One Layanan variant at a Lokasi Mitra, at that place's price. It carries the
+   * variant's id only: its name belongs to the Layanan catalog, the only module
+   * that reads it, so a name can never drift from the variant it names.
+   */
+  | { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string }
+  /** One Layanan variant at a DKI TPU, at the DKI price (the same in every TPU); its name, as above. */
+  | { kind: "layanan_dki"; layananVariantId: string };
 
 /**
  * Who provides a line: the Lokasi Mitra for its tariff lines, the Operator for
@@ -54,7 +63,9 @@ export type QuotedLine =
   | (QuotedLineBase & { kind: "biaya_pengurusan"; pengurusan: "pemakaman" | "berkas" })
   /** `setorRetribusi`: a non-zero Retribusi Pemda must be paid on to the Pemda (a Setor Retribusi row); Rp 0 needs none. */
   | (QuotedLineBase & { kind: "retribusi_pemda"; retribusi: "iptm"; setorRetribusi: boolean })
-  | (QuotedLineBase & { kind: "biaya_layanan_platform" });
+  | (QuotedLineBase & { kind: "biaya_layanan_platform" })
+  | (QuotedLineBase & { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string })
+  | (QuotedLineBase & { kind: "layanan_dki"; layananVariantId: string });
 
 export interface Quote {
   ok: true;
@@ -97,6 +108,8 @@ const quoteLineSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("biaya_pengurusan"), pengurusan: z.enum(["pemakaman", "berkas"]) }),
   z.object({ kind: z.literal("retribusi_pemda"), retribusi: z.literal("iptm") }),
+  z.object({ kind: z.literal("layanan_lokasi"), lokasiId: idSchema, layananVariantId: idSchema }),
+  z.object({ kind: z.literal("layanan_dki"), layananVariantId: idSchema }),
 ]);
 
 /** A line priced at an instant, with when its version started and when the next one starts. */
@@ -152,7 +165,7 @@ async function priceLines(pricing: Pricing, lines: readonly QuoteLine[], at: Dat
     priced.push(one.value);
   }
   const lokasiIds = new Set(priced.flatMap(({ line }) => (line.provider.kind === "lokasi_mitra" ? [line.provider.lokasiId] : [])));
-  const atTpu = priced.some(({ line }) => line.kind === "biaya_pengurusan" || line.kind === "retribusi_pemda");
+  const atTpu = priced.some(({ line }) => line.kind === "biaya_pengurusan" || line.kind === "retribusi_pemda" || line.kind === "layanan_dki");
   if (lokasiIds.size > 1 || (lokasiIds.size === 1 && atTpu)) return { ok: false, reason: "lokasi_campur" };
   // One Biaya Layanan Platform per Tagihan, and only on a Lokasi Mitra order.
   if (lokasiIds.size === 1) {
@@ -308,5 +321,37 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
         setorRetribusi: amount > 0,
         ...schedule,
       }));
+    case "layanan_lokasi":
+      if (!(await pricing.visible(line.lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
+      return fromVersions(
+        "layanan_lokasi",
+        await hargaLayananLokasiHistory(db, line.lokasiId, line.layananVariantId),
+        at,
+        (version) => priced(version.amount),
+        (amount, _version, schedule) => ({
+          kind: "layanan_lokasi",
+          lokasiId: line.lokasiId,
+          layananVariantId: line.layananVariantId,
+          amount,
+          // The Lokasi Mitra provides its own Layanan, so the price carries its attribution.
+          provider: { kind: "lokasi_mitra", lokasiId: line.lokasiId },
+          ...schedule,
+        }),
+      );
+    case "layanan_dki":
+      // The Operator provides a Layanan at a TPU (a Mitra Jasa does the work), so the line carries no Lokasi Mitra and no platform fee.
+      return fromVersions(
+        "layanan_dki",
+        await layananDkiVersionList(db, line.layananVariantId),
+        at,
+        (version) => priced(version.amount),
+        (amount, _version, schedule) => ({
+          kind: "layanan_dki",
+          layananVariantId: line.layananVariantId,
+          amount,
+          provider: { kind: "operator" },
+          ...schedule,
+        }),
+      );
   }
 }

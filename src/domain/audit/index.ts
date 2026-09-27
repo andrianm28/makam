@@ -81,6 +81,34 @@ export type AuditAction =
   | "tarif.ubah_biaya_pemakaman"
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" (publish gate). */
   | "tarif.tandai_diperiksa"
+  /** Admin Platform enters a new version of a Layanan variant's price at a Lokasi Mitra. */
+  | "tarif.ubah_harga_layanan"
+  /** Admin Platform enters a new version of a Layanan variant's DKI price. */
+  | "tarif.ubah_harga_layanan_dki"
+  /** Admin Platform enters a new version of a Mitra Jasa rate for a Layanan variant. */
+  | "tarif.ubah_tarif_mitra_jasa"
+  /** Admin Platform adds a Layanan to the catalog, with its first variants. */
+  | "layanan.buat"
+  /** Admin Platform changes a Layanan's own fields. */
+  | "layanan.ubah"
+  /** Admin Platform removes a Layanan from the catalog, with its variants. */
+  | "layanan.hapus"
+  /** Admin Platform adds a fixed-price variant to a Layanan. */
+  | "layanan.tambah_varian"
+  /** Admin Platform removes a variant from the catalog. */
+  | "layanan.hapus_varian"
+  /** Admin Platform marks a Layanan variant "boleh di TPU DKI" by hand, or takes the mark off. */
+  | "layanan.tandai_tpu_dki"
+  /** Admin Platform switches a Layanan variant on at a Lokasi Mitra. */
+  | "layanan.tawarkan"
+  /** Admin Platform stops a Lokasi Mitra offering a Layanan variant. */
+  | "layanan.stop_tawarkan"
+  /** Admin Platform defines a Paket Layanan. */
+  | "paket_layanan.buat"
+  /** Admin Platform changes a Paket Layanan. */
+  | "paket_layanan.ubah"
+  /** Admin Platform removes a Paket Layanan definition. */
+  | "paket_layanan.hapus"
   /** An Admin Lokasi (or Admin Platform) sets a Lokasi Mitra's Jam Operasional: weekly hours and Tanggal Tutup. */
   | "lokasi.ubah_jam_operasional"
   /** An Admin Lokasi (or Admin Platform) picks a Lokasi Mitra's Kontak Siaga from its Admin Lokasi. */

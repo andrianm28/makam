@@ -2,11 +2,24 @@ import { asc, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { NewAuditEntry, RecordEntry } from "@/domain/audit";
 import type { TariffDeps } from "./deps";
-import type { tariffBiayaPemakamanVersion, tariffGlobalVersion, tariffJenisMakamVersion } from "./schema";
+import type {
+  tariffBiayaPemakamanVersion,
+  tariffGlobalVersion,
+  tariffJenisMakamVersion,
+  tariffLayananDkiVersion,
+  tariffLayananVersion,
+  tariffMitraJasaVersion,
+} from "./schema";
 import { inForceAt, inForceFromFor, type VersionTimes } from "./versions";
 
-/** The three price-book tables; each row carries the shared version columns. */
-type VersionTable = typeof tariffGlobalVersion | typeof tariffJenisMakamVersion | typeof tariffBiayaPemakamanVersion;
+/** Every price-book table; each row carries the shared version columns. */
+type VersionTable =
+  | typeof tariffGlobalVersion
+  | typeof tariffJenisMakamVersion
+  | typeof tariffBiayaPemakamanVersion
+  | typeof tariffLayananVersion
+  | typeof tariffLayananDkiVersion
+  | typeof tariffMitraJasaVersion;
 
 /** A stored version's shared columns, as every version type carries them. */
 export interface StoredVersionTimes extends VersionTimes {

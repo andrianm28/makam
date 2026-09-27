@@ -112,6 +112,64 @@ export const tariffBiayaPemakamanVersion = pgTable(
 );
 
 /**
+ * Owned by the Tariffs module: every version of one Layanan variant's price at
+ * one Lokasi Mitra (spec, Tariffs: "per Layanan variant the Lokasi price").
+ * `layanan_variant_id` names a variant of the Layanan module (no foreign key
+ * across modules); a row is never changed or deleted.
+ */
+export const tariffLayananVersion = pgTable(
+  "tariff_layanan_version",
+  {
+    ...versionColumns(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    layananVariantId: uuid("layanan_variant_id").notNull(),
+    amount: rupiah("amount").notNull(),
+  },
+  (table) => [
+    index("tariff_layanan_version_idx").on(table.lokasiId, table.layananVariantId, table.inForceFrom, table.seq),
+    check("tariff_layanan_version_amount_check", inRupiahRange(table.amount)),
+  ],
+);
+
+/**
+ * Owned by the Tariffs module: every version of one Layanan variant's price at
+ * a DKI TPU, the same in every TPU (spec, Tariffs: "DKI Layanan variant price").
+ * This is what the Pemesan pays at a TPU; there is no Biaya Layanan Platform
+ * on top of it.
+ */
+export const tariffLayananDkiVersion = pgTable(
+  "tariff_layanan_dki_version",
+  {
+    ...versionColumns(),
+    layananVariantId: uuid("layanan_variant_id").notNull(),
+    amount: rupiah("amount").notNull(),
+  },
+  (table) => [
+    index("tariff_layanan_dki_version_idx").on(table.layananVariantId, table.inForceFrom, table.seq),
+    check("tariff_layanan_dki_version_amount_check", inRupiahRange(table.amount)),
+  ],
+);
+
+/**
+ * Owned by the Tariffs module: every version of what the Operator pays a Mitra
+ * Jasa for one Layanan variant (spec, Tariffs: "Mitra Jasa rate per Layanan
+ * variant"). It is never part of a quote and never shown to the Pemesan: only
+ * Admin Platform reads it.
+ */
+export const tariffMitraJasaVersion = pgTable(
+  "tariff_mitra_jasa_version",
+  {
+    ...versionColumns(),
+    layananVariantId: uuid("layanan_variant_id").notNull(),
+    amount: rupiah("amount").notNull(),
+  },
+  (table) => [
+    index("tariff_mitra_jasa_version_idx").on(table.layananVariantId, table.inForceFrom, table.seq),
+    check("tariff_mitra_jasa_version_amount_check", inRupiahRange(table.amount)),
+  ],
+);
+
+/**
  * Owned by the Tariffs module: a Lokasi Mitra's Jenis Makam, defined by Admin
  * Platform. Its prices and tenure live in its versions. `lokasi_id` names a
  * Lokasi Mitra of the Lokasi module (no foreign key across modules). A row is

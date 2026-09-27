@@ -107,12 +107,14 @@ export async function konfirmasiSaatDuka(
     });
     if (!hakPakai.ok) return hakPakai;
 
+    const baris = linesOf(harga.lines, order);
+    if (!baris.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
     const tagihan = await deps.billing.within(tx).issueTagihan({
       moment: { kind: "saat_duka", burialAt: pemakamanAt, paymentWindowHours },
       addressee: { name: order.pemesanName, phoneNumber, accountId: order.pemesanAccountId },
       nomorPemesanan: order.nomor,
       placeName: order.lokasiName,
-      lines: linesOf(harga.lines, order),
+      lines: baris.lines,
     });
     if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
 
@@ -194,15 +196,44 @@ export async function konfirmasiSaatDuka(
  * the wording a Tagihan keeps, the Lokasi Mitra named as it was at submission.
  * A Laptop fee (`biaya_layanan_platform`) is the Operator's, the rest the
  * Lokasi's.
+ *
+ * The kinds are matched by name rather than passed through, and a kind this flow
+ * cannot issue is a **refusal**, never a silent omission. Ticket 49 widened the
+ * quote's line kinds (a Layanan price at a Lokasi Mitra and at a TPU), and those
+ * belong to a different order; a Saat Duka quote that ever carried one would
+ * otherwise produce a Tagihan missing a line, which under-charges the family —
+ * and the only thing standing between that and a real invoice would be the
+ * compiler, which a future widening could satisfy by widening this file too.
  */
-function linesOf(quoted: readonly QuotedLine[], order: { lokasiId: string; lokasiName: string }): NewTagihanLine[] {
-  return quoted.map((line) => ({
-    kind: line.kind,
-    label: quoteLineLabel(line),
-    amount: line.amount,
-    provider:
-      line.provider.kind === "lokasi_mitra"
-        ? { kind: "lokasi_mitra", lokasiId: order.lokasiId, name: order.lokasiName }
-        : line.provider,
-  }));
+/** The line kinds a Saat Duka confirmation may put on a Tagihan. Anything else is refused. */
+const KINDS_YANG_BISA_DITAGIH = [
+  "harga_hak_pakai",
+  "biaya_pemakaman",
+  "perpanjangan",
+  "biaya_pengurusan",
+  "retribusi_pemda",
+  "biaya_layanan_platform",
+] as const;
+
+function linesOf(
+  quoted: readonly QuotedLine[],
+  order: { lokasiId: string; lokasiName: string },
+): { ok: true; lines: NewTagihanLine[] } | { ok: false; reason: "baris_tidak_bisa_ditagih" } {
+  const lines: NewTagihanLine[] = [];
+  for (const line of quoted) {
+    const kind = KINDS_YANG_BISA_DITAGIH.includes(line.kind as (typeof KINDS_YANG_BISA_DITAGIH)[number])
+      ? (line.kind as (typeof KINDS_YANG_BISA_DITAGIH)[number])
+      : null;
+    if (kind === null) return { ok: false, reason: "baris_tidak_bisa_ditagih" };
+    lines.push({
+      kind,
+      label: quoteLineLabel(line),
+      amount: line.amount,
+      provider:
+        line.provider.kind === "lokasi_mitra"
+          ? { kind: "lokasi_mitra", lokasiId: order.lokasiId, name: order.lokasiName }
+          : line.provider,
+    });
+  }
+  return { ok: true, lines };
 }
