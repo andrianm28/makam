@@ -6,6 +6,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeBilling, documentUrls } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
+import { composePayouts } from "@/composition/payouts";
 import { pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
@@ -42,6 +43,19 @@ async function main() {
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+  // Payouts, for the Pencairan trigger and the Potongan ageing the worker runs.
+  const payouts = composePayouts({
+    env,
+    db: database.db,
+    adapters,
+    audit,
+    identity,
+    lokasi,
+    billing,
+    operatorSettings,
+    notifications,
+    reportError,
+  });
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
@@ -54,6 +68,7 @@ async function main() {
       lokasi,
       identity,
       notifikasi: pemesananNotifikasiDari(notifications),
+      payouts,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

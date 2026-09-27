@@ -384,6 +384,10 @@ _Avoid_: Inbox, tiket, to-do
 The Admin Lokasi's list of open work for one Lokasi Mitra, built and closed from state like the Antrean, split into Mendesak and Lainnya, without claims or Bertugas.
 _Avoid_: Antrean (alone, for the Lokasi's list), inbox
 
+**Tier**:
+How soon a row of the Antrean wants an answer, which is what puts it in which list: Tier 1 today, Tier 2 before the next working day, Tier 3 within days, Tier 4 on a longer schedule. Every "N hari kerja" deadline a row carries is counted on the calendar of the staff who owns it — the Admin Platform Hari Kerja for the Antrean, the Lokasi Mitra's own Jam Operasional for the Antrean Lokasi. A tier is not a rank and says nothing about how much the work matters: a Keluhan is Tier 1 whether it is about a plot or about a job.
+_Avoid_: Prioritas, urgensi, level (for a tier)
+
 **Telepon Pemesan**:
 A Tier 2 Antrean row asking a staff member to call a Pemesan: the family has to act and email is not enough (a money message that failed for good, an order submitted with no email, a Saat Duka Tagihan Lewat Jatuh Tempo, a Hak Pakai nearing its end). One open row per subject, no deadline of its own, closed once a staff member logs the call and what they found; a declined order keeps its Tier 1 call instead.
 _Avoid_: Telepon CS, telephon, follow-up call, tiket telepon

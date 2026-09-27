@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createQueues } from "@/domain/queues";
+import { payoutsFor } from "./payouts";
 import { publishOnTestDatabase } from "./publish";
 
 /**
@@ -24,6 +25,7 @@ export function queuesOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
+  const { payouts } = payoutsFor(setup);
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -34,8 +36,9 @@ export function queuesOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     inventory: setup.inventory,
     pemesanan,
+    payouts,
   });
-  return { ...setup, pemesanan, queues };
+  return { ...setup, pemesanan, payouts, queues };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

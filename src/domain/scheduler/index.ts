@@ -16,6 +16,7 @@ import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEf
 import { pruneIpRequests } from "@/domain/identity";
 import type { Notifications } from "@/domain/notifications";
 import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
+import type { Payouts } from "@/domain/payouts";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -34,6 +35,11 @@ export interface SchedulerContext {
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
+  /**
+   * The Payouts module's own ticks: the Saat Duka Pencairan trigger (Lunas **and**
+   * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
+   */
+  payouts: Pick<Payouts, "tick" | "tickPotongan">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -72,6 +78,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "notifications.kirim_pesan", cron: "* * * * *", tick: kirimPesanTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
+  // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32).
+  { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
+  // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
+  { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -85,4 +95,14 @@ async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Payouts trigger (idempotent there, as every tick is). */
+async function pencairanDueTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.payouts.tick(now);
+}
+
+/** The worker wrapper around the Potongan ageing tick (idempotent there, as every tick is). */
+async function potonganUsiaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.payouts.tickPotongan(now);
 }

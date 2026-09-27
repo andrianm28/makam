@@ -23,6 +23,7 @@ import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
+import type { Payouts } from "@/domain/payouts";
 import type { Clock } from "@/ports/clock";
 import { ambilRow, type AmbilRowResult } from "./ambil";
 import { antrean, antreanCounters, type AntreanCounters, type AntreanRow } from "./antrean";
@@ -59,6 +60,8 @@ export interface QueuesModuleDeps {
   pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
+  payouts: Pick<Payouts, "pencairanJatuhTempo">;
 }
 
 export interface Queues {

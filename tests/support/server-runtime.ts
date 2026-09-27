@@ -5,6 +5,7 @@ import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
+import { composePayouts } from "@/composition/payouts";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
@@ -77,6 +78,18 @@ export function testServerRuntime() {
       identity,
       notifications,
     });
+    const payouts = composePayouts({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      identity,
+      lokasi,
+      billing,
+      operatorSettings,
+      notifications,
+      reportError: () => {},
+    });
     holder.__makamRuntime = {
       env,
       database,
@@ -92,6 +105,7 @@ export function testServerRuntime() {
       inventory,
       fieldwork,
       pemesanan,
+      payouts,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -102,6 +116,7 @@ export function testServerRuntime() {
         notifications,
         inventory,
         pemesanan,
+        payouts,
       }),
     };
   }

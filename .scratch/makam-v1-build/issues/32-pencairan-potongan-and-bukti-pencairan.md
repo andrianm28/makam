@@ -19,3 +19,79 @@ The Payouts module. Pencairan items become due per order or job via registered t
 - [ ] The Mitra Jasa version of the Bukti Pencairan shows only job, Layanan, date and rate.
 - [ ] Admin Lokasi view: per-order Pencairan state and its Bukti Pencairan list; nothing from other Lokasi.
 - [ ] Tests: Saat Duka due trigger (Lunas and Pemakaman, in either order); netting and carry-forward; 60-day ageing; batching into one Bukti Pencairan; hold-out; Playwright: a Pencairan run producing a Bukti Pencairan.
+
+## Comments
+
+### 2026-09-27 — the two decisions the owner took, and where they live in the code
+
+- **A Pelanggan who falls due and is then refunded in full has their items
+  cancelled, not paid and clawed back.** Two places, because the refund can land
+  before or after the items exist: the trigger never makes an item for a Tagihan
+  whose status is `dikembalikan_penuh` (`trigger.ts`), and
+  `payouts.batalkanPencairanTagihan(tx, { tagihanId })` cancels whatever is
+  already due — which the Refunds module (ticket 31) calls inside the same
+  transaction that records the refund. An item that was already transferred is
+  left alone: that money is gone, and clawing it back is a Potongan, a decision of
+  its own.
+- **A net below Rp 0 inside one Bukti is refused, and Admin Platform settles it on
+  the offline path.** `terbitkanBuktiPencairan` returns `netto_negatif` when the
+  named Potongan owe more than the items come to, and the run shows `neto: null`
+  before anyone tries, so the UI can say so. A debt is never half-netted to make
+  a transfer possible: it stays `berjalan` and carries forward.
+
+### 2026-09-27 — what the trigger waits for, and why it is a tick
+
+The Saat Duka trigger's two halves are written by the two modules that own them
+and neither reads the other back: `efekPencairanSaatLunas()` inside the
+transaction that settles the Tagihan, and `payouts.pemakamanTercatat(tx, …)`
+which **ticket 25 calls inside the transaction that records the burial**. A tick
+turns the pair into items, which is what makes "Lunas **and** Pemakaman recorded,
+in either order" true by construction. The tick takes no dependencies at all,
+which is why Billing can compose it and Payouts compose after it without a cycle.
+
+### 2026-09-27 — what is *not* proven by a test, honestly
+
+- **"Belum jatuh tempo" as an order's per-order state in the Admin Lokasi view.**
+  The derivation is in `reads.ts` and the state is reachable in principle, but in
+  this ticket every order's items are made due by the Saat Duka trigger, so no
+  order can sit in that state yet; the test proves "Jatuh tempo" and "Dicairkan"
+  only. It becomes reachable when tickets 37/40/51 create not-due items.
+- **The Mitra Jasa trigger end to end.** Ticket 51 owns when a job's Keluhan
+  window closes; this ticket provides `catatItemLayananMitraJasa` and
+  `jadikanJatuhTempo` and tests them directly. What is not tested is a
+  Pekerjaan Layanan (ticket 51/55's table) reaching that point, because it does
+  not exist yet.
+- **The Pencairan run's screen and its e2e (AC 9's Playwright line).** There is no
+  Admin Platform Pencairan route to drive: `docs/design-system.md` settles the
+  Admin Platform menu as Kerja harian · Lokasi dan harga · Orang · Operator with
+  no Pencairan item, so the run is reached from the Antrean — which is where the
+  Tier 3 row's link points. Reaching a due item through a browser also needs
+  ticket 25's burial recording, which has no screen yet. **Follow-up:** the
+  Pencairan run screen, its menu entry (a design decision, not a builder's), and
+  then the e2e. What *is* built and rendered today is the Bukti Pencairan's own
+  page at `/dokumen/<link>`, in both its Lokasi Mitra and its Mitra Jasa version,
+  with "Unduh PDF" from the same link.
+- **A partner share larger than the order's Pencairan** is refused, so an item is
+  never left at Rp 0 (a Bukti Pencairan cannot carry a Rp 0 line); an item a share
+  empties completely is cancelled instead. Both paths are tested.
+
+### 2026-09-27 — a finding for the orchestrator, from the CI upgrade seed
+
+`scripts/migrations/seed-representative.ts` was run against this branch's schema:
+every Payouts table fills (3 rows each), and **five tables from earlier tickets
+still cannot be filled and fail the seed** — `inventory_pemakaman`,
+`inventory_petak`, `inventory_petak_alias` (Inventory), `payment_webhook_event`
+and `pembayaran_perlu_ditinjau` (Billing). That is pre-existing: the same five
+fail on `origin/main`'s schema without this migration, because the seed invents
+text values for `text` columns that carry a CHECK, and those CHECKs are written
+against a closed list of words. The `migrations` CI job runs that script, so it
+is red on `main` independently of this ticket.
+
+### 2026-09-27 — an environment note for whoever runs the tests here
+
+Vitest in this worktree intermittently served a **stale transform** of a test file
+edited in the same second as the run, which showed up as impossible assertion
+failures (an object with a property that `Object.getOwnPropertyDescriptor` said
+did not exist). Waiting a few seconds between writing a test file and running it,
+or clearing `node_modules/.vite`, makes it go away. Every number in this ticket's
+report was read off a run whose file contents had not changed for seconds.

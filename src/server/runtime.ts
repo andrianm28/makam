@@ -6,6 +6,7 @@ import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
+import { composePayouts } from "@/composition/payouts";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
@@ -16,6 +17,7 @@ import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
+import type { Payouts } from "@/domain/payouts";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -46,6 +48,8 @@ export interface ServerRuntime {
   queues: Queues;
   /** Pemesanan Makam: both booking wizards (Saat Duka's list, Kirim and order page; Terencana's Denah, hold and order). */
   pemesanan: Pemesanan;
+  /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
+  payouts: Payouts;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -110,6 +114,19 @@ export function serverRuntime(): ServerRuntime {
       identity,
       notifications,
     });
+    // Payouts reads the issued Tagihan through Billing, so it is composed after it.
+    const payouts = composePayouts({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      identity,
+      lokasi,
+      billing,
+      operatorSettings,
+      notifications,
+      reportError,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -125,6 +142,7 @@ export function serverRuntime(): ServerRuntime {
       inventory,
       fieldwork,
       pemesanan,
+      payouts,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -135,6 +153,7 @@ export function serverRuntime(): ServerRuntime {
         notifications,
         inventory,
         pemesanan,
+        payouts,
       }),
     };
   }

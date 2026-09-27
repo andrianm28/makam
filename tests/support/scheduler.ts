@@ -17,6 +17,7 @@ export function schedulerContext(parts: {
   reportError?: ReportError;
   notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
   pemesanan?: SchedulerContext["pemesanan"];
+  payouts?: SchedulerContext["payouts"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -32,6 +33,9 @@ export function schedulerContext(parts: {
         identity: { adminLokasiOf: async () => [] },
         notifikasi: DIAMDIAM,
       } satisfies SchedulerContext["pemesanan"]),
+    // The Payouts ticks change nothing until a test gives them a real module: an
+    // empty table is what an ageing tick and a trigger both find anyway.
+    payouts: parts.payouts ?? { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
   };
 }
 
