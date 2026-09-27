@@ -7,11 +7,11 @@ import { z } from "zod";
 import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
-import { type TpuDki } from "@/domain/lokasi";
+import { TPU_LIMITS, type TpuDki } from "@/domain/lokasi";
 import { ServerResult, idleFormState } from "../../form-feedback";
 import { useResetAfterSubmit } from "../../form-reset";
 import { simpanProfilTpu, simpanStatusTpu, tambahTpu } from "./actions";
-import { newTpuFormSchema, tpuFlagFormSchema, tpuLimits, tpuProfileFormSchema, type TpuFlagForm, type TpuProfileForm } from "./schema";
+import { newTpuFormSchema, tpuFlagFormSchema, tpuProfileFormSchema, type TpuFlagForm, type TpuProfileForm } from "./schema";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -64,7 +64,7 @@ function ProfilFields({ register, errors, prefix }: { register: ProfilRegister; 
         Nama TPU
         <input
           {...register("name")}
-          maxLength={tpuLimits.name}
+          maxLength={TPU_LIMITS.name}
           placeholder="TPU Kober"
           aria-invalid={errors.name ? true : undefined}
           aria-describedby={errors.name ? `${prefix}-name` : undefined}

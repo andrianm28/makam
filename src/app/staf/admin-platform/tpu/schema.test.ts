@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { newTpuFormSchema, tpuLimits, tpuProfileFormSchema, tpuStatusEditSchema } from "./schema";
+import { TPU_LIMITS } from "@/domain/lokasi";
+import { newTpuFormSchema, tpuProfileFormSchema, tpuStatusEditSchema } from "./schema";
 
 /**
  * The shapes the TPU forms and their Server Actions share live in one module,
@@ -28,7 +29,7 @@ describe("the TPU profile both the form and its Server Action hold", () => {
 
   it.each([
     ["a blank name", { name: "  " }, "name"],
-    ["a name past its length", { name: "x".repeat(tpuLimits.name + 1) }, "name"],
+    ["a name past its length", { name: "x".repeat(TPU_LIMITS.name + 1) }, "name"],
     ["a blank address", { address: "" }, "address"],
     ["a blank city", { city: "  " }, "city"],
     ["a blank data source", { dataSource: "" }, "dataSource"],

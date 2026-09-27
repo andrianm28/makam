@@ -19,8 +19,18 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import { actingRole, isLokasiId, type LokasiDeps, type WriteResult } from "./lokasi-mitra";
 import { tpuDki as tpuDkiTable } from "./schema";
 
-/** The most characters a TPU's name may be typed in. */
-export const TPU_NAME_MAX = 120;
+/**
+ * How long each of a TPU's own fields may be typed, in one number per field:
+ * the module's schema refuses past it, and a form's `maxLength` stops there,
+ * so a length is never written twice (the same split as the Operator settings'
+ * `pengaturanOperatorLimits`).
+ */
+export const TPU_LIMITS = {
+  name: 120,
+  address: 300,
+  city: 120,
+  dataSource: 200,
+} as const;
 
 /** A map pin, anywhere on earth. A TPU may have none: a street address is enough to find it. */
 const pinSchema = z.object({
@@ -30,16 +40,13 @@ const pinSchema = z.object({
 
 /** What Admin Platform types for a TPU: its name, address, city, optional pin and the data source it came from. */
 export const tpuProfileSchema = z.object({
-  name: z.string().trim().min(1).max(TPU_NAME_MAX),
-  address: z.string().trim().min(1).max(300),
+  name: z.string().trim().min(1).max(TPU_LIMITS.name),
+  address: z.string().trim().min(1).max(TPU_LIMITS.address),
   /** Kota or kabupaten, as typed: the same label the directory's city filter reads for a Lokasi Mitra. */
-  city: z.string().trim().min(1).max(120),
+  city: z.string().trim().min(1).max(TPU_LIMITS.city),
   pin: pinSchema.nullable(),
-  dataSource: z.string().trim().min(1).max(200),
+  dataSource: z.string().trim().min(1).max(TPU_LIMITS.dataSource),
 });
-
-/** The new-plot flag on its own, with the date it was checked, as the flag form submits it. */
-export const tpuFlagSchema = z.object({ menerimaMakamBaru: z.boolean() });
 
 export type TpuProfileInput = z.infer<typeof tpuProfileSchema>;
 
@@ -173,7 +180,7 @@ export async function updateTpuDki(deps: LokasiDeps, by: Actor, tpuId: string, i
   const parsed = tpuProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "tpu_tidak_valid" };
   const profile = parsed.data;
-  return writeTpuDki(deps, by, tpuId, "tpu.ubah", async (tx, row) => {
+  return writeTpuDki(deps, by, tpuId, "tpu.ubah", deps.clock.now(), async (tx, row) => {
     // A rename onto another TPU's name would break the one-name-per-list rule, so it is refused here and never reaches the database.
     if (nameKeyOf(profile.name) !== row.nameKey && (await tpuWithNameKey(tx, nameKeyOf(profile.name), tpuId))) {
       return { ok: false, reason: "nama_sudah_ada" } as const;
@@ -196,23 +203,25 @@ export async function updateTpuDki(deps: LokasiDeps, by: Actor, tpuId: string, i
 
 /**
  * Admin Platform records what the TPU takes today: the flag is set together
- * with the date it was checked (the Clock), and audited. An update to the same
- * value still stamps the date and is audited: the row is there because someone
- * confirmed it, not because it changed.
+ * with the date it was checked, read from the Clock once so the row and the
+ * Entri Audit stamp the same instant, and audited. A check that changes nothing
+ * still stamps the date and is audited: the row is there because someone
+ * confirmed the flag, not because it moved.
  */
 export async function updateTpuDkiFlag(
   deps: LokasiDeps,
   by: Actor,
   tpuId: string,
-  input: z.infer<typeof tpuFlagSchema>,
+  input: { menerimaMakamBaru: boolean },
 ): Promise<UpdateTpuDkiFlagResult> {
   const refusal = writeRefusal(by, "tpu.ubah", tpuDkiResource(tpuId));
   if (refusal) return refusal;
-  if (!tpuFlagSchema.safeParse(input).success) return { ok: false, reason: "tpu_tidak_valid" };
-  return writeTpuDki(deps, by, tpuId, "tpu.ubah_flag", (_tx, row) => ({
-    values: { menerimaMakamBaru: input.menerimaMakamBaru, flagUpdatedAt: deps.clock.now() },
+  if (typeof input.menerimaMakamBaru !== "boolean") return { ok: false, reason: "tpu_tidak_valid" };
+  const checkedAt = deps.clock.now();
+  return writeTpuDki(deps, by, tpuId, "tpu.ubah_flag", checkedAt, (_tx, row) => ({
+    values: { menerimaMakamBaru: input.menerimaMakamBaru, flagUpdatedAt: checkedAt },
     before: { menerimaMakamBaru: row.menerimaMakamBaru, flagUpdatedAt: row.flagUpdatedAt },
-    after: { menerimaMakamBaru: input.menerimaMakamBaru, flagUpdatedAt: deps.clock.now() },
+    after: { menerimaMakamBaru: input.menerimaMakamBaru, flagUpdatedAt: checkedAt },
   }));
 }
 
@@ -226,12 +235,13 @@ async function tpuWithNameKey(tx: Database, nameKey: string, tpuId: string): Pro
   return other !== undefined;
 }
 
-/** One staff write on a TPU's row: locked, changed and audited in one transaction, or nothing at all. */
+/** One staff write on a TPU's row: locked, changed and audited in one transaction, or nothing at all. `now` is this write's single reading of the Clock. */
 async function writeTpuDki(
   deps: LokasiDeps,
   by: Actor,
   tpuId: string,
   action: "tpu.ubah" | "tpu.ubah_flag",
+  now: Date,
   change: (tx: Database, row: Row) => Promise<TpuChange> | TpuChange,
 ): Promise<UpdateTpuDkiResult> {
   if (!isLokasiId(tpuId)) return { ok: false, reason: "tidak_ditemukan" };
@@ -241,7 +251,7 @@ async function writeTpuDki(
     const changed = await change(tx, row);
     if ("ok" in changed) return changed;
     const { values, before, after } = changed;
-    await tx.update(tpuDkiTable).set({ ...values, updatedAt: deps.clock.now() }).where(eq(tpuDkiTable.id, tpuId));
+    await tx.update(tpuDkiTable).set({ ...values, updatedAt: now }).where(eq(tpuDkiTable.id, tpuId));
     await record({
       actor: { accountId: by.accountId, role: actingRole(by) },
       action,

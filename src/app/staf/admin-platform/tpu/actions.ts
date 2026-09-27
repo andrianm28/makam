@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { semuaTpuDkiResource, tpuDkiResource, type Actor, type Resource } from "@/domain/identity";
-import type { CreateTpuDkiResult, TpuProfileInput, UpdateTpuDkiFlagResult, UpdateTpuDkiResult } from "@/domain/lokasi";
+import { TPU_LIMITS, type CreateTpuDkiResult, type TpuProfileInput, type UpdateTpuDkiFlagResult, type UpdateTpuDkiResult } from "@/domain/lokasi";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
@@ -11,7 +11,6 @@ import { guardMessage } from "../../messages";
 import {
   menerimaMakamBaruOf,
   newTpuFormSchema,
-  tpuLimits,
   tpuProfileEditSchema,
   tpuStatusEditSchema,
   type TpuProfileForm,
@@ -33,7 +32,7 @@ const staleForm = "Formulir ini tidak lengkap. Muat ulang halaman lalu coba lagi
 
 /** What each field says when it is not valid, in Bahasa Indonesia. */
 const fieldMessages: Record<string, string> = {
-  name: `Isi nama TPU (paling banyak ${tpuLimits.name} huruf).`,
+  name: `Isi nama TPU (paling banyak ${TPU_LIMITS.name} huruf).`,
   address: "Isi alamat TPU.",
   city: "Isi kota atau kabupaten TPU.",
   dataSource: "Isi sumber data TPU.",

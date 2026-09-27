@@ -15,6 +15,17 @@ export function overdueFrom(plannedDate: string): Date {
   return addWibDays(wib(plannedDate), 1);
 }
 
+/**
+ * Tier 4's one "is this row due" question, whichever shape its deadline has (a
+ * Tugas Lapangan's planned date through `overdueFrom`, a TPU flag checked N days
+ * ago). A row is due from the moment its own deadline is here, not after it: a
+ * Tier 4 row exists to have the work done, and only the aggregator (`./antrean.ts`)
+ * decides which of them are past their deadline.
+ */
+export function isDue(deadline: Date, now: Date): boolean {
+  return deadline.getTime() <= now.getTime();
+}
+
 export interface TugasAndLokasi {
   tugas: TugasLapangan[];
   lokasiMitra: LokasiMitraSummary[];

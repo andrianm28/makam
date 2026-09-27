@@ -213,11 +213,8 @@ export type {
 } from "./kunjungan";
 export type { PublishInput, PublishLokasiMitraResult } from "./publish";
 export {
-  TPU_NAME_MAX,
-  tpuFlagSchema,
-  tpuProfileSchema,
+  TPU_LIMITS,
   type CreateTpuDkiResult,
-  type InvalidTpu,
   type NewTpuDki,
   type PublicTpuDki,
   type PublicTpuDkiQuery,

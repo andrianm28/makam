@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AllInPrice } from "@/domain/tariffs";
-import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
+import { formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, embedMapUrl, mapsQueryFor } from "@/lib/maps";
 import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
@@ -55,7 +55,7 @@ export default async function TpuPage({ params }: PageProps<"/tpu/[tpuId]">) {
         <p className="text-muted-foreground">{tpu.address}</p>
         <p className="text-body">
           <span className="font-medium">{tpu.newPlot ? "Menerima makam baru" : "Tidak menerima makam baru"}</span>{" "}
-          <span className="text-muted-foreground">· diperbarui {formatBulanTahun(tpu.flagUpdatedOn)}</span>
+          <span className="text-muted-foreground">· diperbarui {formatTanggalPanjang(tpu.flagUpdatedOn)}</span>
         </p>
         {mapsQuery ? (
           <a
@@ -134,7 +134,7 @@ export default async function TpuPage({ params }: PageProps<"/tpu/[tpuId]">) {
             {tpu.dataSource}
           </p>
           <p className="text-small text-muted-foreground">
-            Status makam baru terakhir diperiksa {formatTanggalPanjang(tpu.flagUpdatedOn)}. Makam.co.id tidak mengelola TPU:
+            Status makam baru terakhir diperiksa pada {formatTanggalPanjang(tpu.flagUpdatedOn)}. Makam.co.id tidak mengelola TPU:
             petak dan kelolanya milik pemerintah daerah, jadi tidak ada Hak Pakai yang kami pegang di sini.
           </p>
         </CardContent>

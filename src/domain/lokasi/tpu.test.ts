@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { TPU_NAME_MAX, tpuProfileSchema } from "@/domain/lokasi";
+import { TPU_LIMITS } from "@/domain/lokasi";
+// The profile shape is the module's own: no page or Server Action needs it, so the barrel does not carry it.
+import { tpuProfileSchema } from "./tpu";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn } from "../../../tests/support/identity";
@@ -49,8 +51,8 @@ describe("the shape of a DKI TPU, as the form and its Server Action share it", (
   it("takes a name, an address, a city, a data source and an optional pin; the name has one length", () => {
     expect(refusedFields({ ...kubur, pin })).toEqual([]);
     expect(refusedFields({ ...kubur, pin: null })).toEqual([]);
-    expect(refusedFields({ ...kubur, name: "x".repeat(TPU_NAME_MAX) })).toEqual([]);
-    expect(refusedFields({ ...kubur, name: "x".repeat(TPU_NAME_MAX + 1) })).toEqual(["name"]);
+    expect(refusedFields({ ...kubur, name: "x".repeat(TPU_LIMITS.name) })).toEqual([]);
+    expect(refusedFields({ ...kubur, name: "x".repeat(TPU_LIMITS.name + 1) })).toEqual(["name"]);
     expect(refusedFields({ ...kubur, name: "   " })).toEqual(["name"]);
     expect(refusedFields({ ...kubur, address: "  " })).toEqual(["address"]);
     expect(refusedFields({ ...kubur, city: "  " })).toEqual(["city"]);

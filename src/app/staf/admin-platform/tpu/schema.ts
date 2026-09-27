@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TPU_NAME_MAX } from "@/domain/lokasi";
+import { TPU_LIMITS } from "@/domain/lokasi";
 
 /**
  * The TPU shapes the Server Actions check and the forms hold, in one place: a
@@ -10,16 +10,9 @@ import { TPU_NAME_MAX } from "@/domain/lokasi";
  * fields (a decimal comma is as good as a dot) that are both empty for a TPU
  * without one, and the new-plot flag is "ya" or "tidak". The Lokasi module
  * re-checks the profile and the flag itself, so these only have to say what the
- * form said; its own refusals name the field that caused them.
+ * form said; its own refusals name the field that caused them. The lengths are
+ * the module's own (`TPU_LIMITS`), so a field's limit is written once.
  */
-
-/** How long each value may be typed, so a field's length is written once. */
-export const tpuLimits = {
-  name: TPU_NAME_MAX,
-  address: 300,
-  city: 120,
-  dataSource: 200,
-} as const;
 
 /** One coordinate as a form types it: a number, or nothing. */
 const koordinat = z
@@ -28,10 +21,10 @@ const koordinat = z
   .refine((value) => value === "" || Number.isFinite(Number(value.replace(",", "."))), { message: "pin" });
 
 export const tpuProfileFormSchema = z.object({
-  name: z.string().trim().min(1).max(tpuLimits.name),
-  address: z.string().trim().min(1).max(tpuLimits.address),
-  city: z.string().trim().min(1).max(tpuLimits.city),
-  dataSource: z.string().trim().min(1).max(tpuLimits.dataSource),
+  name: z.string().trim().min(1).max(TPU_LIMITS.name),
+  address: z.string().trim().min(1).max(TPU_LIMITS.address),
+  city: z.string().trim().min(1).max(TPU_LIMITS.city),
+  dataSource: z.string().trim().min(1).max(TPU_LIMITS.dataSource),
   pinLat: koordinat,
   pinLng: koordinat,
 });
@@ -51,7 +44,7 @@ export const tpuProfileEditSchema = tpuProfileFormSchema.extend({ tpuId: z.uuid(
 export const tpuStatusEditSchema = z.object({
   tpuId: z.uuid(),
   menerimaMakamBaru: tpuFlagFormSchema,
-  nama: z.string().trim().max(tpuLimits.name),
+  nama: z.string().trim().max(TPU_LIMITS.name),
 });
 
 /** Whether a TPU takes new plots, as a form's own choice spells it. */

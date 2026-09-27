@@ -7,11 +7,10 @@
  */
 import { addWibDays } from "@/lib/time/jakarta";
 import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import { isDue } from "./tier4-shared";
 
 /** How long a flag may go unchecked before this row asks for it. */
 export const TPU_FLAG_STALE_DAYS = 14;
-
-const tpuHref = (tpuId: string) => `/staf/admin-platform/tpu/${tpuId}`;
 
 export const tpuFlagStaleRowType: AntreanRowType = {
   key: "tpu_flag_kedaluwarsa",
@@ -20,18 +19,18 @@ export const tpuFlagStaleRowType: AntreanRowType = {
   async rows(deps: AntreanRowDeps, by): Promise<RawAntreanRow[]> {
     const now = deps.clock.now();
     const tpu = await deps.lokasi.tpuDkiList(by);
-    return tpu
-      .map((item) => ({ item, deadline: addWibDays(item.flagUpdatedAt, TPU_FLAG_STALE_DAYS) }))
-      // Stale from the moment the 14 days are up, not after the deadline: the row exists to have the flag checked.
-      .filter(({ deadline }) => deadline.getTime() <= now.getTime())
-      .map(
-        ({ item, deadline }): RawAntreanRow => ({
-          subjectKind: "tpu_dki",
-          subjectId: item.id,
-          subjectLabel: item.name,
-          href: tpuHref(item.id),
-          deadline,
-        }),
-      );
+    const rows: RawAntreanRow[] = [];
+    for (const item of tpu) {
+      const deadline = addWibDays(item.flagUpdatedAt, TPU_FLAG_STALE_DAYS);
+      if (!isDue(deadline, now)) continue;
+      rows.push({
+        subjectKind: "tpu_dki",
+        subjectId: item.id,
+        subjectLabel: item.name,
+        href: `/staf/admin-platform/tpu/${item.id}`,
+        deadline,
+      });
+    }
+    return rows;
   },
 };
