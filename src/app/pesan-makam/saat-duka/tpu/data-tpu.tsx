@@ -16,7 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "../progress";
 import { Field, Fieldset, Pilihan } from "../form";
 import { kirimPengurusanTpu, verifikasiKodeMasukDanKirimTpu } from "../actions";
-import { initialKirimState, pengurusanPath, type DraftTpu, type KirimState, type MasalahDraft } from "../draft";
+import {
+  initialKirimState,
+  pengurusanPath,
+  type DraftTpu,
+  type KirimState,
+  type MasalahDraft,
+} from "../draft";
 import type { TpuKartuView } from "../tampilan";
 import type { Dokumen, JenisPenguburan } from "@/domain/pengurusan";
 import { FOTO_IPTM_MAX_BYTES } from "@/domain/pengurusan/skema-pengurusan";
@@ -41,7 +47,10 @@ export interface DataTpuProps {
   /** A signed-in Pemesan skips the Kode Masuk at Kirim. */
   sudahMasuk: boolean;
   /** Sends the Kode Masuk to the typed email (the Masuk action, reused as the spec says). */
-  mintaKodeMasuk: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
+  mintaKodeMasuk: (
+    state: KodeMasukRequestState,
+    formData: FormData,
+  ) => Promise<KodeMasukRequestState>;
   csContact: CsContact | null;
 }
 
@@ -55,35 +64,76 @@ type Jawaban = { jenis: JenisPenguburan; wafatDiJakarta: boolean };
  * two document checklists as they change with the answers, and the Kode Masuk
  * that opens inline under the form when there is no session yet.
  */
-export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, csContact }: DataTpuProps) {
+export function DataTpu({
+  draft,
+  tpu,
+  opsiDokumen,
+  sudahMasuk,
+  mintaKodeMasuk,
+  csContact,
+}: DataTpuProps) {
   const router = useRouter();
-  const [isi, setisi] = useState({ ...draft, almarhumName: "", tanggalWafat: "" });
-  const [jawaban, setjawaban] = useState<Jawaban>({ jenis: "baru", wafatDiJakarta: true });
-  const [kuburan, setkuburan] = useState<{ blokNomor: string; nama: string }>({ blokNomor: "", nama: "" });
-  const [pemegangHak, setPemegangHak] = useState<DraftTpu["pemegangHak"]>({ mode: "pemesan" });
+  const [isi, setisi] = useState({
+    ...draft,
+    almarhumName: "",
+    tanggalWafat: "",
+  });
+  const [jawaban, setjawaban] = useState<Jawaban>({
+    jenis: "baru",
+    wafatDiJakarta: true,
+  });
+  const [kuburan, setkuburan] = useState<{ blokNomor: string; nama: string }>({
+    blokNomor: "",
+    nama: "",
+  });
+  const [pemegangHak, setPemegangHak] = useState<DraftTpu["pemegangHak"]>({
+    mode: "pemesan",
+  });
   /** "KTP DKI?", held apart from where the death happened: only the two together decide eligibility. */
   const [ktpDkiTidak, setKtpDkiTidak] = useState(false);
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
   const fotoRef = useRef<HTMLInputElement>(null);
+  /**
+   * One Kirim in flight, whatever the button's own `disabled` says: a second tap
+   * between the click and React's next render would place a second order, and a
+   * family tapping twice is exactly what happens at 23:00.
+   */
+  const terkirim = useRef(false);
 
   /** When the Operator will confirm by, said once under the button, as the card promised it. */
   const konfirmasi = tpu.konfirmasi;
-  const dokumen = opsiDokumen.find((satu) => satu.jenis === jawaban.jenis && satu.wafatDiJakarta === jawaban.wafatDiJakarta) ?? opsiDokumen[0];
+  const dokumen =
+    opsiDokumen.find(
+      (satu) =>
+        satu.jenis === jawaban.jenis &&
+        satu.wafatDiJakarta === jawaban.wafatDiJakarta,
+    ) ?? opsiDokumen[0];
   /** Neither a DKI KTP nor a death in Jakarta cannot be served at a TPU: the screen says so before anything is sent. */
   const tidakLayak = jawaban.wafatDiJakarta === false && ktpDkiTidak;
   const kodeMasukTerbuka = hasil.status === "perlu_kode_masuk";
-  const salah: MasalahDraft = hasil.status === "gagal" ? (hasil.pesan ?? {}) : {};
+  const salah: MasalahDraft =
+    hasil.status === "gagal" ? (hasil.pesan ?? {}) : {};
 
   const kirimSekarang = () =>
     kirim(async () => {
+      if (terkirim.current) return;
+      terkirim.current = true;
       const draftLengkap = await draftDenganFoto();
-      if (!draftLengkap) return;
+      if (!draftLengkap) {
+        terkirim.current = false;
+        return;
+      }
       const hasil = await kirimPengurusanTpu(draftLengkap);
       // A signed-in Pemesan's order is placed here, with no Kode Masuk step to carry the redirect, so the screen carries it.
-      if (hasil.status === "selesai") router.push(pengurusanPath(hasil.nomor));
-      else setHasil(hasil);
+      if (hasil.status === "selesai") {
+        router.push(pengurusanPath(hasil.nomor));
+        return;
+      }
+      // A refusal is the family's to fix, so the button comes back; a placed order leaves the screen and stays locked.
+      setHasil(hasil);
+      terkirim.current = false;
     });
 
   /** The draft this screen holds, with the IPTM photo read from the file input and carried as base64. */
@@ -98,9 +148,18 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
       ...isi,
       tpuId: draft.tpuId,
       jenis: jawaban.jenis,
-      kelayakan: { ktpDki: !ktpDkiTidak, wafatDiJakarta: jawaban.wafatDiJakarta },
+      kelayakan: {
+        ktpDki: !ktpDkiTidak,
+        wafatDiJakarta: jawaban.wafatDiJakarta,
+      },
       kuburan: jawaban.jenis === "tumpang" ? kuburan : null,
-      fotoIptm: berkas ? { nama: berkas.name, contentType: berkas.type, isi: toBase64(new Uint8Array(await berkas.arrayBuffer())) } : null,
+      fotoIptm: berkas
+        ? {
+            nama: berkas.name,
+            contentType: berkas.type,
+            isi: toBase64(new Uint8Array(await berkas.arrayBuffer())),
+          }
+        : null,
       pemegangHak,
     };
   }
@@ -117,7 +176,8 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
         <div>
           <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
-            Kami siapkan pemakamannya bersama TPU, lalu mengurus IPTM-nya. Isi yang kami perlukan dulu; sisanya menyusul.
+            Kami siapkan pemakamannya bersama TPU, lalu mengurus IPTM-nya. Isi
+            yang kami perlukan dulu; sisanya menyusul.
           </p>
         </div>
 
@@ -125,17 +185,26 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
           <p className="min-w-0 text-body text-brand-soft-foreground">
             <span className="font-semibold">{tpu.tpuName}</span> · {tpu.kota}
           </p>
-          <Link href="/pesan-makam/saat-duka?jenis=tpu_dki" className="shrink-0 text-body font-semibold text-brand underline underline-offset-2">
+          <Link
+            href="/pesan-makam/saat-duka?jenis=tpu_dki"
+            className="shrink-0 text-body font-semibold text-brand underline underline-offset-2"
+          >
             Ganti
           </Link>
         </div>
 
         <Fieldset legend="Data Anda">
-          <Field id="pemesan-nama" label="Nama lengkap" error={salah.pemesanName}>
+          <Field
+            id="pemesan-nama"
+            label="Nama lengkap"
+            error={salah.pemesanName}
+          >
             <Input
               id="pemesan-nama"
               value={isi.pemesanName}
-              onChange={(event) => setisi({ ...isi, pemesanName: event.target.value })}
+              onChange={(event) =>
+                setisi({ ...isi, pemesanName: event.target.value })
+              }
               autoComplete="name"
               placeholder="Nama sesuai KTP"
               aria-invalid={salah.pemesanName ? true : undefined}
@@ -157,22 +226,34 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
               type="email"
               required
               value={isi.email}
-              onChange={(event) => setisi({ ...isi, email: event.target.value })}
+              onChange={(event) =>
+                setisi({ ...isi, email: event.target.value })
+              }
               autoComplete="email"
               placeholder="nama@contoh.id"
               aria-invalid={salah.email ? true : undefined}
               // A signed-in Pemesan's address is already proven: the field only says which one it is.
               readOnly={sudahMasuk}
-              className={cn("h-11", sudahMasuk && "bg-muted text-muted-foreground")}
+              className={cn(
+                "h-11",
+                sudahMasuk && "bg-muted text-muted-foreground",
+              )}
             />
           </Field>
-          <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar tim kami bisa menelepon bila perlu." error={salah.phoneNumber}>
+          <Field
+            id="pemesan-telepon"
+            label="Nomor telepon"
+            hint="Agar tim kami bisa menelepon bila perlu."
+            error={salah.phoneNumber}
+          >
             <Input
               id="pemesan-telepon"
               type="tel"
               required
               value={isi.phoneNumber}
-              onChange={(event) => setisi({ ...isi, phoneNumber: event.target.value })}
+              onChange={(event) =>
+                setisi({ ...isi, phoneNumber: event.target.value })
+              }
               autoComplete="tel"
               inputMode="tel"
               placeholder="08xx-xxxx-xxxx"
@@ -183,12 +264,18 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
         </Fieldset>
 
         <Fieldset legend="Almarhum">
-          <Field id="almarhum" label="Nama almarhum / almarhumah" error={salah.almarhumName}>
+          <Field
+            id="almarhum"
+            label="Nama almarhum / almarhumah"
+            error={salah.almarhumName}
+          >
             <Input
               id="almarhum"
               required
               value={isi.almarhumName}
-              onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
+              onChange={(event) =>
+                setisi({ ...isi, almarhumName: event.target.value })
+              }
               aria-invalid={salah.almarhumName ? true : undefined}
               className="h-11"
             />
@@ -199,18 +286,25 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
               type="date"
               required
               value={isi.tanggalWafat}
-              onChange={(event) => setisi({ ...isi, tanggalWafat: event.target.value })}
+              onChange={(event) =>
+                setisi({ ...isi, tanggalWafat: event.target.value })
+              }
               aria-invalid={salah.tanggalWafat ? true : undefined}
               className="h-11"
             />
           </Field>
         </Fieldset>
 
-        <Fieldset legend="Pemakaman di TPU" note="TPU yang menunjuk petaknya. Tumpang berarti dimakamkan di makam yang sudah ada isinya.">
+        <Fieldset
+          legend="Pemakaman di TPU"
+          note="TPU yang menunjuk petaknya. Tumpang berarti dimakamkan di makam yang sudah ada isinya."
+        >
           <Pilihan
             label="Jenis pemakaman"
             value={jawaban.jenis}
-            onChange={(nilai) => setjawaban({ ...jawaban, jenis: nilai as JenisPenguburan })}
+            onChange={(nilai) =>
+              setjawaban({ ...jawaban, jenis: nilai as JenisPenguburan })
+            }
             options={[
               ["baru", "Makam baru"],
               ["tumpang", "Tumpang"],
@@ -220,32 +314,64 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
             <div className="flex flex-col gap-4 border-t border-border pt-4">
               <div className="rounded-lg bg-warning-soft p-3 text-small text-warning-soft-foreground">
                 <p className="flex items-start gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <TriangleAlert
+                    className="mt-0.5 size-4 shrink-0"
+                    aria-hidden
+                  />
                   <span>
-                    IPTM berlaku <strong className="font-semibold">3 tahun</strong>. Kalau izin makam yang ditumpang sudah
-                    berakhir, izin itu harus diperpanjang lebih dulu.
+                    Pemakaman tumpang hanya bisa kalau{" "}
+                    <strong className="font-semibold">
+                      IPTM makam itu masih berlaku
+                    </strong>{" "}
+                    dan pemakaman sebelumnya sudah{" "}
+                    <strong className="font-semibold">
+                      3 tahun atau lebih
+                    </strong>{" "}
+                    lalu. Kalau izinnya sudah berakhir, izin itu harus
+                    diperpanjang lebih dulu.
                   </span>
                 </p>
                 <p className="mt-1 pl-6">
-                  Pemakaman tumpang hanya boleh atas <strong className="font-semibold">persetujuan Pemegang Hak</strong> makam
-                  yang ditumpang. Kami butuh persetujuannya sebagai dokumen.
+                  Kalau makam itu{" "}
+                  <strong className="font-semibold">
+                    bukan makam keluarga sendiri
+                  </strong>
+                  , pemakaman tumpang perlu{" "}
+                  <strong className="font-semibold">
+                    persetujuan tertulis Pemegang Hak
+                  </strong>{" "}
+                  makam yang ditumpang. Kami butuh surat persetujuannya sebagai
+                  dokumen.
                 </p>
               </div>
-              <Field id="kuburan-blok" label="Blok dan nomor makam" error={salah["kuburan.blokNomor"]} hint="Sesuai papan nama di TPU.">
+              <Field
+                id="kuburan-blok"
+                label="Blok dan nomor makam"
+                error={salah["kuburan.blokNomor"]}
+                hint="Sesuai papan nama di TPU."
+              >
                 <Input
                   id="kuburan-blok"
                   value={kuburan.blokNomor}
-                  onChange={(event) => setkuburan({ ...kuburan, blokNomor: event.target.value })}
+                  onChange={(event) =>
+                    setkuburan({ ...kuburan, blokNomor: event.target.value })
+                  }
                   placeholder="Blok B-12 No. 34"
                   aria-invalid={salah["kuburan.blokNomor"] ? true : undefined}
                   className="h-11"
                 />
               </Field>
-              <Field id="kuburan-nama" label="Nama almarhum yang sudah dimakamkan di sana" error={salah["kuburan.nama"]}>
+              <Field
+                id="kuburan-nama"
+                label="Nama almarhum yang sudah dimakamkan di sana"
+                error={salah["kuburan.nama"]}
+              >
                 <Input
                   id="kuburan-nama"
                   value={kuburan.nama}
-                  onChange={(event) => setkuburan({ ...kuburan, nama: event.target.value })}
+                  onChange={(event) =>
+                    setkuburan({ ...kuburan, nama: event.target.value })
+                  }
                   aria-invalid={salah["kuburan.nama"] ? true : undefined}
                   className="h-11"
                 />
@@ -269,7 +395,10 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
           ) : null}
         </Fieldset>
 
-        <Fieldset legend="Kelayakan" note="Pemakaman di TPU DKI punya syarat. Kalau keduanya tidak, Lokasi Mitra tetap bisa melayani.">
+        <Fieldset
+          legend="Kelayakan"
+          note="Pemakaman di TPU DKI punya syarat. Kalau keduanya tidak, Lokasi Mitra tetap bisa melayani."
+        >
           <Pilihan
             label="Apakah KTP Anda dari DKI Jakarta?"
             value={ktpDkiTidak ? "tidak" : "ya"}
@@ -282,35 +411,53 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
           <Pilihan
             label="Apakah almarhum meninggal di Jakarta?"
             value={jawaban.wafatDiJakarta ? "ya" : "tidak"}
-            onChange={(nilai) => setjawaban({ ...jawaban, wafatDiJakarta: nilai === "ya" })}
+            onChange={(nilai) =>
+              setjawaban({ ...jawaban, wafatDiJakarta: nilai === "ya" })
+            }
             options={[
               ["ya", "Ya, meninggal di Jakarta"],
               ["tidak", "Tidak, meninggal di luar Jakarta"],
             ]}
           />
           {tidakLayak ? (
-            <p className="rounded-lg bg-warning-soft p-3 text-small text-warning-soft-foreground" role="alert">
-              Pemakaman di TPU DKI hanya untuk warga dengan KTP DKI atau yang meninggal di Jakarta. Lokasi Mitra menerima
-              pemakaman tanpa syarat itu.{" "}
-              <Link href="/pesan-makam/saat-duka" className="font-semibold underline underline-offset-2">
+            <p
+              className="rounded-lg bg-warning-soft p-3 text-small text-warning-soft-foreground"
+              role="alert"
+            >
+              Pemakaman di TPU DKI hanya untuk warga dengan KTP DKI atau yang
+              meninggal di Jakarta. Lokasi Mitra menerima pemakaman tanpa syarat
+              itu.{" "}
+              <Link
+                href="/pesan-makam/saat-duka"
+                className="font-semibold underline underline-offset-2"
+              >
                 Lihat pilihan Lokasi Mitra
               </Link>
             </p>
           ) : null}
           {!jawaban.wafatDiJakarta ? (
             <p className="text-small text-muted-foreground">
-              Karena almarhum meninggal di luar Jakarta, daftar dokumen pengajuan bertambah dua berkas yang harus dilegalisasi
-              di tempat asal.
+              Karena almarhum meninggal di luar Jakarta, daftar dokumen
+              pengajuan bertambah tiga surat yang diterbitkan di tempat asal:
+              pemeriksaan jenazah, laporan kematian, dan surat pengantar Dinas
+              Kesehatan setempat.
             </p>
           ) : null}
         </Fieldset>
 
-        <Fieldset legend="Pemegang Hak" note="Nama yang akan tercatat di IPTM dan yang kami hubungi untuk perpanjangan.">
+        <Fieldset
+          legend="Pemegang Hak"
+          note="Nama yang akan tercatat di IPTM dan yang kami hubungi untuk perpanjangan."
+        >
           <Pilihan
             label="Pemegang Hak"
             value={pemegangHak.mode}
             onChange={(mode) =>
-              setPemegangHak(mode === "pemesan" ? { mode: "pemesan" } : { mode: "lain", name: "", phoneNumber: "", email: "" })
+              setPemegangHak(
+                mode === "pemesan"
+                  ? { mode: "pemesan" }
+                  : { mode: "lain", name: "", phoneNumber: "", email: "" },
+              )
             }
             options={[
               ["pemesan", "Saya sendiri"],
@@ -319,25 +466,42 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
           />
           {pemegangHak.mode === "lain" ? (
             <div className="flex flex-col gap-4 border-t border-border pt-4">
-              <Field id="ph-nama" label="Nama Pemegang Hak" error={salah["pemegangHak.name"]}>
+              <Field
+                id="ph-nama"
+                label="Nama Pemegang Hak"
+                error={salah["pemegangHak.name"]}
+              >
                 <Input
                   id="ph-nama"
                   required
                   value={pemegangHak.name}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
+                  onChange={(event) =>
+                    setPemegangHak({ ...pemegangHak, name: event.target.value })
+                  }
                   aria-invalid={salah["pemegangHak.name"] ? true : undefined}
                   className="h-11"
                 />
               </Field>
-              <Field id="ph-telepon" label="Nomor telepon Pemegang Hak" error={salah["pemegangHak.phoneNumber"]}>
+              <Field
+                id="ph-telepon"
+                label="Nomor telepon Pemegang Hak"
+                error={salah["pemegangHak.phoneNumber"]}
+              >
                 <Input
                   id="ph-telepon"
                   type="tel"
                   required
                   value={pemegangHak.phoneNumber}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
+                  onChange={(event) =>
+                    setPemegangHak({
+                      ...pemegangHak,
+                      phoneNumber: event.target.value,
+                    })
+                  }
                   inputMode="tel"
-                  aria-invalid={salah["pemegangHak.phoneNumber"] ? true : undefined}
+                  aria-invalid={
+                    salah["pemegangHak.phoneNumber"] ? true : undefined
+                  }
                   className="h-11"
                 />
               </Field>
@@ -352,7 +516,12 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
                   id="ph-email"
                   type="email"
                   value={pemegangHak.email}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
+                  onChange={(event) =>
+                    setPemegangHak({
+                      ...pemegangHak,
+                      email: event.target.value,
+                    })
+                  }
                   aria-invalid={salah["pemegangHak.email"] ? true : undefined}
                   className="h-11"
                 />
@@ -366,15 +535,17 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
         <div className="rounded-xl bg-info-soft p-4 text-body text-info-soft-foreground">
           <p className="font-semibold">Belum ada yang dibayar sekarang.</p>
           <p className="mt-1">
-            Tagihan terbit setelah pemakaman dikonfirmasi, dan jatuh tempo 3×24 jam setelah pemakaman. Pemakaman tetap
-            berjalan. Dokumen boleh diunggah nanti atau dibawa saat hari pemakaman.
+            Tagihan terbit setelah pemakaman dikonfirmasi, dan jatuh tempo 3×24
+            jam setelah pemakaman. Pemakaman tetap berjalan. Dokumen boleh
+            diunggah nanti atau dibawa saat hari pemakaman.
           </p>
         </div>
 
         {kodeMasukTerbuka ? (
           <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">
             <p className="flex items-center gap-2 text-title-3 text-foreground">
-              <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode Masuk
+              <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode
+              Masuk
             </p>
             <KodeMasukForm
               requestAction={mintaKodeMasuk}
@@ -386,22 +557,37 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <Button type="button" size="lg" disabled={mengirim || tidakLayak} onClick={kirimSekarang} className="h-12 px-6 text-body-lg">
-              {mengirim ? "Mengirim…" : "Kirim pengurusan"} <ArrowRight aria-hidden />
+            <Button
+              type="button"
+              size="lg"
+              disabled={mengirim || tidakLayak}
+              onClick={kirimSekarang}
+              className="h-12 px-6 text-body-lg"
+            >
+              {mengirim ? "Mengirim…" : "Kirim pengurusan"}{" "}
+              <ArrowRight aria-hidden />
             </Button>
             <p className="text-center text-small text-muted-foreground">
               {sudahMasuk
                 ? "Kirim pengurusan. Tidak ada yang dibayar sekarang."
                 : "Kami mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda."}
             </p>
-            <p className="text-center text-small text-muted-foreground">{konfirmasi}.</p>
+            <p className="text-center text-small text-muted-foreground">
+              {konfirmasi}.
+            </p>
             {/* A refusal the domain owns has no field of its own, so it is said once, under the button. */}
-            {hasil.status === "gagal" && !hasil.pesan ? <PesanGagal message={hasil.message} /> : null}
+            {hasil.status === "gagal" && !hasil.pesan ? (
+              <PesanGagal message={hasil.message} />
+            ) : null}
           </div>
         )}
       </div>
 
-      <StickyBar kartu={tpu} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
+      <StickyBar
+        kartu={tpu}
+        terbuka={rincianTerbuka}
+        setTerbuka={setRincianTerbuka}
+      />
     </div>
   );
 
@@ -410,10 +596,17 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
    * this screen holds, photo included, and lands the family on its order page.
    */
   function verifikasiDenganFoto() {
-    return async (state: KodeMasukVerifyState, formData: FormData): Promise<KodeMasukVerifyState> => {
+    return async (
+      state: KodeMasukVerifyState,
+      formData: FormData,
+    ): Promise<KodeMasukVerifyState> => {
       const draftLengkap = await draftDenganFoto();
-      const hasil = draftLengkap ? await verifikasiKodeMasukDanKirimTpu(draftLengkap, state, formData) : null;
-      return hasil?.status === "gagal" ? { status: "gagal", message: hasil.message } : initialKodeMasukVerifyState;
+      const hasil = draftLengkap
+        ? await verifikasiKodeMasukDanKirimTpu(draftLengkap, state, formData)
+        : null;
+      return hasil?.status === "gagal"
+        ? { status: "gagal", message: hasil.message }
+        : initialKodeMasukVerifyState;
     };
   }
 }
@@ -421,14 +614,26 @@ export function DataTpu({ draft, tpu, opsiDokumen, sudahMasuk, mintaKodeMasuk, c
 /** Both document sets, said with the moment each is met at. */
 function DuaDaftarDokumen({ view }: { view: OpsiDokumen }) {
   return (
-    <Fieldset legend="Dokumen" note="Dua daftar berbeda: yang dibawa ke TPU, dan yang diunggah ke kami setelah pemakaman.">
+    <Fieldset
+      legend="Dokumen"
+      note="Dua daftar berbeda: yang dibawa ke TPU, dan yang diunggah ke kami setelah pemakaman."
+    >
       <DaftarDokumen judul="Dibawa saat pemakaman" dokumen={view.pemakaman} />
-      <DaftarDokumen judul="Diupload setelah pemakaman, paling lambat 7 hari" dokumen={view.pengajuan} />
+      <DaftarDokumen
+        judul="Diupload setelah pemakaman, paling lambat 7 hari"
+        dokumen={view.pengajuan}
+      />
     </Fieldset>
   );
 }
 
-function DaftarDokumen({ judul, dokumen }: { judul: string; dokumen: Dokumen[] }) {
+function DaftarDokumen({
+  judul,
+  dokumen,
+}: {
+  judul: string;
+  dokumen: Dokumen[];
+}) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-body font-medium text-foreground">{judul}</p>
@@ -445,21 +650,34 @@ function DaftarDokumen({ judul, dokumen }: { judul: string; dokumen: Dokumen[] }
 }
 
 /** The sticky "Total semua biaya" bar, the same one "Pilih makam" carries, with the TPU price's lines. */
-function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: TpuKartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
+function StickyBar({
+  kartu,
+  terbuka,
+  setTerbuka,
+}: {
+  kartu: TpuKartuView;
+  terbuka: boolean;
+  setTerbuka: (buka: boolean) => void;
+}) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
-          <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
+          <dl
+            id="rincian-total"
+            className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums"
+          >
             {kartu.rincian.map((baris) => (
               <div key={baris.label} className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">{baris.label}</dt>
-                <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
+                <dd className="whitespace-nowrap">
+                  {formatRupiah(baris.amount)}
+                </dd>
               </div>
             ))}
             <p className="text-small text-muted-foreground">
-              Belum ada yang dibayar sekarang. Tagihan terbit setelah pemakaman dikonfirmasi. Di TPU tidak ada Biaya Layanan
-              Platform.
+              Belum ada yang dibayar sekarang. Tagihan terbit setelah pemakaman
+              dikonfirmasi. Di TPU tidak ada Biaya Layanan Platform.
             </p>
           </dl>
         ) : null}
@@ -472,13 +690,26 @@ function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: TpuKartuView; terbuk
             className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left"
           >
             <span className="min-w-0">
-              <span className="block text-caption text-muted-foreground">Total semua biaya</span>
-              <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
+              <span className="block text-caption text-muted-foreground">
+                Total semua biaya
+              </span>
+              <span
+                className="block text-title-2 tabular-nums text-foreground"
+                data-testid="total-semua-biaya"
+              >
                 {formatRupiah(kartu.total)}
               </span>
             </span>
-            <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !terbuka && "rotate-180")} aria-hidden />
-            <span className="sr-only">{terbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span>
+            <ChevronUp
+              className={cn(
+                "size-5 shrink-0 text-primary transition-transform",
+                !terbuka && "rotate-180",
+              )}
+              aria-hidden
+            />
+            <span className="sr-only">
+              {terbuka ? "Sembunyikan rincian" : "Lihat rincian"}
+            </span>
           </button>
         </div>
       </div>
