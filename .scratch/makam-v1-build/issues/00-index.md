@@ -27,7 +27,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | resolved | 18 |
 | [20](20-notifications-core.md) | Notifications module core | resolved | 17, 18, 82 |
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
-| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | ready-for-agent | 16, 82 |
+| [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | resolved | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | ready-for-agent | 18, 20, 21, 22 |
 | [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | ready-for-agent | 23 |
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
