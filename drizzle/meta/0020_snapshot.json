@@ -1,5 +1,5 @@
 {
-  "id": "6ed971fd-957e-4100-8a19-9154977d878b",
+  "id": "ee1641ee-f565-4396-a909-e7eaae9c282f",
   "prevId": "5b969753-ba61-4159-be07-0f69e958995f",
   "version": "7",
   "dialect": "postgresql",
@@ -2774,6 +2774,155 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.inventory_plot_hold": {
+      "name": "inventory_plot_hold",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "petak_id": {
+          "name": "petak_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kavling_id": {
+          "name": "kavling_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nomor_pemesanan": {
+          "name": "nomor_pemesanan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sampai": {
+          "name": "sampai",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "placed_at": {
+          "name": "placed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "inventory_plot_hold_petak_idx": {
+          "name": "inventory_plot_hold_petak_idx",
+          "columns": [
+            {
+              "expression": "petak_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inventory_plot_hold_kavling_idx": {
+          "name": "inventory_plot_hold_kavling_idx",
+          "columns": [
+            {
+              "expression": "kavling_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inventory_plot_hold_lokasi_idx": {
+          "name": "inventory_plot_hold_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inventory_plot_hold_nomor_idx": {
+          "name": "inventory_plot_hold_nomor_idx",
+          "columns": [
+            {
+              "expression": "nomor_pemesanan",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inventory_plot_hold_petak_id_inventory_petak_id_fk": {
+          "name": "inventory_plot_hold_petak_id_inventory_petak_id_fk",
+          "tableFrom": "inventory_plot_hold",
+          "tableTo": "inventory_petak",
+          "columnsFrom": [
+            "petak_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inventory_plot_hold_kavling_id_inventory_kavling_id_fk": {
+          "name": "inventory_plot_hold_kavling_id_inventory_kavling_id_fk",
+          "tableFrom": "inventory_plot_hold",
+          "tableTo": "inventory_kavling",
+          "columnsFrom": [
+            "kavling_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inventory_plot_hold_unit_check": {
+          "name": "inventory_plot_hold_unit_check",
+          "value": "(\"inventory_plot_hold\".\"petak_id\" is not null and \"inventory_plot_hold\".\"kavling_id\" is null) or (\"inventory_plot_hold\".\"petak_id\" is null and \"inventory_plot_hold\".\"kavling_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.lokasi_hari_libur_nasional": {
       "name": "lokasi_hari_libur_nasional",
       "schema": "",
@@ -3034,18 +3183,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "pemesanan_id": {
-          "name": "pemesanan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "email": {
           "name": "email",
           "type": "text",
@@ -3138,21 +3275,6 @@
           "method": "btree",
           "with": {}
         },
-        "notifications_message_pemesanan_idx": {
-          "name": "notifications_message_pemesanan_idx",
-          "columns": [
-            {
-              "expression": "pemesanan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "notifications_message_tagihan_template_idx": {
           "name": "notifications_message_tagihan_template_idx",
           "columns": [
@@ -3170,28 +3292,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "notifications_message_pemesanan_template_idx": {
-          "name": "notifications_message_pemesanan_template_idx",
-          "columns": [
-            {
-              "expression": "pemesanan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "template",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"notifications_message\".\"pemesanan_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -3416,24 +3516,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "nomor_pemesanan": {
-          "name": "nomor_pemesanan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "perihal": {
-          "name": "perihal",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "sebab": {
           "name": "sebab",
           "type": "text",
@@ -3625,110 +3707,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.pemesanan_berkas": {
-      "name": "pemesanan_berkas",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "pemesanan_id": {
-          "name": "pemesanan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nama": {
-          "name": "nama",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "file_key": {
-          "name": "file_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "diunggah_pada": {
-          "name": "diunggah_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "diunggah_oleh": {
-          "name": "diunggah_oleh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dicentang_pada": {
-          "name": "dicentang_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dicentang_oleh": {
-          "name": "dicentang_oleh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dibuat_pada": {
-          "name": "dibuat_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "pemesanan_berkas_item_idx": {
-          "name": "pemesanan_berkas_item_idx",
-          "columns": [
-            {
-              "expression": "pemesanan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "nama",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pemesanan_berkas_pemesanan_id_pemesanan_makam_id_fk": {
-          "name": "pemesanan_berkas_pemesanan_id_pemesanan_makam_id_fk",
-          "tableFrom": "pemesanan_berkas",
-          "tableTo": "pemesanan_makam",
-          "columnsFrom": [
-            "pemesanan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.pemesanan_makam": {
       "name": "pemesanan_makam",
       "schema": "",
@@ -3842,45 +3820,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "realert_pada": {
-          "name": "realert_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "tagihan_id": {
           "name": "tagihan_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "petak_id": {
-          "name": "petak_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "petak_nomor": {
-          "name": "petak_nomor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "hak_pakai_id": {
-          "name": "hak_pakai_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pemakaman_at": {
-          "name": "pemakaman_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dikonfirmasi_pada": {
-          "name": "dikonfirmasi_pada",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -3942,16 +3884,151 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pemesanan_terencana": {
+      "name": "pemesanan_terencana",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
-        "pemesanan_makam_status_lokasi_idx": {
-          "name": "pemesanan_makam_status_lokasi_idx",
+        "nomor": {
+          "name": "nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_name": {
+          "name": "lokasi_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemesan_account_id": {
+          "name": "pemesan_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemesan_name": {
+          "name": "pemesan_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemegang_hak": {
+          "name": "pemegang_hak",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calon_penghuni": {
+          "name": "calon_penghuni",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "syarat": {
+          "name": "syarat",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "konfirmasi_due_at": {
+          "name": "konfirmasi_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tagihan_id": {
+          "name": "tagihan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diajukan_at": {
+          "name": "diajukan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pemesanan_terencana_nomor_idx": {
+          "name": "pemesanan_terencana_nomor_idx",
           "columns": [
             {
-              "expression": "status",
+              "expression": "nomor",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_terencana_pemesan_idx": {
+          "name": "pemesanan_terencana_pemesan_idx",
+          "columns": [
+            {
+              "expression": "pemesan_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_terencana_lokasi_idx": {
+          "name": "pemesanan_terencana_lokasi_idx",
+          "columns": [
             {
               "expression": "lokasi_id",
               "isExpression": false,
@@ -3966,6 +4043,140 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pemesanan_terencana_unit": {
+      "name": "pemesanan_terencana_unit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pemesanan_id": {
+          "name": "pemesanan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "petak_id": {
+          "name": "petak_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kavling_id": {
+          "name": "kavling_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nomor_makam": {
+          "name": "nomor_makam",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nomor_kavling": {
+          "name": "nomor_kavling",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "jenis_makam_id": {
+          "name": "jenis_makam_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_makam_name": {
+          "name": "jenis_makam_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "urutan": {
+          "name": "urutan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pemesanan_terencana_unit_pemesanan_idx": {
+          "name": "pemesanan_terencana_unit_pemesanan_idx",
+          "columns": [
+            {
+              "expression": "pemesanan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_terencana_unit_petak_idx": {
+          "name": "pemesanan_terencana_unit_petak_idx",
+          "columns": [
+            {
+              "expression": "petak_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_terencana_unit_kavling_idx": {
+          "name": "pemesanan_terencana_unit_kavling_idx",
+          "columns": [
+            {
+              "expression": "kavling_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pemesanan_terencana_unit_pemesanan_id_pemesanan_terencana_id_fk": {
+          "name": "pemesanan_terencana_unit_pemesanan_id_pemesanan_terencana_id_fk",
+          "tableFrom": "pemesanan_terencana_unit",
+          "tableTo": "pemesanan_terencana",
+          "columnsFrom": [
+            "pemesanan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

@@ -85,6 +85,12 @@ export type AuditAction =
   | "hari_libur.tambah"
   /** Admin Platform removes a Hari Libur Nasional (the Admin Platform Hari Kerja calendar). */
   | "hari_libur.hapus"
+  /** Admin Platform adds a DKI TPU to the list (name, address, pin, data source, the initial new-plot flag). */
+  | "tpu.buat"
+  /** Admin Platform corrects a DKI TPU's name, address, pin or data source. */
+  | "tpu.ubah"
+  /** Admin Platform edits a DKI TPU's "menerima makam baru" flag, which stamps the date it was checked. */
+  | "tpu.ubah_flag"
   /** A Catatan Internal is written (tickets 17, 23): never in the Admin Lokasi view. */
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */

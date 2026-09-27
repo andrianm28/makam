@@ -5,7 +5,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { OperatorSettings } from "@/domain/operator-settings";
-import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 
 /** The Operator's header on a document: Pengaturan Operator's values in force when it was issued. */
 export interface DocumentHeader {
@@ -28,19 +27,9 @@ export const newDocumentLink = () => randomBytes(32).toString("base64url");
 
 export const noHeader = { ok: false, reason: "pengaturan_operator_belum_diisi" } as const;
 
-/**
- * Bank Indonesia caps QRIS at Rp 10.000.000 per transaction, and v1 has no
- * Virtual Account and no manual-transfer path above it, so v1 takes no order
- * whose Tagihan would exceed this amount (spec, Billing; decided 2026-09-26).
- * `issueTagihan` and `reissueTagihan` refuse a total above it with
- * `melebihi_batas_qris`, and Bayar refuses to pay a Tagihan already above it.
- */
-export const QRIS_PAYMENT_CAP: Rupiah = rupiahSchema.parse(10_000_000);
-
-/** Whether `total` may be the total of a Tagihan: at most the QRIS payment cap. */
-export function withinPaymentCap(total: number): boolean {
-  return total <= QRIS_PAYMENT_CAP;
-}
+// The payment cap and its one test live in ./batas, which a client component may
+// import; they are the same rule, re-exported here where Billing keeps the rest.
+export { QRIS_PAYMENT_CAP, withinPaymentCap } from "./batas";
 
 /**
  * The Operator's header values now in force, read before an issuing

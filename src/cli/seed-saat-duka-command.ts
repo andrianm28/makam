@@ -94,7 +94,7 @@ export async function seedSaatDukaCommand(
         identity,
         lokasi,
         tariffs,
-        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
+        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi }),
         fieldwork: createFieldwork({
           db: database.db,
           clock: adapters.clock,

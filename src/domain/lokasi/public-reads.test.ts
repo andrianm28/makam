@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
+import { catatCekDenah, signedInPetugasLapangan } from "../../../tests/support/fieldwork";
 import {
   newLokasiMitra,
   publishOnTestDatabase,
@@ -81,6 +83,99 @@ describe("the Daftar Lokasi Makam directory (every Terverifikasi Lokasi Mitra)",
     await publishedLokasi(setup);
 
     expect(await setup.lokasi.publicLokasiMitraCities()).toEqual(["Kota Jakarta Timur"]);
+  });
+
+  it("lists only the Lokasi Mitra that have switched Pemesanan Terencana on, when asked for those", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const petugas = await signedInPetugasLapangan(setup, admin);
+    const denganTerencana = await newLokasiMitra(setup, admin, "Makam Dengan Terencana");
+    const tanpaTerencana = await newLokasiMitra(setup, admin, "Makam Tanpa Terencana");
+    for (const lokasiMitra of [denganTerencana, tanpaTerencana]) {
+      // Each Lokasi Mitra needs its own Admin Lokasi, and a Kode Masuk waits 60 s.
+      setup.clock.advance({ minutes: 2 });
+      await readyToPublish(setup, admin, lokasiMitra.id);
+      const checked = await tariffsCheckedFact(setup, admin, lokasiMitra.id);
+      const published = await setup.lokasi.publish(admin, lokasiMitra.id, { tariffsChecked: checked });
+      if (!published.ok) throw new Error(`publish refused: ${JSON.stringify(published)}`);
+    }
+    await catatCekDenah(setup, admin, petugas, denganTerencana.id);
+    const switched = await setup.lokasi.activateTerencana(admin, denganTerencana.id, { hasPetakPerluVerifikasi: false });
+    if (!switched.ok) throw new Error(`Terencana refused: ${JSON.stringify(switched)}`);
+
+    const semua = await setup.lokasi.publicLokasiMitraList();
+    const untukTerencana = await setup.lokasi.publicLokasiMitraList({ terencana: true });
+
+    expect(semua.map((row) => row.id)).toEqual([denganTerencana.id, tanpaTerencana.id]);
+    expect(untukTerencana.map((row) => row.id)).toEqual([denganTerencana.id]);
+    expect(untukTerencana[0].terencanaAktif).toBe(true);
+  });
+
+  it("carries the tumpang rules the Denah picker needs", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin, lokasiMitra } = await publishedLokasi(setup);
+    const changed = await setup.lokasi.setPoliciesAndFlags(admin, lokasiMitra.id, {
+      policies: DEFAULT_POLICIES,
+      flags: { ...DEFAULT_FLAGS, tumpang: { allowed: true, minYears: 3, maxLayers: 4 }, tumpangOnReleasedPlots: true },
+    });
+    if (!changed.ok) throw new Error(`kebijakan refused: ${changed.reason}`);
+
+    const profile = await setup.lokasi.publicLokasiMitra(lokasiMitra.id);
+
+    expect(profile?.tumpang).toEqual({ allowed: true, minYears: 3, maxLayers: 4, onReleasedPlots: true });
+  });
+});
+
+describe("the Daftar Lokasi Makam with both kinds of Lokasi Makam in it", () => {
+  /** A TPU added by Admin Platform, as the dashboard does. */
+  const tpu = {
+    address: "Jl. TPU No. 1",
+    dataSource: "Dinas Pengguna Umum dan Prasarana",
+    pin: null,
+    menerimaMakamBaru: true,
+  };
+
+  it("lists Lokasi Mitra and TPUs together by name, and the type filter picks the kind", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup, "Makam Terverifikasi");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Bambu", city: "Kabupaten Bandung" });
+
+    expect((await setup.lokasi.publicLokasiMakamList()).map((card) => `${card.kind}:${card.name}`)).toEqual([
+      "lokasi_mitra:Makam Terverifikasi",
+      "tpu:TPU Bambu",
+      "tpu:TPU Koper",
+    ]);
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "tpu" })).map((card) => card.name)).toEqual(["TPU Bambu", "TPU Koper"]);
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "lokasi_mitra" })).map((card) => card.name)).toEqual([
+      "Makam Terverifikasi",
+    ]);
+  });
+
+  it("filters both kinds by the one city filter, and offers every city either kind is in", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup, "Makam Terverifikasi");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Bambu", city: "Kabupaten Bandung" });
+
+    expect((await setup.lokasi.publicLokasiMakamList({ city: "Kota Jakarta Timur" })).map((card) => card.name)).toEqual([
+      "Makam Terverifikasi",
+      "TPU Koper",
+    ]);
+    expect((await setup.lokasi.publicLokasiMakamList({ city: "Kabupaten Bandung" })).map((card) => card.name)).toEqual(["TPU Bambu"]);
+    expect(await setup.lokasi.publicLokasiMakamList({ city: "Kota Surabaya" })).toEqual([]);
+    expect(await setup.lokasi.publicLokasiMakamCities()).toEqual(["Kabupaten Bandung", "Kota Jakarta Timur"]);
+  });
+
+  it("never lists a Lokasi Mitra that is not Terverifikasi, whatever the filter", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { admin } = await publishedLokasi(setup);
+    await newLokasiMitra(setup, admin, "Masih Belum Tayang");
+    await setup.lokasi.createTpuDki(admin, { ...tpu, name: "TPU Koper", city: "Kota Jakarta Timur" });
+
+    expect((await setup.lokasi.publicLokasiMakamList({ kind: "lokasi_mitra" })).map((card) => card.name)).toEqual([
+      "Makam Wakaf Al-Ikhlas",
+    ]);
   });
 });
 

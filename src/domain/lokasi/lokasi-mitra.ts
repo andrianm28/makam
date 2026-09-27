@@ -279,9 +279,11 @@ export type SetPoliciesResult = WriteResult | { ok: false; reason: "kebijakan_ti
 
 /**
  * Admin Platform sets a Lokasi Mitra's policies and flags together, audited.
- * Values outside the rules are refused. Pemesanan Terencana stays off for now:
- * switching it on needs the Denah and a Cek Denah (tickets 13 and 16), so it
- * is refused (`terencana_belum_tersedia`) until those tickets add the conditions.
+ * Values outside the rules are refused. Switching Pemesanan Terencana **on** is
+ * `activateTerencana`'s own job, with its gate (every Petak cleared, a Cek
+ * Denah), so that is refused here (`terencana_belum_tersedia`); keeping it on
+ * while a policy changes is not, or no policy of a Lokasi Mitra that takes
+ * Terencana orders could ever be changed again.
  */
 export async function setPoliciesAndFlags(
   deps: LokasiDeps,
@@ -292,12 +294,16 @@ export async function setPoliciesAndFlags(
   const policies = lokasiPoliciesSchema.safeParse(input.policies);
   const flags = lokasiFlagsSchema.safeParse(input.flags);
   if (!policies.success || !flags.success) return { ok: false, reason: "kebijakan_tidak_valid" };
-  if (flags.data.pemesananTerencanaAktif) return { ok: false, reason: "terencana_belum_tersedia" };
-  return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_kebijakan", (row) => ({
-    values: { policies: policies.data, flags: flags.data },
-    before: { policies: row.policies, flags: row.flags },
-    after: { policies: policies.data, flags: flags.data },
-  }));
+  return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_kebijakan", (row) => {
+    if (flags.data.pemesananTerencanaAktif && !row.flags.pemesananTerencanaAktif) {
+      return { ok: false as const, reason: "terencana_belum_tersedia" as const };
+    }
+    return {
+      values: { policies: policies.data, flags: flags.data },
+      before: { policies: row.policies, flags: row.flags },
+      after: { policies: policies.data, flags: flags.data },
+    };
+  });
 }
 
 export interface BankAccount {

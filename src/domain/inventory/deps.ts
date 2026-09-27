@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
+import type { Lokasi } from "@/domain/lokasi";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -13,4 +14,6 @@ export interface InventoryDeps {
   files: FileStore;
   /** Jenis Makam are defined by the Tariffs module; a Petak or Kavling Keluarga only ever carries one that belongs to its own Lokasi. */
   tariffs: Pick<Tariffs, "asStaff">;
+  /** Whether a Lokasi Mitra is listed with Pemesanan Terencana on, and its own tumpang rules: the public Denah read needs both. */
+  lokasi: Pick<Lokasi, "publicLokasiMitra">;
 }

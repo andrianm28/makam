@@ -17,7 +17,8 @@ export type AntreanTier = 1 | 2 | 3 | 4;
 /** What a row type needs to run its query: only the neighbour modules' own public reads, never their tables. */
 export interface AntreanRowDeps {
   clock: Clock;
-  lokasi: Pick<Lokasi, "allLokasiMitra">;
+  /** The Tier 4 Lokasi rows read every Lokasi Mitra; the Tier 4 TPU flag row reads every DKI TPU. */
+  lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */

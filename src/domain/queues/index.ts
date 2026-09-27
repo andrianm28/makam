@@ -40,14 +40,15 @@ export type { AmbilRowResult } from "./ambil";
 export { rowKeyOf, type AntreanCounters, type AntreanRow } from "./antrean";
 export { antreanLokasiRowTypes, type AntreanLokasiGrup, type AntreanLokasiRow, type AntreanLokasiRowType } from "./antrean-lokasi";
 export { antreanRowTypes } from "./registry";
+export { TPU_FLAG_STALE_DAYS } from "./tier4-tpu-row";
 export type { AntreanRowDeps, AntreanRowType, AntreanTier, RawAntreanRow } from "./row-types";
 
 export interface QueuesModuleDeps {
   db: Database;
   clock: Clock;
   audit: AuditLog;
-  /** The Antrean's Tier 4 Lokasi rows read every Lokasi Mitra's status and publish/recheck timestamps. */
-  lokasi: Pick<Lokasi, "allLokasiMitra">;
+  /** The Antrean's Tier 4 Lokasi rows read every Lokasi Mitra's status and publish/recheck timestamps, and the Tier 4 TPU flag row every DKI TPU's flag date. */
+  lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
   /** The Antrean's Tier 4 rows read every Tugas Lapangan. */
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */

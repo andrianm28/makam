@@ -55,3 +55,22 @@ export async function signedInPetugasLapangan(
   if (!actor) throw new Error("not signed in");
   return actor;
 }
+
+/** Records a Cek Denah on a Lokasi Mitra, the way it is really recorded (one of the Terencana switch's gate facts). */
+export async function catatCekDenah(setup: FieldworkSetup, admin: Actor, petugas: Actor, lokasiId: string) {
+  const tugas = await setup.fieldwork.createTugasLapangan(admin, {
+    type: "cek_denah",
+    subject: "Cek Denah",
+    lokasiId,
+    address: "Jl. Raya Pondok Rangon No. 1",
+    pin: { lat: -6.29, lng: 106.9 },
+    plannedDate: "2026-10-05",
+    assigneeAccountId: petugas.accountId,
+  });
+  if (!tugas.ok) throw new Error(`tugas lapangan refused: ${tugas.reason}`);
+  const completed = await setup.fieldwork.completeTugasLapangan(petugas, tugas.tugasLapangan.id, {
+    form: { sesuaiDenah: true, note: "Sesuai Denah" },
+    uploads: [{ kind: "foto_denah", file: { body: new Uint8Array([0xff, 0xd8, 0xff, 0, 1]), contentType: "image/jpeg" } }],
+  });
+  if (!completed.ok) throw new Error(`cek denah refused: ${completed.reason}`);
+}

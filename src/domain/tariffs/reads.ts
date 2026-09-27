@@ -6,6 +6,7 @@ import { lokasiTariffs, type LokasiTariffs } from "./lokasi-tariffs";
 import { lokasiPublicPricing, type LokasiPublicPricing } from "./public-pricing";
 import { quote, type QuoteLine, type QuoteResult } from "./quote";
 import { tariffsChecked, type TariffsChecked } from "./tariffs-checked";
+import { tpuPublicPricing, type TpuPublicPricing } from "./tpu-pricing";
 
 /**
  * Which Lokasi Mitra a read may serve. Public reads: only a Terverifikasi
@@ -52,6 +53,13 @@ export interface TariffReads {
    * all-in total from `quote()` at `at`.
    */
   lokasiPricing(lokasiId: string, at: Date): Promise<LokasiPublicPricing>;
+  /**
+   * Every price a TPU page or a TPU card shows, at `at`: the two Biaya
+   * Pengurusan amounts, the Retribusi Pemda as its own line (Rp 0 where the
+   * Pemda charges nothing) and the card's starting price. No Biaya Layanan
+   * Platform: a TPU order never carries one.
+   */
+  tpuPricing(at: Date): Promise<TpuPublicPricing>;
 }
 
 /** The staff reads also say who set the "tarif diperiksa" mark. */
@@ -72,6 +80,7 @@ export function tariffReads(deps: TariffDeps, visibility: Visibility): StaffTari
     biayaPemakamanHistory: async (lokasiId) => ((await visibility(lokasiId)) ? biayaPemakamanVersions(db, lokasiId) : []),
     quote: (lines, at) => quote(db, remembered(visibility), lines, at),
     lokasiPricing: (lokasiId, at) => lokasiPublicPricing(db, remembered(visibility), lokasiId, at),
+    tpuPricing: (at) => tpuPublicPricing(db, remembered(visibility), at),
     tariffsChecked: async (lokasiId) => ((await visibility(lokasiId)) ? tariffsChecked(db, lokasiId) : null),
   };
 }

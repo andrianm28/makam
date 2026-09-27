@@ -44,6 +44,7 @@ export type AntreanLokasiSetup = QueuesSetup;
 export {
   jenisMakamInput,
   newLokasiMitra,
+  newTpuDki,
   publishedLokasiMitra,
   readyToPublish,
   signedInAdminLokasi,

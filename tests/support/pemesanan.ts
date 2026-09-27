@@ -1,11 +1,12 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi } from "@/domain/pemesanan";
+import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
+import type { TerencanaLokasi } from "./terencana";
 
 /** The publish fixture's Kunjungan Verifikasi photo, as a real upload is. */
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
@@ -30,6 +31,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
+  const terencana: TerencanaDiajukan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -39,6 +41,9 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     },
     pesananDikonfirmasi: async (hasil) => {
       dikonfirmasi.push(hasil);
+    },
+    terencanaDiajukan: async (order) => {
+      terencana.push(order);
     },
   };
   const pemesanan = composePemesanan({
@@ -54,7 +59,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, dikonfirmasi, notifikasi: terkumpul };
+  return { ...setup, pemesanan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -64,7 +69,7 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).
  */
-export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "notifikasi">;
+export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
 
 /**
  * Pengaturan Operator entered by the first Admin Platform, as every document
@@ -76,6 +81,21 @@ export async function siapkanOperatorPemesanan(setup: PemesananModul) {
   const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
   if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
   return admin;
+}
+
+/** The ids of the Petak Makam and Kavling Keluarga the Terencana fixture's Denah shows, by the number they are known by. */
+export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, nomor: readonly string[]): Promise<Record<string, string>> {
+  const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+  const cells = denah?.bloks.flatMap((blok) => blok.cells) ?? [];
+  const kavling = denah?.bloks.flatMap((blok) => blok.kavling) ?? [];
+  const found = await Promise.all(
+    nomor.map(async (satu) => {
+      const id = cells.find((cell) => cell.nomorMakam === satu)?.id ?? kavling.find((satu2) => satu2.nomorKavling === satu)?.id;
+      if (!id) throw new Error(`no unit ${satu}`);
+      return [satu, id] as const;
+    }),
+  );
+  return Object.fromEntries(found);
 }
 
 /** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */

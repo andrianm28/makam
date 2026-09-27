@@ -52,12 +52,13 @@ export function publishOnTestDatabase(db: Database) {
     notifications,
     lokasi: setup.lokasi,
   });
-  return { ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
+  return { db, ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }
 
 export type PublishSetup = ReturnType<typeof publishOnTestDatabase>;
 
 export { jenisMakamInput, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "./inventory";
+export { newTpuDki } from "./lokasi";
 
 const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 

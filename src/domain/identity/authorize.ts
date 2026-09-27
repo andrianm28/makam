@@ -90,6 +90,12 @@ export type Action =
   | "lokasi.atur_operasional"
   /** Keep the Hari Libur Nasional list of the Admin Platform Hari Kerja calendar (Admin Platform only). */
   | "hari_libur.ubah"
+  /** List every DKI TPU (Admin Platform only; the public TPU pages read the list without an actor). */
+  | "tpu.lihat_semua"
+  /** Add a DKI TPU to the list (Admin Platform only). */
+  | "tpu.buat"
+  /** Change a DKI TPU's record: its profile, or its "menerima makam baru" flag (Admin Platform only). */
+  | "tpu.ubah"
   /** See a Lokasi Mitra's Denah (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "denah.lihat"
   /** Build or edit a Lokasi Mitra's Denah: Blok, Petak, Kavling Keluarga, site-plan photo (that Lokasi's Admin Lokasi only). */
@@ -154,6 +160,8 @@ export type Resource =
   | { kind: "lokasi_mitra"; lokasiId: string }
   | { kind: "tarif_global" }
   | { kind: "hari_libur_nasional" }
+  | { kind: "tpu_dki_semua" }
+  | { kind: "tpu_dki"; tpuId: string }
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
   | { kind: "antrean" }
@@ -211,6 +219,16 @@ export function tarifGlobalResource(): Resource {
 /** The Hari Libur Nasional list (the Admin Platform Hari Kerja calendar). */
 export function hariLiburNasionalResource(): Resource {
   return { kind: "hari_libur_nasional" };
+}
+
+/** Every DKI TPU (the Admin Platform list that adds and edits them). */
+export function semuaTpuDkiResource(): Resource {
+  return { kind: "tpu_dki_semua" };
+}
+
+/** One DKI TPU's record. */
+export function tpuDkiResource(tpuId: string): Resource {
+  return { kind: "tpu_dki", tpuId };
 }
 
 /** Every Tugas Lapangan (creating one, the Admin Platform list, a Petugas Lapangan's "Tugas saya"). */
@@ -326,6 +344,12 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
         : denied;
     case "hari_libur.ubah":
       return resource.kind === "hari_libur_nasional" && holds("admin_platform") ? allowed : denied;
+    case "tpu.lihat_semua":
+    case "tpu.buat":
+      // The TPU list is Admin Platform's alone: a TPU is a Pemda's cemetery, not a partner the Operator onboards.
+      return resource.kind === "tpu_dki_semua" && holds("admin_platform") ? allowed : denied;
+    case "tpu.ubah":
+      return resource.kind === "tpu_dki" && holds("admin_platform") ? allowed : denied;
     case "denah.lihat":
       // Admin Platform sees every Lokasi Mitra's Denah; an Admin Lokasi only its own.
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))

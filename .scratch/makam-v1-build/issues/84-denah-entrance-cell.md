@@ -14,3 +14,8 @@ Families picking a Petak on the Denah can't orient themselves: there is no entra
 - [ ] The Terencana Denah picker shows it with a clear icon and legend entry.
 - [ ] CONTEXT.md gains the term (with Blok, Jalan, Bukan Petak).
 - [ ] Tests at the inventory module seam; the change is audited like other Denah edits.
+
+## Comments
+
+- 2026-09-27 — **Owner decision, settled: the `sel_dipesan` rule stays, and it is recorded as a decision rather than left as an undocumented asymmetry.** Ticket 84's four ACs do not ask for a hold rule; the builder added one, because a Terencana hold is a promise about a Petak Makam (priced by its Jenis Makam, read back by its Nomor Makam) and a Pintu Masuk is by definition never one, so a hold left on it could neither be priced nor picked up nor ever turn back into a plot. The Spec review noted the reason is not symmetric: the same argument would cover a Jalan and a Bukan Petak, which are deliberately left unlocked. The owner chose to **accept the rule as written** and to follow up on the two unlocked kinds, rather than widen this ticket or drop the lock. Do not re-open this in a later review of 84.
+- 2026-09-27 — **Follow-up, not a blocker for 84:** tickets 13 (Denah builder) and 36 (Terencana picker) own the question of whether a **Jalan** or a **Bukan Petak** that an open plot hold names may be retyped. Both are still on the Denah and can become a Petak again from the same action bar, so their hold releases the ordinary way — but the asymmetry above should be closed deliberately rather than by omission. Raise it when 13 or 36 is next touched; do not fix it inside 84.

@@ -30,7 +30,7 @@ describe("the staff menu of each role", () => {
   it("Admin Platform works in four groups: Kerja harian, Lokasi dan harga, Orang, Operator, with Audit Log under Operator", () => {
     expect(outline(staffMenu("admin_platform"))).toEqual([
       ["Kerja harian", ["Beranda", "Antrean"]],
-      ["Lokasi dan harga", ["Lokasi Mitra", "Tarif global", "Hari Libur Nasional"]],
+      ["Lokasi dan harga", ["Lokasi Mitra", "TPU DKI", "Tarif global", "Hari Libur Nasional"]],
       ["Orang", ["Staf", "Pemulihan Akun", "Tugas Lapangan"]],
       ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
     ]);
@@ -62,6 +62,7 @@ describe("the staff menu of each role", () => {
       "Beranda",
       "Antrean",
       "Lokasi Mitra",
+      "TPU DKI",
       "Tarif global",
       "Hari Libur Nasional",
       "Staf",

@@ -3,7 +3,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
-import type { Lokasi } from "@/domain/lokasi";
+import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -19,6 +19,15 @@ import type { FileStore } from "@/ports/file-store";
 export interface Pemesan {
   accountId: string;
   email: string;
+}
+
+/** The filters the Terencana wizard's Lokasi step offers (spec, story 39). */
+export interface TerencanaQuery {
+  city?: string;
+  /** Every one of these must be checked. */
+  facilities?: LokasiFacility[];
+  /** Only Lokasi Mitra whose cheapest buyable Hak Pakai all-in total falls in this band (all of them within the payment cap). */
+  harga?: "hingga_3_juta" | "3_sampai_6_juta" | "di_atas_6_juta";
 }
 
 /**
@@ -40,6 +49,28 @@ export interface PemesananNotifikasi {
   pesananBelumDikonfirmasi(order: PemesananDiajukan): Promise<void>;
   /** The Lokasi's confirmation of an order: the family hears the plot, the contact, the checklist and the Tagihan. */
   pesananDikonfirmasi(hasil: PemesananDikonfirmasi): Promise<void>;
+  /**
+   * A Pemesanan Terencana the Lokasi Mitra has to confirm. It is a call of its own
+   * and not a variant of that first one because the two say different things: a
+   * Terencana order names several plots and a Calon Penghuni who is alive, so it has
+   * no Almarhum, no Jenis Makam of its own and no confirmation deadline (its plots
+   * are held outright at submission, and the Tagihan follows the confirmation).
+   */
+  terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+}
+
+/** A new Pemesanan Terencana as the staff who must see it are told about it. */
+export interface TerencanaDiajukan {
+  nomor: string;
+  lokasi: { id: string; name: string };
+  /** The plots it holds, by the numbers the family knows them by. */
+  unit: { nomor: string; jenisMakamName: string }[];
+  /** The Calon Penghuni the plots are prepared for, as it was named at submission. */
+  calon: { name: string };
+  /** The Pemesan to call back, and the number to call. */
+  pemesan: { name: string; phoneNumber: string | null };
+  /** Every Akun Staf that must see this order: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
+  penerima: { accountId: string }[];
 }
 
 /** A new Pemesanan Makam as the staff who must confirm it are told about it. */
@@ -110,8 +141,19 @@ export interface PemesananDeps {
     | "kontakSiagaOf"
   >;
   tariffs: Pick<Tariffs, "lokasiPricing" | "quote">;
-  inventory: Pick<Inventory, "tersediaPerJenisMakam" | "beriHakPakai" | "within">;
-  /** For the Nomor Pemesanan's series and the Tagihan, taken `within` the order's own transaction. */
+  inventory: Pick<
+    Inventory,
+    | "tersediaPerJenisMakam"
+    // A Saat Duka confirmation assigns a cleared Tersedia Petak and reads the ones it offers.
+    | "beriHakPakai"
+    // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
+    | "publicDenah"
+    | "tersediaUntukTerencana"
+    | "tahan"
+    | "lepasTahan"
+    | "within"
+  >;
+  /** For the Nomor Pemesanan series and a confirmed order's Tagihan, taken `within` the order's own transaction. */
   billing: Pick<Billing, "within" | "tagihan">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;

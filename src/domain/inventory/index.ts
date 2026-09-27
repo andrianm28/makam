@@ -40,6 +40,8 @@ import {
 } from "./reads";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
+import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
+import { lepasTahan, tahan, type LepasTahanResult, type TahanInput, type TahanResult } from "./hold";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -50,6 +52,10 @@ export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
+export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
+export { bolehDitahan } from "./hold";
+export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
+export { pilihanOf } from "./picker";
 export type {
   AddEdgeResult,
   AvailabilityCount,
@@ -130,6 +136,25 @@ export interface Inventory {
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
+   * The Denah the Terencana wizard's picker draws, each Petak Makam and Kavling
+   * Keluarga saying whether it may be picked and why not; no actor, and null for
+   * a Lokasi Mitra that is not listed with Pemesanan Terencana on.
+   */
+  publicDenah(lokasiId: string): Promise<PublicDenah | null>;
+  /** How many units a Pemesan may pick at each of these Lokasi Mitra (a Kavling Keluarga counts as one); 0 for one not listed for Terencana. */
+  tersediaUntukTerencana(lokasiIds: readonly string[]): Promise<Record<string, number>>;
+  /**
+   * Holds the chosen Petak Makam (or one whole Kavling Keluarga) for a
+   * Pemesanan Terencana, all or nothing: refused, naming the first unit that is
+   * no longer pickable, when any of them is, so two orders for one plot can never
+   * both hold it. Take it `within` the order's own transaction.
+   */
+  tahan(input: TahanInput): Promise<TahanResult>;
+  /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
+  lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
+  /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
+  within(tx: Database): Inventory;
+  /**
    * Every Jenis Makam's count of cleared Tersedia units at this Lokasi Mitra
    * (a Kavling Keluarga counts as one); no actor, for the listing that offers
    * only what is available.
@@ -157,6 +182,10 @@ export function createInventory(deps: InventoryDeps): Inventory {
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
     beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
+    publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
+    tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
+    tahan: (input) => tahan(deps, input),
+    lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
     within: (tx) => createInventory({ ...deps, db: tx }),
   };

@@ -44,4 +44,5 @@ const DIAMDIAM: PemesananNotifikasi = {
   pesananDiajukan: async () => {},
   pesananBelumDikonfirmasi: async () => {},
   pesananDikonfirmasi: async () => {},
+  terencanaDiajukan: async () => {},
 };
