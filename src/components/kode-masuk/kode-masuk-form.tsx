@@ -105,7 +105,7 @@ function CodeStep({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-semibold">Masukkan Kode Masuk</h2>
+        <h2 className="text-title-2 text-foreground">Masukkan Kode Masuk</h2>
         <p role="status" className="text-sm text-muted-foreground" data-testid="kode-masuk-terkirim">
           Kode Masuk 6 angka sudah kami kirim ke{" "}
           <span className="font-medium text-foreground" data-testid="kode-masuk-email">

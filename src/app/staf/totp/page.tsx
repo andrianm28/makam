@@ -17,7 +17,7 @@ export default async function TotpPage() {
     <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle>
-          <h1 className="text-2xl font-semibold">Verifikasi TOTP</h1>
+          <h1 className="text-title-1 text-foreground">Verifikasi TOTP</h1>
         </CardTitle>
         <CardDescription>
           {enrolling
