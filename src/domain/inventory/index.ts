@@ -15,9 +15,10 @@
  * `petak.nomor_ulang` for Admin Platform only). Reads (`denah.lihat`) also
  * serve Admin Platform.
  */
-import type { Actor } from "@/domain/identity";
 import type { Database } from "@/db/client";
+import type { Actor } from "@/domain/identity";
 import { availability, type AvailabilityCount } from "./availability";
+import { beriHakPakai, tersediaUntukJenisMakam, type BeriHakPakaiResult, type TersediaUnit } from "./beri-hak-pakai";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
@@ -29,6 +30,7 @@ import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } fro
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
+  jumlahPetakPerluVerifikasi,
   staffInventoryReads,
   type BlokDenah,
   type DenahCell,
@@ -46,7 +48,10 @@ export type { InventoryDeps } from "./deps";
 export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
-export type { ClearingInput, NewPemakaman, NewPemegangHak } from "./clearing";
+export type { ClearingInput } from "./clearing";
+export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
+import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
+export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -112,6 +117,24 @@ export interface Inventory {
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
+  /** How many Petak Makam here still need clearing (Perlu Verifikasi), for the Antrean Lokasi's row (ticket 23). */
+  jumlahPetakPerluVerifikasi(lokasiId: string): Promise<number>;
+  /**
+   * Every cleared Tersedia Petak Makam of one Jenis Makam at this Lokasi Mitra,
+   * by Nomor Makam: what a Saat Duka confirmation offers its Admin Lokasi, and
+   * never a Petak of another Jenis Makam, one still Perlu Verifikasi, or one
+   * already held (ticket 23). No actor.
+   */
+  tersediaUntukJenisMakam(lokasiId: string, jenisMakamId: string): Promise<TersediaUnit[]>;
+  /**
+   * Gives one cleared Tersedia Petak Makam to a Pemegang Hak: the Hak Pakai
+   * Aktif a Saat Duka confirmation creates, audited on the Lokasi. Refused for
+   * a Petak of another Jenis Makam, one not cleared Tersedia, or one the
+   * caller may not confirm (that Lokasi's Admin Lokasi only).
+   */
+  beriHakPakai(by: Actor, lokasiId: string, input: { petakId: string; jenisMakamId: string; pemegangHak: NewPemegangHakInput }): Promise<BeriHakPakaiResult>;
+  /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
+  within(tx: Database): Inventory;
   /**
    * The Denah the Terencana wizard's picker draws, each Petak Makam and Kavling
    * Keluarga saying whether it may be picked and why not; no actor, and null for
@@ -156,11 +179,14 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
+    jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
+    tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
+    beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
-    within: (tx) => createInventory({ ...deps, db: tx }),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
+    within: (tx) => createInventory({ ...deps, db: tx }),
   };
 }

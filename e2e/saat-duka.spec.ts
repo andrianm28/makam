@@ -68,7 +68,9 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   await expect(page.getByRole("list").getByText("Diajukan")).toBeVisible();
   await expect(page.getByRole("list").getByText("Dimakamkan")).toBeVisible();
   await expect(page.getByTestId("konfirmasi-paling-lambat")).toContainText("mengonfirmasi paling lambat");
-  await expect(page.getByText("Belum ada yang dibayar.")).toBeVisible();
+  // The one note both screens carry, with the deadline the order's own Lokasi Mitra sets.
+  await expect(page.getByText("Tagihan terbit setelah Lokasi Mitra mengonfirmasi")).toBeVisible();
+  await expect(page.getByText(/jatuh tempo (sehari|tiga hari|\d+ jam) setelah pemakaman/)).toBeVisible();
   await expect(page.getByText("Siti Aminah")).toBeVisible();
 
   // The Kode Masuk created the Akun: the order is now readable in Akun Saya.

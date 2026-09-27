@@ -1,13 +1,100 @@
 /**
- * The family email templates (ticket 20), in one place: a Tagihan issued and
- * its pay-first reminders, and a Bukti Pembayaran issued. Every email carries
- * a link into the app (the Tagihan page, which leads to its Bukti once
- * Lunas); the Operator pays every message and there are no marketing
- * messages. Terencana, Paket and pay-after reminders arrive with tickets 37,
- * 54 and 29.
+ * The family email templates (ticket 20), in one place: a Pemesanan Makam
+ * submitted and confirmed (ticket 23), a Tagihan issued and its pay-first
+ * reminders, and a Bukti Pembayaran issued. Every email carries a link into
+ * the app (the order or Tagihan page, which leads to its Bukti once Lunas);
+ * the Operator pays every message and there are no marketing messages.
+ * Terencana, Paket and pay-after reminders arrive with tickets 37, 54 and 29.
  */
 import { formatRupiah } from "@/lib/rupiah";
-import { formatTanggalJam } from "@/lib/time/jakarta";
+import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+
+export interface PesananDiajukanEmailInput {
+  nomor: string;
+  lokasiName: string;
+  jenisMakamName: string | null;
+  almarhumName: string;
+  tanggalWafat: string;
+  rencanaPemakamanAt: Date | null;
+  /** The instant the Lokasi's Jam Operasional promised a confirmation by; null while it had none. */
+  konfirmasiDueAt: Date | null;
+  /** The order page's full URL, into the app. */
+  tautan: string;
+}
+
+/** A Pemesanan Makam submitted (transactional: any hour). Nothing is billed yet, so it says so. */
+export function pesananDiajukanEmail(input: PesananDiajukanEmailInput): { subject: string; body: string } {
+  const pemakaman = input.rencanaPemakamanAt
+    ? `Rencana pemakaman: ${formatTanggalJam(input.rencanaPemakamanAt)}.`
+    : "Rencana pemakaman belum ada; Lokasi Mitra yang menentukan hari.";
+  const tenggat = input.konfirmasiDueAt
+    ? `Lokasi Mitra mengonfirmasi paling lambat ${formatTanggalJam(input.konfirmasiDueAt)}.`
+    : `${input.lokasiName} belum punya jam operasional, jadi belum ada janji konfirmasi.`;
+  return {
+    subject: `Pesanan ${input.nomor} diterima, ${input.lokasiName} mengonfirmasi`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Terima kasih, pesan saat duka untuk ${input.almarhumName} (wafat ${formatTanggal(input.tanggalWafat)}) sudah kami terima.`,
+      `Lokasi Mitra: ${input.lokasiName}${input.jenisMakamName ? `, ${input.jenisMakamName}` : ""}.`,
+      pemakaman,
+      tenggat,
+      "Belum ada yang dibayar. Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan dokumen boleh menyusul.",
+      "",
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface PesananDikonfirmasiEmailInput {
+  nomor: string;
+  lokasiName: string;
+  jenisMakamName: string | null;
+  almarhumName: string;
+  pemakamanAt: Date;
+  /** The Petak Makam assigned to this order; null while the Lokasi has none to give (a Kavling Keluarga, ticket 36). */
+  petakNomor: string | null;
+  /** The Admin Lokasi to call, by name; the phone number is a contact, never verified. */
+  kontakLokasi: { name: string; phoneNumber: string | null };
+  /** The Lokasi Mitra's document checklist, as the family should bring it. */
+  dokumen: string[];
+  /** The pay-after Tagihan issued with the confirmation. */
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  tautan: string;
+}
+
+/** A Pemesanan Makam confirmed (transactional: any hour): the plot, the contact, the documents and the payment deadline. */
+export function pesananDikonfirmasiEmail(input: PesananDikonfirmasiEmailInput): { subject: string; body: string } {
+  const petak = input.petakNomor
+    ? `Petak Makam: ${input.petakNomor}.`
+    : "Petak Makam menyusul; hubungi Lokasi Mitra untuk jadwalnya.";
+  const telepon = input.kontakLokasi.phoneNumber
+    ? `${input.kontakLokasi.name}, ${input.kontakLokasi.phoneNumber}.`
+    : `${input.kontakLokasi.name}.`;
+  return {
+    subject: `Pesanan ${input.nomor} dikonfirmasi: ${input.petakNomor ?? "petak menyusul"} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pesanan saat duka untuk ${input.almarhumName} sudah dikonfirmasi ${input.lokasiName}.`,
+      petak,
+      `Pemakaman: ${formatTanggalJam(input.pemakamanAt)}.`,
+      `Jika ada yang perlu ditanyakan, hubungi Lokasi Mitra: ${telepon}`,
+      `Dokumen yang sebaiknya dibawa: ${input.dokumen.length > 0 ? input.dokumen.join(", ") : "belum ada daftar"}.`,
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Pemakaman tetap berjalan walaupun pembayaran belum masuk. Dokumen boleh menyusul setelah pemakaman.",
+      "",
+      `Tagihan: ${input.tagihan.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
 
 export interface TagihanEmailInput {
   nomorTagihan: string;

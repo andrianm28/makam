@@ -61,6 +61,39 @@ export async function bukaSekarang(
   return { ok: true, buka: isOpenAt(read.jamOperasional, deps.clock.now()) };
 }
 
+/**
+ * A Lokasi Mitra's document checklist — the documents it asks a family to bring
+ * (spec, Lokasi Mitra > document checklist). No actor: every Lokasi's status
+ * has a checklist, and the orders of a Lokasi that is no longer Terverifikasi
+ * still do. Empty for a Lokasi Mitra that does not exist.
+ */
+export async function documentChecklistOf(deps: Pick<LokasiDeps, "db">, lokasiId: string): Promise<string[]> {
+  if (!isLokasiId(lokasiId)) return [];
+  const [row] = await deps.db
+    .select({ checklist: lokasiMitra.documentChecklist })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row?.checklist ?? [];
+}
+
+/**
+ * A Lokasi Mitra's Saat Duka payment window in hours (its policy, 72 by
+ * default): the pay-after Tagihan a Saat Duka order carries is due that long
+ * after the burial (spec, Pemesanan). No actor: the due-date rule's own input.
+ * Null for a Lokasi Mitra that does not exist.
+ */
+export async function saatDukaPaymentWindowHours(
+  deps: Pick<LokasiDeps, "db">,
+  lokasiId: string,
+): Promise<number | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db
+    .select({ jam: lokasiMitra.policies })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row ? row.jam.saatDukaPaymentWindowHours : null;
+}
+
 export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };
 
 /**

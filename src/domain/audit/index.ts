@@ -121,6 +121,8 @@ export type AuditAction =
   | "denah.bersihkan_petak"
   /** Admin Platform renumbers a Petak Makam, the old Nomor Makam kept as a hidden alias. */
   | "petak.nomor_ulang"
+  /** An Admin Lokasi assigns a cleared Tersedia Petak to a confirmed order: the Hak Pakai Aktif it creates (ticket 23). */
+  | "denah.pakai_petak"
   /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
   | "tugas_lapangan.buat"
   /** A Petugas Lapangan marks a Tugas Lapangan Selesai (its required uploads and type-specific form). */
@@ -134,7 +136,11 @@ export type AuditAction =
   /** Admin Platform switches a Lokasi Mitra's "Pemesanan Terencana aktif" on. */
   | "lokasi.aktifkan_terencana"
   /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17). */
-  | "lokasi.konfirmasi_syarat_tayang";
+  | "lokasi.konfirmasi_syarat_tayang"
+  /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
+  | "pemesanan.konfirmasi_saat_duka"
+  /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
+  | "pemesanan.centang_dokumen";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

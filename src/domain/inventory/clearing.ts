@@ -11,10 +11,11 @@ import { z } from "zod";
 import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { foldKey } from "./ids";
+import { grantHakPakai, type NewPemegangHak, type NewPemakaman } from "./hak-pakai-grant";
 import { currentHakPakaiOfKavling, currentHakPakaiOfPetak } from "./hak-pakai-reads";
 import { lockBlok, lockLokasiInventory } from "./locks";
-import { inventoryHakPakai, inventoryKavling, inventoryPemakaman, inventoryPemegangHak, inventoryPetak } from "./schema";
-import { addYears, tenureOfJenisMakam } from "./tenure";
+import { inventoryKavling, inventoryPetak } from "./schema";
+import { tenureOfJenisMakam } from "./tenure";
 
 const pemegangHakSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -34,8 +35,9 @@ const clearingModeSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("terisi"), dataMenyusul: z.boolean(), pemegangHak: pemegangHakSchema.optional(), pemakaman: pemakamanSchema.optional() }),
 ]);
 
-export type NewPemegangHak = z.infer<typeof pemegangHakSchema>;
-export type NewPemakaman = z.infer<typeof pemakamanSchema>;
+export type { NewPemegangHak, NewPemakaman } from "./hak-pakai-grant";
+/** A first Pemakaman as the clearing form holds it: the Petak is added by the caller, which knows which cell it is. */
+type PemakamanIsian = Omit<NewPemakaman, "petakId">;
 export type ClearingInput = z.infer<typeof clearingModeSchema>;
 /** For a Server Action's own Zod boundary validation (AGENTS.md): the same shape `clearPetak` itself validates. */
 export { clearingModeSchema as petakClearingSchema };
@@ -60,7 +62,9 @@ function samePerson(name: string, almarhum: string): boolean {
 }
 
 /** Validates and normalises a clearing "terisi" mode's Pemegang Hak / Pemakaman, common to a Petak and a Kavling Keluarga. */
-function validateOccupied(input: Extract<ClearingInput, { mode: "terisi" }>): ClearingResult | { pemegangHak: NewPemegangHak | null; pemakaman: NewPemakaman | null } {
+function validateOccupied(
+  input: Extract<ClearingInput, { mode: "terisi" }>,
+): ClearingResult | { pemegangHak: NewPemegangHak | null; pemakaman: PemakamanIsian | null } {
   if (!input.dataMenyusul && !input.pemegangHak) return { ok: false, reason: "pemegang_hak_wajib" };
   let phoneNumber: string | null = null;
   if (input.pemegangHak) {
@@ -214,75 +218,6 @@ export async function clearKavling(deps: InventoryDeps, by: Actor, lokasiId: str
     );
     return { ok: true as const, hakPakaiId };
   });
-}
-
-/** Inserts the Hak Pakai row and, when given, its Pemegang Hak and first Pemakaman; returns the Hak Pakai id. Shared by `clearPetak` and `clearKavling`. */
-async function grantHakPakai(
-  tx: InventoryDeps["db"],
-  now: Date,
-  by: Actor,
-  input: {
-    lokasiId: string;
-    petakId: string | null;
-    kavlingId: string | null;
-    tenure: Awaited<ReturnType<typeof tenureOfJenisMakam>>;
-    dataMenyusul: boolean;
-    pemegangHak: NewPemegangHak | null;
-    pemakaman: (NewPemakaman & { petakId: string }) | null;
-  },
-): Promise<string> {
-  const tenureYears = input.tenure?.kind === "tahun" ? input.tenure.years : null;
-  // The tenure clock starts at the first Pemakaman's own (calendar) date, never "now": this clearing flow
-  // routinely enters a burial that happened long before the Admin Lokasi types it in.
-  const tenureStartAt = input.pemakaman ? dateOnly(input.pemakaman.date) : null;
-  const endDate = tenureStartAt && tenureYears !== null ? dateOnly(addYears(input.pemakaman!.date, tenureYears)) : null;
-  const perluVerifikasi = input.dataMenyusul;
-
-  const [hakPakai] = await tx
-    .insert(inventoryHakPakai)
-    .values({
-      lokasiId: input.lokasiId,
-      petakId: input.petakId,
-      kavlingId: input.kavlingId,
-      status: "aktif",
-      tenureYears,
-      startAt: now,
-      tenureStartAt,
-      endDate,
-      perluVerifikasi,
-      createdAt: now,
-      createdByAccountId: by.accountId,
-    })
-    .returning({ id: inventoryHakPakai.id });
-
-  if (input.pemegangHak) {
-    await tx.insert(inventoryPemegangHak).values({
-      hakPakaiId: hakPakai.id,
-      name: input.pemegangHak.name,
-      phoneNumber: input.pemegangHak.phoneNumber,
-      email: input.pemegangHak.email ?? null,
-      startAt: now,
-      createdByAccountId: by.accountId,
-    });
-  }
-  if (input.pemakaman) {
-    await tx.insert(inventoryPemakaman).values({
-      lokasiId: input.lokasiId,
-      petakId: input.pemakaman.petakId,
-      hakPakaiId: hakPakai.id,
-      almarhumName: input.pemakaman.almarhumName,
-      date: input.pemakaman.date,
-      layer: input.pemakaman.layer ?? 1,
-      createdAt: now,
-      createdByAccountId: by.accountId,
-    });
-  }
-  return hakPakai.id;
-}
-
-/** "YYYY-MM-DD" as a `Date` at that calendar day's UTC midnight: for `tenure_start_at` / `end_date`, which are dates, not instants — never re-derive a WIB instant from them. */
-function dateOnly(isoDate: string): Date {
-  return new Date(`${isoDate}T00:00:00.000Z`);
 }
 
 function clearingAuditEntry(

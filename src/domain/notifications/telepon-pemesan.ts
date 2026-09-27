@@ -1,15 +1,22 @@
 /**
  * "Telepon Pemesan" (ticket 20): the call row opened when a money message
  * finally fails or when a family must act and the order has no email, closed
- * once a staff member logs the call. Only Admin Platform opens the Antrean
- * and logs calls here; ticket 23 routes Lokasi-work subjects to the Antrean
- * Lokasi, tickets 29 and 42 open rows for their own subjects.
+ * once a staff member logs the call. Ticket 23 routes Lokasi-work subjects
+ * here too, with the `lokasiId` that puts the row in the **Antrean Lokasi** and
+ * in the hands of that Lokasi's own Admin Lokasi; tickets 29 and 42 open rows
+ * for their own subjects.
+ *
+ * Today a Lokasi-work subject is a Saat Duka order's own message (placed,
+ * confirmed, or an order with no email at all). The Bukti Pemesanan, the
+ * Perpanjangan documents, the Hak Pakai expiry and the Lokasi Layanan senders
+ * arrive with their own tickets, and each of them opens its row the same way:
+ * queue with the Lokasi's `lokasiId`.
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { antreanResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { antreanResource, lokasiMitraResource, staffRoles, writeRefusal, type Actor, type StaffRole, type WriteRefusal } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { notificationsTeleponPemesan, teleponHasil, teleponSebab } from "./schema";
 
@@ -24,6 +31,11 @@ export interface TeleponPemesan {
   subjectKind: string;
   subjectId: string;
   nomorTagihan: string | null;
+  nomorPemesanan: string | null;
+  /** The Lokasi Mitra whose own staff makes this call; null for Admin Platform's money subjects. */
+  lokasiId: string | null;
+  /** What the staff member has to tell the family, in one sentence. */
+  perihal: string | null;
   sebab: (typeof teleponSebab)[number];
   dibukaPada: Date;
 }
@@ -44,15 +56,20 @@ export interface BukaTeleponPemesan {
   subjectKind: string;
   subjectId: string;
   nomorTagihan?: string | null;
+  nomorPemesanan?: string | null;
+  /** The Lokasi Mitra whose Admin Lokasi makes this call; null leaves the row with Admin Platform. */
+  lokasiId?: string | null;
+  /** What the staff member has to tell the family, in one sentence. */
+  perihal?: string | null;
   sebab: (typeof teleponSebab)[number];
   pesanId?: string | null;
 }
 
 /**
  * Opens a "Telepon Pemesan" row, unless one is already open for the subject:
- * retries and re-announcements never stack rows for the same Tagihan. The
+ * retries and re-announcements never stack rows for the same subject. The
  * open row is unique in the database, so two ticks escalating the same failed
- * message at once still leave the Antrean one row.
+ * message at once still leave the queue one row.
  */
 export async function bukaTeleponPemesan(
   tx: Database,
@@ -65,6 +82,9 @@ export async function bukaTeleponPemesan(
       subjectKind: input.subjectKind,
       subjectId: input.subjectId,
       nomorTagihan: input.nomorTagihan ?? null,
+      nomorPemesanan: input.nomorPemesanan ?? null,
+      lokasiId: input.lokasiId ?? null,
+      perihal: input.perihal ?? null,
       sebab: input.sebab,
       pesanId: input.pesanId ?? null,
       dibukaPada: now,
@@ -87,7 +107,7 @@ export async function bukaTeleponPemesan(
   return { id: open.id, baru: false };
 }
 
-/** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
+/** Every open "Telepon Pemesan" row, oldest first: what the two Antrean's rows read. */
 export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesan[]> {
   const rows = await db
     .select()
@@ -98,18 +118,32 @@ export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesa
 }
 
 /**
- * An Admin Platform logs the call: the row closes. Audited, like every other
- * staff write on the Antrean.
+ * A staff member logs the call: the row closes. Audited, like every other staff
+ * write on a queue. Which staff member may log it is the row's own fact: a row
+ * with a `lokasiId` is that Lokasi Mitra's work, so its Admin Lokasi (and
+ * Admin Platform) may call; a money subject is Admin Platform's alone.
  */
 export async function catatPanggilan(
   deps: TeleponPemesanDeps,
   by: Actor,
   input: CatatPanggilanInput,
 ): Promise<CatatPanggilanResult> {
-  const refusal = writeRefusal(by, "telepon_pemesan.catat", antreanResource());
-  if (refusal) return refusal;
   const parsed = catatPanggilanSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "telepon_tidak_valid" };
+  const [subject] = await deps.db
+    .select({ lokasiId: notificationsTeleponPemesan.lokasiId })
+    .from(notificationsTeleponPemesan)
+    .where(eq(notificationsTeleponPemesan.id, parsed.data.teleponId));
+  // Which staff member may log a call is the row's own fact, so the row is read
+  // first; a caller who may log no call at all is refused before this tells it
+  // anything about the row.
+  const refusal = writeRefusal(
+    by,
+    subject?.lokasiId ? "telepon_pemesan.catat_lokasi" : "telepon_pemesan.catat",
+    subject?.lokasiId ? lokasiMitraResource(subject.lokasiId) : antreanResource(),
+  );
+  if (refusal) return refusal;
+  if (!subject) return { ok: false, reason: "tidak_ditemukan" };
   const now = deps.clock.now();
   const closed = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [row] = await tx
@@ -128,9 +162,10 @@ export async function catatPanggilan(
       })
       .where(eq(notificationsTeleponPemesan.id, row.id));
     await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
+      actor: { accountId: by.accountId, role: staffRoleOf(by) },
       action: "telepon_pemesan.catat_panggilan",
       entity: { kind: "telepon_pemesan", id: row.id },
+      lokasiId: row.lokasiId,
       before: null,
       after: { hasil: parsed.data.hasil },
       reason: null,
@@ -151,7 +186,17 @@ function toTeleponPemesan(row: typeof notificationsTeleponPemesan.$inferSelect):
     subjectKind: row.subjectKind,
     subjectId: row.subjectId,
     nomorTagihan: row.nomorTagihan,
+    nomorPemesanan: row.nomorPemesanan,
+    lokasiId: row.lokasiId,
+    perihal: row.perihal,
     sebab: row.sebab,
     dibukaPada: row.dibukaPada,
   };
+}
+
+/** The role the Entri Audit names: whichever staff role the caller holds first (both may log a call). */
+function staffRoleOf(by: Actor): StaffRole {
+  const role = staffRoles.find((held) => by.roles.includes(held));
+  if (!role) throw new Error("a call is only ever logged by a staff member");
+  return role;
 }

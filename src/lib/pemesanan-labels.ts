@@ -100,3 +100,66 @@ export function stafSaatDukaBaruAlert(
     },
   };
 }
+
+/** How many whole days a number of hours is, when it is whole (72 → 3). */
+const HARI = 24;
+
+/** "tiga hari", "sehari", "lima hari": an Indonesian duration in words, days first. */
+const HARI_DALAM_KATA: Record<number, string> = {
+  1: "sehari",
+  2: "dua hari",
+  3: "tiga hari",
+  4: "empat hari",
+  5: "lima hari",
+  6: "enam hari",
+  7: "tujuh hari",
+  10: "sepuluh hari",
+  14: "dua minggu",
+  30: "sebulan",
+};
+
+/**
+ * When a Saat Duka Tagihan falls due, in the words a family reads (spec,
+ * Pemesanan: the pay-after Tagihan is due the Lokasi Mitra's payment window
+ * after the burial). The window is the Lokasi's own policy, so the number comes
+ * from it and never from a default written in copy; `null` — a Lokasi whose
+ * policy cannot be read — says so instead of guessing.
+ */
+export function jatuhTempoLabel(jam: number | null): string {
+  if (jam === null || !(jam > 0)) return "sesuai jangka yang ditetapkan Lokasi Mitra";
+  if (jam % HARI === 0) {
+    const hari = jam / HARI;
+    const kata = HARI_DALAM_KATA[hari];
+    if (kata) return `jatuh tempo ${kata} setelah pemakaman`;
+  }
+  return `jatuh tempo ${jam} jam setelah pemakaman`;
+}
+
+/**
+ * The re-alert, one hour of the Lokasi's Jam Operasional after the new-order
+ * alert went out: the same work, once more, for whoever was on duty then. The
+ * push carries no personal data (Notifications refuses that), so the order is
+ * named by its Nomor Pemesanan and its Lokasi Mitra, as the first alert did.
+ */
+export function stafSaatDukaBelumDikonfirmasiAlert(
+  order: PemesananDiajukan,
+): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  return {
+    email: {
+      subject: `Pesan ${order.nomor} belum dikonfirmasi`,
+      text: [
+        `Pesan Saat Duka ${order.nomor} untuk ${order.almarhum.name} di ${order.lokasi.name} belum dikonfirmasi.`,
+        order.konfirmasiDueAt
+          ? `Batasnya ${formatTanggalJam(order.konfirmasiDueAt)}; setelah itu Admin Platform menelepon Lokasi Mitra ini.`
+          : "Lokasi Mitra ini belum punya jam operasional, jadi belum ada batas konfirmasi.",
+        order.pemesan.phoneNumber ? `Telepon Pemesan: ${order.pemesan.phoneNumber}.` : "Pemesan belum memberi nomor telepon.",
+        `Nomor Pemesanan: ${order.nomor}. Buka halaman Lokasi Mitra ini di aplikasi staf untuk mengonfirmasi.`,
+      ].join("\n"),
+    },
+    push: {
+      title: "Pesan belum dikonfirmasi",
+      body: `${order.lokasi.name} · ${order.nomor}`,
+      url: `/staf/admin-lokasi/${order.lokasi.id}`,
+    },
+  };
+}

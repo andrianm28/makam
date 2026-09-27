@@ -93,6 +93,19 @@ export function serverRuntime(): ServerRuntime {
     });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    // The wizard's own messages, and the Lokasi's when it confirms an order, go out through Notifications.
+    const pemesanan = composePemesanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -106,6 +119,7 @@ export function serverRuntime(): ServerRuntime {
       billing,
       inventory,
       fieldwork,
+      pemesanan,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -114,16 +128,8 @@ export function serverRuntime(): ServerRuntime {
         fieldwork,
         billing,
         notifications,
-      }),
-      pemesanan: composePemesanan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
         inventory,
-        billing,
-        identity,
-        notifications,
+        pemesanan,
       }),
     };
   }

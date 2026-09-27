@@ -25,6 +25,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
   return {
     documentPageUrl: (link: string) => `${env.documentPageOrigin}${documentPagePath(link)}`,
     publicDocumentUrl: (link: string) => `${publicOrigin}${documentPagePath(link)}`,
+    /** A Pemesanan Makam's own page, where a family follows its order (ticket 23). */
+    pesananUrl: (nomor: string) => `${publicOrigin}/pesanan/${nomor}`,
   };
 }
 

@@ -25,6 +25,7 @@ export function composeNotifications(deps: {
   billing: Pick<Billing, "tagihan">;
   reportError: ReportError;
 }): Notifications {
+  const urls = documentUrls(deps.env);
   return createNotifications({
     db: deps.db,
     clock: deps.adapters.clock,
@@ -34,6 +35,7 @@ export function composeNotifications(deps: {
     audit: deps.audit,
     reportError: deps.reportError,
     tagihan: deps.billing,
-    dokumenUrl: documentUrls(deps.env).publicDocumentUrl,
+    dokumenUrl: urls.publicDocumentUrl,
+    pesananUrl: urls.pesananUrl,
   });
 }

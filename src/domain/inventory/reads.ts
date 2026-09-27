@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { availability, type AvailabilityCount } from "./availability";
@@ -141,10 +141,18 @@ export function staffInventoryReads(deps: InventoryDeps, by: Actor): StaffInvent
  * fact (ticket 16), read by the caller composing the Lokasi module's write.
  */
 export async function hasPetakPerluVerifikasi(deps: { db: InventoryDeps["db"] }, lokasiId: string): Promise<boolean> {
+  return (await jumlahPetakPerluVerifikasi(deps, lokasiId)) > 0;
+}
+
+/**
+ * How many Petak Makam of a Lokasi Mitra still need clearing (Perlu
+ * Verifikasi): what the Antrean Lokasi's "Petak Perlu Verifikasi" row counts
+ * (ticket 23). No actor: the same fact as `hasPetakPerluVerifikasi`, counted.
+ */
+export async function jumlahPetakPerluVerifikasi(deps: { db: InventoryDeps["db"] }, lokasiId: string): Promise<number> {
   const [row] = await deps.db
-    .select({ id: inventoryPetak.id })
+    .select({ n: count() })
     .from(inventoryPetak)
-    .where(and(eq(inventoryPetak.lokasiId, lokasiId), eq(inventoryPetak.kind, "petak"), eq(inventoryPetak.perluVerifikasi, true)))
-    .limit(1);
-  return row !== undefined;
+    .where(and(eq(inventoryPetak.lokasiId, lokasiId), eq(inventoryPetak.kind, "petak"), eq(inventoryPetak.perluVerifikasi, true)));
+  return row?.n ?? 0;
 }
