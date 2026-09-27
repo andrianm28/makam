@@ -92,7 +92,19 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
     });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
-    // One place picks live or fake (AGENTS.md); the wizard's messages go out through Notifications.
+    // One place picks live or fake (AGENTS.md); the wizard's and the Lokasi's messages go out through Notifications.
+    const pemesanan = composePemesanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -106,6 +118,7 @@ export function serverRuntime(): ServerRuntime {
       billing,
       inventory,
       fieldwork,
+      pemesanan,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -114,16 +127,8 @@ export function serverRuntime(): ServerRuntime {
         fieldwork,
         billing,
         notifications,
-      }),
-      pemesanan: composePemesanan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
         inventory,
-        billing,
-        identity,
-        notifications,
+        pemesanan,
       }),
     };
   }

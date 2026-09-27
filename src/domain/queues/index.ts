@@ -20,10 +20,13 @@ import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
+import type { Pemesanan } from "@/domain/pemesanan";
 import type { Clock } from "@/ports/clock";
 import { ambilRow, type AmbilRowResult } from "./ambil";
 import { antrean, antreanCounters, type AntreanCounters, type AntreanRow } from "./antrean";
+import { antreanLokasi, type AntreanLokasiAntrean } from "./antrean-lokasi";
 import {
   catatanInternalFor,
   tambahCatatanInternal,
@@ -35,6 +38,7 @@ import {
 export { catatanInternalInputSchema, type CatatanInternal, type CatatanInternalInput, type TambahCatatanInternalResult } from "./catatan-internal";
 export type { AmbilRowResult } from "./ambil";
 export { rowKeyOf, type AntreanCounters, type AntreanRow } from "./antrean";
+export { antreanLokasiRowTypes, type AntreanLokasiGrup, type AntreanLokasiRow, type AntreanLokasiRowType } from "./antrean-lokasi";
 export { antreanRowTypes } from "./registry";
 export type { AntreanRowDeps, AntreanRowType, AntreanTier, RawAntreanRow } from "./row-types";
 
@@ -50,6 +54,10 @@ export interface QueuesModuleDeps {
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
   notifications: Pick<Notifications, "teleponPemesanTerbuka">;
+  /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi). */
+  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
+  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
 }
 
 export interface Queues {
@@ -57,6 +65,13 @@ export interface Queues {
   antrean(by: Actor): Promise<AntreanRow[]>;
   /** The counter strip (spec, story 144): counters with no source yet show 0, filled in by later tickets. */
   counters(by: Actor): Promise<AntreanCounters>;
+  /**
+   * The Admin Lokasi's own list of open work for one Lokasi Mitra, in Mendesak
+   * and Lainnya, sorted by deadline (spec, Work Queues; ticket 23). Rows only:
+   * no Ambil claims, no tiers, no Bertugas; an order or a Petak that moves on
+   * closes its own row.
+   */
+  antreanLokasi(by: Actor, lokasiId: string): Promise<AntreanLokasiAntrean>;
   /** Any Admin Platform takes (Ambil) a row, replacing any earlier claim; logged in the Audit Log. */
   ambilRow(by: Actor, input: { type: string; subjectId: string }): Promise<AmbilRowResult>;
   /** Admin Platform adds a Catatan Internal on any row or order; audited, never shown to the Pemesan, Mitra Jasa or Admin Lokasi. */
@@ -69,6 +84,7 @@ export function createQueues(deps: QueuesModuleDeps): Queues {
   return {
     antrean: (by) => antrean(deps, by),
     counters: (by) => antreanCounters(deps, by),
+    antreanLokasi: (by, lokasiId) => antreanLokasi(deps, by, lokasiId),
     ambilRow: (by, input) => ambilRow(deps, by, input),
     tambahCatatanInternal: (by, input) => tambahCatatanInternal(deps, by, input),
     catatanInternal: (by, subjectKind, subjectId) => catatanInternalFor(deps, by, subjectKind, subjectId),

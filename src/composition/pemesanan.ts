@@ -5,15 +5,16 @@
  */
 import type { Notifications } from "@/domain/notifications";
 import { createPemesanan, type Pemesanan, type PemesananDeps, type PemesananNotifikasi } from "@/domain/pemesanan";
-import { stafSaatDukaBaruAlert } from "@/lib/pemesanan-labels";
+import { stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert } from "@/lib/pemesanan-labels";
 
 /**
  * The Pemesanan module, wired to the runtime's Notifications: a new order raises
- * the Peringatan Staf its recipients must see (spec, Notifications: "a new Saat
- * Duka order alerts every Admin Lokasi of the Lokasi and the Kontak Siaga by web
- * push + email at any hour"). Which Akun Staf those are is the Pemesanan
- * module's own fact; the words and the channels are the Notifications module's,
- * and it logs and retries each one.
+ * the family message and the Peringatan Staf its recipients must see (spec,
+ * Notifications: "a new Saat Duka order alerts every Admin Lokasi of the Lokasi
+ * and the Kontak Siaga by web push + email at any hour"). Which Akun Staf those
+ * are is the Pemesanan module's own fact; the words and the channels are the
+ * Notifications module's, and it logs and retries each one. The re-alert and the
+ * confirmation message are the same story, one hour and one plot later.
  *
  * Without a Notifications module — a fixture that only wants to see the
  * announcement — the no-op below drops it. A placement never waits on a message:
@@ -23,17 +24,45 @@ import { stafSaatDukaBaruAlert } from "@/lib/pemesanan-labels";
 export function composePemesanan(
   deps: Omit<PemesananDeps, "notifikasi"> & { notifications?: Notifications; notifikasi?: PemesananNotifikasi },
 ): Pemesanan {
-  return createPemesanan({ ...deps, notifikasi: deps.notifikasi ?? notifikasiDari(deps.notifications) });
+  return createPemesanan({ ...deps, notifikasi: deps.notifikasi ?? pemesananNotifikasiDari(deps.notifications) });
 }
 
-function notifikasiDari(notifications: Notifications | undefined): PemesananNotifikasi {
-  if (!notifications) return { pemesananDiajukan: async () => {} };
+export function pemesananNotifikasiDari(notifications: Notifications | undefined): PemesananNotifikasi {
+  if (!notifications) {
+    return { pesananDiajukan: async () => {}, pesananBelumDikonfirmasi: async () => {}, pesananDikonfirmasi: async () => {} };
+  }
   return {
-    pemesananDiajukan: async (order) => {
-      const alert = stafSaatDukaBaruAlert(order);
-      for (const to of order.penerima) {
-        await notifications.sendStaffAlert({ to, kind: "staf_saat_duka_baru", ...alert });
-      }
+    pesananDiajukan: async (order) => {
+      await notifications.pesananDiajukan({
+        pemesananId: order.id,
+        nomor: order.nomor,
+        email: order.pemesan.email,
+        pemesanName: order.pemesan.name,
+        lokasi: order.lokasi,
+        jenisMakamName: order.jenisMakamName,
+        almarhum: order.almarhum,
+        rencanaPemakamanAt: order.rencanaPemakamanAt,
+        konfirmasiDueAt: order.konfirmasiDueAt,
+      });
+      await kirimStaf(notifications, order, stafSaatDukaBaruAlert(order), "staf_saat_duka_baru");
+    },
+    pesananBelumDikonfirmasi: async (order) => {
+      await kirimStaf(notifications, order, stafSaatDukaBelumDikonfirmasiAlert(order), "staf_saat_duka_belum_dikonfirmasi");
+    },
+    pesananDikonfirmasi: async (hasil) => {
+      await notifications.pesananDikonfirmasi(hasil);
     },
   };
+}
+
+/** One Peringatan Staf to every Akun Staf that must see this order, by name of the kind. */
+async function kirimStaf(
+  notifications: Notifications,
+  order: { penerima: { accountId: string }[] },
+  alert: ReturnType<typeof stafSaatDukaBaruAlert>,
+  kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi",
+): Promise<void> {
+  for (const to of order.penerima) {
+    await notifications.sendStaffAlert({ to, kind, ...alert });
+  }
 }

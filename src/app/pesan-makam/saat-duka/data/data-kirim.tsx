@@ -103,12 +103,11 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
             label="Email"
             error={salah.email}
             hint={
-              // Only what Notifications really sends a family today: the Tagihan
-              // and its Bukti Pembayaran. The order's own news is not a message
-              // yet (ticket 23), so this screen does not promise it.
+              // What Notifications really sends a family: the order's own news
+              // (placed, then confirmed), the Tagihan and its documents.
               sudahMasuk
-                ? "Email akun Anda, sudah terverifikasi. Tagihan dan dokumen pesanan Anda dikirim ke email ini."
-                : "Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Tagihan dan dokumen pesanan Anda juga dikirim ke sini."
+                ? "Email akun Anda, sudah terverifikasi. Kabar pesanan, Tagihan dan dokumen pesanan Anda dikirim ke email ini."
+                : "Kode Masuk dikirim ke email ini saat Anda menekan Kirim. Kabar pesanan, Tagihan dan dokumen pesanan Anda juga dikirim ke sini."
             }
           >
             <Input

@@ -100,3 +100,32 @@ export function stafSaatDukaBaruAlert(
     },
   };
 }
+
+/**
+ * The re-alert, one hour of the Lokasi's Jam Operasional after the new-order
+ * alert went out: the same work, once more, for whoever was on duty then. The
+ * push carries no personal data (Notifications refuses that), so the order is
+ * named by its Nomor Pemesanan and its Lokasi Mitra, as the first alert did.
+ */
+export function stafSaatDukaBelumDikonfirmasiAlert(
+  order: PemesananDiajukan,
+): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  return {
+    email: {
+      subject: `Pesan ${order.nomor} belum dikonfirmasi`,
+      text: [
+        `Pesan Saat Duka ${order.nomor} untuk ${order.almarhum.name} di ${order.lokasi.name} belum dikonfirmasi.`,
+        order.konfirmasiDueAt
+          ? `Batasnya ${formatTanggalJam(order.konfirmasiDueAt)}; setelah itu Admin Platform menelepon Lokasi Mitra ini.`
+          : "Lokasi Mitra ini belum punya jam operasional, jadi belum ada batas konfirmasi.",
+        order.pemesan.phoneNumber ? `Telepon Pemesan: ${order.pemesan.phoneNumber}.` : "Pemesan belum memberi nomor telepon.",
+        `Nomor Pemesanan: ${order.nomor}. Buka halaman Lokasi Mitra ini di aplikasi staf untuk mengonfirmasi.`,
+      ].join("\n"),
+    },
+    push: {
+      title: "Pesan belum dikonfirmasi",
+      body: `${order.lokasi.name} · ${order.nomor}`,
+      url: `/staf/admin-lokasi/${order.lokasi.id}`,
+    },
+  };
+}

@@ -66,6 +66,11 @@ export function addWibDays(instant: Date, days: number): Date {
   return new Date(instant.getTime() + days * DAY_MS);
 }
 
+/** "2026-10-02T10:00": the WIB wall clock of `instant` as a `datetime-local` input holds it (never re-derived as an instant). */
+export function wibDateTimeLocal(instant: Date): string {
+  return `${wibDateOf(instant)}T${wibTime(instant)}`;
+}
+
 /** "09:30": the WIB wall-clock time of `instant`, to the minute. */
 export function wibTime(instant: Date): string {
   return wall(instant).toISOString().slice(11, 16);

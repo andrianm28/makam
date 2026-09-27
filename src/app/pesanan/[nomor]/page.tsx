@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder } from "@/domain/pemesanan";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import { UnggahDokumenForm } from "./unggah-dokumen-form";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -32,6 +33,10 @@ export async function generateMetadata({ params }: PageProps<"/pesanan/[nomor]">
 export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
+  const { billing, lokasi } = serverRuntime();
+  // The confirmation's own facts: the Tagihan it was issued with, and whom the family may call.
+  const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
+  const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8">
@@ -49,10 +54,10 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </div>
       </header>
 
-      {order.konfirmasiDueAt ? (
+      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
-          Statusnya bisa Anda ikuti di halaman ini.
+          Statusnya bisa Anda ikuti di halaman ini, dan kabar ini datang ke email Anda.
         </p>
       ) : (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
@@ -61,12 +66,35 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </p>
       )}
 
-      <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
-        Belum ada yang dibayar. Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan jatuh tempo 3×24 jam setelah
-        pemakaman. Dokumen boleh menyusul.
-      </p>
+      {order.pemakaman ? null : (
+        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
+          Belum ada yang dibayar. Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan jatuh tempo 3×24 jam setelah
+          pemakaman. Dokumen boleh menyusul.
+        </p>
+      )}
 
       <Timeline order={order} />
+
+      {order.dokumen.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-title-3 text-foreground">Dokumen yang diminta</h2>
+          <p className="text-small text-muted-foreground">
+            Dokumen boleh menyusul, bahkan setelah pemakaman. Yang tidak boleh delaying pemakaman adalah pembayaran, dan
+            Tagihan pun tidak menahannya.
+          </p>
+          <ul className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
+            {order.dokumen.map((dokumen) => (
+              <li key={dokumen.nama} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium text-foreground">{dokumen.nama}</span>
+                <span className="text-small text-muted-foreground">
+                  {dokumen.dicentang ? "Sudah diterima Lokasi Mitra" : dokumen.diunggah ? "Sudah diunggah" : "Belum diunggah"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <UnggahDokumenForm nomor={order.nomor} nama={order.dokumen.map((dokumen) => dokumen.nama)} />
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-title-3 text-foreground">Yang dipesan</h2>
@@ -109,6 +137,45 @@ async function orderFor(params: Promise<{ nomor: string }>): Promise<PemesananOr
   if (!actor) redirect("/masuk");
   if (!authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed) return null;
   return serverRuntime().pemesanan.orderOf(parsed.data, { accountId: actor.accountId });
+}
+
+/**
+ * The confirmation (spec, story 29): the Petak Makam the Lokasi assigned, the
+ * contact to call, the Tagihan's deadline, and the promise that the burial goes
+ * ahead whatever the payment does.
+ */
+function Dikonfirmasi({
+  order,
+  tagihan,
+  kontak,
+}: {
+  order: PemesananOrder;
+  tagihan: Awaited<ReturnType<ReturnType<typeof serverRuntime>["billing"]["tagihan"]>>;
+  kontak: Awaited<ReturnType<ReturnType<typeof serverRuntime>["lokasi"]["kontakSiagaOf"]>>;
+}) {
+  return (
+    <section className="flex flex-col gap-3" data-testid="pesanan-dikonfirmasi">
+      <h2 className="text-title-3 text-foreground">Pesanan sudah dikonfirmasi</h2>
+      <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
+        <Baris label="Petak Makam" value={order.pemakaman?.petakNomor ?? "menyusul"} />
+        <Baris label="Pemakaman" value={order.pemakaman ? formatTanggalJam(order.pemakaman.at) : "menyusul"} />
+        <Baris label="Lokasi Mitra" value={order.lokasi.name} href={`/lokasi/${order.lokasi.id}`} />
+        <Baris
+          label="Hubungi Lokasi Mitra"
+          value={kontak ? [kontak.name, kontak.phoneNumber].filter(Boolean).join(" · ") || order.lokasi.name : order.lokasi.name}
+        />
+        {tagihan ? (
+          <>
+            <Baris label="Tagihan" value={tagihan.nomorTagihan} />
+            <Baris label="Jatuh tempo" value={formatTanggalJam(tagihan.dueAt)} />
+          </>
+        ) : null}
+      </dl>
+      <p className="rounded-xl bg-success-soft px-4 py-3 text-body text-success-soft-foreground">
+        Pemakaman tetap berjalan walaupun pembayaran belum masuk. Dokumen boleh menyusul setelah pemakaman.
+      </p>
+    </section>
+  );
 }
 
 /**

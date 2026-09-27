@@ -63,6 +63,18 @@ export function testServerRuntime() {
       notifications,
       lokasi,
     });
+    const pemesanan = composePemesanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
+    });
     holder.__makamRuntime = {
       env,
       database,
@@ -76,6 +88,7 @@ export function testServerRuntime() {
       billing,
       inventory,
       fieldwork,
+      pemesanan,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -84,16 +97,8 @@ export function testServerRuntime() {
         fieldwork,
         billing,
         notifications,
-      }),
-      pemesanan: composePemesanan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
         inventory,
-        billing,
-        identity,
-        notifications,
+        pemesanan,
       }),
     };
   }

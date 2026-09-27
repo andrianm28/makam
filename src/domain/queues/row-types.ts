@@ -7,7 +7,9 @@ import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
+import type { Pemesanan } from "@/domain/pemesanan";
 import type { Clock } from "@/ports/clock";
 
 export type AntreanTier = 1 | 2 | 3 | 4;
@@ -20,6 +22,14 @@ export interface AntreanRowDeps {
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
   notifications: Pick<Notifications, "teleponPemesanTerbuka">;
+  /**
+   * The Saat Duka confirmation rows read the Pemesanan module's own state: the
+   * Tier 1 "Konfirmasi Lokasi terlambat" row and the Antrean Lokasi's open
+   * confirmations (ticket 23). Never its tables.
+   */
+  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
+  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

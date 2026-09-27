@@ -10,6 +10,8 @@ import { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAK
  */
 describe("Tabel acara: every domain event decides recipient, channel, template and timing", () => {
   it.each([
+    ["pesanan_diajukan", "pesanan_diajukan", "transaksional"],
+    ["pesanan_dikonfirmasi", "pesanan_dikonfirmasi", "transaksional"],
     ["tagihan_terbit", "tagihan_terbit", "pengingat"],
     ["tagihan_pengingat", "tagihan_pengingat_h_1", "pengingat"],
     ["bukti_pembayaran_terbit", "bukti_pembayaran_terbit", "transaksional"],
@@ -28,6 +30,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
 
   it("lists every family email template in one place, and times each of them once", () => {
     expect([...TEMPLATE_EMAIL]).toEqual([
+      "pesanan_diajukan",
+      "pesanan_dikonfirmasi",
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",

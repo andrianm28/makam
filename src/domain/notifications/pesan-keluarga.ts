@@ -50,6 +50,8 @@ export interface PesanKeluargaDeps {
   tagihan: Pick<Billing, "tagihan">;
   /** The Tagihan page's full URL from its link, for the email's link into the app. */
   dokumenUrl: (link: string) => string;
+  /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
+  pesananUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({
@@ -127,8 +129,9 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       tautan: deps.dokumenUrl(data.link),
     };
     const terbit = tagihanTerbitEmail(emailInput);
-    await queueEmail(tx, now, {
+    await queueFamilyEmail(tx, now, {
       template: "tagihan_terbit",
+      pemesananId: null,
       tagihanId: data.tagihanId,
       nomorTagihan: data.nomorTagihan,
       nomorPemesanan: data.nomorPemesanan,
@@ -145,8 +148,9 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       for (const { macam, saat } of jadwalPengingatPayFirst(data.dueAt, now)) {
         const template = macam === "h_1" ? "tagihan_pengingat_h_1" : "tagihan_pengingat_hari_h";
         const pengingat = tagihanPengingatEmail(macam, emailInput);
-        const baru = await queueEmail(tx, now, {
+        const baru = await queueFamilyEmail(tx, now, {
           template,
+          pemesananId: null,
           tagihanId: data.tagihanId,
           nomorTagihan: data.nomorTagihan,
           nomorPemesanan: data.nomorPemesanan,
@@ -217,12 +221,18 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
       });
       if (attempts >= MAKS_PERCOBAAN) {
         await mark(deps.db, pesan.id, { status: "gagal", attempts });
+        // Where the call goes is the message's own fact: a message about a
+        // Lokasi Mitra's work is called by that Lokasi's own Admin Lokasi, a
+        // money message by Admin Platform (spec, Notifications).
         await bukaTeleponPemesan(deps.db, now, {
-          subjectKind: "tagihan",
-          subjectId: pesan.tagihanId ?? pesan.id,
+          subjectKind: pesan.lokasiId ? "pesan_lokasi" : "tagihan",
+          subjectId: pesan.lokasiId ? pesan.id : (pesan.tagihanId ?? pesan.id),
           nomorTagihan: pesan.nomorTagihan,
+          nomorPemesanan: pesan.nomorPemesanan,
+          lokasiId: pesan.lokasiId,
           sebab: "pesan_gagal",
           pesanId: pesan.id,
+          perihal: pesan.subject,
         });
         hasil.gagal += 1;
       } else {
@@ -275,25 +285,45 @@ export async function pesanTagihan(deps: Pick<PesanKeluargaDeps, "db">, tagihanI
   }));
 }
 
-async function queueEmail(
+/**
+ * Queues one family email and reports whether it was new: one message per
+ * Tagihan (or per Pemesanan Makam) per template, whatever queues it twice —
+ * the announcement replayed, an effect run again, a tick run twice. `lokasiId`
+ * is set by a message about a Lokasi Mitra's own work, which is what routes a
+ * send that finally fails to that Lokasi's Admin Lokasi instead of Admin
+ * Platform's.
+ */
+export async function queueFamilyEmail(
   db: Database,
   now: Date,
   message: {
     template: TemplateEmail;
-    tagihanId: string | null;
-    nomorTagihan: string | null;
+    /** Exactly one of the two subjects: the Tagihan, or the Pemesanan Makam. */
+    pemesananId: string | null;
+    tagihanId?: string | null;
+    nomorTagihan?: string | null;
     nomorPemesanan: string | null;
+    /** The Lokasi Mitra whose work this message is about; null for a money message. */
+    lokasiId?: string | null;
     email: string;
     subject: string;
     body: string;
     sendAfter: Date;
   },
 ): Promise<boolean> {
-  // One message per Tagihan per template, whatever queues it twice: the
-  // announcement replayed, an effect run again, a tick run twice.
   const inserted = await db
     .insert(notificationsMessage)
-    .values({ ...message, channel: "email", status: "menunggu", attempts: 0, sentAt: null, createdAt: now })
+    .values({
+      ...message,
+      tagihanId: message.tagihanId ?? null,
+      nomorTagihan: message.nomorTagihan ?? null,
+      lokasiId: message.lokasiId ?? null,
+      channel: "email",
+      status: "menunggu",
+      attempts: 0,
+      sentAt: null,
+      createdAt: now,
+    })
     .onConflictDoNothing()
     .returning({ id: notificationsMessage.id });
   return inserted.length > 0;

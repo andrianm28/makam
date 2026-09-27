@@ -81,6 +81,20 @@ export const notificationsMessage = pgTable(
     tagihanId: text("tagihan_id"),
     nomorTagihan: text("nomor_tagihan"),
     nomorPemesanan: text("nomor_pemesanan"),
+    /**
+     * The Pemesanan Makam the message is about, when it is about one (the
+     * order submitted, the order confirmed). Not a foreign key: the pemesanan
+     * module owns its tables, and the Notifications module never reads them.
+     */
+    pemesananId: text("pemesanan_id"),
+    /**
+     * The Lokasi Mitra whose own work the message is about, when it is (a
+     * confirmation, a Bukti Pemesanan, a Perpanjangan, a Hak Pakai expiry, a
+     * Layanan at that Lokasi). A message that keeps failing then reaches that
+     * Lokasi's Admin Lokasi as a call row, while a money message without one
+     * reaches Admin Platform.
+     */
+    lokasiId: text("lokasi_id"),
     /** The recipient address; null when the order has no email (CS shares links by hand). */
     email: text("email"),
     /** The Akun Staf a Peringatan Staf was sent to, for the staff message log. Not a foreign key: identity owns its tables. */
@@ -98,11 +112,19 @@ export const notificationsMessage = pgTable(
   (table) => [
     index("notifications_message_due_idx").on(table.status, table.sendAfter),
     index("notifications_message_tagihan_idx").on(table.tagihanId),
+    index("notifications_message_pemesanan_idx").on(table.pemesananId),
     // One family message per Tagihan per template, whatever runs twice: a
     // reminder kind is a template of its own, so the four pay-after
     // reminders are four templates. A Peringatan Staf has no Tagihan, and
     // several nulls never collide.
     uniqueIndex("notifications_message_tagihan_template_idx").on(table.tagihanId, table.template),
+    // The same, for a message about an order: one "pesanan_diajukan" and one
+    // "pesanan_dikonfirmasi" per Pemesanan Makam, however often the
+    // announcement or the tick runs. Only orders take part, so a Tagihan
+    // message (whose `pemesanan_id` is null) never collides here.
+    uniqueIndex("notifications_message_pemesanan_template_idx")
+      .on(table.pemesananId, table.template)
+      .where(sql`${table.pemesananId} is not null`),
   ],
 );
 
@@ -117,16 +139,29 @@ export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah"]
  * (ticket 20). Opened when a money message finally fails or when a family
  * must act and the order has no email; closed once a staff member logs the
  * call (`catatPanggilan`). The Antrean's Tier 2 row reads the open ones;
- * tickets 29 and 42 open more (their own subjects).
+ * ticket 23 routes Lokasi-work subjects to the Antrean Lokasi, and tickets
+ * 29 and 42 open more (their own subjects).
+ *
+ * `lokasi_id` is what tells the two queues apart: a row with one belongs to
+ * that Lokasi Mitra's own staff (a message about its work that failed, or an
+ * order of its own with no email) and shows in the Antrean Lokasi; a row
+ * without one is a money subject for Admin Platform. `perihal` is the sentence
+ * the row says, so the queue never has to read another module's tables to name
+ * the subject.
  */
 export const notificationsTeleponPemesan = pgTable(
   "notifications_telepon_pemesan",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    /** What the call is about: "tagihan" now (money subjects); tickets 29 and 42 add theirs. */
+    /** What the call is about: "tagihan" (money), "pemesanan" (an order of its own), "pesan_lokasi" (a failed Lokasi-work message). */
     subjectKind: text("subject_kind").notNull(),
     subjectId: text("subject_id").notNull(),
     nomorTagihan: text("nomor_tagihan"),
+    nomorPemesanan: text("nomor_pemesanan"),
+    /** The Lokasi Mitra whose own staff makes this call; null for Admin Platform's money subjects. */
+    lokasiId: text("lokasi_id"),
+    /** What the staff member has to tell the family, in one sentence. */
+    perihal: text("perihal"),
     sebab: text("sebab", { enum: teleponSebab }).notNull(),
     /** The failed message, when `sebab` is `pesan_gagal`. */
     pesanId: uuid("pesan_id"),

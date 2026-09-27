@@ -41,6 +41,7 @@ describe("the staff menu of each role", () => {
     expect(outline(menu)).toEqual([["Lokasi ini", ["Beranda", "Antrean Lokasi", "Denah", "Jam Operasional", "Audit Log"]]]);
     expect(menu[0].items.flatMap((item) => (item.href ? [item.href] : []))).toEqual([
       `/staf/admin-lokasi/${lokasiId}`,
+      `/staf/admin-lokasi/${lokasiId}/antrean`,
       `/staf/admin-lokasi/${lokasiId}/denah`,
       `/staf/admin-lokasi/${lokasiId}/jam-operasional`,
       `/staf/admin-lokasi/${lokasiId}/audit-log`,
@@ -111,6 +112,7 @@ describe("where a staff page sits in the menu", () => {
     [`/staf/admin-platform/lokasi/${lokasiId}/audit-log`, "admin_platform", "Lokasi Mitra"],
     ["/staf/admin-platform/staf", "admin_platform", "Staf"],
     [`/staf/admin-lokasi/${lokasiId}`, "admin_lokasi", "Beranda"],
+    [`/staf/admin-lokasi/${lokasiId}/antrean`, "admin_lokasi", "Antrean Lokasi"],
     [`/staf/admin-lokasi/${lokasiId}/jam-operasional`, "admin_lokasi", "Jam Operasional"],
     ["/staf/admin-lokasi", "admin_lokasi", "Beranda"],
     // Neither field role has a Beranda any more: their bare home redirects to their first
@@ -205,8 +207,26 @@ describe("the command palette of each role", () => {
         { id: second, name: "TPU Keluarga Sentosa" },
       ]).map((group) => [group.label, group.items.map((item) => item.href)]),
     ).toEqual([
-      ["Makam Wakaf Al-Ikhlas", [`/staf/admin-lokasi/${lokasiId}`, `/staf/admin-lokasi/${lokasiId}/denah`, `/staf/admin-lokasi/${lokasiId}/jam-operasional`, `/staf/admin-lokasi/${lokasiId}/audit-log`]],
-      ["TPU Keluarga Sentosa", [`/staf/admin-lokasi/${second}`, `/staf/admin-lokasi/${second}/denah`, `/staf/admin-lokasi/${second}/jam-operasional`, `/staf/admin-lokasi/${second}/audit-log`]],
+      [
+        "Makam Wakaf Al-Ikhlas",
+        [
+          `/staf/admin-lokasi/${lokasiId}`,
+          `/staf/admin-lokasi/${lokasiId}/antrean`,
+          `/staf/admin-lokasi/${lokasiId}/denah`,
+          `/staf/admin-lokasi/${lokasiId}/jam-operasional`,
+          `/staf/admin-lokasi/${lokasiId}/audit-log`,
+        ],
+      ],
+      [
+        "TPU Keluarga Sentosa",
+        [
+          `/staf/admin-lokasi/${second}`,
+          `/staf/admin-lokasi/${second}/antrean`,
+          `/staf/admin-lokasi/${second}/denah`,
+          `/staf/admin-lokasi/${second}/jam-operasional`,
+          `/staf/admin-lokasi/${second}/audit-log`,
+        ],
+      ],
     ]);
   });
 

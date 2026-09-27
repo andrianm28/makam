@@ -16,6 +16,8 @@ import { addWibDays, wib, wibDateOf, wibDayStart } from "@/lib/time/jakarta";
 
 /** Every family email template, in one place. */
 export const TEMPLATE_EMAIL = [
+  "pesanan_diajukan",
+  "pesanan_dikonfirmasi",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
@@ -28,8 +30,14 @@ export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
  * WIB, `transaksional` goes at any hour. `TEMPLATE_EMAIL` and this record
  * check each other, and the event table below reads its `waktu` from here, so
  * a template is classified once.
+ *
+ * A Pemesanan Makam's two messages ask nothing either: the family has already
+ * ordered and already paid, so both go at any hour, like the new-order alert
+ * the staff of that Lokasi gets.
  */
 export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"> = {
+  pesanan_diajukan: "transaksional",
+  pesanan_dikonfirmasi: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
@@ -56,9 +64,32 @@ export interface Acara {
 
 /** One row per domain event: recipient, channel, template and timing. */
 export const TABEL_ACARA: Record<
-  "tagihan_terbit" | "tagihan_pengingat" | "bukti_pembayaran_terbit" | "peringatan_staf",
+  | "pesanan_diajukan"
+  | "pesanan_dikonfirmasi"
+  | "tagihan_terbit"
+  | "tagihan_pengingat"
+  | "bukti_pembayaran_terbit"
+  | "peringatan_staf",
   Acara
 > = {
+  /**
+   * A Pemesanan Makam reaches the family by email only (ADR 0004), at any hour:
+   * the order submitted and the same order confirmed (ticket 23). Both are
+   * about the Lokasi Mitra's own work, so a send that keeps failing calls that
+   * Lokasi's Admin Lokasi rather than Admin Platform.
+   */
+  pesanan_diajukan: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pesanan_diajukan",
+    waktu: WAKTU_TEMPLATE.pesanan_diajukan,
+  },
+  pesanan_dikonfirmasi: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pesanan_dikonfirmasi",
+    waktu: WAKTU_TEMPLATE.pesanan_dikonfirmasi,
+  },
   tagihan_terbit: {
     penerima: "email_pemesan",
     kanal: "email",

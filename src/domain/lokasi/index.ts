@@ -56,6 +56,8 @@ import {
   readJamOperasional,
   jamOperasionalOf,
   bukaSekarang,
+  documentChecklistOf,
+  saatDukaPaymentWindowHours,
   serviceHoursDeadline,
   setJamOperasional,
   type JamOperasionalResult,
@@ -309,6 +311,17 @@ export interface Lokasi {
    */
   serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
   /**
+   * A Lokasi Mitra's Saat Duka payment window in hours (its own policy, 72 by
+   * default): what a confirmed order's pay-after Tagihan is due after the
+   * burial (ticket 23). No actor; null for a Lokasi Mitra that does not exist.
+   */
+  saatDukaPaymentWindowHours(lokasiId: string): Promise<number | null>;
+  /**
+   * A Lokasi Mitra's document checklist, whatever its status (ticket 23): what
+   * a family is asked to bring and what an Admin Lokasi ticks off. No actor.
+   */
+  documentChecklistOf(lokasiId: string): Promise<string[]>;
+  /**
    * Whether this Lokasi Mitra is inside its Jam Operasional at the Clock's now
    * (the order card's own fact, no actor); false for a Jam Operasional belum diisi.
    */
@@ -390,6 +403,8 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
+    saatDukaPaymentWindowHours: (lokasiId) => saatDukaPaymentWindowHours(deps, lokasiId),
+    documentChecklistOf: (lokasiId) => documentChecklistOf(deps, lokasiId),
     bukaSekarang: (lokasiId) => bukaSekarang(deps, lokasiId),
     recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
     kunjunganVerifikasiSelesai: (lokasiId) => kunjunganVerifikasiSelesai(deps, lokasiId),

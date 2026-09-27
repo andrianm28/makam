@@ -82,7 +82,26 @@ export const pemesananMakam = pgTable(
     keinginanPenempatan: text("keinginan_penempatan"),
     pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
     konfirmasiDueAt: at("konfirmasi_due_at"),
+    /**
+     * When the worker's re-alert went out: once 1 h of the Lokasi's Jam
+     * Operasional has passed with the order still Diajukan (spec,
+     * Notifications). Set by the claim that fires it, so a tick that runs twice
+     * alerts once.
+     */
+    realertPada: at("realert_pada"),
     tagihanId: text("tagihan_id"),
+    /**
+     * What the Lokasi's confirmation assigned (ticket 23): the Petak Makam it
+     * gave the order and the Hak Pakai that created, with the burial the Lokasi
+     * agreed with the family. The Tagihan's due date counts from `pemakaman_at`
+     * (the family's `rencana_pemakaman_at` is only what it planned). All null
+     * until the order is Dikonfirmasi.
+     */
+    petakId: text("petak_id"),
+    petakNomor: text("petak_nomor"),
+    hakPakaiId: text("hak_pakai_id"),
+    pemakamanAt: at("pemakaman_at"),
+    dikonfirmasiPada: at("dikonfirmasi_pada"),
     /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
@@ -91,5 +110,41 @@ export const pemesananMakam = pgTable(
     uniqueIndex("pemesanan_makam_nomor_idx").on(table.nomor),
     index("pemesanan_makam_pemesan_idx").on(table.pemesanAccountId),
     index("pemesanan_makam_lokasi_idx").on(table.lokasiId),
+    // The open work of one Lokasi Mitra: what its Antrean Lokasi and its Tier 1 late rows read.
+    index("pemesanan_makam_status_lokasi_idx").on(table.status, table.lokasiId),
+  ],
+);
+
+/**
+ * Owned by the Pemesanan module: one document on one order's checklist (spec,
+ * Pemesanan, stories 29–30 and 120). The family adds a file at any time — before
+ * the burial, after it, or never — and the Admin Lokasi ticks the item off when
+ * they have it in hand. Nothing here ever blocks a confirmation or a burial: a
+ * row with no file is a document still to bring, not a missing one.
+ *
+ * `nama` is the Lokasi Mitra's own checklist wording, copied at the moment the
+ * row is created, so a later change to the Lokasi's checklist never rewrites an
+ * order's.
+ */
+export const pemesananBerkas = pgTable(
+  "pemesanan_berkas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pemesananId: uuid("pemesanan_id")
+      .notNull()
+      .references(() => pemesananMakam.id),
+    /** The checklist item's wording, as the Lokasi Mitra writes it. */
+    nama: text("nama").notNull(),
+    /** The private FileStore key of the file the family added, or null while none. */
+    fileKey: text("file_key"),
+    diunggahPada: at("diunggah_pada"),
+    diunggahOleh: text("diunggah_oleh"),
+    dicentangPada: at("dicentang_pada"),
+    dicentangOleh: text("dicentang_oleh"),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [
+    // One row per checklist item per order: a family that uploads twice replaces its file.
+    uniqueIndex("pemesanan_berkas_item_idx").on(table.pemesananId, table.nama),
   ],
 );

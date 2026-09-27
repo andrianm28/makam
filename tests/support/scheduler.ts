@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import type { PaymentEffect } from "@/domain/billing";
 import type { Notifications } from "@/domain/notifications";
+import type { PemesananNotifikasi } from "@/domain/pemesanan";
 import type { SchedulerContext } from "@/domain/scheduler";
 import type { ReportError } from "@/lib/observability/report-error";
 
@@ -15,11 +16,32 @@ export function schedulerContext(parts: {
   paymentEffects?: readonly PaymentEffect[];
   reportError?: ReportError;
   notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
+  pemesanan?: SchedulerContext["pemesanan"];
 }): SchedulerContext {
   return {
     db: parts.db,
     paymentEffects: parts.paymentEffects ?? [],
     reportError: parts.reportError ?? (() => {}),
     notifications: parts.notifications ?? { kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }) },
+    pemesanan:
+      parts.pemesanan ??
+      ({
+        db: parts.db,
+        clock: { now: () => new Date() },
+        lokasi: TIMEOUT_LOKASI,
+        identity: { adminLokasiOf: async () => [] },
+        notifikasi: DIAMDIAM,
+      } satisfies SchedulerContext["pemesanan"]),
   };
 }
+
+/** A Jam Operasional belum diisi, so a test that runs another module's tick re-alerts nothing. */
+const TIMEOUT_LOKASI = {
+  serviceHoursDeadline: async () => ({ ok: false as const, reason: "jam_operasional_belum_diisi" as const }),
+  kontakSiagaOf: async () => null,
+};
+const DIAMDIAM: PemesananNotifikasi = {
+  pesananDiajukan: async () => {},
+  pesananBelumDikonfirmasi: async () => {},
+  pesananDikonfirmasi: async () => {},
+};
