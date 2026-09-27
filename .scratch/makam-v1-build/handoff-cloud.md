@@ -14,6 +14,13 @@ This file is the session's memory. If the context is long and degrading, read th
 - **Tickets 43, 49, 86** + a research agent: building. 49 and 43 are Rilis 2/3 — they were started because nothing in Rilis 1 was unblocked.
 - 64 merged and `resolved`. 72 merged with status **`in-progress`** (code complete; rehearsal and credentials are human-gated).
 
+## Migration numbering: four tickets are queued for the same number
+`main` is at `0019_pemesanan_makam`. Three branches each carry their own `0020_*` (36 `curved_dorian_gray`, 43 `foamy_hitman`, 86 `cooing_felicia_hardy`) and ticket 49 still carries a colliding `0019_mature_amphibian`. All of them are additive, so nothing breaks — the merge order decides who gets which number:
+
+**36 → 0020, then 43 → 0021, then 86 → 0022, then 49 → 0023.**
+
+Each one regenerates with `npm run db:generate` from a freshly merged `main`; never hand-edit `_journal.json` and never rename a migration file. Expect the non-first merges to have to redo this step, and verify with `grep -c "idx: N"` (must be 1) plus unique tags.
+
 ## Owner decisions (settled — do not re-ask)
 - **An Akun has a name**, captured at Kode Masuk. Consequence: the Kode Masuk form gained "Nama Anda"; `identityUser.name` is no longer `""`; for a signed-in Pemesan the wizard's email field is read-only (CONTEXT.md: Verifikasi Email is the only self-service way to change one's own login email).
 - **The pre-migrate `pg_dump` stays local**; nothing goes off-host in v1. Ticket 72's AC 19 was rewritten to match.
