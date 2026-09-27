@@ -29,7 +29,7 @@ describe("the Kontak Siaga of a Lokasi Mitra", () => {
 
     expect(await setup.lokasi.kontakSiaga(first, lokasiMitra.id)).toEqual({
       ok: true,
-      kontakSiaga: { accountId: second.accountId, email: "lokasi-084444444444@contoh.id", phoneNumber: "+6284444444444" },
+      kontakSiaga: { accountId: second.accountId, email: "lokasi-084444444444@contoh.id", name: "", phoneNumber: "+6284444444444" },
     });
     expect(await setup.lokasi.kontakSiagaOf(lokasiMitra.id)).toMatchObject({ accountId: second.accountId });
     const log = await setup.lokasi.auditLog(first, lokasiMitra.id);

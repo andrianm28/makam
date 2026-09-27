@@ -1,5 +1,5 @@
 {
-  "id": "84e28e06-62fd-4fb8-a46e-2f108e8f60e5",
+  "id": "5b969753-ba61-4159-be07-0f69e958995f",
   "prevId": "8d5a5874-a012-4b99-9f06-045af7b65e5c",
   "version": "7",
   "dialect": "postgresql",
@@ -2993,123 +2993,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.tpu_dki": {
-      "name": "tpu_dki",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_key": {
-          "name": "name_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "address": {
-          "name": "address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "city": {
-          "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pin_lat": {
-          "name": "pin_lat",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pin_lng": {
-          "name": "pin_lng",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "data_source": {
-          "name": "data_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "menerima_makam_baru": {
-          "name": "menerima_makam_baru",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "flag_updated_at": {
-          "name": "flag_updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "tpu_dki_name_key_idx": {
-          "name": "tpu_dki_name_key_idx",
-          "columns": [
-            {
-              "expression": "name_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "tpu_dki_name_idx": {
-          "name": "tpu_dki_name_idx",
-          "columns": [
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.notifications_message": {
       "name": "notifications_message",
       "schema": "",
@@ -3657,6 +3540,192 @@
             },
             {
               "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pemesanan_makam": {
+      "name": "pemesanan_makam",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nomor": {
+          "name": "nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_name": {
+          "name": "lokasi_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_makam_id": {
+          "name": "jenis_makam_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "jenis_makam_name": {
+          "name": "jenis_makam_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemesan_account_id": {
+          "name": "pemesan_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemesan_name": {
+          "name": "pemesan_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "almarhum_name": {
+          "name": "almarhum_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal_wafat": {
+          "name": "tanggal_wafat",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rencana_pemakaman_at": {
+          "name": "rencana_pemakaman_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keinginan_penempatan": {
+          "name": "keinginan_penempatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pemegang_hak": {
+          "name": "pemegang_hak",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "konfirmasi_due_at": {
+          "name": "konfirmasi_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tagihan_id": {
+          "name": "tagihan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diajukan_at": {
+          "name": "diajukan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pemesanan_makam_nomor_idx": {
+          "name": "pemesanan_makam_nomor_idx",
+          "columns": [
+            {
+              "expression": "nomor",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_makam_pemesan_idx": {
+          "name": "pemesanan_makam_pemesan_idx",
+          "columns": [
+            {
+              "expression": "pemesan_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pemesanan_makam_lokasi_idx": {
+          "name": "pemesanan_makam_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -3,7 +3,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { isLokasiId, writeLokasiMitra, type LokasiDeps, type NotFound, type WriteResult } from "./lokasi-mitra";
 import { lokasiMitra } from "./schema";
 import { jamOperasionalSchema, type JamOperasional } from "./jam-operasional-schema";
-import { deadline, type WorkingTimeResult } from "./working-time";
+import { deadline, isOpenAt, type WorkingTimeResult } from "./working-time";
 
 /** A Lokasi Mitra's Jam Operasional; null until its Admin Lokasi saves one (there is no default). */
 export type JamOperasionalResult = { ok: true; jamOperasional: JamOperasional | null } | WriteRefusal | NotFound;
@@ -45,6 +45,20 @@ export async function serviceHoursDeadline(
   const read = await jamOperasionalOf(deps, lokasiId);
   if (!read.ok) return read;
   return deadline(read.jamOperasional, start ?? deps.clock.now(), hours);
+}
+
+/**
+ * Whether a Lokasi Mitra is inside its Jam Operasional at the Clock's now: the
+ * order card's own fact (a closed Lokasi says when it will confirm instead, and
+ * names its Kontak Siaga). No actor. False for a Jam Operasional belum diisi.
+ */
+export async function bukaSekarang(
+  deps: Pick<LokasiDeps, "db" | "clock">,
+  lokasiId: string,
+): Promise<{ ok: true; buka: boolean } | NotFound> {
+  const read = await jamOperasionalOf(deps, lokasiId);
+  if (!read.ok) return read;
+  return { ok: true, buka: isOpenAt(read.jamOperasional, deps.clock.now()) };
 }
 
 export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };

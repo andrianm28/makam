@@ -1,6 +1,6 @@
 # Pemesanan Saat Duka wizard at a Lokasi Mitra
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 16, 82
 Spec: Domain modules > 6. Pemesanan (Saat Duka); Public site > Booking wizards; stories 17, 18, 20, 21, 22, 24, 25, 26, 28
 
@@ -37,6 +37,12 @@ _Superseded 2026-09-26 (ADR 0004): this whole section; the email on "Data & kiri
 - In the WhatsApp-outage criterion above, "no account with an email" means "no Akun with an Email Terverifikasi".
 
 ## Comments
+
+- 2026-09-27 — **Merged to main** (`fcb32c5`; the ticket's own merge is `de68b1f` plus the `origin/main` merges). A family can now book a Saat Duka at a Lokasi Mitra end to end: choose the plot, enter the data, receive a Kode Masuk, submit, and land on an order page with a Nomor Pemesanan and the confirmation deadline. Two review rounds with a fix pass in between: Standards 6 HARD + Spec 5, then re-reviewed **15 OK / 1 BELUM**, and that last one was copy — the wizard still promised "kabar pesanan kami kirim ke email ini" while no such message existed, so a family in grief was being told something untrue. That promise is now owed by **ticket 23** (order submitted, order confirmed, to the Pemesan's Email Terverifikasi), and the same promise in `src/app/akun/page.tsx` is owed with it by ticket 27. The review also caught that the city filter highlighted a chip without filtering anything, and that `minYears` was dropped from the tumpang rule — both fixed with tests that would have failed before.
+  - **Owner decisions taken into this ticket:** an Akun has a name, captured at Kode Masuk; for a signed-in Pemesan the wizard's email field is read-only, because Verifikasi Email is the only self-service way to change one's own login email. Both glossary entries (**Akun**, **Kontak Siaga**) were updated in `CONTEXT.md`.
+  - **Unblocks 23 and 26.** 23 owes the family messages and the Konfirmasi Saat Duka row in the Antrean Lokasi — the payload already carries `jenis_makam`, `rencana_pemakaman`, `batas_konfirmasi` and `kontak_siaga`, and it currently only notifies staff. 26 is unblocked and can start.
+
+
 
 - 2026-09-27 — **Owner decision, take this as settled** (do not re-ask, do not pick another option): an **Akun has a name**, captured at Kode Masuk. So the Kode Masuk form gets a "Nama Anda" field (one decision per screen, which the wizard already follows), `identityUser.name` stops being `""`, the Kontak Siaga card can show name and number as AC 4 asks, family messages can greet people, and an Undangan Staf carries a name too. Consequences for this ticket: (1) the name field is required and validated in the same Zod shape as the Kode Masuk in `src/server/code-inputs.ts`; (2) for a signed-in Pemesan the email field is **read-only** with a correct hint — per CONTEXT.md, Verifikasi Email is the only self-service way to change one's own login email, so the wizard may not change it, and the silent discard the reviewer found is a bug; (3) `staff.ts` seed and any other name-less account creation path set a real name or a documented placeholder, never `""`; (4) add a test that a submitted order records the Pemesan's name. The glossary entry for **Akun** in `CONTEXT.md` gains the name in this ticket, and **Kontak Siaga** gains "the Admin Lokasi a family can phone, named".
 - 2026-09-27 — Owner decision on ticket 64 open question 4: the pre-migrate `pg_dump` stays **local**; only the scheduled backup goes off-host (in v1 there is no off-host at all — that is the beta rescope). Do not build off-host copies of the pre-migrate dump.

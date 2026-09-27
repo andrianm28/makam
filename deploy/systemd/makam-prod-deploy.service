@@ -1,0 +1,24 @@
+# Pull-based deploy of makam-prod (docs/ops/runbook.md). Installed by
+# deploy/install-host.sh, but NOT enabled: production only follows :latest once
+# the owner decides it should (ticket 65). Until then deploy an exact digest by
+# hand after a promotion.
+[Unit]
+Description=Deploy makam-prod from ghcr (verify signature, snapshot, migrate, restart, health)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-deploy --env prod
+TimeoutStartSec=20min
+
+# Hardening, as for staging: docker socket, the read-only home with the ghcr
+# login, cosign and curl, and write access to /opt/makam-v1 (which includes
+# prod/backups/db, the pg_dump snapshots).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/makam-v1

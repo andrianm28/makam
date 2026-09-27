@@ -79,6 +79,8 @@ export interface PublicLokasiMitraCard {
 
 export interface PublicLokasiMitraQuery {
   city?: string;
+  /** Only this Lokasi Mitra, the deep link a visitor came from ("Data & kirim" prices that one). */
+  id?: string;
   /** Every one of these must be checked (spec, story 7: filterable by facilities). */
   facilities?: LokasiFacility[];
 }
@@ -106,6 +108,7 @@ export async function publicLokasiMitraList(
 ): Promise<PublicLokasiMitraCard[]> {
   const conditions = [eq(lokasiMitraTable.status, "terverifikasi")];
   if (query.city) conditions.push(eq(lokasiMitraTable.city, query.city));
+  if (query.id) conditions.push(eq(lokasiMitraTable.id, query.id));
   const rows = await deps.db
     .select()
     .from(lokasiMitraTable)

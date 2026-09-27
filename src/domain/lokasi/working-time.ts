@@ -45,7 +45,20 @@ function openWindow(schedule: JamOperasional, dayStart: Date): { opens: number; 
 }
 
 /**
- * The instant `hours` service hours after `start`, counting only open hours:
+ * Whether `at` falls inside the schedule's open window on its WIB day: an
+ * open weekday that is not a Tanggal Tutup, between its opening and closing
+ * hour. False for a Jam Operasional belum diisi, which promises nothing.
+ */
+export function isOpenAt(schedule: JamOperasional | null, at: Date): boolean {
+  if (!schedule) return false;
+  const window = openWindow(schedule, wibDayStart(at));
+  if (!window) return false;
+  const time = at.getTime();
+  return time >= window.opens && time < window.closes;
+}
+
+/**
+ * `hours` service hours after `start`, counting only open hours:
  * the clock pauses outside them, on closed weekdays and on Tanggal Tutup.
  */
 export function deadline(schedule: JamOperasional | null, start: Date, hours: number): WorkingTimeResult {

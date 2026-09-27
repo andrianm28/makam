@@ -30,7 +30,7 @@ describe("Admin Lokasi of a Lokasi Mitra", () => {
     expect(adminLokasi).toMatchObject({ roles: ["pemesan", "admin_lokasi"], lokasiIds: [lokasiMitra.id] });
     expect(await setup.lokasi.adminLokasiOf(admin, lokasiMitra.id)).toEqual({
       ok: true,
-      adminLokasi: [{ accountId: adminLokasi!.accountId, email: "pengelola@contoh.id", phoneNumber: "+6283333333333" }],
+      adminLokasi: [{ accountId: adminLokasi!.accountId, email: "pengelola@contoh.id", name: "", phoneNumber: "+6283333333333" }],
       openInvites: [],
     });
   });

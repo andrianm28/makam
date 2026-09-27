@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Verifies that an image digest carries this environment's cosign signature.
+#
+#   makam-verify-image --env staging --image ghcr.io/andrianm28/makam --digest sha256:...
+#
+# makam-deploy calls this before `migrate`; on its own it answers "may this host
+# run this exact image?". The key pair never leaves GitHub: CI signs with the
+# private key (a GitHub secret) and deploy/install-host.sh puts the matching
+# public key on the host as <root>/<env>/cosign.pub. Staging and production
+# have separate keys, so an image signed for staging is not accepted here.
+#
+# Exit codes (the ones a deploy branches on):
+#   0   the digest carries this environment's signature
+#   64  usage
+#   77  unsigned, or signed by another key (EX_NOPERM): never deploy
+#   78  cosign is missing or the public key is not installed (EX_CONFIG)
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+IMAGE=""
+DIGEST=""
+
+usage() {
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --image) IMAGE=${2:?}; shift 2 ;;
+    --digest) DIGEST=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging) ;;
+  prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+[ -n "$IMAGE" ] || { echo "--image is required" >&2; exit 64; }
+[ -n "$DIGEST" ] || { echo "--digest is required" >&2; exit 64; }
+case "$DIGEST" in
+  sha256:*) ;;
+  *) echo "--digest must be a sha256 digest, not a tag: $DIGEST" >&2; exit 64 ;;
+esac
+
+KEY="$MAKAM_ROOT/$ENV_NAME/cosign.pub"
+command -v cosign > /dev/null 2>&1 || { echo "cosign is not installed on this host" >&2; exit 78; }
+[ -r "$KEY" ] || { echo "no cosign public key for $ENV_NAME at $KEY (run deploy/install-host.sh)" >&2; exit 78; }
+
+# The digest, never the tag: a tag can be moved between this check and the
+# deploy, a digest cannot.
+if cosign verify --key "$KEY" "$IMAGE@$DIGEST"; then
+  exit 0
+fi
+echo "refusing $IMAGE@$DIGEST: no valid $ENV_NAME signature (unsigned, or signed with another key)" >&2
+exit 77

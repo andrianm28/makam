@@ -45,13 +45,20 @@ export async function adminLokasiIdsOf(db: Database, accountId: string): Promise
 export interface AdminLokasiAccount {
   accountId: string;
   email: string | null;
+  /** The name on record; empty until an Akun Saya profile or a wizard sets it (the Kontak Siaga shows it when there is one). */
+  name: string;
   /** The phone number, a contact only (Kontak Siaga shows it). */
   phoneNumber: string | null;
 }
 
 function adminLokasiRows(db: Database, where: SQL | undefined) {
   return db
-    .select({ accountId: identityUser.id, email: identityUser.contactEmail, phoneNumber: identityUser.phoneNumber })
+    .select({
+      accountId: identityUser.id,
+      email: identityUser.contactEmail,
+      name: identityUser.name,
+      phoneNumber: identityUser.phoneNumber,
+    })
     .from(identityAdminLokasi)
     .innerJoin(identityUser, eq(identityUser.id, identityAdminLokasi.accountId))
     .innerJoin(
@@ -62,8 +69,13 @@ function adminLokasiRows(db: Database, where: SQL | undefined) {
     .orderBy(asc(identityAdminLokasi.grantedAt), asc(identityUser.id));
 }
 
-function toAdminLokasiAccount(row: { accountId: string; email: string | null; phoneNumber: string | null }): AdminLokasiAccount {
-  return { accountId: row.accountId, email: row.email, phoneNumber: row.phoneNumber };
+function toAdminLokasiAccount(row: {
+  accountId: string;
+  email: string | null;
+  name: string;
+  phoneNumber: string | null;
+}): AdminLokasiAccount {
+  return { accountId: row.accountId, email: row.email, name: row.name, phoneNumber: row.phoneNumber };
 }
 
 /** Every Akun that is Admin Lokasi of this Lokasi Mitra (holding the role), oldest link first. */
