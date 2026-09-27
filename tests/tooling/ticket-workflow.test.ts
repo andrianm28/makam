@@ -9,6 +9,7 @@ import {
   ticketComments,
   ticketFileProblems,
   ticketStatus,
+  TICKET_FILE_NAME,
   type Ticket,
 } from "../support/ticket-workflow";
 
@@ -46,10 +47,15 @@ const MARKER = "Two-axis review";
  *
  * 43 is the boundary, and the tickets below it are the ones that merged before
  * the discipline had a marker at all. How many of them carry no record at all is
- * a measurement of history, so it is pinned in a test below rather than only
- * written here: a number that lives in a comment drifts silently, and one
- * already had (AGENTS.md said nine where the tree says eleven). Those gaps are
- * historical and are not reconstructed here.
+ * a measurement of history, so it is measured in a test below rather than only
+ * written here. AGENTS.md's prose said nine where the tree said eleven, and this
+ * comment repeated the nine; the correction landed in the file that states the
+ * number and left every copy of it behind, which is what a number that lives
+ * only in prose does. The number in the test is *not* a copy of AGENTS.md, and
+ * nothing keeps the two in step: they are two statements of one measurement,
+ * and the test is the one that moves when the tree does, which is why the prose
+ * is updated in the same commit. Those gaps are historical and are not
+ * reconstructed here.
  *
  * Above 43 the discipline *was* in force when those tickets merged, so they are
  * what a plain `>= 43` rule would fail on today. GRACE below names them: 17
@@ -95,8 +101,11 @@ function readTree(issues: URL = ISSUES): Tree {
   const empty: Tree = { issueFiles: [], indexText: "", tickets: [], problem: null };
   try {
     const issueFiles = readdirSync(issues);
+    // The reader and the naming rule share one pattern (TICKET_FILE_NAME), so
+    // they cannot disagree about which files are tickets — which is how the
+    // first version came to read files the rule called invalid.
     const tickets = issueFiles
-      .filter((name) => /^\d\d-.*\.md$/.test(name) && name !== INDEX)
+      .filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)
       .map((name) => {
         const text = readFileSync(new URL(name, issues), "utf8");
         return { number: Number(name.slice(0, 2)), name, status: ticketStatus(text), comments: ticketComments(text) };
@@ -177,26 +186,22 @@ describe("the ticket workflow discipline", () => {
 
   it("keeps the history it claims below the ratchet, as a number and not a comment", () => {
     // The comment on RATCHET_FROM says how much review history is missing below
-    // the boundary. Written as prose that number drifts (AGENTS.md said nine
-    // where the tree says eleven), so it is measured here, and the parts are
-    // counted separately because the two halves mean different things: one is
-    // records that exist in another wording, the other is tickets whose merge
-    // left nothing at all. The second sum is what stops the pinned 11 from
-    // being a count taken over a subset of the tree.
+    // the boundary, and that number has drifted in prose before: AGENTS.md said
+    // nine where the tree said eleven, and a comment here repeated the nine. So
+    // it is measured here, and the two halves are counted separately because they
+    // mean different things: records that exist in another wording, and tickets
+    // whose merge left nothing.
+    //
+    // There is deliberately no sum of the buckets here. They are a partition of
+    // one list, so the sum equals its own length by construction and cannot
+    // fail — an assertion that cannot fail is a claim of safety with nothing
+    // behind it, which is what the re-review caught in the first version.
     const under = (withMarker: boolean): Ticket[] =>
       tickets.filter(
         (ticket) => ticket.status === "resolved" && ticket.number < RATCHET_FROM && ticket.comments.some((section) => section.includes(MARKER)) === withMarker,
       );
-    const over = (withMarker: boolean): Ticket[] =>
-      tickets.filter(
-        (ticket) => ticket.status === "resolved" && ticket.number >= RATCHET_FROM && ticket.comments.some((section) => section.includes(MARKER)) === withMarker,
-      );
-    const notResolved = tickets.filter((ticket) => ticket.status !== "resolved");
     expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(7);
     expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
-    // Every ticket is in exactly one of the five buckets, so the pinned numbers
-    // cannot be counting a slice while something else goes unaccounted for.
-    expect(under(true).length + under(false).length + over(true).length + over(false).length + notResolved.length).toBe(tickets.length);
   });
 
   it("keeps GRACE sorted, unique, inside the ratchet and made of real resolved tickets", () => {
@@ -282,18 +287,38 @@ describe("the ticket-file naming rule", () => {
     // either. So the two readers below are shown dropping it, and this rule is
     // the one thing left that sees it.
     const names = [INDEX, "07-production.md", "100-catalog.md"];
-    expect(names.filter((name) => /^\d\d-.*\.md$/.test(name) && name !== INDEX)).toEqual(["07-production.md"]);
+    expect(names.filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)).toEqual(["07-production.md"]);
     expect(indexRows("| [100](100-catalog.md) | Catalog | resolved | — |\n").size).toBe(0);
     expect(ticketFileProblems(names)).toEqual([
-      "100-catalog.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
+      "100-catalog.md: not a ticket file name — one is <nn>-<slug>.md, two digits (01..99) then a dash then a slug with no spaces and a lowercase .md. The readers match that name exactly, so this one is at best half-read and at worst not read at all: rename it to fit, or move it out of the issues directory",
     ]);
   });
 
-  it("catches a one-digit and an unnumbered file the same way", () => {
-    expect(ticketFileProblems(["9-late.md", "notes.md"])).toEqual([
-      "9-late.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
-      "notes.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
-    ]);
+  it("catches a capital extension, which no reader and no rule used to notice", () => {
+    // A `.MD` file sat in the same blind spot as a 100, for the same reason: the
+    // reader asked for `.md` and the rule asked for `.md`, so both said no and
+    // the file was in the tree with nothing checking it. The rule now looks for
+    // the extension case-insensitively, and the two readers are shown not
+    // reading it.
+    const names = [INDEX, "07-x.MD", "08-y.Md"];
+    expect(names.filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)).toEqual([]);
+    expect(indexRows("| [07](07-x.MD) | X | resolved | — |\n").size).toBe(0);
+    const problems = ticketFileProblems(names);
+    expect(problems.map((problem) => problem.split(":")[0])).toEqual(["07-x.MD", "08-y.Md"]);
+    for (const problem of problems) {
+      expect(problem).toContain("lowercase .md");
+      expect(problem).toContain("rename it to fit, or move it out of the issues directory");
+    }
+  });
+
+  it("catches a space in the name, which the reader read and the rule refused", () => {
+    // The two answers disagreed: the reader's pattern was looser than the rule's,
+    // so `07- a.md` was read as a ticket and then reported as an invalid name.
+    // One pattern decides both now, and this is what says so.
+    for (const name of ["07- a.md", "07-a b.md", "9-late.md", "notes.md"]) {
+      expect(TICKET_FILE_NAME.test(name), `${name} is read as a ticket file`).toBe(false);
+      expect(ticketFileProblems([name]), `${name} is not refused`).toHaveLength(1);
+    }
   });
 
   it("leaves a two-digit ticket and the index alone", () => {
