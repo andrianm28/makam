@@ -200,7 +200,11 @@ describe("the ticket workflow discipline", () => {
       tickets.filter(
         (ticket) => ticket.status === "resolved" && ticket.number < RATCHET_FROM && ticket.comments.some((section) => section.includes(MARKER)) === withMarker,
       );
-    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(7);
+    // Both counts move when a pre-ratchet ticket gains its marker, and that is the
+    // point: writing the record is a visible act, so the number that watches it
+    // moves. Ticket 26 took this from 7 to 8 on 2026-09-27. The half that has no
+    // record at all never moves downwards on its own — only a real merge can.
+    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(8);
     expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
   });
 
