@@ -91,11 +91,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
-<<<<<<< HEAD
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
-=======
->>>>>>> origin/main
     globalForRuntime.__makamRuntime = {
       env,
       database,
