@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { Clock, MoonStar } from "lucide-react";
-import { StatusBadge } from "@/components/makam/status-badge";
+import { StatusBadge, type StatusKey } from "@/components/makam/status-badge";
 import { csWhatsAppLink } from "@/components/kode-masuk/state";
 import { authorize, pemesananResource } from "@/domain/identity";
 import { isOpenAt, TPU_SCHEDULE } from "@/domain/lokasi";
-import type { PengurusanOrder } from "@/domain/pengurusan";
+import type { PengurusanOrder, PengurusanTpuStatus } from "@/domain/pengurusan";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -56,7 +56,7 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
           </span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={order.status} />
+          <StatusBadgeIn order={order} />
           <span className="text-small text-muted-foreground">Diajukan {formatTanggalJam(order.diajukanAt)}</span>
         </div>
       </header>
@@ -158,6 +158,28 @@ async function orderFor(params: Promise<{ nomor: string }>): Promise<PengurusanO
   if (!actor) redirect("/masuk");
   if (!authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed) return null;
   return serverRuntime().pengurusan.orderOf(parsed.data, { accountId: actor.accountId });
+}
+
+/**
+ * The order's status, as the shared badge can say it. The Pengurusan module
+ * knows its own eleven statuses (spec, Pengurusan), but a status the vocabulary
+ * has no word for belongs to the ticket that can first reach it — Dokumen
+ * Lengkap and IPTM Terbit to the filing (46), Menunggu Pembayaran, Diproses and
+ * Perlu Perbaikan to Perpanjangan TPU (48) — and each of those adds its label
+ * here and in `statusVocabulary` when it lands. A status with no word yet is
+ * shown as nothing rather than as a word the glossary does not carry.
+ */
+const BADGE: Partial<Record<PengurusanTpuStatus, StatusKey>> = {
+  diajukan: "diajukan",
+  dikonfirmasi: "dikonfirmasi",
+  dimakamkan: "dimakamkan",
+  ditolak: "ditolak",
+  dibatalkan: "dibatalkan",
+};
+
+function StatusBadgeIn({ order }: { order: PengurusanOrder }) {
+  const status = BADGE[order.status];
+  return status ? <StatusBadge status={status} /> : null;
 }
 
 function Daftar({ judul, dokumen }: { judul: string; dokumen: PengurusanOrder["dokumen"]["pemakaman"] }) {

@@ -23,14 +23,6 @@ export const statusVocabulary = {
   diajukan: { label: "Diajukan", tone: "info" },
   dikonfirmasi: { label: "Dikonfirmasi", tone: "success" },
   dimakamkan: { label: "Dimakamkan", tone: "success" },
-  // A Pengurusan order's own steps (spec, Pengurusan): Dimakamkan → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, with the
-  // payment steps a Perpanjangan TPU and a filing-only Pengurusan pass through. Reachable from ticket 45 on.
-  dokumen_lengkap: { label: "Dokumen Lengkap", tone: "success" },
-  menunggu_pembayaran: { label: "Menunggu Pembayaran", tone: "warning" },
-  diproses: { label: "Diproses", tone: "info" },
-  perlu_perbaikan: { label: "Perlu Perbaikan", tone: "warning" },
-  iptm_diajukan: { label: "IPTM Diajukan", tone: "info" },
-  iptm_terbit: { label: "IPTM Terbit", tone: "success" },
   selesai: { label: "Selesai", tone: "success" },
   ditolak: { label: "Ditolak", tone: "warning" },
   dibatalkan: { label: "Dibatalkan", tone: "neutral" },
