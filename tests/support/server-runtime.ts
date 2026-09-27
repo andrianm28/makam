@@ -9,6 +9,7 @@ import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
+import { createPengurusan } from "@/domain/pengurusan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
@@ -94,6 +95,15 @@ export function testServerRuntime() {
         billing,
         identity,
         notifications,
+      }),
+      pengurusan: createPengurusan({
+        db: database.db,
+        clock: adapters.clock,
+        files: adapters.files,
+        lokasi,
+        tariffs,
+        billing,
+        identity,
       }),
     };
   }

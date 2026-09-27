@@ -77,7 +77,9 @@ export async function logIn(setup: IdentitySetup, address: string, options: { ph
 
 /**
  * The first Admin Platform, seeded, logged in by Kode Masuk and past TOTP: the
- * actor a guarded staff Server Action would hand to the identity module.
+ * actor a guarded staff Server Action would hand to the identity module. Seeding
+ * is refused a second time, so a test that needs that actor in two fixtures must
+ * take it from `adminPlatformOf` rather than call this twice.
  */
 export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin@makam.co.id") {
   const { identity, clock } = setup;
@@ -91,6 +93,16 @@ export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin
   const actor = await identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
   return { actor, cookies, totpSecret: enrolment.secret };
+}
+
+/** The one Admin Platform a setup acts as, kept per setup: seeding is refused twice, so every fixture shares this one. */
+const admins = new WeakMap<object, ReturnType<typeof signedInAdminPlatform>>();
+export function adminPlatformOf(setup: IdentitySetup): ReturnType<typeof signedInAdminPlatform> {
+  const cached = admins.get(setup);
+  if (cached) return cached;
+  const login = signedInAdminPlatform(setup);
+  admins.set(setup, login);
+  return login;
 }
 
 /**

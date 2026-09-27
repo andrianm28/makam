@@ -2,8 +2,9 @@ import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { PemesananDiajukan, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import { createPengurusan } from "@/domain/pengurusan";
 import { cellsOf } from "./inventory";
-import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -48,7 +49,19 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, terencana };
+  // The wizard's first screen is the combined Lokasi Mitra / TPU list, so a
+  // wizard fixture has both modules: the Pengurusan module reads the TPU list and
+  // the TPU prices the section shows, and shares everything else with this one.
+  const pengurusan = createPengurusan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    billing: setup.billing,
+    identity: setup.identity,
+  });
+  return { ...setup, pemesanan, pengurusan, diumumkan, terencana };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -68,15 +81,9 @@ export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, n
   return Object.fromEntries(found);
 }
 
-/** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */
-const admins = new WeakMap<object, Promise<{ actor: Actor; cookies: string }>>();
+/** The one Admin Platform a setup's fixtures act as (the first seed is refused twice, so it is shared with the other fixtures). */
 function adminPlatform(setup: PemesananSetup) {
-  let admin = admins.get(setup);
-  if (!admin) {
-    admin = signedInAdminPlatform(setup);
-    admins.set(setup, admin);
-  }
-  return admin;
+  return adminPlatformOf(setup);
 }
 
 /** The one PetugasLapangan of a setup: a Kode Masuk is sent at most once a minute per email. */
@@ -269,9 +276,11 @@ export async function belumTeverifikasiLokasi(setup: PemesananSetup, name = "Mak
 
 /**
  * A Pemesan with a proven email: a Kode Masuk created the Akun, as it does at
- * Kirim, with `name` the name "Data & kirim" held.
+ * Kirim, with `name` the name "Data & kirim" held. It needs only the Clock, the
+ * Identity module and the fake EmailSender, so the Pengurusan module's setup uses
+ * this too.
  */
-export async function pemesanDenganEmail(setup: PemesananSetup, email: string, name?: string) {
+export async function pemesanDenganEmail(setup: Pick<PemesananSetup, "clock" | "identity" | "email">, email: string, name?: string) {
   let sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
   // A second login to the same email within 60 s waits for "Kirim ulang", as a person would.
   if (!sent.ok && sent.reason === "tunggu_kirim_ulang") {

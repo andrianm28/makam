@@ -15,6 +15,7 @@ import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
+import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -43,6 +44,8 @@ export interface ServerRuntime {
   queues: Queues;
   /** Pemesanan Makam: both booking wizards (Saat Duka's list, Kirim and order page; Terencana's Denah, hold and order). */
   pemesanan: Pemesanan;
+  /** Pengurusan at a DKI TPU: the Saat Duka TPU list, its submission and its order page. */
+  pengurusan: Pengurusan;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -124,6 +127,15 @@ export function serverRuntime(): ServerRuntime {
         billing,
         identity,
         notifications,
+      }),
+      pengurusan: createPengurusan({
+        db: database.db,
+        clock: adapters.clock,
+        files: adapters.files,
+        lokasi,
+        tariffs,
+        billing,
+        identity,
       }),
     };
   }

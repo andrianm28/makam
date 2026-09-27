@@ -10,14 +10,14 @@ Add the TPU section below the Lokasi Mitra cards in Pilih makam ("dimakamkan lew
 
 ## Acceptance criteria
 
-- [ ] The TPU section lists only TPUs with "menerima makam baru" on; the chip filters the combined list.
-- [ ] Eligibility: no/no blocks the order and points to Lokasi Mitra; "Meninggal di luar Jakarta" adds the Pasal 17(2) documents to the checklist.
-- [ ] Two document sets are attached to the order: for the burial (brought) and for the filing (uploaded later).
-- [ ] Tumpang requires a grave description and an IPTM photo and shows the 3-year and consent warnings.
-- [ ] Submission creates a Saat Duka TPU order (Diajukan, Nomor Pemesanan) with a confirmation deadline of 2 service hours on the 06:00–18:00 clock ("paling lambat pukul 08:00" for a 23:00 submission).
-- [ ] Price lines shown: Biaya Pengurusan (burial amount) as a service fee and Retribusi Pemda Rp 0; no Biaya Layanan Platform.
-- [ ] The submission screen has an optional email field, saved on the account and used only for Tagihan / Bukti copies and, once the Pemesan verifies it, the email Kode Masuk (as ticket 22; verification and email login are ticket 67).
-- [ ] Tests: eligibility blocking; outside-Jakarta documents; deadline on the TPU clock; list filtering by the flag.
+- [x] The TPU section lists only TPUs with "menerima makam baru" on; the chip filters the combined list.
+- [x] Eligibility: no/no blocks the order and points to Lokasi Mitra; "Meninggal di luar Jakarta" adds the Pasal 17(2) documents to the checklist.
+- [x] Two document sets are attached to the order: for the burial (brought) and for the filing (uploaded later).
+- [x] Tumpang requires a grave description and an IPTM photo and shows the 3-year and consent warnings.
+- [x] Submission creates a Saat Duka TPU order (Diajukan, Nomor Pemesanan) with a confirmation deadline of 2 service hours on the 06:00–18:00 clock ("paling lambat pukul 08:00" for a 23:00 submission).
+- [x] Price lines shown: Biaya Pengurusan (burial amount) as a service fee and Retribusi Pemda Rp 0; no Biaya Layanan Platform.
+- [x] The submission screen has an optional email field, saved on the account and used only for Tagihan / Bukti copies and, once the Pemesan verifies it, the email Kode Masuk (as ticket 22; verification and email login are ticket 67).
+- [x] Tests: eligibility blocking; outside-Jakarta documents; deadline on the TPU clock; list filtering by the flag.
 
 ## Notes
 
@@ -25,4 +25,11 @@ Hari-H Layanan on a TPU Saat Duka checkout (fulfilled by a Mitra Jasa) are added
 
 ## Comments
 
+- 2026-09-27 — Dibangun sebagai modul `pengurusan` yang baru: ia memiliki tabelnya sendiri (`pengurusan_tpu`, migrasi `0022_exotic_vanisher`, create-only), `lokasi` tetap pemilik data TPU dan dibaca lewat `publicTpuDkiList` / `publicTpuDki`, dan deadline 2 jam kerja dihitung `daytimeHoursDeadline` milik Lokasi (tiket 11), bukan dihitung ulang.
+- 2026-09-27 — AC 7 dibaca sebagai field email **Pemegang Hak**: field Pemesan tetap read-only seperti tiket 22, karena mengubah email Akun itu kerja login/verifikasi (tiket 67) yang tidak dibangun di sini. Email opsional disimpan di order (dengan nama, telepon, dan email Pemegang Hak), dipakai untuk salinan Tagihan / Bukti, dan membuat makam itu muncul di Akun email tersebut (story 101).
+- 2026-09-27 — Tidak ada harga yang disimpan dua kali: kartu dan order membaca `quote()` yang sama, sehingga Biaya Layanan Platform tidak mungkin ikut (tariffs hanya menambahkannya pada baris Lokasi Mitra).
+- 2026-09-27 — Two document sets adalah milik modul; surat pengantar sengaja tidak ada di keduanya karena diambil sendiri oleh Petugas Lapangan (tiket 45, "Ambil surat pengantar"). Isi persis Pasal 17(2) perlu dikonfirmasi Admin Platform: belum ada satu pun sumber di repo/spec yang merinci dokumen itu.
+- 2026-09-27 — Notifikasi order (Peringatan Staf / Antrean Tier 1) dan Tagihan pada konfirmasi adalah tiket 45, jadi tiket ini tidak mengirim pesan apa pun; tidak ada perubahan staf yang dapat diaudit di tiket ini.
+- 2026-09-27 — Tanpa поле "rencana waktu pemakaman" di layar TPU: spec Pengurusan TPU (story 73) menetapkan waktu pemakaman disepakati Admin Platform dengan TPU saat konfirmasi, dan stories 68–72 tidak menyebut field itu di layar pengajuan.
+- 2026-09-27 — Migrasi: `drizzle/0022_exotic_vanisher.sql` + `drizzle/meta/0022_snapshot.json`, satu entri journal idx 22, create-only tanpa DDL destruktif. Angka 0022 bentrok dengan tiket 86 (antrean 86→0022), jadi di merge worktree file `.sql` **dan** snapshot-nya dihapus lalu `npm run db:generate` diulang; journal tidak boleh diedit manual.
 - 2026-09-26 — ADR 0004: Pemegang Hak for the IPTM takes phone + optional email; Kirim uses the email Kode Masuk (ticket 22); the CS WhatsApp shown at night is a `wa.me` link. Now blocked by 82.

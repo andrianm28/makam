@@ -1,4 +1,6 @@
 import type { GrupSaatDuka, PilihanSaatDuka } from "@/domain/pemesanan";
+import type { KartuTpu } from "@/domain/pengurusan";
+import { konfirmasiTpuLabel } from "@/lib/pengurusan-labels";
 import { konfirmasiLabel, tenureLabel } from "@/lib/pemesanan-labels";
 import { quoteLineLabel } from "@/lib/quote-line-label";
 
@@ -60,5 +62,34 @@ export function grupView(grup: GrupSaatDuka): GrupView {
         }
       : null,
     pilihan: grup.pilihan.map(kartuView),
+  };
+}
+
+/** One TPU of the "Pilih makam" section, as its card shows it. */
+export interface TpuKartuView {
+  tpuId: string;
+  tpuName: string;
+  kota: string;
+  alamat: string;
+  /** The all-in total: Biaya Pengurusan (the burial) + Retribusi Pemda as their own lines; a TPU order never carries a Biaya Layanan Platform. */
+  total: number;
+  /** The same total, line by line, for the sticky bar's breakdown. */
+  rincian: { label: string; amount: number }[];
+  /** "Dikonfirmasi paling lambat …", counted on the 06:00–18:00 WIB TPU window. */
+  konfirmasi: string;
+  /** Whether that window is open at the Clock's now; outside it the card points at CS. */
+  bukaSekarang: boolean;
+}
+
+export function tpuKartuView(kartu: KartuTpu): TpuKartuView {
+  return {
+    tpuId: kartu.tpu.id,
+    tpuName: kartu.tpu.name,
+    kota: kartu.tpu.city,
+    alamat: kartu.tpu.address,
+    total: kartu.harga.total,
+    rincian: kartu.harga.lines.map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
+    konfirmasi: konfirmasiTpuLabel(kartu.konfirmasi.batas),
+    bukaSekarang: kartu.konfirmasi.bukaSekarang,
   };
 }
