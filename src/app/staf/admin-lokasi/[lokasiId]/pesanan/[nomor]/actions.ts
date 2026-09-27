@@ -6,6 +6,7 @@ import { lokasiMitraResource } from "@/domain/identity";
 import { centangDokumenSchema, konfirmasiSaatDukaSchema } from "@/domain/pemesanan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
+import { guardMessage } from "../../../../messages";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type PesananActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -74,14 +75,6 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
-}
-
-/** The guard's own refusals, in the words the staff area uses. */
-function guardMessage(error: "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid"): string {
-  if (error === "belum_masuk") return "Silakan masuk lagi.";
-  if (error === "perlu_totp") return "Masukkan kode dari aplikasi authenticator Anda dulu.";
-  if (error === "tidak_berwenang") return "Anda tidak berwenang melakukan ini.";
-  return "Periksa lagi isian Anda.";
 }
 
 /** Why a confirmation was refused, saying what to do next. */

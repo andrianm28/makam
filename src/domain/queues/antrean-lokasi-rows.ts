@@ -7,7 +7,9 @@
  * a query plus a deadline rule, and a row closes itself when the state it reads
  * moves on. What is deliberately *not* here is the Antrean's machinery: no
  * Ambil claims, no tiers, no Bertugas, and Catatan Internal stay hidden from
- * Admin Lokasi (the Antrean Lokasi has rows only).
+ * Admin Lokasi (the Antrean Lokasi has rows only). A type's key is all the
+ * screen needs to show it, except where a type brings an action of its own
+ * (the failed-message row, whose call is logged in place).
  */
 import type { Actor } from "@/domain/identity";
 import type { AntreanRowDeps } from "./row-types";
@@ -69,9 +71,14 @@ export const konfirmasiSaatDukaRowType: AntreanLokasiRowType = {
 /**
  * A Lokasi-work message that finally failed to send, or an order of that Lokasi
  * Mitra with no email at all (spec, Work Queues: "failed Lokasi-message calls",
- * Lainnya; ticket 23's AC 9). No deadline: the spec gives this row no SLA of its
- * own, so it never shows past one. The row closes when the staff member logs the
- * call (`notifications.catatPanggilan`).
+ * Lainnya). No deadline: the spec gives this row no SLA of its own, so it never
+ * shows past one. The row closes when the staff member logs the call
+ * (`notifications.catatPanggilan`).
+ *
+ * The row covers every subject that queues with a Lokasi (a confirmation, a
+ * Bukti Pemesanan, a Perpanjangan, a Hak Pakai expiry, a Layanan at that
+ * Lokasi). Today only the Saat Duka order's own messages exist; the others
+ * arrive with the tickets that send them, and their rows need no change here.
  */
 export const pesanLokasiGagalRowType: AntreanLokasiRowType = {
   key: "pesan_lokasi_gagal",

@@ -11,6 +11,7 @@ import {
   type KodeMasukRequestState,
   type KodeMasukVerifyState,
 } from "@/components/kode-masuk/state";
+import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "../progress";
@@ -30,6 +31,13 @@ export interface DataKirimProps {
   /** Sends the Kode Masuk to the typed email (the Masuk action, reused as the spec says). */
   mintaKodeMasuk: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
   csContact: CsContact | null;
+  /**
+   * The Lokasi Mitra's own Saat Duka payment window in hours, read by the page
+   * from `lokasi.saatDukaPaymentWindowHours`: what this screen's promise of a
+   * deadline is made of. Null when the Lokasi's policy cannot be read, and the
+   * copy then says so instead of naming a span.
+   */
+  jumlahJamPembayaran: number | null;
 }
 
 /**
@@ -38,7 +46,7 @@ export interface DataKirimProps {
  * the Kode Masuk that opens inline under the form when there is no session yet.
  * The draft lives here, so the Kode Masuk step can place the order with it.
  */
-export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact }: DataKirimProps) {
+export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran }: DataKirimProps) {
   const router = useRouter();
   const [isi, setisi] = useState<Isi>({
     ...draft,
@@ -252,13 +260,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           ) : null}
         </Fieldset>
 
-        <div className="rounded-xl bg-info-soft p-4 text-body text-info-soft-foreground">
-          <p className="font-semibold">Belum ada yang dibayar sekarang.</p>
-          <p className="mt-1">
-            Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan jatuh tempo 3×24 jam setelah pemakaman. Pemakaman tetap
-            berjalan. Dokumen boleh diunggah nanti atau dibawa saat hari pemakaman.
-          </p>
-        </div>
+        <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />
 
         {kodeMasukTerbuka ? (
           <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">

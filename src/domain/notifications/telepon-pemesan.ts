@@ -5,6 +5,12 @@
  * here too, with the `lokasiId` that puts the row in the **Antrean Lokasi** and
  * in the hands of that Lokasi's own Admin Lokasi; tickets 29 and 42 open rows
  * for their own subjects.
+ *
+ * Today a Lokasi-work subject is a Saat Duka order's own message (placed,
+ * confirmed, or an order with no email at all). The Bukti Pemesanan, the
+ * Perpanjangan documents, the Hak Pakai expiry and the Lokasi Layanan senders
+ * arrive with their own tickets, and each of them opens its row the same way:
+ * queue with the Lokasi's `lokasiId`.
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";

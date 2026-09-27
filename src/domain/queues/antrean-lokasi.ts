@@ -5,8 +5,10 @@
  *
  * It is the Antrean's own projection with the Antrean's machinery left out: rows
  * only, no Ambil claims, no tiers, no Bertugas and no counter strip. Adding a
- * row type means adding it to `./antrean-lokasi-rows.ts`, never changing this
- * file or the screen.
+ * row type means adding it to `./antrean-lokasi-rows.ts`; this aggregator and
+ * the row list on the screen then need no change. A row type that asks the
+ * staff member to do something in place adds its own control there, as the
+ * failed-message row does with its "Catat panggilan" (`page.tsx`).
  */
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import { antreanLokasiRowTypes, type AntreanLokasiRow } from "./antrean-lokasi-rows";

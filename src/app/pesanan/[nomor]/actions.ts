@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { pemesananResource } from "@/domain/identity";
 import { DOKUMEN_MAX_BYTES, unggahDokumenSchema } from "@/domain/pemesanan";
+import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 
@@ -39,17 +40,15 @@ export async function unggahDokumenAction(_previous: DokumenActionState, formDat
       return pemesanan.unggahDokumen({ accountId: actor.accountId, email }, data);
     },
   });
-  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  if (!result.ok) {
+    // A session that ended while the family was choosing a file says so in the family's
+    // own words; every other guard refusal is the module's, and it speaks for itself.
+    if (result.error === "belum_masuk") return { status: "gagal", message: "Silakan masuk lagi untuk mengunggah dokumen." };
+    return { status: "gagal", message: pemesananMessage(result.error) };
+  }
   revalidatePath(`/pesanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: unggahMessage(result.value.reason) };
   return { status: "berhasil", message: `${result.value.nama} diterima. Terima kasih.` };
-}
-
-function guardMessage(error: "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid"): string {
-  if (error === "belum_masuk") return "Silakan masuk lagi untuk mengunggah dokumen.";
-  if (error === "perlu_totp") return "Masukkan kode dari aplikasi authenticator Anda dulu.";
-  if (error === "tidak_berwenang") return "Dokumen ini bukan untuk pesanan Anda.";
-  return "Periksa lagi berkas yang Anda pilih.";
 }
 
 function unggahMessage(reason: string): string {

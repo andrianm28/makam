@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { Check } from "lucide-react";
+import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
@@ -34,9 +35,11 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   const order = await orderFor(params);
   if (!order) notFound();
   const { billing, lokasi } = serverRuntime();
-  // The confirmation's own facts: the Tagihan it was issued with, and whom the family may call.
+  // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
+  // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
   const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;
+  const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(order.lokasi.id);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8">
@@ -66,12 +69,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </p>
       )}
 
-      {order.pemakaman ? null : (
-        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
-          Belum ada yang dibayar. Tagihan terbit setelah Lokasi Mitra mengonfirmasi, dan jatuh tempo 3×24 jam setelah
-          pemakaman. Dokumen boleh menyusul.
-        </p>
-      )}
+      {order.pemakaman ? null : <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />}
 
       <Timeline order={order} />
 
