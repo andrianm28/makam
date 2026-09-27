@@ -13,6 +13,12 @@ name: Bersihkan image lama (retensi ghcr)
 # and the digest staging or production is running is excluded explicitly, from
 # the Deployments API. It touches GitHub only: nothing here runs on the host.
 #
+# Fail closed, like makam-prune-images on the host: if the deployments list is
+# empty or unreadable the run names nothing and exits 78, because GitHub purges
+# old deployments and age alone cannot tell a version nobody runs from the
+# digest staging is running right now. The next real deploy puts that record
+# back, and the month after that this deletes again.
+#
 # `dry_run: true` reports without deleting.
 on:
   schedule:
@@ -78,14 +84,21 @@ jobs:
             ENDPOINT="users/$OWNER"
           fi
           echo "endpoint=$ENDPOINT" >> "$GITHUB_ENV"
-          gh api --paginate "$ENDPOINT/packages/container/$PACKAGE/versions?per_page=100" > "$VERSIONS"
-          gh api "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" > "$DEPLOYMENTS"
+          # --paginate, because one page is 100 and one merge is one version:
+          # a repository a few months old is already past that. `jq -s add`
+          # folds the pages `gh api` writes one after another back into one
+          # array, which is the shape the script reads.
+          gh api --paginate "$ENDPOINT/packages/container/$PACKAGE/versions?per_page=100" | jq -s 'add' > "$VERSIONS"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" | jq -s 'add' > "$DEPLOYMENTS"
           printf '%s versions, %s deployments read\n' \
-            "$(jq -s 'add | length' "$VERSIONS")" "$(jq 'length' "$DEPLOYMENTS")" >> "$GITHUB_STEP_SUMMARY"
+            "$(jq 'length' "$VERSIONS")" "$(jq 'length' "$DEPLOYMENTS")" >> "$GITHUB_STEP_SUMMARY"
       - name: The ones that have outlived their age
         env:
           MAKAM_IMAGE_MAX_AGE_DAYS: ${{ env.MAX_AGE_DAYS }}
         run: |
+          # pipefail on purpose: the script's own exit code is the answer to
+          # "may anything be deleted", and in a pipeline it would be tee's.
+          set -o pipefail
           npx --no-install tsx scripts/images/expired-versions.ts "$VERSIONS" "$DEPLOYMENTS" | tee "$EXPIRED"
       - name: Delete them, one version at a time
         run: |

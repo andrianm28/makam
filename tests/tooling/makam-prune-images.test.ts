@@ -16,10 +16,18 @@ const IMAGE = "ghcr.io/andrianm28/makam";
 
 /** `sha-<40 hex>`, the only tag shape the script may remove. */
 const version = (n: number): string => `sha-${String(n).repeat(40)}`;
-/** The image id a container would hold for a version (docker compares ids, not tags). */
-const idOf = (tag: string): string => `sha256:${tag.slice(4, 5).repeat(64)}`;
+/**
+ * The two shapes docker prints an image id in, which are **not** the same
+ * string: `docker image ls --format {{.ID}}` is the 12 character short form,
+ * and `docker inspect --format {{.Image}}` is the full `sha256:<64 hex>`.
+ * Comparing them as they come would never match, so a running container's
+ * image would be offered to docker for deletion. The fake below answers each
+ * call in the shape real docker does, and these are those answers.
+ */
+const fullDigest = (tag: string): string => `sha256:${tag.slice(4, 5).repeat(64)}`;
+const shortId = (tag: string): string => fullDigest(tag).replace("sha256:", "").slice(0, 12);
 /** A `<repository> <tag> <id>` line, the way `docker image ls --format` prints one. */
-const listed = (repository: string, tag: string, id = idOf(tag)): string => `${repository} ${tag} ${id}`;
+const listed = (repository: string, tag: string, id = shortId(tag)): string => `${repository} ${tag} ${id}`;
 
 type Environment = {
   name: "staging" | "prod";
@@ -64,7 +72,7 @@ function host(environments: Environment[]) {
       writeFileSync(
         path.join(dir, "deploy.log"),
         `${history
-          .map((tag, i) => `2026-09-2${i}T10:00:00+07:00 [makam-${env.name}] deploy ${IMAGE}@${idOf(tag)} (${tag}, revision ${tag.slice(4)})`)
+          .map((tag, i) => `2026-09-2${i}T10:00:00+07:00 [makam-${env.name}] deploy ${IMAGE}@${fullDigest(tag)} (${tag}, revision ${tag.slice(4)})`)
           .join("\n")}\n`,
       );
     }
@@ -81,9 +89,18 @@ function host(environments: Environment[]) {
       "fi",
       'case "$*" in',
       '  *"image ls"*) [ -r "$FAKE_DOCKER_IMAGES" ] && cat "$FAKE_DOCKER_IMAGES" ;;',
-      '  *"ps -q"*) [ -r "$FAKE_DOCKER_RUNNING" ] && cat "$FAKE_DOCKER_RUNNING" ;;',
+      // `docker ps -q` prints container ids only; the file holds
+      // `<container id> <image id>` pairs, so the second field is the inspect's.
+      '  *"ps -q"*) [ -r "$FAKE_DOCKER_RUNNING" ] && awk \'{ print $1 }\' "$FAKE_DOCKER_RUNNING" ;;',
       '  *"inspect --format {{.Image}}"*)',
       '    awk -v c="${@: -1}" \'$1 == c { print $2 }\' "$FAKE_DOCKER_RUNNING" ;;',
+      // FAKE_DOCKER_RM_FAILS is a tag, or "all": docker refusing, as it does for
+      // an image a stopped container still holds.
+      '  *"image rm"*)',
+      '    if [ "${FAKE_DOCKER_RM_FAILS:-}" = all ] || [ "${FAKE_DOCKER_RM_FAILS:-}" = "${*##*:}" ]; then',
+      '      echo "conflict: unable to delete $2 (must be forced) - image is being used by stopped container" >&2',
+      "      exit 1",
+      "    fi ;;",
       "esac",
       "exit 0",
       "",
@@ -101,7 +118,7 @@ function host(environments: Environment[]) {
 function prune(
   world: ReturnType<typeof host>,
   inventory: string[],
-  options: { running?: [string, string][]; env?: string } = {},
+  options: { running?: [string, string][]; env?: string; dryRun?: boolean } = {},
   extra: Record<string, string> = {},
 ) {
   const calls = path.join(world.root, "calls.log");
@@ -120,7 +137,10 @@ function prune(
     FAKE_DOCKER_RUNNING: path.join(world.root, "running.txt"),
     ...extra,
   };
-  const result = spawnSync("bash", [pruneScript, "--env", options.env ?? "staging"], { encoding: "utf8", env });
+  const result = spawnSync("bash", [pruneScript, "--env", options.env ?? "staging", ...(options.dryRun ? ["--dry-run"] : [])], {
+    encoding: "utf8",
+    env,
+  });
   const log = readFileSync(calls, "utf8");
   return {
     code: result.status,
@@ -161,13 +181,33 @@ describe("makam-prune-images", () => {
     const world = host([{ name: "staging", running: version(4), previous: version(3), history: [1, 2, 3, 4].map(version) }]);
     // Version 1 is outside the retention set, and someone else's container runs
     // it: docker would refuse to remove it anyway, and the script never asks.
+    // The container side is the full `sha256:` digest and the inventory side is
+    // the 12 character short id, because that is what each docker call prints.
     const result = prune(
       world,
       [1, 2, 3, 4].map((n) => listed(IMAGE, version(n))),
-      { running: [["other-ffi-container", idOf(version(1))]] },
+      { running: [["other-ffi-container", fullDigest(version(1))]] },
     );
     expect(result.removed).toEqual([]);
     expect(result.output).toMatch(/in use/);
+  });
+
+  it("protects a running container's image when the two ids it was given are not the same string", () => {
+    // The regression this ticket's Standards review found: comparing
+    // `docker inspect {{.Image}}` (sha256:<64 hex>) with `docker image ls
+    // {{.ID}}` (12 characters) as they come can never match, so the image a
+    // running container holds would be offered to docker for deletion. Same
+    // image here, in the two shapes docker actually prints it, one on each
+    // side, and it is outside the retention set so only the check can save it.
+    const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+    const result = prune(
+      world,
+      [1, 2, 3].map((n) => listed(IMAGE, version(n))),
+      { running: [["a-container-of-another-project", fullDigest(version(3))]] },
+    );
+    expect(result.removed).toEqual([]);
+    expect(result.output).toMatch(/in use/);
+    expect(result.output).toContain(shortId(version(3)));
   });
 
   it("untags nothing but its own repository's sha-<commit> versions, whatever else the host holds", () => {
@@ -252,10 +292,47 @@ describe("makam-prune-images", () => {
     expect(result.removed).toEqual([]);
   });
 
+  it("reports a previous version it cannot read, instead of quietly dropping it", () => {
+    const world = host([
+      { name: "staging", running: version(3), previous: "not-a-version", history: [1, 2, 3].map(version) },
+    ]);
+    const result = prune(world, [1, 2, 3].map((n) => listed(IMAGE, version(n))), { dryRun: true });
+    // Reported in the log, and the running version is still honoured; the
+    // unreadable one is simply not part of the retention set.
+    expect(result.output).toMatch(/WARNING .*PREVIOUS_TAG/);
+    expect(result.output).not.toContain(`would remove ${IMAGE}:${version(3)}`);
+  });
+
   it("refuses an environment it does not know, and touches nothing", () => {
     const world = host([{ name: "staging", running: version(1), history: [version(1)] }]);
     const result = prune(world, [listed(IMAGE, version(1))], { env: "qa" });
     expect(result.code).toBe(64);
     expect(result.removed).toEqual([]);
+  });
+
+  it("lists exactly what it would remove, and removes nothing, on a dry run", () => {
+    const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+    const result = prune(world, [1, 2, 3].map((n) => listed(IMAGE, version(n))), { dryRun: true });
+    expect(result.code).toBe(0);
+    expect(result.output).toContain(`would remove ${IMAGE}:${version(3)}`);
+    expect(result.removed).toEqual([]);
+    expect(result.calls).not.toContain("image rm");
+  });
+
+  it("keeps a version whose id docker did not give, because it cannot tell it is free", () => {
+    const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+    // A listing line with no id: nothing to compare against the containers.
+    const result = prune(world, [listed(IMAGE, version(1)), listed(IMAGE, version(2)), `${IMAGE} ${version(3)}`]);
+    expect(result.removed).toEqual([]);
+    expect(result.output).toMatch(/no id from docker/);
+  });
+
+  it("says so with its own exit code when a version it should have removed stayed", () => {
+    const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+    const result = prune(world, [1, 2, 3].map((n) => listed(IMAGE, version(n))), {}, { FAKE_DOCKER_RM_FAILS: "all" });
+    // 1, not 0: the space is not free, and "0" has to keep meaning "enforced".
+    expect(result.code).toBe(1);
+    expect(result.output).toMatch(/could not remove/);
+    expect(result.output).toMatch(/kept 2 of 3/);
   });
 });

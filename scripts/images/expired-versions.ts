@@ -40,12 +40,21 @@ const COMMIT_TAG = /^sha-[0-9a-f]{40}$/;
 export type ExpiredOptions = {
   /** Digests an environment is running: deployedRelease's, without the repository. */
   keep: string[];
+  /**
+   * Whether a successful deployment was on record at all. GitHub purges old
+   * deployments, so an empty or unreadable list is the normal state after a
+   * while; without this, deletion would fall back to age alone and could remove
+   * the digest an environment is running (a roll back deploys one from months
+   * ago). Nothing proved *not* deployed means nothing is deleted.
+   */
+  deployed: boolean;
   now: Date;
   maxAgeDays: number;
 };
 
 /** The names of the versions to delete, oldest first. Nothing else, ever. */
 export function expiredVersions(answer: unknown, options: ExpiredOptions): string[] {
+  if (!options.deployed) return [];
   const pages = pagesSchema.safeParse(answer);
   if (!pages.success) return [];
   const versions = pages.data.flat();
@@ -120,11 +129,20 @@ function main(): void {
   // rolls back by hand, so these two names are the whole list.
   const environments = (process.env.MAKAM_IMAGE_ENVIRONMENTS ?? "staging,production").split(",");
   const keep = runningDigests(deployments, environments);
-  console.error(
-    `[retention] keeping the versions ${environments.join(" and ")} are running: ${keep.length === 0 ? "none recorded" : keep.join(", ")}`,
-  );
+  // Fail closed, like the host script: an unreadable or empty deployments list
+  // proves nothing about what is running, and GitHub purges old deployments, so
+  // this is the state a repository lands in after a while. Deleting on age
+  // alone then risks the digest an environment is running.
+  if (keep.length === 0) {
+    console.error(
+      `[retention] no successful ${environments.join(" or ")} deployment is on record, so nothing is proved to be undeployed; deleting nothing (see docs/ops/runbook.md, "Images on the host and the disk")`,
+    );
+    process.exitCode = 78;
+    return;
+  }
+  console.error(`[retention] keeping the versions ${environments.join(" and ")} are running: ${keep.join(", ")}`);
 
-  for (const name of expiredVersions(versions, { keep, now: new Date(), maxAgeDays })) {
+  for (const name of expiredVersions(versions, { keep, deployed: true, now: new Date(), maxAgeDays })) {
     console.log(name);
   }
 }
