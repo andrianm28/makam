@@ -103,9 +103,10 @@ describe("the ticket workflow discipline", () => {
   });
 
   it("keeps the counts 00-index.md's own summary sentence states", () => {
-    // "87 tickets (as of 2026-09-27): 36 resolved, 43 ready-for-agent, …" is a
-    // hand-written restatement of the table below it, so it goes stale the moment
-    // a Status is flipped and the sentence is not re-read.
+    // The sentence is a hand-written restatement of the table below it, so it
+    // goes stale the moment a Status is flipped and the sentence is not re-read.
+    // No counts are written here on purpose: the sentence is the tree's, and a
+    // number copied into a test goes stale the same way the sentence does.
     expect(summaryProblems(indexText, tickets)).toEqual([]);
   });
 
@@ -125,6 +126,70 @@ describe("the ticket workflow discipline", () => {
       expect(ticket, `${number} is in GRACE but there is no such ticket`).toBeDefined();
       expect(ticket?.status, `${number} is in GRACE but it is not resolved`).toBe("resolved");
     }
+  });
+});
+
+/**
+ * The three checks above are green, and a green check is worth nothing unless it
+ * can be red. So each one is run again here against the *real* tree with a
+ * single violation introduced in memory — the tree's own tickets, the tree's own
+ * index text, one thing changed — and has to come back with that violation in
+ * the message. Nothing is written: the changes are copies in memory.
+ */
+describe("each check on the real tree, with one violation added in memory", () => {
+  /** A real ticket, chosen by what it is rather than by its number, so the fixture cannot rot. */
+  const realTicket = (predicate: (ticket: Ticket) => boolean, what: string): Ticket => {
+    const found = tickets.find(predicate);
+    expect(found, `no real ticket ${what} to build the fixture from`).toBeDefined();
+    return found as Ticket;
+  };
+
+  it("Status sync: a real ticket whose Status is changed away from the index's copy", () => {
+    const ticket = realTicket((one) => one.status === "resolved" && one.number >= RATCHET_FROM, "has resolved");
+    const flipped = tickets.map((one) => (one.number === ticket.number ? { ...one, status: "in-progress" } : one));
+    const problems = statusSyncProblems(flipped, indexText);
+    expect(problems).toEqual([
+      `ticket ${String(ticket.number).padStart(2, "0")}: ${ticket.name} says Status: in-progress, 00-index.md says resolved — flip both in one commit`,
+    ]);
+  });
+
+  it("summary counts: the tree's own sentence with one count moved by one", () => {
+    // The count is read out of the tree's sentence and bumped, so the numbers in
+    // the message are the tree's own and cannot be wrong here.
+    const stated = Number(/(\d+) resolved/.exec(indexText)?.[1]);
+    expect(stated, "the index sentence has no resolved count to bump").toBeGreaterThan(0);
+    const actual = tickets.filter((one) => one.status === "resolved").length;
+    const bumped = indexText.replace(/(\d+) resolved/, (_all, count) => `${Number(count) + 1} resolved`);
+    expect(summaryProblems(bumped, tickets)).toEqual([
+      `00-index.md: the summary sentence says ${stated + 1} resolved, the ticket files have ${actual}`,
+    ]);
+  });
+
+  it("ratchet: a real merged ticket with its ## Comments entry removed in memory", () => {
+    // The strongest form of it: take a ticket that carries the marker today, take
+    // the marker out of its Comments, and the same file has to come back an
+    // offender. A ticket that never merged with the marker, like the ones in
+    // GRACE, would not show that the rule reads the section at all.
+    const recorded = realTicket(
+      (one) => one.number >= RATCHET_FROM && one.status === "resolved" && one.comments.some((section) => section.includes(MARKER)),
+      "carries the review marker",
+    );
+    const stripped = tickets.map((one) =>
+      one.number === recorded.number ? { ...one, comments: one.comments.map((section) => section.split(MARKER).join("a review record")) } : one,
+    );
+    expect(reviewMarkerProblems(stripped, RATCHET_FROM, MARKER)).toContain(recorded.number);
+  });
+
+  it("ratchet: a real file in GRACE is read, and spared only by the name", () => {
+    // GRACE is a list of numbers, so the rule could be reaching nothing at all in
+    // those files and the list would look like it works. It does not: the rule
+    // finds every one of them an offender, and only the list stands between that
+    // and a red build.
+    const grandfathared = GRACE.map((number) =>
+      realTicket((one) => one.number === number, `numbered ${number} (in GRACE)`),
+    );
+    expect(grandfathared.every((one) => one.status === "resolved")).toBe(true);
+    expect(reviewMarkerProblems(tickets, RATCHET_FROM, MARKER)).toEqual(expect.arrayContaining(GRACE));
   });
 });
 
@@ -224,7 +289,19 @@ describe("the index summary-sentence rule", () => {
     // exists to catch, so the format is refused rather than skipped.
     const problems = summaryProblems(sentence(2, "1 resolved and 1 ready-for-agent"), [one("resolved"), one("ready-for-agent")]);
     expect(problems[0]).toContain("not in the format this rule reads");
-    expect(problems[0]).toContain('expected the summary sentence to read "87 tickets (as of 2026-09-27): 36 resolved, 43 ready-for-agent"');
+    expect(problems[0]).toContain('expected the summary sentence to read "<count> tickets (as of YYYY-MM-DD): <count> resolved, <count> ready-for-agent, …"');
+  });
+
+  it("never puts a count in the message that says which format it reads", () => {
+    // Whoever chases a red build copies what the message says, so a message
+    // that names counts becomes an instruction to write numbers that were
+    // already stale. The problems that do quote counts name both sides.
+    const unreadable = ["# index\n\nNothing counted here.\n", "# index\n\n87 tickets (as of 2026-09-27): 1 resolved and 1 ready-for-agent.\n"];
+    for (const index of unreadable) {
+      const message = summaryProblems(index, [one("resolved")])[0];
+      expect(message).toMatch(/<count>|no summary sentence/);
+      expect(message, `a frozen count in the format hint: ${message}`).not.toMatch(/\d+ (resolved|ready-for-agent|ready-for-human|wontfix|in-progress)/);
+    }
   });
 
   it("refuses a count written where a name should be", () => {

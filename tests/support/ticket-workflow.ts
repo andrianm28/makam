@@ -127,7 +127,18 @@ type SummaryItem = { count: number; status: string; numbers: number[] | null };
 
 const SUMMARY = /(\d+) tickets \(as of (\d{4}-\d{2}-\d{2})\):/;
 const SUMMARY_ITEM = /(\d+) ([a-z][a-z-]*)(?:[ \t]*\(([^)]*)\))?/y;
-const EXPECTED = 'expected the summary sentence to read "87 tickets (as of 2026-09-27): 36 resolved, 43 ready-for-agent"';
+/**
+ * The shape the rule reads, and nothing else: no counts, no statuses spelled
+ * out, no date. The first version of this string quoted a real sentence from the
+ * index, counts and all, and that is how a stale number reaches a reader who is
+ * chasing a red build: they take the message for what the index should say and
+ * write those numbers, which were already wrong the day the message was written.
+ * The problems that do name counts below quote both sides of the comparison, so
+ * they cannot mislead; this one only has to say what shape the sentence has to be
+ * in to be read at all.
+ */
+const EXPECTED =
+  'expected the summary sentence to read "<count> tickets (as of YYYY-MM-DD): <count> resolved, <count> ready-for-agent, …"';
 
 /**
  * The index states its own counts in a sentence above the table, written by
