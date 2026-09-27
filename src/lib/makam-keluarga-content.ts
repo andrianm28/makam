@@ -15,6 +15,10 @@
  * (docs/design-system.md, voice and tone).
  */
 
+// A type only, so it is erased: this module's values stay safe on a client
+// component's import graph, where a domain module's own code would not be.
+import type { MakamDitemukan } from "@/domain/inventory";
+
 /** The hub's own address, and the two tiles that open it with an action preselected. */
 export const HUB_PATH = "/makam-keluarga";
 
@@ -119,4 +123,40 @@ export function hubPath(params: { aksi?: AksiMakamKeluarga | null; lokasiId?: st
   }
   const query = search.toString();
   return query === "" ? HUB_PATH : `${HUB_PATH}?${query}`;
+}
+
+/** One grave of a signed-in Akun's Makam tab, as the tab lists it. */
+export interface BarisMakamSaya {
+  lokasiId: string;
+  namaLokasi: string;
+  /** The unit's own number: a Kavling Keluarga's, or the Petak's. */
+  nomor: string;
+  almarhum: string[];
+  /** The hub address that opens this grave, with the branch still chosen. */
+  alamat: string;
+}
+
+/**
+ * One grave of the Akun's own as a shortcut into the hub — one rule, two surfaces:
+ * the hub's own tab and Akun Saya's card both show it, and if they ever disagreed about
+ * which number names the unit, one of the two links would open nothing.
+ *
+ * A Kavling Keluarga is named by its Nomor Kavling and looked up as one; a Petak of its own
+ * by its Nomor Makam. `namaLokasi` is the caller's public Lokasi list: a Lokasi Mitra that
+ * is not listed has no name here, and the row says "Lokasi Mitra" rather than guess one.
+ */
+export function barisMakamSaya(
+  satu: MakamDitemukan,
+  namaLokasi: ReadonlyMap<string, string>,
+  aksiTerpilih: AksiMakamKeluarga | null = null,
+): BarisMakamSaya {
+  const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
+  const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
+  return {
+    lokasiId: satu.lokasiId,
+    namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
+    nomor,
+    almarhum: satu.petak.flatMap((petak) => petak.almarhum),
+    alamat: hubPath({ aksi: aksiTerpilih, lokasiId: satu.lokasiId, cari, nomor }),
+  };
 }

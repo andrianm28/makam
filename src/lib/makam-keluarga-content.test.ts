@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PetakDitemukan } from "@/domain/inventory";
 import { pageExists } from "../../tests/support/page-exists";
 import {
   AKSI_MAKAM_KELUARGA,
@@ -6,6 +7,7 @@ import {
   TPU_DAFTAR_PATH,
   TPU_GUIDE_PATH,
   aksiDari,
+  barisMakamSaya,
   bentukCariDari,
   hubPath,
   kartuAksi,
@@ -69,5 +71,48 @@ describe("the Makam keluarga hub's branches", () => {
     expect(pageExists(TPU_GUIDE_PATH), TPU_GUIDE_PATH).toBe(true);
     // The directory answer carries a filter, so the check reads its path.
     expect(pageExists(new URL(TPU_DAFTAR_PATH, "http://makam.test").pathname), TPU_DAFTAR_PATH).toBe(true);
+  });
+});
+
+/** One Petak Makam of a lookup answer, as the domain hands it over. */
+function petak(nomorMakam: string, almarhum: string[] = []): PetakDitemukan {
+  return { petakId: `id-${nomorMakam}`, nomorMakam, almarhum, statusHakPakai: "aktif", tanggalBerakhir: "2027-03-01" };
+}
+
+describe("the Makam tab row, which the hub and Akun Saya both render", () => {
+  const nama = new Map([["lokasi-1", "Makam Keluarga Sawah"]]);
+
+  it("names a Petak by its Nomor Makam and opens the hub on that number", () => {
+    const baris = barisMakamSaya({ lokasiId: "lokasi-1", kavlingId: null, nomorKavling: null, petak: [petak("A-01", ["Hasan"])] }, nama);
+
+    expect(baris).toEqual({
+      lokasiId: "lokasi-1",
+      namaLokasi: "Makam Keluarga Sawah",
+      nomor: "A-01",
+      almarhum: ["Hasan"],
+      alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
+    });
+  });
+
+  it("names a Kavling Keluarga by its own Nomor Kavling and looks it up as one whole", () => {
+    const baris = barisMakamSaya(
+      { lokasiId: "lokasi-1", kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [petak("A-01", ["Hasan"]), petak("A-02")] },
+      nama,
+      "perpanjang",
+    );
+
+    expect(baris).toEqual({
+      lokasiId: "lokasi-1",
+      namaLokasi: "Makam Keluarga Sawah",
+      nomor: "A-K01",
+      almarhum: ["Hasan"],
+      alamat: "/makam-keluarga?aksi=perpanjang&lokasi=lokasi-1&cari=nomor_kavling&nomor=A-K01",
+    });
+  });
+
+  it("says 'Lokasi Mitra' for a Lokasi the public list does not name, rather than guessing one", () => {
+    const baris = barisMakamSaya({ lokasiId: "lokasi-9", kavlingId: null, nomorKavling: null, petak: [petak("B-04")] }, nama);
+
+    expect(baris.namaLokasi).toBe("Lokasi Mitra");
   });
 });

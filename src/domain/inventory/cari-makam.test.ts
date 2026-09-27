@@ -314,6 +314,23 @@ describe("the per-IP limit on the lookup, so a cemetery's grave numbers cannot b
     expect(lagi).toEqual({ ok: true, ditemukan: [] });
   });
 
+  it("ends the window exactly at its own length: a minute short of it the IP is still refused", async () => {
+    const setup = inventoryOnTestDatabase(db);
+    await tebakSepuluh(setup, IP);
+    // A refused attempt is not recorded, so the ten that fill the window are still the ten
+    // from the start: at exactly the window's length they are all out of it, and a minute
+    // before it none of them is. That is the boundary, and `gt` is what makes it a boundary —
+    // a `gte` here would refuse a family one minute past what the page told it.
+    setup.clock.advance({ minutes: CARI_MAKAM_JENDELA_MENIT - 1 });
+
+    const sebelum = await setup.inventory.cariMakam({ ip: IP, bentuk: "nomor_makam", lokasiId: "00000000-0000-0000-0000-000000000000", nomor: "A-11" });
+    expect(sebelum).toEqual({ ok: false, reason: "terlalu_sering", retryAt: expect.any(Date) });
+
+    setup.clock.advance({ minutes: 1 });
+    const tepat = await setup.inventory.cariMakam({ ip: IP, bentuk: "nomor_makam", lokasiId: "00000000-0000-0000-0000-000000000000", nomor: "A-11" });
+    expect(tepat).toEqual({ ok: true, ditemukan: [] });
+  });
+
   it("forgets the attempts older than 24 hours and keeps the rest, and the worker runs it", async () => {
     const setup = inventoryOnTestDatabase(db);
     await tebakSepuluh(setup, IP);

@@ -20,6 +20,10 @@ import { tampilanHub, type MakamTerbaca, type TampilanHub } from "./hub";
 export const metadata: Metadata = {
   title: "Makam Keluarga — Makam.co.id",
   description: "Cari di mana makam keluarga Anda berada, lalu perpanjang, rawat atau urus berkasnya di satu tempat.",
+  // The lookup's question travels in the address — a plain GET form, so the answer can be
+  // bookmarked and sent to a sibling — and a question about a grave can carry an Almarhum's
+  // name. Never indexed; the hub is reached from the menu and from the tiles, never from a search.
+  robots: { index: false, follow: true },
 };
 
 /**

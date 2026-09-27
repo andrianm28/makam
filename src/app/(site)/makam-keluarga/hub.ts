@@ -3,11 +3,12 @@ import { z } from "zod";
 import type { HasilCariMakam, MakamDitemukan, PermintaanCariMakam } from "@/domain/inventory";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import {
+  barisMakamSaya,
   bentukCariDari,
-  hubPath,
   kartuAksi,
   aksiDari,
   type AksiMakamKeluarga,
+  type BarisMakamSaya,
   type BentukCari,
   type KartuAksi,
 } from "@/lib/makam-keluarga-content";
@@ -55,15 +56,6 @@ export interface MakamTerbaca {
 /** What the page has to say about the lookup it was asked for. */
 export type StatusCariHub = "belum" | "perlu_lengkap" | "ditemukan" | "tidak_ditemukan" | "terlalu_sering";
 
-/** One row of the signed-in Akun's Makam tab: a grave of its own, and where to go from here. */
-export interface BarisTabSaya {
-  lokasiId: string;
-  namaLokasi: string;
-  nomor: string;
-  almarhum: string[];
-  alamat: string;
-}
-
 export interface TampilanHub {
   /** The branch the hub was opened with, or null: the tile's action, kept across the lookup. */
   aksiTerpilih: AksiMakamKeluarga | null;
@@ -79,8 +71,11 @@ export interface TampilanHub {
   /** When the per-IP limit frees up, when it refused. */
   retryAt: Date | null;
   ditemukan: MakamTerbaca[];
-  /** The signed-in Akun's own graves, as shortcuts into the hub. */
-  tabSaya: BarisTabSaya[];
+  /**
+   * The signed-in Akun's own graves, as shortcuts into the hub. The row is
+   * `barisMakamSaya`, which Akun Saya renders too: one rule, two surfaces.
+   */
+  tabSaya: BarisMakamSaya[];
 }
 
 const STATUS_HAK_PAKAI: Record<StatusHakPakaiTerbaca["key"], StatusHakPakaiTerbaca> = {
@@ -138,7 +133,7 @@ export async function tampilanHub(params: unknown, PENGGUNA: { ip: string; email
   else if (status === "tidak_ditemukan") pesan = TIDAK_DITEMUKAN;
 
   const tabSaya = PENGGUNA.email
-    ? (await inventory.makamPemegangHak({ email: PENGGUNA.email })).map((satu) => barisTab(satu, namaLokasi, aksiTerpilih))
+    ? (await inventory.makamPemegangHak({ email: PENGGUNA.email })).map((satu) => barisMakamSaya(satu, namaLokasi, aksiTerpilih))
     : [];
 
   return {
@@ -186,17 +181,4 @@ function terbaca(satu: MakamDitemukan, namaLokasi: ReadonlyMap<string, string>):
 function urutkanKartu(aksiTerpilih: AksiMakamKeluarga | null): KartuAksi[] {
   if (!aksiTerpilih) return [...kartuAksi];
   return [...kartuAksi].sort((a, b) => (a.aksi === aksiTerpilih ? -1 : b.aksi === aksiTerpilih ? 1 : 0));
-}
-
-/** One grave of the Akun's own, and the hub address that opens it with the branch still chosen. */
-function barisTab(satu: MakamDitemukan, namaLokasi: ReadonlyMap<string, string>, aksiTerpilih: AksiMakamKeluarga | null): BarisTabSaya {
-  const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
-  const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
-  return {
-    lokasiId: satu.lokasiId,
-    namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
-    nomor,
-    almarhum: satu.petak.flatMap((petak) => petak.almarhum),
-    alamat: hubPath({ aksi: aksiTerpilih, lokasiId: satu.lokasiId, cari, nomor }),
-  };
 }

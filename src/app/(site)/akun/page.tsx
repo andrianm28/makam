@@ -5,7 +5,7 @@ import { EmailSection, PhoneSection } from "./email-section";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
-import { hubPath } from "@/lib/makam-keluarga-content";
+import { barisMakamSaya } from "@/lib/makam-keluarga-content";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { heldStaffRoles } from "@/server/staff-area";
@@ -30,17 +30,9 @@ export default async function AkunSayaPage() {
   const isStaff = heldStaffRoles(actor.roles).length > 0;
   const { inventory, lokasi } = serverRuntime();
   const namaLokasi = new Map((await lokasi.publicLokasiMitraList()).map((satu) => [satu.id, satu.name]));
-  const tab = (await inventory.makamPemegangHak({ email: actor.email })).map((satu) => ({
-    lokasiId: satu.lokasiId,
-    namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
-    nomor: satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "",
-    almarhum: satu.petak.flatMap((petak) => petak.almarhum),
-    alamat: hubPath({
-      lokasiId: satu.lokasiId,
-      cari: satu.kavlingId === null ? "nomor_makam" : "nomor_kavling",
-      nomor: satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "",
-    }),
-  }));
+  // The same row the hub's own tab shows, from the same rule: a shortcut into the hub with
+  // no branch chosen here, because Akun Saya is not one of the tiles.
+  const tab = (await inventory.makamPemegangHak({ email: actor.email })).map((satu) => barisMakamSaya(satu, namaLokasi));
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
