@@ -32,8 +32,7 @@ type LayananResult =
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["hapusPaket"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["hapusLayanan"]>>
   | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setHargaLayananDki"]>>
-  | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setTarifMitraJasa"]>>
-  | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setHargaLayananLokasi"]>>;
+  | Awaited<ReturnType<ReturnType<typeof serverRuntime>["tariffs"]["setTarifMitraJasa"]>>;
 type LayananRefusal = Extract<LayananResult, { ok: false }>;
 
 /** What each refusal says on screen, in Bahasa Indonesia. */
@@ -305,14 +304,10 @@ export async function tawarkanLayanan(_previous: FormState, formData: FormData):
       effectiveOn: formData.get("effectiveOn"),
       reason: field(formData, "reason"),
     },
-    // The switch and the price are two facts of two modules: first the offering,
-    // then the price that makes it offerable (an offering without a price is
-    // never published, so a failed price leaves nothing half-offered).
-    run: async (actor, data) => {
-      const ditawarkan = await serverRuntime().layanan.tawarkanLayanan(actor, data.lokasiId, data.layananVariantId, data);
-      if (!ditawarkan.ok) return ditawarkan;
-      return serverRuntime().tariffs.setHargaLayananLokasi(actor, data.lokasiId, data.layananVariantId, data);
-    },
+    // One decision, one domain call: the module writes the offering and the price
+    // version in one transaction, so this action never orchestrates the two modules
+    // itself — and never writes the same price a second time.
+    run: (actor, data) => serverRuntime().layanan.tawarkanLayanan(actor, data.lokasiId, data.layananVariantId, data),
     saved: (data) => `Lokasi Mitra ini menawarkan Pilihan itu seharga ${formatRupiah(data.amount)} mulai ${formatTanggal(data.effectiveOn)}.`,
     pages: (data) => [KATALOG, `/staf/admin-platform/lokasi/${data.lokasiId}/tarif`, `/lokasi/${data.lokasiId}`],
   });

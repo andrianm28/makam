@@ -43,7 +43,7 @@ import {
   type SetBiayaPemakamanResult,
 } from "./biaya-pemakaman";
 import {
-  hargaLayananLokasiHistory,
+  hargaLokasiSemuaHistory,
   hargaLayananInForce,
   hargaLayananLokasiInForce,
   hargaLayananLokasiSemua,
@@ -139,8 +139,12 @@ export interface Tariffs extends TariffReads {
    * it (they get null). It is never part of a quote.
    */
   mitraJasaRate(by: Actor, layananVariantId: string, at: Date): Promise<HargaLayananVersion | null>;
-  /** Every price version of one Layanan variant at one Lokasi Mitra, in entry order. */
-  hargaLayananLokasiHistory(lokasiId: string, layananVariantId: string): Promise<HargaLayananVersion[]>;
+  /**
+   * Every price version one Lokasi Mitra has for every Layanan variant, in entry
+   * order per variant: one read for the whole place, for the screen that lists the
+   * offered variants with their history. A variant with no price is not in the map.
+   */
+  hargaLayananLokasiSemuaHistory(lokasiId: string): Promise<Map<string, HargaLayananVersion[]>>;
   /** The same functions inside an open transaction (another module's), committing or rolling back with it. */
   within(tx: Database): Tariffs;
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" for the publish gate; audited on that Lokasi. */
@@ -174,7 +178,7 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     hargaLayananLokasiSemua: (lokasiId, at) => hargaLayananLokasiSemua(deps.db, lokasiId, at),
     hargaLayananDki: (layananVariantId, at) => hargaLayananInForce(deps.db, "harga_layanan_dki", layananVariantId, at),
     mitraJasaRate: (by, layananVariantId, at) => tarifMitraJasaInForce(deps.db, by, layananVariantId, at),
-    hargaLayananLokasiHistory: (lokasiId, layananVariantId) => hargaLayananLokasiHistory(deps.db, lokasiId, layananVariantId),
+    hargaLayananLokasiSemuaHistory: (lokasiId) => hargaLokasiSemuaHistory(deps.db, lokasiId),
     within: (tx) => createTariffs({ ...deps, db: tx }),
     markTariffsChecked: (by, lokasiId, input) => markTariffsChecked(deps, by, lokasiId, input),
   };

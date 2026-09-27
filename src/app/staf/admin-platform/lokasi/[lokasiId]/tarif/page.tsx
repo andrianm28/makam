@@ -169,7 +169,7 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
  * Nothing yet is nothing on screen.
  */
 function RiwayatVersi({ versions }: { versions: readonly HargaLayananVersion[] | undefined }) {
-  if (!versions || versions.length === 0) return null;
+  if (!versions?.length) return null;
   return (
     <details>
       <summary className="cursor-pointer">Riwayat versi ({versions.length})</summary>
@@ -192,18 +192,12 @@ function RiwayatVersi({ versions }: { versions: readonly HargaLayananVersion[] |
 async function LayananLokasiSection({ actor, lokasiId, today }: { actor: Actor; lokasiId: string; today: string }) {
   const { layanan, tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
-  const penawaran = await layanan.asStaff(actor).lokasiLayanan(lokasiId, now);
-  // Every price version this Lokasi Mitra has for its offered variants, so an old
-  // price can still be read back, as the other tariffs on this page do.
-  const riwayat = new Map(
-    await Promise.all(
-      penawaran.flatMap((entry) =>
-        entry.varian
-          .filter((varian) => varian.ditawarkan)
-          .map(async (varian) => [varian.id, await tariffs.hargaLayananLokasiHistory(lokasiId, varian.id)] as const),
-      ),
-    ),
-  );
+  const [penawaran, riwayat] = await Promise.all([
+    layanan.asStaff(actor).lokasiLayanan(lokasiId, now),
+    // One read for the whole place, so an old price can still be read back on
+    // every variant this Lokasi Mitra offers, as the other tariffs on this page do.
+    tariffs.hargaLayananLokasiSemuaHistory(lokasiId),
+  ]);
 
   return (
     <Section

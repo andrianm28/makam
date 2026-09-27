@@ -147,9 +147,35 @@ export function layananDkiVersionList(db: Database, layananVariantId: string): P
   return versionsOfLayanan(db, "harga_layanan_dki", layananVariantId);
 }
 
-/** Every version of one Layanan variant's price at one Lokasi Mitra, in entry order. */
+/**
+ * Every version of one Layanan variant's price at one Lokasi Mitra, in entry
+ * order. `quote()` reads one variant like this, to price it and to see the change
+ * that is scheduled; the screen that lists them all reads the whole place at once
+ * (`hargaLokasiSemuaHistory`) instead.
+ */
 export function hargaLayananLokasiHistory(db: Database, lokasiId: string, layananVariantId: string): Promise<HargaLayananVersion[]> {
   return versionsOfLayanan(db, "harga_layanan", layananVariantId, lokasiId);
+}
+
+/**
+ * Every price version one Lokasi Mitra has for every Layanan variant, in entry
+ * order per variant: one read for the whole place, for the screen that lists the
+ * offered variants with their history. A variant with no price is not in the map.
+ */
+export async function hargaLokasiSemuaHistory(db: Database, lokasiId: string): Promise<Map<string, HargaLayananVersion[]>> {
+  if (!isUuid(lokasiId)) return new Map();
+  const rows: VersionRow[] = await db
+    .select()
+    .from(tariffLayananVersion)
+    .where(eq(tariffLayananVersion.lokasiId, lokasiId))
+    .orderBy(asc(tariffLayananVersion.layananVariantId), asc(tariffLayananVersion.inForceFrom), asc(tariffLayananVersion.seq));
+  const perVariant = new Map<string, HargaLayananVersion[]>();
+  for (const row of rows) {
+    const versions = perVariant.get(row.layananVariantId) ?? [];
+    versions.push(toVersion(row));
+    perVariant.set(row.layananVariantId, versions);
+  }
+  return perVariant;
 }
 
 /** The price of one Layanan variant at one Lokasi Mitra in force at `at`, or null when none was. */

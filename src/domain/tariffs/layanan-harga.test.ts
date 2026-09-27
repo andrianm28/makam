@@ -3,13 +3,17 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { actorOf, logIn } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { catalogFixture, layananOnTestDatabase, newLokasiMitra, signedInAdminLokasi } from "../../../tests/support/layanan";
+import { catalogFixture, layananOnTestDatabase, newLokasiMitra, signedInAdminLokasi, type LayananSetup } from "../../../tests/support/layanan";
 
 const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
 const now = () => wib("2026-10-01 09:00");
+
+/** Every price version one Lokasi Mitra has for one variant, in entry order (the staff history). */
+const versionsOf = (setup: LayananSetup, lokasiId: string, layananVariantId: string) =>
+  setup.tariffs.hargaLayananLokasiSemuaHistory(lokasiId).then((all) => all.get(layananVariantId) ?? []);
 
 describe("who may enter a Layanan's price", () => {
   it("refuses an Admin Lokasi, a Petugas Lapangan and a Pemesan, and keeps and audits nothing", async () => {
@@ -30,7 +34,7 @@ describe("who may enter a Layanan's price", () => {
       expect(await setup.tariffs.setHargaLayananDki(who, varian.id, input)).toEqual({ ok: false, reason: "tidak_berwenang" });
       expect(await setup.tariffs.setTarifMitraJasa(who, varian.id, input)).toEqual({ ok: false, reason: "tidak_berwenang" });
     }
-    expect(await setup.tariffs.hargaLayananLokasiHistory(lokasiMitra.id, varian.id)).toEqual([]);
+    expect(await versionsOf(setup, lokasiMitra.id, varian.id)).toEqual([]);
     expect(await setup.tariffs.hargaLayananDki(varian.id, now())).toBeNull();
     expect(await setup.audit.entriesAbout({ kind: "harga_layanan", id: varian.id })).toEqual([]);
   });
@@ -47,7 +51,7 @@ describe("the price a Lokasi Mitra charges for a Layanan variant", () => {
 
     expect(await setup.tariffs.hargaLayananLokasi(lokasiMitra.id, varian.id, wib("2026-10-31 23:59"))).toMatchObject({ amount: 500_000 });
     expect(await setup.tariffs.hargaLayananLokasi(lokasiMitra.id, varian.id, wib("2026-11-01 00:00"))).toMatchObject({ amount: 550_000 });
-    expect(await setup.tariffs.hargaLayananLokasiHistory(lokasiMitra.id, varian.id)).toMatchObject([
+    expect(await versionsOf(setup, lokasiMitra.id, varian.id)).toMatchObject([
       { amount: 500_000, effectiveOn: "2026-10-01", inForceFrom: wib("2026-10-01 09:00") },
       { amount: 550_000, effectiveOn: "2026-11-01", inForceFrom: wib("2026-11-01 00:00") },
     ]);
@@ -115,7 +119,7 @@ describe("the price a Lokasi Mitra charges for a Layanan variant", () => {
     await expect(db.execute(sql`delete from tariff_layanan_version`)).rejects.toThrow();
     await expect(db.execute(sql`delete from tariff_layanan_dki_version`)).rejects.toThrow();
     await expect(db.execute(sql`delete from tariff_mitra_jasa_version`)).rejects.toThrow();
-    expect(await setup.tariffs.hargaLayananLokasiHistory(lokasiMitra.id, varian.id)).toMatchObject([{ amount: 500_000 }]);
+    expect(await versionsOf(setup, lokasiMitra.id, varian.id)).toMatchObject([{ amount: 500_000 }]);
   });
 
   it("refuses an amount that is not whole rupiah and an effective date that has passed", async () => {
@@ -132,7 +136,7 @@ describe("the price a Lokasi Mitra charges for a Layanan variant", () => {
     ]) {
       expect(await setup.tariffs.setHargaLayananLokasi(admin, lokasiMitra.id, varian.id, { ...input, reason: null })).toMatchObject({ ok: false });
     }
-    expect(await setup.tariffs.hargaLayananLokasiHistory(lokasiMitra.id, varian.id)).toEqual([]);
+    expect(await versionsOf(setup, lokasiMitra.id, varian.id)).toEqual([]);
   });
 });
 

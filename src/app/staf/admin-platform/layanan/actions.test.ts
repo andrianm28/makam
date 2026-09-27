@@ -31,6 +31,13 @@ async function signInAsAdminPlatform() {
   if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
 }
 
+/** Every price version one Lokasi Mitra has for one variant, in entry order. */
+function versionsOf(lokasiId: string, layananVariantId: string) {
+  return server.runtime()
+    .tariffs.hargaLayananLokasiSemuaHistory(lokasiId)
+    .then((all) => all.get(layananVariantId) ?? []);
+}
+
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
   for (const [name, value] of Object.entries(values)) data.set(name, value);
@@ -167,5 +174,75 @@ describe("the Katalog Layanan Server Actions", () => {
     expect(await server.runtime().tariffs.hargaLayananLokasi(dibuat.lokasiMitra.id, reguler.id, server.clock.now())).toMatchObject({
       amount: 500_000,
     });
+  });
+
+  it("writes nothing at all when the price is refused: no offering, no price, no Entri Audit", async () => {
+    await signInAsAdminPlatform();
+    const { identity, lokasi, audit } = server.runtime();
+    const actor = (await identity.actorFromCookies(browser.cookieHeader()))!;
+    const dibuat = await lokasi.createLokasiMitra(actor, {
+      name: "Makam Wakaf Al-Ikhlas",
+      pengelolaName: "Yayasan Al-Ikhlas",
+      address: "Jl. Raya Pondok Rangon No. 1",
+      city: "Kota Jakarta Timur",
+    });
+    if (!dibuat.ok) throw new Error(`Lokasi Mitra refused: ${dibuat.reason}`);
+    await tambahLayanan({ status: "idle" }, form(layanan));
+    const [reguler] = (await server.runtime().layanan.katalog())[0].varian;
+
+    // A date that has passed never rewrites a price, so the version is refused.
+    expect(
+      await tawarkanLayanan(
+        { status: "idle" },
+        form({ lokasiId: dibuat.lokasiMitra.id, layananVariantId: reguler.id, amount: "500.000", effectiveOn: "2026-09-01", reason: "" }),
+      ),
+    ).toEqual({ status: "gagal", message: "Tanggal berlaku tidak boleh sebelum hari ini." });
+
+    // Half-offered is the state this must never leave behind: the Lokasi offers
+    // nothing, nothing is priced, and neither fact reached the Audit Log.
+    const [entry] = await server.runtime().layanan.asStaff(actor).lokasiLayanan(dibuat.lokasiMitra.id, server.clock.now());
+    expect(entry.varian.map((one) => [one.name, one.ditawarkan, one.harga])).toEqual([
+      ["Lengkap", false, null],
+      ["Reguler", false, null],
+    ]);
+    expect(await versionsOf(dibuat.lokasiMitra.id, reguler.id)).toEqual([]);
+    expect(
+      (await audit.entriesForLokasi(dibuat.lokasiMitra.id)).filter((entry) => ["layanan.tawarkan", "tarif.ubah_harga_layanan"].includes(entry.action)),
+    ).toEqual([]);
+  });
+
+  it("writes the price once per submit: one version, one price Entri Audit, however the action is wired", async () => {
+    await signInAsAdminPlatform();
+    const { identity, lokasi, tariffs, audit } = server.runtime();
+    const actor = (await identity.actorFromCookies(browser.cookieHeader()))!;
+    const dibuat = await lokasi.createLokasiMitra(actor, {
+      name: "Makam Wakaf Al-Ikhlas",
+      pengelolaName: "Yayasan Al-Ikhlas",
+      address: "Jl. Raya Pondok Rangon No. 1",
+      city: "Kota Jakarta Timur",
+    });
+    if (!dibuat.ok) throw new Error(`Lokasi Mitra refused: ${dibuat.reason}`);
+    await tambahLayanan({ status: "idle" }, form(layanan));
+    const [reguler] = (await server.runtime().layanan.katalog())[0].varian;
+
+    // A second submit of the same decision is a new price, not a repeated write of
+    // the first one: this is what catches an action that prices on top of a module
+    // that already priced.
+    const submit = (amount: string, effectiveOn: string) =>
+      tawarkanLayanan({ status: "idle" }, form({ lokasiId: dibuat.lokasiMitra.id, layananVariantId: reguler.id, amount, effectiveOn, reason: "" }));
+
+    expect((await submit("500.000", "2026-10-01")).status).toBe("berhasil");
+    expect(await versionsOf(dibuat.lokasiMitra.id, reguler.id)).toMatchObject([{ seq: 1, amount: 500_000 }]);
+    expect((await audit.entriesForLokasi(dibuat.lokasiMitra.id)).filter((entry) => entry.action === "tarif.ubah_harga_layanan")).toHaveLength(1);
+
+    expect((await submit("550.000", "2026-11-01")).status).toBe("berhasil");
+    // Two submits, two versions, two audits: one write each, never four.
+    expect(await versionsOf(dibuat.lokasiMitra.id, reguler.id)).toMatchObject([
+      { seq: 1, amount: 500_000 },
+      { seq: 2, amount: 550_000 },
+    ]);
+    expect((await audit.entriesForLokasi(dibuat.lokasiMitra.id)).filter((entry) => entry.action === "tarif.ubah_harga_layanan")).toHaveLength(2);
+    expect((await audit.entriesForLokasi(dibuat.lokasiMitra.id)).filter((entry) => entry.action === "layanan.tawarkan")).toHaveLength(2);
+    expect(await tariffs.hargaLayananLokasi(dibuat.lokasiMitra.id, reguler.id, server.clock.now())).toMatchObject({ amount: 500_000 });
   });
 });
