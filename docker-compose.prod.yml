@@ -13,7 +13,7 @@
 # without the env files fails instead of silently becoming makam-prod. The
 # host deploy script (deploy/bin/makam-deploy, see docs/ops/runbook.md) does
 #
-#   docker pull ghcr.io/andrianm28/makam:sha-<commit>
+#   docker pull ghcr.io/andrianm28/makam@sha256:<digest>   # the digest CI signed
 #   docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env run --rm migrate
 #                                            # must succeed, or nothing restarts
 #   docker compose ... up -d --wait
@@ -24,13 +24,16 @@
 # POSTGRES_PASSWORD, DATABASE_URL, AUTH_SECRET, TOTP_ENCRYPTION_KEY, VAPID_PUBLIC_KEY,
 # VAPID_PRIVATE_KEY, VAPID_SUBJECT, APP_BASE_URL
 # (https://dev.makam.co.id / https://makam.co.id), SENTRY_DSN, ...
-# deployed.env (written by the deploy script) supplies MAKAM_TAG and MAKAM_RELEASE.
+# deployed.env (written by the deploy script) supplies MAKAM_TAG, MAKAM_DIGEST,
+# MAKAM_DEPLOY_REF and MAKAM_RELEASE.
 name: ${MAKAM_PROJECT:?set MAKAM_PROJECT (makam-staging or makam-prod) in the env file}
 
 x-app: &app
-  # MAKAM_TAG is set by the deploy script (sha-<commit>), so a deploy and a
-  # rollback both name an exact image.
-  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}:${MAKAM_TAG:?set MAKAM_TAG (deployed.env, or makam-deploy --tag)}
+  # MAKAM_DEPLOY_REF is what makam-deploy writes: `:<tag>@<digest>`, so a deploy
+  # runs the digest it verified the signature of, not a tag that could move
+  # between the check and the pull. MAKAM_TAG alone still works, so a hand-run
+  # compose command needs only the tag.
+  image: ${MAKAM_IMAGE:-ghcr.io/andrianm28/makam}${MAKAM_DEPLOY_REF:-:${MAKAM_TAG:?set MAKAM_TAG or MAKAM_DEPLOY_REF (deployed.env, or makam-deploy)}}
   env_file: ${MAKAM_ENV_FILE:?set MAKAM_ENV_FILE}
   environment:
     APP_ENV: ${MAKAM_APP_ENV:?set MAKAM_APP_ENV}

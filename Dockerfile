@@ -17,10 +17,9 @@ RUN npm ci --no-audit --no-fund
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# The browser Sentry DSN is inlined at build time. Its environment is not: one
-# image serves staging and production, so the browser reads it from the host.
-ARG NEXT_PUBLIC_SENTRY_DSN=""
-ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+# No environment here, at all: one image serves staging and production, so the
+# browser GlitchTip DSN is a runtime value served to the browser in the page
+# (src/app/layout.tsx), never a build argument baked into the bundle.
 RUN npm run build && npm run build:worker
 
 FROM base AS runner

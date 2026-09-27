@@ -296,14 +296,32 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   );
 
 /**
- * Browser error monitoring. Next.js inlines NEXT_PUBLIC_* at build time, so the
- * caller passes each one written out (`process.env.NEXT_PUBLIC_SENTRY_DSN`).
- * The environment is not among them: one image serves staging and production,
- * so the browser takes it from the page's host (`browserSentryEnvironment`).
+ * Browser error monitoring. The DSN is a runtime value, served to the browser in
+ * the page (one image serves staging and production), so the caller passes the
+ * value the page was rendered with. The environment is not a value at all: the
+ * browser takes it from the page's host (`browserSentryEnvironment`).
  */
 const publicSentryEnvSchema = z.object({
   NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.url().optional()),
 });
+
+/** What the browser Sentry client needs: the DSN of the environment it runs in, and its name. */
+export interface BrowserSentryConfig {
+  dsn: string | undefined;
+  environment: AppEnvironment;
+}
+
+/**
+ * The browser Sentry configuration for the page being served right now: the DSN
+ * the running environment was started with, and the environment taken from the
+ * page's host. An unset DSN leaves browser reporting off.
+ */
+export function browserSentryConfig(runtime: { NEXT_PUBLIC_SENTRY_DSN?: string }, hostname: string): BrowserSentryConfig {
+  return {
+    dsn: readPublicSentryEnv(runtime).NEXT_PUBLIC_SENTRY_DSN,
+    environment: browserSentryEnvironment(hostname),
+  };
+}
 
 const browserEnvironmentByHost: Record<string, AppEnvironment> = {
   "dev.makam.co.id": "staging",

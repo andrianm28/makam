@@ -10,8 +10,10 @@
  * It reads the schema from the catalog, so it needs no update when a migration
  * adds a table: every table in `public` gets a few rows, parents before
  * children, with values chosen by column type (foreign keys point at rows it
- * inserted). A table it cannot fill (e.g. a CHECK it cannot guess) is reported
- * and skipped; the run fails only when it fills no table at all.
+ * inserted). A table it cannot fill (e.g. a CHECK it cannot guess) fails the
+ * run: an empty table would hide exactly the breakage this seed exists to
+ * catch (a NOT NULL column without a default, a new unique index, a type
+ * change or a new foreign key).
  */
 import { randomUUID } from "node:crypto";
 import pg from "pg";
@@ -170,13 +172,16 @@ async function main() {
     }
     console.log(`[upgrade-seed] filled ${filled.size} of ${tables.length} tables with ${ROWS_PER_TABLE} rows each`);
     for (const [table, error] of failures) console.log(`[upgrade-seed] skipped ${table}: ${error}`);
-    if (filled.size === 0) throw new Error("no table could be filled");
+    if (failures.size > 0) {
+      const unfilled = [...failures.keys()].sort().join(", ");
+      throw new Error(`${failures.size} table(s) left empty (${unfilled}): fix the seed or the migration before this ships`);
+    }
   } finally {
     await client.end();
   }
 }
 
-/** Inserts the rows for one table in a savepoint; returns the error when it cannot. */
+/** Inserts the rows for one table in its own transaction; returns the error when it cannot. */
 async function fill(client: pg.Client, table: Table, filled: Set<string>, enums: Map<string, string[]>): Promise<string | undefined> {
   await client.query("begin");
   try {

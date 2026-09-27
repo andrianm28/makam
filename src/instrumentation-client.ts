@@ -1,19 +1,22 @@
 import * as Sentry from "@sentry/nextjs";
-import { browserSentryEnvironment, readPublicSentryEnv } from "@/lib/env";
+import { browserSentryConfig } from "@/lib/env";
 import { sentryOptions } from "@/lib/observability/scrub";
 
-// Browser Sentry. The DSN is written out so Next.js inlines it at build time;
-// disabled when it is unset. The environment comes from the page's host at
-// runtime, because one image serves both staging and production.
-const env = readPublicSentryEnv({
-  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
-});
+// Browser Sentry. The DSN is a runtime value the server put in the page
+// (RootLayout), because one image serves staging and production and each
+// environment reports to its own GlitchTip; the environment comes from the
+// page's host for the same reason. An empty DSN leaves reporting off.
+declare global {
+  interface Window {
+    __MAKAM_BROWSER_SENTRY_DSN__?: string;
+  }
+}
 
-Sentry.init(
-  sentryOptions({
-    dsn: env.NEXT_PUBLIC_SENTRY_DSN,
-    environment: browserSentryEnvironment(window.location.hostname),
-  }),
+const config = browserSentryConfig(
+  { NEXT_PUBLIC_SENTRY_DSN: window.__MAKAM_BROWSER_SENTRY_DSN__ },
+  window.location.hostname,
 );
+
+Sentry.init(sentryOptions({ dsn: config.dsn, environment: config.environment }));
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

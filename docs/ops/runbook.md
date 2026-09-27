@@ -214,96 +214,158 @@ the Admin-Platform-only rule.
 
 ## CI pipeline (GitHub Actions)
 
-`.github/workflows/ci.yml`, one run per push and PR. On `main` the job graph is:
+`.github/workflows/ci.yml`, one run per pull request and per push to `main`. A
+branch push with no pull request deliberately runs nothing, so one commit is
+never checked twice. On `main` the job graph is:
 
 ```
 check (lint, typecheck, npm audit, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┐
-secrets (gitleaks) ────────────────────────────────────────────────────────────┤         ├→ deploy-gate (tags :latest)
+secrets (gitleaks) ────────────────────────────────────────────────────────────┤         ├→ deploy-gate ─→ sign (cosign, then tag :latest)
 migrations (upgrade from the running release) ─────────────────────────────────┴→ scan ─┘
 ```
 
-Every job except `deploy-gate` also runs on PRs and branch pushes, except that
-there `image` builds without pushing and e2e and scan are skipped. The one
-"main only" rule is the `image` job's `release` output. A warm `main` run
-takes about 11 to 12 minutes.
+Every job except `deploy-gate` and `sign` also runs on pull requests, except
+that there `image` builds without pushing and e2e and scan are skipped. The one
+"main only" rule is the `image` job's `release` output. A warm `main` run takes
+about 11 to 12 minutes.
 
 - **check**: lint, typecheck, Vitest on a fresh Postgres, and `npm audit
   --omit=dev`, which fails on a critical advisory that has a fix (update the
   package; a critical with no fix is only counted).
 - **secrets**: gitleaks over the whole repository history, default rules.
-  Accepted findings (development-only keys, test fixtures) are in
-  `.gitleaks.toml`, one file per entry, each with its reason. A real leaked
-  secret: rotate it first ("Rotating secrets"), then remove it from the code;
-  the history keeps it, so the rotation is what counts.
-- **migrations**: the upgrade test. The running release (`:latest`, what
-  staging runs) migrates an empty Postgres with its own `migrate`, the
-  `seed-representative` script fills every table with a few rows, then this
-  commit's migrations run on it (Vitest's global setup) and the domain tests
-  run on the result. Before that, every migration file the running release
-  does not have is checked for destructive DDL (DROP, RENAME, SET NOT NULL, a
-  type change, a NOT NULL column without a default): each such statement
-  needs a comment line `-- contract: <why nothing running needs it>` directly
-  above it, and belongs in a later release than its expand step.
+  Accepted findings are in `.gitleaks.toml`, one file per entry, each naming the
+  exact fixture secret(s) of that one file and why it is not a secret. (No entry
+  lists `paths`: a gitleaks path allowlist is whole-file and ignores
+  `matchCondition`, which is exactly the widening this file exists to prevent.)
+  A real leaked secret: rotate it first ("Rotating secrets"), then remove it from
+  the code; the history keeps it, so the rotation is what counts.
+- **migrations**: the upgrade test. It upgrades from **the digest production is
+  actually running**, then staging, and only then the ghcr `latest` tag — read
+  from the newest GitHub Deployment that names a digest
+  (`scripts/migrations/deployed-release.ts`), because a deploy follows signed
+  digests and production lags staging. A host that has never deployed has no
+  baseline, which is not an error: the upgrade then starts from an empty
+  database. That release migrates the database with its own `migrate`, the
+  `seed-representative` script fills **every** table with a few rows (the run
+  fails if any table stays empty: an empty table would hide exactly the breakage
+  this test exists to catch), then this commit's migrations run on it (Vitest's
+  global setup) and the domain tests run on the result. Before that, every
+  migration file the running release does not have is checked for destructive
+  DDL (DROP, TRUNCATE, RENAME, SET NOT NULL, a type change, a NOT NULL column
+  without a default, a new UNIQUE/FOREIGN KEY/CHECK constraint on a table that
+  existed before): each such statement needs a comment line
+  `-- contract: <why nothing running needs it>` on the line(s) **directly** above
+  it, and belongs in a later release than its expand step. A constraint on a
+  table the same migration creates is expand, and passes without a marker.
 - **e2e** runs on a GitHub-hosted runner, never on this host. It starts the
   pushed `image:sha-<commit>@<digest>` (no rebuild) with
   `docker-compose.prod.yml`, the same file as staging, layered with
   `deploy/ci/compose.e2e.yml` (the image by digest, a network of its own) and
   its own empty Postgres: `run --rm migrate`, then `up -d --wait`, with
   `deploy/ci/e2e.env` (`APP_ENV=development`, so the in-memory fakes stand in
-  for email, web push, payments and files). Then `npm run e2e` runs every spec
-  in `e2e/` against `http://127.0.0.1:3310`, seeding the e2e Admin Platform
-  with `seed-admin` inside the web container. On failure the run keeps the
-  `e2e-results` artifact (Playwright traces, screenshots, `stack.log` with the
-  web, worker, migrate and Postgres logs) for 14 days: open a trace with
-  `npx playwright show-trace <trace.zip>`.
+  for email, web push, payments and files). Then `npm run e2e -- --grep-invert
+  @smoke` runs the critical paths in `e2e/` against `http://127.0.0.1:3310`,
+  seeding the e2e Admin Platform with `seed-admin` inside the web container. On
+  failure the run keeps the `e2e-results` artifact (Playwright traces,
+  screenshots, `stack.log`) for 14 days: open a trace with `npx playwright
+  show-trace <trace.zip>`.
 - **scan** runs Trivy (`aquasec/trivy`, pinned by digest) on the same image.
   It fails on any CRITICAL vulnerability that has a fix. The run keeps the
   image's SBOM (`sbom` artifact, CycloneDX, 90 days) and all findings
-  (`trivy-findings`: `trivy.sarif` and `critical.txt`, also in the job
-  summary, 30 days). Code scanning is not available on this private repo on
-  GitHub Free; if it ever is, set the repo variable `CODE_SCANNING=true` and
-  the `code-scanning` job (the only one with `security-events: write`)
-  uploads the SARIF.
-- **Accepting a finding** that cannot be fixed yet (e.g. the base image has
-  no fix): add it to `.trivyignore` with the reason in a comment directly
-  above and `exp:YYYY-MM-DD` at most 90 days out (`tests/trivyignore.test.ts`
-  enforces both), in a reviewed PR. After the date the scan fails again.
-  Usually the fix is a newer base image digest (Dependabot) or a dependency
-  bump.
-- **deploy-gate** needs every other job and re-tags the image `:latest`,
-  which the staging timer follows. It runs in its own concurrency group and
-  is never cancelled; `main` runs queue instead of cancelling each other,
-  while PR and branch runs cancel superseded ones. A deploy (ticket 72)
-  `needs: deploy-gate` and takes the exact image from its `ref` output.
-- **Pins**: every action is pinned by commit SHA (version in a comment),
-  every image by digest (CI's Postgres, Trivy, gitleaks, the node base image,
-  the compose files). Dependabot (`.github/dependabot.yml`) proposes updates
-  weekly for actions, npm, the Dockerfile and the compose files; they go
-  through the same CI and review.
-- Every job has least-privilege `permissions` (none by default) and
-  `timeout-minutes`.
-- Re-run a flaky e2e with "Re-run failed jobs" on the run; it uses the same
-  image. Playwright already retries a failed test once in CI.
+  (`trivy-findings`: `trivy.sarif` and `critical.txt`, 30 days). Code scanning
+  is not available on this private repo on GitHub Free; if it ever is, set the
+  repo variable `CODE_SCANNING=true`.
+- **deploy-gate** needs every other job. It moves no tags: it only says the image
+  passed everything.
+- **sign** is the job that makes a deploy possible (ticket 72): it signs the
+  digest with the **staging** cosign key and only then moves `:latest`, so the
+  host can never pick up an unsigned digest. It runs in its own `sign`
+  concurrency group and is never cancelled. `latest` is only a *pointer*: the
+  host resolves it to a digest and refuses anything the key did not sign.
+- **Accepting a finding** that cannot be fixed yet: add it to `.trivyignore`
+  with the reason in a comment directly above and `exp:YYYY-MM-DD` at most 90
+  days out (`tests/trivyignore.test.ts` enforces both), in a reviewed PR.
+- **Pins**: every action is pinned by commit SHA (version in a comment), every
+  image by digest (CI's Postgres, Trivy, gitleaks, the node base image, the
+  compose files). Dependabot proposes updates weekly.
+- Every job has least-privilege `permissions` and `timeout-minutes`.
+- Re-run a flaky e2e with "Re-run failed jobs"; it uses the same image.
+- **Concurrency**: GitHub keeps one *pending* run per group, so a new push
+  cancels the pending one and a run in the middle is skipped. Off main nothing
+  was deployed, so that costs nothing. On main, `deploy-gate` and `sign` are in
+  groups of their own with `cancel-in-progress: false`: a cancelled run would
+  cancel all its jobs, and a half-signed image is worse than a slow one.
+- **Shared steps**: the ghcr login is `.github/actions/ghcr-login` and the
+  Chromium for the PdfRenderer test is `.github/actions/chromium`, so each
+  exists once. The image name always comes from `GITHUB_REPOSITORY`, never from
+  a literal.
+
+## Signing keys (cosign)
+
+Two **separate** key pairs, one per environment. The private halves never leave
+GitHub: they are repository secrets and only the workflows below read them. The
+public halves live on the host and in no repository.
+
+| Environment | Private key (GitHub secret)          | Password (secret)            | Public key on the host                    | Signs in                       |
+| ----------- | ----------------------------------- | ---------------------------- | ---------------------------------------- | ------------------------------ |
+| staging     | `COSIGN_STAGING_PRIVATE_KEY`        | `COSIGN_STAGING_PASSWORD`    | `/opt/makam-v1/staging/cosign.pub`       | `ci.yml` job `sign`            |
+| production  | `COSIGN_PROD_PRIVATE_KEY`           | `COSIGN_PROD_PASSWORD`       | `/opt/makam-v1/prod/cosign.pub`          | `promote.yml`, `rollback.yml`   |
+
+Creating them (once, on a machine with cosign):
+
+```bash
+cosign generate-key-pair                       # writes cosign.key and cosign.pub
+# The private half goes into the secret, the public half onto the host:
+gh secret set COSIGN_STAGING_PRIVATE_KEY < cosign.key
+gh secret set COSIGN_STAGING_PASSWORD          # the password you chose, or empty
+```
+
+Installing the public half on the host (it is not in the repo, so
+`install-host.sh` never overwrites one that is already there):
+
+```bash
+MAKAM_COSIGN_PUB_STAGING=/tmp/cosign.pub deploy/install-host.sh
+sudo install -m 0644 /tmp/cosign.pub /opt/makam-v1/prod/cosign.pub   # production
+```
+
+Without a public key an environment's deploys are **refused** (exit 78), never
+silently run unverified. `makam-deploy --local` skips the check and is refused
+for production.
+
+**Rotating a key**: create a new pair, install the new public half on the host
+(`install-host.sh` with `MAKAM_COSIGN_PUB_STAGING` / `MAKAM_COSIGN_PUB_PROD`),
+put the new private half in the secret, and let the next `main` run re-sign.
+Images signed with the old key stop being accepted, so rotate and redeploy in
+the same sitting, or accept that already-deployed images are still running (a
+running container is not re-checked) until the next deploy. To keep the old key
+valid for a while, run `makam-verify-image` with a key file that holds both
+public halves (`cosign` accepts a bundle) until every host has the new one.
 
 ## Staging deploy
 
-**Design: pull-based.** CI (`.github/workflows/ci.yml`, see "CI pipeline"
-above) runs its checks, builds and pushes
-`ghcr.io/andrianm28/makam:sha-<commit>`, runs e2e and the image scan on it,
-and only then tags it `:latest`, only on `main`. On the host,
-`makam-staging-deploy.timer` runs `makam-deploy --env staging` every 2 minutes
-as `ubuntu`, which has a `read:packages` ghcr login in `~/.docker/config.json`.
-The script:
+**Design: pull-based, and signed.** CI (`.github/workflows/ci.yml`) runs its
+checks, builds and pushes `ghcr.io/andrianm28/makam:sha-<commit>`, runs e2e and
+the image scan on it, signs the digest, and only then moves `:latest`. On the
+host, `makam-staging-deploy.timer` runs `makam-deploy --env staging` every 2
+minutes as `ubuntu`, which has a `read:packages` ghcr login in
+`~/.docker/config.json`. The script:
 
-1. pulls `:latest`, reads its `org.opencontainers.image.revision` label and
-   pulls the immutable `:sha-<revision>` (it must be the same image);
-2. exits if that tag is already running;
-3. runs `docker compose run --rm migrate` with the new image. **If migrate
+1. pulls `:latest` (or the `--tag` / `--digest` it was given) and **resolves it
+   to a digest** — a tag is only a pointer;
+2. **verifies the digest's cosign signature** with `/opt/makam-v1/staging/cosign.pub`.
+   Unsigned, or signed with another key, exits **77** and nothing is touched;
+3. exits if that digest is already running and healthy;
+4. creates a GitHub Deployment and reports `in_progress`
+   (needs `MAKAM_GITHUB_TOKEN` in `staging.env`, a fine-grained token with only
+   "Deployments: write" on this repository; without it every report is a logged
+   no-op);
+5. runs `docker compose run --rm migrate` with the new image. **If migrate
    fails, it stops here and the old `web`/`worker` keep running**;
-4. runs `up -d --wait` (web and worker restart on the new tag; web's
-   healthcheck must pass) and writes `deployed.env`;
-5. waits up to 180 s for `/api/health` to return 200 (DB ok and a fresh
-   worker heartbeat) and exits 2 if it doesn't.
+6. runs `up -d --wait` (web and worker restart on the verified digest) and
+   writes `deployed.env` (`MAKAM_TAG`, `MAKAM_DIGEST`, `MAKAM_DEPLOY_REF`,
+   `MAKAM_RELEASE`);
+7. waits up to 180 s for `/api/health` to return 200 (DB ok and a fresh worker
+   heartbeat) and rolls back to the previous digest if it never does.
 
 Both units are hardened (`NoNewPrivileges`, `PrivateTmp`,
 `ProtectSystem=strict`). The deploy unit can write only `/opt/makam-v1` and
@@ -312,19 +374,22 @@ all. A new file the deploy must write outside `/opt/makam-v1` needs a
 `ReadWritePaths=` line in `deploy/systemd/makam-staging-deploy.service`.
 
 The VPS never builds images. It holds no SSH deploy key, and GitHub holds no
-secret for the host. The only credential involved is the host's read-only ghcr
-token. A new commit on `main` is live on staging about 2 minutes after CI
-pushes the image.
+secret for the host. The only credentials involved are the host's read-only ghcr
+token and, optionally, the Deployments token. A new commit on `main` is live on
+staging about 2 minutes after CI signs the image.
 
 ```bash
 # What happened
 tail -n 30 /opt/makam-v1/staging/deploy.log
 journalctl -u makam-staging-deploy.service -n 50 --no-pager
 cat /opt/makam-v1/staging/deployed.env
-systemctl list-timers 'makam-*'
 
 # Deploy now instead of waiting for the timer
 /opt/makam-v1/bin/makam-deploy --env staging
+
+# Why was a digest refused? (77 = unsigned or wrong key, 78 = no cosign key here)
+/opt/makam-v1/bin/makam-verify-image --env staging \
+  --image ghcr.io/andrianm28/makam --digest "$(sed -n 's/^MAKAM_DIGEST=//p' /opt/makam-v1/staging/deployed.env)"
 
 # Pause automatic deploys (e.g. while debugging), then resume
 sudo systemctl stop makam-staging-deploy.timer
@@ -339,18 +404,93 @@ docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file
 The first deploy on an empty database takes about 90 s to report healthy,
 because the worker's first heartbeat has to arrive.
 
-## Rolling back to a previous image tag
+## Reading a deploy in GitHub
 
-Every image CI pushed to ghcr is `sha-<full commit>`. `deployed.env` names the
-running tag and `PREVIOUS_TAG`.
+Every deploy is a **GitHub Deployment** on the commit, with an `in_progress`,
+`success` or `failure` status whose description says what happened and whose
+link goes back to the run. So:
+
+- the commit page shows a deployment badge per environment;
+- **Deployments** in the repository sidebar lists them newest first, with the
+  digest in the payload;
+- the migration upgrade test reads those deployments to find out what production
+  and staging are really running.
+
+The same facts are on the host in `deploy.log` (one line per step) and
+`deployed.env` (what is running). `deploy.log` is the ground truth when GitHub
+was unreachable: reporting is best effort and never blocks a deploy.
+
+## The staging smoke gate
+
+`.github/workflows/staging-smoke.yml` runs `e2e/smoke.spec.ts` (health, home,
+Masuk) from a hosted runner against the real `https://dev.makam.co.id` every 15
+minutes, and on demand. It runs for **the digest staging is actually running**
+and records the result as a status on that digest's staging deployment, naming
+the digest in the description. Promotion refuses any digest without a passed
+smoke test, so after a rollback or a fresh deploy you can either wait 15 minutes
+or start the workflow by hand.
+
+## Promoting to production
+
+`.github/workflows/promote.yml` ("Promosikan ke produksi"), owner only, manual
+only. It refuses, in this order, unless all of it holds:
+
+1. `github.actor` is the repository owner;
+2. the release tag input is the exact tag it expects (`vYYYY.MM.DD-N`, WIB),
+   typed again — a mistyped promotion is the one mistake with no undo;
+3. the newest staging deployment that names a digest has a `success` status
+   (staging is healthy);
+4. that digest has a **passed smoke test** recorded against it.
+
+Then it signs the digest with the **production** key and creates the release tag
+with generated notes. Only a production-signed digest is acceptable to the
+production host; a staging-signed one is refused there, which is the whole point
+of two keys.
 
 ```bash
-grep -E 'MAKAM_TAG|PREVIOUS_TAG' /opt/makam-v1/staging/deployed.env
-sudo systemctl stop makam-staging-deploy.timer        # otherwise it re-deploys :latest within 2 min
-/opt/makam-v1/bin/makam-deploy --env staging --tag sha-<previous commit>
-# ...fix main (revert and push); once CI has pushed the fix:
-sudo systemctl start makam-staging-deploy.timer
+# What is running where
+gh api 'repos/andrianm28/makam/deployments?environment=production&per_page=1' \
+  --jq '.[0] | {ref, digest: .payload.image_digest, statuses: [.statuses_url]}'
+gh release list
 ```
+
+The production host deploys on its own timer or by hand
+(`makam-deploy --env prod`), following the digest `:latest` names, and only if
+the production key signed it.
+
+### Rolling back
+
+`.github/workflows/rollback.yml`, owner only: give it an earlier release tag and
+a reason. It finds the digest that release went out as, re-signs it with the
+production key, and records the rollback as a production deployment. It creates
+**no** new release: the release list stays the history of what went out.
+
+By hand, the same thing without the workflow:
+
+```bash
+# What is running now, and what was before it
+grep -E 'MAKAM_TAG|MAKAM_DIGEST|PREVIOUS_TAG' /opt/makam-v1/prod/deployed.env
+sudo systemctl stop makam-staging-deploy.timer   # not needed for prod
+/opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<the earlier digest>
+```
+
+A staging rollback is the same with `--env staging --tag sha-<commit>`; stop the
+staging timer first, or it re-follows `:latest` within 2 minutes. Note that
+`latest` is not what runs after a by-hand rollback, which is why the migration
+upgrade test reads the deployed digest rather than the tag.
+
+### Production safety
+
+`makam-deploy --env prod` adds, in order:
+
+- a `pg_dump` snapshot to `/opt/makam-v1/prod/backups/db/` **before** `migrate`
+  (seven newest kept, mode 0600; a dump taken after the migration would be
+  worthless). Restoring one is a separate, manual decision — see
+  "Forward-only migrations" below;
+- a failed `migrate` restarts nothing;
+- a failed `up` or `/api/health` **rolls back automatically** to the previous
+  digest and exits 2. Migrations are never rolled back: rolling the image back
+  only works while the previous image tolerates the new schema.
 
 ### Forward-only migrations
 
@@ -361,15 +501,18 @@ against the new schema (expand, then contract in a later release; never
 rename or drop a column the running code still reads in the same release).
 
 If `migrate` succeeds but `up` (or the health check) then fails, the database
-is already on the new schema. Either:
+is already on the new schema. `makam-deploy` then rolls the **image** back to the
+previous digest by itself (and says so in `deploy.log` and in the GitHub
+Deployment status), because that is the safe state. That works only because the
+previous image tolerates the new schema; its own `migrate` step is a no-op,
+since those migrations are already applied. Afterwards, either:
 
 - **roll forward**: fix `main` and let the next image deploy, or
-- **redeploy the previous tag** (`makam-deploy --env staging --tag <PREVIOUS_TAG>`),
-  which works only because that image tolerates the new schema. Its own
-  `migrate` step is a no-op, since those migrations are already applied.
+- **stay on the rolled-back image** and decide about the schema separately.
 
 Never restore a database backup to undo a migration on a live environment
-without a separate decision: it loses every write since the backup.
+without a separate decision: it loses every write since the backup, and
+`makam-deploy` never does it on its own.
 
 ## File storage (the private FileStore) and its backup
 
@@ -489,14 +632,24 @@ curl -s https://errors.makam.co.id/_health/            # ok
 
 Certbot reuses the host's existing ACME account. After that:
 
-- Browser errors: set the GitHub variable `NEXT_PUBLIC_SENTRY_DSN` to the
-  public DSN (`/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt`). The DSN
-  is public by design. Next.js inlines it at build time, so the next image
-  picks it up. One image serves staging and production, so there is one
-  browser DSN: browser events carry their environment from the page's host
-  at runtime (`dev.makam.co.id` → `staging`, `makam.co.id`/`www` →
+- Browser errors: put the public DSN
+  (`/opt/makam-v1/glitchtip/dsn-makam-staging-public.txt`) in the **env file on
+  the host** as `NEXT_PUBLIC_SENTRY_DSN`, next to `SENTRY_DSN` (server side).
+  The DSN is public by design. It is a **runtime** value: the server reads it and
+  serves it to the browser in the page, so one image serves staging and
+  production and each reports to its own GlitchTip. It is deliberately **not** a
+  build argument any more, so the same digest can go to either environment
+  without a rebuild. Browser events also carry their environment from the
+  page's host at runtime (`dev.makam.co.id` → `staging`, `makam.co.id`/`www` →
   `production`, anything else → `development`; `browserSentryEnvironment` in
-  `src/lib/env.ts`). Filter by environment in GlitchTip.
+  `src/lib/env.ts`). Filter by environment in GlitchTip. The `@smoke` spec
+  checks the value really arrives in the page.
+- **Not yet**: uploading browser source maps per image, and creating a GlitchTip
+  release per deploy. Both need a GlitchTip **auth token** as a GitHub secret,
+  and source maps also need `SENTRY_ORG` / `SENTRY_PROJECT` and a release at
+  build time in `next.config.ts`, which is a build-time decision rather than a
+  runtime one. Until they exist `next.config.ts` deliberately carries no auth
+  token, and GlitchTip shows minified JavaScript with no source map.
 - Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`, via the
   SumoPod SMTP relay once ticket 04's email setup is done), then restart GlitchTip.
 
@@ -720,14 +873,28 @@ file alone never changes an existing database's password.
 `MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
 `MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
 `POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, a VAPID pair with
-`VAPID_SUBJECT`, `SENTRY_DSN` from `dsn-makam-prod-internal.txt`, and the
-SumoPod SMTP settings (`SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`; required, see
-the `staging.env` table). Copy the compose file to
-`/opt/makam-v1/prod/compose.yml` and deploy with
-`makam-deploy --env prod --tag sha-<commit>`. Production should deploy an
-explicit tag rather than follow `:latest` on a timer. Seed the first Admin
-Platform with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then
-do the gated nginx switch.
+`VAPID_SUBJECT`, `SENTRY_DSN` from `dsn-makam-prod-internal.txt`, the public
+`NEXT_PUBLIC_SENTRY_DSN` from `dsn-makam-prod-public.txt` (a runtime value, see
+"Browser errors" above), and the SumoPod SMTP settings (`SMTP_USER`,
+`SMTP_PASSWORD`, `EMAIL_FROM`; required, see the `staging.env` table). Also
+`MAKAM_GITHUB_TOKEN`: a fine-grained token whose only permission is "Deployments:
+write" on this repository, so production deploys show up in GitHub. Without it
+they still deploy, just invisibly.
+
+Copy the compose file to `/opt/makam-v1/prod/compose.yml`, install the
+production cosign public key (`/opt/makam-v1/prod/cosign.pub`, see "Signing
+keys"), and enable a `makam-prod-deploy.timer` only when you want production to
+follow `:latest` on its own. Until then, deploy an exact digest by hand after a
+promotion:
+
+```bash
+makam-deploy --env prod --digest sha256:<digest from the promotion>
+```
+
+That digest is the one "Promosikan ke produksi" signed with the production
+key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
+with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then do the
+gated nginx switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
