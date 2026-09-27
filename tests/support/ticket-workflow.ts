@@ -60,6 +60,34 @@ export function ticketComments(text: string): string[] {
 }
 
 /**
+ * The ticket files of the issues directory that the other two readers cannot
+ * see. Both of them stop at two digits — the file filter is `^\d\d-.*\.md$` and
+ * an index row is `[\d{1,2}](…)` — so a `100-*.md` is invisible to every check in
+ * the guard on both sides at once: it is not in the ticket list, and its index
+ * row is not read either. A blind spot that both readers share is the one kind
+ * of blindness no test would ever report, so it is reported here instead.
+ *
+ * The rule refuses the file rather than widening the two readers to three
+ * digits. Widening would make `100-*.md` readable by the Status and marker
+ * rules while the rest of the guard still writes and expects two digits: the
+ * parenthetical number lists in the index's summary sentence, the `01`-style
+ * ticket numbers in every message, the `[nn](nn-….md)` links. One reader at
+ * three digits and the rest at two is a second, quieter class of the same bug.
+ * When the plan really does reach 100, the fix is one constant here and one
+ * there, in a commit that says so.
+ */
+export function ticketFileProblems(names: string[], index = "00-index.md"): string[] {
+  return names
+    .filter((name) => name.endsWith(".md") && name !== index)
+    .filter((name) => !/^\d\d-[^\s]+\.md$/.test(name))
+    .map(
+      (name) =>
+        `${name}: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together`,
+    )
+    .sort();
+}
+
+/**
  * Every ticket row of the index, wherever its table sits: the first block, the
  * split of a ticket, the block each later decision appended. A row whose link is
  * not a ticket file (`[Story](…)`, a number in a code span) is not a row, so a

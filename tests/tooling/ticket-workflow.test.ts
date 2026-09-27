@@ -6,6 +6,7 @@ import {
   statusSyncProblems,
   summaryProblems,
   ticketComments,
+  ticketFileProblems,
   ticketStatus,
   type Ticket,
 } from "../support/ticket-workflow";
@@ -51,9 +52,17 @@ const MARKER = "Two-axis review";
  * tickets at or above the boundary that resolved before this guard existed, so
  * no marker was ever written for them. Their record is left exactly as the
  * merges left it — several carry review evidence in another wording, some carry
- * nothing at all, and none of that is invented here. A test holds the list to
- * equality, so it can only shrink (a ticket that gains the marker leaves it),
- * and a new offender fails the build instead of joining it.
+ * nothing at all, and none of that is invented here.
+ *
+ * What the tests below actually guarantee about the list, and no more: every
+ * name is a real ticket, resolved, at or above RATCHET_FROM; the list is sorted
+ * and free of duplicates; and the rule's output is compared with it by
+ * `toEqual`, so an offender that is not on the list fails the build, and a gap
+ * that no longer exists has to come off the list. What they do not do is stop
+ * the next person from typing one more number into GRACE and going green again
+ * — a test cannot forbid a list it is comparing against. That edit is visible in
+ * the diff, in a commit whose message says why, which is the guarantee here:
+ * the decision to spare a ticket is auditable, not impossible.
  *
  * Do not lower RATCHET_FROM: the tickets below 43 merged before the marker
  * existed, so a lower boundary fails the build on history rather than on a live
@@ -76,6 +85,8 @@ function readTickets(): Ticket[] {
 }
 
 const indexText = readFileSync(new URL(INDEX, ISSUES), "utf8");
+/** The directory listing itself, so a green check can be told from an empty one. */
+const issueFiles = readdirSync(ISSUES);
 const tickets = readTickets();
 const offenders = reviewMarkerProblems(tickets, RATCHET_FROM, MARKER);
 
@@ -88,6 +99,11 @@ describe("the ticket workflow discipline", () => {
     const rows = indexRows(indexText);
     expect(tickets.length, "no ticket files were read").toBeGreaterThan(0);
     expect(tickets.length, "a ticket file the index lists was not read").toBe(rows.size);
+    // The naming rule is handed the directory listing, not a filtered one, and
+    // that listing is the one the tickets above came from — so a green naming
+    // rule is a tree with nothing to catch, not a rule handed nothing.
+    expect(issueFiles.filter((name) => name.endsWith(".md"))).toHaveLength(tickets.length + 1);
+    expect(ticketFileProblems(issueFiles), "a ticket file is named outside the two-digit convention, so it is invisible to every other check").toEqual([]);
     expect(tickets.map((ticket) => ticket.number)).toEqual([...new Set(tickets.map((ticket) => ticket.number))].sort((a, b) => a - b));
     for (const ticket of tickets) {
       expect(ticket.status, `${ticket.name} declares no Status:`).not.toBeNull();
@@ -190,6 +206,36 @@ describe("each check on the real tree, with one violation added in memory", () =
     );
     expect(grandfathared.every((one) => one.status === "resolved")).toBe(true);
     expect(reviewMarkerProblems(tickets, RATCHET_FROM, MARKER)).toEqual(expect.arrayContaining(GRACE));
+  });
+});
+
+describe("the ticket-file naming rule", () => {
+  it("catches the ticket file both other readers cannot see", () => {
+    // `100-*.md` is invisible on both sides at once: the two-digit filter drops
+    // it from the ticket list, and a three-digit number is not an index row
+    // either. So the two readers below are shown dropping it, and this rule is
+    // the one thing left that sees it.
+    const names = [INDEX, "07-production.md", "100-catalog.md"];
+    expect(names.filter((name) => /^\d\d-.*\.md$/.test(name) && name !== INDEX)).toEqual(["07-production.md"]);
+    expect(indexRows("| [100](100-catalog.md) | Catalog | resolved | — |\n").size).toBe(0);
+    expect(ticketFileProblems(names)).toEqual([
+      "100-catalog.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
+    ]);
+  });
+
+  it("catches a one-digit and an unnumbered file the same way", () => {
+    expect(ticketFileProblems(["9-late.md", "notes.md"])).toEqual([
+      "9-late.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
+      "notes.md: a ticket file is named <nn>-<slug>.md with two digits (01..99), and nothing in this guard reads a file or an index row under any other name, so this one would be invisible to every check here — rename it, or widen the readers together",
+    ]);
+  });
+
+  it("leaves a two-digit ticket and the index alone", () => {
+    expect(ticketFileProblems([INDEX, "01-walking-skeleton.md", "87-cloud-session-readiness.md"])).toEqual([]);
+  });
+
+  it("reports the files in one order however the directory lists them", () => {
+    expect(ticketFileProblems(["100-a.md", "9-b.md", "01-c.md"])).toEqual(ticketFileProblems(["9-b.md", "01-c.md", "100-a.md"]));
   });
 });
 
@@ -383,6 +429,10 @@ describe("the review-marker rule", () => {
   });
 
   it("leaves a ticket that is not resolved alone", () => {
+    // `wontfix` is exempt by design, not by accident: a ticket closed as
+    // not-doing was never built, so there is no code that a review could have
+    // looked at. `in-progress` is not a merge yet. The other two are not merged
+    // either.
     for (const status of ["ready-for-agent", "in-progress", "wontfix", "ready-for-human"]) {
       expect(reviewMarkerProblems([merged([], status)], 43, MARKER), `${status} does not merge`).toEqual([]);
     }
