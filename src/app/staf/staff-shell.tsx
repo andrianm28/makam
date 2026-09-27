@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Fragment } from "react";
 import { keluarDariBrowserIni } from "@/app/akun/keluar-button";
 import { BrandLogo } from "@/components/makam/brand-logo";
+import { LokasiSwitcher, type LokasiOption } from "@/components/makam/lokasi-switcher";
 import { RoleSwitcher } from "@/components/makam/role-switcher";
 import { ThemeToggle } from "@/components/makam/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,7 +50,16 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { StaffRole } from "@/domain/identity";
 import type { StaffShell as StaffShellData } from "@/server/staff-area";
-import { isActiveItem, menuRole, staffBreadcrumbs, staffMenu, staffPage, type NavGroup, type PaletteGroup } from "@/lib/staff-navigation";
+import {
+  isActiveItem,
+  lokasiSwitchHref,
+  menuRole,
+  staffBreadcrumbs,
+  staffMenu,
+  staffPage,
+  type NavGroup,
+  type PaletteGroup,
+} from "@/lib/staff-navigation";
 import { CommandPalette } from "./command-palette";
 import { NotificationBell } from "./notification-bell";
 
@@ -88,7 +98,7 @@ export function StaffShell({
       <SidebarProvider defaultOpen={defaultSidebarOpen}>
         <StaffSidebar menu={menu} roleLabel={roleLabel} roleHome={roleHome} pathname={pathname} />
         <SidebarInset className="min-w-0">
-          <ShellHeader shell={shell} role={page.role} pathname={pathname} palette={palette} />
+          <ShellHeader shell={shell} role={page.role} lokasiId={page.lokasiId} pathname={pathname} palette={palette} />
           <div className="mx-auto flex w-full max-w-(--page-max-width) flex-1 flex-col gap-6 px-(--page-gutter) pt-6 pb-16 md:pt-8">
             {children}
           </div>
@@ -172,17 +182,24 @@ function StaffSidebar({
 function ShellHeader({
   shell,
   role,
+  lokasiId,
   pathname,
   palette,
 }: {
   shell: StaffShellData;
   role: StaffRole | null;
+  lokasiId?: string;
   pathname: string;
   palette: PaletteGroup[];
 }) {
-  const trail = staffBreadcrumbs(pathname, (lokasiId) => shell.lokasiNames[lokasiId]);
+  const trail = staffBreadcrumbs(pathname, (id) => shell.lokasiNames[id]);
   const current = trail[trail.length - 1];
   const roleOptions = shell.roles.map((option) => ({ value: option.role, label: option.label, href: option.href }));
+  // Only on an Admin Lokasi page scoped to one of its own Lokasi Mitra; LokasiSwitcher itself hides when there is one.
+  const lokasiOptions: LokasiOption[] =
+    role === "admin_lokasi" && lokasiId
+      ? shell.adminLokasi.map((item) => ({ value: item.id, label: item.name, href: lokasiSwitchHref(pathname, lokasiId, item.id) }))
+      : [];
 
   return (
     <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md supports-backdrop-filter:bg-background/70 md:px-4">
@@ -207,17 +224,28 @@ function ShellHeader({
       <p className="truncate text-small font-medium md:hidden">{current.label}</p>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <LokasiSwitcher lokasi={lokasiOptions} current={lokasiId ?? null} className="max-md:hidden" />
         <RoleSwitcher roles={roleOptions} current={role} className="max-md:hidden" />
         <CommandPalette groups={palette} />
         <NotificationBell unread={shell.alerts.unread} latest={shell.alerts.latest} />
         <ThemeToggle />
-        <AccountMenu shell={shell} role={role} />
+        <AccountMenu shell={shell} role={role} lokasi={lokasiOptions} currentLokasi={lokasiId ?? null} />
       </div>
     </header>
   );
 }
 
-function AccountMenu({ shell, role }: { shell: StaffShellData; role: StaffRole | null }) {
+function AccountMenu({
+  shell,
+  role,
+  lokasi,
+  currentLokasi,
+}: {
+  shell: StaffShellData;
+  role: StaffRole | null;
+  lokasi: LokasiOption[];
+  currentLokasi: string | null;
+}) {
   const { email, phoneNumber } = shell.account;
   return (
     <DropdownMenu>
@@ -236,6 +264,22 @@ function AccountMenu({ shell, role }: { shell: StaffShellData; role: StaffRole |
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        {lokasi.length > 1 ? (
+          <DropdownMenuGroup className="md:hidden">
+            <DropdownMenuLabel>Ganti Lokasi</DropdownMenuLabel>
+            {lokasi.map((option) => (
+              <DropdownMenuLinkItem
+                key={option.value}
+                render={<Link href={option.href} />}
+                aria-current={option.value === currentLokasi ? "page" : undefined}
+              >
+                <span className="flex-1 truncate">{option.label}</span>
+                {option.value === currentLokasi ? <span className="text-caption text-brand">Aktif</span> : null}
+              </DropdownMenuLinkItem>
+            ))}
+            <DropdownMenuSeparator />
+          </DropdownMenuGroup>
+        ) : null}
         {shell.roles.length > 1 ? (
           <DropdownMenuGroup className="md:hidden">
             <DropdownMenuLabel>Masuk sebagai</DropdownMenuLabel>

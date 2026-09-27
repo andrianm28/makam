@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/makam/confirm-dialog";
 import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
 import { PageTabs } from "@/components/makam/page-tabs";
+import { LokasiSwitcher } from "@/components/makam/lokasi-switcher";
 import { RoleSwitcher } from "@/components/makam/role-switcher";
 import { StatCard } from "@/components/makam/stat-card";
 import { StatusBadge, statusVocabulary, type StatusKey } from "@/components/makam/status-badge";
@@ -224,6 +225,24 @@ export default async function DesainPage() {
               roles={[
                 { value: "admin_platform", label: "Admin Platform", href: `${AP}` },
                 { value: "admin_lokasi", label: "Admin Lokasi", href: "/staf/admin-lokasi" },
+              ]}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>LokasiSwitcher</CardTitle>
+            <CardDescription>
+              Header Admin Lokasi: berpindah antar Lokasi Mitra sendiri; tersembunyi bila hanya mengelola satu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LokasiSwitcher
+              current="a"
+              lokasi={[
+                { value: "a", label: "Makam Wakaf Al-Ikhlas", href: "#" },
+                { value: "b", label: "TPU Keluarga Sentosa", href: "#" },
               ]}
             />
           </CardContent>

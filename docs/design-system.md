@@ -204,11 +204,12 @@ makam compositions (`src/components/makam/`):
 | `PageTabs` | The Detail pattern's tabs: each one its own URL (`aria-current="page"` on the active one), so the browser's back button and a shared link both land on the right tab. |
 | `ConfirmDialog` | An action that can't be undone, or needs a reason for the Audit Log: a title, a description, an optional required reason field, and a destructive or default confirm button. Wraps shadcn's `alert-dialog`. |
 | `RoleSwitcher` | Switch between the staff roles one Akun holds. Hidden when it holds one. |
+| `LokasiSwitcher` | Header control for an Admin Lokasi of several Lokasi Mitra: switches which one the current page is scoped to, keeping the same kind of page where that still makes sense. Hidden when it works on one. |
 | `ThemeToggle` | Terang, Gelap, Ikuti perangkat (staff area only). |
 | `BrandLogo`, `BrandMark` | The interim logo. |
 | `ThemeProvider` | next-themes, with the public pages held to light. |
 
-Still to come with the slices that first need them: `FormSection`, `LokasiSwitcher` (header), the bottom navigation for field roles.
+Still to come with the slices that first need them: `FormSection`, the bottom navigation for field roles.
 
 ## Usage rules
 

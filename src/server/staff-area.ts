@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
+import type { LokasiMitraSummary } from "@/domain/lokasi";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { staffRoleHome } from "@/lib/staff-area-path";
 import { staffPalette, type PaletteGroup } from "@/lib/staff-navigation";
@@ -40,6 +41,8 @@ export interface StaffShell {
   account: { email: string; phoneNumber: string | null };
   /** The Lokasi Mitra this Akun works on, by id, so breadcrumbs can name them. */
   lokasiNames: Record<string, string>;
+  /** The signed-in Akun's own Lokasi Mitra, for the header's Lokasi switcher; empty unless it holds Admin Lokasi. */
+  adminLokasi: LokasiMitraSummary[];
   /**
    * The command palette's pages, for each staff role the Akun holds and only
    * those: what that role may open (an Admin Lokasi only its own Lokasi Mitra).
@@ -80,6 +83,7 @@ export async function staffShell(): Promise<StaffShell | null> {
     roles: held.map((role) => ({ role, label: staffRoleLabels[role], href: staffRoleHome(role) })),
     account: { email: actor.email, phoneNumber: actor.phoneNumber },
     lokasiNames: Object.fromEntries(lokasiMitra.map((item) => [item.id, item.name])),
+    adminLokasi: lokasiOf("admin_lokasi"),
     palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role))])),
     alerts: alerts.ok ? { unread: alerts.unread, latest: alerts.latest } : { unread: 0, latest: [] },
   };
