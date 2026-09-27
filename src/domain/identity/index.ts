@@ -99,6 +99,7 @@ export {
   authorize,
   hariLiburNasionalResource,
   lokasiMitraResource,
+  pemesananResource,
   semuaLokasiMitraResource,
   needsTotp,
   pengaturanOperatorResource,
@@ -153,8 +154,12 @@ export interface Identity {
    * reply is the same for every email, whether an Akun has it or not.
    */
   requestKodeMasuk(input: { email: string; ip: string }): Promise<RequestKodeMasukResult>;
-  /** Logs in with the Kode Masuk: into the Akun of that Email Terverifikasi, created when the email has none. */
-  verifyKodeMasuk(input: { email: string; code: string }): Promise<VerifyKodeMasukResult>;
+  /**
+   * Logs in with the Kode Masuk: into the Akun of that Email Terverifikasi,
+   * created when the email has none. A wizard's Kirim passes the `name` it asked
+   * for, which fills an Akun that has no name yet.
+   */
+  verifyKodeMasuk(input: { email: string; code: string; name?: string }): Promise<VerifyKodeMasukResult>;
   /** The Akun whose Email Terverifikasi this is (any case), or null. */
   accountByEmail(email: string): Promise<Account | null>;
   /** The signed-in actor for a request's Cookie header, or null when not signed in. */

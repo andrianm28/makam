@@ -14,6 +14,10 @@ describe("the status vocabulary", () => {
       "Belum Dibayar",
       "Diajukan",
       "Dikonfirmasi",
+      "Dimakamkan",
+      "Selesai",
+      "Ditolak",
+      "Dibatalkan",
     ]);
   });
 
@@ -39,5 +43,10 @@ describe("the status vocabulary", () => {
     expect(statusVocabulary.belum_dibayar.tone).toBe("warning");
     expect(statusVocabulary.ditangguhkan.tone).toBe("warning");
     expect(statusVocabulary.diajukan.tone).toBe("info");
+  });
+
+  it("shows a Ditolak order as needing a decision, and a Dibatalkan one as ended for good", () => {
+    expect(statusVocabulary.ditolak.tone).toBe("warning");
+    expect(statusVocabulary.dibatalkan.tone).toBe("neutral");
   });
 });

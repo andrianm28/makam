@@ -247,6 +247,7 @@ jobs:
         env:
           E2E_SEED_ADMIN: ${{ env.COMPOSE }} exec -T web node dist/seed-admin.mjs
           E2E_SEED_TAGIHAN: ${{ env.COMPOSE }} exec -T web node dist/seed-tagihan.mjs
+          E2E_SEED_SAAT_DUKA: ${{ env.COMPOSE }} exec -T web node dist/seed-saat-duka.mjs
         run: npm run e2e
       - name: Stack logs
         if: failure()

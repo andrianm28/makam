@@ -4,6 +4,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
+import { composePemesanan } from "@/composition/pemesanan";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
@@ -82,6 +83,16 @@ export function testServerRuntime() {
         lokasi,
         fieldwork,
         billing,
+        notifications,
+      }),
+      pemesanan: composePemesanan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        identity,
         notifications,
       }),
     };
