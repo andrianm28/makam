@@ -128,7 +128,6 @@ export type Action =
    * Place a Pemesanan Makam of one's own (the wizard's Kirim), for the Lokasi
    * Mitra and Jenis Makam chosen.
    */
-
   | "pemesanan.buat"
   /** Read one's own Pemesanan Makam by its Nomor Pemesanan. */
   | "pemesanan.lihat";
