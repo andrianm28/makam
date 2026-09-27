@@ -1,6 +1,6 @@
 # Masuk, TOTP and Akun Saya on the brand
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 74, 82
 Spec: Implementation Decisions > Staff UI and design system; docs/brand/brand-guideline-visual-2026.pdf; prototype branch `worktree-agent-aebfc82ebc2eab39d` (commit 282bcc0: `docs/design-system.md`, `/pratinjau/staf`, gallery https://claude.ai/artifact/BpcTyBmWqYXL2EFCNrt9bx)
 
