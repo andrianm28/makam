@@ -134,6 +134,13 @@
       "when": 1790488931832,
       "tag": "0018_chief_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790498061466,
+      "tag": "0019_demonic_impossible_man",
+      "breakpoints": true
     }
   ]
 }

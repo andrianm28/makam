@@ -97,10 +97,30 @@ import {
 } from "./publish";
 import { activateTerencana, type ActivateTerencanaInput, type ActivateTerencanaResult } from "./terencana";
 import {
+  createTpuDki,
+  publicTpuDki,
+  publicTpuDkiList,
+  tpuDkiList,
+  updateTpuDki,
+  updateTpuDkiFlag,
+  type CreateTpuDkiResult,
+  type NewTpuDki,
+  type PublicTpuDki,
+  type PublicTpuDkiQuery,
+  type TpuDki,
+  type TpuProfileInput,
+  type UpdateTpuDkiFlagResult,
+  type UpdateTpuDkiResult,
+} from "./tpu";
+import {
   publicLokasiMitra,
   publicLokasiMitraCities,
   publicLokasiMitraList,
+  publicLokasiMakamCities,
+  publicLokasiMakamList,
   publicVisitPhotoUrls,
+  type LokasiMakamCard,
+  type LokasiMakamQuery,
   type PublicLokasiMitra,
   type PublicLokasiMitraCard,
   type PublicLokasiMitraQuery,
@@ -192,6 +212,20 @@ export type {
 } from "./kunjungan";
 export type { PublishInput, PublishLokasiMitraResult } from "./publish";
 export {
+  TPU_NAME_MAX,
+  tpuFlagSchema,
+  tpuProfileSchema,
+  type CreateTpuDkiResult,
+  type InvalidTpu,
+  type NewTpuDki,
+  type PublicTpuDki,
+  type PublicTpuDkiQuery,
+  type TpuDki,
+  type TpuProfileInput,
+  type UpdateTpuDkiFlagResult,
+  type UpdateTpuDkiResult,
+} from "./tpu";
+export {
   terencanaSwitchGate,
   type ActivateTerencanaInput,
   type ActivateTerencanaResult,
@@ -199,6 +233,7 @@ export {
   type TerencanaSwitchKey,
 } from "./terencana";
 export type { PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
+export type { LokasiMakamCard, LokasiMakamKind, LokasiMakamQuery } from "./public-reads";
 
 export interface LokasiModuleDeps {
   db: Database;
@@ -348,6 +383,26 @@ export interface Lokasi {
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
   publicLokasiMitraCities(): Promise<string[]>;
+  /** Every DKI TPU with its new-plot flag and the date that flag was checked (Admin Platform; empty for anyone else). */
+  tpuDkiList(by: Actor): Promise<TpuDki[]>;
+  /** Admin Platform adds a DKI TPU with the new-plot flag as found (which stamps the date it was checked), audited. */
+  createTpuDki(by: Actor, input: NewTpuDki): Promise<CreateTpuDkiResult>;
+  /** Admin Platform corrects a DKI TPU's name, address, city, pin or data source, audited; the flag is never touched here. */
+  updateTpuDki(by: Actor, tpuId: string, input: TpuProfileInput): Promise<UpdateTpuDkiResult>;
+  /** Admin Platform records what a TPU takes today, stamping and auditing the date the flag was checked. */
+  updateTpuDkiFlag(by: Actor, tpuId: string, input: { menerimaMakamBaru: boolean }): Promise<UpdateTpuDkiFlagResult>;
+  /** One TPU as a visitor reads it (no actor, for its public page); null for an id that is no TPU's. */
+  publicTpuDki(tpuId: string): Promise<PublicTpuDki | null>;
+  /** Every TPU, by name, for the Draft cards (no actor), narrowed by the directory's own city filter. */
+  publicTpuDkiList(query?: PublicTpuDkiQuery): Promise<PublicTpuDki[]>;
+  /**
+   * The whole Daftar Lokasi Makam in one read: every Terverifikasi Lokasi Mitra
+   * and every DKI TPU, by name, filtered by kind, by the one city filter and, for
+   * Lokasi Mitra, by facilities (no actor).
+   */
+  publicLokasiMakamList(query?: LokasiMakamQuery): Promise<LokasiMakamCard[]>;
+  /** Every city either kind is in, for the directory's city filter (no actor). */
+  publicLokasiMakamCities(): Promise<string[]>;
   /** Signed URLs to a Terverifikasi Lokasi Mitra's Kunjungan Verifikasi visit photos (no actor, for its Lokasi page). */
   publicVisitPhotoUrls(lokasiId: string): Promise<string[]>;
 }
@@ -394,6 +449,14 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
     publicLokasiMitraCities: () => publicLokasiMitraCities(deps),
+    tpuDkiList: (by) => tpuDkiList(deps, by),
+    createTpuDki: (by, input) => createTpuDki(deps, by, input),
+    updateTpuDki: (by, tpuId, input) => updateTpuDki(deps, by, tpuId, input),
+    updateTpuDkiFlag: (by, tpuId, input) => updateTpuDkiFlag(deps, by, tpuId, input),
+    publicTpuDki: (tpuId) => publicTpuDki(deps, tpuId),
+    publicTpuDkiList: (query) => publicTpuDkiList(deps, query),
+    publicLokasiMakamList: (query) => publicLokasiMakamList(deps, query),
+    publicLokasiMakamCities: () => publicLokasiMakamCities(deps),
     publicVisitPhotoUrls: (lokasiId) => publicVisitPhotoUrls(deps, lokasiId),
   };
 }

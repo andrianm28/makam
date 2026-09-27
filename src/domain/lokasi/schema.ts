@@ -1,4 +1,4 @@
-import { date, doublePrecision, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, doublePrecision, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
 import type { JamOperasional } from "./jam-operasional-schema";
@@ -72,6 +72,35 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });
+
+/**
+ * Owned by the Lokasi module: one row per DKI TPU (spec, Lokasi). A TPU is a
+ * Lokasi Makam the Pemda owns and runs, so the platform holds no Petak Makam
+ * for it and no publish gate: being on this list is what makes it public. Every
+ * DKI TPU is listed, entered by Admin Platform in the dashboard, never seeded.
+ */
+export const tpuDki = pgTable(
+  "tpu_dki",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** The name folded for the one-name-per-list rule: lower case, single spaces. */
+    nameKey: text("name_key").notNull(),
+    address: text("address").notNull(),
+    /** Kota or kabupaten, as typed (e.g. "Kota Jakarta Timur"), the same label the directory's city filter uses. */
+    city: text("city").notNull(),
+    pinLat: doublePrecision("pin_lat"),
+    pinLng: doublePrecision("pin_lng"),
+    /** Where this TPU's record came from (the city's own data, a visit, a phone call), as Admin Platform writes it. */
+    dataSource: text("data_source").notNull(),
+    /** "Menerima makam baru": only TPUs taking new plots are offered a burial. Set with `flagUpdatedAt`, never alone. */
+    menerimaMakamBaru: boolean("menerima_makam_baru").notNull(),
+    flagUpdatedAt: at("flag_updated_at").notNull(),
+    createdAt: at("created_at").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("tpu_dki_name_key_idx").on(table.nameKey), index("tpu_dki_name_idx").on(table.name)],
+);
 
 /**
  * Owned by the Lokasi module: the Hari Libur Nasional list Admin Platform

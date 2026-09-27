@@ -26,6 +26,7 @@ export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;
 export {
   jenisMakamInput,
   newLokasiMitra,
+  newTpuDki,
   publishedLokasiMitra,
   readyToPublish,
   signedInAdminLokasi,
