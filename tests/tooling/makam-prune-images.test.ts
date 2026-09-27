@@ -303,6 +303,31 @@ describe("makam-prune-images", () => {
     expect(result.output).not.toContain(`would remove ${IMAGE}:${version(3)}`);
   });
 
+  it("refuses when a running container's image id is not an id at all", () => {
+    // Docker would have to misprint for this: an id with no hex after the
+    // prefix, or in the wrong case, is not something this script may guess at.
+    // It is a deleting script, so an id it cannot normalise means it does not
+    // know what anything is running, and it removes nothing.
+    for (const held of ["sha256:", "SHA256:aaaaaaaaaaaaaaaa", `sha256:${"A".repeat(64)}`, "not-an-id", "sha256:zz"]) {
+      const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+      const result = prune(world, [1, 2, 3].map((n) => listed(IMAGE, version(n))), { running: [["a-container", held]] });
+      expect(result.code, `held=${held}`).toBe(78);
+      expect(result.removed, `held=${held}`).toEqual([]);
+      expect(result.output, `held=${held}`).toMatch(/image id/);
+    }
+  });
+
+  it("keeps a version whose own id is not an id, rather than guessing it is free", () => {
+    // The same misprint on the inventory side is not fatal: it is about this one
+    // version, and keeping it is the safe answer. Reported, not silent.
+    for (const id of [`SHA256:${"a".repeat(64)}`, "not-an-id", "sha256:"]) {
+      const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
+      const result = prune(world, [listed(IMAGE, version(1)), listed(IMAGE, version(2)), listed(IMAGE, version(3), id)]);
+      expect(result.removed, `id=${id}`).toEqual([]);
+      expect(result.output, `id=${id}`).toMatch(/no usable id/);
+    }
+  });
+
   it("refuses an environment it does not know, and touches nothing", () => {
     const world = host([{ name: "staging", running: version(1), history: [version(1)] }]);
     const result = prune(world, [listed(IMAGE, version(1))], { env: "qa" });
@@ -321,10 +346,10 @@ describe("makam-prune-images", () => {
 
   it("keeps a version whose id docker did not give, because it cannot tell it is free", () => {
     const world = host([{ name: "staging", running: version(2), previous: version(1), history: [1, 2].map(version) }]);
-    // A listing line with no id: nothing to compare against the containers.
+    // A listing line with no id at all: nothing to compare against the containers.
     const result = prune(world, [listed(IMAGE, version(1)), listed(IMAGE, version(2)), `${IMAGE} ${version(3)}`]);
     expect(result.removed).toEqual([]);
-    expect(result.output).toMatch(/no id from docker/);
+    expect(result.output).toMatch(/no usable id/);
   });
 
   it("says so with its own exit code when a version it should have removed stayed", () => {

@@ -10,17 +10,19 @@
  * volume or network by name, each proved to come from this worktree or this
  * environment first (`scripts/clean.mts`, `deploy/bin/makam-prune-images`).
  *
- * What is checked, precisely: every file git tracks that could run a command —
- * an executable whatever its name, a source file, a workflow, a compose file,
- * a package manifest. Documentation is not checked, because prose that names a
- * prune runs nothing, and the runbook and AGENTS.md have to be able to say
- * these words are forbidden.
+ * What is checked, precisely: **every file git tracks**, whatever its name, its
+ * suffix or its mode. The first version of this rule filtered on suffixes and
+ * on the executable bit, and the re-review showed what that cost: the
+ * extension-less `deploy/bin/makam-deploy-status` and `makam-backup-lib` (both
+ * mode 100644, both installed 0755 on the host), the `Dockerfile` and every
+ * `deploy/systemd/*.service` were never looked at. A filter here is a hole, so
+ * there is none. The only exclusion is documentation and lock files, because
+ * prose that names a prune runs nothing and the runbook and AGENTS.md have to
+ * be able to say these words are forbidden.
  */
 export type ScannableFile = {
   /** Path as git knows it, e.g. `deploy/bin/makam-prune-images`. */
   path: string;
-  /** Git's mode: `100755` for an executable, `100644` otherwise. */
-  mode: string;
   text: string;
 };
 
@@ -29,9 +31,6 @@ const NOT_SOURCE = /^(node_modules|\.next|dist|test-results|playwright-report|bl
 
 /** Documentation and lock files: they cannot run a command. */
 const NOT_EXECUTABLE = /\.(md|mdx|txt|lock|log)$|(^|\/)package-lock\.json$/;
-
-/** A file that can run a command: an executable, or one of these suffixes. */
-const EXECUTABLE_SUFFIX = /\.(sh|bash|ts|tsx|mts|cts|mjs|cjs|js|jsx|ya?ml|json|toml)$/;
 
 /**
  * `docker <object> prune`, and a bare `prune -a`. The command has to be the
@@ -59,11 +58,10 @@ function codeOnly(text: string): string {
     .replace(/<!--[\s\S]*?-->/g, " ");
 }
 
-/** Every global prune in this file, as `<path>[:<line>]: <command>`. */
+/** Every global prune in this file, as `<path>:<line>: <command>`. */
 export function globalPrunes(file: ScannableFile): string[] {
   if (NOT_SOURCE.test(file.path)) return [];
-  if (NOT_EXECUTABLE.test(file.path) && !file.mode.startsWith("100755")) return [];
-  if (!file.mode.startsWith("100755") && !EXECUTABLE_SUFFIX.test(file.path)) return [];
+  if (NOT_EXECUTABLE.test(file.path)) return [];
 
   const found: string[] = [];
   codeOnly(file.text)

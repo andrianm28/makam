@@ -44,6 +44,16 @@ concurrency:
   group: image-retention
   cancel-in-progress: false
 
+# Every step runs in bash, and every step that pipes says `set -euo pipefail`
+# itself. The re-review found the read step piping `gh api | jq` with neither:
+# a failed `gh api` then left a truncated file and a *green* step, the
+# deployments looked empty, and the deletion went ahead on age alone. A step's
+# status is its last command's in a pipeline, so this is the difference between
+# "the read failed" and "nothing is deployed".
+defaults:
+  run:
+    shell: bash
+
 jobs:
   prune:
     name: Delete ghcr versions nothing needs
@@ -88,6 +98,7 @@ jobs:
           # a repository a few months old is already past that. `jq -s add`
           # folds the pages `gh api` writes one after another back into one
           # array, which is the shape the script reads.
+          set -euo pipefail
           gh api --paginate "$ENDPOINT/packages/container/$PACKAGE/versions?per_page=100" | jq -s 'add' > "$VERSIONS"
           gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" | jq -s 'add' > "$DEPLOYMENTS"
           printf '%s versions, %s deployments read\n' \
@@ -96,12 +107,13 @@ jobs:
         env:
           MAKAM_IMAGE_MAX_AGE_DAYS: ${{ env.MAX_AGE_DAYS }}
         run: |
-          # pipefail on purpose: the script's own exit code is the answer to
-          # "may anything be deleted", and in a pipeline it would be tee's.
-          set -o pipefail
+          # The script's own exit code is the answer to "may anything be
+          # deleted", and in a pipeline it would be tee's.
+          set -euo pipefail
           npx --no-install tsx scripts/images/expired-versions.ts "$VERSIONS" "$DEPLOYMENTS" | tee "$EXPIRED"
       - name: Delete them, one version at a time
         run: |
+          set -euo pipefail
           # The summary is appended to, never piped through: in a pipeline the
           # step's status is the last command's, so a failed delete would be
           # reported as a green run. `run:` uses `bash -e`, so gh's own exit

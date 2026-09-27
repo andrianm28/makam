@@ -63,7 +63,15 @@ version() { [[ $1 =~ ^sha-[0-9a-f]{40}$ ]]; }
 # would leave every running container's image free to be untagged, so both sides
 # are reduced to the short form first. A short form that collides with another
 # image is the safe direction to be wrong in: it keeps one image too many.
-short_id() { printf '%s' "${1#sha256:}" | cut -c1-12; }
+# Anything that is not an id is refused rather than guessed at: `sha256:` with no
+# hex after it, an upper-case digest, a word. An empty answer here is not
+# "nothing is running", it is "nothing is known", and a deleting script must not
+# read the second as the first.
+short_id() {
+  local id=${1#sha256:}
+  [[ $id =~ ^[0-9a-f]{12}$ || $id =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "${id:0:12}"
+}
 
 DRY_RUN=0
 while [ $# -gt 0 ]; do
@@ -109,7 +117,11 @@ for container in $CONTAINERS; do
   held=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null) \
     || refuse "docker inspect $container failed; nothing was removed"
   [ -n "$held" ] || refuse "docker inspect $container named no image; nothing was removed"
-  INUSE="$INUSE $(short_id "$held")"
+  # Not being able to read this id means not knowing what this host is running,
+  # which is a reason to remove nothing at all.
+  short=$(short_id "$held") \
+    || refuse "docker inspect $container gave an image id that is not one (image id=$held); nothing was removed"
+  INUSE="$INUSE $short"
 done
 
 # The retention set: each environment's running and previous version first, then
@@ -152,12 +164,13 @@ failed=0
 while IFS=$'\t' read -r tag id; do
   [ -n "$tag" ] || continue
   total=$((total + 1))
-  id=$(short_id "$id")
-  # An id docker did not give means this image cannot be checked against the
-  # running containers, so it is kept: not knowing is not knowing it is free.
-  # Checked before the in-use test, because an empty id would match it.
+  # The same rule as above, the other way round: a version whose own id is not
+  # an id is kept, and said out loud, because keeping it is the safe answer and
+  # one bad line in a listing is not a reason to refuse the whole run. Checked
+  # before the in-use test, because an empty id would match it.
+  id=$(short_id "$id") || id=""
   if [ -z "$id" ]; then
-    log "no id from docker, keeping $IMAGE:$tag (cannot tell whether it is in use)"
+    log "no usable id for $IMAGE:$tag, keeping it (cannot tell whether it is in use)"
     continue
   fi
   case " $KEEP_TAGS " in

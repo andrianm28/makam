@@ -569,11 +569,13 @@ cleanup in this repository, and none is ever allowed: `docker system prune`,
 `docker builder prune`, `docker container prune` and every `-a` / `--all` form
 of them would reach another project's objects. What is checked, exactly:
 `tests/tooling/image-retention.test.ts` fails the build if one appears in **any
-file git knows that could run a command** — an executable whatever its name
-(everything in `deploy/bin/` has no suffix), a source file, a workflow, a
-compose file, a package manifest. Documentation is not scanned, because prose
-that names a prune runs nothing. The rule itself is `tests/support/global-prune.ts`,
-tested by `tests/support/global-prune.test.ts`.
+file git tracks**, whatever its name, its suffix or its mode — so the
+extension-less `deploy/bin/*`, the `Dockerfile` and the systemd units are all in
+it, and so is anything added later. Only documentation (`.md`, `.txt`) and lock
+files are skipped, because prose that names a prune runs nothing. The rule is
+`tests/support/global-prune.ts`, tested by `tests/support/global-prune.test.ts`;
+the one file the sweep does not judge is that test's own, whose fixtures are the
+commands it refuses, and two tests say so.
 
 ### What fills the disk
 
@@ -583,7 +585,8 @@ version the host pulls and keeps. A deploy only needs the last few.
 
 ### `makam-prune-images` (on the host, every deploy)
 
-`makam-deploy` step 9 calls it once the new release is healthy. It untags
+`makam-deploy` calls it as its last step (step 8 in that script's own header,
+once the new release is healthy). It untags
 `ghcr.io/andrianm28/makam:sha-<40 hex>` versions and nothing else:
 
 - the repository comes from the environment's env file (`MAKAM_IMAGE`) and must
@@ -598,9 +601,12 @@ version the host pulls and keeps. A deploy only needs the last few.
 - **kept, always**: whatever a running container on this host holds, whoever
   runs it. Compared by image **id**, and both sides are reduced to docker's
   12-character short id first, because `docker inspect {{.Image}}` answers
-  `sha256:<64 hex>` while `docker image ls {{.ID}}` answers the short form;
-- **kept**: a version whose image id docker does not report. Not knowing it is
-  free is not knowing it is free;
+  `sha256:<64 hex>` while `docker image ls {{.ID}}` answers the short form. An
+  answer that is not an id at all — `sha256:` with no hex, an upper-case digest —
+  is **refused**, not read as "nothing is running";
+- **kept**: a version whose own id in the listing is not a usable id. Not
+  knowing it is free is not knowing it is free; that one is reported and kept
+  rather than refused, because it is about that version alone;
 - **refused (exit 78), nothing removed**, when the Docker daemon is unreachable,
   when the inventory cannot be read, when an env file names another image, or
   when an environment's `deployed.env` does not say which version it runs. A
