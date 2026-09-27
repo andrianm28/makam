@@ -1,27 +1,38 @@
-# Handoff: makam v1 orchestration, cloud session 4 (2026-09-26, ~18:40 UTC)
+# Handoff: makam v1 orchestration, cloud session 5 (2026-09-27)
 
-Orchestrator for makam.co.id v1 on `andrianm28/makam`. Talk to the owner in **Bahasa Indonesia**. Session 3's handoff is in git history (`git log -p -- .scratch/makam-v1-build/handoff-cloud.md`).
+Orchestrator for makam.co.id v1 on `andrianm28/makam`. Talk to the owner in **Bahasa Indonesia**. Earlier handoffs: `git log -p -- .scratch/makam-v1-build/handoff-cloud.md`.
 
 ## Read first
 `AGENTS.md` (Working agreements), `CONTEXT.md`, `.scratch/makam-v1/spec.md` "Release plan", `.scratch/makam-v1-build/issues/00-index.md`.
 
-## Owner decisions (session 3)
-- "ya, push ke main": the orchestrator pushes merge commits to `main` itself.
-- **Budget: about $100 credit left → be frugal.** Critical path only: **16 → 17 → 20 → 22 → 23 → 24 → 25** (target: a family can book Saat Duka on staging). Deferred: 72 (approved but paused for budget), 77–79, 80 (see below), 26–33, 36–38.
-- Proposed, not yet answered: one sonnet reviewer with separate `## Standards` / `## Spec` sections for every diff, haiku for re-reviews. Ask once more.
-- Network: owner added `registry.npmjs.org`, `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`, `fonts.googleapis.com`, `fonts.gstatic.com`. In session 3's container npm still answered 403 and `docker pull` 403 (policy likely applies to new containers). **First step now: check `npm ci`, `docker pull postgres:18.6`, then `npm run lint && npm run typecheck && npm test` locally.** If npm is still 403, read the `environment.network` documentation page and tell the owner.
-- Matt skills: installed via `claude plugin install mattpocock-skills@mattpocock` in session 3's container only; check whether `mattpocock-skills:*` skills show in this session (ticket 87). Keep vendored `.claude/skills/` until they do.
+## Owner decisions (this session)
+- **Budget no longer a constraint** ("hiraukan budget, jalankan percepatan"): run up to 4 builders in parallel (sonnet), each in its own worktree.
+- **Review = 2 parallel sonnet reviewers** (Standards, Spec) per `.claude/skills/code-review`, then the same builder fixes (resume via SendMessage), then a **haiku** re-review of the fix list.
+- **Merge**: owner said "merge" = standing permission to merge a ticket branch into `main` once both axes are clean and CI on the branch head is green. Exception: **ticket 72 (production deploy pipeline) needs the owner's explicit OK before merge.** The auto-mode classifier blocks *scheduled/unattended* pushes to main (send_later → "Production Deploy"); merge only in a turn right after the owner's go.
+- **Rilis 1 scope confirmed to include 64, 72, 73, 77, 78, 79, 80** besides the critical path.
+- Open question to owner: **64 (backups)** depends on 03 (AWS S3, moved to v2). Backup target for v1 (other storage) or move 64 to v2?
 
-## State
-`main` = a462fce: tickets 13, 76, 60, 14, 15, 81 merged this session (CI of the combined main not yet checked — check it first). Migrations now go to `0015_fieldwork_tugas_lapangan`; drizzle meta was hand-written in session 3 (no drizzle-kit) — once npm works, run `npm run db:generate` and confirm it reports no changes.
+## Queue (order)
+Critical path: 17 → 20 → 22 → 23 ∥ 26 → 24 → 25. Then 68 (SMTP; blocked by human ticket 04). Ops/UI in parallel slots: 72 → 73, 80, 78, 79, then 77 (after 17: both touch Admin Platform). 64 pending decision.
 
-Open, not merged:
-- `ticket-80-masuk-brand` @ 0273b1a (CI green): only restyles the TOTP field. Review found ticket 80 not done: no logo/Keluar on the TOTP page (docs/design-system.md), headings not on the type scale on Masuk, Akun Saya, /staf/email, TOTP. Deferred (not critical path).
-- `ticket-72-signed-deploys`: builder stopped early for budget; branch may hold partial work — check before reuse or delete.
+## State at handoff
+- `main` = 8b3b0e9: ticket 16 merged (722ae7e) and marked resolved; CI green.
+- In flight (builders were running when this was written; check branch on origin before relaunching):
+  - 17 `ticket-17-antrean` (built in the main checkout `/home/user/makam`, uncommitted when handed off).
+  - 72 `ticket-72-signed-deploys` (worktree; fresh start, the old branch never reached origin).
+  - 78 `ticket-78-admin-lokasi-redesign` (worktree).
+  - 79 `ticket-79-field-roles-phones` (worktree).
+  - 80 `ticket-80-masuk-brand` @ 8b83d3c: built, pushed; Standards + Spec reviews were running. Builder found logo/Keluar on TOTP already present via `src/app/staf/layout.tsx` fallback; fixed headings to the type scale.
+- If a branch is missing on origin, its work was lost with the container: relaunch the builder from origin/main.
 
-Follow-ups recorded in ticket Comments: 14 (unique alias index, audit role literal, Kavling first-Pemakaman picker), 15 (Selesai not one transaction), 13/76/61 (see their Comments).
+## Environment (cloud)
+- Docker pulls work; `npm test` ~3.5 min. **Two env-only failures to ignore**: `tests/tooling/deps-store.test.ts` (runs as root) and `src/adapters/live/chromium-pdf-renderer.test.ts` (Chromium makes no PDF). Worth a small ticket to make both skip/pass in cloud.
+- Worktree builders symlink `node_modules` from `/home/user/makam` and use `npm run test:shared`.
+- dockerd runs without HTTPS_PROXY yet pulls fine; optional hardening of `.claude/hooks/session-start.sh` line 24 discussed, not done.
+- Matt skills plugin (`mattpocock-skills:*`) still not visible; vendored `.claude/skills/` in use (ticket 87).
 
-## Lessons (token cost)
-- Builders without local npm burned 400–700k tokens each polling CI; with npm local, brief builders to run `npm run lint`, `typecheck`, `npm test` before pushing and to hand back without waiting on CI.
-- Subagents that hand back while waiting keep re-sending reports: `TaskStop` them after the report arrives.
-- Parallel builders on the same area collide on migration numbers; run critical-path tickets sequentially.
+## Builder brief pattern (keeps tokens low)
+Point to paths only (AGENTS.md, CONTEXT.md, ticket file, design-system.md, tdd skill); branch from origin/main first; lint + typecheck + tests locally; one commit with session trailers; push branch; no CI waiting, no PR, never push main; report ≤200 words. `TaskStop` agents after their report. After merge: flip Status to `resolved` in the ticket file and `00-index.md`.
+
+## Suggested skills
+`code-review` (every branch), `tdd` (builders), `resolving-merge-conflicts` (parallel branches landing on main), `diagnosing-bugs` (red CI), `grilling` / `domain-modeling` only if a builder raises a domain question.
