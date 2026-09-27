@@ -68,7 +68,7 @@ export const caraKamiBekerjaSections: ContentSection[] = [
     label: "Izin TPU gratis",
     paragraphs: [
       "Izin penggunaan tanah makam di Tempat Pemakaman Umum diterbitkan pemerintah daerah dan tidak dipungut biaya kepada keluarga. Ketentuan tentang biaya di tempat pemakaman itu sendiri tetap menjadi wewenang pemerintah daerah.",
-      "Keluarga boleh mengurus berkas ini sendiri. Urutan dan syaratnya kamiuraikan di halaman Pengurusan di TPU DKI.",
+      "Keluarga boleh mengurus berkas ini sendiri, dan urutannya mengikuti ketentuan pemerintah daerah serta penjelasan dari TPU yang setempat. Panduan lengkap tentang pengurusan di TPU DKI belum kami terbitkan di makam.co.id, jadi untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp.",
       "Kalau keluarga memilih meminta bantuan kami, yang kami kenakan adalah biaya layanan untuk dikerjakan dan dikoordinasikan oleh kami. Biaya itu adalah biaya kenyamanan, bukan biaya untuk izinnya.",
     ],
   },
@@ -103,7 +103,7 @@ export function faqQuestions(legalName: string | null): FaqEntry[] {
     {
       question: "Perpanjangan",
       answer:
-        "Perpanjangan memperpanjang Hak Pakai atas Petak Makam atau Kavling Keluarga yang akan berakhir. Pengajuan bisa dibuat sebelum masa Hak Pakai habis, dan masih diterima selama masa tenggang setelahnya. Yang berhak mengajukan adalah Pemegang Hak, bukan Pemesan. Pengajuan diperiksa oleh Lokasi Mitra, jadi statusnya terlihat di halaman makam keluarga Anda beserta batas waktu keputusannya.",
+        "Perpanjangan memperpanjang Hak Pakai atas Petak Makam atau Kavling Keluarga yang akan berakhir. Pengajuan bisa dibuat sebelum masa Hak Pakai habis, dan masih diterima selama masa tenggang setelahnya. Yang berhak mengajukan adalah Pemegang Hak, bukan Pemesan, dan pengajuannya diperiksa oleh Lokasi Mitra. Halaman untuk mengajukan dan memantau Perpanjangan belum ada di makam.co.id; sementara ini tanya CS lewat WhatsApp, dan kami akan mengarahkan Anda ke Lokasi Mitra tempat Hak Pakai itu berada.",
     },
     {
       question: "Siapa yang boleh dimakamkan di TPU?",
@@ -113,7 +113,7 @@ export function faqQuestions(legalName: string | null): FaqEntry[] {
     {
       question: "Dokumen apa saja yang perlu?",
       answer:
-        "Untuk memulai pesanan cukup data yang Anda isi sendiri: nama Pemesan beserta email dan nomor telepon, nama almarhum atau almarhumah, tanggal wafat, waktu pemakaman yang direncanakan, dan siapa Pemegang Haknya. Dokumen ini bisa diunggah nanti, pada langkah yang disebutkan di halaman pesanan Anda. Berkas resmi seperti KTP, KK, akta kematian atau surat keterangan ahli waris baru dibutuhkan di langkah Pengurusan, bukan untuk memulai pesanan.",
+        "Untuk memulai pesanan cukup data yang Anda isi sendiri: nama Pemesan beserta email dan nomor telepon, nama almarhum atau almarhumah, tanggal wafat, waktu pemakaman yang direncanakan, dan siapa Pemegang Haknya. Berkas resmi seperti KTP, KK, akta kematian atau surat keterangan ahli waris tidak dibutuhkan untuk memulai pesanan. Dokumen boleh menyusul setelah pesanan dikirim, dan kalau ada berkas yang perlu dilampirkan, CS akan mengatakannya kepada Anda.",
     },
     {
       question: "Untuk apa data keluarga saya dipakai?",

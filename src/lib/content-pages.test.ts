@@ -61,6 +61,22 @@ describe("Cara Kami Bekerja", () => {
     expect(izin).toMatch(/sendiri/);
     expect(izin).toMatch(/kenyamanan/);
   });
+
+  it("never sends a family to a page that is not published in this release", () => {
+    // The TPU guide and the Makam keluarga hub arrive in later releases, so no
+    // sentence may point a reader at them; where the page a family would need is
+    // missing, the answer says so and names the CS instead.
+    const semua = [
+      ...tentangKamiParagrafs("PT Jaya Korpora Prima"),
+      ...caraKamiBekerjaSections.flatMap((section) => section.paragraphs),
+      ...faqQuestions("PT Jaya Korpora Prima").map((entry) => entry.answer),
+    ].join(" ");
+    expect(semua).not.toMatch(/halaman (?:makam keluarga|pengurusan)/i);
+    expect(caraKamiBekerjaSections[2].paragraphs.join(" ")).toMatch(/belum kami terbitkan di makam\.co\.id/);
+    const perpanjangan = faqQuestions("PT Jaya Korpora Prima").find((entry) => entry.question === "Perpanjangan");
+    expect(perpanjangan?.answer).toMatch(/belum ada di makam\.co\.id/);
+    expect(perpanjangan?.answer).toMatch(/tanya CS lewat WhatsApp/);
+  });
 });
 
 describe("FAQ", () => {

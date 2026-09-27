@@ -1,7 +1,19 @@
+import { join } from "node:path";
 import ts from "typescript";
 
 /** Something forbidden found in copy a user or a staff member can see. */
 export type CopyMention = { line: number; text: string };
+
+/**
+ * The directories whose strings and JSX text a page can end up rendering, and so
+ * the ones the copy guards read: the pages themselves, the shared components they
+ * compose, and `src/lib` — where the public site's written copy lives, in modules
+ * a page imports (`content-pages.ts`, `homepage-content.ts`). A guard that stopped
+ * at `src/app` would pass without ever reading the words a family reads.
+ */
+export function copyScanDirs(srcDir: string): string[] {
+  return ["app", "components", "lib"].map((dir) => join(srcDir, dir));
+}
 
 const TICKET_NUMBER = /\btiket\s+\d+/i;
 

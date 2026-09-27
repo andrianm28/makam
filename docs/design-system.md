@@ -24,7 +24,7 @@ The primary source is the official **MAKAM.CO.ID Brand Guideline (Visual 2026)**
 2. **Forest leads, Sage supports, Sand is rare.** Forest marks the primary action, the current place and keyboard focus. Sage carries supporting elements. Sand is a sparing highlight.
 3. **State says what to do.** Every status, empty list and error explains what it means, its limits and the next step, in `CONTEXT.md` words. Errors don't apologise and are never vague.
 4. **Comfortable by default.** Comfortable density everywhere; a compact option only on dense admin tables. Field screens (Mitra Jasa, Petugas Lapangan) are phone-first, with one full-width 44 px action per card.
-5. **The glossary is the UI copy.** Labels, statuses, buttons and toasts use `CONTEXT.md` terms exactly. Bahasa Indonesia, sentence case, no internal ticket numbers (`src/app/no-ticket-numbers.test.ts` guards `src/app` and `src/components`).
+5. **The glossary is the UI copy.** Labels, statuses, buttons and toasts use `CONTEXT.md` terms exactly. Bahasa Indonesia, sentence case, no internal ticket numbers and no retired company name. The two copy guards (`src/app/no-ticket-numbers.test.ts`, `src/app/no-retired-company-name.test.ts`) read the same three directories — `src/app`, `src/components` and `src/lib` — because the public site's written copy is a module a page imports, and a guard that stopped at `src/app` would pass without reading a word of it.
 
 ## Voice and tone
 
@@ -224,6 +224,7 @@ Every page a visitor reads without signing in, and Akun Saya, sit in the `(site)
 - **Footer** (`SiteFooter`): the Operator's legal name, the content pages as a nav named "Halaman isi", and the year taken from the Clock in WIB. The legal name is read from Pengaturan Operator, so the footer cannot disagree with a Tagihan header; before one is entered the footer says nothing about who runs the site rather than naming a constant.
 - **Content pages** (`ContentPage` in `src/components/site/content-page.tsx`): one `h1` in Lora, an optional lead, then the copy. The copy itself lives in `src/lib/content-pages.ts` as content, never as domain data: no amount, count, deadline or opening hour is written in it, so it cannot go stale — those are read through their own public query on the page that shows them. Where a sentence needs a value the domain owns (the legal name), the page passes it in.
 - **Beranda** (hero, tile row, trust strip) reads its copy from `src/lib/homepage-content.ts`, for the same reason. The hero is Forest with the headline in Lora, a Sand "Pesan makam sekarang" captioned for a family that just lost someone, and "Siapkan makam untuk nanti" as a quieter link of its own — the planned entry is never a second button competing with the urgent one.
+- **The 404** (`src/app/not-found.tsx`) is a page of this site like any other, so it renders the same `SiteFrame`: top bar, menu, footer, CS link. It sits at the root, not in `(site)`, because that is the one that answers an address matching no route at all. No copy may send a reader to a page that is not published yet: a sentence that would have to name the Makam keluarga hub or the TPU guide says the page is not there yet and names the CS instead.
 
 ## Usage rules
 

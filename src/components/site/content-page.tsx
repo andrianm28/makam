@@ -22,8 +22,10 @@ export function ContentPage({ title, lead, children }: { title: string; lead?: s
 export function ContentParagraphs({ paragraphs }: { paragraphs: readonly string[] }) {
   return (
     <div className="flex flex-col gap-4">
+      {/* The paragraph itself is the key: it is the whole, unchanging text, so
+          there is nothing to truncate and no two of them are alike. */}
       {paragraphs.map((paragraph) => (
-        <p key={paragraph.slice(0, 40)} className="text-body-lg leading-relaxed">
+        <p key={paragraph} className="text-body-lg leading-relaxed">
           {paragraph}
         </p>
       ))}

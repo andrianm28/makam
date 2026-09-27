@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { BrandLogo } from "@/components/makam/brand-logo";
+import { SiteFrame } from "@/components/site/site-frame";
+import { NotFoundMessage } from "@/components/makam/not-found-message";
+import { publicMenu } from "@/lib/public-navigation";
+import { yearInJakarta } from "@/lib/time/jakarta";
+import { serverRuntime } from "@/server/runtime";
+import { currentActor } from "@/server/session";
 
 export const metadata: Metadata = {
   title: "Halaman tidak ditemukan — Makam.co.id",
@@ -8,32 +12,38 @@ export const metadata: Metadata = {
 };
 
 /**
- * The 404 of the whole site, for an address that matches no page at all. It is
- * static on purpose — a page that cannot be found must not need a database to
- * say so — so it points at the pages that can be found rather than quoting a
- * number nobody has entered yet.
+ * A 404 is still a page of this site, so it carries the site's frame: the top
+ * bar, the menu, the footer and the CS link, like every other page. It lives at
+ * the root on purpose — that is the one that answers an address which matches no
+ * route at all, which is where the Beranda's forward link to the Terencana wizard
+ * lands until that wizard exists. The staff area, the wizard and the document
+ * pages have their own `not-found.tsx`, so none of them gets this frame nested
+ * inside its own.
+ *
+ * Rendered per request, like the layout that normally provides the frame: the
+ * legal name and the CS number come from Pengaturan Operator, and a build must
+ * never need a database.
  */
-export default function HalamanTidakDitemukan() {
+export const dynamic = "force-dynamic";
+
+export default async function HalamanTidakDitemukan() {
+  const { operatorSettings, adapters } = serverRuntime();
+  const [settings, actor] = await Promise.all([operatorSettings.current(), currentActor()]);
+
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-start gap-6 px-(--page-gutter) py-20">
-      <Link href="/" aria-label="Makam.co.id, beranda" className="rounded-sm">
-        <BrandLogo />
-      </Link>
-      <h1 className="font-serif text-title-1 font-semibold tracking-tight">Halaman tidak ditemukan</h1>
-      <p className="text-body-lg text-muted-foreground">
-        Alamat yang Anda buka tidak ada di makam.co.id. Mungkin ada salah ketik, atau halamannya sudah dipindahkan.
-      </p>
-      <nav aria-label="Halaman lain" className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <Link href="/" className="text-body-lg font-medium text-brand underline underline-offset-4">
-          Beranda
-        </Link>
-        <Link href="/lokasi" className="text-body-lg font-medium text-brand underline underline-offset-4">
-          Daftar Lokasi
-        </Link>
-        <Link href="/hubungi-kami" className="text-body-lg font-medium text-brand underline underline-offset-4">
-          Hubungi Kami
-        </Link>
-      </nav>
-    </main>
+    <SiteFrame
+      items={publicMenu({ signedIn: actor !== null })}
+      contact={settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null}
+      legalName={settings?.legalName ?? null}
+      year={yearInJakarta(adapters.clock.now())}
+    >
+      <NotFoundMessage
+        links={[
+          { href: "/", label: "Beranda" },
+          { href: "/lokasi", label: "Daftar Lokasi" },
+          { href: "/hubungi-kami", label: "Hubungi Kami" },
+        ]}
+      />
+    </SiteFrame>
   );
 }
