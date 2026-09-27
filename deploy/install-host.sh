@@ -36,7 +36,10 @@ for env in staging prod; do
 done
 
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/glitchtip" "$ROOT/nginx-backups"
-install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-backup-files" "$ROOT/bin/"
+install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-backup-files" \
+  "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" "$ROOT/bin/"
+# Sourced by the two backup scripts, never run: 0644, beside them in $ROOT/bin.
+install -m 0644 "$REPO/deploy/bin/makam-backup-lib" "$ROOT/bin/"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
 install -m 0600 "$REPO/deploy/glitchtip/compose.yml" "$ROOT/glitchtip/compose.yml"
 
@@ -47,5 +50,15 @@ for unit in "$REPO"/deploy/systemd/*.service "$REPO"/deploy/systemd/*.timer; do
   sudo install -m 0644 "$unit" /etc/systemd/system/
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.timer makam-staging-files-backup.timer
+
+# The database Dump is encrypted with a passphrase of the operator's own making
+# (docs/ops/runbook.md); this script never makes or stores one. Without it the
+# backup timer refuses every night rather than writing a Dump nobody can read.
+for env in staging prod; do
+  [ -d "$ROOT/$env" ] || continue
+  [ -s "$ROOT/$env/backup-passphrase" ] || echo "NOTE: $ROOT/$env/backup-passphrase is missing; the $env database backup will refuse until you create one (docs/ops/runbook.md)" >&2
+done
+
+sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.timer makam-staging-files-backup.timer \
+  makam-staging-db-backup.timer makam-staging-restore-test.timer
 systemctl list-timers 'makam-*' --no-pager

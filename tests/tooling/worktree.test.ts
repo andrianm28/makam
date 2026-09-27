@@ -126,6 +126,22 @@ describe("a worktree's local Docker stack", () => {
     expect(plan).toEqual({ containers: [], volumes: [], networks: [], images: [], skipped: ["makam-mixed"] });
   });
 
+  it("reaches a container a test here started by hand, which carries no compose project", () => {
+    // The database Dump tests start their own Postgres and their own restore
+    // containers with `docker run` (tests/tooling/db-backup.test.ts): no compose
+    // project, so only the makam.worktree label says whose they are.
+    const plan = planStackCleanup(root, {
+      ...empty,
+      containers: [
+        { id: "makam-dbsrc-t64-1", worktree: root },
+        { id: "makam-restoretest-staging-1", worktree: root },
+        { id: "another-worktrees-source", worktree: "/elsewhere" },
+        { id: "unlabelled-wherever-it-came-from" },
+      ],
+    });
+    expect(plan.containers).toEqual(["makam-dbsrc-t64-1", "makam-restoretest-staging-1"]);
+  });
+
   it("never touches deployed environments or anything not proven to come from the worktree", () => {
     const plan = planStackCleanup(root, {
       containers: [
