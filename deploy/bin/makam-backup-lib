@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Shared by deploy/bin/makam-backup-db and deploy/bin/makam-restore-test (the
+# beta's database Dump, ticket 64, ADR 0002 beta UAT amendment). Sourced, never
+# run: it holds the values both scripts must agree on and the fail-closed checks
+# around them.
+#
+# Not a domain module: these are host tools, and this is their shared part.
+
+# The image staging, production and the test run all use, by digest. The restore
+# check starts its throwaway Postgres from it, so a restored Dump is read by the
+# same Postgres that took it.
+PG_IMAGE="postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722"
+# The compose file's own Postgres user and database (docker-compose.prod.yml).
+# A local socket connection needs no password, so the Dump never carries one.
+DB_USER=makam
+DB_NAME=makam
+# aes-256-cbc with PBKDF2-HMAC-SHA256 and a per-file random salt: OpenSSL is
+# already on the host (every secret in the runbook comes from `openssl rand`),
+# so the beta needs no extra tool for the Dump to be encrypted at rest. OpenSSL's
+# own default of 10 000 iterations is a test default; these files are decrypted
+# a handful of times ever (a restore check a week, a real restore in an
+# emergency) and cost about a second each at 600 000, so the work factor is spent
+# where it protects the passphrase rather than on the nightly run.
+CIPHER_ARGS=(-aes-256-cbc -pbkdf2 -iter 600000 -md sha256)
+# The tables a restore must have whatever the recorded counts say: one from every
+# module that owns data, so a schema that lost a module cannot pass. The counts
+# of a night cover every table anyway; this is the floor under a counts file
+# that was itself lost. This list is the one place it exists: the runbook and the
+# ticket point here rather than repeating it.
+REQUIRED_TABLES=(
+  identity_user
+  identity_session
+  inventory_petak
+  inventory_pemakaman
+  lokasi_mitra
+  tagihan
+  bukti_pembayaran
+  audit_entry
+  operator_settings_version
+  scheduler_heartbeat
+)
+# Every table in the public schema with its row count, one `table=count` per
+# line: what a night's Dump records beside itself, and what a restore is checked
+# against. One query, so no table name is ever pasted into SQL by hand. pg-boss
+# keeps its tables in its own schema and the Drizzle journal in `drizzle`, so
+# neither is in here; a public table with a name no SELECT can spell is a
+# problem this table would not survive, which is the point.
+COUNTS_QUERY="select tablename || '=' || ((xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I', tablename), false, true, '')))[1])::text::int from pg_tables where schemaname = 'public' order by tablename"
+
+# A line to the journal (and stderr, which systemd collects) under this tag.
+log() { logger -t "$LOG_TAG" "$*"; echo "$*" >&2; }
+# A failure: the journal's err priority, so `journalctl -t <tag> -p err` and
+# `systemctl --failed` show it, like makam-health.
+err() { logger -p user.err -t "$LOG_TAG" "$*"; echo "$*" >&2; }
+# Refuse before touching anything, naming why. Exit 78, the deploy tooling's
+# "the operator has to fix this" code.
+refuse() { err "refusing: $*"; exit 78; }
+
+# The passphrase both scripts encrypt and decrypt with, read from a file the
+# operator keeps (never a command line, never an environment they set) and held
+# in PASSPHRASE for the openssl calls, which take it from their own environment
+# as BACKUP_PASSPHRASE. It is refused unless the file is one line and readable
+# by its owner alone: a passphrase any other account on this host can read is
+# the one thing that would undo the encryption, and the mode an operator gets by
+# accident (umask 022) is exactly that.
+read_passphrase() {
+  local file=$1 hint=$2 mode
+  [ -r "$file" ] || refuse "missing $file ($hint)"
+  PASSPHRASE=$(cat "$file")
+  [ -n "$PASSPHRASE" ] || refuse "$file is empty"
+  case "$PASSPHRASE" in
+    *$'\n'*) refuse "$file has more than one line; openssl would use only the first" ;;
+  esac
+  mode=$(stat -c %a "$file" 2> /dev/null)
+  case "$mode" in
+    '' | *[!0-7]*) refuse "could not read the mode of $file; not decrypting anything with it" ;;
+  esac
+  if (( 0$mode & 0077 )); then
+    refuse "$file is mode $mode, readable by more than its owner; the Dump would be no better than plaintext: chmod 600 $file"
+  fi
+}
+
+# Free bytes on the filesystem that holds the given path. MAKAM_BACKUP_FREE_BYTES
+# replaces the probe for tests; the rule it feeds (twice what the Dump needs) is
+# still the one below. A probe that cannot answer is treated as no space at all.
+free_bytes() {
+  if [ -n "${MAKAM_BACKUP_FREE_BYTES:-}" ]; then
+    printf '%s' "$MAKAM_BACKUP_FREE_BYTES"
+    return
+  fi
+  df -B1 --output=avail "$1" 2> /dev/null | tail -n 1 | tr -d '[:space:]' || true
+}
+
+# Where Docker keeps container layers, which for a restore is where the restored
+# database actually lands: not under $MAKAM_ROOT, so the free space that matters
+# is the filesystem holding this.
+docker_data_dir() { docker info --format '{{.DockerRootDir}}' 2> /dev/null | tail -n 1 | tr -d '[:space:]' || true; }
+
+# A byte count as something a person reads: KiB, MiB or GiB, whichever keeps it
+# above one, because "0 MiB free" is a useless thing to print in a refusal.
+size() {
+  awk -v bytes="$1" 'BEGIN {
+    if (bytes >= 1073741824) printf "%.1f GiB", bytes / 1073741824
+    else if (bytes >= 1048576) printf "%.0f MiB", bytes / 1048576
+    else printf "%.0f KiB", bytes / 1024
+  }'
+}
+
+# Both the Dump and the copy a restore leaves behind have to fit: refuse when
+# the filesystem that will hold them has less than twice what the work needs, so
+# a half-finished run never eats the space the running one needs. Fails closed
+# with the exit 78 the runbook promises: a size or a free-space answer that does
+# not read as a byte count stops the run instead of passing for "no space
+# needed". $1 is the path whose filesystem must hold it, $2 the bytes needed and
+# $3 what it is, for the message.
+require_free_space() {
+  local path=$1 needed=$2 what=$3 free
+  case "$needed" in
+    '' | *[!0-9]* | 0) refuse "could not read the size of $what; not writing to a filesystem of unknown size" ;;
+  esac
+  free=$(free_bytes "$path")
+  case "$free" in
+    '' | *[!0-9]*) refuse "could not read the free space of $path; not touching a disk that cannot answer" ;;
+  esac
+  if [ "$free" -lt "$needed" ]; then
+    err "refusing: $path has $(size "$free") free, less than twice the $(size "$needed") $what needs"
+    exit 78
+  fi
+}
