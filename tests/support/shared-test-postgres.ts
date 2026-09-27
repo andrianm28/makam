@@ -37,6 +37,22 @@ export async function dropDatabase(serverUrl: string, name: string): Promise<voi
   await onServer(serverUrl, (client) => client.query(`drop database if exists ${quoteIdentifier(name)} with (force)`));
 }
 
+/**
+ * True when the server could not be reached at all (down, wrong host): only
+ * then is there no database to drop. Anything else (auth, permission) is a
+ * real error the caller must report rather than swallow.
+ */
+export function isDbUnreachable(error: unknown): boolean {
+  const code = (error as { code?: unknown }).code;
+  if (
+    typeof code === "string" &&
+    ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH", "EAI_AGAIN"].includes(code)
+  ) {
+    return true;
+  }
+  return /connection refused|getaddrinfo|connection timed out|connect timeout|timeout expired/i.test(String(error));
+}
+
 /** Drops and creates the database empty; returns its connection URL. */
 export async function recreateDatabase(serverUrl: string, name: string): Promise<string> {
   await onServer(serverUrl, async (client) => {

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { planStackCleanup, stackProjectName, testDatabaseName, type DockerInventory } from "../../scripts/lib/worktree";
 
@@ -15,6 +18,18 @@ describe("a worktree's test database on the shared test Postgres", () => {
 
   it("differs for two worktrees with the same directory name in different places", () => {
     expect(testDatabaseName("/a/makam")).not.toBe(testDatabaseName("/b/makam"));
+  });
+
+  it("names the same database through a symlink, so tests and clean agree", () => {
+    const target = mkdtempSync(path.join(tmpdir(), "makam-real-"));
+    const link = path.join(tmpdir(), `makam-link-${process.pid}`);
+    symlinkSync(target, link);
+    try {
+      expect(testDatabaseName(link)).toBe(testDatabaseName(target));
+    } finally {
+      rmSync(link, { force: true });
+      rmSync(target, { recursive: true, force: true });
+    }
   });
 
   it("fits Postgres's 63-byte limit and stays distinct for long worktree names", () => {
@@ -60,6 +75,31 @@ describe("a worktree's local Docker stack", () => {
       ...empty,
       images: [{ id: `makam-v1:${mine}`, project: mine, worktree: root }],
     });
+    expect(plan.images).toEqual([`makam-v1:${mine}`]);
+  });
+
+  it("leaves an image alone whose tag is not makam-v1:<its project>, label or not", () => {
+    const plan = planStackCleanup(root, {
+      ...empty,
+      containers: [{ id: "c1", project: mine, workingDir: root }],
+      images: [
+        { id: "postgres:18", project: mine, worktree: root },
+        { id: "makam-v1:someone-else", project: mine, worktree: root },
+      ],
+    });
+    expect(plan.containers).toEqual(["c1"]);
+    expect(plan.images).toEqual([]);
+  });
+
+  it("finds volumes and networks left by `down` without `-v` from the remaining image's project", () => {
+    const plan = planStackCleanup(root, {
+      containers: [],
+      volumes: [{ id: `${mine}_pgdata`, project: mine }],
+      networks: [{ id: "n1", project: mine }],
+      images: [{ id: `makam-v1:${mine}`, project: mine, worktree: root }],
+    });
+    expect(plan.volumes).toEqual([`${mine}_pgdata`]);
+    expect(plan.networks).toEqual(["n1"]);
     expect(plan.images).toEqual([`makam-v1:${mine}`]);
   });
 
