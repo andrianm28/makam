@@ -1,0 +1,93 @@
+name: Roll back production
+
+# Owner-only rollback to an earlier released digest (ticket 72). It re-signs
+# that digest with the production key, because the production host accepts only
+# production-signed images, and it deliberately creates no new release: the
+# release list stays the history of what went out, and the rollback is recorded
+# as a deployment instead.
+#
+# The by-hand path is in the runbook ("Rolling back") and is the same command
+# this workflow ends with:
+#   /opt/makam-v1/bin/makam-deploy --env prod --digest sha256:...
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "An earlier release tag to go back to, e.g. v2026.09.27-1"
+        required: true
+        type: string
+      reason:
+        description: "Why (goes into the deployment status, not a new release)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: promote-production
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Re-sign an earlier digest for production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      deployments: write
+      packages: write
+    steps:
+      - name: Only the repository owner may roll back
+        if: github.actor != github.repository_owner
+        run: |
+          echo "refusing: ${{ github.actor }} is not the owner of ${{ github.repository }}" >&2
+          exit 1
+      - name: The release exists, and the digest it went out as
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release=$(gh release view "${{ inputs.release_tag }}" --json tagName,targetCommitish 2>/dev/null) \
+            || { echo "refusing: there is no release ${{ inputs.release_tag }}" >&2; exit 1; }
+          sha=$(printf '%s' "$release" | jq -r '.targetCommitish')
+          digest=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=production&per_page=50" \
+            --jq "[.[] | select(.ref == \"$sha\" and .payload.image_digest != null)] | .[0].payload.image_digest // empty")
+          [ -n "$digest" ] || {
+            echo "refusing: no production deployment records a digest for $sha, so this release never reached production" >&2
+            exit 1
+          }
+          echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Rolling back to ${{ inputs.release_tag }} ($digest, from $sha)"
+      - uses: ./.github/actions/ghcr-login
+      - name: cosign (the production key, again)
+        uses: ./.github/actions/cosign-sign
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ steps.release.outputs.digest }}
+          private-key: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
+          password: ${{ secrets.COSIGN_PROD_PASSWORD }}
+      - name: Record the rollback as a production deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.release.outputs.digest }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          id=$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
+            -f ref="$SHA" -F environment=production -F auto_merge=false \
+            -F "payload={\"image_digest\":\"$DIGEST\"}" --jq '.id')
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/$id/statuses" \
+            -f state=in_progress -f environment=production \
+            -f "log_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            -f "description=rolling back to ${{ inputs.release_tag }} ($DIGEST): ${{ inputs.reason }}"
+          {
+            echo "## Rolling back production to \`${{ inputs.release_tag }}\`"
+            echo
+            echo "The digest \`$DIGEST\` is signed with the production key again. Deploy it on the host:"
+            echo
+            echo '```bash'
+            echo "/opt/makam-v1/bin/makam-deploy --env prod --digest $DIGEST"
+            echo '```'
+            echo
+            echo "Migrations are forward-only: this works only while that image tolerates the current schema."
+          } >> "$GITHUB_STEP_SUMMARY"

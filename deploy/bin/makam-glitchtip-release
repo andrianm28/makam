@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Creates the GlitchTip release for the commit that just went live, so the
+# release exists before the first error event names it, and so the source maps
+# ci.yml uploaded for that commit are attached to something (ticket 72).
+#
+#   makam-glitchtip-release --env staging --release <commit>
+#
+# Needs MAKAM_GLITCHTIP_TOKEN in <root>/<env>/<env>.env: a GlitchTip auth token
+# in the `makam` organisation with "project:releases" write. It is the same
+# token the ops scripts use (/opt/makam-v1/glitchtip/api-token.txt). The instance
+# and organisation default to this host's own GlitchTip and can be set per
+# environment file as MAKAM_GLITCHTIP_URL and MAKAM_GLITCHTIP_ORG; the project is
+# the environment's own, `makam-staging` or `makam-prod`.
+#
+# Best effort, like makam-deploy-status: no token, no curl, GlitchTip down, or a
+# release that already exists is a logged no-op and exit 0. Error reporting never
+# fails a deploy, and an existing release is left exactly as it is.
+#
+# Exit codes: 0 in every case except 64 (usage) and 78 (no env file for this
+# environment on this host).
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+RELEASE=""
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --release) RELEASE=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; exit 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging) PROJECT=makam-staging ;;
+  prod) PROJECT=makam-prod ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+# A release name goes into a URL path and a JSON body: a commit, and nothing else.
+[ -n "$RELEASE" ] || { echo "--release is required" >&2; exit 64; }
+case "$RELEASE" in
+  *[!0-9a-f]* | "") echo "--release must be a commit (hex), got '$RELEASE'" >&2; exit 64 ;;
+esac
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+[ -r "$ENV_FILE" ] || exit 78
+
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
+TOKEN=${MAKAM_GLITCHTIP_TOKEN:-$(setting MAKAM_GLITCHTIP_TOKEN)}
+URL=${MAKAM_GLITCHTIP_URL:-$(setting MAKAM_GLITCHTIP_URL)}
+URL=${URL:-https://errors.makam.co.id}
+ORG=${MAKAM_GLITCHTIP_ORG:-$(setting MAKAM_GLITCHTIP_ORG)}
+ORG=${ORG:-makam}
+
+quiet() { echo "[glitchtip-release] $*" >> "$DIR/deploy.log" 2>/dev/null || true; }
+if [ -z "$TOKEN" ]; then
+  quiet "no MAKAM_GLITCHTIP_TOKEN in $ENV_FILE; not creating the release for $RELEASE"
+  exit 0
+fi
+command -v curl > /dev/null 2>&1 || { quiet "curl is not installed; not creating the release"; exit 0; }
+# Never fall back to sentry.io: this only talks to the GlitchTip the app reports to.
+case "$URL" in
+  https://* | http://127.0.0.1:* | http://localhost:*) ;;
+  *) quiet "MAKAM_GLITCHTIP_URL=$URL is not an https URL; not creating the release"; exit 0 ;;
+esac
+
+# {"version": "<commit>", "projects": ["<project>"], "ref": "<commit>"}
+body="{\"version\":\"$RELEASE\",\"projects\":[\"$PROJECT\"],\"ref\":\"$RELEASE\"}"
+# The status code and the body in one capture: an existing release answers 400
+# with "already exists", which is the normal case for a redeploy of the same commit.
+answer=$(curl -sS -w '\n%{http_code}' -X POST "$URL/api/0/organizations/$ORG/releases/" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary "$body") || { quiet "GlitchTip at $URL did not answer; not creating the release for $RELEASE"; exit 0; }
+code=${answer##*$'\n'}
+case "$code" in
+  2*) quiet "GlitchTip release $RELEASE created in $ORG/$PROJECT" ;;
+  *)
+    case "${answer%$'\n'*}" in
+      *"already exists"*) quiet "GlitchTip release $RELEASE already exists in $ORG/$PROJECT" ;;
+      *) quiet "GlitchTip refused the release $RELEASE for $ORG/$PROJECT: HTTP $code ${answer%$'\n'*}" ;;
+    esac
+    ;;
+esac
+exit 0

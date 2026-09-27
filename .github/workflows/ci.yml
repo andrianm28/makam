@@ -1,20 +1,23 @@
 name: CI
 
-# One run per push and PR. Every push and PR: check, secrets, migrations and an
-# image build. A release build (main only, decided once in the `image` job's
-# `release` output) also pushes sha-<commit>, runs e2e and the image scan on
-# that exact image, and passes deploy-gate, which a deploy needs (ticket 72).
+# One run per commit that matters: every pull request, and every push to main.
+# A branch push without a pull request deliberately runs nothing, so one commit
+# is never checked twice. On main the graph also pushes sha-<commit>, runs e2e
+# and the image scan on that exact image, passes deploy-gate, and then signs the
+# digest (ticket 72); only a signed digest is what the staging timer follows.
 #
 # Supply chain (ADR 0002): actions pinned by commit SHA (version in the
 # comment), container images by digest, Dependabot keeps both current.
 
 on:
   push:
+    branches: [main]
   pull_request:
 
-# A newer push cancels a superseded run, except on main: a main run may move
-# the `latest` tag (deploy-gate), and cancelling a run cancels all its jobs, so
-# main runs queue instead.
+# GitHub keeps only one *pending* run per group: a new push cancels the pending
+# one, so a run in the middle is skipped. Off main nothing was deployed, so that
+# costs nothing. On main a run may sign the image and move `latest`, and those
+# runs are never cancelled: each one waits its turn in the `sign` group.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -61,11 +64,7 @@ jobs:
           if [ -s "$RUNNER_TEMP/critical.txt" ]; then cat "$RUNNER_TEMP/critical.txt"; exit 1; fi
       # The real PdfRenderer test prints a page with a headless Chromium: the
       # runner's preinstalled Google Chrome (the image uses chromium-headless-shell).
-      - name: Chromium for the PdfRenderer test
-        run: |
-          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          "$CHROME" --version
-          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/chromium
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -110,37 +109,53 @@ jobs:
           --health-timeout 3s
           --health-retries 30
     env:
-      # The running release: staging deploys `latest`, which only deploy-gate moves.
-      RUNNING: ghcr.io/andrianm28/makam:latest
+      # The running release, filled in below: production lags staging, so the
+      # upgrade starts from the digest production actually runs, then staging,
+      # and only then the ghcr `latest` tag. A host that never deployed has no
+      # baseline, and an empty database is then the honest starting point.
+      RUNNING: ghcr.io/${{ github.repository }}:latest
       DATABASE_URL: postgres://makam:makam@localhost:5432/makam_upgrade
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: The running release
-        run: |
-          docker pull --quiet "$RUNNING"
-          echo "Running release: $(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}} {{index .RepoDigests 0}}' "$RUNNING")"
-          docker run --rm --entrypoint ls "$RUNNING" drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/released.txt"
-          ls drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/here.txt"
-          comm -13 "$RUNNER_TEMP/released.txt" "$RUNNER_TEMP/here.txt" | sed 's|^|drizzle/|' > "$RUNNER_TEMP/new.txt"
-          echo "New migrations: $(tr '\n' ' ' < "$RUNNER_TEMP/new.txt")"
+      # Node and the dependencies before anything runs this repository's own
+      # script: `npx --no-install` then uses the tsx from node_modules instead of
+      # fetching one from the registry.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: ./.github/actions/ghcr-login
+      - name: The running release (production, else staging, else latest)
+        run: |
+          baseline=""
+          for environment in production staging; do
+            # Only deployments that succeeded, newest first: the newest
+            # deployment of an environment is often a refused or rolled-back
+            # attempt, and that image is not what the host is running.
+            deployments=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=$environment&per_page=20" \
+              --jq '.[] | select(.state == "success") | @json' 2>/dev/null || true)
+            while IFS= read -r deployment; do
+              [ -n "$deployment" ] || continue
+              candidate=$(printf '%s' "$deployment" | npx --no-install tsx scripts/migrations/deployed-release.ts "$GITHUB_REPOSITORY" 2>/dev/null || true)
+              if [ -n "$candidate" ]; then baseline="$candidate"; break; fi
+            done <<< "$deployments"
+            [ -n "$baseline" ] && { echo "Running release ($environment): $baseline"; break; }
+          done
+          [ -n "$baseline" ] && echo "RUNNING=$baseline" >> "$GITHUB_ENV"
+          docker pull --quiet "$RUNNING"
+          echo "Upgrading from: $RUNNING"
+          docker run --rm --entrypoint ls "$RUNNING" drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/released.txt"
+          ls drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/here.txt"
+          comm -13 "$RUNNER_TEMP/released.txt" "$RUNNER_TEMP/here.txt" | sed 's|^|drizzle/|' > "$RUNNER_TEMP/new.txt"
+          echo "New migrations: $(tr '\n' ' ' < "$RUNNER_TEMP/new.txt")"
       - name: Destructive DDL in new migrations needs "-- contract:"
         run: xargs --no-run-if-empty npx tsx scripts/migrations/check-destructive-ddl.ts < "$RUNNER_TEMP/new.txt"
       - name: Migrate with the running release, then fill with representative rows
         run: |
           docker run --rm --network host -e APP_ENV=development -e DATABASE_URL "$RUNNING" node dist/migrate.mjs
           npx tsx scripts/migrations/seed-representative.ts
-      - name: Chromium for the PdfRenderer test
-        run: echo "CHROMIUM_PATH=$(command -v google-chrome || command -v chromium || command -v chromium-browser)" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/chromium
       # Vitest's global setup migrates TEST_DATABASE_URL to this commit's
       # migrations (the upgrade), then the domain tests run on that schema.
       - name: Upgrade to this commit's migrations and run the domain tests
@@ -170,20 +185,18 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Image name
         id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "Repository: $GITHUB_REPOSITORY"
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
           images: ${{ steps.image.outputs.name }}
           # Only sha-<commit> here; `latest` (which the staging timer follows) is
-          # added by deploy-gate once everything has passed.
+          # added by sign, once the signature exists.
           tags: type=sha,format=long
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: ./.github/actions/ghcr-login
         if: env.RELEASE == 'true'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
@@ -191,10 +204,14 @@ jobs:
           push: ${{ env.RELEASE == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            # The release is a build-time fact (the commit), not a secret: the
+            # SDK injects it into the bundle, and the same value is the release
+            # the `sourcemaps` job uploads under. Nothing environment-specific
+            # goes in here; the browser DSN stays a runtime value.
+            SENTRY_RELEASE=${{ github.sha }}
 
   e2e:
     name: E2E (Playwright against the pushed image)
@@ -214,11 +231,7 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3310
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-login
       - name: Start the image (migrate first, then web and worker)
         run: |
           $COMPOSE pull --quiet
@@ -248,7 +261,8 @@ jobs:
           E2E_SEED_ADMIN: ${{ env.COMPOSE }} exec -T web node dist/seed-admin.mjs
           E2E_SEED_TAGIHAN: ${{ env.COMPOSE }} exec -T web node dist/seed-tagihan.mjs
           E2E_SEED_SAAT_DUKA: ${{ env.COMPOSE }} exec -T web node dist/seed-saat-duka.mjs
-        run: npm run e2e
+        # The @smoke specs are the hosted staging gate, not part of this job.
+        run: npm run e2e -- --grep-invert @smoke
       - name: Stack logs
         if: failure()
         run: mkdir -p test-results && $COMPOSE logs --no-color --timestamps > test-results/stack.log 2>&1 || true
@@ -277,11 +291,7 @@ jobs:
       TRIVY: aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/ghcr-login
       - name: Pull the image
         run: docker pull --quiet "$IMAGE"
       - name: Cache key (one vulnerability database a day)
@@ -354,32 +364,89 @@ jobs:
           sarif_file: trivy.sarif
           category: trivy-image
 
-  # The one job a deploy needs: `needs: deploy-gate` (ticket 72). It runs only
-  # when every check passed on the pushed image, and hands on that exact image.
+  # Source maps to GlitchTip for this exact image (ticket 72, ADR 0002). It
+  # uploads from the pushed image, with the token as a GitHub secret, so no
+  # build and no image layer ever holds it. deploy-gate does not need this job:
+  # missing source maps cost readable stack traces, not a deploy.
+  sourcemaps:
+    name: Source maps to GlitchTip
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: image
+    if: needs.image.outputs.release == 'true'
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE: ${{ needs.image.outputs.ref }}
+      # The same value as the SENTRY_RELEASE build argument above: a release and
+      # its source maps are one thing, under one name.
+      RELEASE: ${{ github.sha }}
+      SENTRY_URL: ${{ vars.GLITCHTIP_URL }}
+      SENTRY_ORG: ${{ vars.GLITCHTIP_ORG }}
+      SENTRY_PROJECT: ${{ vars.GLITCHTIP_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.GLITCHTIP_AUTH_TOKEN }}
+      # Pinned by digest like every other image here (Dependabot cannot see a
+      # docker run in a workflow, so this one is a manual bump, as cosign is).
+      SENTRY_CLI: ghcr.io/getsentry/sentry-cli:2.46.0@sha256:03db524ab5066f720a66aaeae46820e41fbcf4a6c0f60d326c81cb59aa0df6ee
+    steps:
+      - uses: ./.github/actions/ghcr-login
+      - name: Upload the source maps of that image
+        run: scripts/ci/upload-sourcemaps.sh
+
+  # The gate every deploy waits for: it runs only when every check passed on the
+  # pushed image, and hands on that exact image. It no longer moves `latest`:
+  # that happens in `sign`, after the signature exists, so the staging timer can
+  # never pick up an unsigned digest.
   deploy-gate:
     name: Deploy gate (all checks, e2e and scan passed)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [check, secrets, migrations, image, e2e, scan]
-    # Moves `latest`: never cancelled mid-way, one at a time.
-    concurrency:
-      group: deploy-gate
-      cancel-in-progress: false
-    permissions:
-      packages: write
+    permissions: {}
     env:
       REF: ${{ needs.image.outputs.ref }}
     outputs:
       ref: ${{ needs.image.outputs.ref }}
     steps:
       - run: echo "$REF passed the checks, the secrets scan, the migration upgrade, e2e and the image scan."
-      # Until ticket 72 deploys from signed images, the staging timer follows
-      # `latest`: it moves only to an image that passed this gate.
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+
+  # Sign, then point the staging timer at the signed digest. `latest` is only a
+  # pointer for the host: makam-deploy resolves it to a digest and refuses
+  # anything the staging key did not sign (deploy/bin/makam-verify-image).
+  # Never cancelled mid-way, one at a time.
+  sign:
+    name: Sign the image (cosign, staging key) and move latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-gate]
+    concurrency:
+      group: sign
+      cancel-in-progress: false
+    permissions:
+      # packages: write is the signature and the retag; nothing else.
+      packages: write
+    env:
+      REF: ${{ needs.deploy-gate.outputs.ref }}
+    outputs:
+      ref: ${{ needs.deploy-gate.outputs.ref }}
+      digest: ${{ steps.parts.outputs.digest }}
+    steps:
+      - uses: ./.github/actions/ghcr-login
+      - name: The signed digest
+        id: parts
+        run: echo "digest=${REF##*@}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The staging private key is a GitHub secret; the matching public key is on
+      # the host (deploy/install-host.sh). Production has its own pair, used only
+      # by the promotion and rollback workflows. The image is pinned by digest in
+      # the action, because that container reads a private key.
+      - name: cosign
+        uses: ./.github/actions/cosign-sign
+        with:
+          image: ${{ needs.deploy-gate.outputs.ref }}
+          private-key: ${{ secrets.COSIGN_STAGING_PRIVATE_KEY }}
+          password: ${{ secrets.COSIGN_STAGING_PASSWORD }}
+      # Only now does the host have something signed to follow.
       - name: Tag it latest
         run: docker buildx imagetools create --tag "${REF%%:*}:latest" "$REF"

@@ -1,0 +1,15 @@
+name: Log in to ghcr
+description: >-
+  Logs the runner in to ghcr.io with the workflow token. What it may do is the
+  job's own `permissions` block, never this step, so least privilege stays in
+  one place. The image name is never spelled out in a job: it comes from
+  GITHUB_REPOSITORY, so a fork or a rename needs no edit.
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}

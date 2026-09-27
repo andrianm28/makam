@@ -1,0 +1,52 @@
+name: Sign an image with cosign
+description: >-
+  Signs one image reference with a cosign key pair, and refuses without the
+  private key: an image with no signature is not deployable, so "no key" must
+  fail the run rather than pass an unsigned digest on (the host refuses those
+  too, with exit 77). The key never leaves GitHub: the caller passes it from a
+  repository secret, the file lives only for this step, and it is deleted
+  afterwards. Staging and production have separate pairs, so an image signed for
+  one is not accepted on the other. Shared by ci.yml, promote.yml and
+  rollback.yml, so the image is pinned by digest in exactly one place.
+
+inputs:
+  image:
+    description: "The image reference to sign, tag or tag@digest or repo@digest"
+    required: true
+  private-key:
+    description: "The cosign private key (PEM), from a repository secret"
+    required: true
+  password:
+    description: "The key's password, empty when it has none"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: cosign sign
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        COSIGN_PRIVATE_KEY: ${{ inputs.private-key }}
+        COSIGN_PASSWORD: ${{ inputs.password }}
+        # Pinned by digest, like every other image here: this container reads a
+        # cosign *private key*, so a tag that could be moved is a hole. Dependabot
+        # cannot see an image used only in a workflow, so this is a manual bump.
+        COSIGN: ghcr.io/sigstore/cosign/cosign:v2.6.1@sha256:68839b7f13dac5a6744a5d8818e984dd39183374e37855c19e14d623d9bc9037
+      run: |
+        if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+          echo "refusing to sign $IMAGE: the private-key input is empty (the caller passes it from a repository secret)" >&2
+          exit 1
+        fi
+        mkdir -p "$HOME/.sigstore"
+        printf '%s' "$COSIGN_PRIVATE_KEY" > "$HOME/.sigstore/cosign.key"
+        printf '%s' "$COSIGN_PASSWORD" > "$HOME/.sigstore/cosign.password"
+        chmod 0600 "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"
+        docker run --rm \
+          -v "$HOME/.sigstore:/home/cosign/.sigstore" \
+          -v "$HOME/.docker:/home/cosign/.docker:ro" \
+          --entrypoint cosign "$COSIGN" sign --yes \
+          --key /home/cosign/.sigstore/cosign.key \
+          "$IMAGE"
+        rm -f "$HOME/.sigstore/cosign.key" "$HOME/.sigstore/cosign.password"

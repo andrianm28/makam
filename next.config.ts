@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { sentryBuildSettings } from "./src/lib/observability/sentry-build";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -29,8 +30,24 @@ const nextConfig: NextConfig = {
   },
 };
 
-// No org/project/auth token: source maps are not uploaded (yet); the SDK still runs.
-export default withSentryConfig(nextConfig, {
-  silent: !process.env.CI,
-  telemetry: false,
-});
+// Error monitoring, build-time half (ticket 72): the release (the commit) and
+// the source maps. The build generates the maps and the debug ids and uploads
+// nothing: scripts/ci/upload-sourcemaps.sh sends them to GlitchTip from the
+// pushed image with a token that only exists as a GitHub secret, so no token can
+// reach an image layer. The browser DSN stays a runtime value (src/lib/env.ts),
+// because one image serves both environments.
+const sentryBuild = sentryBuildSettings();
+
+export default withSentryConfig(
+  { ...nextConfig, productionBrowserSourceMaps: sentryBuild.productionBrowserSourceMaps },
+  {
+    silent: !process.env.CI,
+    telemetry: false,
+    org: sentryBuild.org,
+    project: sentryBuild.project,
+    authToken: sentryBuild.authToken,
+    sentryUrl: sentryBuild.sentryUrl,
+    sourcemaps: sentryBuild.sourcemaps,
+    release: sentryBuild.release,
+  },
+);
