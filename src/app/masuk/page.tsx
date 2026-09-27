@@ -24,7 +24,7 @@ export default async function MasukPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            <h1 className="text-2xl font-semibold">Masuk</h1>
+            <h1 className="text-title-1 text-foreground">Masuk</h1>
           </CardTitle>
           <CardDescription>
             Masukkan email Anda. Kami mengirim Kode Masuk ke email itu. Tidak perlu daftar: bila email ini belum punya
