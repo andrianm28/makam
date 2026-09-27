@@ -49,7 +49,8 @@ done
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/prod" "$ROOT/glitchtip" "$ROOT/nginx-backups"
 install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-image" \
   "$REPO/deploy/bin/makam-deploy-status" "$REPO/deploy/bin/makam-glitchtip-release" \
-  "$REPO/deploy/bin/makam-healthcheck" \
+  "$REPO/deploy/bin/makam-prune-images" \
+  "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-diskcheck" \
   "$REPO/deploy/bin/makam-backup-files" \
   "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" "$ROOT/bin/"
 # Sourced by the two backup scripts, never run: 0644, beside them in $ROOT/bin.

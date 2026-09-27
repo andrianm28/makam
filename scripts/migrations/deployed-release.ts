@@ -24,8 +24,14 @@ const deploymentSchema = z.object({
   payload: z.union([z.record(z.string(), z.unknown()), z.string()]).optional(),
 });
 
-/** The full image reference the running release was deployed as, or "" when unknown. */
-export function deployedRelease(deployment: unknown, repository: string): string {
+/**
+ * The image digest a deployment put into an environment, or "" when that
+ * deployment is not something an environment is running: it did not succeed, or
+ * it names no digest. This is the form image retention in ghcr keeps
+ * (scripts/images/expired-versions.ts) and the form the migration upgrade test
+ * starts from.
+ */
+export function deployedDigest(deployment: unknown): string {
   const parsed = deploymentSchema.safeParse(deployment);
   if (!parsed.success) return "";
   // Only a deployment that succeeded: see the note above.
@@ -34,7 +40,13 @@ export function deployedRelease(deployment: unknown, repository: string): string
   if (typeof payload !== "object" || payload === null) return "";
   const digest = payload.image_digest;
   if (typeof digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(digest)) return "";
-  return `ghcr.io/${repository}@${digest}`;
+  return digest;
+}
+
+/** The full image reference the running release was deployed as, or "" when unknown. */
+export function deployedRelease(deployment: unknown, repository: string): string {
+  const digest = deployedDigest(deployment);
+  return digest === "" ? "" : `ghcr.io/${repository}@${digest}`;
 }
 
 async function readStdin(): Promise<string> {
@@ -64,5 +76,12 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  await main();
+  // No top-level await: tsx runs this as CommonJS (package.json has no
+  // "type": "module"), where that is a transform error, so the script used to
+  // always fail and ci.yml's "|| true" quietly fell back to the ghcr :latest
+  // tag. main() is still async because it reads stdin.
+  main().catch((error: unknown) => {
+    console.error(`[upgrade] ${error instanceof Error ? error.message : error}`);
+    process.exitCode = 1;
+  });
 }

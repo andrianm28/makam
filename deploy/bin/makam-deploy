@@ -19,6 +19,8 @@
 #   5. up -d --wait             fails -> automatic roll back to the previous digest
 #   6. /api/health must be 200  fails -> automatic roll back to the previous digest
 #   7. create the GlitchTip release for the commit (best effort, never fatal)
+#   8. makam-prune-images, so the host keeps at most MAKAM_KEEP_IMAGES (3)
+#      versions of this image per environment (never fatal either)
 #
 # A mutable tag is only a pointer: whatever it names is resolved to a digest, the
 # digest's cosign signature is checked against this environment's public key, and
@@ -60,6 +62,7 @@ FORCE=0
 VERIFY_IMAGE="$MAKAM_ROOT/bin/makam-verify-image"
 STATUS_SCRIPT="$MAKAM_ROOT/bin/makam-deploy-status"
 RELEASE_SCRIPT="$MAKAM_ROOT/bin/makam-glitchtip-release"
+PRUNE_SCRIPT="$MAKAM_ROOT/bin/makam-prune-images"
 # How long /api/health has to answer 200 after `up`, in seconds. 180 on a host:
 # the worker's first heartbeat on an empty database takes about 90 s.
 HEALTH_WAIT=${MAKAM_HEALTH_WAIT:-180}
@@ -179,13 +182,18 @@ roll_back() {
   log "rolled back to $PREVIOUS ($PREVIOUS_DIGEST)"
 }
 
-# Keep the five newest sha-<commit> tags of the allowed image (the running one,
-# the previous one and three more); only untags, never another repository.
+# 8. Bound the makam images on this host. Its own script, so the runbook can
+#    run it by hand and so its rules are tested on their own; it untags only
+#    ghcr.io/andrianm28/makam sha-<commit> versions outside the retention set
+#    and never fails a deploy that is already healthy.
 prune() {
-  { docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}}' \
-    | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 }' \
-    | grep -vx "$TAG" | grep -vx "${PREVIOUS:-none}" \
-    | tail -n +4 | while read -r old; do docker image rm "$ALLOWED_IMAGE:$old" > /dev/null 2>&1 || true; done; } || true
+  if [ ! -x "$PRUNE_SCRIPT" ]; then
+    log "NOTE $PRUNE_SCRIPT is not installed, so the makam images on this host are not being bounded (run deploy/install-host.sh)"
+    return 0
+  fi
+  local status=0
+  "$PRUNE_SCRIPT" --env "$ENV_NAME" >> "$LOG" 2>&1 || status=$?
+  [ "$status" -eq 0 ] || log "WARNING image retention exited $status; see the lines above in deploy.log"
 }
 
 # Production only: a snapshot before the migration, so a bad migration has

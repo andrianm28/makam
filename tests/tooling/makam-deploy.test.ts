@@ -14,10 +14,13 @@ const repo = fileURLToPath(new URL("../..", import.meta.url));
 const verifyScript = path.join(repo, "deploy/bin/makam-verify-image");
 const deployScript = path.join(repo, "deploy/bin/makam-deploy");
 const releaseScript = path.join(repo, "deploy/bin/makam-glitchtip-release");
+const pruneScript = path.join(repo, "deploy/bin/makam-prune-images");
 const IMAGE = "ghcr.io/andrianm28/makam";
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const TAG_ONE = "sha-1111111111111111111111111111111111111111";
 const TAG_TWO = "sha-2222222222222222222222222222222222222222";
+const TAG_OLD = "sha-9999999999999999999999999999999999999999";
+const TAG_OLDER = "sha-8888888888888888888888888888888888888888";
 /** What the fake image says its revision is: the commit the GlitchTip release is named after. */
 const REVISION = "0123456789abcdef0123456789abcdef01234567";
 
@@ -39,6 +42,7 @@ function host(env: "staging" | "prod" = "staging", extra = "") {
   writeFileSync(path.join(root, env, "compose.yml"), "services: {}\n");
   copyFileSync(verifyScript, path.join(bin, "makam-verify-image"));
   copyFileSync(releaseScript, path.join(bin, "makam-glitchtip-release"));
+  copyFileSync(pruneScript, path.join(bin, "makam-prune-images"));
   return { root, bin, env };
 }
 
@@ -71,12 +75,12 @@ function fakeDocker() {
     "    echo \"$IMAGE@sha256:$(printf '%s' \"$ref\" | sha256sum | cut -c1-64)\" ;;",
     "  *'image inspect'*) exit 0 ;;",
     "  *'ps --status running -q'*) echo 'container-id' ;;",
+    "  *'image ls'*) [ -r \"${FAKE_DOCKER_IMAGES:-/nonexistent}\" ] && cat \"$FAKE_DOCKER_IMAGES\" ;;",
     '  *"run --rm --quiet-pull migrate"*) [ "${FAKE_MIGRATE_OK:-1}" = 1 ] || exit 1 ;;',
     '  *"up -d --wait"*)\n'
       + '    up=$(cat "$FAKE_DOCKER_LOG.up" 2>/dev/null || echo 0); up=$((up + 1)); echo "$up" > "$FAKE_DOCKER_LOG.up"\n'
       + '    [ "${FAKE_UP_OK:-1}" = 1 ] || exit 1\n'
       + '    [ "${FAKE_UP_FAIL_AFTER:-0}" -eq 0 ] 2>/dev/null || [ "$up" -le "${FAKE_UP_FAIL_AFTER:-0}" ] || exit 1 ;;',
-    "  *'image ls'*) exit 0 ;;",
     "  *) exit 0 ;;",
     "esac",
     "",
@@ -326,6 +330,40 @@ describe("makam-deploy", () => {
     const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world);
     expect(result.code).toBe(0);
     expect(result.calls).not.toContain("/releases/");
+  });
+
+  it("bounds the image versions on the host once the new release is healthy", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+    // The host now runs TAG_ONE and holds two versions from before it.
+    const inventory = path.join(world.root, "images.txt");
+    writeFileSync(
+      inventory,
+      [TAG_ONE, TAG_TWO, TAG_OLD, TAG_OLDER]
+        .map((tag) => `${IMAGE} ${tag} sha256:${tag.slice(4, 5).repeat(64)}`)
+        .join("\n") + "\n",
+    );
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+      FAKE_DOCKER_IMAGES: inventory,
+    });
+    expect(result.code).toBe(0);
+    // The version it just deployed and the one it could roll back to stay.
+    expect(result.calls).toContain(`image rm ${IMAGE}:${TAG_OLD}`);
+    expect(result.calls).toContain(`image rm ${IMAGE}:${TAG_OLDER}`);
+    expect(result.calls).not.toContain(`image rm ${IMAGE}:${TAG_ONE}`);
+    expect(result.deployLog()).toMatch(/kept 2 of 4/);
+  });
+
+  it("leaves every image on the host alone when the deploy did not come up", () => {
+    const world = staging();
+    const inventory = path.join(world.root, "images.txt");
+    writeFileSync(inventory, `${IMAGE} ${TAG_OLD} sha256:${"9".repeat(64)}\n`);
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+      FAKE_DOCKER_IMAGES: inventory,
+      FAKE_MIGRATE_OK: "0",
+    });
+    expect(result.code).toBe(1);
+    expect(result.calls).not.toContain("image rm");
   });
 });
 

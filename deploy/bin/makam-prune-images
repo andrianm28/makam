@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# makam-prune-images: bound the makam image versions this host holds.
+#
+#   makam-prune-images --env staging [--dry-run]
+#
+# --env names the environment whose deploy just finished. The retention set it
+# keeps covers every environment on this host, so a staging prune never untags
+# what production is running. --dry-run lists what it would untag and removes
+# nothing: run that first on a host this script has never touched.
+#
+# Run by makam-deploy once a deploy came up healthy, and by hand from the
+# runbook. This host is shared with other projects, so the script only ever
+# untags `ghcr.io/andrianm28/makam:sha-<40 hex>`: the repository comes from the
+# environment's env file and must equal the allow-list above, and the tag must
+# match the pattern or it is not a candidate. Another project's image cannot be
+# named, so it cannot be removed, whatever its tag looks like.
+#
+# Retention, per environment: the running version, the previous one (a roll
+# back has to be possible after the next deploy) and then that environment's own
+# deploy.log history, newest first, up to MAKAM_KEEP_IMAGES (3). Staging and
+# production can be on different digests, so the set on the host is the union of
+# the two environments' sets: at most MAKAM_KEEP_IMAGES per environment.
+#
+# Keeping the previous version is a convenience, not the only way back: every
+# roll back path re-pulls by digest (`makam-deploy --env prod --digest
+# sha256:…`, and .github/workflows/rollback.yml re-signs and re-resolves that
+# digest in ghcr), so a host that lost a tag can still be rolled back. Keeping
+# it means the roll back needs no round trip to ghcr. **If a future change made
+# a roll back depend on the local tag being present, this retention set would be
+# the thing that silently breaks**, and this paragraph is the place that says so.
+#
+# Fail closed. Nothing is removed when the Docker daemon is unreachable, when the
+# inventory cannot be read, when an environment's env file names another image,
+# or when an environment's deployed.env does not say which version it runs. The
+# version every running container on this host holds is also kept, whoever runs
+# it, so an image in use is never even offered to docker. A version whose image
+# id docker does not report is kept too: not knowing it is free is not knowing.
+#
+# Exit codes:
+#   0   the retention set is what is on the host now (nothing was outside it, or
+#       everything outside it was untagged), or this was a dry run
+#   1   a version outside the retention set could not be untagged, so the space
+#       is not free: the caller has to hear about it
+#   64  usage
+#   78  this host is not in a state where removing an image is safe; nothing was
+#       removed
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+KEEP=${MAKAM_KEEP_IMAGES:-3}
+# The only repository this script may touch.
+ALLOWED_IMAGE=ghcr.io/andrianm28/makam
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
+log() { printf '%s\n' "$*"; }
+refuse() { echo "refusing to prune: $*" >&2; exit 78; }
+# A version tag, strictly. Nothing else is ever a candidate for removal.
+version() { [[ $1 =~ ^sha-[0-9a-f]{40}$ ]]; }
+# Docker prints one image id in two shapes: `docker image ls --format {{.ID}}`
+# is the 12 character short form and `docker inspect --format {{.Image}}` is the
+# full `sha256:<64 hex>`. Compared as they come they can never be equal, which
+# would leave every running container's image free to be untagged, so both sides
+# are reduced to the short form first. A short form that collides with another
+# image is the safe direction to be wrong in: it keeps one image too many.
+# Anything that is not an id is refused rather than guessed at: `sha256:` with no
+# hex after it, an upper-case digest, a word. An empty answer here is not
+# "nothing is running", it is "nothing is known", and a deleting script must not
+# read the second as the first.
+short_id() {
+  local id=${1#sha256:}
+  [[ $id =~ ^[0-9a-f]{12}$ || $id =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "${id:0:12}"
+}
+
+DRY_RUN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+# Two is the floor: the running version and the one a roll back would put back.
+case "$KEEP" in
+  ''|*[!0-9]*) refuse "MAKAM_KEEP_IMAGES=$KEEP is not a number" ;;
+esac
+[ "$KEEP" -ge 2 ] || refuse "MAKAM_KEEP_IMAGES=$KEEP would leave no version to roll back to; it must be at least 2"
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+[ -r "$ENV_FILE" ] || refuse "missing $ENV_FILE"
+setting() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+# A variable in this process's environment would override the env file in
+# compose's interpolation, so both must agree with the allow-list.
+IMAGE=$(setting "$ENV_FILE" MAKAM_IMAGE); IMAGE=${IMAGE:-$ALLOWED_IMAGE}
+[ "$IMAGE" = "$ALLOWED_IMAGE" ] || refuse "$ENV_FILE names MAKAM_IMAGE=$IMAGE; only $ALLOWED_IMAGE is allowed"
+[ "${MAKAM_IMAGE:-$ALLOWED_IMAGE}" = "$ALLOWED_IMAGE" ] || refuse "MAKAM_IMAGE=$MAKAM_IMAGE in the environment; only $ALLOWED_IMAGE is allowed"
+
+# The inventory. Unreadable is a refusal, never an empty list to prune against.
+INVENTORY=$(docker image ls "$ALLOWED_IMAGE" --format '{{.Repository}} {{.Tag}} {{.ID}}' 2>/dev/null) \
+  || refuse "docker image ls $ALLOWED_IMAGE failed; nothing was removed"
+CANDIDATES=$(printf '%s\n' "$INVENTORY" \
+  | awk -v repo="$ALLOWED_IMAGE" '$1 == repo && $2 ~ /^sha-[0-9a-f]{40}$/ { print $2 "\t" $3 }')
+[ -n "$CANDIDATES" ] || { log "no $ALLOWED_IMAGE sha-<commit> version on this host; nothing to do"; exit 0; }
+
+# Every image a running container holds, whoever runs it: comparing ids, not
+# tags, so a container started from a digest is protected too.
+CONTAINERS=$(docker ps -q 2>/dev/null) || refuse "docker ps failed; nothing was removed"
+INUSE=""
+for container in $CONTAINERS; do
+  held=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null) \
+    || refuse "docker inspect $container failed; nothing was removed"
+  [ -n "$held" ] || refuse "docker inspect $container named no image; nothing was removed"
+  # Not being able to read this id means not knowing what this host is running,
+  # which is a reason to remove nothing at all.
+  short=$(short_id "$held") \
+    || refuse "docker inspect $container gave an image id that is not one (image id=$held); nothing was removed"
+  INUSE="$INUSE $short"
+done
+
+# The retention set: each environment's running and previous version first, then
+# its own deploy.log newest first. An environment that never deployed has no
+# deployed.env and claims nothing.
+KEEP_TAGS=""
+for env in staging prod; do
+  dir="$MAKAM_ROOT/$env"
+  [ -r "$dir/$env.env" ] || continue
+  [ -e "$dir/deployed.env" ] || continue
+  running=$(setting "$dir/deployed.env" MAKAM_TAG)
+  previous=$(setting "$dir/deployed.env" PREVIOUS_TAG)
+  version "$running" \
+    || refuse "$dir/deployed.env does not name a sha-<commit> version (MAKAM_TAG=$running); nothing was removed"
+  # A PREVIOUS_TAG that is not a version is reported, not shrugged off and not
+  # fatal: unlike MAKAM_TAG it does not say what is *running*, and a roll back
+  # re-pulls its digest from ghcr anyway, so the cost of continuing is a
+  # warning an operator can read, not an untagged image something needs now.
+  if [ -n "$previous" ] && ! version "$previous"; then
+    log "WARNING $dir/deployed.env has a PREVIOUS_TAG that is not a version (PREVIOUS_TAG=$previous); treating this environment as having no previous version"
+    previous=""
+  fi
+  history=""
+  if [ -r "$dir/deploy.log" ]; then
+    history=$(tac "$dir/deploy.log" | grep -oE 'sha-[0-9a-f]{40}' | awk '!seen[$0]++' || true)
+  fi
+  count=0
+  for tag in $(printf '%s\n%s\n%s\n' "$running" "$previous" "$history" | awk 'NF && !seen[$0]++'); do
+    count=$((count + 1))
+    if [ "$count" -le "$KEEP" ]; then
+      KEEP_TAGS="$KEEP_TAGS $tag"
+    fi
+  done
+done
+log "retention: keeping${KEEP_TAGS:- nothing}"
+
+removed=0
+total=0
+failed=0
+while IFS=$'\t' read -r tag id; do
+  [ -n "$tag" ] || continue
+  total=$((total + 1))
+  # The same rule as above, the other way round: a version whose own id is not
+  # an id is kept, and said out loud, because keeping it is the safe answer and
+  # one bad line in a listing is not a reason to refuse the whole run. Checked
+  # before the in-use test, because an empty id would match it.
+  id=$(short_id "$id") || id=""
+  if [ -z "$id" ]; then
+    log "no usable id for $IMAGE:$tag, keeping it (cannot tell whether it is in use)"
+    continue
+  fi
+  case " $KEEP_TAGS " in
+    *" $tag "*) continue ;;
+  esac
+  case " $INUSE " in
+    *" $id "*) log "in use, keeping $IMAGE:$tag ($id)"; continue ;;
+  esac
+  if [ "$DRY_RUN" = 1 ]; then
+    log "would remove $IMAGE:$tag ($id)"
+    continue
+  fi
+  if docker image rm "$IMAGE:$tag" > /dev/null 2>&1; then
+    log "removed $IMAGE:$tag"
+    removed=$((removed + 1))
+  else
+    log "could not remove $IMAGE:$tag; leaving it"
+    failed=$((failed + 1))
+  fi
+done <<< "$CANDIDATES"
+if [ "$DRY_RUN" = 1 ]; then
+  log "dry run: nothing was removed; $total $ALLOWED_IMAGE versions, at most $KEEP kept per environment"
+  exit 0
+fi
+log "kept $((total - removed - failed)) of $total $ALLOWED_IMAGE versions (at most $KEEP per environment; this ran for the $ENV_NAME deploy)"
+# Exit 0 means the retention set is what is on the host now. A removal that
+# failed means the space is not actually free, which the caller has to see.
+[ "$failed" -eq 0 ] || exit 1
