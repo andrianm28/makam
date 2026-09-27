@@ -15,3 +15,15 @@ The v1 beta for UAT is seeded with the frozen Laravel app's cemetery catalog (re
 - [ ] Idempotent (running it twice doesn't duplicate); refuses on a database that isn't the beta/staging one unless explicitly allowed; every write audited as an ops action.
 - [ ] Imported Jenis Makam whose all-in total exceeds the Rp 10 juta cap are kept but not listed (spec, Billing).
 - [ ] Runbook section; the old app's stack and data are never modified.
+
+## Comments
+
+- 2026-09-27 — Orchestrator: Spec axis on `cd07f7e`. To fix in the next pass. **The first one is the one that matters:**
+  1. **The runbook query invents facilities.** It selects `'fasilitas', '["parkir","musala"]'::jsonb` — a constant for every row, so the export would state that every cemetery has parking and a prayer room when the source says nothing of the kind. This is exactly the kind of invented fact a family reads on a cemetery's page. Either export the real column or leave it null; never fill a fact-shaped field with a constant.
+  2. **The only price that does exist is not exported.** `cemeteries.price_min` / `price_max` is the one real price in the old app (an indicative range), so the report says "no price" where a range exists. Export it as an indicative range, clearly labelled — still never as a Tarif.
+  3. **No test binds the runbook's SQL to the export contract**, which is why both of the above got through. Add one, so the documented query and the contract cannot drift apart.
+  4. **The runbook tells the owner to pass "the reason" to `lokasi.buat` / `lokasi.ubah_profil`,** and that signature has no such parameter. Fix the runbook to match the real call.
+  5. **AC 1's escape hatch is missing.** The tool refuses staging too, with no "unless explicitly allowed", so "the v1 beta … is seeded with the old app's catalog" cannot hold on the environment the beta actually runs on, and the runbook quietly substitutes a dump from a dev stack. Either add the explicit allowance (named, audited, refused by default) or rewrite the AC to say what the tool really does.
+  6. **Two AC lines were not rewritten even though the research says they cannot hold:** "photos" (not imported) and "marked as beta/dummy" (no marker exists on `lokasi_mitra`; only the ledger and the report know). Rewrite both lines or implement the marker — a `Comments` note is not an accurate acceptance criterion.
+  7. A decision for the owner, recorded rather than fixed: the module is named for its source, and the research says that source is 100 % fictional. On the 78 TPU DKI path the CSV has no old `kode`, so the ledger loses its key and its two tables go dead. The reusable part (map, export contract, CLI) is source-agnostic; the ledger is not.
+  - Verified good: the PII guard, the refusal to touch the old database, and the tests — they run against a real Postgres and read results back through the public Lokasi and Tariffs queries, the cap through the public `lokasiPricing` rather than the staff one. The fictional data, the scope collision with ticket 43, the publish gate and the indicative prices are recorded as an owner decision rather than papered over.
