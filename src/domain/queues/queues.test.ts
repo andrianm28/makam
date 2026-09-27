@@ -1,9 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { wib } from "@/lib/time/jakarta";
 import { PENGATURAN_OPERATOR, resolvePembayaranPerluDitinjauForTest } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn, nextTestIp } from "../../../tests/support/identity";
 import {
   newLokasiMitra,
+  newTpuDki,
   publishedLokasiMitra,
   queuesOnTestDatabase,
   readyToPublish,
@@ -48,7 +50,7 @@ async function signedInMitraJasa(setup: QueuesSetup, admin: Actor, email = "mitr
 }
 
 /** A Pemesan: a plain family account, logged in with a Kode Masuk and holding no staff role. */
-async function signedInPemesan(setup: QueuesSetup, email = "keluarga@contoh.id"): Promise<Actor> {
+export async function signedInPemesan(setup: QueuesSetup, email = "keluarga@contoh.id"): Promise<Actor> {
   const { cookies } = await logIn(setup, email);
   const actor = await setup.identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
@@ -233,6 +235,59 @@ describe("Antrean: Tier 4 other Tugas Lapangan", () => {
     });
 
     expect((await setup.queues.antrean(admin)).some((item) => item.type === "tugas_lapangan_lain")).toBe(false);
+  });
+});
+
+describe("Antrean: Tier 4 TPU flag stale", () => {
+  it("opens 14 days after a TPU's new-plot flag was last checked, and closes on the next check", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-01 08:00"));
+    const tpu = await newTpuDki(setup, admin, "TPU Kober", true);
+
+    expect((await setup.queues.antrean(admin)).some((row) => row.type === "tpu_flag_kedaluwarsa")).toBe(false);
+
+    setup.clock.set(wib("2026-10-15 07:59"));
+    expect((await setup.queues.antrean(admin)).some((row) => row.type === "tpu_flag_kedaluwarsa")).toBe(false);
+
+    setup.clock.set(wib("2026-10-15 08:00"));
+    const rows = await setup.queues.antrean(admin);
+    expect(rows.find((row) => row.type === "tpu_flag_kedaluwarsa")).toMatchObject({
+      tier: 4,
+      subjectId: tpu.id,
+      subjectLabel: "TPU Kober",
+      deadline: wib("2026-10-15 08:00"),
+      pastDeadline: false,
+      alerts: false,
+      ambil: null,
+    });
+
+    setup.clock.set(wib("2026-10-16 09:00"));
+    expect((await setup.queues.antrean(admin)).find((row) => row.type === "tpu_flag_kedaluwarsa")?.pastDeadline).toBe(true);
+
+    await setup.lokasi.updateTpuDkiFlag(admin, tpu.id, { menerimaMakamBaru: false });
+    expect((await setup.queues.antrean(admin)).some((row) => row.type === "tpu_flag_kedaluwarsa")).toBe(false);
+  });
+
+  it("only opens for a TPU whose flag is stale, links to the TPU's own page, and never shows anyone but Admin Platform", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-01 08:00"));
+    await newTpuDki(setup, admin, "TPU Kober", true);
+    const baru = await newTpuDki(setup, admin, "TPU Koper", true);
+    // This one was checked five days ago, so at the 16th its 14 days are not up yet.
+    setup.clock.set(wib("2026-10-06 08:00"));
+    await setup.lokasi.updateTpuDkiFlag(admin, baru.id, { menerimaMakamBaru: true });
+
+    setup.clock.set(wib("2026-10-16 08:00"));
+
+    const rows = (await setup.queues.antrean(admin)).filter((row) => row.type === "tpu_flag_kedaluwarsa");
+    expect(rows.map((row) => row.subjectLabel)).toEqual(["TPU Kober"]);
+    // The row carries the TPU's own page, where the flag is edited.
+    expect(rows[0].href).toBe(`/staf/admin-platform/tpu/${rows[0].subjectId}`);
+
+    const pemesan = await signedInPemesan(setup);
+    expect((await setup.queues.antrean(pemesan)).some((row) => row.type === "tpu_flag_kedaluwarsa")).toBe(false);
   });
 });
 

@@ -57,6 +57,7 @@ export type {
 export type { JenisMakamPrice, LokasiTariffs, PriceAt } from "./lokasi-tariffs";
 export type { Provider, Quote, QuoteLine, QuoteRefusal, QuoteResult, QuotedLine } from "./quote";
 export type { AllInPrice, JenisMakamCard, LokasiPublicPricing } from "./public-pricing";
+export type { TpuPublicPricing } from "./tpu-pricing";
 export type { MarkTariffsCheckedResult, MissingTariff, TariffsChecked } from "./tariffs-checked";
 export type { StaffTariffReads, TariffReads } from "./reads";
 

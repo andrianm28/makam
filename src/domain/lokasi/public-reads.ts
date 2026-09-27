@@ -3,7 +3,8 @@ import type { Database } from "@/db/client";
 import type { FileStore } from "@/ports/file-store";
 import { isLokasiId } from "./lokasi-mitra";
 import type { LokasiFacility } from "./profile";
-import { lokasiMitra as lokasiMitraTable } from "./schema";
+import { lokasiMitra as lokasiMitraTable, tpuDki as tpuDkiTable } from "./schema";
+import { publicTpuDkiList, type PublicTpuDki } from "./tpu";
 
 /** How long a signed URL to a Kunjungan Verifikasi visit photo works, on the public Lokasi page. */
 export const VISIT_PHOTO_URL_SECONDS = 10 * 60;
@@ -161,4 +162,59 @@ export async function publicLokasiMitraCities(deps: { db: Database }): Promise<s
     .where(eq(lokasiMitraTable.status, "terverifikasi"))
     .orderBy(asc(lokasiMitraTable.city));
   return rows.map((row) => row.city);
+}
+
+/** Every city with at least one DKI TPU, for the directory's city filter. */
+export async function publicTpuDkiCities(deps: { db: Database }): Promise<string[]> {
+  const rows = await deps.db
+    .selectDistinct({ city: tpuDkiTable.city })
+    .from(tpuDkiTable)
+    .orderBy(asc(tpuDkiTable.city));
+  return rows.map((row) => row.city);
+}
+
+/**
+ * Every city the directory can be filtered by: the cities of the Terverifikasi
+ * Lokasi Mitra and of the DKI TPUs together, by name, each once. One list for
+ * both kinds, so the filter offers what it can actually return.
+ */
+export async function publicLokasiMakamCities(deps: { db: Database }): Promise<string[]> {
+  const [lokasiMitra, tpu] = await Promise.all([publicLokasiMitraCities(deps), publicTpuDkiCities(deps)]);
+  return [...new Set([...lokasiMitra, ...tpu])].sort((a, b) => a.localeCompare(b, "id"));
+}
+
+/** Which kind of Lokasi Makam a directory card shows. */
+export type LokasiMakamKind = "lokasi_mitra" | "tpu";
+
+/** One card of the Daftar Lokasi Makam, either kind. A TPU's card is its public profile: the same facts its own page shows. */
+export type LokasiMakamCard = ({ kind: "lokasi_mitra" } & PublicLokasiMitraCard) | ({ kind: "tpu" } & PublicTpuDki);
+
+export interface LokasiMakamQuery {
+  /** One kind, or both (the default). */
+  kind?: LokasiMakamKind;
+  /** The exact city, the one filter both kinds read. */
+  city?: string;
+  /** Lokasi Mitra only: a TPU keeps no facilities checklist, so this never narrows a TPU card. */
+  facilities?: LokasiFacility[];
+}
+
+const byName = (a: { name: string; id: string }, b: { name: string; id: string }) => a.name.localeCompare(b.name, "id");
+
+/**
+ * The whole directory in one read: every Terverifikasi Lokasi Mitra and every
+ * DKI TPU, by name, filtered by the same city and, for Lokasi Mitra, the same
+ * facilities. No actor.
+ */
+export async function publicLokasiMakamList(deps: { db: Database }, query: LokasiMakamQuery = {}): Promise<LokasiMakamCard[]> {
+  const wants = (kind: LokasiMakamKind) => !query.kind || query.kind === kind;
+  const [lokasiMitra, tpu] = await Promise.all([
+    wants("lokasi_mitra")
+      ? publicLokasiMitraList(deps, { city: query.city, facilities: query.facilities })
+      : Promise.resolve([]),
+    wants("tpu") ? publicTpuDkiList(deps, { city: query.city }) : Promise.resolve([]),
+  ]);
+  return [
+    ...lokasiMitra.map((card): LokasiMakamCard => ({ kind: "lokasi_mitra", ...card })),
+    ...tpu.map((card): LokasiMakamCard => ({ kind: "tpu", ...card })),
+  ].sort(byName);
 }

@@ -1,6 +1,6 @@
 # makam.co.id v1 build: ticket index
 
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 36 resolved, 43 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 1 in-progress (87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 41 resolved, 37 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87). Numbers follow dependency and value order; human tickets are numbered early because of vendor lead times. Only the real-adapter and production tickets (07, 60, 61, 62, 64, 65, 68) are blocked by them.
 
 ## Tickets
 
@@ -48,7 +48,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | ready-for-agent | 29, 32, 34, 82 |
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
-| [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | ready-for-agent | 16, 17 |
+| [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | resolved | 16, 17 |
 | [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43, 63, 82 |
 | [45](45-tpu-saat-duka-confirmation-and-surat-pengantar.md) | TPU Saat Duka confirmation and Ambil surat pengantar | ready-for-agent | 28, 44 |
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | ready-for-agent | 45 |

@@ -11,6 +11,7 @@ import {
   InboxIcon,
   LayoutDashboardIcon,
   type LucideIcon,
+  LandmarkIcon,
   MapPinnedIcon,
   PaletteIcon,
   ReceiptIcon,
@@ -85,6 +86,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               href: `${AP}/lokasi`,
               icon: MapPinnedIcon,
               description: "Onboarding Lokasi Mitra dan undangan Admin Lokasi.",
+            },
+            {
+              label: "TPU DKI",
+              href: `${AP}/tpu`,
+              icon: LandmarkIcon,
+              description: "Daftar TPU resmi DKI: alamat, sumber data dan status menerima makam baru.",
             },
             {
               label: "Tarif global",
