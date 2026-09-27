@@ -20,6 +20,7 @@ import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Notifications } from "@/domain/notifications";
 import type { Clock } from "@/ports/clock";
 import { ambilRow, type AmbilRowResult } from "./ambil";
 import { antrean, antreanCounters, type AntreanCounters, type AntreanRow } from "./antrean";
@@ -47,6 +48,8 @@ export interface QueuesModuleDeps {
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
+  /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
+  notifications: Pick<Notifications, "teleponPemesanTerbuka">;
 }
 
 export interface Queues {

@@ -31,7 +31,13 @@ describe("pg-boss wiring (smoke)", () => {
 
     worker = await startWorker({
       connectionString: inject("databaseUrl"),
-      context: composeSchedulerContext({ db, reportError: () => {} }),
+      context: composeSchedulerContext({
+        db,
+        reportError: () => {},
+        clock,
+        dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
+        notifications: { kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }) },
+      }),
       clock,
       ticks: scheduledTicks,
       // Same registry and wiring as production; only the cadence is faster

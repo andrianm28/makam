@@ -4,12 +4,13 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeNotifications } from "@/composition/notifications";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createNotifications, type Notifications } from "@/domain/notifications";
+import type { Notifications } from "@/domain/notifications";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { createQueues, type Queues } from "@/domain/queues";
@@ -64,18 +65,19 @@ export function serverRuntime(): ServerRuntime {
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
-    const notifications = createNotifications({
-      db: database.db,
-      clock: adapters.clock,
-      email: adapters.email,
-      webPush: adapters.webPush,
-      identity,
-      audit,
-      reportError,
-    });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    const notifications = composeNotifications({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      identity,
+      billing,
+      reportError,
+    });
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -85,7 +87,6 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -99,7 +100,15 @@ export function serverRuntime(): ServerRuntime {
       billing,
       inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs }),
       fieldwork,
-      queues: createQueues({ db: database.db, clock: adapters.clock, audit, lokasi, fieldwork, billing }),
+      queues: createQueues({
+        db: database.db,
+        clock: adapters.clock,
+        audit,
+        lokasi,
+        fieldwork,
+        billing,
+        notifications,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;

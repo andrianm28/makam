@@ -5,6 +5,8 @@ import type { Actor } from "@/domain/identity";
 import { createNotifications } from "@/domain/notifications";
 import { logIn } from "./identity";
 import { lokasiOnTestDatabase } from "./lokasi";
+import { TEST_PUBLIC_ORIGIN } from "./billing";
+import { TAGIHAN_TIDAK_ADA } from "./notifications";
 
 /**
  * The Field Work module next to Lokasi, identity and notifications on the
@@ -22,6 +24,8 @@ export function fieldworkOnTestDatabase(db: Database) {
     identity: lokasiSetup.identity,
     audit: lokasiSetup.audit,
     reportError: () => {},
+    tagihan: TAGIHAN_TIDAK_ADA,
+    dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
   });
   const fieldwork = createFieldwork({
     db,

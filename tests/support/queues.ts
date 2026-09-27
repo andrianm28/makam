@@ -16,6 +16,7 @@ export function queuesOnTestDatabase(db: Database) {
     lokasi: setup.lokasi,
     fieldwork: setup.fieldwork,
     billing: setup.billing,
+    notifications: setup.notifications,
   });
   return { ...setup, queues };
 }

@@ -55,6 +55,31 @@ describe("Peringatan Staf", () => {
     );
   });
 
+  it("a Peringatan Staf is logged per channel in the message log", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { notifications } = setup;
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const adminLokasi = await invitedStaff(setup, admin, "admin_lokasi", "admin.lokasi@contoh.id");
+    const petugas = await invitedStaff(setup, admin, "petugas_lapangan", "petugas@contoh.id");
+    await notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+
+    await notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId },
+      ...saatDukaBaru,
+    });
+
+    const logged = await notifications.pesanStaf(adminLokasi.accountId);
+    expect(logged).toHaveLength(2);
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ template: "staf_saat_duka_baru", channel: "push", status: "terkirim", attempts: 1 }),
+        expect.objectContaining({ template: "staf_saat_duka_baru", channel: "email", status: "terkirim" }),
+      ]),
+    );
+    // Only the Akun Staf it was sent to: every staff member's log is their own.
+    expect(await notifications.pesanStaf(petugas.accountId)).toEqual([]);
+  });
+
   it("an Akun Staf without a Perangkat Push still gets the email", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, email, webPush } = setup;
@@ -100,6 +125,34 @@ describe("Peringatan Staf", () => {
     expect((report?.error as Error).message).not.toMatch(/admin\.lokasi@contoh\.id/);
     expect(JSON.stringify(report?.context)).not.toMatch(/admin\.lokasi@contoh\.id/);
     expect(report?.context.tags).toMatchObject({ channel: "email", template: "staf_saat_duka_baru" });
+  });
+
+  it("a failed Peringatan Staf is logged gagal and never escalated: no retry, no call row", async () => {
+    const setup = notificationsOnTestDatabase(db, {
+      email: {
+        send: async () => {
+          throw new Error("relay refused");
+        },
+      },
+    });
+    const adminLokasi = await signedInStaff(setup, "admin_lokasi");
+    await setup.notifications.enablePush(adminLokasi, { subscription: browserPushSubscription() });
+    await setup.notifications.sendStaffAlert({
+      to: { accountId: adminLokasi.accountId },
+      ...saatDukaBaru,
+    });
+
+    const logged = await setup.notifications.pesanStaf(adminLokasi.accountId);
+    expect(logged).toEqual(
+      expect.arrayContaining([expect.objectContaining({ channel: "email", status: "gagal", sentAt: null })]),
+    );
+    // Nothing is waiting to be retried, and no money call row is opened: a
+    // staff alert is never escalated beyond push, email and the Antrean.
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+    setup.clock.advance({ hours: 1 });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(await setup.notifications.pesanStaf(adminLokasi.accountId)).toHaveLength(logged.length);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
   });
 
   it("a push service that fails keeps the Perangkat Push, and the failure goes to error monitoring", async () => {

@@ -7,6 +7,7 @@ import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Notifications } from "@/domain/notifications";
 import type { Clock } from "@/ports/clock";
 
 export type AntreanTier = 1 | 2 | 3 | 4;
@@ -17,6 +18,8 @@ export interface AntreanRowDeps {
   lokasi: Pick<Lokasi, "allLokasiMitra">;
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
+  /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
+  notifications: Pick<Notifications, "teleponPemesanTerbuka">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

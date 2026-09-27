@@ -1,20 +1,31 @@
 /**
- * Notifications: email templates, the 08:00-20:00 WIB window, retry, the message log (ADR 0004: email only).
+ * Notifications: the event table (recipient, channel, template, timing), the
+ * email templates, the 08:00–20:00 WIB window, retries, the message log and
+ * the "Telepon Pemesan" call row (ADR 0004: email only).
  *
- * Built so far (ticket 21, channels per ADR 0004): Peringatan Staf, which go
- * by web push to each Perangkat Push of the Akun Staf and by email to its
- * Email Terverifikasi, and the Perangkat Push themselves. The event table,
- * message log, retries and reminder window arrive with ticket 20.
+ * Families get email (on the SumoPod relay, ticket 68), with a link into the
+ * app; a family that must act and has no working address gets a Tier 2 call
+ * row in the Antrean instead. Staff get a Peringatan Staf by web push to each
+ * Perangkat Push of the Akun Staf and by email, and each Peringatan Staf is
+ * kept for the bell in the staff header, read and marked read by its own Akun
+ * Staf only. There is no WhatsApp and no SMS.
  *
- * Each Peringatan Staf is also kept for the bell in the staff header, read and
- * marked read by its own Akun Staf only.
+ * The Kode Masuk is not here: Identity & Access sends it straight through
+ * EmailSender, so it creates no log entry, is never retried and raises no row.
  *
- * Owns tables: notifications_push_device, notifications_staff_alert.
+ * Built so far: ticket 21 (Peringatan Staf, Perangkat Push) and ticket 20
+ * (a Tagihan issued and its pay-first reminders, a Bukti Pembayaran issued);
+ * Terencana, Paket and pay-after reminders arrive with tickets 37, 54 and 29.
+ *
+ * Owns tables: notifications_push_device, notifications_staff_alert,
+ * notifications_message, notifications_tagihan_kontak,
+ * notifications_telepon_pemesan.
  */
 import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
+import type { Billing } from "@/domain/billing";
 import {
   akunResource,
   staffRoles,
@@ -31,7 +42,40 @@ import { STAFF_AREA_PATH, staffPagePath } from "@/lib/staff-area-path";
 import type { Clock } from "@/ports/clock";
 import type { EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
-import { notificationsPushDevice, notificationsStaffAlert } from "./schema";
+import {
+  catatPanggilan,
+  teleponPemesanTerbuka,
+  type CatatPanggilanInput,
+  type CatatPanggilanResult,
+  type TeleponPemesan,
+} from "./telepon-pemesan";
+import {
+  kirimPesanJatuhTempo,
+  pesanTagihan,
+  tagihanTerbit,
+  type KirimJatuhTempo,
+  type PesanTercatat,
+  type TagihanTerbitInput,
+  type TagihanTerbitResult,
+} from "./pesan-keluarga";
+import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
+
+export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
+export {
+  catatPanggilanSchema,
+  type CatatPanggilanInput,
+  type CatatPanggilanResult,
+  type TeleponPemesan,
+} from "./telepon-pemesan";
+export {
+  tagihanTerbitSchema,
+  type KirimJatuhTempo,
+  type PesanTercatat,
+  type TagihanTerbitInput,
+  type TagihanTerbitResult,
+} from "./pesan-keluarga";
+/** The event table and the reminder rules, as the spec lists them, for anything that reports on them. */
+export { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAKTU_TEMPLATE } from "./acara";
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
 export const pushSubscriptionSchema = z.object({
@@ -55,6 +99,10 @@ export interface NotificationsDeps {
   reportError: ReportError;
   /** Turning push on or off is a staff write: one Entri Audit each. */
   audit: AuditLog;
+  /** Tagihan status reads for the reminder stop rule; only billing reads its tables. */
+  tagihan: Pick<Billing, "tagihan">;
+  /** The Tagihan page's full URL from its link, for the family email's link into the app. */
+  dokumenUrl: (link: string) => string;
 }
 
 export interface PushDevice {
@@ -134,7 +182,8 @@ export interface Notifications {
   /**
    * Sends a Peringatan Staf: by push to each Perangkat Push of the Akun and by
    * email to its Email Terverifikasi (ADR 0004). A Perangkat Push whose browser
-   * dropped it is removed.
+   * dropped it is removed. Each channel is logged in the message log; a
+   * failed staff alert is never retried nor escalated to a call row.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
   /**
@@ -144,6 +193,33 @@ export interface Notifications {
   staffAlerts(by: Actor, options?: { limit?: number }): Promise<StaffAlertsResult>;
   /** Opening the bell: every Peringatan Staf of the signed-in Akun Staf is read. */
   markStaffAlertsRead(by: Actor): Promise<{ ok: true } | WriteRefusal>;
+  /**
+   * Announces a Tagihan: records where its family messages go and queues the
+   * Tagihan email plus, for a pay-first Tagihan, its H-1 and due-day
+   * reminders. The worker's tick sends them. An order with no email gets a
+   * "Telepon Pemesan" row at once instead.
+   *
+   * The checkout Server Actions that issue a Tagihan call this with the
+   * address on the order (ticket 22 owns that address); a Tagihan paid through
+   * the provider needs no such call, its receipt goes out through Billing's
+   * payment effect instead.
+   */
+  tagihanTerbit(input: TagihanTerbitInput): Promise<TagihanTerbitResult>;
+  /**
+   * The worker's send tick: sends every queued message whose time has come
+   * (reminders only 08:00–20:00 WIB), retries with backoff, drops reminders
+   * for settled Tagihan, and opens a "Telepon Pemesan" row when a money
+   * message finally fails. Idempotent.
+   */
+  kirimPesanJatuhTempo(now: Date): Promise<KirimJatuhTempo>;
+  /** Every logged message about one Tagihan, oldest first: what its order page shows. */
+  pesanTagihan(tagihanId: string): Promise<PesanTercatat[]>;
+  /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
+  pesanStaf(akunStafId: string, options?: { limit?: number }): Promise<PesanTercatat[]>;
+  /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
+  teleponPemesanTerbuka(): Promise<TeleponPemesan[]>;
+  /** An Admin Platform logs the call: the "Telepon Pemesan" row closes; audited. */
+  catatPanggilan(by: Actor, input: CatatPanggilanInput): Promise<CatatPanggilanResult>;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -287,7 +363,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
               : undefined,
           ),
         );
+      let tried = 0;
       for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
+        tried += 1;
         const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
         const result = await deps.webPush
           .send({ subscription, notification: { ...alert.push, url } })
@@ -303,6 +381,33 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
           await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
           push.removed++;
         }
+      }
+      // The staff alert's own log: one row per channel attempted. A failed
+      // staff alert is never retried nor escalated to a call row.
+      const now = deps.clock.now();
+      await catatPesanStaf(db, {
+        template: alert.kind,
+        channel: "email",
+        akunStafId: recipient.accountId,
+        email: recipient.email,
+        subject: alert.email.subject,
+        body: alert.email.text,
+        status: email,
+        sentAt: recipient.email && email === "terkirim" ? now : null,
+        now,
+      });
+      if (tried > 0) {
+        await catatPesanStaf(db, {
+          template: alert.kind,
+          channel: "push",
+          akunStafId: recipient.accountId,
+          email: null,
+          subject: alert.push.title,
+          body: alert.push.body,
+          status: push.delivered > 0 ? "terkirim" : "gagal",
+          sentAt: push.delivered > 0 ? now : null,
+          now,
+        });
       }
       return { ok: true, email, push };
     },
@@ -346,11 +451,86 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         .where(and(eq(notificationsStaffAlert.accountId, by.accountId), isNull(notificationsStaffAlert.readAt)));
       return { ok: true };
     },
+
+    async tagihanTerbit(input) {
+      return tagihanTerbit(deps, input);
+    },
+
+    async kirimPesanJatuhTempo(now) {
+      return kirimPesanJatuhTempo(deps, now);
+    },
+
+    async pesanTagihan(tagihanId) {
+      return pesanTagihan(deps, tagihanId);
+    },
+
+    async pesanStaf(akunStafId, options = {}) {
+      const rows = await db
+        .select()
+        .from(notificationsMessage)
+        .where(eq(notificationsMessage.akunStafId, akunStafId))
+        .orderBy(desc(notificationsMessage.createdAt), desc(notificationsMessage.id))
+        .limit(options.limit ?? 20);
+      return rows.map((row) => ({
+        id: row.id,
+        template: row.template,
+        channel: row.channel,
+        status: row.status,
+        subject: row.subject,
+        attempts: row.attempts,
+        sentAt: row.sentAt,
+      }));
+    },
+
+    async teleponPemesanTerbuka() {
+      return teleponPemesanTerbuka(db);
+    },
+
+    async catatPanggilan(by, input) {
+      return catatPanggilan(deps, by, input);
+    },
   };
 }
 
 /** An email address anywhere in a text. */
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+/**
+ * One Peringatan Staf row in the message log, per channel: what the Akun Staf
+ * was sent, and how it went. Staff messages are never queued and never
+ * retried, so their row is written already sent (or gagal) as it happens.
+ */
+async function catatPesanStaf(
+  db: Database,
+  row: {
+    template: string;
+    channel: "email" | "push";
+    akunStafId: string;
+    email: string | null;
+    subject: string;
+    body: string;
+    status: (typeof pesanStatuses)[number];
+    sentAt: Date | null;
+    now: Date;
+  },
+): Promise<void> {
+  await db.insert(notificationsMessage).values({
+    template: row.template,
+    channel: row.channel,
+    tagihanId: null,
+    nomorTagihan: null,
+    nomorPemesanan: null,
+    email: row.email,
+    akunStafId: row.akunStafId,
+    subject: row.subject,
+    body: row.body,
+    status: row.status,
+    attempts: 1,
+    sendAfter: row.now,
+    sentAt: row.sentAt,
+    createdAt: row.now,
+  });
+}
 
 /** Fit for a lock screen: no phone number (as error scrubbing finds them) and no email address. */
 function lockScreenSafe(text: string): boolean {

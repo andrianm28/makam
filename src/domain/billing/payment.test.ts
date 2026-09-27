@@ -3,6 +3,7 @@ import type { Rupiah } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
 import { billingWithOperatorSettings, insertOverCapTagihanForTest, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { schedulerContext } from "../../../tests/support/scheduler";
 import { scheduledTicks } from "@/domain/scheduler";
 import { lapsePayFirstTagihanTick, type IssueTagihanInput, type PaymentEffect, type SettledPayment } from "./index";
 
@@ -462,6 +463,9 @@ describe("the downstream effects of a payment", () => {
           tagihanId: tagihan.id,
           nomorTagihan: "TGH/2026/000001",
           nomorPemesanan: "MKM-2026-000001",
+          // What a receipt needs, so no effect reads the Tagihan again.
+          total: tagihan.total,
+          link: tagihan.link,
           buktiId: received.bukti.id,
           nomorBukti: "BYR/2026/000001",
           paidAt: received.bukti.paidAt,
@@ -512,7 +516,7 @@ describe("the downstream effects of a payment", () => {
     await setup.billing.recordPayment(tagihan.id, { method: { kind: "transfer_manual" }, reference: null });
     const retry = scheduledTicks.find((scheduled) => scheduled.name === "billing.retry_payment_effects");
     expect(retry?.cron).toBe("*/10 * * * *");
-    const ctx = { db, paymentEffects: [effect], reportError: () => {} };
+    const ctx = schedulerContext({ db, paymentEffects: [effect] });
 
     setup.clock.advance({ minutes: 10 });
     await retry!.tick(ctx, setup.clock.now());
