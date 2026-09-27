@@ -79,6 +79,27 @@ import {
   type AddHariLiburNasionalResult,
   type RemoveHariLiburNasionalResult,
 } from "./calendars";
+import {
+  cekDenahOf,
+  kunjunganVerifikasiSelesai,
+  recordCekDenah,
+  recordKunjunganVerifikasi,
+  type CekDenahRecord,
+  type KunjunganVerifikasiInput,
+  type RecordCekDenahResult,
+  type RecordKunjunganVerifikasiResult,
+} from "./kunjungan";
+import { publishLokasiMitra, type PublishInput, type PublishLokasiMitraResult } from "./publish";
+import { activateTerencana, type ActivateTerencanaInput, type ActivateTerencanaResult } from "./terencana";
+import {
+  publicLokasiMitra,
+  publicLokasiMitraCities,
+  publicLokasiMitraList,
+  publicVisitPhotoUrls,
+  type PublicLokasiMitra,
+  type PublicLokasiMitraCard,
+  type PublicLokasiMitraQuery,
+} from "./public-reads";
 
 export {
   AGREEMENT_SCAN_MAX_BYTES,
@@ -150,6 +171,21 @@ export type {
   NewLokasiMitra,
   WriteResult,
 } from "./lokasi-mitra";
+export type {
+  CekDenahRecord,
+  KunjunganVerifikasiInput,
+  RecordCekDenahResult,
+  RecordKunjunganVerifikasiResult,
+} from "./kunjungan";
+export type { PublishInput, PublishLokasiMitraResult } from "./publish";
+export {
+  terencanaSwitchGate,
+  type ActivateTerencanaInput,
+  type ActivateTerencanaResult,
+  type TerencanaSwitchGate,
+  type TerencanaSwitchKey,
+} from "./terencana";
+export type { PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
 
 export interface LokasiModuleDeps {
   db: Database;
@@ -258,6 +294,43 @@ export interface Lokasi {
    * given, e.g. the Saat Duka confirmation deadline; refused while its Jam Operasional is belum diisi.
    */
   serviceHoursDeadline(lokasiId: string, hours: number, start?: Date): Promise<WorkingTimeResult | NotFound>;
+  /**
+   * The fieldwork module calls this once a Kunjungan Verifikasi is marked
+   * Selesai: updates the Lokasi's pin, facilities, visit photos and
+   * "dikunjungi" date (spec, Field Work). `by` is the visiting Petugas
+   * Lapangan; the fieldwork module has already checked it against its task.
+   */
+  recordKunjunganVerifikasi(by: Actor, lokasiId: string, input: KunjunganVerifikasiInput): Promise<RecordKunjunganVerifikasiResult>;
+  /** Whether this Lokasi Mitra has a completed Kunjungan Verifikasi (the publish gate's fact); false for an unknown id. */
+  kunjunganVerifikasiSelesai(lokasiId: string): Promise<boolean>;
+  /**
+   * The fieldwork module calls this once a Cek Denah is marked Selesai: it
+   * records the spot-check on the Lokasi (ticket 16's Terencana-switch input).
+   */
+  recordCekDenah(by: Actor, lokasiId: string, input: { checkedAt: Date; note: string }): Promise<RecordCekDenahResult>;
+  /** The latest Cek Denah recorded on this Lokasi (ticket 16's Terencana-switch input), or null before the first one. */
+  cekDenahOf(lokasiId: string): Promise<CekDenahRecord | null>;
+  /**
+   * Admin Platform publishes this Lokasi Mitra (Belum Tayang → Terverifikasi):
+   * refused with the publish gate's checklist unless every item is met.
+   * `input.tariffsChecked` is the one fact the Tariffs module owns; the
+   * caller reads it (e.g. `tariffs.asStaff(by).tariffsChecked(lokasiId)`).
+   */
+  publish(by: Actor, lokasiId: string, input: PublishInput): Promise<PublishLokasiMitraResult>;
+  /**
+   * Admin Platform switches "Pemesanan Terencana aktif" on, only once every
+   * Petak is cleared and a Cek Denah is done. `input.hasPetakPerluVerifikasi`
+   * is the Inventory module's own fact; the caller reads it.
+   */
+  activateTerencana(by: Actor, lokasiId: string, input: ActivateTerencanaInput): Promise<ActivateTerencanaResult>;
+  /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
+  publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
+  /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city and facilities. */
+  publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
+  /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
+  publicLokasiMitraCities(): Promise<string[]>;
+  /** Signed URLs to a Terverifikasi Lokasi Mitra's Kunjungan Verifikasi visit photos (no actor, for its Lokasi page). */
+  publicVisitPhotoUrls(lokasiId: string): Promise<string[]>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -292,6 +365,16 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     adminPlatformCalendar: () => readAdminPlatformCalendar(deps),
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
+    recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
+    kunjunganVerifikasiSelesai: (lokasiId) => kunjunganVerifikasiSelesai(deps, lokasiId),
+    recordCekDenah: (by, lokasiId, input) => recordCekDenah(deps, by, lokasiId, input),
+    cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
+    publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
+    activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
+    publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
+    publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
+    publicLokasiMitraCities: () => publicLokasiMitraCities(deps),
+    publicVisitPhotoUrls: (lokasiId) => publicVisitPhotoUrls(deps, lokasiId),
   };
 }
 export {

@@ -47,6 +47,20 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
    */
   kontakSiagaAccountId: text("kontak_siaga_account_id"),
   kontakSiagaPickedAt: at("kontak_siaga_picked_at"),
+  /**
+   * Set by a completed Kunjungan Verifikasi (ticket 15, fieldwork module):
+   * the visit's dated photos (FileStore keys, in upload order) and the date
+   * (WIB) it confirmed the Lokasi. Null until the first Kunjungan Verifikasi.
+   * The publish gate's `kunjungan_verifikasi` item is met once this is set.
+   */
+  visitPhotos: jsonb("visit_photos").$type<string[]>(),
+  dikunjungiOn: date("dikunjungi_on", { mode: "string" }),
+  /**
+   * Set by a completed Cek Denah (ticket 15, fieldwork module): the input to
+   * the Terencana switch (ticket 16). Null until the first Cek Denah.
+   */
+  cekDenahAt: at("cek_denah_at"),
+  cekDenahNote: text("cek_denah_note"),
   createdAt: at("created_at").notNull(),
   updatedAt: at("updated_at").notNull(),
 });

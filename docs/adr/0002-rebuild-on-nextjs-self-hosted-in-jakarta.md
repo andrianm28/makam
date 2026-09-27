@@ -56,3 +56,5 @@ User decision: v1 goes live as soon as possible as a **beta for UAT on `makam.co
 - **AWS S3 moves to v2.** Until then files live in a **FileStore on the host's disk** (a private, makam-only volume in Jakarta, served through short-lived signed URLs, behind the same port), so data still stays in Indonesia.
 - **Backups for the beta**: a nightly encrypted `pg_dump` kept on the host for 7 days plus the pre-migrate dump; pgBackRest to S3 (ticket 64 as researched) moves to v2. This replaces "production does not go live before ticket 64's off-host backups" for the beta only. Accepted risk: losing the host loses the beta's data; the beta holds no real personal or payment data.
 - v2 brings S3 (files and off-host backups), live payments, more payment gateways (lifting the Rp 10 juta QRIS cap) and the Operator's real content.
+
+_Correction (2026-09-26): a read-only check of the old app's database found only a `sumopod-sandbox` payment session and no settled payment; the old app never took real money, so "the old app's live SumoPod payments stop at the switch" above overstates it._

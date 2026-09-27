@@ -6,9 +6,11 @@ import { z } from "zod";
 import { lokasiMitraResource, semuaLokasiMitraResource, type Action, type Actor } from "@/domain/identity";
 import {
   AGREEMENT_SCAN_MAX_BYTES,
+  type ActivateTerencanaResult,
   type ChangeBankAccountResult,
   type CreateLokasiMitraResult,
   type InviteAdminLokasiResult,
+  type PublishLokasiMitraResult,
   type RemoveAdminLokasiFromLokasiResult,
   type SetPoliciesResult,
   type UpdateProfileResult,
@@ -32,6 +34,8 @@ type LokasiRefusal = Refused<
   | UploadAgreementResult
   | InviteAdminLokasiResult
   | RemoveAdminLokasiFromLokasiResult
+  | PublishLokasiMitraResult
+  | ActivateTerencanaResult
 >;
 
 /** What each refusal says on screen, in Bahasa Indonesia: the one map every Lokasi form uses. */
@@ -53,6 +57,8 @@ const refusalMessages: Record<LokasiRefusal, string> = {
   ...phoneNumberRefusals,
   alasan_wajib: "Tulis alasannya.",
   bukan_admin_lokasi_di_sini: "Akun ini bukan Admin Lokasi di Lokasi Mitra ini.",
+  gerbang_belum_terpenuhi: "Belum bisa: syarat di atas belum semuanya terpenuhi.",
+  status_tidak_bisa_diterbitkan: "Lokasi Mitra ini sudah tidak Belum Tayang: statusnya tidak bisa diterbitkan lewat sini.",
 };
 
 type LokasiWriteResult = { ok: true } | { ok: false; reason: LokasiRefusal };
@@ -315,6 +321,49 @@ export async function undangAdminLokasi(_previous: FormState, formData: FormData
       delivered
         ? `Undangan Admin Lokasi terkirim ke ${invite.email}. Berlaku 7 hari: minta ia masuk lewat /masuk dengan email itu.`
         : `Undangan Admin Lokasi untuk ${invite.email} tercatat, tetapi emailnya gagal terkirim. Minta ia masuk lewat /masuk dengan email itu dalam 7 hari.`,
+  });
+}
+
+const targetSchema = z.object({ lokasiId });
+
+/**
+ * Admin Platform publishes the Lokasi Mitra (Belum Tayang → Terverifikasi),
+ * only once every publish-gate item is met. Composes the Tariffs module's own
+ * "tarif diperiksa" mark (the one fact the Lokasi module does not own) and
+ * hands it to `lokasi.publish`, which re-checks every item for real.
+ */
+export async function terbitkanLokasiMitra(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.terbitkan",
+    schema: targetSchema,
+    input: { lokasiId: formData.get("lokasiId") },
+    run: async (actor, data) => {
+      const { lokasi, tariffs } = serverRuntime();
+      const tariffsChecked = await tariffs.asStaff(actor).tariffsChecked(data.lokasiId);
+      return lokasi.publish(actor, data.lokasiId, {
+        tariffsChecked: tariffsChecked && { changedSinceCheck: tariffsChecked.changedSinceCheck },
+      });
+    },
+    saved: "Lokasi Mitra ini sekarang Terverifikasi dan tampil di Daftar Lokasi.",
+  });
+}
+
+/**
+ * Admin Platform switches "Pemesanan Terencana aktif" on, only once every
+ * Petak is cleared and a Cek Denah is done. Composes the Inventory module's
+ * own "Perlu Verifikasi Petak" fact and hands it to `lokasi.activateTerencana`.
+ */
+export async function aktifkanTerencana(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.aktifkan_terencana",
+    schema: targetSchema,
+    input: { lokasiId: formData.get("lokasiId") },
+    run: async (actor, data) => {
+      const { lokasi, inventory } = serverRuntime();
+      const hasPetakPerluVerifikasi = await inventory.hasPetakPerluVerifikasi(data.lokasiId);
+      return lokasi.activateTerencana(actor, data.lokasiId, { hasPetakPerluVerifikasi });
+    },
+    saved: "Pemesanan Terencana aktif untuk Lokasi Mitra ini.",
   });
 }
 

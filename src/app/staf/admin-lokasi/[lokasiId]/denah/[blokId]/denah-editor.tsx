@@ -2,11 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { Hash, Layers, MousePointerSquareDashed, Route, TreePine, Users, X } from "lucide-react";
-import { DenahGrid, DenahLegend, type DenahEdge, type DenahGridCell } from "@/components/denah/grid";
+import { DenahGrid, DenahLegend, type DenahCellStatus, type DenahEdge, type DenahGridCell } from "@/components/denah/grid";
 import type { DenahCell, DenahKavling } from "@/domain/inventory";
 import { cn } from "@/lib/utils";
 import {
   addEdgeAction,
+  clearKavlingAction,
+  clearPetakAction,
   createKavlingAction,
   removeRowsOrColsAction,
   renumberCellsAction,
@@ -50,7 +52,7 @@ export function DenahEditor({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"jenisMakam" | "renumber" | "kavling" | "hapusBarisKolom" | null>(null);
+  const [dialog, setDialog] = useState<"jenisMakam" | "renumber" | "kavling" | "hapusBarisKolom" | "bersihkan" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -66,7 +68,7 @@ export function DenahEditor({
         col: cell.col,
         kind: cell.kind,
         label: shortLabel(cell.nomorMakam, blok.name),
-        status: cell.kind === "petak" ? (cell.usedForever ? "terisi" : "tersedia") : undefined,
+        status: cell.kind === "petak" ? gridStatus(cell.status) : undefined,
         perluVerifikasi: cell.perluVerifikasi,
         partOfKavling: Boolean(cell.kavlingId),
       })),
@@ -74,6 +76,10 @@ export function DenahEditor({
   );
 
   const focused = focusedId ? (cellsById.get(focusedId) ?? null) : null;
+  const focusedKavling = focused?.kavlingId ? kavlingById.get(focused.kavlingId) : undefined;
+  /** A member of a Kavling Keluarga is "belum dibersihkan" the same way a lone Petak is: some cell of it is still Perlu Verifikasi. */
+  const kavlingNeedsClearing = focusedKavling ? focusedKavling.cellIds.some((id) => cellsById.get(id)?.perluVerifikasi) : false;
+  const needsClearing = focused?.kind === "petak" && (focusedKavling ? kavlingNeedsClearing : focused.perluVerifikasi);
 
   function run<T>(action: () => Promise<{ ok: true; data: T } | { ok: false; message: string }>, onOk?: (data: T) => void) {
     setMessage(null);
@@ -140,12 +146,14 @@ export function DenahEditor({
         </div>
         <DetailPanel
           cell={focused}
-          kavlingOf={focused?.kavlingId ? kavlingById.get(focused.kavlingId) : undefined}
+          kavlingOf={focusedKavling}
           jenisMakamName={focused?.jenisMakamId ? jenisMakamById.get(focused.jenisMakamId)?.name : undefined}
+          needsClearing={needsClearing}
           onClose={() => setFocusedId(null)}
           pending={pending}
           onRename={(nomor) => run(() => setSingleNumberAction({ lokasiId, blokId: blok.id, cellId: focused!.id, nomorMakam: nomor }))}
           onSplitKavling={(kavlingId) => run(() => splitKavlingAction({ lokasiId, blokId: blok.id, kavlingId }))}
+          onBersihkan={() => setDialog("bersihkan")}
         />
       </div>
 
@@ -186,8 +194,25 @@ export function DenahEditor({
           }
         />
       ) : null}
+      {dialog === "bersihkan" && focused ? (
+        <ClearingDialog
+          isKavling={Boolean(focusedKavling)}
+          pending={pending}
+          onCancel={() => setDialog(null)}
+          onSubmit={(clearingInput) =>
+            focusedKavling
+              ? run(() => clearKavlingAction({ lokasiId, blokId: blok.id, kavlingId: focusedKavling.id, input: clearingInput as never }))
+              : run(() => clearPetakAction({ lokasiId, blokId: blok.id, petakId: focused.id, input: clearingInput as never }))
+          }
+        />
+      ) : null}
     </div>
   );
+}
+
+/** The shared Denah grid only colours the four statuses CONTEXT.md lists; Masa Berlaku Habis reads as Terisi there until it gets its own colour. */
+function gridStatus(status: DenahCell["status"]): DenahCellStatus {
+  return status === "masa_berlaku_habis" ? "terisi" : status;
 }
 
 /** The Nomor Makam without the Blok's name prefix, so a cell's label stays short. */
@@ -267,17 +292,21 @@ function DetailPanel({
   cell,
   kavlingOf,
   jenisMakamName,
+  needsClearing,
   onClose,
   onRename,
   onSplitKavling,
+  onBersihkan,
   pending,
 }: {
   cell: DenahCell | null;
   kavlingOf?: DenahKavling;
   jenisMakamName?: string;
+  needsClearing?: boolean;
   onClose: () => void;
   onRename: (nomor: string) => void;
   onSplitKavling: (kavlingId: string) => void;
+  onBersihkan: () => void;
   pending: boolean;
 }) {
   const [nomor, setNomor] = useState(cell?.nomorMakam ?? "");
@@ -310,10 +339,13 @@ function DetailPanel({
           {kavlingOf ? ` · Kavling Keluarga ${kavlingOf.nomorKavling}` : ""}
         </p>
       </div>
-      {cell.perluVerifikasi ? (
-        <p className="rounded-lg bg-warning-soft px-2.5 py-1.5 text-sm text-warning-soft-foreground">
-          Perlu Verifikasi: belum dikonfirmasi, jadi belum bisa ditugaskan atau dijual.
-        </p>
+      {needsClearing ? (
+        <div className="flex flex-col gap-2 rounded-lg bg-warning-soft px-2.5 py-2 text-sm text-warning-soft-foreground">
+          <p>Perlu Verifikasi: belum dibersihkan, jadi belum bisa ditugaskan atau dijual.</p>
+          <button type="button" onClick={onBersihkan} className="self-start rounded-lg bg-forest px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            Bersihkan {kavlingOf ? "Kavling Keluarga" : "Petak"}
+          </button>
+        </div>
       ) : null}
       {cell.usedForever ? (
         <p className="text-sm text-muted-foreground">Punya Hak Pakai atau Pemakaman: tidak bisa dihapus, dipindah, atau diganti jenisnya.</p>
@@ -424,6 +456,96 @@ function KavlingDialog({
         <input value={nomorKavling} onChange={(event) => setNomorKavling(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
       </label>
       <DialogActions pending={pending} onCancel={onCancel} onSubmit={() => onSubmit(jenisMakamId, nomorKavling || undefined)} />
+    </DialogPanel>
+  );
+}
+
+/** The clearing flow (story 128): Tersedia, Tidak Tersedia with a reason, or occupied (a minimal Hak Pakai / Almarhum, or "data menyusul"). */
+function ClearingDialog({
+  isKavling,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  isKavling: boolean;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (input: unknown) => void;
+}) {
+  const [mode, setMode] = useState<"tersedia" | "tidak_tersedia" | "terisi">("tersedia");
+  const [reason, setReason] = useState("");
+  const [dataMenyusul, setDataMenyusul] = useState(false);
+  const [pemegangHakName, setPemegangHakName] = useState("");
+  const [pemegangHakPhone, setPemegangHakPhone] = useState("");
+  const [pemegangHakEmail, setPemegangHakEmail] = useState("");
+  const [almarhumName, setAlmarhumName] = useState("");
+  const [almarhumDate, setAlmarhumDate] = useState("");
+
+  function submit() {
+    if (mode === "tersedia") return onSubmit({ mode: "tersedia" });
+    if (mode === "tidak_tersedia") return onSubmit({ mode: "tidak_tersedia", reason });
+    const pemegangHak = dataMenyusul || !pemegangHakName ? undefined : { name: pemegangHakName, phoneNumber: pemegangHakPhone, email: pemegangHakEmail || undefined };
+    // A Kavling's first Pemakaman must name which member Petak it is at; that picker isn't built here yet, so record it separately later.
+    const pemakaman = !isKavling && almarhumName && almarhumDate ? { almarhumName, date: almarhumDate } : undefined;
+    onSubmit({ mode: "terisi", dataMenyusul, pemegangHak, pemakaman });
+  }
+
+  return (
+    <DialogPanel title="Bersihkan" onCancel={onCancel}>
+      <div className="flex flex-col gap-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "tersedia"} onChange={() => setMode("tersedia")} /> Tersedia
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "tidak_tersedia"} onChange={() => setMode("tidak_tersedia")} /> Tidak Tersedia
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === "terisi"} onChange={() => setMode("terisi")} /> Sudah terisi (ada Hak Pakai)
+        </label>
+      </div>
+      {mode === "tidak_tersedia" ? (
+        <label className="flex flex-col gap-1 text-sm">
+          Alasan
+          <input value={reason} onChange={(event) => setReason(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+        </label>
+      ) : null}
+      {mode === "terisi" ? (
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={dataMenyusul} onChange={(event) => setDataMenyusul(event.target.checked)} /> Data menyusul (belum lengkap)
+          </label>
+          {!dataMenyusul ? (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                Nama Pemegang Hak
+                <input value={pemegangHakName} onChange={(event) => setPemegangHakName(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Nomor telepon Pemegang Hak
+                <input value={pemegangHakPhone} onChange={(event) => setPemegangHakPhone(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Email Pemegang Hak (jika diketahui)
+                <input value={pemegangHakEmail} onChange={(event) => setPemegangHakEmail(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+              </label>
+            </>
+          ) : null}
+          {!isKavling ? (
+            <>
+              <p className="text-sm text-muted-foreground">Isi data Almarhum jika sudah diketahui (boleh dikosongkan).</p>
+              <label className="flex flex-col gap-1 text-sm">
+                Nama Almarhum
+                <input value={almarhumName} onChange={(event) => setAlmarhumName(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Tanggal pemakaman
+                <input type="date" value={almarhumDate} onChange={(event) => setAlmarhumDate(event.target.value)} className="h-10 rounded-lg border border-border-strong bg-card px-3" />
+              </label>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      <DialogActions pending={pending} onCancel={onCancel} onSubmit={submit} />
     </DialogPanel>
   );
 }

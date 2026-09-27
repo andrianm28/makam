@@ -3,6 +3,7 @@ import { biayaPemakamanVersions, type BiayaPemakamanVersion } from "./biaya-pema
 import type { TariffDeps } from "./deps";
 import { findJenisMakam, jenisMakamVersions, type JenisMakamTariffVersion } from "./jenis-makam";
 import { lokasiTariffs, type LokasiTariffs } from "./lokasi-tariffs";
+import { lokasiPublicPricing, type LokasiPublicPricing } from "./public-pricing";
 import { quote, type QuoteLine, type QuoteResult } from "./quote";
 import { tariffsChecked, type TariffsChecked } from "./tariffs-checked";
 
@@ -44,6 +45,13 @@ export interface TariffReads {
   biayaPemakamanHistory(lokasiId: string): Promise<BiayaPemakamanVersion[]>;
   /** The all-in price of a set of lines at `at`: each line priced and attributed, plus the total. */
   quote(lines: readonly QuoteLine[], at: Date): Promise<QuoteResult>;
+  /**
+   * Every price the public Lokasi page or a Daftar Lokasi card shows, under
+   * the v1 selection rules (a Jenis Makam over the QRIS cap left out
+   * entirely, "mulai Rp X", whether a Perpanjangan price shows): each an
+   * all-in total from `quote()` at `at`.
+   */
+  lokasiPricing(lokasiId: string, at: Date): Promise<LokasiPublicPricing>;
 }
 
 /** The staff reads also say who set the "tarif diperiksa" mark. */
@@ -63,6 +71,7 @@ export function tariffReads(deps: TariffDeps, visibility: Visibility): StaffTari
     },
     biayaPemakamanHistory: async (lokasiId) => ((await visibility(lokasiId)) ? biayaPemakamanVersions(db, lokasiId) : []),
     quote: (lines, at) => quote(db, remembered(visibility), lines, at),
+    lokasiPricing: (lokasiId, at) => lokasiPublicPricing(db, remembered(visibility), lokasiId, at),
     tariffsChecked: async (lokasiId) => ((await visibility(lokasiId)) ? tariffsChecked(db, lokasiId) : null),
   };
 }

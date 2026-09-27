@@ -47,6 +47,12 @@ export interface LokasiMitra {
   status: LokasiMitraStatus;
   agreement: { signedOn: string | null; scanUploaded: boolean };
   /**
+   * Set by a completed Kunjungan Verifikasi (fieldwork module, ticket 15):
+   * its dated photos (FileStore keys) and the date it confirmed this Lokasi.
+   * Null before the first one.
+   */
+  kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
+  /**
    * Where Pencairan go (null until set). Admin Platform only: it sets it, and
    * only its reads carry it; an Admin Lokasi's read has no `bankAccount`.
    */
@@ -342,7 +348,14 @@ function bankAccountOf(row: Row): BankAccount | null {
 }
 
 /** The actions a write on a Lokasi Mitra's record can be authorised as. */
-export type LokasiMitraWriteAction = Extract<Action, "lokasi.ubah" | "lokasi.ubah_rekening" | "lokasi.atur_operasional">;
+export type LokasiMitraWriteAction = Extract<
+  Action,
+  | "lokasi.ubah"
+  | "lokasi.ubah_rekening"
+  | "lokasi.atur_operasional"
+  | "lokasi.catat_kunjungan_verifikasi"
+  | "lokasi.catat_cek_denah"
+>;
 
 /** What a write changes on the row, and the Entri Audit's before and after. */
 export interface LokasiMitraChange {
@@ -403,6 +416,8 @@ function toLokasiMitra(row: Row): LokasiMitra {
     facilities: { checked: row.facilities, note: row.facilitiesNote },
     status: row.status,
     agreement: { signedOn: row.agreementSignedOn, scanUploaded: row.agreementScanFileKey !== null },
+    kunjunganVerifikasi:
+      row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     bankAccount: bankAccountOf(row),
     documentChecklist: row.documentChecklist,
     policies: row.policies,

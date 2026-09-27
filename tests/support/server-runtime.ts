@@ -4,6 +4,7 @@ import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
+import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createNotifications } from "@/domain/notifications";
@@ -51,7 +52,29 @@ export function testServerRuntime() {
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs });
-    holder.__makamRuntime = { env, database, adapters, audit, identity, notifications, lokasi, operatorSettings, tariffs, billing, inventory };
+    const fieldwork = createFieldwork({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      identity,
+      notifications,
+      lokasi,
+    });
+    holder.__makamRuntime = {
+      env,
+      database,
+      adapters,
+      audit,
+      identity,
+      notifications,
+      lokasi,
+      operatorSettings,
+      tariffs,
+      billing,
+      inventory,
+      fieldwork,
+    };
   }
   afterAll(async () => {
     await holder.__makamRuntime?.database.close();

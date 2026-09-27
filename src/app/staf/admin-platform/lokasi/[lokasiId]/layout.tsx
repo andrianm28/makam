@@ -45,6 +45,7 @@ export default async function LokasiMitraDetailLayout({
           { href: `${base}/tarif`, label: "Tarif" },
           { href: `${base}/jam-operasional`, label: "Jam Operasional" },
           { href: `${base}/admin-lokasi`, label: "Admin Lokasi" },
+          { href: `${base}/denah`, label: "Denah" },
           { href: `${base}/audit-log`, label: "Audit Log" },
         ]}
       />

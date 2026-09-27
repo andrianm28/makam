@@ -6,14 +6,20 @@ const nextConfig: NextConfig = {
   // pg-boss and pg are server-only Node packages; keep them out of the bundle.
   serverExternalPackages: ["pg", "pg-boss"],
   headers() {
-    // A Tagihan / Bukti page's link is its only key: never leak it as a referrer, never index it.
     return [
+      // A Tagihan / Bukti page's link is its only key: never leak it as a referrer, never index it.
       {
         source: "/dokumen/:path*",
         headers: [
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
+      },
+      // Keyless Google Maps embed on the public Lokasi page (spec, "Maps on public pages"): frame-src only, no
+      // default-src, so nothing else on the page is restricted.
+      {
+        source: "/lokasi/:path*",
+        headers: [{ key: "Content-Security-Policy", value: "frame-src https://www.google.com" }],
       },
     ];
   },

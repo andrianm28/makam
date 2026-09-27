@@ -93,7 +93,27 @@ export type Action =
   /** See a Lokasi Mitra's Denah (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "denah.lihat"
   /** Build or edit a Lokasi Mitra's Denah: Blok, Petak, Kavling Keluarga, site-plan photo (that Lokasi's Admin Lokasi only). */
-  | "denah.ubah";
+  | "denah.ubah"
+  /** Renumber a Petak Makam, the old Nomor Makam kept as a hidden alias (Admin Platform only). */
+  | "petak.nomor_ulang"
+  /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
+  | "tugas_lapangan.buat"
+  /** Admin Platform lists every Tugas Lapangan. */
+  | "tugas_lapangan.lihat_semua"
+  /** A Petugas Lapangan's own "Tugas saya" list. */
+  | "tugas_lapangan.punya_saya"
+  /** See one Tugas Lapangan: Admin Platform, or its assigned Petugas Lapangan (checked against the row by the fieldwork module). */
+  | "tugas_lapangan.lihat"
+  /** Mark a Tugas Lapangan Selesai: its assigned Petugas Lapangan only (checked against the row by the fieldwork module). */
+  | "tugas_lapangan.selesaikan"
+  /** A completed Kunjungan Verifikasi updates the Lokasi's pin, facilities, photos and "dikunjungi" date (the fieldwork module, the visiting Petugas Lapangan). */
+  | "lokasi.catat_kunjungan_verifikasi"
+  /** A completed Cek Denah is recorded on the Lokasi (the fieldwork module, the checking Petugas Lapangan). */
+  | "lokasi.catat_cek_denah"
+  /** Admin Platform publishes a Lokasi Mitra once the publish gate is met (Admin Platform only). */
+  | "lokasi.terbitkan"
+  /** Admin Platform switches "Pemesanan Terencana aktif" on once its own gate is met (Admin Platform only). */
+  | "lokasi.aktifkan_terencana";
 
 /** What the action is done to. */
 export type Resource =
@@ -106,7 +126,9 @@ export type Resource =
   | { kind: "lokasi_mitra_semua" }
   | { kind: "lokasi_mitra"; lokasiId: string }
   | { kind: "tarif_global" }
-  | { kind: "hari_libur_nasional" };
+  | { kind: "hari_libur_nasional" }
+  | { kind: "tugas_lapangan_semua" }
+  | { kind: "tugas_lapangan"; id: string };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -159,6 +181,16 @@ export function tarifGlobalResource(): Resource {
 /** The Hari Libur Nasional list (the Admin Platform Hari Kerja calendar). */
 export function hariLiburNasionalResource(): Resource {
   return { kind: "hari_libur_nasional" };
+}
+
+/** Every Tugas Lapangan (creating one, the Admin Platform list, a Petugas Lapangan's "Tugas saya"). */
+export function semuaTugasLapanganResource(): Resource {
+  return { kind: "tugas_lapangan_semua" };
+}
+
+/** One Tugas Lapangan. */
+export function tugasLapanganResource(id: string): Resource {
+  return { kind: "tugas_lapangan", id };
 }
 
 export type Authorization =
@@ -243,6 +275,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.lihat_rekening":
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":
+    case "lokasi.terbitkan":
+    case "lokasi.aktifkan_terencana":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "tarif.ubah":
       // Only Admin Platform enters tariffs (spec, Identity & Access); an Admin Lokasi only reads them.
@@ -259,5 +293,22 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "denah.ubah":
       // The Denah is built by that Lokasi's own Admin Lokasi (spec, story 127); Admin Platform does not edit it here.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "petak.nomor_ulang":
+      // Only Admin Platform renumbers a Petak (spec, story 169): the Denah's own Admin Lokasi does not.
+      return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied
+    case "tugas_lapangan.buat":
+    case "tugas_lapangan.lihat_semua":
+      return resource.kind === "tugas_lapangan_semua" && holds("admin_platform") ? allowed : denied;
+    case "tugas_lapangan.punya_saya":
+      return resource.kind === "tugas_lapangan_semua" && holds("petugas_lapangan") ? allowed : denied;
+    case "tugas_lapangan.lihat":
+      // Which case this actor may act on is checked against the row by the fieldwork module (a Petugas Lapangan carries no per-task list, unlike an Admin Lokasi's `lokasiIds`).
+      return resource.kind === "tugas_lapangan" && (holds("admin_platform") || holds("petugas_lapangan")) ? allowed : denied;
+    case "tugas_lapangan.selesaikan":
+      // Only its assigned Petugas Lapangan marks a Tugas Lapangan Selesai (spec, story 174); Admin Platform only views it.
+      return resource.kind === "tugas_lapangan" && holds("petugas_lapangan") ? allowed : denied;
+    case "lokasi.catat_kunjungan_verifikasi":
+    case "lokasi.catat_cek_denah":
+      return resource.kind === "lokasi_mitra" && holds("petugas_lapangan") ? allowed : denied;
   }
 }

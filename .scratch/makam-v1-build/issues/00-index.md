@@ -19,9 +19,9 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 68 tickets (as of 2026-0
 | [11](11-jam-operasional-and-working-time.md) | Jam Operasional, Kontak Siaga and the working-time calculator | resolved | 10 |
 | [12](12-tariffs-and-all-in-quote.md) | Versioned tariffs and the all-in price quote | resolved | 10 |
 | [13](13-denah-builder.md) | Denah builder: bloks, Petak Makam and Kavling Keluarga | resolved | 12, 74 |
-| [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | ready-for-agent | 13 |
-| [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | ready-for-agent | 13 |
-| [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | ready-for-agent | 11, 12, 14, 15 |
+| [14](14-petak-clearing-and-availability.md) | Petak clearing, derived status and availability | resolved | 13 |
+| [15](15-tugas-lapangan-kunjungan-and-cek-denah.md) | Tugas Lapangan, Kunjungan Verifikasi and Cek Denah | resolved | 13 |
+| [16](16-publish-gate-and-lokasi-pages.md) | Publish gate, Terencana switch, Lokasi Mitra page and Daftar Lokasi | resolved | 11, 12, 14, 15 |
 | [17](17-admin-platform-antrean.md) | Admin Platform Antrean framework | ready-for-agent | 16, 74 |
 | [18](18-tagihan-and-documents.md) | Tagihan, document numbering and document pages | resolved | 12, 63 |
 | [19](19-payment-through-provider-port.md) | Payment through the PaymentProvider port and Bukti Pembayaran | resolved | 18 |
@@ -272,7 +272,7 @@ Decided by the user with the brand guideline (`docs/brand/`) and the prototype (
 | [78](78-admin-lokasi-area-redesign.md) | Admin Lokasi area on the design system, with the Lokasi switcher | ready-for-agent | 74 |
 | [79](79-field-roles-on-phones.md) | Field roles on phones: bottom navigation for Mitra Jasa and Petugas Lapangan | ready-for-agent | 74 |
 | [80](80-masuk-totp-and-akun-on-brand.md) | Masuk, TOTP and Akun Saya on the brand | ready-for-agent | 74, 82 |
-| [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | ready-for-agent | 74 |
+| [81](81-design-system-catalogue-page.md) | Design system catalogue as an Admin Platform page | resolved | 74 |
 
 ## Decisions 2026-09-26 (WhatsApp out of v1)
 
