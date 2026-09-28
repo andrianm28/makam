@@ -2,7 +2,12 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Clock } from "@/ports/clock";
-import { assertSafeFileKey, FILE_STORE_MAX_BYTES, type FileStore, type StoredFile } from "@/ports/file-store";
+import {
+  assertSafeFileKey,
+  FILE_STORE_MAX_BYTES,
+  type SignedReadableFileStore,
+  type StoredFile,
+} from "@/ports/file-store";
 
 interface FileMeta {
   contentType: string;
@@ -43,7 +48,7 @@ export interface DiskFileStoreOptions {
  * here (not on the `FileStore` interface) so the one secret and the one
  * Clock that signed the URL are also the ones that check it.
  */
-export class DiskFileStore implements FileStore {
+export class DiskFileStore implements SignedReadableFileStore {
   readonly #root: string;
   readonly #secret: string;
   readonly #publicOrigin: string;
