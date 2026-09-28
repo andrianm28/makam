@@ -133,7 +133,7 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
       <Progress langkah={1} total={3} backHref="/" backLabel="Kembali" />
       <div>
-        <h1 className="text-title-1 text-foreground md:text-3xl md:leading-tight">Pilih lokasi</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih lokasi</h1>
         <p className="mt-1 max-w-2xl text-body-lg text-muted-foreground">
           Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih sendiri petaknya di denah.
         </p>
@@ -273,7 +273,7 @@ async function PilihPetakScreen({ lokasiId, pilihan, filter, pesan }: { lokasiId
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-40">
       <Progress langkah={2} total={3} backHref={terencanaPath(filter)} backLabel="Pilih lokasi" />
       <div>
-        <h1 className="text-title-1 text-foreground md:text-3xl md:leading-tight">Pilih petak</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih petak</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">
           {tampilan.lokasi.name}, {tampilan.lokasi.city}.{" "}
           <Link href={`/lokasi/${tampilan.lokasi.id}`} className="font-medium text-primary underline underline-offset-2">
@@ -330,7 +330,7 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-40">
       <Progress langkah={3} total={3} backHref={terencanaPath({ langkah: "petak", lokasiId, ...pilihan })} backLabel="Pilih petak" />
       <div>
-        <h1 className="text-title-1 text-foreground md:text-3xl md:leading-tight">Data &amp; kirim</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">Data untuk mencatat Hak Pakai. Tidak ada yang dibayar saat mengirim.</p>
       </div>
       <DataKirim
@@ -366,7 +366,7 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
         <span className="inline-flex size-11 items-center justify-center rounded-full bg-success-soft text-success-soft-foreground">
           <Check className="size-6" aria-hidden />
         </span>
-        <h1 className="text-title-1 text-foreground">Pesanan terkirim</h1>
+        <h1 className="text-title-1 text-forest">Pesanan terkirim</h1>
         <p className="text-body-lg text-muted-foreground">
           Nomor Pemesanan <span className="font-mono font-semibold text-foreground">{tampil.nomor}</span>
         </p>
