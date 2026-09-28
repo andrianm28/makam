@@ -164,7 +164,13 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra offers an alternative (another Jenis Makam or day). */
   | "pemesanan.tawarkan_alternatif"
   /** The Admin Lokasi of the order's own Lokasi Mitra records a cancellation on the family's behalf. */
-  | "pemesanan.batalkan_untuk_pemesan";
+  | "pemesanan.batalkan_untuk_pemesan"
+  /** Read a Saat Duka TPU order (Admin Platform only: a TPU is the Operator's own work, never a partner's). */
+  | "pengurusan.lihat_staf"
+  /** Confirm a Saat Duka TPU order, or offer the family another TPU (Admin Platform only). */
+  | "pengurusan.konfirmasi"
+  /** Read the open Setor Retribusi rows, and record a payment to the Pemda (Admin Platform, or the Petugas Lapangan who paid it). */
+  | "setor_retribusi.kelola";
 
 /** What the action is done to. */
 export type Resource =
@@ -186,6 +192,10 @@ export type Resource =
   | { kind: "antrean" }
   /** The Pencairan run and its Bukti Pencairan (the run spans every Lokasi Mitra and Mitra Jasa at once). */
   | { kind: "pencairan" }
+  /** Every Saat Duka TPU order (Admin Platform alone: a TPU order is the Operator's own work). */
+  | { kind: "pengurusan_tpu" }
+  /** The Setor Retribusi rows (Admin Platform, and the Petugas Lapangan who pays in person). */
+  | { kind: "setor_retribusi" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string };
 
@@ -280,6 +290,16 @@ export function pencairanResource(): Resource {
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
 export function pemesananResource(accountId: string): Resource {
   return { kind: "pemesanan_makam", accountId };
+}
+
+/** Every Saat Duka TPU order (the Antrean's Tier 1 confirmation row, and its confirmation screen). */
+export function pengurusanTpuResource(): Resource {
+  return { kind: "pengurusan_tpu" };
+}
+
+/** The Setor Retribusi rows: the Tier 3 queue and the recording of a payment to the Pemda. */
+export function setorRetribusiResource(): Resource {
+  return { kind: "setor_retribusi" };
 }
 
 export type Authorization =
@@ -461,5 +481,14 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // A Mitra Jasa reads its own Pencairan and no one's else: an Admin Platform
       // has the run instead, and a suspended or ended one keeps this (story 182).
       return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
+    case "pengurusan.lihat_staf":
+    case "pengurusan.konfirmasi":
+      // A TPU is a Pemda's cemetery, never a partner the Operator onboards, so
+      // there is no Admin Lokasi of one: Admin Platform alone confirms these orders.
+      return resource.kind === "pengurusan_tpu" && holds("admin_platform") ? allowed : denied;
+    case "setor_retribusi.kelola":
+      // Admin Platform hands the setor to a Petugas Lapangan and records it
+      // themselves; a Petugas records only the payment they made in person.
+      return resource.kind === "setor_retribusi" && (holds("admin_platform") || holds("petugas_lapangan")) ? allowed : denied;
   }
 }

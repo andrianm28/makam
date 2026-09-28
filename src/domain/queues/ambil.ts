@@ -7,7 +7,7 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { antreanResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { antreanResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { rowKeyOf } from "./antrean";
 import { antreanAmbil } from "./schema";
@@ -16,6 +16,8 @@ export interface AmbilDeps {
   db: Database;
   clock: Clock;
   audit: AuditLog;
+  /** Who took a row, as the family's order page shows them: the name and contact of the staff member handling it. */
+  identity: Pick<Identity, "staffAccountById">;
 }
 
 export type AmbilRowResult = { ok: true; claimedAt: Date } | WriteRefusal;
@@ -46,4 +48,41 @@ export async function ambilRow(deps: AmbilDeps, by: Actor, input: { type: string
     });
     return { ok: true, claimedAt: now } as const;
   });
+}
+
+/**
+ * Who has Ambil'd a row, as the family's own order page shows them (spec, story
+ * 73: "Admin Platform and TPU staff contacts"). Only a name and a contact number
+ * of an Akun Staf, never a role, an email or a session: the point is that a
+ * family in a bereavement has somebody to ring.
+ */
+export interface PengurusAmbil {
+  /** Their name as the Akun carries it. */
+  name: string;
+  /** Their contact number, null when the Akun has none. */
+  phoneNumber: string | null;
+  claimedAt: Date;
+}
+
+/**
+ * The staff member who has taken the row `${type}:${subjectId}`, or null when
+ * nobody has. A read, never a write, and never logged: a family following its
+ * order is not staff work.
+ */
+export async function ambilPengurus(
+  deps: AmbilDeps,
+  row: { type: string; subjectId: string },
+): Promise<PengurusAmbil | null> {
+  const [claim] = await deps.db
+    .select()
+    .from(antreanAmbil)
+    .where(eq(antreanAmbil.rowKey, rowKeyOf(row.type, row.subjectId)));
+  if (!claim) return null;
+  const account = await deps.identity.staffAccountById(claim.claimedByAccountId);
+  if (!account) return null;
+  // An Akun Staf that has set no name is shown by its Email Terverifikasi rather
+  // than as a blank: a family in a bereavement needs somebody they can ring, and
+  // " " is nobody.
+  const name = account.name.trim() || account.email || account.accountId;
+  return { name, phoneNumber: account.phoneNumber, claimedAt: claim.claimedAt };
 }

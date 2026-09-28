@@ -73,6 +73,12 @@ import {
   type PesananDikonfirmasiInput,
   type PesananDitolakInput,
 } from "./pesan-pemesanan";
+import {
+  pengurusanDikonfirmasi,
+  pesanPengurusan,
+  type PengurusanDikonfirmasiInput,
+  type PesanPengurusanResult,
+} from "./pesan-pengurusan";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
@@ -89,6 +95,11 @@ export {
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
+export {
+  pengurusanDikonfirmasiSchema,
+  type PengurusanDikonfirmasiInput,
+  type PesanPengurusanResult,
+} from "./pesan-pengurusan";
 export {
   tagihanTerbitSchema,
   type KirimJatuhTempo,
@@ -129,6 +140,8 @@ export interface NotificationsDeps {
   pesananUrl: (nomor: string) => string;
   /** The Pilih makam list a declined order sends the family back to, with that order's number on the link. */
   pesanUlangUrl: (nomor: string) => string;
+  /** A Pengurusan order's own page, where a family follows a TPU filing (ticket 45). */
+  pengurusanUrl: (nomor: string) => string;
 }
 
 export interface PushDevice {
@@ -262,6 +275,14 @@ export interface Notifications {
   pesananAlternatifDitawarkan(input: PesananAlternatifDitawarkanInput): Promise<PesanPemesananResult>;
   /** A cancelled order: the Petak given back, the Tagihan cancelled and the money on its way back. */
   pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
+  /**
+   * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
+   * TPU office and Admin Platform contacts, both document lists, the price lines
+   * and the pay-after Tagihan. One message per order, whatever runs twice.
+   */
+  pengurusanDikonfirmasi(input: PengurusanDikonfirmasiInput): Promise<PesanPengurusanResult>;
+  /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
+  pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
@@ -527,6 +548,12 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananDikonfirmasi(input) {
       return pesananDikonfirmasi(deps, input);
+    },
+    async pengurusanDikonfirmasi(input) {
+      return pengurusanDikonfirmasi(deps, input);
+    },
+    async pesanPengurusan(pengurusanId) {
+      return pesanPengurusan(deps, pengurusanId);
     },
 
     async pesananDitolak(input) {

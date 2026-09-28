@@ -38,6 +38,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
      * removed and the family's data prefilled"; ticket 24).
      */
     pesananUlangUrl: (nomor: string) => `${publicOrigin}/pesan-makam/saat-duka?dari=${encodeURIComponent(nomor)}`,
+    /** A Pengurusan order's own page, where a family follows a TPU filing (ticket 45). */
+    pengurusanUrl: (nomor: string) => `${publicOrigin}/pengurusan/${nomor}`,
   };
 }
 

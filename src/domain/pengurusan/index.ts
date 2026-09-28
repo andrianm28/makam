@@ -9,20 +9,32 @@
  * baru" flag stay the Lokasi module's data and are read here only through its
  * public functions; every price comes from Tariffs' `quote()`, which adds a Biaya
  * Layanan Platform only to a Lokasi Mitra order and so never to this one; the
- * Nomor Pemesanan comes from Billing's one series; the working-time calculator
- * that answers the TPU window is Lokasi's (ticket 11). No actor: these functions
- * are a family's own wizard, so the Server Actions are what authenticate and
- * check the role.
+ * Nomor Pemesanan and the Tagihan come from Billing; the working-time calculator
+ * that answers the TPU window is Lokasi's (ticket 11); the "Ambil surat pengantar"
+ * Tugas a confirmation creates is Field Work's. The submission is a family's own
+ * wizard and so takes no actor; the confirmation and the offer of another TPU are
+ * Admin Platform's staff writes, so they take one and record an Entri Audit.
  *
  * Built so far: the TPU section of "Pilih makam", the Saat Duka TPU submission
- * and the order page that follows it (ticket 44). Confirmation, payment, the
- * filing, the Perpanjangan and the Makam TPU record are tickets 45–48.
+ * and the order page that follows it (ticket 44); the confirmation, the offer of
+ * another TPU, the Tier 1 row and the "Ambil surat pengantar" Tugas (ticket 45).
+ * The filing, the Perpanjangan and the Makam TPU record are tickets 46–48.
  */
+import type { Actor } from "@/domain/identity";
 import type { PengurusanDeps } from "./deps";
 import { daftarDokumen } from "./dokumen";
+import {
+  konfirmasiTpuTerbuka,
+  type KonfirmasiTpu,
+} from "./konfirmasi-tpu-terbuka";
+import {
+  konfirmasiSaatDukaTpu,
+  type KonfirmasiSaatDukaTpuResult,
+} from "./konfirmasi-saat-duka-tpu";
 import { pilihanSaatDukaTpu, type KartuTpu, type PilihanSaatDukaTpuQuery } from "./pilihan";
 import { placeSaatDukaTpu, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
-import { orderOf, type PengurusanOrder } from "./reads";
+import { jawabTpuLain, tawarkanTpuLain, type JawabTpuLainResult, type TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
+import { orderForStaff, orderOf, type PengurusanOrder } from "./reads";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan } from "./skema-pengurusan";
 
 export type { Pemesan, PengurusanDeps } from "./deps";
@@ -30,7 +42,12 @@ export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export type { PengurusanOrder } from "./reads";
-export type { PengurusanTpuKind, PengurusanTpuStatus } from "./schema";
+export type { KonfirmasiTpu } from "./konfirmasi-tpu-terbuka";
+export type { KonfirmasiSaatDukaTpuResult } from "./konfirmasi-saat-duka-tpu";
+export type { JawabTpuLainResult, TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
+export { jawabTpuLainSchema, tawarkanTpuLainSchema } from "./tawarkan-tpu-lain";
+export { konfirmasiSaatDukaTpuSchema, type KonfirmasiSaatDukaTpuInput } from "./konfirmasi-saat-duka-tpu";
+export type { KontakTpu, PengurusanTpuKind, PengurusanTpuStatus } from "./schema";
 export { pengurusanTpuKinds, pengurusanTpuStatuses } from "./schema";
 export type { Dokumen, DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak, PemegangHakInput } from "./skema-pengurusan";
 /**
@@ -66,13 +83,46 @@ export interface Pengurusan {
   placeSaatDukaTpu(input: PlaceSaatDukaTpuInput): Promise<PlaceSaatDukaTpuResult>;
   /** One Pengurusan order of that Akun, by its Nomor Pemesanan, or null. */
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PengurusanOrder | null>;
+  /** The same order as Admin Platform reads it, by its Nomor Pemesanan, or null. */
+  orderForStaff(by: Actor, nomor: string): Promise<PengurusanOrder | null>;
+  /**
+   * Every Saat Duka TPU order still waiting for a confirmation: what the Antrean's
+   * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. Admin Platform only.
+   */
+  konfirmasiTpuTerbuka(by: Actor): Promise<KonfirmasiTpu[]>;
+  /**
+   * Confirms one Diajukan order: status Dikonfirmasi, the burial agreed with the
+   * TPU, the pay-after Tagihan (due 3×24 h after the burial), the TPU office and
+   * Admin Platform contacts, and the "Ambil surat pengantar" Tugas for a Petugas
+   * Lapangan. Audited; the family message goes out once it has committed.
+   */
+  konfirmasiSaatDukaTpu(by: Actor, input: unknown): Promise<KonfirmasiSaatDukaTpuResult>;
+  /**
+   * Admin Platform offers the family another TPU for the same burial. The order
+   * stays on the TPU the family applied to until they answer, so the Tier 1 row
+   * stays open. Audited.
+   */
+  tawarkanTpuLain(by: Actor, input: unknown): Promise<TawarkanTpuLainResult>;
+  /**
+   * The Pemesan answers that offer: accepting moves the order onto the offered
+   * TPU and starts the two-service-hour clock again, declining makes it Ditolak
+   * with the reason. The family's own answer to their own order, so it takes no
+   * actor and records no Entri Audit.
+   */
+  jawabTpuLain(pemesan: { accountId: string }, input: unknown): Promise<JawabTpuLainResult>;
 }
 
 export function createPengurusan(deps: PengurusanDeps): Pengurusan {
+  const withAudit = deps;
   return {
-    pilihanSaatDukaTpu: (query) => pilihanSaatDukaTpu(deps, query),
+    pilihanSaatDukaTpu: (query) => pilihanSaatDukaTpu(withAudit, query),
     daftarDokumen: (input) => daftarDokumen(input),
-    placeSaatDukaTpu: (input) => placeSaatDukaTpu(deps, input),
-    orderOf: (nomor, pemesan) => orderOf(deps, pemesan, nomor),
+    placeSaatDukaTpu: (input) => placeSaatDukaTpu(withAudit, input),
+    orderOf: (nomor, pemesan) => orderOf(withAudit, pemesan, nomor),
+    orderForStaff: (by, nomor) => orderForStaff(withAudit, nomor),
+    konfirmasiTpuTerbuka: () => konfirmasiTpuTerbuka(withAudit),
+    konfirmasiSaatDukaTpu: (by, input) => konfirmasiSaatDukaTpu(withAudit, by, input),
+    tawarkanTpuLain: (by, input) => tawarkanTpuLain(withAudit, by, input),
+    jawabTpuLain: (pemesan, input) => jawabTpuLain(withAudit, pemesan, input),
   };
 }

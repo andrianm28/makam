@@ -11,18 +11,21 @@ import {
   type Identity,
   type WriteRefusal,
 } from "@/domain/identity";
+import type { Billing } from "@/domain/billing";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
-import { wibDateOf } from "@/lib/time/jakarta";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
+import { tulisSetor } from "./setor-retribusi";
 import { fieldworkTugas, tugasLapanganStatuses, tugasLapanganTypes, type TugasLapanganUpload } from "./schema";
 import {
   formSchemaFor,
   requiredUploadsByType,
   type CekDenahForm,
   type KunjunganVerifikasiForm,
+  type SetorRetribusiForm,
   type TugasLapanganType,
 } from "./types";
 
@@ -40,7 +43,14 @@ export interface FieldworkDeps {
    * only through its own public functions (AGENTS.md): the fieldwork module
    * never touches `lokasi_mitra` itself.
    */
-  lokasi: Pick<Lokasi, "recordKunjunganVerifikasi" | "recordCekDenah">;
+  lokasi: Pick<Lokasi, "recordKunjunganVerifikasi" | "recordCekDenah" | "adminPlatformCalendar">;
+  /**
+   * A completed Setor Retribusi records the payment to the town in the same
+   * transaction as the completion, with the proof the upload already stored:
+   * Billing's read of the Retribusi line, and the Admin Platform calendar for
+   * the Tier 3 row's deadline.
+   */
+  billing: Pick<Billing, "tagihanRetribusiLunas">;
 }
 
 export type NotFound = { ok: false; reason: "tidak_ditemukan" };
@@ -55,6 +65,8 @@ export interface TugasLapangan {
   pin: { lat: number; lng: number } | null;
   plannedDate: string;
   assigneeAccountId: string;
+  /** The Tagihan a Setor Retribusi Tugas settles; null for every other type. */
+  tagihanId: string | null;
   status: (typeof tugasLapanganStatuses)[number];
   form: Record<string, unknown>;
   uploads: TugasLapanganUpload[];
@@ -74,6 +86,7 @@ function toTugasLapangan(row: Row): TugasLapangan {
     pin: row.pinLat !== null && row.pinLng !== null ? { lat: row.pinLat, lng: row.pinLng } : null,
     plannedDate: row.plannedDate,
     assigneeAccountId: row.assigneeAccountId,
+    tagihanId: row.tagihanId,
     status: row.status,
     form: row.form,
     uploads: row.uploads,
@@ -90,13 +103,21 @@ export const newTugasLapanganSchema = z.object({
   pin: z.object({ lat: z.number().min(-11.5).max(6.5), lng: z.number().min(94.5).max(141.5) }).nullable(),
   plannedDate: z.iso.date(),
   assigneeAccountId: z.string().trim().min(1),
+  /**
+   * The Tagihan a Setor Retribusi Tugas settles, required for that type alone
+   * and refused for the others, so a row never points at a Tagihan whose type
+   * has no meaning for it. A uuid here and no foreign key: Billing owns its
+   * tables, and this module reads the line's amount through its own query.
+   */
+  tagihanId: z.uuid().nullable().optional(),
 });
 export type NewTugasLapangan = z.infer<typeof newTugasLapanganSchema>;
 
 export type CreateTugasLapanganResult =
   | { ok: true; tugasLapangan: TugasLapangan }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "bukan_petugas_lapangan" };
+  /** A Setor Retribusi Tugas with no Tagihan, or another type carrying one. */
+  | { ok: false; reason: "input_tidak_valid" | "bukan_petugas_lapangan" | "tagihan_kosong" | "tagihan_tidak_relevan" };
 
 /**
  * Admin Platform creates and assigns a Tugas Lapangan to one Petugas
@@ -120,6 +141,9 @@ export async function createTugasLapangan(
   if (!assignee || assignee.deactivated || !assignee.roles.includes("petugas_lapangan")) {
     return { ok: false, reason: "bukan_petugas_lapangan" };
   }
+  const tagihanId = data.tagihanId ?? null;
+  if (data.type === "setor_retribusi" && !tagihanId) return { ok: false, reason: "tagihan_kosong" };
+  if (data.type !== "setor_retribusi" && tagihanId !== null) return { ok: false, reason: "tagihan_tidak_relevan" };
 
   const now = deps.clock.now();
   const created = await deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -134,6 +158,7 @@ export async function createTugasLapangan(
         pinLng: data.pin?.lng ?? null,
         plannedDate: data.plannedDate,
         assigneeAccountId: data.assigneeAccountId,
+        tagihanId: data.type === "setor_retribusi" ? tagihanId : null,
         status: "ditugaskan",
         form: {},
         uploads: [],
@@ -236,7 +261,21 @@ export type CompleteTugasLapanganResult =
   | WriteRefusal
   | NotFound
   | { ok: false; reason: "sudah_selesai" | "form_tidak_valid" | "unggah_kurang" | "berkas_tidak_didukung" | "berkas_gagal_disimpan" }
-  | { ok: false; reason: "kunjungan_tidak_valid" | "catatan_tidak_valid" };
+  | { ok: false; reason: "kunjungan_tidak_valid" | "catatan_tidak_valid" }
+  /**
+   * A Setor Retribusi Tugas whose Tagihan never went out to a town (Billing's
+   * read has no such Lunas Retribusi Tagihan), so there is nothing to record;
+   * the whole completion rolls back and the Petugas is sent to an Admin Platform.
+   */
+  | { ok: false; reason: "setor_tidak_tercatat" }
+  /**
+   * A Setor Retribusi Tugas whose town has already been paid for the same
+   * Tagihan: the recording it asked for is refused, because a town is paid once.
+   * Its own reason, never folded into `setor_tidak_tercatat`, because "the town
+   * is already paid" and "this Tagihan never went to a town" send the Petugas to
+   * two different places.
+   */
+  | { ok: false; reason: "sudah_disetor" };
 
 /**
  * The assigned Petugas Lapangan marks a Tugas Lapangan Selesai (spec, story
@@ -295,6 +334,46 @@ export async function completeTugasLapangan(
     const [current] = await tx.select().from(fieldworkTugas).where(eq(fieldworkTugas.id, id)).for("update");
     if (!current || current.status === "selesai") return { ok: false, reason: "sudah_selesai" } as const;
     const uploads = [...current.uploads, ...stored];
+
+    // A Setor Retribusi Tugas closes the Tier 3 row by recording the payment to
+    // the town, in this same transaction, with the proof this upload has just
+    // stored (ticket 45). The amount and the Tagihan's number are Billing's
+    // facts, read through its own query and never restated here.
+    if (current.type === "setor_retribusi" && current.tagihanId) {
+      const form = parsedForm.data as SetorRetribusiForm;
+      const [tagihan] = (await deps.billing.tagihanRetribusiLunas()).filter(
+        (row) => row.tagihanId === current.tagihanId,
+      );
+      // A Tagihan that never went out to a town (no Retribusi line, a Rp 0 one,
+      // or not Lunas) cannot be recorded as paid, so the whole completion rolls
+      // back and the Petugas is sent to an Admin Platform.
+      if (!tagihan) return { ok: false, reason: "setor_tidak_tercatat" } as const;
+      const bukti = stored.find((upload) => upload.kind === "bukti_setor");
+      if (!bukti) return { ok: false, reason: "unggah_kurang" } as const;
+      const setor = await tulisSetor(
+        { ...deps, db: tx },
+        by,
+        {
+          tagihan,
+          dibayarkanPada: wib(`${form.dibayarkanPada} 00:00`),
+          buktiKey: bukti.key,
+          catatan: form.catatan,
+          tugasLapanganId: id,
+          now,
+        },
+      );
+      // Which refusal it was travels on: the town is already paid for this
+      // Tagihan (`sudah_disetor`, from the recording itself) is not the same
+      // answer as "this Tagihan never went to a town", so neither is folded into
+      // the other. A permission refusal from the inner write is its own
+      // `WriteRefusal` and passes through as itself.
+      if (!setor.ok) {
+        if (setor.reason === "sudah_disetor" || setor.reason === "tidak_berwenang" || setor.reason === "perlu_totp")
+          return setor;
+        return { ok: false, reason: "setor_tidak_tercatat" } as const;
+      }
+    }
+
     await tx
       .update(fieldworkTugas)
       .set({ status: "selesai", form: parsedForm.data, uploads, completedAt: now, updatedAt: now })

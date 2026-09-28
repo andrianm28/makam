@@ -181,6 +181,9 @@ describe("an issued Tagihan is immutable", () => {
       "recordPayment",
       "reissueTagihan",
       "tagihan",
+      // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
+      // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).
+      "tagihanRetribusiLunas",
       "within",
     ]);
   });

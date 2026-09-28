@@ -89,10 +89,16 @@ export function payoutsOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     billing: setup.billing,
     identity: setup.identity,
+    // Ticket 45 widened these: the "Ambil surat pengantar" Tugas a confirmation
+    // creates inside its own transaction, and the family message it announces.
+    // Both are the real modules, as src/server/runtime.ts wires them.
+    fieldwork: setup.fieldwork,
+    notifikasi: setup.notifications,
   });
   // The Antrean beside it: the Tier 3 "Pencairan" row is the Payouts query the
   // Work Queues module projects, and a test of one wants the other.
@@ -107,6 +113,11 @@ export function payoutsOnTestDatabase(db: Database) {
     inventory: setup.inventory,
     pemesanan,
     payouts,
+    // Ticket 45: the Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
+    // module, and the Tier 2 "Ambil surat pengantar" row reads Identity for the
+    // staff contact it shows a family.
+    pengurusan,
+    identity: setup.identity,
   });
   return { ...setup, pemesanan, pengurusan, payouts, dikirim, queues };
 }

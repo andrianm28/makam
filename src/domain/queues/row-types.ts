@@ -11,6 +11,7 @@ import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Pengurusan } from "@/domain/pengurusan";
 import type { Clock } from "@/ports/clock";
 
 export type AntreanTier = 1 | 2 | 3 | 4;
@@ -20,7 +21,8 @@ export interface AntreanRowDeps {
   clock: Clock;
   /** The Tier 4 Lokasi rows read every Lokasi Mitra; the Tier 4 TPU flag row reads every DKI TPU. */
   lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
-  fieldwork: Pick<Fieldwork, "allTugasLapangan">;
+  /** The Tier 4 rows read every Tugas; the Tier 2 "Ambil surat pengantar" and Tier 3 "Setor Retribusi" rows read this module's own two reads. */
+  fieldwork: Pick<Fieldwork, "allTugasLapangan" | "ambilSuratPengantarTerbuka" | "setorRetribusiTerbuka">;
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /**
    * The Antrean's Tier 2 Telepon Pemesan row reads the open call rows, and its
@@ -43,6 +45,8 @@ export interface AntreanRowDeps {
    * item was given when it became due.
    */
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
+  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

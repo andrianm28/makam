@@ -38,5 +38,6 @@ export function composeNotifications(deps: {
     dokumenUrl: urls.publicDocumentUrl,
     pesananUrl: urls.pesananUrl,
     pesanUlangUrl: urls.pesananUlangUrl,
+    pengurusanUrl: urls.pengurusanUrl,
   });
 }

@@ -123,6 +123,7 @@ describe("Pemulihan Akun", () => {
       accountId: staff.login.account.id,
       email: "ketiga@contoh.id",
       emailTerverifikasi: true,
+      name: "",
       phoneNumber: "+6285555555555",
       roles: ["petugas_lapangan"],
       deactivated: false,

@@ -3,9 +3,10 @@ import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { PesananAlternatifDitawarkan, PemesananDiajukan, PesananDibatalkan, PemesananDikonfirmasi, PesananDitolak, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
+import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, adminPlatformOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -29,6 +30,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
   const dibatalkan: PesananDibatalkan[] = [];
+  /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
+  const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -72,12 +75,20 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     db,
     clock: setup.clock,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     billing: setup.billing,
     identity: setup.identity,
+    fieldwork: setup.fieldwork,
+    notifikasi: {
+      pengurusanDikonfirmasi: async (hasil) => {
+        pengurusanDikonfirmasi.push(hasil);
+        return { ok: true };
+      },
+    },
   });
-  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, ditolak, alternatif, dibatalkan, terencana, notifikasi: terkumpul };
+  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, ditolak, alternatif, dibatalkan, terencana, notifikasi: terkumpul, pengurusanDikonfirmasi };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -89,7 +100,7 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  */
 export type PemesananModul = Omit<
   PemesananSetup,
-  "diumumkan" | "dikonfirmasi" | "ditolak" | "alternatif" | "dibatalkan" | "terencana" | "notifikasi"
+  "diumumkan" | "dikonfirmasi" | "ditolak" | "alternatif" | "dibatalkan" | "terencana" | "notifikasi" | "pengurusanDikonfirmasi"
 >;
 
 /**
@@ -361,4 +372,4 @@ export function orderSaatDuka(lokasi: Awaited<ReturnType<typeof saatDukaFixture>
 }
 
 export { jenisMakamInput } from "./publish";
-export { logIn, signedInAdminPlatform } from "./identity";
+export { logIn } from "./identity";

@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import { createPengurusan } from "@/domain/pengurusan";
+import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
 import { pemesanDenganEmail } from "./pemesanan";
@@ -12,16 +13,26 @@ import { pemesanDenganEmail } from "./pemesanan";
  */
 export function pengurusanOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
+  /** Every Saat Duka TPU confirmation the module announced, for a test that reads the family message. */
+  const diumumkan: PengurusanDikonfirmasiInput[] = [];
   const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     billing: setup.billing,
     identity: setup.identity,
+    fieldwork: setup.fieldwork,
+    notifikasi: {
+      pengurusanDikonfirmasi: async (hasil) => {
+        diumumkan.push(hasil);
+        return { ok: true };
+      },
+    },
   });
-  return { ...setup, pengurusan };
+  return { ...setup, pengurusan, pengurusanDikonfirmasi: diumumkan };
 }
 
 export type PengurusanSetup = ReturnType<typeof pengurusanOnTestDatabase>;
