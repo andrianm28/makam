@@ -22,7 +22,7 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Urus Pemakaman dengan Tenang, dalam Satu Platform.",
   );
-  await expect(page.getByText("Menemani Keluarga, Menjaga Kenangan.")).toBeVisible();
+  await expect(page.getByText("Menemani Keluarga, Menjaga Kenangan.", { exact: true })).toBeVisible();
 
   // The urgent entry is the one button, captioned for a family that just lost
   // someone; the planned entry is a quieter link of its own, not a second button.
