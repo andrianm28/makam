@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type MutableRefObject } from "react";
-import { Check, Info, LogIn, Minus, Phone, Plus, X } from "lucide-react";
+import { ArrowRight, Check, Info, LogIn, Minus, Phone, Plus, X } from "lucide-react";
 import type { TahanUnit } from "@/domain/inventory";
-import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { lanjutPilihPetak, type LanjutState } from "./actions";
+import { ringkasanPilihan } from "./ringkasan";
 import type { DenahView, KavlingView, SelView } from "./tampilan";
 import { terencanaPath } from "./tautan";
+import { TotalBarTerencana } from "./total-bar";
 
 /**
  * Step 2 of the Terencana wizard, "Pilih petak": the Denah with Blok tabs, the
@@ -133,6 +134,7 @@ export function DenahPicker({
   }
 
   const terpilih = (cell: SelView) => (cell.kavling ? kavling === cell.kavling.nomor : petak.includes(cell.nomor ?? ""));
+  const ringkasanText = ringkasanPilihan(denah, petak, kavlingTerpilih);
 
   return (
     <div className="flex flex-col gap-6">
@@ -191,64 +193,58 @@ export function DenahPicker({
           {blok ? (
             <Grid blok={blok} ukuran={ukuran} setUkuran={setUkuran} pinchRef={pinchRef} terpilih={terpilih} ketuk={ketuk} kavlingDipilih={kavling} />
           ) : null}
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-2.5 text-small text-foreground">
-            <Legend swatch="border-2 border-sage-strong bg-card" label="Tersedia, bisa dipilih" />
-            <Legend swatch="bg-primary" label="Pilihan Anda" />
-            <Legend swatch="border border-warning bg-warning-soft" label="Dipesan" />
-            <Legend swatch="bg-neutral-soft" label="Terisi" />
-            <Legend swatch="bg-muted text-muted-foreground" label="Tidak Tersedia" />
-            <Legend swatch="bg-muted-foreground/40" label="Perlu Verifikasi" />
-            <Legend swatch="border-2 border-dashed border-sage-strong" label="Kavling Keluarga (satu unit)" />
-            <Legend swatch="bg-highlight" label="Jalan" />
-            <Legend swatch="border border-dashed border-border" label="Bukan petak (pohon, bangunan)" />
-            <Legend swatch="border-2 border-primary bg-brand-soft" pintu label="Pintu Masuk (cara masuk lokasi)" />
-            <Legend
-              swatch="bg-neutral-soft after:absolute after:bottom-0.5 after:right-0.5 after:size-1.5 after:rounded-full after:bg-sage-strong"
-              label="Terisi, bisa untuk tumpang (hubungi Admin Lokasi)"
-            />
-            <li className="col-span-2 text-muted-foreground">Petak yang warnanya redup tetap bisa diketuk, dan alasannya muncul di panel di bawah denah.</li>
-          </ul>
-          <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
         </div>
 
         <aside className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
-            <p className="text-title-3 text-foreground">Pilihan Anda</p>
-            <p className="text-body text-muted-foreground">{ada ? ringkasan(petak, kavlingTerpilih) : "Belum ada petak dipilih. Ketuk petak yang Tersedia di denah."}</p>
-            <div className="flex flex-col gap-1 text-body tabular-nums">
-              {total.lines.map((baris, index) => (
-                <div key={`${baris.label}-${index}`} className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">{baris.label}</span>
-                  <span>{formatRupiah(baris.amount)}</span>
-                </div>
-              ))}
-              <div className="mt-1 flex justify-between gap-3 border-t border-border pt-1 font-semibold">
-                <span>Total</span>
-                <span>{formatRupiah(total.total)}</span>
-              </div>
-            </div>
-            {pesanBatas ? (
-              <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-small text-warning-soft-foreground">
-                {pesanBatas}
-              </p>
-            ) : null}
-            {denah.nanti ? (
-              <div className="rounded-xl bg-muted px-3 py-2.5 text-small">
-                <p className="font-semibold">Nanti, setiap pemakaman</p>
-                <p className="mt-0.5 text-muted-foreground">
-                  Biaya Pemakaman + Biaya Layanan Platform, sesuai tarif saat pemakaman (saat ini {formatRupiah(denah.nanti.total)}). Dibayar setelah pemakaman, bukan sekarang.
-                </p>
-              </div>
-            ) : null}
-            <Button type="button" size="lg" disabled={!ada || !total.dalamBatas || lanjut} onClick={keData}>
-              {lanjut ? "Memeriksa…" : "Lanjut"}
-            </Button>
-            <p className="text-caption text-muted-foreground">
-              {sudahMasuk ? "Anda sudah masuk, jadi Data & kirim tidak meminta Kode Masuk lagi." : "Kode Masuk dikirim ke email Anda di langkah Data & kirim, bukan di sini."}
-            </p>
+          <div className="hidden lg:block">
+            <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
           </div>
+          {/* Phone: the tapped cell's detail floats just above the total bar. */}
+          {fokus ? (
+            <div className="fixed inset-x-3 bottom-[6.5rem] z-20 lg:hidden">
+              <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
+            </div>
+          ) : null}
+          <details className="group rounded-2xl border border-border bg-card p-4 lg:open:pb-4" open>
+            <summary className="cursor-pointer text-title-3 text-foreground marker:text-muted-foreground">Keterangan</summary>
+            <ul className="mt-3 flex flex-col gap-2.5 text-small">
+              <Legend swatch="border-2 border-sage-strong bg-card" label="Tersedia, bisa dipilih" />
+              <Legend swatch="bg-primary" label="Pilihan Anda" />
+              <Legend swatch="border border-warning bg-warning-soft" label="Dipesan" />
+              <Legend swatch="bg-neutral-soft" label="Terisi" />
+              <Legend swatch="bg-muted text-muted-foreground" label="Tidak Tersedia" />
+              <Legend swatch="bg-muted-foreground/40" label="Perlu Verifikasi" />
+              <Legend swatch="border-2 border-dashed border-sage-strong" label="Kavling Keluarga (satu unit)" />
+              <Legend swatch="bg-highlight" label="Jalan" />
+              <Legend swatch="border border-dashed border-border" label="Bukan petak (pohon, bangunan)" />
+              <Legend swatch="border-2 border-primary bg-brand-soft" pintu label="Pintu Masuk (cara masuk lokasi)" />
+              <Legend
+                swatch="bg-neutral-soft after:absolute after:bottom-0.5 after:right-0.5 after:size-1.5 after:rounded-full after:bg-sage-strong"
+                label="Terisi, bisa untuk tumpang (hubungi Admin Lokasi)"
+              />
+              <li className="text-muted-foreground">Petak yang warnanya redup tetap bisa diketuk, dan alasannya muncul di panel detailnya.</li>
+            </ul>
+          </details>
+          <p className="text-caption text-muted-foreground">
+            {sudahMasuk ? "Anda sudah masuk, jadi Data & kirim tidak meminta Kode Masuk lagi." : "Kode Masuk dikirim ke email Anda di langkah Data & kirim, bukan di sini."}
+          </p>
         </aside>
       </div>
+      <TotalBarTerencana
+        denah={denah}
+        ringkasanText={ada ? ringkasanText : "Belum ada petak dipilih. Ketuk petak yang Tersedia di denah."}
+        ada={ada}
+        pesanBatas={pesanBatas}
+        action={
+          <Button type="button" size="lg" disabled={!ada || !total.dalamBatas || lanjut} onClick={keData} className="h-12 shrink-0 gap-2 px-6 text-body-lg">
+            {lanjut ? "Memeriksa…" : (
+              <>
+                Lanjut <ArrowRight className="size-5" aria-hidden />
+              </>
+            )}
+          </Button>
+        }
+      />
     </div>
   );
 }
@@ -382,11 +378,11 @@ function Kotak({ kavling, ukuran, gap, pad, dipilih }: { kavling: KavlingView; u
 
 function Legend({ swatch, label, pintu }: { swatch: string; label: string; pintu?: boolean }) {
   return (
-    <li className="flex items-center gap-2">
-      <span className={cn("relative size-4 shrink-0 rounded", swatch)} aria-hidden>
+    <li className="flex items-start gap-2">
+      <span className={cn("relative mt-0.5 size-4 shrink-0 rounded", swatch)} aria-hidden>
         {pintu ? <LogIn className="absolute inset-0 m-auto size-2.5 text-primary" /> : null}
       </span>
-      {label}
+      <span>{label}</span>
     </li>
   );
 }
@@ -493,10 +489,4 @@ function tumpangSentence(cell: SelView, denah: DenahView): string {
   return cell.kavling
     ? `Kavling Keluarga ${cell.kavling.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang. Pengaturannya lewat Admin Lokasi${siapa}`
     : `${cell.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang (pemakaman di makam yang sudah ada). Pengaturannya lewat Admin Lokasi${siapa}`;
-}
-
-/** What the family chose, as one line. */
-function ringkasan(petak: string[], kavling: KavlingView | null): string {
-  if (kavling) return `Kavling Keluarga ${kavling.nomor}`;
-  return `${petak.length} Petak · ${petak.join(", ")}`;
 }

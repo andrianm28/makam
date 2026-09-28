@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ScrollText } from "lucide-react";
+import { ArrowRight, MessageCircle, Phone, ScrollText } from "lucide-react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
-import type { KodeMasukRequestState } from "@/components/kode-masuk/state";
+import { csWhatsAppLink, type KodeMasukRequestState } from "@/components/kode-masuk/state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { kirimPesananTerencana, verifikasiKodeMasukDanKirimTerencana } from "./actions";
 import type { PilihanPicker } from "./denah-picker";
 import { initialKirimState, type DraftTerencana, type KirimState } from "./draft";
-import { syaratLines, type SyaratView } from "./tampilan";
+import type { DenahView, SyaratView } from "./tampilan";
+import { syaratLines } from "./tampilan";
 import { terencanaPath } from "./tautan";
-import { cn } from "@/lib/utils";
+import { TotalBarTerencana } from "./total-bar";
 
 /**
  * Step 3 of the Terencana wizard, "Data & kirim": who the Hak Pakai is for, who
@@ -27,6 +29,8 @@ export function DataKirim({
   draft,
   pilihan,
   ringkasan,
+  lokasiName,
+  denah,
   syarat,
   sudahMasuk,
   mintaKodeMasuk,
@@ -38,6 +42,9 @@ export function DataKirim({
   pilihan: PilihanPicker;
   /** "2 Petak · Blok A: A-01, A-02" as the picker showed it. */
   ringkasan: string;
+  lokasiName: string;
+  /** The priced selection, for the sticky total bar kept visible while this form is filled in. */
+  denah: DenahView;
   syarat: SyaratView;
   /** A signed-in Pemesan skips the Kode Masuk at Kirim. */
   sudahMasuk: boolean;
@@ -80,8 +87,10 @@ export function DataKirim({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-soft px-4 py-3">
-        <p className="min-w-0 text-body text-brand-soft-foreground">{ringkasan}</p>
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-soft px-4 py-3">
+        <p className="min-w-0 text-body text-brand-soft-foreground">
+          <span className="font-semibold">{ringkasan}</span> · {lokasiName}
+        </p>
         <Link
           href={terencanaPath({ langkah: "petak", lokasiId: draft.lokasiId, ...pilihan })}
           className="shrink-0 text-body font-semibold text-primary underline underline-offset-2"
@@ -90,7 +99,7 @@ export function DataKirim({
         </Link>
       </div>
 
-      <fieldset className="flex flex-col gap-3">
+      <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
         <legend className="text-title-3 text-foreground">Data Anda</legend>
         <Field id="pemesan-nama" label="Nama lengkap" hint="Nama Pemegang Hak kalau makam ini untuk Anda sendiri.">
           <Input
@@ -133,9 +142,12 @@ export function DataKirim({
         </Field>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-title-3 text-foreground">Calon Penghuni</legend>
-        <p className="text-small text-muted-foreground">Untuk siapa makam ini disiapkan. Bisa Anda ubah kapan saja nanti.</p>
+      <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+        <legend className="sr-only">Calon Penghuni</legend>
+        <div aria-hidden>
+          <p className="text-title-3 text-foreground">Calon Penghuni</p>
+          <p className="mt-0.5 text-small text-muted-foreground">Untuk siapa makam ini disiapkan. Bisa Anda ubah kapan saja nanti.</p>
+        </div>
         <Pilihan
           name="calon"
           value={calon}
@@ -152,9 +164,14 @@ export function DataKirim({
         ) : null}
       </fieldset>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-title-3 text-foreground">Pemegang Hak</legend>
-        <p className="text-small text-muted-foreground">Orang yang punya hak makam ini, dan yang boleh memperpanjang atau membiayai pemakaman berikutnya.</p>
+      <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+        <legend className="sr-only">Pemegang Hak</legend>
+        <div aria-hidden>
+          <p className="text-title-3 text-foreground">Pemegang Hak</p>
+          <p className="mt-0.5 text-small text-muted-foreground">
+            Orang yang punya hak makam ini, dan yang boleh memperpanjang atau membiayai pemakaman berikutnya.
+          </p>
+        </div>
         <Pilihan
           name="pemegang"
           value={pemegang}
@@ -165,7 +182,7 @@ export function DataKirim({
           ]}
         />
         {pemegang === "lain" ? (
-          <>
+          <div className="flex flex-col gap-4 border-t border-border pt-4">
             <Field id="holder-nama" label="Nama Pemegang Hak">
               <Input id="holder-nama" value={namaHolder} onChange={(event) => setNamaHolder(event.target.value)} className="h-11" required />
             </Field>
@@ -183,7 +200,7 @@ export function DataKirim({
             <Field id="holder-email" label="Email Pemegang Hak" hint="Boleh dikosongkan kalau tidak diketahui.">
               <Input id="holder-email" type="email" value={emailHolder} onChange={(event) => setEmailHolder(event.target.value)} className="h-11" />
             </Field>
-          </>
+          </div>
         ) : null}
       </fieldset>
 
@@ -221,10 +238,14 @@ export function DataKirim({
 
       {sudahMasuk ? (
         <Button type="button" size="lg" disabled={mengirim} onClick={kirimSekarang}>
-          {mengirim ? "Mengirim…" : "Kirim pesanan"}
+          {mengirim ? "Mengirim…" : (
+            <>
+              Kirim pesanan <ArrowRight aria-hidden />
+            </>
+          )}
         </Button>
       ) : hasil.status === "perlu_kode_masuk" ? (
-        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
           <h2 className="text-title-3 text-foreground">Masukkan Kode Masuk</h2>
           <KodeMasukForm
             requestAction={mintaKodeMasuk}
@@ -235,10 +256,34 @@ export function DataKirim({
           />
         </div>
       ) : (
-        <Button type="button" size="lg" disabled={mengirim} onClick={kirimSekarang}>
-          {mengirim ? "Mengirim…" : "Kirim pesanan"}
-        </Button>
+        <>
+          <Button type="button" size="lg" disabled={mengirim} onClick={kirimSekarang}>
+            {mengirim ? "Mengirim…" : (
+              <>
+                Kirim pesanan <ArrowRight aria-hidden />
+              </>
+            )}
+          </Button>
+          <p className="text-center text-small text-muted-foreground">
+            Kami akan mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda.
+          </p>
+        </>
       )}
+
+      {/* KodeMasukForm carries its own "Tidak punya email?" line under the email field, so this one only
+          shows outside that step (a signed-in Pemesan, or before the Kode Masuk step opens). */}
+      {csContact && hasil.status !== "perlu_kode_masuk" ? (
+        <div className="flex flex-col items-center gap-1 text-center text-body">
+          <a href={csWhatsAppLink(csContact)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 font-semibold text-primary">
+            <MessageCircle className="size-4" aria-hidden /> Tidak punya email? Minta bantuan CS
+          </a>
+          <p className="inline-flex items-center gap-1.5 text-small text-muted-foreground">
+            <Phone className="size-3.5" aria-hidden /> {csContact.whatsApp} · CS dapat mengirimkan pesanan ini untuk Anda
+          </p>
+        </div>
+      ) : null}
+
+      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada />
     </div>
   );
 }
@@ -267,12 +312,25 @@ function Pilihan<T extends string>({
   options: [T, string][];
 }) {
   return (
-    <div className="flex flex-col gap-2" role="radiogroup" aria-label={name}>
+    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={name}>
       {options.map(([nilai, label]) => (
-        <label key={nilai} className={cn("flex items-center gap-2 text-body", nilai === value ? "font-semibold text-foreground" : "text-muted-foreground")}>
-          <input type="radio" name={name} value={nilai} checked={nilai === value} onChange={() => onChange(nilai)} className="size-4" />
+        <button
+          key={nilai}
+          type="button"
+          role="radio"
+          aria-checked={nilai === value}
+          onClick={() => onChange(nilai)}
+          className={cn(
+            "flex h-12 items-center gap-3 rounded-lg border px-4 text-left text-body-lg",
+            nilai === value ? "border-primary bg-brand-soft font-medium text-brand-soft-foreground" : "border-input bg-card",
+          )}
+        >
+          <span
+            className={cn("size-4 rounded-full border-2", nilai === value ? "border-primary bg-primary ring-2 ring-card ring-inset" : "border-border-strong")}
+            aria-hidden
+          />
           {label}
-        </label>
+        </button>
       ))}
     </div>
   );
