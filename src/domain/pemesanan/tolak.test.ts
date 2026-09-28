@@ -8,6 +8,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import type { TolakSaatDukaInput } from "./tolak";
+import { alasanTolakLokasiKeys, type AlasanTolakLokasi } from "./alasan-tolak";
 import { orderSaatDuka, pemesananOnTestDatabase, saatDukaFixture, terverifikasiLokasi, type PemesananSetup } from "../../../tests/support/pemesanan";
 
 const { db, close } = testDatabase();
@@ -17,9 +18,14 @@ beforeEach(resetDatabase);
 /** One placed Saat Duka order, waiting for its Lokasi's confirmation. */
 async function pesananMenunggu(setup: PemesananSetup) {
   const fixture = await saatDukaFixture(setup);
+  return { ...fixture, nomor: await pesananUntuk(setup, fixture) };
+}
+
+/** One more order at that same Lokasi Mitra, so a test can decline several on one fixture. */
+async function pesananUntuk(setup: PemesananSetup, fixture: Awaited<ReturnType<typeof saatDukaFixture>>) {
   const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
   if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
-  return { ...fixture, nomor: placed.pemesanan.nomor };
+  return placed.pemesanan.nomor;
 }
 
 describe("the Admin Lokasi declines a Saat Duka order (Tolak)", () => {
@@ -93,6 +99,54 @@ describe("the Admin Lokasi declines a Saat Duka order (Tolak)", () => {
     expect((await setup.audit.allEntries()).filter((entry) => entry.action === "pemesanan.tolak")).toEqual([]);
     expect(await setup.pemesanan.ditolak(fixture.lokasiMitra.id)).toBe(0);
     expect(setup.ditolak).toEqual([]);
+  });
+
+  it("leaves in the Entri Audit the reason in the words of the list, for every reason a Lokasi may choose", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await saatDukaFixture(setup);
+    // Written out here on purpose, in full: an Entri Audit is permanent — the
+    // database refuses an UPDATE on it — and the one who reads it weeks later is
+    // a person asking why a bereaved family was sent away. So the test holds the
+    // words themselves rather than pointing at the same table the code reads, and
+    // a mapping or a wording that drifts fails here instead of in the Audit Log.
+    const alasanDanPakai: readonly (readonly [AlasanTolakLokasi, string])[] = [
+      ["petak_tidak_tersedia", "Petak untuk jenis makam ini sudah tidak tersedia"],
+      ["kapasitas_penuh", "Kapasitas blok ini sudah penuh"],
+      ["tanggal_tidak_bisa", "Belum bisa menerima pemakaman pada tanggal itu"],
+      ["dokumen_belum_lengkap", "Dokumen yang dibutuhkan belum lengkap"],
+      ["di_luar_wilayah", "Di luar wilayah pelayanan Lokasi Mitra ini"],
+      ["harga_belum_disepakati", "Harga belum disepakati dengan keluarga"],
+    ];
+    // Every reason a Lokasi may choose is here and no other: a reason added to the
+    // list without a word for the Audit Log to keep fails on this line.
+    expect(alasanDanPakai.map(([alasan]) => alasan)).toEqual([...alasanTolakLokasiKeys]);
+
+    for (const [urutan, [alasan, reason]] of alasanDanPakai.entries()) {
+      const nomor = await pesananUntuk(setup, fixture);
+      expect(await setup.pemesanan.tolakSaatDuka(fixture.adminLokasi, { nomor, alasan })).toMatchObject({ ok: true, pesanan: { alasan } });
+
+      const tercatat = (await setup.audit.allEntries()).filter((entry) => entry.action === "pemesanan.tolak");
+      // One decline, one Entri Audit, and it says the reason as the family reads
+      // it — never the key the order column stores, which is a column value and
+      // not a sentence.
+      expect(tercatat).toHaveLength(urutan + 1);
+      expect(tercatat.at(-1)?.reason).toBe(reason);
+      expect(tercatat.at(-1)?.reason).not.toBe(alasan);
+    }
+
+    // The family's own answer, sent down the staff door: refused, and it leaves no
+    // entry at all — not one with an empty reason, not one naming the family. The
+    // six entries above are still the whole of what a Tolak left behind.
+    const nomor = await pesananUntuk(setup, fixture);
+    const ditolak = await setup.pemesanan.tolakSaatDuka(fixture.adminLokasi, {
+      nomor,
+      alasan: "alternatif_ditolak" as unknown as TolakSaatDukaInput["alasan"],
+    });
+
+    expect(ditolak).toEqual({ ok: false, reason: "input_tidak_valid" });
+    const seluruhnya = (await setup.audit.allEntries()).filter((entry) => entry.action === "pemesanan.tolak");
+    expect(seluruhnya.map((entry) => entry.reason)).toEqual(alasanDanPakai.map(([, reason]) => reason));
+    expect(await setup.pemesanan.orderOf(nomor, fixture.pemesan)).toMatchObject({ status: "diajukan", alasan: null });
   });
 
   it("refuses an order that has already moved on, and nothing the first decline did is undone by a second", async () => {
