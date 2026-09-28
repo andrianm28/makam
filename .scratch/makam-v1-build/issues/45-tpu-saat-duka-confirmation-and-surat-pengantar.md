@@ -146,7 +146,7 @@ Baris `provider` itu lalu dikembalikan ke `operator` dan test hijau. Kegagalan m
 
 ## Comments
 
-- 2026-09-28 - **Two-axis review, merged into `main`: 20 conflicts, 29 hunks, three migration proofs, and two integration fixes that only exist because both sides were joined.** Both review axes (Standards and Spec) are recorded in the sections above; this entry records what happened when the branch and the trunk were actually put together.
+- 2026-09-28 - **Two-axis review, merged into `main`: 20 conflicts (18 code files carrying 30 hunks, plus the 2 `drizzle/` paths), three migration proofs, and two integration fixes that only exist because both sides were joined.** Both review axes (Standards and Spec) are recorded in the sections above; this entry records what happened when the branch and the trunk were actually put together.
 
 - 2026-09-28 - **The conflict list, measured rather than trusted.** `git ls-files -u` reported **20 unmerged paths** (2 under `drizzle/`, 18 under `src/` and `tests/`) - the tree, not a prior audit, was the list. A pre-flight audit had named fewer.
 
