@@ -15,4 +15,10 @@ describe("cn, the design system's class merger", () => {
       expect(cn("text-sm", `text-${size}`)).toBe(`text-${size}`);
     }
   });
+
+  it("treats the public site's display sizes as sizes too (hero, public h1, public h2)", () => {
+    for (const size of ["hero", "hero-lg", "page-title", "section-title"]) {
+      expect(cn("text-sm", `text-${size}`)).toBe(`text-${size}`);
+    }
+  });
 });

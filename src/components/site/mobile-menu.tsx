@@ -39,7 +39,7 @@ export function MobileMenu({
         <MenuIcon className="size-6" aria-hidden="true" />
       </SheetTrigger>
       <SheetContent side="right" className="w-[86%] max-w-sm gap-0 bg-background p-0" showCloseButton={false}>
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
+        <div className="flex h-(--site-header-height) items-center justify-between border-b border-border px-4">
           <SheetTitle className="sr-only">Menu</SheetTitle>
           <BrandLogo />
           <button

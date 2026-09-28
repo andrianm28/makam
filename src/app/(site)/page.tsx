@@ -33,9 +33,9 @@ export default async function BerandaPage() {
   return (
     <main className="flex w-full flex-1 flex-col">
       <section className="px-4 pt-4 md:px-8 md:pt-8">
-        <div className="mx-auto grid max-w-[80rem] overflow-hidden rounded-3xl bg-forest lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mx-auto grid max-w-(--page-max-width) overflow-hidden rounded-3xl bg-forest lg:grid-cols-[1.1fr_0.9fr]">
           <div className="flex flex-col justify-center gap-6 px-6 py-10 sm:px-10 md:py-14 lg:px-14 lg:py-20">
-            <h1 className="font-serif text-[2.125rem] leading-[1.15] font-semibold text-ivory sm:text-5xl sm:leading-[1.1] lg:text-[3.5rem]">
+            <h1 className="font-serif text-hero text-ivory sm:text-5xl sm:leading-hero lg:text-hero-lg">
               {homepageHero.headline}
             </h1>
             <p className="text-body-lg text-sand sm:text-title-2 sm:font-normal">{homepageHero.tagline}</p>
@@ -43,7 +43,7 @@ export default async function BerandaPage() {
               <div className="flex flex-col gap-2">
                 <Link
                   href={homepageHero.urgent.href}
-                  className="inline-flex h-13 min-h-(--touch-target) items-center justify-center gap-2 rounded-xl bg-highlight px-7 text-body-lg font-semibold text-highlight-foreground transition-colors hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
+                  className="inline-flex h-(--button-height-lg) min-h-(--touch-target) items-center justify-center gap-2 rounded-xl bg-highlight px-7 text-body-lg font-semibold text-highlight-foreground transition-colors hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
                 >
                   {homepageHero.urgent.label} <ArrowRightIcon className="size-5" aria-hidden="true" />
                 </Link>
@@ -52,7 +52,7 @@ export default async function BerandaPage() {
               <Link
                 href={homepageHero.planned.href}
                 prefetch={homepageHero.planned.prefetch}
-                className="inline-flex h-13 min-h-(--touch-target) items-center gap-1.5 text-body-lg font-medium text-ivory underline decoration-sand/60 underline-offset-4 hover:decoration-sand focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
+                className="inline-flex h-(--button-height-lg) min-h-(--touch-target) items-center gap-1.5 text-body-lg font-medium text-ivory underline decoration-sand/60 underline-offset-4 hover:decoration-sand focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
               >
                 {homepageHero.planned.label}
               </Link>
@@ -73,8 +73,8 @@ export default async function BerandaPage() {
       </section>
 
       <section className="px-4 py-14 md:px-8 md:py-20" aria-labelledby="tiles-title">
-        <div className="mx-auto max-w-[80rem]">
-          <h2 id="tiles-title" className="font-serif text-[1.75rem] leading-tight font-semibold text-forest md:text-4xl">
+        <div className="mx-auto max-w-(--page-max-width)">
+          <h2 id="tiles-title" className="font-serif text-section-title leading-tight text-forest md:text-4xl">
             {homepageTilesIntro.heading}
           </h2>
           <p className="mt-2 max-w-xl text-body-lg text-muted-foreground">{homepageTilesIntro.line}</p>
@@ -123,8 +123,8 @@ export default async function BerandaPage() {
       </section>
 
       <section className="border-y border-border bg-card px-4 py-14 md:px-8" aria-labelledby="trust-title">
-        <div className="mx-auto max-w-[80rem]">
-          <h2 id="trust-title" className="font-serif text-[1.75rem] leading-tight font-semibold text-forest md:text-4xl">
+        <div className="mx-auto max-w-(--page-max-width)">
+          <h2 id="trust-title" className="font-serif text-section-title leading-tight text-forest md:text-4xl">
             {homepageTrustHeading}
           </h2>
           <ul className="mt-8 grid gap-8 md:grid-cols-3 md:gap-10">
@@ -148,7 +148,7 @@ export default async function BerandaPage() {
 
       {contact ? (
         <section className="px-4 py-14 md:px-8">
-          <div className="mx-auto flex max-w-[80rem] flex-col items-start justify-between gap-4 rounded-3xl bg-brand-soft p-6 sm:flex-row sm:items-center sm:p-8">
+          <div className="mx-auto flex max-w-(--page-max-width) flex-col items-start justify-between gap-4 rounded-3xl bg-brand-soft p-6 sm:flex-row sm:items-center sm:p-8">
             <div>
               <h2 className="text-title-2 text-forest">{homepageCsBand.heading}</h2>
               <p className="mt-1 text-body text-muted-foreground">

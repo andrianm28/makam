@@ -156,17 +156,31 @@ Charts: `chart-1`…`chart-5` are Forest, Sage, Sand, the info blue and the mute
 
 `cn` must come from `@/lib/utils`: it registers these sizes with the class merger (`src/lib/utils.test.ts`). The bare `cn` package would take `text-small` for a colour and drop it next to `text-muted-foreground`. `shadcn add` writes `import { cn } from "cn"`; change it after each add.
 
+**Public site display type**, values identical to the public-site prototype (owner, 2026-09-28: "ikut prototipe persis 1:1"). Each pairs with Tailwind's own `text-5xl` / `text-4xl` / `text-3xl` at the breakpoint where the prototype already lands on a stock size, so only the sizes with no stock match get a name:
+
+| Utility | Size / line | Weight | Use |
+|---|---|---|---|
+| `text-hero` → `sm:text-5xl` `sm:leading-hero` → `lg:text-hero-lg` | 34 / 1.15 → 48 / 1.1 → 56 / 1.1 | 600 | The Beranda hero `h1` (Lora) |
+| `text-section-title` → `md:text-4xl` | 28 / 1.25 → 36 / 40 | 600 | A homepage section heading (Lora): the tile row, the trust strip |
+| `text-page-title` → `md:text-4xl` | 30 / 36 → 36 / 40 | 600 | A public list/detail page `h1` (sans, `tracking-tight`): Daftar Lokasi, a Lokasi Mitra's page |
+
+`--leading-hero` (1.1) is the reusable ratio for the hero's `sm:` tier, paired with Tailwind's own `text-5xl`.
+
 ### Spacing, layout and density
 
-Tailwind's 4 px step is the scale (`--space-1` … `--space-12` name 4–48 px). Named layout decisions: `--page-gutter` (16 px phone, 32 px ≥ md), `--page-max-width` 80rem, `--section-gap` 32 px between page sections, `--header-height` 56 px, `--bottom-nav-height` 64 px, `--touch-target` 44 px, `--row-height` 48 px (comfortable, the default) and `--row-height-compact` 36 px. Cards use 20–24 px padding.
+Tailwind's 4 px step is the scale (`--space-1` … `--space-12` name 4–48 px). Named layout decisions: `--page-gutter` (16 px phone, 32 px ≥ md), `--page-max-width` 80rem (the public site's content width too: ported public screens use it as `max-w-(--page-max-width)`, never a raw `max-w-[80rem]`), `--section-gap` 32 px between page sections, `--header-height` 56 px (staff only), `--bottom-nav-height` 64 px, `--touch-target` 44 px, `--row-height` 48 px (comfortable, the default) and `--row-height-compact` 36 px. Cards use 20–24 px padding.
+
+Public-site-only layout, values identical to the public-site prototype (owner, 2026-09-28: "ikut prototipe persis 1:1"): `--site-header-height` 64 px (the public top bar and its drawer header — taller than the staff `--header-height`) and `--button-height-lg` 52 px (the Beranda hero's primary CTA and its quiet text link, with `--touch-target` still applying as the floor).
 
 ### Radius
 
-Soft and round, as in the guideline's cards. One base, `--radius: 0.625rem` (10 px): `sm` 6 px (chips), `md` 8 px (badges, menu items), `lg` 10 px (buttons, inputs), `xl` 12 px (cards, tables, dialogs, popovers), `full` (avatars, dots).
+Soft and round, as in the guideline's cards. One base, `--radius: 0.625rem` (10 px): `sm` 6 px (chips), `md` 8 px (badges, menu items), `lg` 10 px (buttons, inputs), `xl` 12 px (cards, tables, dialogs, popovers), `full` (avatars, dots). Two more steps of the same derived scale, values identical to the public-site prototype (owner, 2026-09-28: "ikut prototipe persis 1:1"): `2xl` 18 px (a large icon badge: the trust strip's icon) and `3xl` 22 px (a large card or hero panel: the Beranda hero card, the tile cards, the CS band).
 
 ### Shadow
 
 Elevation, not decoration. Resting surfaces (cards, tables, panels) use a 1 px `border` plus a faint Forest-tinted `shadow-xs`, so the off-white card lifts off Ivory without a colour jump. The shared `cardSurface` (`src/components/ui/card.tsx`) carries this for `Card`, `StatCard` and the document pages, so they never drift apart. The page behind a sheet or dialog dims with the `overlay` token (the Forest ground, faintly; deeper in dark mode). `shadow-md` for menus and popovers, `shadow-lg` for dialogs and sheets. Dark mode uses deeper shadows plus a faint top highlight.
+
+`shadow-sticky` (Forest at 20 %, casting upward) is a booking wizard's sticky bottom action bar, value identical to the public-site prototype (owner, 2026-09-28: "ikut prototipe persis 1:1"). Public-site only, so it has no dark-mode override.
 
 ### Motion
 
