@@ -212,6 +212,36 @@ describe("cancelling a Saat Duka order after it is confirmed", () => {
     expect(await setup.billing.tagihan(fixture.tagihan.id)).toMatchObject({ status: "belum_dibayar" });
   });
 
+  it("rolls the whole cancellation back when a refusal comes after a write, leaving the plot held and the order truthful", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await terkonfirmasi(setup, { bayar: true });
+
+    // The bill is cancelled first, on its own, through Billing's own door — the
+    // only module that may cancel a Tagihan. That is how the one failure this
+    // ticket can produce *after* a write has already happened is arranged: by the
+    // time the cancellation asks for the Tagihan, the Hak Pakai has been given
+    // back inside its transaction. (Once ticket 25 lets a pay-after Tagihan be
+    // cancelled on its own, this stops being a construction and becomes a race.)
+    const lebihDulu = await setup.billing.batalkanTagihan(fixture.tagihan.id, { alasan: "pemesanan_dibatalkan" });
+    if (!lebihDulu.ok) throw new Error(`Tagihan refused: ${lebihDulu.reason}`);
+
+    const hasil = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga memutuskan menunda" });
+
+    expect(hasil).toEqual({ ok: false, reason: "tagihan_sudah_dibatalkan" });
+    // The write that had already happened is gone. Written one after another, the
+    // right would read Dibatalkan, the plot would read Tersedia, and the order
+    // would still be Dikonfirmasi — a plot on sale over a family that was told it
+    // still held one. Nothing of the cancellation is kept.
+    expect(await setup.inventory.asStaff(fixture.adminLokasi).hakPakaiOfPetak(fixture.lokasiMitra.id, fixture.petakId)).toMatchObject({
+      status: "aktif",
+      pemegangHak: { name: "Budi Santoso" },
+    });
+    expect(await setup.inventory.tersediaPerJenisMakam(fixture.lokasiMitra.id)).toEqual([{ jenisMakamId: fixture.jenisMakam.id, count: 3 }]);
+    expect(await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan)).toMatchObject({ status: "dikonfirmasi", alasan: null });
+    // And the family was told nothing about a cancellation that did not happen.
+    expect(setup.dibatalkan).toEqual([]);
+  });
+
   it("lets the Admin Lokasi record it on the family's behalf, and no other Lokasi's or Admin Platform's", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await terkonfirmasi(setup);

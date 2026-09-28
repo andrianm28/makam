@@ -28,7 +28,7 @@ import { withinPaymentCap } from "@/domain/billing";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { quoteLineLabel } from "@/lib/quote-line-label";
 import { wib } from "@/lib/time/jakarta";
-import type { AlasanTolak } from "./alasan-tolak";
+import type { AlasanTolakKeluarga } from "./alasan-tolak";
 import { JAM_KONFIRMASI_SAAT_DUKA, saatDukaHarga } from "./pilihan";
 import type { Pemesan, PemesananDeps } from "./deps";
 import { pemesananMakam } from "./schema";
@@ -67,7 +67,7 @@ export type TawarkanAlternatifResult =
   | { ok: false; reason: "harga_tidak_tersedia" };
 
 export type JawabAlternatifResult =
-  | { ok: true; pesanan: { nomor: string; status: "diajukan" | "ditolak"; alasan: AlasanTolak | null } }
+  | { ok: true; pesanan: { nomor: string; status: "diajukan" | "ditolak"; alasan: AlasanTolakKeluarga | null } }
   | { ok: false; reason: "input_tidak_valid" | "pesanan_tidak_ditemukan" }
   /** The order has moved on (confirmed, declined, cancelled): there is nothing to answer. */
   | { ok: false; reason: "pesanan_sudah_ditutup" }

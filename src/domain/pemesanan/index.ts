@@ -109,12 +109,23 @@ export {
   type TawarkanAlternatifResult,
 } from "./alternatif";
 /**
- * The closed list of reasons a Saat Duka order can be declined with, and the
- * wording each is shown with (ticket 24). It lives in its own file beside the
- * module, which imports nothing from the database, so a "use client" screen
- * may take it from either here or that file.
+ * The closed list of reasons a Saat Duka order can be declined with, split by
+ * **who may choose it** — the Lokasi's own reasons (`alasanTolakLokasiKeys`, the
+ * only ones its form may send) and the one the family produces by declining an
+ * alternative — with the wording each is shown with (ticket 24). It lives in its
+ * own file beside the module, which imports nothing from the database, so a
+ * "use client" screen may take it from either here or that file.
  */
-export { ALASAN_TOLAK, alasanTolakKeys, alasanTolakSchema, type AlasanTolak } from "./alasan-tolak";
+export {
+  ALASAN_TOLAK,
+  alasanTolakKeys,
+  alasanTolakKeluargaKeys,
+  alasanTolakLokasiKeys,
+  alasanTolakLokasiSchema,
+  type AlasanTolak,
+  type AlasanTolakKeluarga,
+  type AlasanTolakLokasi,
+} from "./alasan-tolak";
 export type { RebookPesanan } from "./rebook";
 export type { DokumenOrder, OrderAntrean, OrderDitolak, OrderStaf } from "./reads-staf";
 export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";

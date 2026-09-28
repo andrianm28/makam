@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AlasanTolak } from "@/domain/pemesanan";
+import type { AlasanTolakLokasi } from "@/domain/pemesanan";
 import type { TersediaUnit } from "@/domain/inventory";
 import {
   batalkanPesanan,
@@ -119,8 +119,12 @@ export function AlternatifDanTolakForm({
 }: {
   lokasiId: string;
   nomor: string;
-  /** The closed list, in the wording the family and the Lokasi both read. */
-  alasan: { key: AlasanTolak; label: string }[];
+  /**
+   * The Lokasi's own half of the closed list, in the wording the family and the
+   * Lokasi both read. A reason only the family can produce is not here and cannot
+   * be: an offer the Lokasi never made cannot be one of its reasons.
+   */
+  alasan: { key: AlasanTolakLokasi; label: string }[];
   /** The Jenis Makam of this Lokasi Mitra, so the alternative is one of its own. */
   jenisMakam: { id: string; name: string }[];
   pemakamanAwal: string;
@@ -190,7 +194,7 @@ function TawarkanAlternatifForm({
 }
 
 /** The Tolak: a reason off the fixed list, and nothing else to write. */
-function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: string; alasan: { key: AlasanTolak; label: string }[] }) {
+function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: string; alasan: { key: AlasanTolakLokasi; label: string }[] }) {
   const [state, action, pending] = useActionState(tolakPesanan, idle);
   return (
     <form action={action} className="flex flex-col gap-4">

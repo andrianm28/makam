@@ -8,6 +8,7 @@ import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder, RebookPesanan } from "@/domain/pemesanan";
+import type { CsContact } from "@/components/kode-masuk/state";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
 import { AlternatifForm, BatalkanForm } from "./keluar-pesanan";
@@ -37,6 +38,11 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   if (!order) notFound();
   const { billing, lokasi, pemesanan } = serverRuntime();
   const actor = await currentActor();
+  // The CS a family is pointed at when the alternative on the table can no longer
+  // be priced, so that screen has a person to go to rather than a figure it
+  // cannot show (see `AlternatifForm`).
+  const settings = order.alternatif ? await serverRuntime().operatorSettings.current() : null;
+  const csContact: CsContact | null = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
   // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
@@ -74,6 +80,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
           pemakamanLabel={order.alternatif.pemakamanAt ? formatTanggalJam(order.alternatif.pemakamanAt) : null}
           total={order.alternatif.total}
           lines={order.alternatif.lines}
+          csContact={csContact}
         />
       ) : null}
 

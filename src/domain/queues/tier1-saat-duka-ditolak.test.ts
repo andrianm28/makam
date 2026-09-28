@@ -5,7 +5,7 @@
  * closes itself the moment somebody logs that call.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { AlasanTolak } from "@/domain/pemesanan";
+import type { AlasanTolakLokasi } from "@/domain/pemesanan";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { orderSaatDuka, saatDukaFixture } from "../../../tests/support/pemesanan";
@@ -22,7 +22,7 @@ async function tier1Ditolak(setup: QueuesSetup, admin: Awaited<ReturnType<typeof
 }
 
 /** One placed order, declined by its own Admin Lokasi at the Clock's now. */
-async function pesananDitolak(setup: QueuesSetup, options: { alasan?: AlasanTolak; pada?: string } = {}) {
+async function pesananDitolak(setup: QueuesSetup, options: { alasan?: AlasanTolakLokasi; pada?: string } = {}) {
   const fixture = await saatDukaFixture(setup);
   const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
   if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);

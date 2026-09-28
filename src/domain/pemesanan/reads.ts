@@ -78,7 +78,14 @@ export interface PemesananOrder {
   alternatif: {
     jenisMakam: { id: string; name: string } | null;
     pemakamanAt: Date | null;
-    total: number;
+    /**
+     * The all-in total, or **null when the offer can no longer be priced** — never
+     * `0`. A zero here would reach a grieving family as "Total semua biaya Rp 0",
+     * which says the burial is free, and would sit next to an accept button the
+     * module then refuses with `harga_tidak_tersedia`. Null is the one honest
+     * answer, and the screen turns it into a person to ask rather than a figure.
+     */
+    total: number | null;
     lines: { label: string; amount: number }[];
   } | null;
   diajukanAt: Date;
@@ -127,8 +134,10 @@ export async function orderOf(
  * never was stored there — so the family sees what `quote()` says at the moment
  * it looks, which is the number accepting will be held to.
  *
- * An offer whose Jenis Makam can no longer be priced shows no total and no
- * lines rather than a stale one: the family is offered nothing it could accept.
+ * An offer whose Jenis Makam can no longer be priced shows **no total at all**
+ * rather than a stale one — and no `0` either, which would read as a free
+ * burial: the family is offered nothing it could accept, so it is told that in
+ * words and sent to a person, not handed a figure.
  */
 async function alternatifOf(
   deps: Pick<PemesananDeps, "db" | "lokasi" | "tariffs" | "clock">,
@@ -144,7 +153,8 @@ async function alternatifOf(
   return {
     jenisMakam: nama ? { id: nama.id, name: nama.name } : null,
     pemakamanAt: row.alternatifPemakamanAt,
-    total: harga?.total ?? 0,
+    // `null`, never `0`: the offer exists, its price does not. See `PemesananOrder`.
+    total: harga?.total ?? null,
     lines: (harga?.lines ?? []).map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
   };
 }

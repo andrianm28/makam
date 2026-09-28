@@ -4,18 +4,33 @@ import { z } from "zod";
  * The closed list of reasons a Saat Duka order can be declined with (spec,
  * Pemesanan > Saat Duka: "Tolak with a fixed reason list"; story 118).
  *
- * This file is the one place that list exists, and both sides read it from here:
- * the domain accepts a reason only if it is a key of this list, and the screen
- * offers exactly these words as the choices of its select. A closed list is the
- * whole point — a Lokasi answers honestly out of the reasons families can be
- * told — so nothing may add a reason anywhere else, least of all as free text.
+ * This file is the one place that list exists. It is a closed list — a Lokasi
+ * answers honestly out of the reasons families can be told, and nothing may add
+ * a reason anywhere else, least of all as free text — but it is **two lists, not
+ * one**, because the reasons belong to two different people:
+ *
+ * - `alasanTolakLokasiKeys` is what the **Admin Lokasi** may pick. Every one of
+ *   them is a statement about that Lokasi's own capacity, calendar, papers,
+ *   service area or price — something only the Lokasi knows and only the Lokasi
+ *   can have found out.
+ * - `alasanTolakKeluargaKeys` is what **the family** can produce, and it is the
+ *   single answer to an alternative the Lokasi offered. A Lokasi can never
+ *   record it: "Keluarga menolak alternatif yang ditawarkan" on an order that never
+ *   offered one is a false statement, written into a message a grieving family
+ *   reads and into an Entri Audit that cannot be edited afterwards.
+ *
+ * The union is still one closed list (`alasanTolakKeys` / `AlasanTolak`),
+ * because the column, the wording the family reads and `alasanOrder` all read
+ * one thing; **the split is on who may choose**, which is what was missing. The
+ * staff boundary is `alasanTolakLokasiSchema` alone, so a reason that never
+ * happened is refused at the door rather than hidden behind a disabled option.
  *
  * Nothing here imports the module's schema or reaches the database, so a
  * "use client" screen may take it directly (AGENTS.md: a value from a domain
  * module's own file is safe when that file stands alone, the way
  * `./skema-terencana.ts` is).
  */
-export const alasanTolakKeys = [
+export const alasanTolakLokasiKeys = [
   /** The plot of the chosen Jenis Makam is gone, so there is nothing to assign. */
   "petak_tidak_tersedia",
   /** That Blok or that whole Lokasi Mitra is full for now. */
@@ -28,15 +43,30 @@ export const alasanTolakKeys = [
   "di_luar_wilayah",
   /** The Lokasi and the family have not agreed the price. */
   "harga_belum_disepakati",
+] as const;
+/** A reason the Admin Lokasi chooses for itself; the only ones its form may send. */
+export type AlasanTolakLokasi = (typeof alasanTolakLokasiKeys)[number];
+
+/**
+ * The reasons a family can produce, and the only answer `tolakAlternatif` gives.
+ * A closed list of its own, even while it holds one reason today, so the day it
+ * holds a second one there is already a place for it that no Lokasi can reach.
+ */
+export const alasanTolakKeluargaKeys = [
   /**
    * The Pemesan declined the alternative the Lokasi offered (story 31: declining
-   * an alternative *is* a Tolak). It is on the same list as the Lokasi's own
-   * reasons, so a Tolak reads the same way to the family whoever made it and no
-   * second status is invented for it.
+   * an alternative *is* a Tolak). It is on the same closed list as the Lokasi's
+   * own reasons, so a Tolak reads the same way to the family whoever made it and
+   * no second status is invented for it — but the Lokasi cannot record it.
    */
   "alternatif_ditolak",
 ] as const;
-export type AlasanTolak = (typeof alasanTolakKeys)[number];
+/** A reason the family gives, which a Lokasi can never choose. */
+export type AlasanTolakKeluarga = (typeof alasanTolakKeluargaKeys)[number];
+
+/** Every reason an order can end as Ditolak with, whichever side produced it. */
+export type AlasanTolak = AlasanTolakLokasi | AlasanTolakKeluarga;
+export const alasanTolakKeys: readonly AlasanTolak[] = [...alasanTolakLokasiKeys, ...alasanTolakKeluargaKeys];
 
 /** The reason as the family reads it, in the wording of the list; the only wording any screen may show. */
 export const ALASAN_TOLAK: Readonly<Record<AlasanTolak, string>> = {
@@ -49,12 +79,16 @@ export const ALASAN_TOLAK: Readonly<Record<AlasanTolak, string>> = {
   alternatif_ditolak: "Keluarga menolak alternatif yang ditawarkan",
 };
 
-/** The boundary a Tolak form is validated with: a reason off this list, or none, never passes. */
-export const alasanTolakSchema = z.enum(alasanTolakKeys);
+/**
+ * The boundary a Tolak form is validated with: a reason off the Lokasi's own
+ * list, or none, never passes — and neither does a reason only the family can
+ * produce, however it was typed.
+ */
+export const alasanTolakLokasiSchema = z.enum(alasanTolakLokasiKeys);
 
 /** Whether a stored value is still a reason of the list (a key of an older release is not silently shown). */
 export function alasanTolakOf(value: string | null | undefined): AlasanTolak | null {
-  return alasanTolakKeys.includes(value as AlasanTolak) ? (value as AlasanTolak) : null;
+  return (alasanTolakKeys as readonly string[]).includes(value ?? "") ? (value as AlasanTolak) : null;
 }
 
 /**

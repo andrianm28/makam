@@ -43,13 +43,20 @@ export type BatalkanHakPakaiResult =
   | { ok: false; reason: "pemakaman_sudah_dicatat" };
 
 /**
- * One Aktif Hak Pakai with no Pemakaman under it becomes Dibatalkan, `now` and
- * the reason kept on it. The Petak's own `Tersedia` is **derived**: a Dibatalkan
- * Hak Pakai holds nothing (see `./status.ts`), so nothing else has to be written
- * for the plot to be sellable again — and nothing can be left half done.
+ * One Aktif Hak Pakai with no Pemakaman under it becomes Dibatalkan, with the
+ * reason kept on it as `endReason`. **No instant is written, and none is
+ * promised**: `inventory_hak_pakai` carries no column for one — its `endDate` is
+ * the *tenure's* end, which a perpetual right never has — and the record of when
+ * and why a cancellation happened is the order's own row and the Entri Audit its
+ * caller recorded. So the `Clock` is deliberately not a dependency here, and this
+ * function is not a place a time can be read from.
+ *
+ * The Petak's own `Tersedia` is **derived**: a Dibatalkan Hak Pakai holds nothing
+ * (see `./status.ts`), so nothing else has to be written for the plot to be
+ * sellable again — and nothing can be left half done.
  */
 export async function batalkanHakPakai(
-  deps: Pick<InventoryDeps, "db" | "clock">,
+  deps: Pick<InventoryDeps, "db">,
   input: { hakPakaiId: string; alasan: string },
 ): Promise<BatalkanHakPakaiResult> {
   const [hakPakai] = await deps.db

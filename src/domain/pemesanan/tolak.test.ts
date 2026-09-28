@@ -74,6 +74,27 @@ describe("the Admin Lokasi declines a Saat Duka order (Tolak)", () => {
     expect(await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan)).toMatchObject({ status: "diajukan", alasan: null });
   });
 
+  it("never lets a Lokasi record a reason only the family can give", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananMenunggu(setup);
+    // No alternative was ever offered on this order, so "Keluarga menolak alternatif
+    // yang ditawarkan" would be false — told to a family that is burying someone,
+    // and written into an Entri Audit nobody may edit afterwards. The cast is the
+    // point: the boundary takes the Lokasi's half of the list and nothing else.
+    const hasil = await setup.pemesanan.tolakSaatDuka(fixture.adminLokasi, {
+      nomor: fixture.nomor,
+      alasan: "alternatif_ditolak" as unknown as TolakSaatDukaInput["alasan"],
+    });
+
+    expect(hasil).toEqual({ ok: false, reason: "input_tidak_valid" });
+    // And nothing at all was written: the order still waits, no Entri Audit carries
+    // a Tolak anybody made, and the family was told nothing.
+    expect(await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan)).toMatchObject({ status: "diajukan", alasan: null });
+    expect((await setup.audit.allEntries()).filter((entry) => entry.action === "pemesanan.tolak")).toEqual([]);
+    expect(await setup.pemesanan.ditolak(fixture.lokasiMitra.id)).toBe(0);
+    expect(setup.ditolak).toEqual([]);
+  });
+
   it("refuses an order that has already moved on, and nothing the first decline did is undone by a second", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await pesananMenunggu(setup);

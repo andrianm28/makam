@@ -23,20 +23,24 @@ import { z } from "zod";
 import { refusable } from "@/db/unit-of-work";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { Database } from "@/db/client";
-import { ALASAN_TOLAK, alasanTolakSchema, type AlasanTolak } from "./alasan-tolak";
+import { ALASAN_TOLAK, alasanTolakLokasiSchema, type AlasanTolakKeluarga, type AlasanTolakLokasi } from "./alasan-tolak";
 import type { PemesananDeps } from "./deps";
 import { pemesananMakam } from "./schema";
 
 /** What the Admin Lokasi's Tolak form sends. */
 export const tolakSaatDukaSchema = z.object({
   nomor: z.string().trim().regex(/^MKM-\d{4}-\d{6}$/),
-  /** Off the closed list and from nowhere else: `./alasan-tolak.ts`. */
-  alasan: alasanTolakSchema,
+  /**
+   * Off the Lokasi's own half of the closed list and from nowhere else:
+   * `./alasan-tolak.ts`. A reason only the family can produce is refused here,
+   * so an Entri Audit can never say a family refused an offer that was never made.
+   */
+  alasan: alasanTolakLokasiSchema,
 });
 export type TolakSaatDukaInput = z.infer<typeof tolakSaatDukaSchema>;
 
 export type TolakSaatDukaResult =
-  | { ok: true; pesanan: { nomor: string; status: "ditolak"; alasan: AlasanTolak } }
+  | { ok: true; pesanan: { nomor: string; status: "ditolak"; alasan: AlasanTolakLokasi } }
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" }
   /** No order of that Nomor Pemesanan. */
@@ -102,9 +106,9 @@ export async function tolakSaatDuka(
 export async function tolakDenganAlasan(
   deps: PemesananDeps,
   pesananId: string,
-  alasan: AlasanTolak,
+  alasan: AlasanTolakKeluarga,
 ): Promise<
-  | { ok: true; pesanan: { nomor: string; status: "ditolak"; alasan: AlasanTolak } }
+  | { ok: true; pesanan: { nomor: string; status: "ditolak"; alasan: AlasanTolakKeluarga } }
   | { ok: false; reason: "pesanan_tidak_ditemukan" | "pesanan_sudah_ditutup" }
 > {
   const [order] = await deps.db.select().from(pemesananMakam).where(eq(pemesananMakam.id, pesananId));
@@ -127,7 +131,7 @@ export async function tolakDenganAlasan(
  * The offer on the table goes with the order: a declined order has nothing left
  * to accept.
  */
-async function tulisTolak(tx: Database, pesananId: string, alasan: AlasanTolak, now: Date): Promise<boolean> {
+async function tulisTolak(tx: Database, pesananId: string, alasan: AlasanTolakLokasi | AlasanTolakKeluarga, now: Date): Promise<boolean> {
   const moved = await tx
     .update(pemesananMakam)
     .set({
@@ -150,7 +154,11 @@ async function tulisTolak(tx: Database, pesananId: string, alasan: AlasanTolak, 
  * order with no email still gets its call (ADR 0004: for such an order the call
  * is the only channel).
  */
-async function umumkanTolak(deps: PemesananDeps, order: OrderSaatDuka, alasan: AlasanTolak): Promise<void> {
+async function umumkanTolak(
+  deps: PemesananDeps,
+  order: OrderSaatDuka,
+  alasan: AlasanTolakLokasi | AlasanTolakKeluarga,
+): Promise<void> {
   // The city the list the family is sent back to is filtered by is the declining
   // Lokasi's own city: a family in a city with no other Lokasi Mitra would rather
   // see the whole list than an empty one.

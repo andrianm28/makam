@@ -7,6 +7,7 @@ import { batalkanSaatDukaSchema, centangDokumenSchema, konfirmasiSaatDukaSchema,
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
+import { alternatifMessage, batalkanMessage, konfirmasiMessage, tolakMessage } from "./pesanan-messages";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type PesananActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -139,84 +140,4 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
-}
-
-/** Why a Tolak was refused, saying what to do next. */
-function tolakMessage(reason: string): string {
-  switch (reason) {
-    case "pesanan_tidak_ditemukan":
-      return "Pesanan tidak ditemukan.";
-    case "pesanan_sudah_ditutup":
-      return "Pesanan ini sudah ditutup, jadi tidak bisa ditolak.";
-    default:
-      return "Pilih salah satu alasan dari daftar.";
-  }
-}
-
-/** Why an alternative was refused, saying what to do next. */
-function alternatifMessage(reason: string): string {
-  switch (reason) {
-    case "pesanan_tidak_ditemukan":
-      return "Pesanan tidak ditemukan.";
-    case "pesanan_sudah_ditutup":
-      return "Pesanan ini sudah ditutup, jadi tidak bisa ditawarkan alternatif.";
-    case "alternatif_kosong":
-      return "Pilih jenis makam lain atau tanggal lain. Minimal satu harus berubah.";
-    case "jenis_makam_tidak_ditemukan":
-      return "Jenis makam itu bukan milik Lokasi Mitra ini. Pilih dari daftar.";
-    case "harga_tidak_tersedia":
-      return "Harga jenis makam itu belum tersedia atau sudah berubah, jadi tidak bisa ditawarkan.";
-    default:
-      return "Alternatif belum bisa ditawarkan.";
-  }
-}
-
-/** Why a cancellation was refused, saying what to do next. */
-function batalkanMessage(reason: string): string {
-  switch (reason) {
-    case "pesanan_tidak_ditemukan":
-      return "Pesanan tidak ditemukan.";
-    case "pesanan_sudah_ditutup":
-      return "Pesanan ini sudah ditutup, jadi tidak bisa dibatalkan.";
-    case "alasan_wajib":
-      return "Tulis alasan pembatalan. Setelah pesanan dikonfirmasi, keluarga berhak tahu alasannya.";
-    case "pemakaman_sudah_dicatat":
-      return "Petak sudah dipakai untuk pemakaman, jadi tidak bisa dikembalikan. Catat keluhannya sebagai Pemakaman di bawah Hak Pakai.";
-    case "hak_pakai_tidak_ditemukan":
-    case "hak_pakai_sudah_berakhir":
-      return "Hak Pakai pesanan ini sudah berakhir, jadi tidak ada yang bisa dikembalikan.";
-    default:
-      return "Pesanan belum bisa dibatalkan. Periksa Tagihan pesanan ini lebih dulu.";
-  }
-}
-
-/** Why a confirmation was refused, saying what to do next. */
-function konfirmasiMessage(reason: string): string {
-  switch (reason) {
-    case "pesanan_tidak_ditemukan":
-      return "Pesanan tidak ditemukan.";
-    case "pesanan_sudah_dikonfirmasi":
-      return "Pesanan ini sudah dikonfirmasi, jadi petaknya tidak berubah.";
-    case "pesanan_sudah_ditutup":
-      return "Pesanan ini sudah ditutup, tidak bisa dikonfirmasi.";
-    case "petak_tidak_ditemukan":
-      return "Petak ini bukan milik Lokasi Mitra ini. Pilih dari daftar.";
-    case "petak_belum_tersedia":
-      return "Petak ini sudah terisi atau belum dicek. Bersihkan di Denah lebih dulu, atau pilih petak lain.";
-    case "jenis_makam_beda":
-      return "Petak ini bukan jenis makam yang dipesan. Pilih petak lain.";
-    case "kontak_pemesan_kosong":
-      return "Pesan ini tidak punya nomor telepon untuk Tagihan. Minta nomor kepada keluarga, lalu konfirmasi lagi.";
-    case "harga_tidak_tersedia":
-      return "Harga makam ini belum tersedia atau sudah berubah. Periksa tarif Lokasi Mitra ini.";
-    case "tagihan_tidak_terbit":
-      return "Tagihan belum bisa diterbitkan, jadi pesanan tidak jadi dikonfirmasi. Periksa Pengaturan Operator.";
-    case "lokasi_tidak_terbuka":
-      return "Lokasi Mitra ini tidak ditemukan.";
-    case "perlu_totp":
-    case "tidak_berwenang":
-      return "Anda tidak berwenang melakukan ini.";
-    default:
-      return "Periksa lagi isian Anda.";
-  }
 }

@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTanggal, formatTanggalJam, wibDateTimeLocal } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
-import { ALASAN_TOLAK, alasanTolakKeys } from "@/domain/pemesanan";
+import { ALASAN_TOLAK, alasanTolakLokasiKeys } from "@/domain/pemesanan";
 import { adminLokasiScope } from "../../../scope";
 import { AlternatifDanTolakForm, BatalkanForm, CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
 
@@ -134,7 +134,7 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
             <AlternatifDanTolakForm
               lokasiId={current.id}
               nomor={order.nomor}
-              alasan={alasanTolakKeys.map((key) => ({ key, label: ALASAN_TOLAK[key] }))}
+              alasan={alasanTolakLokasiKeys.map((key) => ({ key, label: ALASAN_TOLAK[key] }))}
               jenisMakam={semuaJenisMakam}
               pemakamanAwal={order.alternatif?.pemakamanAt ? wibDateTimeLocal(order.alternatif.pemakamanAt) : rencana}
               sudahDitawarkan={order.alternatif !== null}
