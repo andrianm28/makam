@@ -22,4 +22,10 @@ Anyone may order Layanan for a non-Berakhir Petak Makam at a Lokasi Mitra found 
 
 ## Comments
 
+- 2026-09-28 — **Owner decision, settled: only Berakhir blocks a Layanan order; `dibatalkan` does not.** Ticket 50 made `dibatalkan` block the order so no further Layanan could be added, while the AC named only **Berakhir**. The owner chose the AC: an order whose one job was cancelled may still take another Layanan. The reasoning that decided it is the asymmetry — with a one-way block, **one** failed service prevents **every other** service the family has already paid for, which is the wrong way round for a family that has committed money.
+
+  The rest of the cancellation shape in ticket 50 is recorded here because it is a **consequence, not a decision**, and nobody should read the order status as if it were finished: cancellation there is **per job only**. There is no order cancellation at all, the order status never leaves `terbayar` (`pembayaran.ts` is its only writer), the Tagihan is only read, and no money moves. And `payouts` on `main` has **zero** references to `pekerjaan_layanan` across its ten files, so a paid-then-cancelled Layanan and the Pencairan module **cannot see each other**. That is a real gap with real tickets, and it is recorded as a gap rather than as something ticket 50 should have solved.
+
+  A second finding from the same review is a defect rather than a question, and it is why ticket 50 is not yet merged: the **`perluVerifikasi` gate on a Layanan order had no exit**. Nothing in the domain could clear it, so a plot that entered "Perlu Verifikasi" could never leave — the AC was satisfied literally, by a gate that can never be opened. The fix adds the public function and, more importantly, **a test of the round trip** rather than another test of the block.
+
 - 2026-09-26 — ADR 0004: the checkout email is required and proven by the Kode Masuk (ticket 22); family messages go by email.
