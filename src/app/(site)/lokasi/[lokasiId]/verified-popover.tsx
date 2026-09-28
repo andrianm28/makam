@@ -43,7 +43,7 @@ export function VerifiedPopover({ dikunjungi }: { dikunjungi: string | null }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls="yang-kami-periksa"
-        className="inline-flex min-h-10 items-center gap-2 rounded-full bg-success-soft px-3.5 py-1.5 text-left text-body font-medium text-success-soft-foreground hover:bg-success-soft/80"
+        className="inline-flex min-h-(--touch-target) items-center gap-2 rounded-full bg-success-soft px-3.5 py-1.5 text-left text-body font-medium text-success-soft-foreground hover:bg-success-soft/80"
       >
         <BadgeCheck className="size-4 shrink-0" aria-hidden />
         {dikunjungi ? `Terverifikasi Makam.co.id · dikunjungi ${dikunjungi}` : "Terverifikasi Makam.co.id"}
@@ -62,7 +62,7 @@ export function VerifiedPopover({ dikunjungi }: { dikunjungi: string | null }) {
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Tutup"
-              className="-m-1 inline-flex size-8 items-center justify-center rounded-lg hover:bg-accent"
+              className="-mt-1.5 -mr-1.5 inline-flex min-h-(--touch-target) min-w-(--touch-target) items-center justify-center rounded-lg hover:bg-accent"
             >
               <X className="size-4" />
             </button>

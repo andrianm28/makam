@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AllInPrice, QuotedLine } from "@/domain/tariffs";
-import { allInBreakdown } from "./quote-breakdown";
+import { allInBreakdown, labelledPartsBreakdown } from "./quote-breakdown";
 
 const lokasi = { provider: { kind: "lokasi_mitra", lokasiId: "l" } } as const;
 const operator = { provider: { kind: "operator" } } as const;
@@ -41,5 +41,20 @@ describe("an all-in price's parts, in one line", () => {
     };
 
     expect(allInBreakdown(price)).toBe("Biaya Pemakaman Rp 1.500.000");
+  });
+});
+
+describe("a Layanan price's already-labelled parts, in one line", () => {
+  it("joins every part's own label and amount with ' + '", () => {
+    const parts = [
+      { label: "Mandi dan Kafan", amount: 400_000 },
+      { label: "Biaya Layanan Platform", amount: 250_000 },
+    ];
+
+    expect(labelledPartsBreakdown(parts)).toBe("Mandi dan Kafan Rp 400.000 + Biaya Layanan Platform Rp 250.000");
+  });
+
+  it("is the bare amount when there is only one part", () => {
+    expect(labelledPartsBreakdown([{ label: "Angkutan Jenazah", amount: 300_000 }])).toBe("Angkutan Jenazah Rp 300.000");
   });
 });

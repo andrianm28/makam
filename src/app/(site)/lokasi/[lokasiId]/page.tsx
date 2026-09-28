@@ -24,7 +24,7 @@ import { lokasiFacilities, weekdays, type JamOperasional, type LokasiFacility, t
 import type { Tenure } from "@/domain/tariffs";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, embedMapUrl, mapsQueryFor } from "@/lib/maps";
-import { allInBreakdown } from "@/lib/quote-breakdown";
+import { allInBreakdown, labelledPartsBreakdown } from "@/lib/quote-breakdown";
 import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
 import { VerifiedPopover } from "./verified-popover";
@@ -353,7 +353,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                             <span className="text-title-2 tabular-nums text-foreground">{formatRupiah(varian.harga.total)}</span>
                           </div>
                           <p className="text-caption text-muted-foreground tabular-nums">
-                            {varian.harga.parts.map((part) => `${part.label} ${formatRupiah(part.amount)}`).join(" + ")}
+                            {labelledPartsBreakdown(varian.harga.parts)}
                           </p>
                         </li>
                       ))}
@@ -454,6 +454,15 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
             )}
           </Section>
 
+          {/*
+           * This section is Pemesanan Terencana's own Pembatalan policy only,
+           * hidden entirely on a Lokasi without Terencana (ticket 16 decision,
+           * 2026-09-26, from the public prototype). Saat Duka's cancellation
+           * rule (spec, story 34 — refunded except Biaya Layanan Platform) is
+           * real and in the spec, just out of this section's scope: it belongs
+           * on the Saat Duka order flow itself, not repeated here for every
+           * Lokasi Mitra page.
+           */}
           {profile.terencanaAktif ? (
             <Section id="pembatalan" title="Pembatalan pemesanan terencana">
               <ul className="flex flex-col gap-2">
