@@ -40,9 +40,10 @@ function PriceRow({ label, price }: { label: string; price: AllInPrice | null })
 
 /**
  * "Pengurusan di TPU DKI" (spec, content pages): the free DIY guide first, then
- * what our help costs, then the three ways in. The order entries themselves are
- * Rilis 3 (tickets 44, 45 and 47), so each one says it is not open yet instead
- * of linking nowhere.
+ * what our help costs, then the three ways in. Saat Duka at a TPU is the wizard's
+ * own TPU section (ticket 44), so that entry opens it; Perpanjangan TPU and
+ * filing-only Pengurusan IPTM (tickets 48 and 47) each say they are not open yet
+ * instead of linking nowhere.
  */
 export default async function PengurusanTpuPage() {
   await connection(); // the prices come from the database, so this page is never prerendered
@@ -117,12 +118,14 @@ export default async function PengurusanTpuPage() {
       <Card>
         <CardHeader>
           <CardTitle>Tiga jalan masuk lewat Makam.co.id</CardTitle>
-          <CardDescription>Belum bisa dipesan dari situs ini.</CardDescription>
+          <CardDescription>Perpanjang IPTM dan mengurus berkas sendiri menyusul.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-body">
           <p>
-            <span className="font-medium">Saat Duka di TPU</span> — kami siapkan pemakamannya bersama TPU lalu mengurus
-            IPTM-nya. Segera hadir.
+            <Link href="/pesan-makam/saat-duka?jenis=tpu_dki" className="font-medium text-brand underline underline-offset-4">
+              Saat Duka di TPU
+            </Link>{" "}
+            — kami siapkan pemakamannya bersama TPU lalu mengurus IPTM-nya.
           </p>
           <p>
             <span className="font-medium">Perpanjang IPTM</span> — memperpanjang izin makam yang akan berakhir. Segera

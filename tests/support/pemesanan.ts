@@ -2,9 +2,10 @@ import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import { createPengurusan } from "@/domain/pengurusan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -17,14 +18,6 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
  * Notifications. Every announcement the Pemesanan module makes is collected in
  * `diumumkan`, standing in for the Notifications module the wizard hands it in
  * production.
- */
-/**
- * Lokasi, Tariffs, Inventory, Field Work, Billing and Pemesanan together on the
- * test Postgres, sharing one fake Clock, FileStore, Identity, Audit Log and
- * Notifications. By default every announcement the Pemesanan module makes is
- * collected in `diumumkan`, standing in for the Notifications module; with
- * `{ notifications: true }` the real module sends the Peringatan Staf the
- * announcement raises, which is how the wizard's own wiring is checked.
  */
 export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
   const setup = publishOnTestDatabase(db);
@@ -59,7 +52,19 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
   });
-  return { ...setup, pemesanan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
+  // The wizard's first screen is the combined Lokasi Mitra / TPU list, so a
+  // wizard fixture has both modules: the Pengurusan module reads the TPU list and
+  // the TPU prices the section shows, and shares everything else with this one.
+const pengurusan = createPengurusan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    billing: setup.billing,
+    identity: setup.identity,
+  });
+  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -106,8 +111,7 @@ function adminPlatform(setup: PemesananModul) {
     admin = signedInAdminPlatform(setup);
     admins.set(setup, admin);
   }
-  return admin;
-}
+  return admin;}
 
 /** The one PetugasLapangan of a setup: a Kode Masuk is sent at most once a minute per email. */
 const petugasCache = new WeakMap<object, Promise<Actor>>();
@@ -299,10 +303,11 @@ export async function belumTeverifikasiLokasi(setup: PemesananModul, name = "Mak
 
 /**
  * A Pemesan with a proven email: a Kode Masuk created the Akun, as it does at
- * Kirim, with `name` the name "Data & kirim" held.
+ * Kirim, with `name` the name "Data & kirim" held. It needs only the Clock, the
+ * Identity module and the fake EmailSender, so the Pengurusan module's setup uses
+ * this too.
  */
-export async function pemesanDenganEmail(setup: PemesananModul, email: string, name?: string) {
-  let sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
+export async function pemesanDenganEmail(setup: Pick<PemesananSetup, "clock" | "identity" | "email">, email: string, name?: string) {  let sent = await setup.identity.requestKodeMasuk({ email, ip: nextTestIp() });
   // A second login to the same email within 60 s waits for "Kirim ulang", as a person would.
   if (!sent.ok && sent.reason === "tunggu_kirim_ulang") {
     setup.clock.set(sent.retryAt);
