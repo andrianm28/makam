@@ -1,6 +1,5 @@
 import { SiteFrame } from "@/components/site/site-frame";
 import { publicMenu } from "@/lib/public-navigation";
-import { yearInJakarta } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 
@@ -16,7 +15,7 @@ import { currentActor } from "@/server/session";
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: LayoutProps<"/">) {
-  const { operatorSettings, adapters } = serverRuntime();
+  const { operatorSettings } = serverRuntime();
   const [settings, actor] = await Promise.all([operatorSettings.current(), currentActor()]);
 
   return (
@@ -24,7 +23,6 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
       items={publicMenu({ signedIn: actor !== null })}
       contact={settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null}
       legalName={settings?.legalName ?? null}
-      year={yearInJakarta(adapters.clock.now())}
     >
       {children}
     </SiteFrame>

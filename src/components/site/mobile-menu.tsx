@@ -1,38 +1,78 @@
 "use client";
 
-import { MenuIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { CsLink } from "@/components/site/cs-link";
+import Link from "next/link";
+import { useState } from "react";
+import { MenuIcon, MessageCircleIcon, XIcon } from "lucide-react";
+import { BrandLogo } from "@/components/makam/brand-logo";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { SiteNav } from "@/components/site/site-nav";
-import type { CsContact } from "@/components/kode-masuk/state";
+import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
 import type { PublicMenuItem } from "@/lib/public-navigation";
 
 /**
- * The menu on a phone: the same items the top bar shows from `md` up, plus a way
- * to the CS. It opens from the header's button, so the header and the footer
- * stay server components and this, with the nav it marks up, is the only client
- * part of the frame.
+ * The drawer below lg (public-site prototype): the logo and a close button on
+ * top, the menu, then the account entry as an outlined button and the CS link
+ * at the bottom.
  */
-export function MobileMenu({ items, contact }: { items: readonly PublicMenuItem[]; contact: CsContact | null }) {
+export function MobileMenu({
+  items,
+  account,
+  contact,
+}: {
+  items: readonly PublicMenuItem[];
+  account: PublicMenuItem | null;
+  contact: CsContact | null;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <Button variant="outline" size="icon" aria-label="Buka menu" className="md:hidden">
-            <MenuIcon className="size-5" aria-hidden="true" />
-          </Button>
+          <button
+            type="button"
+            aria-label="Buka menu"
+            className="inline-flex size-11 items-center justify-center rounded-lg text-forest hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
+          />
         }
-      />
-      <SheetContent side="right" className="w-4/5 max-w-sm gap-2 overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Menu</SheetTitle>
-        </SheetHeader>
-        <nav aria-label="Menu" className="flex flex-col">
+      >
+        <MenuIcon className="size-6" aria-hidden="true" />
+      </SheetTrigger>
+      <SheetContent side="right" className="w-[86%] max-w-sm gap-0 bg-background p-0" showCloseButton={false}>
+        <div className="flex h-16 items-center justify-between border-b border-border px-4">
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <BrandLogo />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Tutup menu"
+            className="inline-flex size-11 items-center justify-center rounded-lg text-forest hover:bg-accent"
+          >
+            <XIcon className="size-6" aria-hidden="true" />
+          </button>
+        </div>
+        <nav aria-label="Menu" className="flex flex-col p-2" onClick={() => setOpen(false)}>
           <SiteNav items={items} variant="drawer" />
         </nav>
-        <div className="mt-auto border-t border-border pt-3">
-          <CsLink contact={contact} label="Tanya CS lewat WhatsApp" className="text-body" />
+        <div className="mt-auto flex flex-col gap-3 border-t border-border p-4">
+          {account?.href ? (
+            <Link
+              href={account.href}
+              onClick={() => setOpen(false)}
+              className="inline-flex h-12 items-center justify-center rounded-lg border border-border-strong text-body-lg font-semibold text-forest"
+            >
+              {account.label}
+            </Link>
+          ) : null}
+          {contact ? (
+            <a
+              href={csWhatsAppLink(contact)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 text-body text-muted-foreground"
+            >
+              <MessageCircleIcon className="size-4" aria-hidden="true" /> Butuh bantuan? WhatsApp CS
+            </a>
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>

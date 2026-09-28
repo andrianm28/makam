@@ -12,21 +12,18 @@
  * and never a date (docs/design-system.md, voice and tone).
  */
 import type { LucideIcon } from "lucide-react";
-import { Flower2Icon, HandCoinsIcon, LandmarkIcon, RefreshCcwIcon } from "lucide-react";
+import { BadgeCheckIcon, HandHeartIcon, ReceiptTextIcon } from "lucide-react";
 import { tileKeHub } from "@/lib/makam-keluarga-content";
-
-/** What a tile says about a service that is in a later release. */
-const SEGERA_HADIR = "Segera hadir.";
 
 export interface HomepageTile {
   label: string;
-  /** Absent while the service is not in this release: the tile offers the CS instead. */
+  /** Absent while the service is not in this release: the tile says "Segera hadir" and offers the CS instead. */
   href?: string;
   /** One line on what the service is, in the family's words. */
   summary: string;
-  /** What the tile says about its own availability. */
-  description: string;
-  icon: LucideIcon;
+  /** The tile's photograph (docs/brand/stock-photos.md) and its alt text, in Bahasa Indonesia. */
+  image: string;
+  imageAlt: string;
 }
 
 /**
@@ -43,7 +40,10 @@ export interface HomepageHero {
   urgent: { label: string; caption: string; href: string };
   /** Terencana: the text link, never a second button. */
   planned: { label: string; href: string; prefetch?: boolean };
-  /** Alt text for the hero photograph, in Bahasa Indonesia. */
+  /** What a family is told before it starts: nothing is paid on sending. */
+  reassurance: string;
+  /** The hero photograph and its alt text, in Bahasa Indonesia. */
+  photo: string;
   photoAlt: string;
 }
 
@@ -58,43 +58,46 @@ export const homepageHero: HomepageHero = {
   planned: {
     label: "Siapkan makam untuk nanti",
     href: "/pesan-makam/terencana",
-    // The Terencana wizard arrives in this same release (ticket 36). Until it does,
-    // the router's prefetch of a route that is not there never settles, so the
-    // page holds a request open on every view. Drop this when 36 lands.
-    prefetch: false,
   },
-  photoAlt: "Keluarga tiga generasi duduk bersama di taman pada sore hari yang hangat.",
+  reassurance: "Tidak ada yang dibayar saat mengirim pesanan, dan dokumen bisa menyusul.",
+  photo: "/content/beranda-hero-keluarga.jpg",
+  photoAlt: "Tiga bersaudara berdiri berdampingan dengan tenang di taman yang berkabut.",
+};
+
+/** The tile row's heading and line (public-site prototype). */
+export const homepageTilesIntro = {
+  heading: "Untuk makam keluarga",
+  line: "Setelah pemakaman, kami tetap menemani: merawat, memperpanjang dan mengurus.",
 };
 
 export const homepageTiles: HomepageTile[] = [
   {
     label: "Perpanjang Makam",
     // The tile opens the Makam keluarga hub with Perpanjang already chosen (spec, Public site
-    // and routing decisions): the hub owns the branch, and the Perpanjang flow itself arrives
-    // with a later ticket, which the hub says in its own words.
+    // and routing decisions): the hub owns the branch.
     href: tileKeHub.perpanjang,
-    summary: "Memperpanjang Hak Pakai Petak Makam atau Kavling Keluarga di Lokasi Mitra, beserta masa tenggangnya.",
-    description: "Mulai dari Makam Keluarga: cari dulu nomor makamnya.",
-    icon: RefreshCcwIcon,
+    summary: "Perpanjang masa Hak Pakai makam keluarga sebelum berakhir.",
+    image: "/content/beranda-tile-perpanjang.jpg",
+    imageAlt: "Area makam yang teduh dengan rumput terawat dan pohon besar.",
   },
   {
     label: "Layanan Makam",
     href: tileKeHub.layanan,
-    summary: "Perawatan makam dari daftar layanan: bunga, nisan, pembersihan dan pemotongan rumput.",
-    description: "Mulai dari Makam Keluarga: cari dulu nomor makamnya.",
-    icon: Flower2Icon,
+    summary: "Bunga, nisan, pembersihan dan perawatan makam, dengan foto bukti.",
+    image: "/content/beranda-tile-layanan.jpg",
+    imageAlt: "Rangkaian bunga putih di atas makam.",
   },
   {
     label: "Urus di TPU DKI",
-    summary: "Panduan pengurusan pemakaman di Tempat Pemakaman Umum DKI Jakarta, termasuk berkas izinnya.",
-    description: SEGERA_HADIR,
-    icon: LandmarkIcon,
+    summary: "Panduan gratis mengurus sendiri, atau kami bantu urus izinnya.",
+    image: "/content/beranda-tile-tpu.jpg",
+    imageAlt: "Pemakaman umum di Jakarta yang hijau dengan gedung di kejauhan.",
   },
   {
     label: "Wakaf Tanah",
-    summary: "Wakaf tanah untuk makam, diurus bersama nazhir. Makam.co.id tidak pernah menjadi pemilik tanah.",
-    description: SEGERA_HADIR,
-    icon: HandCoinsIcon,
+    summary: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir.",
+    image: "/content/beranda-tile-wakaf.jpg",
+    imageAlt: "Hamparan sawah hijau dengan rumah di kejauhan.",
   },
 ];
 
@@ -103,29 +106,38 @@ export interface HomepageTrustColumn {
   label: string;
   /** The one concrete line that backs the word up. */
   line: string;
-  /** Where the claim is explained in full. */
-  href: string;
+  icon: LucideIcon;
 }
 
 /**
  * Dibantu · Jelas · Aman. Each line is something the platform really does in this
  * release, and the Dibantu line says nothing about TPU paperwork, which only
- * arrives in a later release (spec, release plan).
+ * arrives in a later release (spec, release plan). Cara Kami Bekerja explains
+ * all three, linked once under the strip.
  */
 export const homepageTrust: HomepageTrustColumn[] = [
   {
     label: "Dibantu",
-    line: "Administrasi pemakaman dikerjakan bersama keluarga, satu langkah pada satu waktu, sampai bukti pemesanan keluar.",
-    href: "/cara-kami-bekerja",
+    line: "Bantuan administrasi pemakaman, dari memilih makam sampai dokumen, oleh tim yang bisa Anda hubungi.",
+    icon: HandHeartIcon,
   },
   {
     label: "Jelas",
-    line: "Harga di halaman sama dengan Tagihan, dan Biaya Layanan Platform selalu tertulis terpisah.",
-    href: "/cara-kami-bekerja",
+    line: "Harga di halaman lokasi sama dengan harga di Tagihan. Biaya Layanan Platform selalu tertulis terpisah.",
+    icon: ReceiptTextIcon,
   },
   {
     label: "Aman",
-    line: "Setiap Lokasi Mitra dikunjungi langsung sebelum ditampilkan, dan berkas keluarga disimpan terpisah.",
-    href: "/cara-kami-bekerja",
+    line: "Setiap Lokasi Mitra dikunjungi dan diperiksa petugas kami, dan dokumen keluarga disimpan secara privat.",
+    icon: BadgeCheckIcon,
   },
 ];
+
+export const homepageTrustHeading = "Dibantu, jelas, aman";
+export const homepageTrustLink = { label: "Cara Kami Bekerja", href: "/cara-kami-bekerja" };
+
+/** The CS band near the foot of the Beranda. */
+export const homepageCsBand = {
+  heading: "Butuh bantuan memilih langkah?",
+  line: "Tim kami siap mendampingi lewat WhatsApp",
+};

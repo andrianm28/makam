@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { SiteFrame } from "@/components/site/site-frame";
 import { NotFoundMessage } from "@/components/makam/not-found-message";
 import { publicMenu } from "@/lib/public-navigation";
-import { yearInJakarta } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 
@@ -27,7 +26,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function HalamanTidakDitemukan() {
-  const { operatorSettings, adapters } = serverRuntime();
+  const { operatorSettings } = serverRuntime();
   const [settings, actor] = await Promise.all([operatorSettings.current(), currentActor()]);
 
   return (
@@ -35,7 +34,6 @@ export default async function HalamanTidakDitemukan() {
       items={publicMenu({ signedIn: actor !== null })}
       contact={settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null}
       legalName={settings?.legalName ?? null}
-      year={yearInJakarta(adapters.clock.now())}
     >
       <NotFoundMessage
         links={[

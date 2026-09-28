@@ -13,15 +13,14 @@ function header(props: Parameters<typeof SiteHeader>[0]): string {
 }
 
 describe("the top bar", () => {
-  it("is the logo home, the menu, and a way to the CS", () => {
+  it("is the logo home, the menu, the account button and the drawer's trigger", () => {
     const markup = header({ items, contact });
     expect(markup).toContain('href="/"');
     expect(markup).toMatch(/<nav[^>]*aria-label="Menu utama"/);
-    expect(markup).toContain('href="https://wa.me/628112222333"');
-    // The whole menu is in the bar from md up; on a phone the drawer takes it, and
-    // the CS link stays one tap away as an icon with its label for assistive tech.
+    // The account entry is its own outlined button, not a menu item, and the
+    // whole menu moves into the drawer below lg (public-site prototype).
+    expect(markup).toContain('href="/masuk"');
     expect(markup).toMatch(/aria-label="Buka menu"/);
-    expect(markup).toContain("sr-only sm:not-sr-only");
   });
 
   it("lists every menu item, the signed-out one included", () => {
@@ -30,7 +29,7 @@ describe("the top bar", () => {
     expect(markup).toContain("Masuk");
   });
 
-  it("still stands up, without a CS link, before Pengaturan Operator holds a number", () => {
+  it("still stands up before Pengaturan Operator holds a CS number", () => {
     const markup = header({ items, contact: null });
     expect(markup).not.toContain("wa.me");
     expect(markup).toContain("Masuk");

@@ -29,7 +29,7 @@ export function PublicNavList({
         const caption = inDrawer ? (
           <span className="text-caption text-muted-foreground">{item.description}</span>
         ) : !item.href ? (
-          <span className="text-caption text-muted-foreground">Segera</span>
+          <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-caption font-medium text-muted-foreground">Segera</span>
         ) : null;
         const body = (
           <>
@@ -46,11 +46,13 @@ export function PublicNavList({
                 href={item.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "flex min-h-(--touch-target) items-center gap-2 rounded-md px-2 text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                  inDrawer ? "flex-col items-start gap-0 py-2" : "py-1.5",
+                  "flex items-center rounded-lg text-body outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                  inDrawer ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg" : "h-10 px-3",
                   current
-                    ? "bg-brand-soft font-semibold text-brand-soft-foreground"
-                    : "text-foreground hover:bg-accent hover:text-accent-foreground",
+                    ? inDrawer
+                      ? "bg-brand-soft font-semibold text-brand-soft-foreground"
+                      : "font-semibold text-forest"
+                    : "font-medium text-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 {body}
@@ -58,8 +60,8 @@ export function PublicNavList({
             ) : (
               <span
                 className={cn(
-                  "flex min-h-(--touch-target) items-center gap-2 px-2 text-body text-muted-foreground",
-                  inDrawer ? "flex-col items-start gap-0 py-2" : "py-1.5",
+                  "flex items-center text-body font-medium text-muted-foreground",
+                  inDrawer ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg" : "h-10 px-3",
                 )}
               >
                 {body}
