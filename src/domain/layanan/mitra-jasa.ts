@@ -515,14 +515,25 @@ export async function tidakTersediaPada(deps: LayananDeps, mitraJasaId: string, 
 /**
  * The Mitra Jasa this signed-in Akun is, found by its Email Terverifikasi (ADR
  * 0004), or null when that address is none. The one answer to that question, and
- * every feature that asks it asks here: an Akun may hold many roles (spec,
- * Identity & Access), so an Operator's own email may be onboarded as a Mitra
- * Jasa, and that one Akun is then one Mitra Jasa however many ways it looks.
+ * every feature that asks it asks here: an Akun may hold many roles (spec:342),
+ * so an Operator's own email may be onboarded as a Mitra Jasa, and that one Akun
+ * is then one Mitra Jasa however many ways it looks — settled by the owner on
+ * 2026-09-28 (`00-index.md`), not left to this lookup to decide.
  *
- * Which *features* it may reach is a separate question, and `authorize` is where
- * it is answered: `mitra_jasa.lihat_saya` and `mitra_jasa.tidak_tersedia` take the
- * Akun's own resource and require the `mitra_jasa` role, so an address with no
- * record and a role with no record are both refused, clearly and in one place.
+ * Holding both roles loosens nothing: the strictest rule still applies to the
+ * whole account, whatever other roles it holds (spec:344) — 12 h from
+ * `sessionLengthMs`, which asks the roles and not this lookup, and TOTP from
+ * `authorize`'s `needsTotp`. Which *features* it may reach is a separate
+ * question, and `authorize` is where it is answered: `mitra_jasa.lihat_saya` and
+ * `mitra_jasa.tidak_tersedia` take the Akun's own resource and require the
+ * `mitra_jasa` role, so an address with no record and a role with no record are
+ * both refused, clearly and in one place.
+ *
+ * The same decision asks the Audit Log to tell an Operator onboarding themselves
+ * from an ordinary Mitra Jasa onboarding, since that Operator can then accept work
+ * the Operator pays for. `buatMitraJasa` records who onboarded, which is the
+ * material, but marks no such thing: a gap, recorded in ticket 55's Comments and
+ * deliberately not built here.
  */
 export async function profileOfActor(
   deps: LayananDeps,
