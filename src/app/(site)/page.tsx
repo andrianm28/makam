@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRightIcon, MessageCircleIcon } from "lucide-react";
-import { csWhatsAppLink } from "@/components/kode-masuk/state";
+import { CsLink } from "@/components/site/cs-link";
 import {
   homepageCsBand,
   homepageHero,
@@ -43,7 +43,7 @@ export default async function BerandaPage() {
               <div className="flex flex-col gap-2">
                 <Link
                   href={homepageHero.urgent.href}
-                  className="inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-highlight px-7 text-body-lg font-semibold text-highlight-foreground transition-colors hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
+                  className="inline-flex h-13 min-h-(--touch-target) items-center justify-center gap-2 rounded-xl bg-highlight px-7 text-body-lg font-semibold text-highlight-foreground transition-colors hover:bg-highlight/90 focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
                 >
                   {homepageHero.urgent.label} <ArrowRightIcon className="size-5" aria-hidden="true" />
                 </Link>
@@ -52,7 +52,7 @@ export default async function BerandaPage() {
               <Link
                 href={homepageHero.planned.href}
                 prefetch={homepageHero.planned.prefetch}
-                className="inline-flex h-13 items-center gap-1.5 text-body-lg font-medium text-ivory underline decoration-sand/60 underline-offset-4 hover:decoration-sand focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
+                className="inline-flex h-13 min-h-(--touch-target) items-center gap-1.5 text-body-lg font-medium text-ivory underline decoration-sand/60 underline-offset-4 hover:decoration-sand focus-visible:ring-3 focus-visible:ring-sand/60 focus-visible:outline-none"
               >
                 {homepageHero.planned.label}
               </Link>
@@ -105,17 +105,15 @@ export default async function BerandaPage() {
                       <span className="mt-auto inline-flex items-center gap-1 pt-2 text-body font-semibold text-forest">
                         Mulai <ArrowRightIcon className="size-4" aria-hidden="true" />
                       </span>
-                    ) : contact ? (
-                      <a
-                        href={csWhatsAppLink(contact)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    ) : (
+                      <CsLink
+                        contact={contact}
                         aria-label={`Tanya CS soal ${tile.label}`}
                         className="mt-auto inline-flex items-center gap-1.5 self-start pt-2 text-body font-medium text-sage-strong hover:text-forest"
                       >
                         <MessageCircleIcon className="size-4" aria-hidden="true" /> Butuh sekarang? Tanya CS
-                      </a>
-                    ) : null}
+                      </CsLink>
+                    )}
                   </div>
                 </li>
               );
@@ -157,14 +155,12 @@ export default async function BerandaPage() {
                 {homepageCsBand.line}, {contact.replyHours}.
               </p>
             </div>
-            <a
-              href={csWhatsAppLink(contact)}
-              target="_blank"
-              rel="noopener noreferrer"
+            <CsLink
+              contact={contact}
               className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-body font-semibold text-primary-foreground hover:bg-primary/90"
             >
               <MessageCircleIcon className="size-4" aria-hidden="true" /> WhatsApp CS
-            </a>
+            </CsLink>
           </div>
         </section>
       ) : null}

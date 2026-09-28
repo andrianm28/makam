@@ -38,4 +38,22 @@ describe("the CS link", () => {
     expect(markup).toContain("sr-only sm:not-sr-only");
     expect(markup).toContain("Tanya CS");
   });
+
+  it("lets a call site take over the markup and the classes entirely", () => {
+    // A call site with its own icon, wording and layout still goes through
+    // CsLink for the href/target/rel and the contact-null check, so its
+    // `children` replaces the default markup and its `className` replaces
+    // the default look instead of merging onto it.
+    const markup = renderToStaticMarkup(
+      createElement(
+        CsLink,
+        { contact, className: "custom-look", "aria-label": "Tanya soal ini" },
+        "Butuh bantuan? WhatsApp CS",
+      ),
+    );
+    expect(markup).toContain('class="custom-look"');
+    expect(markup).toContain('aria-label="Tanya soal ini"');
+    expect(markup).toContain("Butuh bantuan? WhatsApp CS");
+    expect(markup).not.toContain("Tanya CS");
+  });
 });

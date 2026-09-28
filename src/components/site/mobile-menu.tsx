@@ -6,7 +6,8 @@ import { MenuIcon, MessageCircleIcon, XIcon } from "lucide-react";
 import { BrandLogo } from "@/components/makam/brand-logo";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { SiteNav } from "@/components/site/site-nav";
-import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
+import { CsLink } from "@/components/site/cs-link";
+import type { CsContact } from "@/components/kode-masuk/state";
 import type { PublicMenuItem } from "@/lib/public-navigation";
 
 /**
@@ -31,7 +32,7 @@ export function MobileMenu({
           <button
             type="button"
             aria-label="Buka menu"
-            className="inline-flex size-11 items-center justify-center rounded-lg text-forest hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
+            className="inline-flex min-h-(--touch-target) min-w-(--touch-target) items-center justify-center rounded-lg text-forest hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
           />
         }
       >
@@ -45,7 +46,7 @@ export function MobileMenu({
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Tutup menu"
-            className="inline-flex size-11 items-center justify-center rounded-lg text-forest hover:bg-accent"
+            className="inline-flex min-h-(--touch-target) min-w-(--touch-target) items-center justify-center rounded-lg text-forest hover:bg-accent"
           >
             <XIcon className="size-6" aria-hidden="true" />
           </button>
@@ -63,16 +64,9 @@ export function MobileMenu({
               {account.label}
             </Link>
           ) : null}
-          {contact ? (
-            <a
-              href={csWhatsAppLink(contact)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 text-body text-muted-foreground"
-            >
-              <MessageCircleIcon className="size-4" aria-hidden="true" /> Butuh bantuan? WhatsApp CS
-            </a>
-          ) : null}
+          <CsLink contact={contact} className="inline-flex items-center justify-center gap-2 text-body text-muted-foreground">
+            <MessageCircleIcon className="size-4" aria-hidden="true" /> Butuh bantuan? WhatsApp CS
+          </CsLink>
         </div>
       </SheetContent>
     </Sheet>

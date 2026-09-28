@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/makam/brand-logo";
-import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
+import { CsLink } from "@/components/site/cs-link";
+import type { CsContact } from "@/components/kode-masuk/state";
 import { formatTelepon } from "@/lib/format-telepon";
 import { contentPageLinks } from "@/lib/public-navigation";
 
@@ -31,9 +32,9 @@ export function SiteFooter({ legalName, contact }: { legalName: string | null; c
         {contact ? (
           <div className="flex flex-col gap-2 text-small">
             <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Bantuan</span>
-            <a href={csWhatsAppLink(contact)} target="_blank" rel="noopener noreferrer" className="font-medium text-forest">
+            <CsLink contact={contact} className="font-medium text-forest">
               WhatsApp CS {formatTelepon(contact.whatsApp)}
-            </a>
+            </CsLink>
             <span className="text-muted-foreground">{contact.replyHours}</span>
           </div>
         ) : null}

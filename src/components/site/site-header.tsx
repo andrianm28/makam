@@ -28,7 +28,7 @@ export function SiteHeader({ items, contact }: { items: readonly PublicMenuItem[
           {account?.href ? (
             <Link
               href={account.href}
-              className="hidden h-10 items-center rounded-lg border border-border-strong px-4 text-body font-semibold text-forest transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:inline-flex"
+              className="hidden min-h-(--touch-target) items-center rounded-lg border border-border-strong px-4 text-body font-semibold text-forest transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:inline-flex"
             >
               {account.label}
             </Link>

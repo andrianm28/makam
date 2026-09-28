@@ -2,7 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { MessageCircleIcon } from "lucide-react";
-import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
+import { CsLink } from "@/components/site/cs-link";
+import type { CsContact } from "@/components/kode-masuk/state";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,21 +13,18 @@ import { cn } from "@/lib/utils";
  */
 export function CsFloatingButton({ contact }: { contact: CsContact | null }) {
   const pathname = usePathname() ?? "/";
-  if (!contact) return null;
   const raised = /^\/lokasi\/[^/]+$/.test(pathname);
   return (
-    <a
-      href={csWhatsAppLink(contact)}
-      target="_blank"
-      rel="noopener noreferrer"
+    <CsLink
+      contact={contact}
       aria-label="Tanya CS lewat WhatsApp"
       className={cn(
-        "fixed right-4 z-30 inline-flex h-12 items-center gap-2 rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:right-8",
+        "fixed right-4 z-30 inline-flex h-12 min-h-(--touch-target) items-center gap-2 rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 md:right-8",
         raised ? "bottom-24 lg:bottom-8" : "bottom-4 md:bottom-8",
       )}
     >
       <MessageCircleIcon className="size-5" aria-hidden="true" />
       <span className="hidden sm:inline">Tanya CS</span>
-    </a>
+    </CsLink>
   );
 }
