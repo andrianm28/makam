@@ -514,15 +514,20 @@ export async function tidakTersediaPada(deps: LayananDeps, mitraJasaId: string, 
 
 /**
  * The Mitra Jasa this signed-in Akun is, found by its Email Terverifikasi (ADR
- * 0004), or null when that address is none. Null for an Admin Platform, who
- * onboards Mitra Jasa but is never one: an Akun that somehow holds both roles
- * reads the Operator's list, not its own profile.
+ * 0004), or null when that address is none. The one answer to that question, and
+ * every feature that asks it asks here: an Akun may hold many roles (spec,
+ * Identity & Access), so an Operator's own email may be onboarded as a Mitra
+ * Jasa, and that one Akun is then one Mitra Jasa however many ways it looks.
+ *
+ * Which *features* it may reach is a separate question, and `authorize` is where
+ * it is answered: `mitra_jasa.lihat_saya` and `mitra_jasa.tidak_tersedia` take the
+ * Akun's own resource and require the `mitra_jasa` role, so an address with no
+ * record and a role with no record are both refused, clearly and in one place.
  */
 export async function profileOfActor(
   deps: LayananDeps,
   by: Actor,
 ): Promise<{ id: string; email: string; status: MitraJasaStatus } | null> {
-  if (by.roles.includes("admin_platform")) return null;
   const [row] = await deps.db
     .select({ id: layananMitraJasa.id, email: layananMitraJasa.email, status: layananMitraJasa.status })
     .from(layananMitraJasa)
@@ -567,8 +572,6 @@ export interface MitraJasaBelumLengkap {
   email: string;
   /** Which of the nine steps are still missing, in the order the profile page lists them. */
   belum: LangkahOnboarding[];
-  /** When the record was created: the row's own deadline counts a week from here. */
-  dibuatPada: Date;
 }
 
 /**
@@ -586,7 +589,7 @@ export async function mitraJasaBelumLengkap(deps: LayananDeps, by: Actor): Promi
   const belum: MitraJasaBelumLengkap[] = [];
   for (const row of rows) {
     const langkah = langkahBelumLengkap(await keMitraJasa(deps, row));
-    if (langkah.length > 0) belum.push({ id: row.id, namaLengkap: row.namaLengkap, email: row.email, belum: langkah, dibuatPada: row.createdAt });
+    if (langkah.length > 0) belum.push({ id: row.id, namaLengkap: row.namaLengkap, email: row.email, belum: langkah });
   }
   return belum;
 }

@@ -1,4 +1,5 @@
 import { UserPlusIcon } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
@@ -57,7 +58,7 @@ export default async function MitraJasaListPage() {
             <CardDescription>
               {belum.length === 0
                 ? "Onboarding semua Mitra Jasa sudah lengkap."
-                : `${belum.length} Mitra Jasa masih belum lengkap onboardingly.`}
+                : `${belum.length} Mitra Jasa belum menyelesaikan onboarding.`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -74,9 +75,9 @@ export default async function MitraJasaListPage() {
                 {daftar.map((satu) => (
                   <TableRow key={satu.id}>
                     <TableCell>
-                      <a className="font-medium underline-offset-4 hover:underline" href={`/staf/admin-platform/mitra-jasa/${satu.id}`}>
+                      <Link className="font-medium underline-offset-4 hover:underline" href={`/staf/admin-platform/mitra-jasa/${satu.id}`}>
                         {satu.namaLengkap}
-                      </a>
+                      </Link>
                       {satu.baru ? (
                         <Badge variant="secondary" className="ml-2">
                           Baru

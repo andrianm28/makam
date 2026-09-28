@@ -82,8 +82,6 @@ function refusalMessage(reason: string): string {
       return "Tinjauan bulan ini sudah dicatat.";
     case "nomor_telepon_tidak_valid":
       return "Nomor telepon harus diawali 62 atau 0, lalu 8 sampai 14 angka.";
-    case "kirim_ulang_tidak_boleh":
-      return "Undangan staf hanya boleh dikirim oleh Admin Platform.";
     default:
       return "Periksa lagi isian Anda.";
   }
@@ -132,25 +130,6 @@ export async function buatMitraJasa(_previous: FormState, formData: FormData): P
   if (!result.value.ok) return refused(result.value.reason);
   revalidatePath(LIST);
   return { status: "berhasil", message: "Mitra Jasa ditambahkan. Undangan staf dikirim ke emailnya: masuk dengan Kode Masuk untuk menerima perannya." };
-}
-
-/** Admin Platform sends the Undangan Staf again, e.g. when the first one did not arrive. */
-export async function kirimUlangUndangan(_previous: FormState, formData: FormData): Promise<FormState> {
-  const result = await guarded({
-    action: "staf.undang",
-    resource: () => ({ kind: "staf" } as const),
-    schema: z.object({ email: z.string().trim().min(1), nomorTelepon: z.string().trim().min(1) }),
-    input: { email: field(formData, "email"), nomorTelepon: field(formData, "nomorTelepon") },
-    run: (actor, data) =>
-      serverRuntime().identity.inviteStaff(actor, { email: data.email, phoneNumber: data.nomorTelepon, role: "mitra_jasa" }),
-  });
-  if (!result.ok) return refused(result.error === "input_tidak_valid" ? "email_tidak_valid" : result.error);
-  if (!result.value.ok) return refused(result.value.reason);
-  revalidatePath(detail(idOf(formData)));
-  return {
-    status: "berhasil",
-    message: result.value.delivered ? "Undangan staf dikirim ulang." : "Undangan staf tidak bisa dikirim. Coba lagi sebentar.",
-  };
 }
 
 /** Admin Platform records or changes the profile. */

@@ -205,8 +205,7 @@ export default async function MitraJasaDetailPage({ params }: PageProps<"/staf/a
                 <li key={satu.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                   <span className="font-mono">{satu.bulan}</span>
                   <span>
-                    {satu.skor.selesai} selesai · {satu.skor.terlambat} terlambat · {satu.skor.keluhanUpheld} upheld · {satu.skor.declines}{" "}
-                    declines
+                    {satu.skor.selesai} selesai · {satu.skor.terlambat} terlambat · {satu.skor.keluhanUpheld} upheld · {satu.skor.declines} declines
                   </span>
                   <span className="text-muted-foreground">
                     {satu.ditinjauPada ? `Ditinjau ${formatTanggal(satu.ditinjauPada.toISOString().slice(0, 10))}` : "Belum ditinjau"}

@@ -11,19 +11,17 @@
  * What a Mitra Jasa may see of this is nothing: the Antrean is Admin Platform's
  * (`antrean.lihat`), so both queries return nothing for any other role before they
  * read a single row.
+ *
+ * **Both rows carry no deadline, and that is the spec's own silence rather than an
+ * oversight.** The Tier 4 line (`spec.md:527`) writes a window for the row beside
+ * it — "TPU flag stale for 14 days" — and writes none for these two: "Mitra Jasa
+ * onboarding; monthly scorecard review". Every other tier names its own, down to
+ * "IPTM filing (7 days)". So `deadline` is `null` here, which `RawAntreanRow`
+ * defines as a row with no deadline: the row still opens and closes on state, sorts
+ * last inside Tier 4, and is never late. A number would be a business rule with no
+ * source, and the source is the owner's to write (see ticket 55's `## Comments`).
  */
-import { addWibDays, wib } from "@/lib/time/jakarta";
 import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
-
-/**
- * How long a Mitra Jasa record has to be finished once it is created. Spec gives
- * the row no SLA of its own; a week is in line with this tier's other windows
- * (7 days for the publish-gate recheck, 14 for a stale TPU flag).
- */
-export const MITRA_JASA_ONBOARDING_GRACE_DAYS = 7;
-
-/** How long Admin Platform has, from the first of a month, to review that month's scorecard. */
-export const SKOR_MITRA_JASA_REVIEW_GRACE_DAYS = 7;
 
 const mitraJasaHref = (mitraJasaId: string) => `/staf/admin-platform/mitra-jasa/${mitraJasaId}`;
 
@@ -31,7 +29,7 @@ const mitraJasaHref = (mitraJasaId: string) => `/staf/admin-platform/mitra-jasa/
  * Open while a Mitra Jasa's onboarding record is missing one of its nine steps
  * (KTP, NIK, photo, home area, the arrangement scan, the bank account, and both
  * coverage lists): until then it takes no work, so a complete record is what
- * closes this row.
+ * closes this row. No deadline: the spec gives this row no window.
  */
 export const mitraJasaOnboardingRowType: AntreanRowType = {
   key: "mitra_jasa_onboarding",
@@ -44,7 +42,7 @@ export const mitraJasaOnboardingRowType: AntreanRowType = {
       subjectId: satu.id,
       subjectLabel: satu.namaLengkap,
       href: mitraJasaHref(satu.id),
-      deadline: addWibDays(satu.dibuatPada, MITRA_JASA_ONBOARDING_GRACE_DAYS),
+      deadline: null,
     }));
   },
 };
@@ -52,7 +50,8 @@ export const mitraJasaOnboardingRowType: AntreanRowType = {
 /**
  * Open while this month's scorecard review row is unreviewed (spec: "monthly
  * scorecard review"). The tick opens one row per Mitra Jasa on the first of the WIB
- * month, so the row is due from the 7th; recording the review closes it by itself.
+ * month; recording the review closes it by itself. No deadline: the spec gives
+ * this row no window, so none is invented here.
  */
 export const skorMitraJasaReviewRowType: AntreanRowType = {
   key: "mitra_jasa_skor_bulanan",
@@ -65,7 +64,7 @@ export const skorMitraJasaReviewRowType: AntreanRowType = {
       subjectId: satu.mitraJasaId,
       subjectLabel: `${satu.namaLengkap} — ${satu.bulan}`,
       href: mitraJasaHref(satu.mitraJasaId),
-      deadline: addWibDays(wib(`${satu.bulan}-01`), SKOR_MITRA_JASA_REVIEW_GRACE_DAYS),
+      deadline: null,
     }));
   },
 };

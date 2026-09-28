@@ -18,6 +18,7 @@ import type { Actor, WriteRefusal } from "@/domain/identity";
 import { writeRefusal } from "@/domain/identity";
 import { addWibDays, wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PekerjaanMitraJasa } from "./deps";
+import { profileOfActor } from "./mitra-jasa";
 import { layananMitraJasa, layananMitraJasaTinjauan } from "./schema";
 
 /** The scorecard's window: the last 90 days, from the Clock (`addWibDays`, so a WIB day is a 24 h day). */
@@ -67,7 +68,7 @@ export async function skorMitraJasa(deps: LayananDeps, by: Actor, mitraJasaId: s
 export async function skorSaya(deps: LayananDeps, by: Actor): Promise<ScorecardResult> {
   const refusal = writeRefusal(by, "mitra_jasa.lihat_saya", { kind: "akun", accountId: by.accountId });
   if (refusal) return refusal;
-  const profile = await profileFor(deps, by);
+  const profile = await profileOfActor(deps, by);
   if (!profile) return { ok: false, reason: "tidak_ditemukan" };
   return { ok: true, skor: hitungSkor(deps, await deps.pekerjaan.daftarPekerjaan(profile.id)) };
 }
@@ -261,13 +262,4 @@ export async function tinjauSkorTick(deps: LayananDeps, now: Date): Promise<void
       })
       .onConflictDoNothing();
   }
-}
-
-async function profileFor(deps: LayananDeps, by: Actor): Promise<{ id: string } | null> {
-  const [row] = await deps.db
-    .select({ id: layananMitraJasa.id })
-    .from(layananMitraJasa)
-    .where(eq(layananMitraJasa.email, by.email.toLowerCase()))
-    .limit(1);
-  return row ?? null;
 }

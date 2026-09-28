@@ -311,7 +311,10 @@ describe("Antrean: Tier 4 Mitra Jasa onboarding and the monthly scorecard review
       tier: 4,
       subjectId: id,
       subjectLabel: "Siti Rahayu",
-      deadline: wib("2026-10-08 08:00"),
+      // The spec gives this row no window (spec.md:527 names "TPU flag stale for 14
+      // days" beside it and none for this one), so it carries no deadline at all
+      // and can never be late. The number is the owner's to write, not ours.
+      deadline: null,
       pastDeadline: false,
       alerts: false,
       ambil: null,
@@ -359,7 +362,7 @@ describe("Antrean: Tier 4 Mitra Jasa onboarding and the monthly scorecard review
     expect((await setup.queues.antrean(admin)).some((satu) => satu.type === "mitra_jasa_onboarding")).toBe(false);
   });
 
-  it("opens one scorecard review row per Mitra Jasa from the tick, due a week into the month, and closes it on the review", async () => {
+  it("opens one scorecard review row per Mitra Jasa from the tick, with no deadline the spec never gave it, and closes it on the review", async () => {
     const setup = queuesOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     setup.clock.set(wib("2026-10-01 05:13"));
@@ -380,7 +383,9 @@ describe("Antrean: Tier 4 Mitra Jasa onboarding and the monthly scorecard review
       tier: 4,
       subjectId: dibuat.mitraJasaId,
       subjectLabel: "Siti Rahayu — 2026-10",
-      deadline: wib("2026-10-08 00:00"),
+      // No window in the spec (spec.md:527), so none is invented here.
+      deadline: null,
+      pastDeadline: false,
       alerts: false,
     });
 

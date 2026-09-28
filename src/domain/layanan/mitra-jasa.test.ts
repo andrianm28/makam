@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn } from "../../../tests/support/identity";
+import { authenticatorCode } from "../../../tests/support/totp";
 import { newTpuDki } from "../../../tests/support/lokasi";
 import {
   layananOnTestDatabase,
@@ -473,6 +474,49 @@ describe("who may read a Mitra Jasa", () => {
     expect(await setup.layanan.skorMitraJasa(mitraSatu, dua.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
     expect(await setup.layanan.skorSaya(mitraSatu)).toMatchObject({ ok: true });
     expect(await setup.layanan.skorSaya(petugas)).toEqual({ ok: false, reason: "tidak_berwenang" });
+  });
+});
+
+describe("one Akun, many roles", () => {
+  it("is one Mitra Jasa, whichever feature asks: the calendar and the scorecard answer about the same record", async () => {
+    // spec, Identity & Access: "One account can hold many roles." An Operator's own
+    // email may be onboarded as a Mitra Jasa, and then that Akun holds both roles.
+    const setup = layananOnTestDatabase(db);
+    const { actor: admin, totpSecret } = await signedInAdminPlatform(setup);
+    const email = "admin@makam.co.id";
+    const dibuat = await setup.layanan.buatMitraJasa(admin, email, newMitraJasaInput({ namaLengkap: "Ratna Operator" }));
+    if (!dibuat.ok) throw new Error(`Mitra Jasa refused: ${dibuat.reason}`);
+    setup.pekerjaan.seed(dibuat.mitraJasaId, [
+      newPekerjaan({ id: "selesai-1", status: "selesai", targetDate: "2026-09-20", dihitungPada: wib("2026-09-20 15:00"), penilaian: 5 }),
+    ]);
+    // The same Akun accepts the Undangan Staf for the role it does not hold yet.
+    const invited = await setup.identity.inviteStaff(admin, { email, phoneNumber: "081111111111", role: "mitra_jasa" });
+    if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
+    setup.clock.advance({ minutes: 2 });
+    const cookies = (await logIn(setup, email)).cookies;
+    const masuk = await actorOf(setup.identity, cookies);
+    expect(masuk.roles).toEqual(expect.arrayContaining(["admin_platform", "mitra_jasa"]));
+    // Its new session owes the TOTP an Admin Platform owes (per session), so the two
+    // doors below answer about the profile and neither answers about TOTP. The
+    // account is enrolled already, from the seeded admin's own enrolment.
+    const lewatTotp = await setup.identity.passTotp(masuk, authenticatorCode(totpSecret, setup.clock.now()));
+    if (!lewatTotp.ok) throw new Error(`TOTP refused: ${lewatTotp.reason}`);
+    const duaPeran = await actorOf(setup.identity, cookies);
+
+    // One question — "which Mitra Jasa is this Akun?" — read through each feature's
+    // own door. Both must name the same record, or the person owns two profiles.
+    const tambah = await setup.layanan.tambahTidakTersedia(duaPeran, { dari: "2026-10-03", sampai: "2026-10-07", alasan: "Kota Elsewhere" });
+    const rentang = await setup.layanan.rentangTidakTersedia(duaPeran);
+    const skor = await setup.layanan.skorSaya(duaPeran);
+
+    expect({ tambah, rentang, skor }).toEqual({
+      tambah: { ok: true, range: { id: expect.any(String), dari: "2026-10-03", sampai: "2026-10-07", alasan: "Kota Elsewhere" } },
+      rentang: [{ id: expect.any(String), dari: "2026-10-03", sampai: "2026-10-07", alasan: "Kota Elsewhere" }],
+      skor: {
+        ok: true,
+        skor: { selesai: 1, terlambat: 0, keluhanUpheld: 0, declines: 0, rataPenilaian: 5, window: { dari: wib("2026-07-03 09:02"), sampai: wib("2026-10-01 09:02") } },
+      },
+    });
   });
 });
 
