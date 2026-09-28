@@ -29,7 +29,15 @@ export interface AntreanRowDeps {
    * Tier 1 "Konfirmasi Lokasi terlambat" row and the Antrean Lokasi's open
    * confirmations (ticket 23). Never its tables.
    */
-  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  pemesanan: Pick<
+    Pemesanan,
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    /** The Antrean Lokasi's Konfirmasi Terencana row and the Tier 3 late row (ticket 37). */
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaTerlambat"
+  >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /**

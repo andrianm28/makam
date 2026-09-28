@@ -234,7 +234,21 @@ export const pemesananTerencana = pgTable(
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /** The Tagihan issued when the Lokasi Mitra confirmed; null until then. Nothing is billed at submission. */
     tagihanId: text("tagihan_id"),
-    /** Why the Lokasi Mitra declined, or why the order was cancelled; null while none. */
+    /**
+     * When the Admin Lokasi of that Lokasi Mitra confirmed the order (ticket 37). Null
+     * while it is still `diajukan`. `dikonfirmasi_oleh` is the Akun that did it: the
+     * Entri Audit of the Hak Pakai each unit gets on payment is recorded under it, so
+     * the grant names the Admin Lokasi whose decision created the right and not a
+     * payment that only made it effective.
+     */
+    dikonfirmasiPada: at("dikonfirmasi_pada"),
+    dikonfirmasiOleh: text("dikonfirmasi_oleh"),
+    /**
+     * When the order became `aktif`, i.e. its Tagihan was paid and the Hak Pakai of
+     * every chosen unit exists (ticket 37). Null until then.
+     */
+    aktifPada: at("aktif_pada"),
+    /** Why the Lokasi Mitra declined, or why the order was cancelled ("batas pembayaran lewat", a withdrawal); null while none. */
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
   },
@@ -242,6 +256,10 @@ export const pemesananTerencana = pgTable(
     uniqueIndex("pemesanan_terencana_nomor_idx").on(table.nomor),
     index("pemesanan_terencana_pemesan_idx").on(table.pemesanAccountId),
     index("pemesanan_terencana_lokasi_idx").on(table.lokasiId),
+    // The open work of one Lokasi Mitra: its Antrean Lokasi row and the Admin Platform Tier 3 late row read this.
+    index("pemesanan_terencana_status_lokasi_idx").on(table.status, table.lokasiId),
+    // The lapse tick and the paid tick each read the orders waiting on them, never a table of their own.
+    index("pemesanan_terencana_tagihan_idx").on(table.tagihanId),
   ],
 );
 
@@ -268,6 +286,12 @@ export const pemesananTerencanaUnit = pgTable(
     jenisMakamId: uuid("jenis_makam_id").notNull(),
     jenisMakamName: text("jenis_makam_name").notNull(),
     urutan: text("urutan").notNull(),
+    /**
+     * The Hak Pakai this unit's right lives on, once the order is paid (ticket 37). One
+     * per unit, and a Kavling Keluarga's covers the whole Kavling rather than its member
+     * Petak one by one. Null until then: nothing is granted at submission or confirmation.
+     */
+    hakPakaiId: uuid("hak_pakai_id"),
   },
   (table) => [
     index("pemesanan_terencana_unit_pemesanan_idx").on(table.pemesananId),
@@ -275,3 +299,25 @@ export const pemesananTerencanaUnit = pgTable(
     index("pemesanan_terencana_unit_kavling_idx").on(table.kavlingId),
   ],
 );
+
+/**
+ * Owned by the Pemesanan module: the Lunas half of a Pemesanan Terencana's payment,
+ * written by the billing payment effect **inside the transaction that settled the
+ * Tagihan** (ticket 37) and read by the tick that turns the payment into the order's
+ * Hak Pakai and its Bukti Pemesanan.
+ *
+ * It is a table of its own, and the effect takes no dependencies, for the same reason
+ * `payouts.pencairan_pembayaran` does (see `./efek-terencana.ts`): Billing is composed
+ * before the module that owns the order, so an effect that needed this module would be a
+ * cycle. Writing the fact is all the effect does, and it is what makes "paid first,
+ * confirmed later" and "confirmed first, paid later" the same question to the tick.
+ *
+ * `nomor_pemesanan` is the primary key, so a redelivered webhook, a retried effect or a
+ * second settle of the same Tagihan leaves one row.
+ */
+export const pemesananTerencanaPembayaran = pgTable("pemesanan_terencana_pembayaran", {
+  nomorPemesanan: text("nomor_pemesanan").primaryKey(),
+  tagihanId: uuid("tagihan_id").notNull(),
+  /** When the money arrived, which is the Bukti Pemesanan's date and the Masa Pembatalan's first day. */
+  dibayarPada: at("dibayar_pada").notNull(),
+});

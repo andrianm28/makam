@@ -128,6 +128,9 @@ export function serverRuntime(): ServerRuntime {
       billing,
       operatorSettings,
       notifications,
+      // The Terencairan trigger reads what a paid Pemesanan Terencana means to a
+      // Pencairan, through the Pemesanan module's own public read (ticket 37).
+      terencanaTerbayar: () => pemesanan.terencanaTerbayar(),
       reportError,
     });
     globalForRuntime.__makamRuntime = {

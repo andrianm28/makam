@@ -26,7 +26,7 @@ export function queuesOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts } = payoutsFor(setup);
+  const { payouts } = payoutsFor(setup, pemesanan);
   const queues = createQueues({
     db,
     clock: setup.clock,

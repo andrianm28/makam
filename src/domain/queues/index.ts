@@ -57,7 +57,19 @@ export interface QueuesModuleDeps {
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
   notifications: Pick<Notifications, "teleponPemesanTerbuka">;
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi). */
-  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  /**
+   * The Pemesanan module's own state, which the confirmation rows project: the Tier 1
+   * "Konfirmasi Lokasi terlambat" row and the Antrean Lokasi's open confirmations
+   * (ticket 23), and its Terencairan counterparts (ticket 37). Never its tables.
+   */
+  pemesanan: Pick<
+    Pemesanan,
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaTerlambat"
+  >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */

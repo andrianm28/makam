@@ -73,9 +73,12 @@ import {
   type TerbitkanBuktiResult,
 } from "./transfer";
 import { pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
+import { tickPencairanTerencana, type TerencanaTerbayar, type TickPencairanTerencanaResult } from "./trigger-terencana";
 
 export { NAMA_EFEK_PENCAIRAN, efekPencairanSaatLunas } from "./efek";
 export { BIAYA_LAYANAN_PLATFORM, TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
+export { akhirMasaPembatalan, tickPencairanTerencana } from "./trigger-terencana";
+export type { TerencanaTerbayar, TickPencairanTerencanaResult } from "./trigger-terencana";
 export { USIA_POTONGAN_HARI } from "./potongan";
 export {
   pencairanItemBatalReasons,
@@ -111,6 +114,13 @@ export interface PayoutsDeps {
   lokasiAda: (lokasiId: string) => Promise<boolean>;
   /** The issued Tagihan (never its tables) and the `BKP/YYYY/NNNNNN` series, `within` the issuing transaction. */
   billing: Pick<Billing, "tagihan" | "within">;
+  /**
+   * Every paid Pemesanan Terencana with what the Terencairan trigger needs (spec,
+   * Pencairan items: due at the end of the Masa Pembatalan, or the first Pemakaman if
+   * sooner). It is the Pemesanan module's own public read: this module holds no table
+   * of Terencairan orders and must not make one, so it never reaches their tables.
+   */
+  terencanaTerbayar(now: Date): Promise<TerencanaTerbayar[]>;
   operatorSettings: Pick<OperatorSettings, "current">;
   /** The Bukti Pencairan page's absolute URL: what the recipient is sent and the PDF rendered from. */
   buktiUrl: (link: string) => string;
@@ -140,6 +150,13 @@ export interface Payouts {
    * Idempotent.
    */
   tick(now?: Date): Promise<TickPencairanResult>;
+  /**
+   * Worker tick: the Terencairan trigger (spec, Pencairan items: "Terencana Hak Pakai |
+   * end of the Masa Pembatalan, or the first Pemakaman if sooner"). Every paid
+   * Pemesanan Terencana gets its items as soon as it is paid, and each becomes due at
+   * that instant. Idempotent.
+   */
+  tickTerencana(now?: Date): Promise<TickPencairanTerencanaResult>;
   /** The "2 Hari Kerja" deadline on the Admin Platform calendar, for a trigger of another module. */
   tenggat(dueAt: Date): Promise<Date>;
 
@@ -235,6 +252,18 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
   return {
     pemakamanTercatat: (tx, input) => pemakamanTercatat(tx, input),
     tick: (now) => tickPencairan(pemicu, now ?? deps.clock.now()),
+    tickTerencana: (now) =>
+      tickPencairanTerencana(
+        {
+          db: deps.db,
+          clock: deps.clock,
+          billing: deps.billing,
+          lokasi: deps.lokasi,
+          terencanaTerbayar: deps.terencanaTerbayar,
+          reportError: deps.reportError,
+        },
+        now ?? deps.clock.now(),
+      ),
     tenggat: async (dueAt) => tenggat(deps.lokasi, dueAt),
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),
     tahanPencairan: (by, input) => tahanPencairan(runDeps, by, input),

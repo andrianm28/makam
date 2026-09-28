@@ -37,6 +37,16 @@ import { sisipPotongan } from "./potongan";
 /** How long after an item becomes due Admin Platform must have transferred it: 2 Hari Kerja (AC 6). */
 export const TENGGAT_PENCAIRAN_HARI_KERJA = 2;
 
+/**
+ * The trigger kind a Terencairan item is created under, kept beside the Saat Duka
+ * trigger's items so `reads.ts` and the run group the two the way the spec's table
+ * lists them. It is `harga_hak_pakai` — the same line kind, and therefore the same
+ * amount copied from the same issued Tagihan line — and what distinguishes it is the
+ * **when**, not the what: a Terencairan item is not due when it is made, and
+ * `./trigger-terencana.ts` is what makes it due.
+ */
+export const KIND_ITEM_TERENCANA = "harga_hak_pakai" as const;
+
 /** The Tagihan line kind whose fee a "dibayar langsung" order leaves the Operator (a platform-fee Potongan). */
 export const BIAYA_LAYANAN_PLATFORM = "biaya_layanan_platform";
 

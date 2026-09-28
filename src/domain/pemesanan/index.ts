@@ -52,6 +52,29 @@ import {
 } from "./berkas";
 import { realertKonfirmasiSaatDukaTick } from "./realert";
 import {
+  antreanKonfirmasiTerencana,
+  konfirmasiTerencana,
+  konfirmasiTerencanaTerlambat,
+  tarikTerencana,
+  tolakTerencana,
+  ALASAN_BATAS_PEMBAYARAN_LEWAT,
+  ALASAN_DITARIK_PEMESAN,
+  konfirmasiTerencanaSchema,
+  tarikTerencanaSchema,
+  tolakTerencanaSchema,
+  type KonfirmasiTerencanaInput,
+  type KonfirmasiTerencanaResult,
+  type TarikTerencanaInput,
+  type TarikTerencanaResult,
+  type TerencanaAntrean,
+  type TerencanaPindah,
+  type TolakTerencanaInput,
+  type TolakTerencanaResult,
+} from "./terencana-konfirmasi";
+import { terencanaTerbayar, type TerencanaPencairanDeps } from "./reads-pencairan";
+import { terencanaDibayarTick, terencanaLapsedTick, type TickTerencanaDibayar, type TickTerencanaLapsed } from "./tick-terencana";
+import { efekTerencanaSaatLunas, NAMA_EFEK_TERENCANA } from "./efek-terencana";
+import {
   denahTerencana,
   kotaTerencana,
   periksaPilihanTerencana,
@@ -73,8 +96,13 @@ export type {
   PemesananDiajukan,
   PemesananDikonfirmasi,
   PemesananNotifikasi,
+  TagihanTerbitPemesanan,
+  TerencanaDikonfirmasi,
   TerencanaDiajukan,
+  TerencanaDibatalkan,
+  TerencanaDitolak,
   TerencanaQuery,
+  UnitTerencanaNotifikasi,
 } from "./deps";
 export type { GrupSaatDuka, PilihanSaatDuka, PilihanSaatDukaQuery } from "./pilihan";
 export { JAM_KONFIRMASI_SAAT_DUKA, kartuAwal } from "./pilihan";
@@ -182,6 +210,47 @@ export interface Pemesanan {
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
+
+  // ---- the Terencana confirmation and its money (ticket 37) ----
+  /**
+   * That Lokasi's own Admin Lokasi confirms a Terencairan: the order is Dikonfirmasi
+   * and the **pay-first** Tagihan is issued, due when the Lokasi Mitra's payment hold
+   * ends (its own policy, 24 h by default). No Hak Pakai yet — that is granted on
+   * payment, which is what "pay-first in full" means. It also announces the Tagihan, so
+   * the family is told what to pay and the Terencairan rule's one reminder is queued.
+   */
+  konfirmasiTerencana(by: Actor, input: KonfirmasiTerencanaInput): Promise<KonfirmasiTerencanaResult>;
+  /**
+   * That Lokasi's own Admin Lokasi declines a Terencairan: Ditolak with its reason and
+   * every plot it held released, and the family is sent back to the wizard's Lokasi step.
+   */
+  tolakTerencana(by: Actor, input: TolakTerencanaInput): Promise<TolakTerencanaResult>;
+  /**
+   * The Pemesan withdraws their own Terencairan before paying (spec, story 47): Dibatalkan,
+   * the plots released and nothing charged. Refused once the money is in — that is a
+   * Pembatalan, ticket 38.
+   */
+  tarikTerencana(pemesan: { accountId: string }, input: TarikTerencanaInput): Promise<TarikTerencanaResult>;
+  /** Every Terencairan order of one Lokasi Mitra still waiting for its confirmation, oldest first (the Antrean Lokasi's row). */
+  antreanKonfirmasiTerencana(lokasiId: string): Promise<TerencanaAntrean[]>;
+  /** Every Terencairan order past the deadline its Lokasi's next working day gave (the Admin Platform Tier 3 row). */
+  konfirmasiTerencanaTerlambat(): Promise<TerencanaAntrean[]>;
+  /**
+   * Worker tick: a paid Terencairan becomes `aktif`, with one Hak Pakai per chosen unit
+   * and its Bukti Pemesanan. Idempotent.
+   */
+  tickTerencanaDibayar(now?: Date): Promise<TickTerencanaDibayar>;
+  /**
+   * Worker tick: a Terencairan whose payment hold ran out unpaid is `dibatalkan` and its
+   * plots released. Idempotent, and safe with two workers at once.
+   */
+  tickTerencanaLapsed(now?: Date): Promise<TickTerencanaLapsed>;
+  /**
+   * What the Payouts module's Terencairan trigger needs: every paid Terencairan with the
+   * Masa Pembatalan it was placed under and the first Pemakaman under any of its Hak
+   * Pakai (spec, Pencairan items). Never its tables: a read, not a fact table.
+   */
+  terencanaTerbayar(): Promise<import("@/domain/payouts").TerencanaTerbayar[]>;
 }
 
 export function createPemesanan(deps: PemesananDeps): Pemesanan {
@@ -205,8 +274,46 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
+    tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
+    tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),
+    antreanKonfirmasiTerencana: (lokasiId) => antreanKonfirmasiTerencana(deps, lokasiId),
+    konfirmasiTerencanaTerlambat: () => konfirmasiTerencanaTerlambat(deps, deps.clock.now()),
+    tickTerencanaDibayar: (now) => terencanaDibayarTick(deps, now ?? deps.clock.now()),
+    tickTerencanaLapsed: (now) => terencanaLapsedTick(deps, now ?? deps.clock.now()),
+    terencanaTerbayar: () => terencanaTerbayar(pencairanDeps(deps)),
   };
+}
+
+/**
+ * The Payouts module's read, bound to this module's own data plus the one Inventory
+ * read it needs: the first Pemakaman of a Hak Pakai, which is where the tenure clock
+ * starts (CONTEXT.md) and the only thing that can make a Terencairan's item due before
+ * the end of its Masa Pembatalan.
+ */
+function pencairanDeps(deps: PemesananDeps): TerencanaPencairanDeps {
+  return { db: deps.db, inventory: deps.inventory };
 }
 
 /** The worker's tick, as the scheduler registry calls it: the Saat Duka re-alert (ticket 23). */
 export const pemesananRealertTick = realertKonfirmasiSaatDukaTick;
+
+/** The Billing payment effect that records a Terencairan's Lunas half, as Billing composes it (ticket 37). */
+export { NAMA_EFEK_TERENCANA, efekTerencanaSaatLunas } from "./efek-terencana";
+export {
+  ALASAN_BATAS_PEMBAYARAN_LEWAT,
+  ALASAN_DITARIK_PEMESAN,
+  konfirmasiTerencanaSchema,
+  tarikTerencanaSchema,
+  tolakTerencanaSchema,
+  type KonfirmasiTerencanaInput,
+  type KonfirmasiTerencanaResult,
+  type TarikTerencanaInput,
+  type TarikTerencanaResult,
+  type TerencanaAntrean,
+  type TerencanaPindah,
+  type TolakTerencanaInput,
+  type TolakTerencanaResult,
+} from "./terencana-konfirmasi";
+export { terencanaDibayarTick, terencanaLapsedTick, type TickTerencanaDibayar, type TickTerencanaLapsed } from "./tick-terencana";
+export type { TerencanaPencairanDeps } from "./reads-pencairan";

@@ -18,9 +18,13 @@ import { addWibDays, wib, wibDateOf, wibDayStart } from "@/lib/time/jakarta";
 export const TEMPLATE_EMAIL = [
   "pesanan_diajukan",
   "pesanan_dikonfirmasi",
+  "terencana_dikonfirmasi",
+  "terencana_ditolak",
+  "terencana_dibatalkan",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
+  "tagihan_pengingat_hold_terencana",
   "bukti_pembayaran_terbit",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
@@ -33,14 +37,21 @@ export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
  *
  * A Pemesanan Makam's two messages ask nothing either: the family has already
  * ordered and already paid, so both go at any hour, like the new-order alert
- * the staff of that Lokasi gets.
+ * the staff of that Lokasi gets. The three Terencana messages ask nothing of
+ * the clock either: a confirmation states what to pay (the Tagihan's own email
+ * and its one reminder are the messages that ask), a decline and a withdrawal
+ * only report a decision the family did not need to make in a hurry.
  */
 export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"> = {
   pesanan_diajukan: "transaksional",
   pesanan_dikonfirmasi: "transaksional",
+  terencana_dikonfirmasi: "transaksional",
+  terencana_ditolak: "transaksional",
+  terencana_dibatalkan: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
+  tagihan_pengingat_hold_terencana: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
 };
 
@@ -66,6 +77,9 @@ export interface Acara {
 export const TABEL_ACARA: Record<
   | "pesanan_diajukan"
   | "pesanan_dikonfirmasi"
+  | "terencana_dikonfirmasi"
+  | "terencana_ditolak"
+  | "terencana_dibatalkan"
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
@@ -89,6 +103,29 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pesanan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pesanan_dikonfirmasi,
+  },
+  /**
+   * The three Pemesanan Terencana decisions (confirmed, declined, ended with no
+   * right), each at any hour and each about that Lokasi Mitra's own work, so a
+   * send that keeps failing calls that Lokasi's Admin Lokasi (ticket 37).
+   */
+  terencana_dikonfirmasi: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "terencana_dikonfirmasi",
+    waktu: WAKTU_TEMPLATE.terencana_dikonfirmasi,
+  },
+  terencana_ditolak: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "terencana_ditolak",
+    waktu: WAKTU_TEMPLATE.terencana_ditolak,
+  },
+  terencana_dibatalkan: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "terencana_dibatalkan",
+    waktu: WAKTU_TEMPLATE.terencana_dibatalkan,
   },
   tagihan_terbit: {
     penerima: "email_pemesan",
@@ -148,6 +185,16 @@ export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, string> = {
 /** The pay-first moments, whose reminders this ticket schedules. */
 export const MOMEN_PAY_FIRST: ReadonlySet<MacamMomenTagihan> = new Set(["perpanjangan", "pengurusan_berkas", "layanan"]);
 
+/**
+ * How long before a Pemesanan Terencana's hold expires its one reminder goes out
+ * (spec, Notifications: "Pemesanan Terencana Tagihan | once, about 4 h before the
+ * hold expires"; story 46). It is counted in hours, not days, because the hold is
+ * the Lokasi Mitra's own policy and is not a whole number of days: 24 h by default,
+ * but a Lokasi Mitra may set fewer.
+ */
+export const JAM_PENGINGAT_HOLD_TERENCANA = 4;
+
+
 /** The start (inclusive) and end (exclusive) of the reminder window, WIB wall-clock hours. */
 export const JAM_KIRIM_MULAI = 8;
 export const JAM_KIRIM_AKHIR = 20;
@@ -169,6 +216,20 @@ export function tundaSampaiJamKirim(instant: Date): Date {
   const start = wibDayStart(instant);
   const todayAtEight = new Date(start.getTime() + JAM_KIRIM_MULAI * HOUR_MS);
   return todayAtEight > instant ? todayAtEight : addWibDays(todayAtEight, 1);
+}
+
+/**
+ * The one Terencairan reminder time: about 4 h before the hold ends, kept only when
+ * that is still ahead of `now` and still inside 08:00–20:00 WIB (a family is never
+ * emailed at night about money). A hold shorter than 4 h gets its reminder at issue,
+ * which is the only moment left; a hold so short that even the 08:00 the window defers
+ * to has passed gets none, because the Tagihan email itself has just gone out.
+ */
+export function jadwalPengingatHoldTerencana(dueAt: Date, now: Date): Date | null {
+  const empatJam = new Date(dueAt.getTime() - JAM_PENGINGAT_HOLD_TERENCANA * HOUR_MS);
+  if (empatJam <= now) return null;
+  const dalamJendela = tundaSampaiJamKirim(empatJam);
+  return dalamJendela < dueAt ? dalamJendela : null;
 }
 
 /** Minutes since 00:00 WIB of the WIB day `instant` falls in. */

@@ -54,6 +54,12 @@ export interface Tagihan {
   kind: TagihanKind;
   issuedAt: Date;
   dueAt: Date;
+  /**
+   * When the money arrived, for a Tagihan that has been paid; null while it is unpaid.
+   * A Pencairan trigger counts a Masa Pembatalan from it (ticket 37), so it is on the
+   * Tagihan's own read and not only on the Bukti Pembayaran.
+   */
+  paidAt: Date | null;
   /** The Pemesan, or the Pemegang Hak for a Perpanjangan. Anyone may pay. */
   addressee: { role: "pemesan" | "pemegang_hak"; name: string; phoneNumber: string; accountId: string | null };
   nomorPemesanan: string | null;
@@ -65,8 +71,9 @@ export interface Tagihan {
   /** The unguessable part of the Tagihan page's link. */
   link: string;
   replacesNomorTagihan: string | null;
+  /** The Tagihan or Bukti behind a cancel-and-reissue chain, or null. */
   replacedByNomorTagihan: string | null;
-  cancelledReason: "batas_pembayaran_lewat" | "diganti" | null;
+  cancelledReason: "batas_pembayaran_lewat" | "diganti" | "dibatalkan_pemesan" | null;
 }
 
 export interface IssueTagihanInput {
@@ -300,6 +307,46 @@ export async function reissueTagihan(
   });
 }
 
+export type BatalkanTagihanResult =
+  | { ok: true; tagihan: Tagihan }
+  | { ok: false; reason: "tidak_ditemukan" }
+  /** Lunas, Tidak Tertagih, already cancelled or replaced: money that arrived is a refund, never a cancellation. */
+  | { ok: false; reason: "tagihan_tidak_bisa_dibatalkan" };
+
+/**
+ * Cancels an unpaid Tagihan that its order withdrew: Dibatalkan, with no replacement
+ * and nothing owed (spec, Billing: "never changed once issued, only cancelled and
+ * replaced"). The caller is the module that owns the order, inside its own
+ * transaction, so a withdrawn order can never keep a payable Tagihan.
+ *
+ * Refused for a Tagihan that is Lunas, Tidak Tertagih, already cancelled or replaced:
+ * money that arrived is a refund (the Refunds module, ticket 31), never a cancellation.
+ */
+export async function batalkanTagihan(
+  deps: TagihanDeps,
+  tagihanId: string,
+  rawReason: unknown,
+  now: Date,
+): Promise<BatalkanTagihanResult> {
+  const parsed = z.object({ reason: z.literal("dibatalkan_pemesan") }).safeParse({ reason: rawReason });
+  if (!parsed.success || !z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
+  return refusable<{ ok: true; tagihan: Tagihan } | { ok: false; reason: "tidak_ditemukan" | "tagihan_tidak_bisa_dibatalkan" }>(
+    deps.db,
+    async (tx) => {
+      const [old] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
+      if (!old) return { ok: false as const, reason: "tidak_ditemukan" as const };
+      if (!REISSUABLE.includes(old.status)) return { ok: false as const, reason: "tagihan_tidak_bisa_dibatalkan" as const };
+      await tx
+        .update(tagihan)
+        .set({ status: "dibatalkan", cancelledAt: now, cancelledReason: parsed.data.reason })
+        .where(eq(tagihan.id, old.id));
+      const cancelled = await readTagihan(tx, old.id);
+      if (!cancelled) throw new Error("cancelled Tagihan not found");
+      return { ok: true as const, tagihan: cancelled };
+    },
+  );
+}
+
 /**
  * The lapse of pay-first Tagihan: every one still Belum Dibayar at its due
  * date becomes Dibatalkan ("batas pembayaran lewat"). Pay-after Tagihan never
@@ -348,6 +395,7 @@ async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promis
     kind: row.kind,
     issuedAt: row.issuedAt,
     dueAt: row.dueAt,
+    paidAt: row.paidAt,
     addressee: {
       role: row.addresseeRole,
       name: row.addresseeName,

@@ -127,5 +127,39 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Konfirmasi Terencana" (Lainnya — spec, Work Queues: "Lainnya: Konfirmasi
+ * Terencana"): every Pemesanan Terencana of that Lokasi Mitra still waiting for its
+ * confirmation, with the deadline the Lokasi's **next working day** gave at submission.
+ * The row closes itself the moment the order is confirmed, declined or withdrawn,
+ * because such an order is no longer `diajukan`.
+ *
+ * It is Lainnya and not Mendesak because a Terencairan has no burial waiting on it: the
+ * plots are already held, and the family is told nothing happens until the Lokasi
+ * answers, on the Lokasi's own calendar (spec, Pemesanan > Terencana).
+ */
+export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
+  key: "konfirmasi_terencana",
+  grup: "lainnya",
+  label: "Konfirmasi Terencana",
+  async rows(deps, _by, lokasiId) {
+    const orders = await deps.pemesanan.antreanKonfirmasiTerencana(lokasiId);
+    return orders.map((satu) => ({
+      type: "konfirmasi_terencana",
+      label: "Konfirmasi Terencana",
+      subjectKind: "pemesanan_terencana",
+      subjectId: satu.id,
+      subjectLabel: `${satu.nomor} · ${satu.unit.map((unit) => unit.nomor).join(", ")} · ${satu.calon.name}`,
+      href: pemakamanHref(lokasiId, satu.nomor),
+      deadline: satu.konfirmasiDueAt,
+    }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
-export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [konfirmasiSaatDukaRowType, pesanLokasiGagalRowType, petakPerluVerifikasiRowType];
+export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
+  konfirmasiSaatDukaRowType,
+  konfirmasiTerencanaRowType,
+  pesanLokasiGagalRowType,
+  petakPerluVerifikasiRowType,
+];

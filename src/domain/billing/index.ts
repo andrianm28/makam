@@ -32,6 +32,13 @@ import {
 } from "./documents";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
 import {
+  buktiPemesananOf,
+  terbitkanBuktiPemesanan,
+  type BuktiPemesanan,
+  type TerbitkanBuktiPemesananInput,
+  type TerbitkanBuktiPemesananResult,
+} from "./bukti-pemesanan";
+import {
   bayar,
   listPembayaranPerluDitinjau,
   receivePaymentWebhook,
@@ -43,6 +50,7 @@ import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
 import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
+  batalkanTagihan,
   lapseDuePayFirstTagihan,
   readTagihan,
   reissueTagihan,
@@ -50,6 +58,7 @@ import {
   type IssueTagihanResult,
   type NewTagihanLine,
   type ReissueTagihanResult,
+  type BatalkanTagihanResult,
   type Tagihan,
 } from "./tagihan";
 
@@ -58,6 +67,15 @@ export type { PaymentEffect, SettledPayment } from "./settlement";
 export type { NotPayable } from "./settlement";
 export type { BayarResult, PaymentWebhookResult, PembayaranPerluDitinjau, WebhookReviewReason } from "./payment";
 export type { BillingDocument, BuktiPembayaran, DocumentPdf, RecordPaymentInput, RecordPaymentResult } from "./documents";
+export type {
+  BuktiPemesanan,
+  BuktiPemesananMasa,
+  BuktiPemesananPemegangHak,
+  BuktiPemesananUnit,
+  TerbitkanBuktiPemesananInput,
+  TerbitkanBuktiPemesananResult,
+} from "./bukti-pemesanan";
+export { buktiPemesananMasaSchema, buktiPemesananUnitSchema, terbitkanBuktiPemesananSchema } from "./bukti-pemesanan";
 export {
   currentHeader,
   documentLinkSchema,
@@ -73,6 +91,7 @@ export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type Tag
 export {
   PENYESUAIAN_HARGA_KHUSUS,
   TARIFF_LINE_KINDS,
+  type BatalkanTagihanResult,
   type IssueRefusal,
   type IssueTagihanInput,
   type IssueTagihanResult,
@@ -107,6 +126,13 @@ export interface Billing {
   issueTagihan(input: IssueTagihanInput): Promise<IssueTagihanResult>;
   /** Cancels an unpaid Tagihan and issues its replacement with new lines and a new Nomor Tagihan (never an edit). */
   reissueTagihan(tagihanId: string, input: { lines: NewTagihanLine[] }): Promise<ReissueTagihanResult>;
+  /**
+   * Cancels an unpaid Tagihan with no replacement, because the order it belongs to was
+   * withdrawn or declined before any money arrived (a Terencana order, ticket 37). The
+   * caller runs this inside its own transaction, so a withdrawn order keeps no payable
+   * Tagihan. Refused once the money is in: that is a refund (ticket 31), not a cancellation.
+   */
+  batalkanTagihan(tx: Database, tagihanId: string, reason: "dibatalkan_pemesan"): Promise<BatalkanTagihanResult>;
   /** One Tagihan as issued, or null. */
   tagihan(tagihanId: string): Promise<Tagihan | null>;
   /**
@@ -136,6 +162,12 @@ export interface Billing {
   pembayaranPerluDitinjau(): Promise<PembayaranPerluDitinjau[]>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
+  /**
+   * The Bukti Pemesanan of a paid Pemesanan Makam at a Lokasi Mitra: the proof of the
+   * Hak Pakai the payment granted, in the Lokasi Mitra's name and carrying no amounts
+   * (ticket 37). Null while the order has none.
+   */
+  buktiPemesanan(nomorPemesanan: string): Promise<BuktiPemesanan | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
   documentPdf(link: string): Promise<DocumentPdf | null>;
   /**
@@ -147,6 +179,12 @@ export interface Billing {
   nextDocumentNumber(type: DocumentType): Promise<string>;
   /** The next Nomor Pemesanan, `MKM-2026-000123`: one series for every order kind. Take it `within` the order's transaction. */
   nextNomorPemesanan(): Promise<string>;
+  /**
+   * Issues the one Bukti Pemesanan of an order, in the caller's own transaction so it
+   * commits with the payment that granted the right. Idempotent: an order that already
+   * has one gets that same Bukti and no second document.
+   */
+  terbitkanBuktiPemesanan(tx: Database, input: TerbitkanBuktiPemesananInput): Promise<TerbitkanBuktiPemesananResult>;
   /** The same functions inside an open transaction (another module's), committing or rolling back with it. */
   within(tx: Database): Billing;
 }
@@ -177,15 +215,21 @@ export function createBilling(deps: BillingDeps): Billing {
   return {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
+    batalkanTagihan: (tx, tagihanId, reason) => batalkanTagihan({ ...deps, db: tx }, tagihanId, reason, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
+    buktiPemesanan: async (nomorPemesanan) => {
+      const bukti = await buktiPemesananOf(deps.db, nomorPemesanan);
+      return bukti ? { nomorPemesanan, ...bukti } : null;
+    },
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
+    terbitkanBuktiPemesanan: (tx, input) => terbitkanBuktiPemesanan(tx, deps.operatorSettings, input),
     within: (tx) => createBilling({ ...deps, db: tx }),
   };
 }

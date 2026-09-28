@@ -1,7 +1,7 @@
 import { FakePdfRenderer } from "@/adapters/memory";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
-import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
+import { createPayouts, type KirimBuktiPencairan, type TerencanaTerbayar } from "@/domain/payouts";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createQueues } from "@/domain/queues";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
@@ -10,7 +10,9 @@ import type { Actor } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
 import { logIn } from "./identity";
 import { cellsOf } from "./inventory";
-import { orderSaatDuka, saatDukaFixture, siapkanOperatorPemesanan, type LokasiOptions } from "./pemesanan";
+import { orderSaatDuka, pemesananOnTestDatabase, pemesanDenganEmail, saatDukaFixture, siapkanOperatorPemesanan, unitIds, type LokasiOptions } from "./pemesanan";
+import { signedInAdminPlatform } from "./publish";
+import { terencanaLokasi } from "./terencana";
 import { TEST_PUBLIC_ORIGIN } from "./billing";
 import { publishOnTestDatabase, type PublishSetup } from "./publish";
 
@@ -32,7 +34,7 @@ import { publishOnTestDatabase, type PublishSetup } from "./publish";
  * Notifications module, and what a test needs to see is that it was told, with
  * what.
  */
-export function payoutsFor(setup: PublishSetup) {
+export function payoutsFor(setup: PublishSetup, pemesanan: { terencanaTerbayar(): Promise<TerencanaTerbayar[]> }) {
   const dikirim: Parameters<KirimBuktiPencairan>[0][] = [];
   const payouts = createPayouts({
     db: setup.db,
@@ -51,6 +53,10 @@ export function payoutsFor(setup: PublishSetup) {
     kirimBukti: async (bukti) => {
       dikirim.push(bukti);
     },
+    // The Terencairan trigger reads what a paid Pemesanan Terencana means to a
+    // Pencairan through the Pemesanan module's own public read — never its tables —
+    // so the trigger a test drives is the real one.
+    terencanaTerbayar: () => pemesanan.terencanaTerbayar(),
   });
   return { payouts, dikirim };
 }
@@ -79,7 +85,7 @@ export function payoutsOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts, dikirim } = payoutsFor(setup);
+  const { payouts, dikirim } = payoutsFor(setup, pemesanan);
   // Ticket 44 put the Pengurusan module on `PemesananSetup`, and every fixture
   // that composes the Pemesanan module itself owes one: `PemesananModul` is an
   // Omit of that setup, so a setup without it stops satisfying it. The wizard's
@@ -179,6 +185,49 @@ export async function bayarTagihan(
  */
 export async function catatPemakaman(setup: PayoutsModul, nomorPemesanan: string, pemakamanAt: Date) {
   await setup.db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan, pemakamanAt }));
+}
+
+/**
+ * A Terverifikasi Lokasi Mitra with "Pemesanan Terencana aktif" on and a Denah that holds
+ * cleared Tersedia Petak and one whole Kavling Keluarga, plus a Pemesan with an Akun: a
+ * placed Pemesanan Terencana, ready for the Lokasi's confirmation (ticket 37).
+ *
+ * The `pemesananOnTestDatabase` shape (not this file's) is the base, because a
+ * Terencairan's confirmation issues a Tagihan and its payment grants a Hak Pakai — the
+ * wizard fixture beside it, so this one is the same stack one module over.
+ */
+export async function pesananTerencanaSiap(
+  setup: PayoutsModul,
+  options: { nama?: string; email?: string; masaPembatalanDays?: number; petak?: string[]; kavling?: boolean } = {},
+) {
+  const wizard = pemesananOnTestDatabase(setup.db);
+  const { actor: admin } = await signedInAdminPlatform(wizard);
+  const fixture = await terencanaLokasi(wizard, admin, options.nama ? { name: options.nama } : {});
+  const pemesan = (await pemesanDenganEmail(wizard, options.email ?? "kelarga.terencana@contoh.id")).pemesan;
+  const semua = await unitIds(wizard, fixture, [...(options.petak ?? ["A-01", "A-02"]), ...(options.kavling ? ["A-K01"] : [])]);
+  return { ...wizard, admin, fixture, pemesan, semua };
+}
+
+/** Places a Pemesanan Terencana for the plots `pilihan` names, as the wizard's Kirim does. */
+export async function pesanTerencana(
+  setup: Awaited<ReturnType<typeof pesananTerencanaSiap>>,
+  pilihan: { petak?: string[]; kavling?: boolean } = {},
+) {
+  const units = [
+    ...(pilihan.petak ?? ["A-01", "A-02"]).map((nomor) => ({ petakId: setup.semua[nomor]! })),
+    ...(pilihan.kavling ? [{ kavlingId: setup.semua["A-K01"]! }] : []),
+  ];
+  const hasil = await setup.pemesanan.placeTerencana({
+    pemesan: setup.pemesan,
+    pemesanName: "Rina Wulandari",
+    phoneNumber: "081234567890",
+    lokasiId: setup.fixture.lokasiMitra.id,
+    units,
+    pemegangHak: { mode: "pemesan" },
+    calonPenghuni: { mode: "lain", name: "Neneng Sutrisno" },
+  });
+  if (!hasil.ok) throw new Error(`placeTerencana refused: ${hasil.reason}`);
+  return { ...hasil.pemesanan, units };
 }
 
 /** A Mitra Jasa, invited by Admin Platform and logged in with a Kode Masuk. */export async function mitraJasa(setup: PayoutsModul, admin: Actor, email = "mitra.jasa@contoh.id") {

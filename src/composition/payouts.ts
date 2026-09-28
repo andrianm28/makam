@@ -5,7 +5,7 @@ import type { Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
-import { createPayouts, type KirimBuktiPencairan, type Payouts } from "@/domain/payouts";
+import { createPayouts, type KirimBuktiPencairan, type Payouts, type TerencanaTerbayar } from "@/domain/payouts";
 import { documentPagePath } from "@/lib/document-links";
 import type { RuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -90,6 +90,12 @@ export function composePayouts(deps: {
   billing: Billing;
   operatorSettings: Pick<OperatorSettings, "current">;
   notifications: Pick<Notifications, "sendStaffAlert">;
+  /**
+   * What a paid Pemesanan Terencana means to a Pencairan (ticket 37). It is the
+   * Pemesanan module's own public read, wired here because the composition root builds
+   * it after Pemesanan: the trigger never reads an order's tables.
+   */
+  terencanaTerbayar(): Promise<TerencanaTerbayar[]>;
   reportError: ReportError;
 }): Payouts {
   const urls = buktiPencairanUrl(deps.env);
@@ -108,6 +114,7 @@ export function composePayouts(deps: {
     buktiUrl: urls.publicUrl,
     pdf: deps.adapters.pdf,
     kirimBukti: kirimBuktiPencairanKe({ identity: deps.identity, notifications: deps.notifications }),
+    terencanaTerbayar: deps.terencanaTerbayar,
     reportError: deps.reportError,
   });
 }

@@ -94,8 +94,26 @@ export async function saatDukaPaymentWindowHours(
   return row ? row.jam.saatDukaPaymentWindowHours : null;
 }
 
-export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };
+/**
+ * A Lokasi Mitra's Terencana hold in hours (its policy, 24 by default): how long
+ * a confirmed Pemesanan Terencana's pay-first Tagihan waits for the money, and so
+ * when that Tagihan falls due (spec, Pemesanan > Terencana: "Dikonfirmasi (hold
+ * running, pay-first Tagihan due at hold expiry)"; story 46). No actor: the
+ * due-date rule's own input. Null for a Lokasi Mitra that does not exist.
+ */
+export async function terencanaHoldHours(
+  deps: Pick<LokasiDeps, "db">,
+  lokasiId: string,
+): Promise<number | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db
+    .select({ jam: lokasiMitra.policies })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row ? row.jam.terencanaHoldHours : null;
+}
 
+export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };
 /**
  * The Admin Lokasi (or Admin Platform) sets a Lokasi Mitra's Jam Operasional:
  * weekly hours per weekday (possibly closed) and its Tanggal Tutup. Audited on

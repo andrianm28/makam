@@ -27,6 +27,7 @@ export function fieldworkOnTestDatabase(db: Database) {
     tagihan: TAGIHAN_TIDAK_ADA,
     dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     pesananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesanan/${nomor}`,
+    terencanaWizardUrl: () => `${TEST_PUBLIC_ORIGIN}/pesan-makam/terencana`,
   });
   const fieldwork = createFieldwork({
     db,

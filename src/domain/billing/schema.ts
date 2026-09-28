@@ -111,7 +111,13 @@ export const tagihan = pgTable(
     replacesId: uuid("replaces_id"),
     status: text("status", { enum: tagihanStatuses }).notNull(),
     cancelledAt: at("cancelled_at"),
-    cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti"] }),
+    /**
+     * Why it was cancelled: `batas_pembayaran_lewat` (a pay-first Tagihan that lapsed),
+     * `diganti` (cancel-and-reissue, which points at its replacement), or
+     * `dibatalkan_pemesan` (the order it belongs to was withdrawn or declined before any
+     * money arrived, so there is nothing to refund).
+     */
+    cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti", "dibatalkan_pemesan"] }),
     replacedById: uuid("replaced_by_id"),
     paidAt: at("paid_at"),
   },
@@ -171,6 +177,50 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
   /** Pengaturan Operator's header values in force when the Bukti was issued. */
   header: jsonb("header").notNull(),
 });
+
+/**
+ * Owned by the Billing module: one Bukti Pemesanan per **paid** Pemesanan Makam
+ * at a Lokasi Mitra (CONTEXT.md) — the proof of the Hak Pakai the payment granted
+ * (Lokasi, Petak Makam or Kavling Keluarga, Pemegang Hak, Masa Hak Pakai), issued
+ * in the Lokasi Mitra's name and carrying **no amounts**: the Bukti Pembayaran is
+ * what shows the money. Never issued for a TPU order, where the IPTM is the proof.
+ *
+ * Append-only, like every issued document (the migration refuses UPDATE and
+ * DELETE), and one row per order: a re-issued document would be a second proof of
+ * one right, so the unique index on `nomor_pemesanan` makes a retried effect or a
+ * second settle of the same Tagihan leave exactly one.
+ */
+export const buktiPemesanan = pgTable(
+  "bukti_pemesanan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nomor: text("nomor").notNull().unique(),
+    link: text("link").notNull().unique(),
+    /** The Pemesanan Makam this proves the right for; one Bukti per order. */
+    nomorPemesanan: text("nomor_pemesanan").notNull().unique(),
+    /** The Tagihan whose payment granted the right (the Bukti Pembayaran is what shows it). */
+    tagihanId: uuid("tagihan_id")
+      .notNull()
+      .references(() => tagihan.id),
+    /** The Lokasi Makam the right is against, as it was named when the document was issued. */
+    lokasiNama: text("lokasi_nama").notNull(),
+    /** The Petak Makam or Kavling Keluarga the right covers, by the number each is known by. */
+    unit: jsonb("unit").notNull(),
+    /** The Pemegang Hak as the order recorded them, and the Calon Penghuni label the plot carries. */
+    pemegangHak: jsonb("pemegang_hak").notNull(),
+    calonPenghuni: text("calon_penghuni"),
+    /**
+     * The Masa Hak Pakai: Selamanya, or N years. `mulai` is empty until the first
+     * Pemakaman (CONTEXT.md: a fixed term is counted from it), and so is `sampai`
+     * with it — a Terencana order's Hak Pakai has no end date on the day it is paid.
+     */
+    masaHakPakai: jsonb("masa_hak_pakai").notNull(),
+    issuedAt: at("issued_at").notNull(),
+    /** Pengaturan Operator's header values in force when the Bukti was issued. */
+    header: jsonb("header").notNull(),
+  },
+  (table) => [index("bukti_pemesanan_tagihan_idx").on(table.tagihanId)],
+);
 
 /**
  * Owned by the Billing module: each payment the PaymentProvider created for a

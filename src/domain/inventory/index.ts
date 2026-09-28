@@ -20,6 +20,7 @@ import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { availability, type AvailabilityCount } from "./availability";
 import { beriHakPakai, tersediaUntukJenisMakam, type BeriHakPakaiResult, type TersediaUnit } from "./beri-hak-pakai";
+import { beriHakPakaiTerencana, type BeriHakPakaiTerencanaResult } from "./beri-hak-pakai-terencana";
 import { createBlok, MAX_BLOK_DIMENSION, type CreateBlokResult, type NewBlokInput } from "./blok";
 import { cariMakam, makamPemegangHak, type HasilCariMakam, type MakamDitemukan, type PermintaanDariIP } from "./cari-makam";
 import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./cells";
@@ -30,6 +31,7 @@ import type { PetakByNomor } from "./lookup";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
+import { firstPemakamanDateOfHakPakai } from "./hak-pakai-reads";
 import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
@@ -54,6 +56,7 @@ export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
+export type { BeriHakPakaiTerencanaResult } from "./beri-hak-pakai-terencana";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -157,6 +160,23 @@ export interface Inventory {
   /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
   lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
   /**
+   * The Hak Pakai a **paid** Pemesanan Terencana takes: one for the chosen Petak Makam or
+   * whole Kavling Keluarga, with the order's Pemegang Hak and Calon Penghuni label, the
+   * tenure clock still unstarted (ticket 37).
+   *
+   * The unit is not `Tersedia` here — **this order's own hold** stands on it — so the
+   * rule it enforces is the hold's, and a unit held by another order is never taken. It runs
+   * inside the caller's transaction, so the grant commits with the status change that asked
+   * for it, and it records one Entri Audit per unit.
+   */
+  beriHakPakaiTerencana(tx: Database, lokasiId: string, input: unknown): Promise<BeriHakPakaiTerencanaResult>;
+  /**
+   * The whole date of a Hak Pakai's first Pemakaman, or null while it has none: the tenure
+   * clock's start (CONTEXT.md) and the instant a Terencana Pencairan becomes due if a burial
+   * happens before the end of its Masa Pembatalan (ticket 37).
+   */
+  firstPemakamanDate(hakPakaiId: string): Promise<string | null>;
+  /**
    * Where a grave is, for a family with no session: by Lokasi + Nomor Makam (the
    * current one or one it was renumbered from, which is never shown), by Lokasi
    * + Nomor Kavling, or by Lokasi + Almarhum name + year of death. Answers with
@@ -205,6 +225,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
+    beriHakPakaiTerencana: (tx, lokasiId, input) => beriHakPakaiTerencana(deps, tx, lokasiId, input),
+    firstPemakamanDate: (hakPakaiId) => firstPemakamanDateOfHakPakai(deps.db, hakPakaiId),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),

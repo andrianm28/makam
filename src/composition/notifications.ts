@@ -37,5 +37,12 @@ export function composeNotifications(deps: {
     tagihan: deps.billing,
     dokumenUrl: urls.publicDocumentUrl,
     pesananUrl: urls.pesananUrl,
+    // A declined or cancelled Terencairan sends the family back to the wizard's Lokasi
+    // step to pick again (spec, story 49), and the step takes no parameters: the family
+    // starts from the whole list, not from the one Lokasi Mitra that said no.
+    terencanaWizardUrl: () => terencanaWizardUrl,
   });
 }
+
+/** The Terencana wizard's Lokasi step, as an absolute path in the app (spec, Booking wizards). */
+const terencanaWizardUrl = "/pesan-makam/terencana";

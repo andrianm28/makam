@@ -127,6 +127,109 @@ export function tagihanTerbitEmail(input: TagihanEmailInput): { subject: string;
   };
 }
 
+export interface TerencanaEmailInput {
+  nomor: string;
+  lokasiName: string;
+  /** The plots the order holds, by the numbers the family picked them by. */
+  unit: string[];
+  /** The Calon Penghuni the plots are prepared for, as it was named at submission. */
+  calon: string;
+  /** The Tagihan the confirmation issued and the payment hold's end, which is its due date. */
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  /** The Admin Lokasi to call, when one is recorded as the Lokasi Mitra's Kontak Siaga. */
+  kontakLokasi: { name: string; phoneNumber: string | null } | null;
+  /** The order page's full URL, into the app. */
+  tautan: string;
+  /** The wizard's Lokasi step, where a declined order sends the family to pick again (story 49). */
+  tautanPilihLokasi: string;
+}
+
+/**
+ * A Pemesanan Terencana confirmed (transactional: any hour). It says the right, the
+ * contact, the price and the deadline the hold sets, because those four are what the
+ * family has to act on: the Tagihan is pay-first, and the plots are the family's from
+ * the moment it is paid.
+ */
+export function terencanaDikonfirmasiEmail(input: TerencanaEmailInput): { subject: string; body: string } {
+  const telepon = input.kontakLokasi?.phoneNumber
+    ? `${input.kontakLokasi.name}, ${input.kontakLokasi.phoneNumber}.`
+    : input.kontakLokasi
+      ? `${input.kontakLokasi.name}.`
+      : `hubungi ${input.lokasiName}.`;
+  return {
+    subject: `Pesanan ${input.nomor} dikonfirmasi, ${input.unit.join(", ")} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pemesanan terencana ${input.nomor} sudah dikonfirmasi ${input.lokasiName}.`,
+      `Petak yang dipegang: ${input.unit.join(", ")}.`,
+      `Disiapkan untuk: ${input.calon}.`,
+      `Jika ada yang perlu ditanyakan, ${telepon}`,
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} harus dibayar paling lambat ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Kalau belum terbayar sampai batas itu, petaknya dilepas dan bisa dipilih keluarga lain. Anda bebas membatalkan sebelum membayar, tanpa biaya.",
+      "",
+      `Tagihan: ${input.tagihan.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+/** A Pemesanan Terencana declined (transactional: any hour): the reason, and a way straight back to picking. */
+export function terencanaDitolakEmail(input: { nomor: string; lokasiName: string; alasan: string; tautan: string; tautanPilihLokasi: string }): {
+  subject: string;
+  body: string;
+} {
+  return {
+    subject: `Pesanan ${input.nomor} di ${input.lokasiName} tidak dilanjutkan`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pemesanan terencana ${input.nomor} di ${input.lokasiName} tidak bisa dilanjutkan.`,
+      `Alasannya: ${input.alasan}`,
+      "Petak yang sempat ditahan sudah dilepas, dan tidak ada yang dibayar.",
+      "",
+      `Pilih lagi di: ${input.tautanPilihLokasi}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+/**
+ * A Pemesanan Terencana that ended with no right (transactional: any hour), whether the
+ * Pemesan withdrew or the payment hold ran out. It says plainly that nothing was
+ * charged, because in both cases nothing ever was.
+ */
+export function terencanaDibatalkanEmail(input: {
+  nomor: string;
+  lokasiName: string;
+  alasan: string;
+  tautan: string;
+  tautanPilihLokasi: string;
+}): { subject: string; body: string } {
+  return {
+    subject: `Pesanan ${input.nomor} di ${input.lokasiName} dibatalkan`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pemesanan terencana ${input.nomor} di ${input.lokasiName} sudah dibatalkan.`,
+      `Alasannya: ${input.alasan}`,
+      "Tidak ada yang dibayar, dan petaknya sudah dilepas untuk dipilih keluarga lain.",
+      "",
+      `Pilih lagi di: ${input.tautanPilihLokasi}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 /** A pay-first reminder: H-1 or the due day (only 08:00–20:00 WIB). */
 export function tagihanPengingatEmail(
   macam: "h_1" | "hari_h",
@@ -139,6 +242,29 @@ export function tagihanPengingatEmail(
       "Yth. Bapak/Ibu,",
       "",
       `Tagihan ${input.nomorTagihan} sebesar ${formatRupiah(input.total)} untuk ${orderRef(input)} jatuh tempo ${kapan}, ${formatTanggalJam(input.dueAt)}.`,
+      "",
+      `Lihat dan bayar Tagihan di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+/**
+ * The Terencairan hold reminder: the one reminder that Tagihan has (spec, Notifications:
+ * "Pemesanan Terencana Tagihan | once, about 4 h before the hold expires"). It says when
+ * the hold ends and that the plots go back on the Denah if the money has not arrived,
+ * because that is the only reason there is to hurry.
+ */
+export function tagihanPengingatHoldTerencanaEmail(input: TagihanEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pengingat: Tagihan ${input.nomorTagihan} untuk pesanan terencana`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Tagihan ${input.nomorTagihan} sebesar ${formatRupiah(input.total)} untuk ${orderRef(input)} jatuh tempo ${formatTanggalJam(input.dueAt)}.`,
+      "Petak yang dipegang untuk Anda dilepas setelah batas itu, dan bisa dipilih keluarga lain.",
       "",
       `Lihat dan bayar Tagihan di: ${input.tautan}`,
       "",

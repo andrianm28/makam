@@ -1,8 +1,13 @@
 /**
- * Family messages (ticket 20): a Tagihan issued and its pay-first reminders,
- * sent through the worker's tick. Every send is queued first (the tick sends
- * it), logged with its status, retried 3 times with backoff, and escalated to
- * a Tier 2 "Telepon Pemesan" row when the money message finally fails.
+ * The money messages (ticket 20): a Tagihan issued and its reminders, sent
+ * through the worker's tick. Every send is queued first (the tick sends it),
+ * logged with its status, retried 3 times with backoff, and escalated to a
+ * Tier 2 "Telepon Pemesan" row when the money message finally fails.
+ *
+ * The file is `pesan-tagihan`, not `pesan-keluarga`, because it now holds only
+ * the messages about a **Tagihan**: the messages about a Pemesanan Makam and its
+ * order (including a Terencana order's three decisions, ticket 37) are in
+ * `./pesan-pemesanan`, where the subject is the order rather than the bill.
  *
  * Everything the family is asked to act on goes out 08:00–20:00 WIB: the
  * Tagihan on issue and its H-1 and due-day reminders (spec, the reminder
@@ -28,6 +33,7 @@ import {
   adalahPengingat,
   adalahTemplateEmail,
   dalamJamKirim,
+  jadwalPengingatHoldTerencana,
   jadwalPengingatPayFirst,
   MACAM_MOMEN_TAGIHAN,
   MAKS_PERCOBAAN,
@@ -38,7 +44,7 @@ import {
   type TemplateEmail,
 } from "./acara";
 import { notificationsMessage, notificationsTagihanKontak, pesanStatuses } from "./schema";
-import { tagihanPengingatEmail, tagihanTerbitEmail, type TagihanEmailInput } from "./template";
+import { tagihanPengingatEmail, tagihanPengingatHoldTerencanaEmail, tagihanTerbitEmail, type TagihanEmailInput } from "./template";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
 
 export interface PesanKeluargaDeps {
@@ -52,6 +58,13 @@ export interface PesanKeluargaDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /**
+   * The Terencana wizard's Lokasi step, where a declined or cancelled order sends the
+   * family to pick again (spec, story 49). It takes no parameters: the Lokasi step reads
+   * none, and a declined order's own Lokasi is deliberately not carried into it, so the
+   * family starts from the whole list again.
+   */
+  terencanaWizardUrl: () => string;
 }
 
 export const tagihanTerbitSchema = z.object({
@@ -71,6 +84,13 @@ export const tagihanTerbitSchema = z.object({
 export type TagihanTerbitInput = z.infer<typeof tagihanTerbitSchema>;
 
 export type TagihanTerbitResult = { ok: true; diingatkan: number } | { ok: false; reason: "tagihan_tidak_valid" };
+
+/**
+ * How many reminders this announcement queued. `h_1` and `hari_h` count the
+ * pay-first rule (0, 1 or 2), and a Terencairan counts its own single reminder
+ * (0 or 1) — a Tagihan follows exactly one of the four rules by its kind, never
+ * two (spec, Notifications).
+ */
 
 /** A message as the order page shows it. */
 export interface PesanTercatat {
@@ -150,6 +170,27 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
         const pengingat = tagihanPengingatEmail(macam, emailInput);
         const baru = await queueFamilyEmail(tx, now, {
           template,
+          pemesananId: null,
+          tagihanId: data.tagihanId,
+          nomorTagihan: data.nomorTagihan,
+          nomorPemesanan: data.nomorPemesanan,
+          email: data.email,
+          subject: pengingat.subject,
+          body: pengingat.body,
+          sendAfter: saat,
+        });
+        if (baru) diingatkan += 1;
+      }
+    }
+    // A Terencairan Tagihan's rule is its own and never stacks with the pay-first one
+    // (spec, Notifications: "Each Tagihan follows exactly one of the four Tagihan rows,
+    // by its kind; rules never stack"): one reminder, about 4 h before the hold ends.
+    if (data.momentKind === "terencana") {
+      const saat = jadwalPengingatHoldTerencana(data.dueAt, now);
+      if (saat) {
+        const pengingat = tagihanPengingatHoldTerencanaEmail(emailInput);
+        const baru = await queueFamilyEmail(tx, now, {
+          template: "tagihan_pengingat_hold_terencana",
           pemesananId: null,
           tagihanId: data.tagihanId,
           nomorTagihan: data.nomorTagihan,

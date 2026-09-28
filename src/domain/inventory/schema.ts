@@ -150,6 +150,14 @@ export const inventoryHakPakai = pgTable(
     startAt: at("start_at").notNull(),
     tenureStartAt: at("tenure_start_at"),
     endDate: at("end_date"),
+    /**
+     * The Calon Penghuni (CONTEXT.md): the living person the Pemegang Hak names
+     * as intended for this plot, which a Pemesanan Terencana records at its
+     * payment (ticket 37). A label, not a limit: the Pemegang Hak may change it
+     * at any time, and it is never who may be buried here. Null for a Hak Pakai
+     * bought for someone already buried, and for a "data menyusul" one.
+     */
+    calonPenghuni: text("calon_penghuni"),
     perluVerifikasi: boolean("perlu_verifikasi").notNull().default(false),
     createdAt: at("created_at").notNull(),
     createdByAccountId: text("created_by_account_id").notNull(),

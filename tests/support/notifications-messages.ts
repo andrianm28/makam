@@ -60,6 +60,24 @@ export async function terbitanTagihan(setup: PesanSetup, overrides: Partial<Issu
   return issued.tagihan;
 }
 
+/**
+ * A pay-first Pemesanan Terencana Tagihan, due at the end of its payment hold (ticket 37),
+ * so a test of the Terencairan reminder has a Tagihan of that kind to announce.
+ */
+export function terencanaCheckout(overrides: Partial<IssueTagihanInput> = {}): IssueTagihanInput {
+  return {
+    moment: { kind: "terencana", holdExpiresAt: new Date("2026-10-05T15:00:00.000Z") },
+    addressee: { name: "Rina Wulandari", phoneNumber: "081234567890", accountId: null },
+    nomorPemesanan: "MKM-2026-000001",
+    placeName: "Makam Wakaf Al-Ikhlas",
+    lines: [
+      { kind: "harga_hak_pakai", label: "Harga Hak Pakai – Reguler 2 × 1 m A-01", amount: rp(2_500_000), provider: LOKASI },
+      { kind: "biaya_layanan_platform", label: "Biaya Layanan Platform", amount: rp(150_000), provider: { kind: "operator" } },
+    ],
+    ...overrides,
+  };
+}
+
 /** What a checkout hands the module the moment it issues a Tagihan: the Tagihan, its payment moment and the address on the order. */
 export function pengumumanTagihan(
   tagihan: Tagihan,

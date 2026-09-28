@@ -7,11 +7,13 @@ import { composeBilling, documentUrls } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
-import { pemesananNotifikasiDari } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
+import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createTariffs } from "@/domain/tariffs";
 import { scheduledTicks } from "@/domain/scheduler";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -43,7 +45,31 @@ async function main() {
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
-  // Payouts, for the Pencairan trigger and the Potongan ageing the worker runs.
+  // The Pemesanan module the two Terencairan money ticks drive (ticket 37): a paid order
+  // becoming Aktif with its Hak Pakai and its Bukti Pemesanan, and a lapsed one giving
+  // its plots back. It is composed here beside the Lokasi, Tariffs and Inventory it
+  // reaches, exactly as the `web` runtime composes it — both processes import the same
+  // domain modules, so a number is the same number in each (spec, Architecture).
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+  const pemesananModuleDeps = {
+    db: database.db,
+    clock: adapters.clock,
+    files: adapters.files,
+    audit,
+    lokasi,
+    tariffs,
+    inventory,
+    billing,
+    identity,
+    notifications,
+  };
+  const pemesanan = composePemesanan(pemesananModuleDeps);
+  // The ticks are the module's own work, so the context carries its dependencies: a
+  // tick grants a Hak Pakai and issues a Bukti Pemesanan, and it commits with the
+  // status change that asked for it, which is a transaction the module owns.
+  const pemesananTickDeps = { ...pemesananModuleDeps, notifikasi: pemesananNotifikasiDari(notifications) };
+  // Payouts, for the Pencairan triggers and the Potongan ageing the worker runs.
   const payouts = composePayouts({
     env,
     db: database.db,
@@ -54,6 +80,9 @@ async function main() {
     billing,
     operatorSettings,
     notifications,
+    // The Terencairan trigger reads what a paid Pemesanan Terencana means to a
+    // Pencairan, through that module's own public read (never its tables).
+    terencanaTerbayar: () => pemesanan.terencanaTerbayar(),
     reportError,
   });
 
@@ -67,7 +96,10 @@ async function main() {
       notifications,
       lokasi,
       identity,
-      notifikasi: pemesananNotifikasiDari(notifications),
+      // The two Terencairan money ticks are domain work over what the module reads, so
+      // the worker gets the whole module and not a narrow seam: the same composition the
+      // `web` process uses, so both agree on every number (spec, Architecture).
+      pemesanan: pemesananTickDeps,
       payouts,
     }),
     clock: adapters.clock,

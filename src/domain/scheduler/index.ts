@@ -16,7 +16,8 @@ import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEf
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
-import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
+import { realertKonfirmasiSaatDukaTick, type PemesananDeps } from "@/domain/pemesanan";
+import { terencanaDibayarTick, terencanaLapsedTick } from "@/domain/pemesanan/tick-terencana";
 import type { Payouts } from "@/domain/payouts";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
@@ -34,13 +35,21 @@ export interface SchedulerContext {
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20). */
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
-  /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23). */
-  pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
+  /**
+   * The Pemesanan module, for the ticks that are its own work: the Saat Duka re-alert
+   * (ticket 23) and the two Pemesanan Terencana money ticks (ticket 37). A module, not a
+   * narrow seam, because all three do domain work with what they read — the re-alert
+   * announces, the Terencairan ticks grant a Hak Pakai and issue a Bukti Pemesanan — and
+   * a pick would be the same module under a narrower name.
+   */
+  pemesanan: PemesananDeps;
   /**
    * The Payouts module's own ticks: the Saat Duka Pencairan trigger (Lunas **and**
-   * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
+   * Pemakaman recorded, in either order), the Terencairan trigger (end of the Masa
+   * Pembatalan, or the first Pemakaman if sooner), and the 60-day Potongan ageing
+   * (tickets 32 and 37).
    */
-  payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  payouts: Pick<Payouts, "tick" | "tickTerencana" | "tickPotongan">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -85,6 +94,12 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
   // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
+  // Pemesanan: a paid Pemesanan Terencana becomes Aktif with its Hak Pakai and its Bukti Pemesanan (ticket 37).
+  { name: "pemesanan.terencana_dibayar", cron: "* * * * *", tick: terencanaDibayarTickWorker },
+  // Pemesanan: a Terencairan whose payment hold ran out is Dibatalkan and its plots released (ticket 37).
+  { name: "pemesanan.terencana_lapsed", cron: "* * * * *", tick: terencanaLapsedTickWorker },
+  // Payouts: a paid Terencairan's item becomes due at the end of the Masa Pembatalan, or the first Pemakaman if sooner (ticket 37).
+  { name: "payouts.pencairan_terencana", cron: "* * * * *", tick: pencairanTerencanaTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -112,4 +127,27 @@ async function pencairanDueTick(ctx: SchedulerContext, now: Date): Promise<void>
 /** The worker wrapper around the Potongan ageing tick (idempotent there, as every tick is). */
 async function potonganUsiaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.payouts.tickPotongan(now);
+}
+
+/**
+ * The worker wrapper around the paid-half tick (idempotent there, as every tick is):
+ * a paid Pemesanan Terencana becomes `aktif` with one Hak Pakai per chosen unit and its
+ * Bukti Pemesanan, in one transaction per order.
+ */
+async function terencanaDibayarTickWorker(ctx: SchedulerContext, now: Date): Promise<void> {
+  await terencanaDibayarTick(ctx.pemesanan, now);
+}
+
+/**
+ * The worker wrapper around the lapse-half tick (idempotent there, as every tick is):
+ * a Terencairan whose pay-first Tagihan lapsed at the end of its hold is `dibatalkan`
+ * and its plots released, in one transaction per order.
+ */
+async function terencanaLapsedTickWorker(ctx: SchedulerContext, now: Date): Promise<void> {
+  await terencanaLapsedTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Terencairan Pencairan trigger (idempotent there, as every tick is). */
+async function pencairanTerencanaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.payouts.tickTerencana(now);
 }

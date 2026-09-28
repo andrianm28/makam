@@ -10,7 +10,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { refusable } from "@/db/unit-of-work";
 import { withinPaymentCap, QRIS_PAYMENT_CAP } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
-import type { LokasiFacility } from "@/domain/lokasi";
+import { nextWorkingDayEnd, type LokasiFacility } from "@/domain/lokasi";
 import type { PublicDenah, PublicDenahBlok } from "@/domain/inventory";
 import type { LokasiPublicPricing, QuotedLine } from "@/domain/tariffs";
 import type { PemesananDeps, Pemesan, TerencanaQuery } from "./deps";
@@ -369,6 +369,19 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
     const profile = await deps.lokasi.publicLokasiMitra(draft.lokasiId);
     if (!profile?.terencanaAktif) return { ok: false, reason: "lokasi_tidak_ada" };
 
+    // The confirmation deadline is promised at submission, not at the confirmation: the
+    // Antrean Lokasi row and the Admin Platform Tier 3 late row both read it, and the
+    // family is told the same time it was promised (spec, story 46). It is the end of
+    // the Lokasi's **next working day** counted from this instant — its own calendar, so a
+    // closed weekday or a Tanggal Tutup moves it (spec, Lokasi: an Admin Lokasi's working
+    // day is an open day of its Jam Operasional). A Lokasi whose Jam Operasional belum
+    // diisi cannot take a Terencana order at all, so this is null only for a Lokasi that
+    // went off the switch between the listing and this write, and the order is refused.
+    const jam = await deps.lokasi.jamOperasionalOf(draft.lokasiId);
+    if (!jam.ok) return { ok: false, reason: "lokasi_tidak_ada" };
+    const tenggat = nextWorkingDayEnd(jam.jamOperasional, now);
+    if (!tenggat.ok) return { ok: false, reason: "lokasi_tidak_ada" };
+
     // The same check the wizard's "Lanjut" made, read again here: a plot may have been taken since.
     const dicek = await periksaPilihanTerencana(deps, { lokasiId: draft.lokasiId, units: draft.units });
     if (!dicek.ok) return refusalOf(dicek);
@@ -407,6 +420,7 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
         pemegangHak,
         calonPenghuni,
         syarat: syaratOf(profile),
+        konfirmasiDueAt: tenggat.at,
         diajukanAt: now,
       })
       .returning({ id: pemesananTerencana.id });
@@ -435,7 +449,7 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
         calonPenghuni,
         syarat: syaratOf(profile),
         unit: units.map((unit) => ({ jenis: unit.jenis, nomor: unit.nomor, jenisMakamName: unit.jenisMakamName })),
-        konfirmasiDueAt: null,
+        konfirmasiDueAt: tenggat.at,
         tagihanId: null,
         alasan: null,
         diajukanAt: now,

@@ -13,9 +13,10 @@
  * The Kode Masuk is not here: Identity & Access sends it straight through
  * EmailSender, so it creates no log entry, is never retried and raises no row.
  *
- * Built so far: ticket 21 (Peringatan Staf, Perangkat Push) and ticket 20
- * (a Tagihan issued and its pay-first reminders, a Bukti Pembayaran issued);
- * Terencana, Paket and pay-after reminders arrive with tickets 37, 54 and 29.
+ * Built so far: ticket 21 (Peringatan Staf, Perangkat Push), ticket 20 (a Tagihan
+ * issued and its pay-first reminders, a Bukti Pembayaran issued) and ticket 37 (a
+ * Pemesanan Terencana confirmed, declined or cancelled, and the one reminder its
+ * payment hold has); Paket and pay-after reminders arrive with tickets 54 and 29.
  *
  * Owns tables: notifications_push_device, notifications_staff_alert,
  * notifications_message, notifications_tagihan_kontak,
@@ -57,14 +58,20 @@ import {
   type PesanTercatat,
   type TagihanTerbitInput,
   type TagihanTerbitResult,
-} from "./pesan-keluarga";
+} from "./pesan-tagihan";
 import {
   pesanPemesanan,
   pesananDiajukan,
   pesananDikonfirmasi,
+  terencanaDibatalkan,
+  terencanaDikonfirmasi,
+  terencanaDitolak,
   type PesanPemesananResult,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
+  type TerencanaDibatalkanInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
 } from "./pesan-pemesanan";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
@@ -78,9 +85,15 @@ export {
 export {
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
+  terencanaDibatalkanSchema,
+  terencanaDikonfirmasiSchema,
+  terencanaDitolakSchema,
   type PesanPemesananResult,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
+  type TerencanaDibatalkanInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
 } from "./pesan-pemesanan";
 export {
   tagihanTerbitSchema,
@@ -88,9 +101,19 @@ export {
   type PesanTercatat,
   type TagihanTerbitInput,
   type TagihanTerbitResult,
-} from "./pesan-keluarga";
+} from "./pesan-tagihan";
 /** The event table and the reminder rules, as the spec lists them, for anything that reports on them. */
-export { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAKTU_TEMPLATE } from "./acara";
+export {
+  ATURAN_PENGINGAT,
+  JAM_KIRIM_AKHIR,
+  JAM_KIRIM_MULAI,
+  JAM_PENGINGAT_HOLD_TERENCANA,
+  MACAM_MOMEN_TAGIHAN,
+  TABEL_ACARA,
+  TEMPLATE_EMAIL,
+  WAKTU_TEMPLATE,
+  jadwalPengingatHoldTerencana,
+} from "./acara";
 
 /** A browser's `PushSubscription.toJSON()`, as the staff page hands it over. */
 export const pushSubscriptionSchema = z.object({
@@ -120,6 +143,8 @@ export interface NotificationsDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /** The Terencana wizard's Lokasi step, where a declined or cancelled order sends the family to pick again (story 49). */
+  terencanaWizardUrl: () => string;
 }
 
 export interface PushDevice {
@@ -242,6 +267,16 @@ export interface Notifications {
    */
   pesananDiajukan(input: PesananDiajukanInput): Promise<PesanPemesananResult>;
   pesananDikonfirmasi(input: PesananDikonfirmasiInput): Promise<PesanPemesananResult>;
+  /**
+   * The three Pemesanan Terencana decisions (ticket 37): the Lokasi confirmed the order
+   * and the pay-first Tagihan is due when the hold ends; the Lokasi declined it, and the
+   * family is sent back to the wizard's Lokasi step; or it ended with no right, the
+   * Pemesan having withdrawn or the hold having run out. Nothing was charged in any of
+   * the last two. An order with no email opens a call row for that Lokasi's own Admin Lokasi.
+   */
+  terencanaDikonfirmasi(input: TerencanaDikonfirmasiInput): Promise<PesanPemesananResult>;
+  terencanaDitolak(input: TerencanaDitolakInput): Promise<PesanPemesananResult>;
+  terencanaDibatalkan(input: TerencanaDibatalkanInput): Promise<PesanPemesananResult>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
@@ -500,6 +535,18 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananDikonfirmasi(input) {
       return pesananDikonfirmasi(deps, input);
+    },
+
+    async terencanaDikonfirmasi(input) {
+      return terencanaDikonfirmasi(deps, input);
+    },
+
+    async terencanaDitolak(input) {
+      return terencanaDitolak(deps, input);
+    },
+
+    async terencanaDibatalkan(input) {
+      return terencanaDibatalkan(deps, input);
     },
 
     async pesanPemesanan(pemesananId) {

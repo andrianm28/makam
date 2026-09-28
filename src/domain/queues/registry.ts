@@ -6,6 +6,7 @@ import { otherTugasLapanganRowType } from "./tier4-tugas-lapangan-row";
 import { konfirmasiLokasiTerlambatRowType } from "./tier1-konfirmasi-lokasi-terlambat-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
 import { pencairanRowType } from "./tier3-pencairan-row";
+import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencana-terlambat-row";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -15,12 +16,14 @@ import { pencairanRowType } from "./tier3-pencairan-row";
  * ticket 43), Tier 2's Pembayaran Perlu Ditinjau (spec-missing; ticket 19's
  * review) and Telepon Pemesan (ticket 20), Tier 1's Konfirmasi Lokasi
  * terlambat (ticket 23) and Tier 3's Pencairan (ticket 32 — the first Tier 3 row
- * type, and the foundation the rest of Tier 3 builds on).
+ * type, and the foundation the rest of Tier 3 builds on) and Konfirmasi Terencana
+ * terlambat (ticket 37).
  */
 export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiLokasiTerlambatRowType,
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
+  konfirmasiTerencanaTerlambatRowType,
   teleponPemesanRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,

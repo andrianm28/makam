@@ -40,6 +40,12 @@ export interface GrantHakPakaiInput {
   dataMenyusul: boolean;
   pemegangHak: NewPemegangHak | null;
   pemakaman: NewPemakaman | null;
+  /**
+   * The Calon Penghuni (CONTEXT.md) the plot is prepared for, when one is named
+   * and the plot is not yet used: a Pemesanan Terencana records it (ticket 37).
+   * A plot bought for someone already buried has none, so it stays null.
+   */
+  calonPenghuni?: string | null;
 }
 
 /** Inserts the Hak Pakai row and, when given, its Pemegang Hak and first Pemakaman; returns the Hak Pakai id. */
@@ -64,6 +70,7 @@ export async function grantHakPakai(
       startAt: now,
       tenureStartAt,
       endDate,
+      calonPenghuni: input.calonPenghuni ?? null,
       perluVerifikasi: input.dataMenyusul,
       createdAt: now,
       createdByAccountId: by.accountId,

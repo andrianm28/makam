@@ -89,6 +89,10 @@ export function testServerRuntime() {
       billing,
       operatorSettings,
       notifications,
+      // The Terencairan Pencairan trigger reads a paid Pemesanan Terencana through that
+      // module's own public read, so the composition root wires the module in beside it
+      // exactly as src/server/runtime.ts does.
+      terencanaTerbayar: () => pemesanan.terencanaTerbayar(),
       reportError: () => {},
     });
     holder.__makamRuntime = {

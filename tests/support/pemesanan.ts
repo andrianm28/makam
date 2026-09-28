@@ -1,7 +1,16 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import type {
+  PemesananDiajukan,
+  PemesananDikonfirmasi,
+  PemesananNotifikasi,
+  TagihanTerbitPemesanan,
+  TerencanaDikonfirmasi,
+  TerencanaDiajukan,
+  TerencanaDibatalkan,
+  TerencanaDitolak,
+} from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
@@ -24,7 +33,27 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
-  const terencana: TerencanaDiajukan[] = [];
+  /**
+   * Every Pemesanan Terencana announcement, in order, each tagged with the event it came
+   * from (`terencanaDiajukan`, `terencanaDikonfirmasi`, `terencanaDitolak`,
+   * `terencanaDibatalkan`). A Terencairan is a single order that moves through four
+   * events, so they are one list rather than four.
+   */
+  const terencana: (
+    | ({ event: "diajukan" } & TerencanaDiajukan)
+    | ({ event: "dikonfirmasi" } & TerencanaDikonfirmasi)
+    | ({ event: "ditolak" } & TerencanaDitolak)
+    | ({ event: "dibatalkan" } & TerencanaDibatalkan)
+  )[] = [];
+  /** Every Tagihan the module issued and announced, a Terencairan's confirmation being the only one it issues. */
+  const tagihanTerbit: TagihanTerbitPemesanan[] = [];
+  /**
+   * Every Pemesanan Terencana decision the module announced, and every Tagihan it issued
+   * and announced (ticket 37), so a test reads the family message without the
+   * Notifications module. Each announcement is kept under the name of the event it came
+   * from, and in the order the events happened — the Pemesanan module's own test (AC 8)
+   * reads them to see that a family is told, and when.
+   */
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -36,7 +65,19 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
       dikonfirmasi.push(hasil);
     },
     terencanaDiajukan: async (order) => {
-      terencana.push(order);
+      terencana.push({ event: "diajukan", ...order });
+    },
+    terencanaDikonfirmasi: async (hasil) => {
+      terencana.push({ event: "dikonfirmasi", ...hasil });
+    },
+    terencanaDitolak: async (hasil) => {
+      terencana.push({ event: "ditolak", ...hasil });
+    },
+    terencanaDibatalkan: async (hasil) => {
+      terencana.push({ event: "dibatalkan", ...hasil });
+    },
+    tagihanTerbit: async (tagihan) => {
+      tagihanTerbit.push(tagihan);
     },
   };
   const pemesanan = composePemesanan({
@@ -64,7 +105,7 @@ const pengurusan = createPengurusan({
     billing: setup.billing,
     identity: setup.identity,
   });
-  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
+  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, terencana, tagihanTerbit, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -74,7 +115,10 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).
  */
-export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
+export type PemesananModul = Omit<
+  PemesananSetup,
+  "diumumkan" | "dikonfirmasi" | "terencana" | "tagihanTerbit" | "notifikasi"
+>;
 
 /**
  * Pengaturan Operator entered by the first Admin Platform, as every document

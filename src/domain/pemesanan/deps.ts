@@ -57,6 +57,89 @@ export interface PemesananNotifikasi {
    * are held outright at submission, and the Tagihan follows the confirmation).
    */
   terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+  /**
+   * The Lokasi confirmed a Pemesanan Terencana: the family hears the plots, who holds
+   * the right, who to call and what to pay. It is separate from `pesananDikonfirmasi`
+   * because there is no Almarhum and no burial to say, and separate from
+   * `tagihanTerbit` because this one names the right as well as the money (ticket 37).
+   */
+  terencanaDikonfirmasi(input: TerencanaDikonfirmasi): Promise<void>;
+  /**
+   * The Lokasi declined a Pemesanan Terencana: the family hears why and is sent back to
+   * the wizard's Lokasi step to pick again (spec, story 49; ticket 37).
+   */
+  terencanaDitolak(input: TerencanaDitolak): Promise<void>;
+  /**
+   * A Pemesanan Terencana ended without a right: the Pemesan withdrew before paying, or
+   * the payment hold ran out. Nothing was charged either way (ticket 37).
+   */
+  terencanaDibatalkan(input: TerencanaDibatalkan): Promise<void>;
+  /**
+   * A confirmed Terencairan's pay-first Tagihan, so the family is told what to pay and
+   * the Terencana rule's own reminder is queued with it (spec, Notifications: "Pemesanan
+   * Terencana Tagihan | once, about 4 h before the hold expires"; ticket 37). A Saat Duka
+   * Tagihan is announced by the checkout Server Action that issues it instead, which is
+   * ticket 22's pattern; this is the one place the domain issues the Tagihan itself.
+   */
+  tagihanTerbit(input: TagihanTerbitPemesanan): Promise<void>;
+}
+
+/** One plot of a Terencana order, by the number the family knows it by. */
+export interface UnitTerencanaNotifikasi {
+  jenis: "petak" | "kavling";
+  nomor: string;
+}
+
+/** The pay-first Tagihan a Terencana confirmation issues, as the announcement needs it. */
+export interface TagihanTerbitPemesanan {
+  tagihanId: string;
+  nomorTagihan: string;
+  nomorPemesanan: string;
+  email: string | null;
+  perihal: string;
+  total: number;
+  dueAt: Date;
+  /** The unguessable part of the Tagihan page's link. */
+  link: string;
+}
+
+/** The Lokasi's confirmation of a Pemesanan Terencana, as its family is told about it. */
+export interface TerencanaDikonfirmasi {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** The plots the order holds, by the numbers the family picked them by. */
+  unit: UnitTerencanaNotifikasi[];
+  /** The Calon Penghuni the plots are prepared for, as it was named at submission. */
+  calon: { name: string };
+  /** The pay-first Tagihan, whose due date is the end of the payment hold. */
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; link: string };
+  /** The Admin Lokasi of that Lokasi Mitra to call, when one is recorded as its Kontak Siaga. */
+  kontakLokasi: { name: string; phoneNumber: string | null } | null;
+}
+
+/** The Lokasi's decline of a Pemesanan Terencana, as its family is told about it. */
+export interface TerencanaDitolak {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** Why the Lokasi declined, in its own words. */
+  alasan: string;
+}
+
+/** A Pemesanan Terencana that ended with no right, as its family is told about it. */
+export interface TerencanaDibatalkan {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** Why it ended: the Pemesan withdrew, or the payment hold ran out. */
+  alasan: string;
 }
 
 /** A new Pemesanan Terencana as the staff who must see it are told about it. */
@@ -137,6 +220,10 @@ export interface PemesananDeps {
     | "bukaSekarang"
     | "serviceHoursDeadline"
     | "saatDukaPaymentWindowHours"
+    /** A Terencairan confirmation's payment hold, the Lokasi Mitra's own policy (ticket 37). */
+    | "terencanaHoldHours"
+    /** A Terencairan's confirmation deadline, the end of the Lokasi's next working day (ticket 37). */
+    | "jamOperasionalOf"
     | "documentChecklistOf"
     | "kontakSiagaOf"
   >;
@@ -151,10 +238,18 @@ export interface PemesananDeps {
     | "tersediaUntukTerencana"
     | "tahan"
     | "lepasTahan"
+    // The Hak Pakai a paid Terencana order takes, on the plot its own hold stands on (ticket 37).
+    | "beriHakPakaiTerencana"
+    // The first Pemakaman of a Hak Pakai, which the Terencairan Pencairan trigger needs.
+    | "firstPemakamanDate"
     | "within"
   >;
-  /** For the Nomor Pemesanan series and a confirmed order's Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  /**
+   * For the Nomor Pemesanan series, a confirmed order's Tagihan (voiding the one a
+   * withdrawal cancels) and the Bukti Pemesanan a paid Terencana order is given, all
+   * taken `within` the transaction that writes them.
+   */
+  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "terbitkanBuktiPemesanan">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

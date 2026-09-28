@@ -151,6 +151,13 @@ export type AuditAction =
   | "petak.nomor_ulang"
   /** An Admin Lokasi assigns a cleared Tersedia Petak to a confirmed order: the Hak Pakai Aktif it creates (ticket 23). */
   | "denah.pakai_petak"
+  /**
+   * A paid Pemesanan Terencana takes a plot its own hold stands on: the Hak Pakai Aktif it
+   * creates for the chosen Petak Makam or Kavling Keluarga, with the order's Pemegang Hak and
+   * Calon Penghuni label (ticket 37). Recorded under the Admin Lokasi whose confirmation asked
+   * for it: that decision is the Lokasi's, and the payment only made it effective.
+   */
+  | "denah.pakai_unit"
   /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
   | "tugas_lapangan.buat"
   /** A Petugas Lapangan marks a Tugas Lapangan Selesai (its required uploads and type-specific form). */
@@ -167,6 +174,17 @@ export type AuditAction =
   | "lokasi.konfirmasi_syarat_tayang"
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
+  /**
+   * An Admin Lokasi confirms a Pemesanan Terencana: the order is Dikonfirmasi and the
+   * pay-first Tagihan is issued, due when the Lokasi Mitra's payment hold ends (ticket 37).
+   * No Hak Pakai yet — that is granted when the Tagihan is paid.
+   */
+  | "pemesanan.konfirmasi_terencana"
+  /**
+   * An Admin Lokasi declines a Pemesanan Terencana: Ditolak with its reason, and every plot
+   * it held released (ticket 37).
+   */
+  | "pemesanan.tolak_terencana"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
   | "pemesanan.centang_dokumen"
   /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */

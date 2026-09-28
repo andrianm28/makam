@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { composeSchedulerContext } from "@/composition/scheduler";
+import { pemesananStub } from "../../tests/support/scheduler";
 import { scheduledTicks, workerHeartbeat } from "@/domain/scheduler";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { startWorker, type RunningWorker } from "./runtime";
@@ -39,8 +40,18 @@ describe("pg-boss wiring (smoke)", () => {
         notifications: { kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }) },
         lokasi: { serviceHoursDeadline: async () => ({ ok: false, reason: "jam_operasional_belum_diisi" as const }), kontakSiagaOf: async () => null },
         identity: { adminLokasiOf: async () => [] },
-        notifikasi: { pesananDiajukan: async () => {}, pesananBelumDikonfirmasi: async () => {}, pesananDikonfirmasi: async () => {}, terencanaDiajukan: async () => {} },
-        payouts: { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
+        // The smoke test is about pg-boss wiring, so every tick it runs finds nothing:
+        // the two Terencairan money ticks read the Pemesanan module, whose tables this
+        // test never fills, and the Pencairan trigger reads Payouts.
+        // The two Terencairan money ticks read the Pemesanan module's own tables,
+        // which this smoke test never fills, so they find nothing to do — the smoke
+        // test is about pg-boss wiring, not about any module's behaviour.
+        pemesanan: pemesananStub(db),
+        payouts: {
+          tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }),
+          tickTerencana: async () => ({ items: 0, due: 0, dilewati: 0 }),
+          tickPotongan: async () => [],
+        },
       }),
       clock,
       ticks: scheduledTicks,

@@ -6,7 +6,7 @@ import { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAK
  * anything that reports on them (AC 1: the table is in code, the email
  * templates listed in one place). What the window and the retries do to real
  * messages is covered through the public send tick in
- * `pesan-keluarga.test.ts` and `telepon-pemesan.test.ts`.
+ * `pesan-tagihan.test.ts` and `telepon-pemesan.test.ts`.
  */
 describe("Tabel acara: every domain event decides recipient, channel, template and timing", () => {
   it.each([
