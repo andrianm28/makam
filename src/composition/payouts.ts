@@ -28,11 +28,21 @@ export function buktiPencairanUrl(env: Pick<RuntimeEnv, "documentPageOrigin" | "
   };
 }
 
+/** The staff page a Bukti Pencairan's push opens: the recipient's own area. */
+function halamanStafPenerima(penerima: KirimBuktiPencairan extends (bukti: infer B) => unknown ? B extends { recipient: infer R } ? R : never : never): string {
+  return penerima.kind === "mitra_jasa" ? "/staf/mitra-jasa/pencairan" : "/staf/admin-lokasi";
+}
+
 /**
- * Sends a Bukti Pencairan's link to its recipient: to the Mitra Jasa whose job it
- * pays, or to the Admin Lokasi of the Lokasi Mitra that did the work — a
- * partnership has no login of its own, and its staff are the people who reconcile
- * against it (spec, story 135).
+ * Sends a Bukti Pencairan to its recipient: to the Mitra Jasa whose job it pays,
+ * or to the Admin Lokasi of the Lokasi Mitra that did the work — a partnership
+ * has no login of its own, and its staff are the people who reconcile against it
+ * (spec, story 135).
+ *
+ * The **link** travels by email. The push cannot carry it: a Peringatan Staf's
+ * push opens a staff page and nothing else (Notifications' own rule, and a
+ * document page is a public page), so the push says a Bukti Pencairan was issued
+ * and opens the recipient's own area, where the Bukti is listed.
  *
  * A recipient nobody can reach is not an error: the Bukti is in the Admin
  * Platform's run and in its own Lokasi's view either way, and a message is a
@@ -57,8 +67,13 @@ export function kirimBuktiPencairanKe(deps: {
             + `Bukti: ${bukti.url}`,
         },
         // A push shows on a lock screen, so it names the work by its document
-        // number and its amount, never by a person.
-        push: { title: "Bukti Pencairan", body: `${bukti.nomorBukti} · ${formatRupiah(bukti.amount)}`, url: bukti.url },
+        // number and its amount, never by a person; and it opens a staff page,
+        // never the document itself.
+        push: {
+          title: "Bukti Pencairan",
+          body: `${bukti.nomorBukti} · ${formatRupiah(bukti.amount)}`,
+          url: halamanStafPenerima(bukti.recipient),
+        },
       });
     }
   };

@@ -124,9 +124,14 @@ export interface PayoutsDeps {
 export interface Payouts {
   // ---- the Saat Duka trigger (AC 9) ----
   /**
-   * The Pemakaman module (ticket 25) records one order's burial: it calls this
-   * inside its own transaction, and that order's Pencairan items become due
-   * whether the money arrived before the burial or after it.
+   * Records that one order's Pemakaman is recorded: the burial half of the Saat
+   * Duka trigger, and what makes that order's items due whichever came first, the
+   * money or the burial.
+   *
+   * **It has no caller in this release.** The Pemakaman module (ticket 25) is the
+   * caller, and it is not merged yet, so today only the tests write this fact (see
+   * `./trigger.test.ts`, which drives both orders). Nothing else reads the table,
+   * so an unrecorded burial simply means no Pencairan items: the trigger waits.
    */
   pemakamanTercatat(tx: Database, input: { nomorPemesanan: string; pemakamanAt: Date }): Promise<void>;
   /**

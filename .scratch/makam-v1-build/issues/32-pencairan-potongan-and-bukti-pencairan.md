@@ -22,6 +22,81 @@ The Payouts module. Pencairan items become due per order or job via registered t
 
 ## Comments
 
+### 2026-09-28 — reviewStandards (axis Standards): boleh merge tanpa HARD
+
+**Verdict: GREEN.** Tidak ada pelanggaran keras. Yang diperiksa satu per satu, dan
+semuanya lulus di commit `d1b7073`:
+
+- **Tidak ada jalur pembayaran kedua.** `dicairkan` hanya ditulis dari
+  `jatuh_tempo`, di dalam satu transaksi yang memegang lock baris item
+  (`transfer.ts`), dan `batalkanPencairanTagihan` /
+  `kurangiPencairanPesanan` hanya menyentuh
+  `inArray(status, ["belum_jatuh_tempo", "jatuh_tempo"])`. Item `dicairkan` tidak
+  punya jalan keluar di kode mana pun.
+- **AC 5 tiga lapis, semua di database**: lock `for("update")` dengan
+  `orderBy(asc(id))` (jadi dua transfer yang berbagi item tidak bisa saling
+  mengunci mati), status satu arah, dan unique index
+  `bukti_pencairan_item_item_idx` pada `item_id`. Test konkurensinya
+  benar-benar konkuren (`Promise.all` dua `terbitkanBuktiPencairan`).
+- **Potongan**: carry-forward (`terpotongSebesar` terpisah dari `amount`, jadi
+  utangnya tidak pernah ditulis ulang), ageing 60 hari idempoten
+  (status satu arah + `where` pada tick), dan **tidak pernah ke Mitra Jasa**:
+  `catatPotongan` hanya menerima `lokasiId` dan menolak id yang bukan Lokasi
+  Mitra, sementara `terbitkanBuktiPencairan` menolak Potongan apa pun bila
+  penerima adalah Mitra Jasa.
+- **Nominal diwarisi, bukan di-quote ulang**: nominal item disalin dari
+  `tagihan_line` (append-only, trigger Billing menolak UPDATE/DELETE) saat item
+  dibuat; tidak ada satu pun pembacaan tarif di dalam trigger.
+- **Kalender dipakai, bukan ditulis ulang**: `lokasi.adminPlatformCalendar()` +
+  `addWorkingDays`, nol kode kalender baru.
+- **Scoping AC 8 skeptis**: `pencairanLokasi` difilter dengan
+  `lokasiId` **dan** `penerimaKind = "lokasi_mitra"`, jadi pekerjaan Mitra Jasa
+  di Lokasi Mitra yang sama tidak bocor ke Admin Lokasi; diuji dengan dua Lokasi
+  Mitra dan dua Admin Lokasi yang saling membaca.
+- **Ukuran uang**: setiap kolom rupiah adalah `Rupiah` dengan CHECK per kolom;
+  tidak ada `number` mentah untuk uang.
+- **Batas-batas yang dijaga**: tidak ada tabel/modul untuk refund, partner share,
+  Mitra Jasa atau Pekerjaan Layanan; tidak ada `page.tsx` baru (hanya satu
+  percabangan pada route `/dokumen/[link]` yang sudah ada); migrasi expand-only
+  dan lolos `check-destructive-ddl`.
+
+### 2026-09-28 — reviewSpec (axis Spec): 6 dari 9 AC kuat, tidak ada yang salah
+
+**Verdict: implementasi benar, pencatatan belum jujur.** Tidak ada AC yang
+dikerjakan salah: setiap AC yang terimplementasi melakukan apa yang ditulis spec
+(judul, jumlah, net, daftar Potongan, BKP, tenggat 2 Hari Kerja). Yang tersisa
+adalah apa yang **belum** terbukti dan belum tercatat apa adanya. Rinciannya
+di entri "spec fixes" 2026-09-28 di bawah; ringkasannya:
+
+- **AC 1, 2, 3**: behaviour is right as Payouts' own behaviour, but each one is
+  entered from outside — a partner share, a direct payment, an override after a
+  Keluhan, a declared Tidak Tertagih — and none of those callers exists yet
+  (tickets 30, 51 and 29). The tests write the inputs themselves, so they prove the
+  rule, not that anything can reach it.
+- **AC 4**: ageing 60 hari dan carry-forward terbukti; klausa **"atau saat
+  Berhenti"** tidak ada sama sekali dan tidak tercatat di mana pun. Ia milik
+  tiket 59 (blocked by 32, 38, 54), jadi memang belum bisa ada di sini.
+- **AC 5**: terbukti penuh, termasuk tidak ada pembayaran kedua.
+- **AC 6**: terbukti penuh (tenggat 2 Hari Kerja dari kalender Admin Platform).
+- **AC 7**: terbukti penuh untuk Bukti Pencairan Mitra Jasa; **pengirimnya**
+  (`kirimBuktiPencairanKe`) tidak punya test.
+- **AC 8**: terbukti untuk "Jatuh tempo" dan "Dicairkan"; status **"Belum jatuh
+  tempo"** per-pesanan tidak dapat terjadi di tiket ini.
+- **AC 9**: kedua urutan trigger terbukti; e2e nol, dan alasannya dapat
+  diterima.
+
+**What the fix pass (2026-09-28) did about this report:** nothing above is a
+defect, and no behaviour changed. The sender's missing test was the one thing
+here that was worth writing rather than recording — `src/composition/payouts.test.ts`
+now proves who a Bukti Pencairan reaches, and writing it found a real defect
+(the push opened a document page, which Notifications refuses, so the message
+would have failed in production). Everything else is now written down in the
+"spec fixes" entry below: AC 4's Berhenti clause and its owner (ticket 59),
+`pemakamanTercatat` having no caller yet, `jadikanJatuhTempo`'s indirect coverage,
+and which ticket makes each of AC 1, 2 and 3 reachable — with the note that AC 3's
+test proves "unpaid owes nobody", not "Tidak Tertagih owes nobody".
+
+
 ### 2026-09-27 — the two decisions the owner took, and where they live in the code
 
 - **A Pelanggan who falls due and is then refunded in full has their items
@@ -39,41 +114,104 @@ The Payouts module. Pencairan items become due per order or job via registered t
   before anyone tries, so the UI can say so. A debt is never half-netted to make
   a transfer possible: it stays `berjalan` and carries forward.
 
-### 2026-09-27 — what the trigger waits for, and why it is a tick
+### 2026-09-28 — what the trigger waits for, and why it is a tick
 
 The Saat Duka trigger's two halves are written by the two modules that own them
 and neither reads the other back: `efekPencairanSaatLunas()` inside the
-transaction that settles the Tagihan, and `payouts.pemakamanTercatat(tx, …)`
-which **ticket 25 calls inside the transaction that records the burial**. A tick
-turns the pair into items, which is what makes "Lunas **and** Pemakaman recorded,
-in either order" true by construction. The tick takes no dependencies at all,
-which is why Billing can compose it and Payouts compose after it without a cycle.
+transaction that settles the Tagihan — that half runs today — and
+`payouts.pemakamanTercatat(tx, …)`, whose caller is the Pemakaman module (ticket
+25, **not merged**, so nothing outside the tests calls it yet). A tick turns the
+pair into items, which is what makes "Lunas **and** Pemakaman recorded, in either
+order" true by construction. The tick takes no dependencies at all, which is why
+Billing can compose it and Payouts compose after it without a cycle.
 
-### 2026-09-27 — what is *not* proven by a test, honestly
+### 2026-09-28 — spec fixes: what is proven, and what is only recorded
 
-- **"Belum jatuh tempo" as an order's per-order state in the Admin Lokasi view.**
-  The derivation is in `reads.ts` and the state is reachable in principle, but in
-  this ticket every order's items are made due by the Saat Duka trigger, so no
-  order can sit in that state yet; the test proves "Jatuh tempo" and "Dicairkan"
-  only. It becomes reachable when tickets 37/40/51 create not-due items.
-- **The Mitra Jasa trigger end to end.** Ticket 51 owns when a job's Keluhan
-  window closes; this ticket provides `catatItemLayananMitraJasa` and
-  `jadikanJatuhTempo` and tests them directly. What is not tested is a
-  Pekerjaan Layanan (ticket 51/55's table) reaching that point, because it does
-  not exist yet.
-- **The Pencairan run's screen and its e2e (AC 9's Playwright line).** There is no
-  Admin Platform Pencairan route to drive: `docs/design-system.md` settles the
-  Admin Platform menu as Kerja harian · Lokasi dan harga · Orang · Operator with
-  no Pencairan item, so the run is reached from the Antrean — which is where the
-  Tier 3 row's link points. Reaching a due item through a browser also needs
-  ticket 25's burial recording, which has no screen yet. **Follow-up:** the
-  Pencairan run screen, its menu entry (a design decision, not a builder's), and
-  then the e2e. What *is* built and rendered today is the Bukti Pencairan's own
-  page at `/dokumen/<link>`, in both its Lokasi Mitra and its Mitra Jasa version,
-  with "Unduh PDF" from the same link.
-- **A partner share larger than the order's Pencairan** is refused, so an item is
-  never left at Rp 0 (a Bukti Pencairan cannot carry a Rp 0 line); an item a share
-  empties completely is cancelled instead. Both paths are tested.
+Rerun after the two-axis review. No behaviour changed; the corrections are in
+what this ticket claims. Read the two lists as a whole: **nothing below is
+implemented wrongly, and nothing below is a defect — it is what is *not* proven
+yet, said plainly.**
+
+#### Proven by a test
+
+- **Both orders of the Saat Duka trigger** (`trigger.test.ts`): money first then
+  burial, and burial first then money, each producing the same Rp 9.500.000 two
+  working days later. The tick is idempotent, and a second payment of the same
+  Tagihan is one fact.
+- **Amounts (AC 1)**: the partner's tariff as issued, a Harga specialising borne
+  by the Operator (the Lokasi Mitra is paid its full tariff), an override after a
+  Keluhan with its note in the Audit Log, and a partner share lowering the order's
+  Pencairan oldest-line-first. A share larger than the order is refused, so an item
+  is never left at Rp 0.
+- **"Dibayar langsung" (AC 2)**: no tariff Pencairan and a platform-fee Potongan
+  of the issued Biaya Layanan Platform, recorded once however often the tick runs.
+- **Tidak Tertagih (AC 3)**: a Tagihan that was never paid produces nothing, and
+  pays out when the money finally arrives.
+- **The run and the transfer (AC 5)**: one row per recipient, the bank account, a
+  hold-out with its reason (out of the run, out of the Antrean, refused by the
+  transfer, back on release), one BKP covering every item and Potongan, a negative
+  net refused with nothing written, two recipients never mixed, and **two
+  concurrent transfers over the same items paying exactly once**.
+- **Potongan (AC 4, first half)**: netted once and settled, a debt bigger than the
+  whole run never half-paid and carried forward, 60-day ageing idempotent, and the
+  offline payment recorded with both Entri Audit.
+- **The 2 Hari Kerja deadline (AC 6)** from the Admin Platform calendar, the Tier 3
+  row (one per recipient), and the counter strip.
+- **The Mitra Jasa view (AC 7)**: the Bukti Pencairan carries job, Layanan, date and
+  rate and has no other field, and their own list is nobody else's.
+- **The Admin Lokasi view (AC 8)**: per order, with the Bukti that settled it, and
+  nothing from another Lokasi Mitra.
+- **Who the Bukti is sent to**: a Lokasi Mitra's Admin Lokasi (not another Lokasi's,
+  not the family), a Mitra Jasa's own account, and nobody at all when the Lokasi has
+  no Admin Lokasi (`src/composition/payouts.test.ts`).
+
+#### Recorded, not proven
+
+- **AC 4's second trigger — "or when the partnership Berhenti" — is absent and
+  waits for ticket 59.** The spec makes a Potongan an offline request either at 60
+  days **or** when the Lokasi Mitra goes Berhenti. Only the first is here; the
+  second belongs to the Lokasi module's status change (ticket 59, "Lokasi Mitra
+  Ditangguhkan dan Berhenti", blocked by 32, 38 and 54), so it cannot exist before
+  this ticket merges and is deliberately not faked here. Nothing in Payouts reads a
+  Lokasi Mitra's status; a Berhenti Lokasi's `berjalan` Potongan keeps ageing on the
+  60-day tick, which is the safe direction. Noted in `potongan.ts` at the tick.
+- **`pemakamanTercatat` has no caller.** It is the burial half of the trigger and it
+  is tested directly, but in this release **only the tests write that fact**: the
+  Pemakaman module (ticket 25, not merged) is the caller in production, and the test
+  helper stands in for it. So the two orders above are proven about *the Payouts
+  half*; the call from a real burial transaction is not, because there is none yet.
+- **`jadikanJatuhTempo` is exercised only indirectly** (through the Mitra Jasa
+  view tests). Its one-way behaviour — calling it twice, or after the item was
+  cancelled or transferred — is not proven.
+- **"Belum jatuh tempo" as an order's per-order state (AC 8) cannot occur yet.** The
+  derivation is in `reads.ts`; every order's items are made due by the Saat Duka
+  trigger, so the test proves "Jatuh tempo" and "Dicairkan" only. It becomes
+  reachable when tickets 37, 40 and 51 create not-due items.
+- **Nothing enters AC 1, 2 and 3 from the outside yet, and the tests stand in for
+  the callers.** Each test writes its own input, and no test can be green today
+  unless this module is wrong:
+  | AC | what the test does | who will make it real |
+  |---|---|---|
+  | AC 1 partner share | calls `kurangiPencairanPesanan` itself | **ticket 30** (built, not merged) — the field on the order and its note |
+  | AC 2 "dibayar langsung" | records the payment with `langsung_ke_lokasi` itself | **ticket 30** — the manual-payments screen and the direct-payment reversal |
+  | AC 1 override after a Keluhan | calls `turunkanJumlahPencairan` itself | **ticket 51** — the Keluhan decision that offers the override |
+  | AC 3 Tidak Tertagih | `setTagihanStatusForTest`, a stand-in | **ticket 29**, which has no writer at all yet |
+- **AC 3 is weaker than it looks.** Nothing in the trigger ever reads the
+  `tidak_tertagih` status, so that test proves "an unpaid Tagihan owes nobody" and
+  "a paid one owes what it owes" — it does **not** prove the spec's rule that a
+  declared Tidak Tertagih owes nobody until the family pays later. That rule only
+  becomes testable when ticket 29 can actually declare it; the behaviour is correct
+  today only because no code path can set the status.
+- **The Mitra Jasa trigger end to end.** `catatItemLayananMitraJasa` and
+  `jadikanJatuhTempo` are tested directly, but no Pekerjaan Layanan (ticket 51/55's
+  table) exists to reach them, so "the Keluhan window closed" is not proven.
+- **No Playwright e2e (AC 9).** Two reasons, both recorded: `docs/design-system.md`
+  (:183 and :306) settles the Admin Platform menu as Kerja harian · Lokasi dan harga
+  · Orang · Operator with **no Pencairan item**, so there is no run screen to drive
+  and the run is reached from the Antrean, which is where the Tier 3 row points;
+  and reaching a due item through a browser needs ticket 25's burial recording,
+  which has no screen. The document itself is real today: `/dokumen/<link>` renders
+  both versions of a Bukti Pencairan and prints it to PDF.
 
 ### 2026-09-27 — a finding for the orchestrator, from the CI upgrade seed
 

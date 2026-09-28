@@ -207,10 +207,18 @@ export async function catatPotonganLunas(
 }
 
 /**
- * The ageing tick (AC 4): every Potongan recorded 60 days ago and still
- * `berjalan` becomes an offline request, which Admin Platform records when it
- * is paid. Idempotent — the status only ever moves this way, and the tick's own
+ * The ageing tick (AC 4, first half): every Potongan recorded 60 days ago and
+ * still `berjalan` becomes an offline request, which Admin Platform records when
+ * it is paid. Idempotent — the status only ever moves this way, and the tick's own
  * `where` leaves everything else alone.
+ *
+ * **The second half of AC 4 is not here.** The spec also turns a Potongan into an
+ * offline request when the Lokasi Mitra goes **Berhenti**, and that trigger is
+ * the Lokasi module's (ticket 59, "Lokasi Mitra Ditangguhkan dan Berhenti",
+ * blocked by 32, 38 and 54), so it cannot be written before this ticket merges.
+ * Nothing in this module reads a Lokasi Mitra's status and nothing here will:
+ * a Berhenti Lokasi's `berjalan` Potongan simply keeps ageing on this tick, which
+ * is the safe direction. Recorded in the ticket's `## Comments`.
  *
  * Returns the ids it moved.
  */

@@ -157,7 +157,11 @@ export async function bayarTagihan(
   return dibayar;
 }
 
-/** Records one order's Pemakaman, the way the Pemakaman module (ticket 25) will. */
+/**
+ * Records one order's Pemakaman. Today this helper is the **only** writer of that
+ * fact in the whole tree: the Pemakaman module (ticket 25) is the caller in
+ * production and is not merged yet, so every trigger test stands in for it.
+ */
 export async function catatPemakaman(setup: PayoutsModul, nomorPemesanan: string, pemakamanAt: Date) {
   await setup.db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan, pemakamanAt }));
 }
