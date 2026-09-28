@@ -140,6 +140,98 @@ function valueFor(table: string, column: Column, n: number, enums: Map<string, s
   return text(`upgrade-${table}-${column.name}-${n}`);
 }
 
+type Override = (context: { client: pg.Client; n: number }) => unknown;
+
+/**
+ * A column's value when the catalog cannot imply it, keyed table then column.
+ *
+ * `valueFor` guesses from the column's type and name, which is all the catalog
+ * shows. A CHECK that ties two columns together, or that lists the values a
+ * `text` column may hold, says none of that: the guess is wrong, the table
+ * stays empty and the run fails — the breakage this seed exists to catch, but
+ * the fault is the seed's, not the migration's. So each entry below states the
+ * value outright and names the constraint that rejects a guess plus the domain
+ * module that owns the allowed values, rather than hiding the guess: a list
+ * that changes fails here loudly, which is the point.
+ *
+ * The rules are the ones in `schema.ts`, which the owner of each module keeps
+ * right; the seed only follows them.
+ */
+const OVERRIDES: Record<string, Record<string, Override>> = {
+  /**
+   * `inventory_petak_kind_fields_check` (src/domain/inventory/schema.ts): a
+   * `petak` cell carries a Nomor Makam and a Jenis Makam, the other kinds carry
+   * neither, so the two branches cannot both be satisfied by one guess. A
+   * `petak` cell is the row that exercises the rest of Inventory (a Hak Pakai
+   * needs a Jenis Makam and a Nomor Makam), so that is the kind seeded here.
+   * `kavling_id` keeps the value its foreign key gives it: the check asks for
+   * it null only on the three kinds that are not a `petak`, and a cell that is
+   * part of a Kavling Keluarga is a row the running release could have had.
+   */
+  inventory_petak: {
+    kind: () => "petak",
+    /**
+     * `tariff_jenis_makam.id`, from a row this seed inserted: the column has no
+     * foreign key (no foreign key crosses a module boundary) and the CHECK only
+     * asks for "not null", so nothing but this would keep it pointing at a
+     * Jenis Makam that exists — which is what a later migration adding that
+     * foreign key would have to be true of.
+     */
+    jenis_makam_id: ({ client, n }) =>
+      seededRow(client, "tariff_jenis_makam", ["id"], n).then((row) => row?.id ?? randomUUID()),
+  },
+  /**
+   * `payment_webhook_event_kind_check` and
+   * `payment_webhook_event_outcome_check` (src/domain/billing/schema.ts): both
+   * columns are `text` rather than a Postgres enum, so the catalog lists no
+   * allowed values. Both are checked, and both must be, or the table is empty.
+   */
+  payment_webhook_event: {
+    kind: () => "paid",
+    outcome: () => "lunas",
+  },
+  /**
+   * `pembayaran_perlu_ditinjau_reason_check` (src/domain/billing/schema.ts): a
+   * `text` column listing the reasons in `reviewReasons`. Its
+   * `amount` CHECK (0 to `RUPIAH_MAX`) is one the type already satisfies: whole
+   * rupiah a few over zero.
+   */
+  pembayaran_perlu_ditinjau: {
+    reason: () => "pembayaran_tidak_dikenal",
+  },
+  /**
+   * `inventory_hak_pakai_target_check` and `inventory_plot_hold_unit_check`
+   * (src/domain/inventory/schema.ts): a Hak Pakai and a hold are on a Petak
+   * Makam *or* a Kavling Keluarga, never on both, and the seeder fills every
+   * foreign key it can, so it holds both and the CHECK turns it away. These two
+   * are seeded on the Petak side; the Kavling side is the same row mirrored,
+   * and one row cannot be both.
+   */
+  inventory_hak_pakai: { kavling_id: () => null },
+  inventory_plot_hold: { kavling_id: () => null },
+};
+
+/**
+ * Tables an override reads that the catalog cannot show as a dependency,
+ * because the column it fills carries no foreign key (no foreign key crosses a
+ * module boundary). The seeder fills parents first, so the table that reads
+ * one waits for it exactly as it would for a foreign key — without this the
+ * read finds an empty table, falls back to a uuid nothing points at, and the
+ * seeded row is one the running release could never have had.
+ */
+const READS: Record<string, string[]> = {
+  inventory_petak: ["tariff_jenis_makam"],
+};
+
+/** A row of a table the seed has already filled: the `n`-th one, else the first. */
+async function seededRow(client: pg.Client, table: string, columns: string[], n: number): Promise<Record<string, unknown> | undefined> {
+  const select = columns.map(quote).join(", ");
+  return (
+    (await client.query(`select ${select} from ${quote(table)} order by ctid offset $1 limit 1`, [n])).rows[0] ??
+    (await client.query(`select ${select} from ${quote(table)} limit 1`)).rows[0]
+  );
+}
+
 async function main() {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL, application_name: "makam-upgrade-seed" });
   await client.connect();
@@ -149,15 +241,17 @@ async function main() {
     const filled = new Set<string>();
     const failures = new Map<string, string>();
     let progress = true;
-    // Parents first: a table is tried once every table its required foreign keys point at has rows.
+    // Parents first: a table is tried once every table its required foreign keys
+    // point at has rows, and once every table an override reads (READS) has them.
     while (progress) {
       progress = false;
       for (const table of tables) {
         if (filled.has(table.name)) continue;
-        const required = table.foreignKeys.filter(
-          (fk) => fk.refTable !== table.name && fk.columns.some((c) => !table.columns.find((col) => col.name === c)?.nullable),
-        );
-        if (!required.every((fk) => filled.has(fk.refTable))) continue;
+        const required = table.foreignKeys
+          .filter((fk) => fk.refTable !== table.name && fk.columns.some((c) => !table.columns.find((col) => col.name === c)?.nullable))
+          .map((fk) => fk.refTable)
+          .concat(READS[table.name] ?? []);
+        if (!required.every((parent) => filled.has(parent))) continue;
         const error = await fill(client, table, filled, enums);
         if (error) failures.set(table.name, error);
         else {
@@ -189,17 +283,19 @@ async function fill(client: pg.Client, table: Table, filled: Set<string>, enums:
       const values = new Map<string, unknown>();
       for (const fk of table.foreignKeys) {
         if (fk.refTable === table.name || !filled.has(fk.refTable)) continue;
-        const parent = await client.query(
-          `select ${fk.refColumns.map(quote).join(", ")} from ${quote(fk.refTable)} order by ctid offset $1 limit 1`,
-          [n],
-        );
-        const row = parent.rows[0] ?? (await client.query(`select ${fk.refColumns.map(quote).join(", ")} from ${quote(fk.refTable)} limit 1`)).rows[0];
+        const row = await seededRow(client, fk.refTable, fk.refColumns, n);
         fk.columns.forEach((column, i) => values.set(column, row?.[fk.refColumns[i]] ?? null));
       }
       for (const column of table.columns) {
         if (values.has(column.name) || column.isGenerated || column.hasDefault) continue;
         if (table.foreignKeys.some((fk) => fk.columns.includes(column.name))) continue; // self or unfilled: null
         values.set(column.name, valueFor(table.name, column, n, enums));
+      }
+      // A stated value has the last word: it wins over the guess, and over a
+      // foreign key on the same column (none is today; a column whose value a
+      // CHECK ties to others is not one a foreign key can fill wrongly).
+      for (const [column, override] of Object.entries(OVERRIDES[table.name] ?? {})) {
+        values.set(column, await override({ client, n }));
       }
       const names = [...values.keys()];
       const sql =
