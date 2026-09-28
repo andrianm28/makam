@@ -155,7 +155,7 @@ describe("the Bukti Pemesanan of a paid burial", () => {
     expect(await setup.billing.allBuktiPemesanan()).toEqual([terbit]);
   });
 
-  it("states the Hak Pakai's own term: fixed-term names its end date, and a term it cannot read issues no Bukti at all", async () => {
+  it("states the Hak Pakai's own term: a fixed-term Bukti names both of its dates, so a null end date means a Selamanya Jenis Makam", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await pesananDikonfirmasi(setup);
     setup.clock.set(wib("2026-10-02 11:00"));
@@ -166,5 +166,13 @@ describe("the Bukti Pemesanan of a paid burial", () => {
     // date: a `selesai` of null on a Bukti means a perpetual Hak Pakai and nothing else.
     const [terbit] = await setup.billing.allBuktiPemesanan();
     expect(terbit?.masa).toEqual({ mulai: "2026-10-02", selesai: "2031-10-02" });
+
+    // The other half of that sentence — a Hak Pakai whose term cannot be read issues
+    // no Bukti at all — is a guard in `terbitkanBukti`, and it is unreachable through
+    // this module's public functions: `tenureStartAt` is only ever set (never
+    // cleared) and a Hak Pakai is never deleted, so a Dimakamkan order's Hak Pakai
+    // always has a term to print. It is deliberately not tested here, because a test
+    // that manufactured the state would assert on a fiction rather than on a
+    // reachable outcome. The wording it protects is in `src/lib/billing-labels.test.ts`.
   });
 });

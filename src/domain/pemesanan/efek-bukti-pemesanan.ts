@@ -86,7 +86,11 @@ export async function terbitkanBukti(
 
   const hakPakai = await deps.inventory.within(tx).hakPakaiById(order.hakPakaiId);
   // The document states the Hak Pakai's own term; a term it cannot read is not
-  // stated, and the order stays short of Selesai until a human looks.
+  // stated, and the order stays short of Selesai until a human looks. Defensive
+  // rather than reachable: a Dimakamkan order got there through `catatPemakaman`,
+  // which starts the clock in the same transaction, and nothing in the codebase
+  // clears `tenure_start_at` or deletes a Hak Pakai — so no public-interface test
+  // can drive this branch, and inventing one would assert on a fiction.
   const masa = masaHakPakai(hakPakai);
   if (!masa) return null;
   const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
