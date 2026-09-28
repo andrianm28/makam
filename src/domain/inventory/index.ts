@@ -28,6 +28,7 @@ import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResul
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
 import type { InventoryDeps } from "./deps";
 import type { PetakByNomor } from "./lookup";
+import { makamKeluargaSaya, type MakamSaya } from "./makam-saya";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
@@ -63,6 +64,8 @@ export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDen
 export { pilihanOf } from "./picker";
 export type { HasilCariMakam, MakamDitemukan, PetakDitemukan, PermintaanCariMakam, PermintaanDariIP } from "./cari-makam";
 export { CARI_MAKAM_ATTEMPT_KEPT_MS, CARI_MAKAM_JENDELA_MENIT, CARI_MAKAM_MAKS_PER_IP, KUNCI_HASIL_CARI_MAKAM, pruneCariMakamAttempts } from "./cari-makam";
+export type { MakamSaya, PetakMakamSaya } from "./makam-saya";
+export type { PemakamanRow } from "./hak-pakai-reads";
 export type {
   AddEdgeResult,
   AvailabilityCount,
@@ -195,6 +198,12 @@ export interface Inventory {
    * email that is not an email, or holds nothing, is an empty list.
    */
   makamPemegangHak(input: { email: string }): Promise<MakamDitemukan[]>;
+  /**
+   * The same graves, for the Akun's own Makam Keluarga tab (ticket 27): the Hak
+   * Pakai's own id and every Pemakaman it covers in full, which the public
+   * lookup's privacy list forbids `makamPemegangHak` from carrying.
+   */
+  makamKeluargaSaya(input: { email: string }): Promise<MakamSaya[]>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
   /**
@@ -234,6 +243,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
+    makamKeluargaSaya: (input) => makamKeluargaSaya(deps, input),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
     within: (tx) => createInventory({ ...deps, db: tx }),
   };
