@@ -660,7 +660,7 @@ function StickyBar({
   setTerbuka: (buka: boolean) => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
           <dl

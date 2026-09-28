@@ -109,7 +109,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
         ) : null}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
         <div className="mx-auto max-w-3xl px-4">
           {rincianTerbuka && terpilih ? (
             <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">

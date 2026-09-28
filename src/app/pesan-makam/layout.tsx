@@ -21,7 +21,7 @@ export default async function PesanMakamLayout({ children }: LayoutProps<"/pesan
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-40 border-b border-border bg-background">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-4 px-4">
+        <div className="mx-auto flex h-(--header-height) w-full max-w-3xl items-center justify-between gap-4 px-4">
           <Link href="/" aria-label="Keluar dari pemesanan, ke Beranda" className="flex items-center gap-2.5">
             <BrandMark className="h-8" />
             <span className="text-small font-bold tracking-[0.04em] text-forest">MAKAM.CO.ID</span>

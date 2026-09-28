@@ -348,7 +348,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
  */
 function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
           <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
