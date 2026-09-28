@@ -161,8 +161,8 @@ Charts: `chart-1`…`chart-5` are Forest, Sage, Sand, the info blue and the mute
 | Utility | Size / line | Weight | Use |
 |---|---|---|---|
 | `text-hero` → `sm:text-5xl` `sm:leading-hero` → `lg:text-hero-lg` | 34 / 1.15 → 48 / 1.1 → 56 / 1.1 | 600 | The Beranda hero `h1` (Lora) |
-| `text-section-title` → `md:text-4xl` | 28 / 1.25 → 36 / 40 | 600 | A homepage section heading (Lora): the tile row, the trust strip |
-| `text-page-title` → `md:text-4xl` | 30 / 36 → 36 / 40 | 600 | A public list/detail page `h1` (sans, `tracking-tight`): Daftar Lokasi, a Lokasi Mitra's page |
+| `text-section-title` → `md:text-4xl` | 28 / 1.25 → 36 / 45 | 600 | A homepage section heading (Lora): the tile row, the trust strip. Keep `leading-tight` explicit next to it: a font-size utility only falls back to its own line-height, so without `leading-tight` the `md:` step renders 36 / 40 and the page loses height |
+| `text-page-title` → `md:text-4xl` | 30 / 36 → 36 / 40 | 600 | A public list/detail page `h1` (sans, `tracking-tight`): Daftar Lokasi, a Lokasi Mitra's page. Its size equals stock `text-3xl`; it is named anyway because it carries weight 600 with it, so an `h1` cannot lose its weight |
 
 `--leading-hero` (1.1) is the reusable ratio for the hero's `sm:` tier, paired with Tailwind's own `text-5xl`.
 
