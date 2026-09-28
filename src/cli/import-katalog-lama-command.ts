@@ -174,6 +174,7 @@ export async function importKatalogLamaCommand(
         appEnv: env.APP_ENV,
         smtp: env.smtp,
         vapid: env.vapid,
+        devFilesRoot: env.DEV_FILES_ROOT,
         overrides: options.clock ? { clock: options.clock } : undefined,
       });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });

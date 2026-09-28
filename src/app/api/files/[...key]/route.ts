@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { DiskFileStore } from "@/adapters/live/disk-file-store";
-import { isSafeFileKey } from "@/ports/file-store";
+import { isSafeFileKey, supportsSignedReads } from "@/ports/file-store";
 import { serverRuntime } from "@/server/runtime";
 
 const paramsSchema = z.object({
@@ -23,8 +22,9 @@ const querySchema = z.object({
  * trusts a Tagihan's unguessable link — because whoever asked the domain
  * module for the signed URL (e.g. `lokasi.agreementScanUrl`) already checked
  * the caller's role. A bad key, a wrong or expired signature, or the fake
- * FileStore of development and test (never served over HTTP) all give the
- * same 404: nothing here distinguishes "wrong" from "gone".
+ * FileStore of development and test (never served over HTTP, and never
+ * `supportsSignedReads`) all give the same 404: nothing here distinguishes
+ * "wrong" from "gone".
  */
 export async function GET(request: Request, context: RouteContext<"/api/files/[...key]">) {
   const params = paramsSchema.safeParse(await context.params);
@@ -33,7 +33,7 @@ export async function GET(request: Request, context: RouteContext<"/api/files/[.
   if (!query.success) return notFound();
 
   const { files } = serverRuntime().adapters;
-  if (!(files instanceof DiskFileStore)) return notFound();
+  if (!supportsSignedReads(files)) return notFound();
 
   const file = await files.readSigned(params.data.key.join("/"), query.data.exp, query.data.sig);
   if (!file) return notFound();

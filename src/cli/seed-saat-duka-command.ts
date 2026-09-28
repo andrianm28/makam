@@ -81,7 +81,7 @@ export async function seedSaatDukaCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-saat-duka" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
+      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid, devFilesRoot: env.DEV_FILES_ROOT });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
