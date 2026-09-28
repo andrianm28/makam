@@ -4,7 +4,6 @@ import {
   ArmchairIcon,
   ArrowRightIcon,
   BadgeCheckIcon,
-  CheckIcon,
   DropletIcon,
   LandmarkIcon,
   LightbulbIcon,
@@ -18,11 +17,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { z } from "zod";
+import { FilterChip } from "@/components/makam/filter-chip";
 import { lokasiFacilities, type LokasiFacility, type LokasiMakamKind } from "@/domain/lokasi";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
 import { formatRupiah } from "@/lib/rupiah";
-import { cn } from "@/lib/utils";
 import { daftarLokasi, type DaftarLokasiBaris } from "./daftar";
 import { fasilitasHref, hasActiveFilter, jenisHref, kotaHref, lokasiHref, type LokasiFilters } from "./filters";
 
@@ -102,9 +101,9 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
         <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Jenis</span>
         <div className="flex flex-wrap gap-2">
           {jenisOptions.map((one) => (
-            <Chip key={one.value} href={jenisHref(filters, one.value)} selected={filters.jenis === one.value}>
+            <FilterChip key={one.value} href={jenisHref(filters, one.value)} selected={filters.jenis === one.value}>
               {one.label}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -112,9 +111,9 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
         <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Fasilitas</span>
         <div className="flex flex-wrap gap-2">
           {facilityOptions.map(([value, label]) => (
-            <Chip key={value} href={fasilitasHref(filters, value)} selected={filters.fasilitas.includes(value)}>
+            <FilterChip key={value} href={fasilitasHref(filters, value)} selected={filters.fasilitas.includes(value)}>
               {label}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
       </div>
@@ -138,19 +137,19 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
       {/* City: always up front */}
       <div className="mt-8 flex flex-col gap-4">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="group" aria-label="Kota">
-          <Chip href={kotaHref(filters, undefined)} selected={filters.kota === undefined}>
+          <FilterChip href={kotaHref(filters, undefined)} selected={filters.kota === undefined}>
             Semua kota
-          </Chip>
+          </FilterChip>
           {kota.map((one) => (
-            <Chip key={one} href={kotaHref(filters, one)} selected={filters.kota === one}>
+            <FilterChip key={one} href={kotaHref(filters, one)} selected={filters.kota === one}>
               {one}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
         {/* Desktop: the other filters inline. Phone: behind one disclosure (no client JS needed). */}
         <div className="hidden gap-8 md:flex">{secondaryFilters}</div>
         <details className="group md:hidden" open={activeCount > 0}>
-          <summary className="inline-flex h-10 w-fit cursor-pointer list-none items-center gap-2 rounded-lg border border-border-strong bg-card px-4 text-body font-medium [&::-webkit-details-marker]:hidden">
+          <summary className="inline-flex h-10 min-h-(--touch-target) w-fit cursor-pointer list-none items-center gap-2 rounded-lg border border-border-strong bg-card px-4 text-body font-medium [&::-webkit-details-marker]:hidden">
             <SlidersHorizontalIcon className="size-4" aria-hidden /> Filter{activeCount ? ` (${activeCount})` : ""}
           </summary>
           <div className="mt-4 flex flex-col gap-5 rounded-2xl border border-border bg-card p-4">{secondaryFilters}</div>
@@ -181,23 +180,6 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
         </div>
       )}
     </main>
-  );
-}
-
-/** One filter chip, a plain link so every filter stays a shareable URL and works with no client JS. */
-function Chip({ href, selected, children }: { href: string; selected?: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      aria-current={selected ? "true" : undefined}
-      className={cn(
-        "inline-flex h-10 items-center gap-1.5 rounded-full border px-4 text-body font-medium whitespace-nowrap transition-colors",
-        selected ? "border-forest bg-forest text-primary-foreground" : "border-border-strong bg-card text-foreground hover:bg-accent",
-      )}
-    >
-      {selected ? <CheckIcon className="size-4" aria-hidden /> : null}
-      {children}
-    </Link>
   );
 }
 
@@ -299,7 +281,7 @@ function LokasiCard({ row }: { row: DaftarLokasiBaris }) {
               href={directionsUrl(mapsQuery)}
               target="_blank"
               rel="noreferrer"
-              className="relative z-10 inline-flex h-10 items-center gap-1.5 rounded-lg px-2 text-small font-medium text-sage-strong hover:bg-accent hover:text-forest"
+              className="relative z-10 inline-flex h-10 min-h-(--touch-target) items-center gap-1.5 rounded-lg px-2 text-small font-medium text-sage-strong hover:bg-accent hover:text-forest"
             >
               <NavigationIcon className="size-4" aria-hidden /> Petunjuk arah
             </a>
