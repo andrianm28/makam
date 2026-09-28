@@ -18,7 +18,7 @@ async function buktiFromForm(formData: FormData) {
 }
 
 const CATAT_GAGAL: Record<string, string> = {
-  tagihan_tidak_ada: "Tagihan ini tidak punya Retribusi Daerah yang perlu disetor.",
+  tagihan_tidak_ada: "Tagihan ini tidak punya Retribusi Pemda yang perlu disetor.",
   sudah_disetor: "Setor Retribusi untuk Tagihan ini sudah tercatat.",
   tanggal_di_masa_depan: "Tanggal setor tidak boleh di masa depan.",
   berkas_tidak_didukung: "Bukti setor harus berupa foto atau scan (JPG, PNG, WEBP, PDF).",
@@ -28,7 +28,7 @@ const CATAT_GAGAL: Record<string, string> = {
 
 /**
  * Admin Platform, or the Petugas who paid the town in person, records the
- * payment of a Retribusi Daerah line with its proof. One domain call, and it
+ * payment of a Retribusi Pemda line with its proof. One domain call, and it
  * closes the Tier 3 "Setor Retribusi" row because the row is a projection of the
  * same state.
  */

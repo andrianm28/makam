@@ -1,7 +1,7 @@
 /**
  * Setor Retribusi (spec, Work Queues Tier 3 and Tariffs; ticket 45): a Retribusi
- * Daerah line the family paid is not the Operator's to keep — it is handed to
- * the town. So every Lunas Tagihan with a **non-zero** Retribusi Daerah line
+ * Pemda line the family paid is not the Operator's to keep — it is handed to
+ * the town. So every Lunas Tagihan with a **non-zero** Retribusi Pemda line
  * opens a Tier 3 "Setor Retribusi" row, due two working days after Lunas on the
  * Admin Platform calendar (ticket 11), and recording the payment to the town
  * with its proof closes it.
@@ -12,7 +12,7 @@
  * whoever paid; the recording is audited either way.
  *
  * What it refuses, in order: no Tagihan, a Tagihan that never went out to a
- * town (one with no Retribusi Daerah line, or a Rp 0 one — every Retribusi is
+ * town (one with no Retribusi Pemda line, or a Rp 0 one — every Retribusi is
  * Rp 0 today, so this is the only case v1 can actually refuse), a Tagihan
  * already recorded, a date in the future, a proof that is not a photo or a scan,
  * and a private FileStore that will not keep it.
@@ -103,7 +103,7 @@ export interface SetorRetribusiDeps {
 }
 
 /**
- * Records the payment of a Tagihan's Retribusi Daerah line to the town, with
+ * Records the payment of a Tagihan's Retribusi Pemda line to the town, with
  * the proof, and so closes the Tier 3 row. `tugasLapanganId` is the "Setor
  * Retribusi" Tugas whose upload carried the proof when a Petugas paid in
  * person; null when an Admin Platform recorded it themselves.
@@ -232,7 +232,7 @@ export async function tulisSetor(
 
 /**
  * Every open Setor Retribusi, oldest Lunas first: a Lunas Tagihan with a
- * non-zero Retribusi Daerah line that nobody has paid on to the town yet. The
+ * non-zero Retribusi Pemda line that nobody has paid on to the town yet. The
  * Antrean's Tier 3 row type is a plain projection of this, so recording the
  * payment closes the row without the row knowing anything about it.
  *

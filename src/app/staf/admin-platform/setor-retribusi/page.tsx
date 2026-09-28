@@ -8,7 +8,7 @@ import { SetorRetribusiForms } from "./setor-retribusi-forms";
 
 /**
  * The open Setor Retribusi rows, the page the Antrean's Tier 3 row links to
- * (spec, Work Queues; ticket 45). A Retribusi Daerah line the family paid is the
+ * (spec, Work Queues; ticket 45). A Retribusi Pemda line the family paid is the
  * Operator's to hand on to the town, so each one here is a debt until it is
  * recorded with the proof.
  *
@@ -27,7 +27,7 @@ export default async function SetorRetribusiPage() {
     <>
       <PageHeader
         title="Setor Retribusi"
-        description="Setiap Tagihan Lunas dengan baris Retribusi Daerah bukan nol harus disetor ke Pemda. Baris Antrean Tier 3 terbuka dua hari kerja setelah Lunas dan menutup begitu setor dicatat."
+        description="Setiap Tagihan Lunas dengan baris Retribusi Pemda bukan nol harus disetor ke Pemda. Baris Antrean Tier 3 terbuka dua hari kerja setelah Lunas dan menutup begitu setor dicatat."
       />
 
       {terbuka.length === 0 ? (
@@ -35,8 +35,8 @@ export default async function SetorRetribusiPage() {
           <CardHeader>
             <CardTitle>Tidak ada setoran yang menunggu</CardTitle>
             <CardDescription>
-              Retribusi Daerah saat ini Rp 0, jadi tidak ada satu pun Tagihan yang harus disetor ke Pemda. Baris
-              ini terisi sendiri begitu tarif Retribusi Daerah berubah.
+              Retribusi Pemda saat ini Rp 0, jadi tidak ada satu pun Tagihan yang harus disetor ke Pemda. Baris
+              ini terisi sendiri begitu tarif Retribusi Pemda berubah.
             </CardDescription>
           </CardHeader>
         </Card>

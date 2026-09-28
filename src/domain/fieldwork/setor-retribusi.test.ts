@@ -1,6 +1,6 @@
 /**
  * Setor Retribusi (spec, Work Queues Tier 3 and Tariffs; ticket 45, AC 7 and its
- * 2026-09-25 addition). A family's Retribusi Daerah is paid on to the town, so
+ * 2026-09-25 addition). A family's Retribusi Pemda is paid on to the town, so
  * every Lunas Tagihan carrying a non-zero line opens a row due two working days
  * later, and recording the payment with its proof closes it.
  *
@@ -177,6 +177,58 @@ describe("the Setor Retribusi row", () => {
     // closes without Admin Platform touching anything.
     expect((await setup.queues.antrean(admin)).filter((row) => row.type === "setor_retribusi")).toEqual([]);
     expect(await setup.fieldwork.setorRetribusiTerbuka()).toEqual([]);
+  });
+
+  it("refuses the Petugas's completion with its own reason when the town is already paid", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { admin, petugas, tagihanId, nomorTagihan } = await lunasDenganRetribusi(setup, 250_000);
+    setup.clock.set(wib("2026-10-05 09:00"));
+
+    // Admin Platform hands the setor to one Petugas as a "Setor Retribusi" Tugas...
+    const tugas = await setup.fieldwork.createTugasLapangan(admin, {
+      type: "setor_retribusi",
+      subject: `Setor Retribusi ${nomorTagihan}`,
+      lokasiId: null,
+      address: "Kantor Dinastegeran",
+      pin: null,
+      plannedDate: "2026-10-05",
+      assigneeAccountId: petugas.accountId,
+      tagihanId,
+    });
+    if (!tugas.ok) throw new Error(`tugas refused: ${tugas.reason}`);
+
+    // ...and then pays the town themselves, so that Tagihan is recorded already.
+    const tercatat = await setup.fieldwork.catatSetorRetribusi(admin, {
+      tagihanId,
+      dibayarkanPada: "2026-10-05",
+      bukti: bukti(),
+      catatan: "No. 1234",
+    });
+    expect(tercatat.ok).toBe(true);
+
+    // The Petugas completes the same Tugas with their receipt, and the answer is
+    // "the town is already paid for this Tagihan" — not "this Tagihan never went
+    // to a town". The two send the Petugas to different people, so the second is
+    // never folded into the first.
+    expect(
+      await setup.fieldwork.completeTugasLapangan(petugas, tugas.tugasLapangan.id, {
+        form: { dibayarkanPada: "2026-10-05", catatan: "No. 1234" },
+        uploads: [{ kind: "bukti_setor", file: bukti() }],
+      }),
+    ).toEqual({ ok: false, reason: "sudah_disetor" });
+
+    // Nothing moved: the completion rolled back whole, so the Tugas is still the
+    // Petugas's to hand back, and the single recording that exists is still that one.
+    const [milikPetugas] = await setup.fieldwork.tugasSaya(petugas);
+    expect(milikPetugas.status).toBe("ditugaskan");
+    expect(
+      await setup.fieldwork.catatSetorRetribusi(admin, {
+        tagihanId,
+        dibayarkanPada: "2026-10-05",
+        bukti: bukti(),
+        catatan: "",
+      }),
+    ).toEqual({ ok: false, reason: "sudah_disetor" });
   });
 
   it("refuses a date in the future, and a proof that is not a photo or a scan", async () => {

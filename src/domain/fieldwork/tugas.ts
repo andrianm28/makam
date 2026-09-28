@@ -262,8 +262,20 @@ export type CompleteTugasLapanganResult =
   | NotFound
   | { ok: false; reason: "sudah_selesai" | "form_tidak_valid" | "unggah_kurang" | "berkas_tidak_didukung" | "berkas_gagal_disimpan" }
   | { ok: false; reason: "kunjungan_tidak_valid" | "catatan_tidak_valid" }
-  /** A Setor Retribusi Tugas whose payment to the town could not be recorded; the whole completion rolls back. */
-  | { ok: false; reason: "setor_tidak_tercatat" };
+  /**
+   * A Setor Retribusi Tugas whose Tagihan never went out to a town (Billing's
+   * read has no such Lunas Retribusi Tagihan), so there is nothing to record;
+   * the whole completion rolls back and the Petugas is sent to an Admin Platform.
+   */
+  | { ok: false; reason: "setor_tidak_tercatat" }
+  /**
+   * A Setor Retribusi Tugas whose town has already been paid for the same
+   * Tagihan: the recording it asked for is refused, because a town is paid once.
+   * Its own reason, never folded into `setor_tidak_tercatat`, because "the town
+   * is already paid" and "this Tagihan never went to a town" send the Petugas to
+   * two different places.
+   */
+  | { ok: false; reason: "sudah_disetor" };
 
 /**
  * The assigned Petugas Lapangan marks a Tugas Lapangan Selesai (spec, story
@@ -350,7 +362,16 @@ export async function completeTugasLapangan(
           now,
         },
       );
-      if (!setor.ok) return { ok: false, reason: "setor_tidak_tercatat" } as const;
+      // Which refusal it was travels on: the town is already paid for this
+      // Tagihan (`sudah_disetor`, from the recording itself) is not the same
+      // answer as "this Tagihan never went to a town", so neither is folded into
+      // the other. A permission refusal from the inner write is its own
+      // `WriteRefusal` and passes through as itself.
+      if (!setor.ok) {
+        if (setor.reason === "sudah_disetor" || setor.reason === "tidak_berwenang" || setor.reason === "perlu_totp")
+          return setor;
+        return { ok: false, reason: "setor_tidak_tercatat" } as const;
+      }
     }
 
     await tx

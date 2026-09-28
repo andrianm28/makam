@@ -119,11 +119,11 @@ export interface Fieldwork {
   ): Promise<CompleteTugasLapanganResult>;
   /** Every open "Ambil surat pengantar" Tugas, soonest burial day first: the Antrean's Tier 2 row reads these. */
   ambilSuratPengantarTerbuka(): Promise<AmbilSuratPengantarTerbuka[]>;
-  /** Every open Setor Retribusi: a Lunas Tagihan with a non-zero Retribusi Daerah line nobody has paid on to the town yet. */
+  /** Every open Setor Retribusi: a Lunas Tagihan with a non-zero Retribusi Pemda line nobody has paid on to the town yet. */
   setorRetribusiTerbuka(): Promise<SetorRetribusiTerbuka[]>;
   /**
    * Admin Platform, or the Petugas who paid in person, records a Tagihan's
-   * Retribusi Daerah line paid to the town with its proof; audited, and it closes
+   * Retribusi Pemda line paid to the town with its proof; audited, and it closes
    * the Tier 3 "Setor Retribusi" row. A second recording of the same Tagihan is
    * refused, and a Rp 0 or retribusi-free one never reaches it.
    */

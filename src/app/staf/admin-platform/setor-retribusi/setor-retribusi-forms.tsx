@@ -57,7 +57,7 @@ export function SetorRetribusiForms({
         </label>
         <div className="sm:col-span-2">
           <Button type="submit" disabled={mencatat}>
-            {mencatat ? "Mencatat…" : "Catat setoran"}
+            {mencatat ? "Mencatat…" : "Catat Setor Retribusi"}
           </Button>
         </div>
         <div className="sm:col-span-2">

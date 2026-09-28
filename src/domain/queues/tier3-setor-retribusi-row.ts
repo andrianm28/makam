@@ -1,7 +1,7 @@
 /**
  * Tier 3 "Setor Retribusi" (spec, Work Queues: "Setor Retribusi (2 working days
  * after Lunas, only for a non-zero Retribusi Pemda line)"; ticket 45, AC 7).
- * A family's Retribusi Daerah is not the Operator's to keep: it is handed to the
+ * A family's Retribusi Pemda is not the Operator's to keep: it is handed to the
  * town, and until that is recorded the Operator is the one holding someone
  * else's money.
  *
