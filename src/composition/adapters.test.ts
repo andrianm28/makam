@@ -190,6 +190,23 @@ describe("composition root", () => {
     );
   });
 
+  it("keeps development's files on the local disk only when DEV_FILES_ROOT asks for it", async () => {
+    expect(createAdapters({ appEnv: "development" }).files).toBeInstanceOf(FakeFileStore);
+    const root = await mkdtemp(path.join(tmpdir(), "makam-dev-files-"));
+    try {
+      const files = createAdapters({ appEnv: "development", devFilesRoot: root }).files;
+      expect(files).toBeInstanceOf(DiskFileStore);
+      // A second process (the dev web server) composed the same way reads what the first stored.
+      await files.put({ key: "lokasi/foto.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
+      const again = createAdapters({ appEnv: "development", devFilesRoot: root }).files;
+      await expect(again.signedUrl("lokasi/foto.jpg", { expiresInSeconds: 60 })).resolves.toContain("/api/files/lokasi/foto.jpg");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+    // Test never leaves the fake, whatever it is given.
+    expect(createAdapters({ appEnv: "test", devFilesRoot: "/tmp/makam-ignored" }).files).toBeInstanceOf(FakeFileStore);
+  });
+
   it("lets a test inject its own Clock and fakes", () => {
     const email = new FakeEmailSender();
     const adapters = createAdapters({ appEnv: "test", overrides: { email } });
