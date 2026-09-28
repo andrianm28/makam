@@ -221,8 +221,11 @@ describe("placing a Pemesanan Terencana", () => {
     expect([status("A-01"), status("A-02")]).toEqual(["sedang_dipesan", "sedang_dipesan"]);
     // The announcement carries what the Lokasi Mitra's staff need to confirm it: the
     // plots by the numbers the family knows, the Calon Penghuni and the Pemesan.
+    // `event` is the name of the seam the announcement came through: a Terencairan is one
+    // order moving through four events, so the fixture keeps them in one list.
     expect(setup.terencana).toEqual([
       {
+        event: "diajukan",
         nomor: "MKM-2026-000001",
         lokasi: { id: fixture.lokasiMitra.id, name: fixture.lokasiMitra.name },
         unit: [

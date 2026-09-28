@@ -111,22 +111,6 @@ export async function pemakamanOfHakPakai(db: Database, hakPakaiId: string): Pro
   return db.select().from(inventoryPemakaman).where(eq(inventoryPemakaman.hakPakaiId, hakPakaiId)).orderBy(inventoryPemakaman.date);
 }
 
-/**
- * The whole date of a Hak Pakai's **first** Pemakaman, or null while it has none.
- * The tenure clock starts there (CONTEXT.md: a fixed term is counted from the
- * first Pemakaman), and it is what makes a Terencana Pencairan due sooner than
- * the end of its Masa Pembatalan (ticket 37). A date, not an instant: a burial
- * has no time of day, so the caller turns it into an instant on its own calendar.
- */
-export async function firstPemakamanDateOfHakPakai(db: Database, hakPakaiId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ date: inventoryPemakaman.date })
-    .from(inventoryPemakaman)
-    .where(eq(inventoryPemakaman.hakPakaiId, hakPakaiId))
-    .orderBy(inventoryPemakaman.date, inventoryPemakaman.id)
-    .limit(1);
-  return row?.date ?? null;
-}
 
 /** Which of `petakIds` have at least one Pemakaman recorded (for a Kavling Keluarga's Terpakai sebagian / Penuh count). */
 export async function petakIdsWithPemakaman(db: Database, petakIds: readonly string[]): Promise<Set<string>> {

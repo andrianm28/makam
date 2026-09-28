@@ -5,13 +5,13 @@ import { createPayouts, type KirimBuktiPencairan, type TerencanaTerbayar } from 
 import { createPengurusan } from "@/domain/pengurusan";
 import { createQueues } from "@/domain/queues";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
+import { efekTerencanaSaatLunas } from "@/domain/pemesanan/efek-terencana";
 import type { PaymentMethod } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
 import { logIn } from "./identity";
 import { cellsOf } from "./inventory";
 import { orderSaatDuka, pemesananOnTestDatabase, pemesanDenganEmail, saatDukaFixture, siapkanOperatorPemesanan, unitIds, type LokasiOptions } from "./pemesanan";
-import { signedInAdminPlatform } from "./publish";
 import { terencanaLokasi } from "./terencana";
 import { TEST_PUBLIC_ORIGIN } from "./billing";
 import { publishOnTestDatabase, type PublishSetup } from "./publish";
@@ -72,7 +72,7 @@ export function payoutsFor(setup: PublishSetup, pemesanan: { terencanaTerbayar()
  * only way to test the trigger the way it really happens.
  */
 export function payoutsOnTestDatabase(db: Database) {
-  const setup = publishOnTestDatabase(db, { paymentEffects: [efekPencairanSaatLunas()] });
+  const setup = publishOnTestDatabase(db, { paymentEffects: [efekPencairanSaatLunas(), efekTerencanaSaatLunas()] });
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -201,14 +201,22 @@ export async function pesananTerencanaSiap(
   options: { nama?: string; email?: string; masaPembatalanDays?: number; petak?: string[]; kavling?: boolean } = {},
 ) {
   const wizard = pemesananOnTestDatabase(setup.db);
-  const { actor: admin } = await signedInAdminPlatform(wizard);
-  const fixture = await terencanaLokasi(wizard, admin, options.nama ? { name: options.nama } : {});
+  // Pengaturan Operator first: a Terencairan's confirmation issues a Tagihan, and a
+  // Tagihan cannot be issued without the Operator's header. The Lokasi comes after it, so
+  // the Admin Platform this asks for is the shared fixture's one and only one.
+  const admin = await siapkanOperatorPemesanan(wizard);
+  const fixture = await terencanaLokasi(wizard, admin, { ...options, ...(options.nama ? { name: options.nama } : {}) });
   const pemesan = (await pemesanDenganEmail(wizard, options.email ?? "kelarga.terencana@contoh.id")).pemesan;
   const semua = await unitIds(wizard, fixture, [...(options.petak ?? ["A-01", "A-02"]), ...(options.kavling ? ["A-K01"] : [])]);
   return { ...wizard, admin, fixture, pemesan, semua };
 }
 
-/** Places a Pemesanan Terencana for the plots `pilihan` names, as the wizard's Kirim does. */
+/**
+ * Places a Pemesanan Terencana for the plots `pilihan` names, as the wizard's Kirim
+ * does, and returns the placed order as the module's own read gives it back — with the
+ * Syarat snapshot it was placed under, which is what the Terencairan Pencairan trigger
+ * counts a Masa Pembatalan from.
+ */
 export async function pesanTerencana(
   setup: Awaited<ReturnType<typeof pesananTerencanaSiap>>,
   pilihan: { petak?: string[]; kavling?: boolean } = {},
@@ -227,7 +235,9 @@ export async function pesanTerencana(
     calonPenghuni: { mode: "lain", name: "Neneng Sutrisno" },
   });
   if (!hasil.ok) throw new Error(`placeTerencana refused: ${hasil.reason}`);
-  return { ...hasil.pemesanan, units };
+  const order = await setup.pemesanan.terencanaOf(hasil.pemesanan.nomor, setup.pemesan);
+  if (!order) throw new Error("the placed order cannot be read back");
+  return order;
 }
 
 /** A Mitra Jasa, invited by Admin Platform and logged in with a Kode Masuk. */export async function mitraJasa(setup: PayoutsModul, admin: Actor, email = "mitra.jasa@contoh.id") {

@@ -57,23 +57,16 @@ import {
   konfirmasiTerencanaTerlambat,
   tarikTerencana,
   tolakTerencana,
-  ALASAN_BATAS_PEMBAYARAN_LEWAT,
-  ALASAN_DITARIK_PEMESAN,
-  konfirmasiTerencanaSchema,
-  tarikTerencanaSchema,
-  tolakTerencanaSchema,
   type KonfirmasiTerencanaInput,
   type KonfirmasiTerencanaResult,
   type TarikTerencanaInput,
   type TarikTerencanaResult,
   type TerencanaAntrean,
-  type TerencanaPindah,
   type TolakTerencanaInput,
   type TolakTerencanaResult,
 } from "./terencana-konfirmasi";
 import { terencanaTerbayar, type TerencanaPencairanDeps } from "./reads-pencairan";
 import { terencanaDibayarTick, terencanaLapsedTick, type TickTerencanaDibayar, type TickTerencanaLapsed } from "./tick-terencana";
-import { efekTerencanaSaatLunas, NAMA_EFEK_TERENCANA } from "./efek-terencana";
 import {
   denahTerencana,
   kotaTerencana,
@@ -286,13 +279,13 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
 }
 
 /**
- * The Payouts module's read, bound to this module's own data plus the one Inventory
- * read it needs: the first Pemakaman of a Hak Pakai, which is where the tenure clock
- * starts (CONTEXT.md) and the only thing that can make a Terencairan's item due before
- * the end of its Masa Pembatalan.
+ * The Payouts module's read, bound to this module's own data. It needs no neighbour: the
+ * first Pemakaman that may make a Terencairan's item due sooner is the Payouts module's
+ * own recorded fact (`pemakamanTercatat`), which its own trigger reads and does not ask a
+ * neighbour to re-derive.
  */
 function pencairanDeps(deps: PemesananDeps): TerencanaPencairanDeps {
-  return { db: deps.db, inventory: deps.inventory };
+  return { db: deps.db };
 }
 
 /** The worker's tick, as the scheduler registry calls it: the Saat Duka re-alert (ticket 23). */

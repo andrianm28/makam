@@ -31,7 +31,6 @@ import type { PetakByNomor } from "./lookup";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
-import { firstPemakamanDateOfHakPakai } from "./hak-pakai-reads";
 import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
@@ -171,12 +170,6 @@ export interface Inventory {
    */
   beriHakPakaiTerencana(tx: Database, lokasiId: string, input: unknown): Promise<BeriHakPakaiTerencanaResult>;
   /**
-   * The whole date of a Hak Pakai's first Pemakaman, or null while it has none: the tenure
-   * clock's start (CONTEXT.md) and the instant a Terencana Pencairan becomes due if a burial
-   * happens before the end of its Masa Pembatalan (ticket 37).
-   */
-  firstPemakamanDate(hakPakaiId: string): Promise<string | null>;
-  /**
    * Where a grave is, for a family with no session: by Lokasi + Nomor Makam (the
    * current one or one it was renumbered from, which is never shown), by Lokasi
    * + Nomor Kavling, or by Lokasi + Almarhum name + year of death. Answers with
@@ -226,7 +219,6 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
     beriHakPakaiTerencana: (tx, lokasiId, input) => beriHakPakaiTerencana(deps, tx, lokasiId, input),
-    firstPemakamanDate: (hakPakaiId) => firstPemakamanDateOfHakPakai(deps.db, hakPakaiId),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),

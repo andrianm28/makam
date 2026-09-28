@@ -148,6 +148,11 @@ async function aktifkan(deps: PemesananDeps, nomor: string, tagihanId: string, n
     for (const satu of hakPakai) {
       await tx.update(pemesananTerencanaUnit).set({ hakPakaiId: satu.id }).where(eq(pemesananTerencanaUnit.id, satu.unitId));
     }
+    // The hold has done its work: the plot is sold, so it must stop reading as merely held
+    // on the Denah. Released here rather than left for the caller, because a plot that is
+    // both Terisi under a Hak Pakai and "sedang dipesan" is a reservation another family
+    // is told it cannot take, for a plot that is not a reservation at all.
+    await deps.inventory.within(tx).lepasTahan(order.nomor);
     // Guarded on the status the tick read, so a withdrawal landing at the same moment wins
     // and the payment is left for Admin Platform as a Pembayaran Perlu Ditinjau rather
     // than a right granted against a cancelled order.

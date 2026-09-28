@@ -1,4 +1,5 @@
 import { composePemesanan } from "@/composition/pemesanan";
+import { efekTerencanaSaatLunas } from "@/domain/pemesanan/efek-terencana";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type {
@@ -14,7 +15,7 @@ import type {
 import { createPengurusan } from "@/domain/pengurusan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, adminPlatformOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -29,7 +30,12 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
  * production.
  */
 export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
-  const setup = publishOnTestDatabase(db);
+  // Billing runs the Pemesanan module's own payment effect (which takes no
+  // dependencies), so a Tagihan paid through the real module records the Lunas half of
+  // the Terencairan trigger in the very transaction that settles it — the only way to
+  // test the trigger the way it really happens. Production registers the same effect in
+  // `src/composition/billing.ts`.
+  const setup = publishOnTestDatabase(db, { paymentEffects: [efekTerencanaSaatLunas()] });
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];

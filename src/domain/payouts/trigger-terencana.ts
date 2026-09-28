@@ -9,10 +9,14 @@
  * that provided the line.
  *
  * What the order owns is read through the Pemesanan module's own public read, never
- * from its tables: which orders are paid, the Masa Pembatalan each order **snapshotted**
- * at submission (CONTEXT.md: a later change of the Lokasi Mitra's policy never applies
- * to an order already placed), and the first Pemakaman under each Hak Pakai, which is
- * the only thing that can make an item due sooner.
+ * from its tables: which orders are paid, and the Masa Pembatalan each order
+ * **snapshotted** at submission (CONTEXT.md: a later change of the Lokasi Mitra's
+ * policy never applies to an order already placed).
+ *
+ * The first Pemakaman is not in that read, because it is **this module's own fact**:
+ * `pemakamanTercatat` already records it in `pencairan_pemakaman` (ticket 32), which is
+ * where the Saat Duka trigger reads the same burial from. One fact, one table, two
+ * triggers — so a burial cannot make one of them due and not the other.
  *
  * So an item is created as soon as the order is paid and is **not yet due**, and a run
  * makes it due the moment its own instant has passed. That shape is what makes the
@@ -21,17 +25,17 @@
  * and however many workers run it at once — `tagihan_id` + `tagihan_posisi` is unique,
  * and the move to `jatuh_tempo` is guarded on `due_at is null`.
  */
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { refusable } from "@/db/unit-of-work";
 import type { Database } from "@/db/client";
 import { addWorkingDays, type Lokasi } from "@/domain/lokasi";
 import { paymentMethodSchema, type Billing, type Tagihan, type TagihanLine } from "@/domain/billing";
 import type { ReportError } from "@/lib/observability/report-error";
-import { wib, wibDateOf, addWibDays } from "@/lib/time/jakarta";
+import { addWibDays, wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
 import { itemJatuhTempo } from "./item";
-import { pencairanItem, pencairanPembayaran, type PencairanItemKind } from "./schema";
+import { pencairanItem, pencairanPembayaran, pencairanPemakaman, type PencairanItemKind } from "./schema";
 import { TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
 
 /** A line the Lokasi Mitra provides, narrowed to what an item copies from it. */
@@ -49,12 +53,6 @@ export interface TerencanaTerbayar {
   tagihanId: string;
   /** The Masa Pembatalan snapshotted on the order, in days. */
   masaPembatalanDays: number;
-  /**
-   * The date of the first Pemakaman under any of the order's Hak Pakai ("YYYY-MM-DD"),
-   * or null while none has been recorded. A burial inside the Masa Pembatalan makes the
-   * item due then, which is the "or the first Pemakaman if sooner" of the spec.
-   */
-  pemakamanPertamaPada: string | null;
 }
 
 export interface PemicuTerencanaDeps {
@@ -166,12 +164,14 @@ export async function tickPencairanTerencana(deps: PemicuTerencanaDeps, now: Dat
       return { ok: true as const, baru: rows.length };
     });
     if (!dibuat.ok) continue;
-    if (dibuat.baru === 0) {
-      hasil.dilewati += 1;
-      continue;
-    }
-    hasil.items += dibuat.baru;
-    menungguJatuhTempo.set(tagihan.id, dueAtOf(tagihan.paidAt ?? now, order));
+    if (dibuat.baru > 0) hasil.items += dibuat.baru;
+    else hasil.dilewati += 1;
+    // The due instant is computed whether or not this run created the items: an order whose
+    // items already exist still has to be *made due* when its own instant passes, and that
+    // is the whole of what distinguishes this trigger from the Saat Duka one. Skipping the
+    // computation for an order whose items were already there would make the second run
+    // the only one that could ever pay it.
+    menungguJatuhTempo.set(tagihan.id, dueAtOf(tagihan.paidAt ?? now, order.masaPembatalanDays, await firstPemakamanOf(deps.db, order.nomorPemesanan)));
   }
 
   hasil.due += await jadikanJatuhTempo(deps, menungguJatuhTempo, now, calendar);
@@ -180,14 +180,26 @@ export async function tickPencairanTerencana(deps: PemicuTerencanaDeps, now: Dat
 
 /**
  * The instant a Terencairan's item becomes due: the end of its Masa Pembatalan, or the
- * first Pemakaman under it when that burial came sooner. A whole date is counted from
- * the start of its own WIB day, since a burial has no time of day.
+ * first Pemakaman under it when that burial came sooner.
  */
-function dueAtOf(dibayarPada: Date, order: TerencanaTerbayar): Date {
-  const akhir = akhirMasaPembatalan(dibayarPada, order.masaPembatalanDays);
-  if (order.pemakamanPertamaPada === null) return akhir;
-  const pemakaman = wib(`${order.pemakamanPertamaPada} 00:00`);
-  return pemakaman < akhir ? pemakaman : akhir;
+function dueAtOf(dibayarPada: Date, hari: number, pemakamanPertamaPada: Date | null): Date {
+  const akhir = akhirMasaPembatalan(dibayarPada, hari);
+  return pemakamanPertamaPada !== null && pemakamanPertamaPada < akhir ? pemakamanPertamaPada : akhir;
+}
+
+/**
+ * The first Pemakaman recorded under one order, or null while none is. Read from this
+ * module's own `pencairan_pemakaman`, which `pemakamanTercatat` writes — the same fact the
+ * Saat Duka trigger reads and the same one its "in either order" property depends on.
+ */
+async function firstPemakamanOf(db: Database, nomorPemesanan: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ pemakamanPada: pencairanPemakaman.pemakamanPada })
+    .from(pencairanPemakaman)
+    .where(eq(pencairanPemakaman.nomorPemesanan, nomorPemesanan))
+    .orderBy(asc(pencairanPemakaman.pemakamanPada))
+    .limit(1);
+  return row?.pemakamanPada ?? null;
 }
 
 /**

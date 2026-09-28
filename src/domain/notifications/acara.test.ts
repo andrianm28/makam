@@ -32,9 +32,13 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
     expect([...TEMPLATE_EMAIL]).toEqual([
       "pesanan_diajukan",
       "pesanan_dikonfirmasi",
+      "terencana_dikonfirmasi",
+      "terencana_ditolak",
+      "terencana_dibatalkan",
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
+      "tagihan_pengingat_hold_terencana",
       "bukti_pembayaran_terbit",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);

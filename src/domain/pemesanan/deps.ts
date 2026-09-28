@@ -240,8 +240,6 @@ export interface PemesananDeps {
     | "lepasTahan"
     // The Hak Pakai a paid Terencana order takes, on the plot its own hold stands on (ticket 37).
     | "beriHakPakaiTerencana"
-    // The first Pemakaman of a Hak Pakai, which the Terencairan Pencairan trigger needs.
-    | "firstPemakamanDate"
     | "within"
   >;
   /**

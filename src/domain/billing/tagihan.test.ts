@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { wib } from "@/lib/time/jakarta";
+import { tagihan } from "./schema";
 import type { Rupiah } from "@/lib/rupiah";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { billingOnTestDatabase, billingWithOperatorSettings, PENGATURAN_OPERATOR } from "../../../tests/support/billing";
@@ -44,6 +46,9 @@ describe("issuing a Tagihan", () => {
       kind: "pay_after",
       issuedAt: wib("2026-10-01 21:00"),
       dueAt: wib("2026-10-05 10:00"),
+      // When the money arrived, which a Pencairan trigger counts a Masa Pembatalan from
+      // (ticket 37). Null while the Tagihan is unpaid.
+      paidAt: null,
       addressee: { role: "pemesan", name: "Siti Rahmawati", phoneNumber: "+6281234567890", accountId: null },
       nomorPemesanan: "MKM-2026-000001",
       placeName: "Makam Wakaf Al-Ikhlas",
@@ -161,11 +166,17 @@ describe("issuing a Tagihan", () => {
 });
 
 describe("an issued Tagihan is immutable", () => {
-  it("Billing offers no way to change an issued Tagihan's lines: only issue, cancel-and-reissue, payment and reads", () => {
+  it("Billing offers no way to change an issued Tagihan's lines: only issue, cancel, cancel-and-reissue, payment, documents and reads", () => {
     const billing = billingOnTestDatabase(db).billing;
 
+    // Every one of these is a whole document or a whole Tagihan, never a line: a Tagihan
+    // is immutable once issued (spec, Billing), so a change is a cancel with a replacement
+    // or nothing at all. `batalkanTagihan` has no replacement by design — the order it
+    // belongs to was withdrawn before any money arrived (ticket 37).
     expect(Object.keys(billing).sort()).toEqual([
+      "batalkanTagihan",
       "bayar",
+      "buktiPemesanan",
       "documentByLink",
       "documentPdf",
       "issueTagihan",
@@ -176,6 +187,7 @@ describe("an issued Tagihan is immutable", () => {
       "recordPayment",
       "reissueTagihan",
       "tagihan",
+      "terbitkanBuktiPemesanan",
       "within",
     ]);
   });
@@ -189,7 +201,15 @@ describe("an issued Tagihan is immutable", () => {
     await billing.recordPayment(paid.tagihan.id, { method: { kind: "tunai" }, reference: null });
     await billing.reissueTagihan(reissued.tagihan.id, { lines: saatDukaCheckout().lines.slice(0, 1) });
 
-    expect(await billing.tagihan(paid.tagihan.id)).toEqual({ ...paid.tagihan, status: "lunas" });
+    // `paidAt` is the one field that moves with the money: it is when the payment arrived,
+    // which a Pencairan trigger counts a Masa Pembatalan from (ticket 37).
+    const dibayar = await db
+      .select({ paidAt: tagihan.paidAt })
+      .from(tagihan)
+      .where(eq(tagihan.id, paid.tagihan.id))
+      .then((rows) => rows[0]?.paidAt ?? null);
+    expect(dibayar).toBeInstanceOf(Date);
+    expect(await billing.tagihan(paid.tagihan.id)).toEqual({ ...paid.tagihan, status: "lunas", paidAt: dibayar });
     expect(await billing.tagihan(reissued.tagihan.id)).toEqual({
       ...reissued.tagihan,
       status: "dibatalkan",
