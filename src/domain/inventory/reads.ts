@@ -17,7 +17,9 @@ import {
 } from "./hak-pakai-reads";
 import { findPetakByNomor, type PetakByNomor } from "./lookup";
 import { blokPhotoUrl } from "./photo";
-import { deriveKavlingStatus, derivePetakStatus, type KavlingStatus, type PetakStatus } from "./status";
+import { deriveKavlingStatus, derivePetakStatus, type HakPakaiStatus, type KavlingStatus, type PetakStatus } from "./status";
+import { inventoryKavling } from "./schema";
+import { wibDateOf } from "@/lib/time/jakarta";
 
 /** A Denah cell as staff read it: its position, kind, derived status and "used" state. */
 export interface DenahCell extends CellRow {
@@ -132,6 +134,51 @@ export function staffInventoryReads(deps: InventoryDeps, by: Actor): StaffInvent
       if (!canSee(by, lokasiId)) return null;
       return hakPakaiDetailOf(deps.db, await currentHakPakaiOfKavling(deps.db, kavlingId));
     },
+  };
+}
+
+/**
+ * One grave's current Hak Pakai, as the rule that gates a Layanan order needs
+ * it: its status, whether the Admin Lokasi still has to complete it, and the
+ * number the Lokasi and the family both know it by. No actor, and deliberately
+ * without the Pemegang Hak: a relative may order Layanan for a grave whose
+ * holder is somebody else, so what the caller gets is the state of the right,
+ * never the person who holds it.
+ */
+export interface HakPakaiUntukUnit {
+  id: string;
+  lokasiId: string;
+  /** The unit's own number: the Petak's Nomor Makam, or the Kavling Keluarga's. */
+  nomor: string | null;
+  status: HakPakaiStatus;
+  /** An imported or "data menyusul" Hak Pakai the Admin Lokasi has not completed yet. */
+  perluVerifikasi: boolean;
+  /** Its end date as a WIB calendar date, or null while perpetual or before the tenure clock started. */
+  tanggalBerakhir: string | null;
+}
+
+/**
+ * The current Hak Pakai of a Petak Makam, or of a Kavling Keluarga, with its own
+ * number; null when the unit holds none.
+ *
+ * The number travels here rather than being read off the public Denah because that
+ * Denah is the *picker's*: it shows the units a family may still choose, so a grave
+ * somebody already holds is not in it. An order is placed for exactly those graves.
+ */
+export async function hakPakaiOfUnit(deps: { db: InventoryDeps["db"] }, unit: { petakId: string } | { kavlingId: string }): Promise<HakPakaiUntukUnit | null> {
+  const petak = "petakId" in unit;
+  const hakPakai = petak ? await currentHakPakaiOfPetak(deps.db, unit.petakId) : await currentHakPakaiOfKavling(deps.db, unit.kavlingId);
+  if (!hakPakai) return null;
+  const [unitRow] = petak
+    ? await deps.db.select({ nomor: inventoryPetak.nomorMakam }).from(inventoryPetak).where(eq(inventoryPetak.id, unit.petakId))
+    : await deps.db.select({ nomor: inventoryKavling.nomorKavling }).from(inventoryKavling).where(eq(inventoryKavling.id, unit.kavlingId));
+  return {
+    id: hakPakai.id,
+    lokasiId: hakPakai.lokasiId,
+    nomor: unitRow?.nomor ?? null,
+    status: hakPakai.status,
+    perluVerifikasi: hakPakai.perluVerifikasi,
+    tanggalBerakhir: hakPakai.endDate === null ? null : wibDateOf(hakPakai.endDate),
   };
 }
 

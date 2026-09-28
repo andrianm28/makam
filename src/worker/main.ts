@@ -9,8 +9,10 @@ import { composeNotifications } from "@/composition/notifications";
 import { pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
+import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createTariffs } from "@/domain/tariffs";
 import { scheduledTicks } from "@/domain/scheduler";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -37,11 +39,15 @@ async function main() {
   });
   const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+  // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads,
+  // and the Tariffs and Inventory the worker needs to re-run a failed payment effect — the Layanan
+  // module's scheduling of a paid order's jobs is one of them, and it reads a grave's Hak Pakai.
+  const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError });
   const urls = documentUrls(env);
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError });
-  // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
-  const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
@@ -53,6 +59,7 @@ async function main() {
       notifications,
       lokasi,
       identity,
+      inventory,
       notifikasi: pemesananNotifikasiDari(notifications),
     }),
     clock: adapters.clock,

@@ -4,6 +4,7 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { AuditLog } from "@/domain/audit";
@@ -11,7 +12,7 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createLayanan, type Layanan } from "@/domain/layanan";
+import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -35,7 +36,7 @@ export interface ServerRuntime {
   operatorSettings: OperatorSettings;
   /** Tariffs: versioned price books and the all-in `quote()`. */
   tariffs: Tariffs;
-  /** Layanan: the global catalog, which Layanan each Lokasi offers, and the Paket Layanan. */
+  /** Layanan: the global catalog, which Layanan each Lokasi offers, the Paket Layanan, and an order a family places for a grave. */
   layanan: Layanan;
   /** Billing: Tagihan, Bukti Pembayaran and their document pages. */
   billing: Billing;
@@ -78,8 +79,18 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    // The order Layanan issues its Tagihan through Billing, and the payment that settles it schedules the
+    // order's jobs; the effect is registered from the two reads it needs, so the two modules do not close a cycle.
+    const billing = composeBilling({
+      env,
+      db: database.db,
+      adapters,
+      operatorSettings,
+      layanan: { db: database.db, inventory },
+      reportError,
+    });
     const notifications = composeNotifications({
       env,
       db: database.db,
@@ -98,8 +109,19 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       lokasi,
     });
-    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave.
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
+    });
     // The wizard's own messages, and the Lokasi's when it confirms an order, go out through Notifications.
     const pemesanan = composePemesanan({
       db: database.db,
@@ -138,6 +160,7 @@ export function serverRuntime(): ServerRuntime {
         notifications,
         inventory,
         pemesanan,
+        layanan,
       }),
       pengurusan: createPengurusan({
         db: database.db,

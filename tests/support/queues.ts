@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createQueues } from "@/domain/queues";
 import { createPengurusan } from "@/domain/pengurusan";
@@ -25,6 +26,21 @@ export function queuesOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
+  // The Antrean's Layanan rows (ticket 50) read the Layanan module's own public reads, so it is
+  // composed here beside the rest: it needs Inventory, Billing and Identity, all of which this
+  // fixture already has.
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    identity: setup.identity,
+    notifications: setup.notifications,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -35,6 +51,7 @@ export function queuesOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     inventory: setup.inventory,
     pemesanan,
+    layanan,
   });
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
   // Pengurusan module, which the shared Pemesanan fixture type requires.
@@ -47,7 +64,7 @@ export function queuesOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
   });
-  return { ...setup, pemesanan, pengurusan, queues };
+  return { ...setup, pemesanan, pengurusan, layanan, queues };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

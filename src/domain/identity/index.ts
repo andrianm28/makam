@@ -101,6 +101,7 @@ export {
   layananKatalogResource,
   lokasiMitraResource,
   pemesananResource,
+  pesananLayananResource,
   semuaLokasiMitraResource,
   needsTotp,
   pengaturanOperatorResource,

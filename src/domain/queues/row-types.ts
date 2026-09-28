@@ -6,6 +6,7 @@
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
@@ -31,6 +32,12 @@ export interface AntreanRowDeps {
   pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  /**
+   * The Antrean Lokasi's three Layanan rows and the Tier 2 "Layanan terlambat"
+   * row read the Layanan module's own public reads, never its tables: what is due
+   * today, what is coming and what ran late, at one Lokasi Mitra or across all.
+   */
+  layanan: Pick<Layanan, "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

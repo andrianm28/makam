@@ -33,11 +33,13 @@ import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
+  hakPakaiOfUnit,
   staffInventoryReads,
   type BlokDenah,
   type DenahCell,
   type DenahKavling,
   type HakPakaiDetail,
+  type HakPakaiUntukUnit,
   type StaffInventoryReads,
 } from "./reads";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
@@ -52,6 +54,7 @@ export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
+export type { HakPakaiUntukUnit } from "./reads";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
@@ -171,6 +174,13 @@ export interface Inventory {
    * email that is not an email, or holds nothing, is an empty list.
    */
   makamPemegangHak(input: { email: string }): Promise<MakamDitemukan[]>;
+  /**
+   * One grave's current Hak Pakai as the rule that gates a Layanan order needs
+   * it: its status, whether the Admin Lokasi still has to complete it, and its
+   * end date. No actor and never the Pemegang Hak, because anyone may order for
+   * a grave somebody else holds.
+   */
+  hakPakaiOfUnit(unit: { petakId: string } | { kavlingId: string }): Promise<HakPakaiUntukUnit | null>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
   /**
@@ -207,6 +217,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
+    hakPakaiOfUnit: (unit) => hakPakaiOfUnit(deps, unit),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
     within: (tx) => createInventory({ ...deps, db: tx }),
   };

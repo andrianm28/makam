@@ -190,6 +190,13 @@
       "when": 1790560213227,
       "tag": "0026_stiff_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790563701167,
+      "tag": "0027_motionless_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

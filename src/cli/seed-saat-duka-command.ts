@@ -86,7 +86,9 @@ export async function seedSaatDukaCommand(
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+      // Billing's payment effects include the Layanan module's scheduling, which reads a grave's Hak Pakai.
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });
       const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
       const modul: Modul = {
         db: database.db,
@@ -94,7 +96,7 @@ export async function seedSaatDukaCommand(
         identity,
         lokasi,
         tariffs,
-        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi }),
+        inventory,
         fieldwork: createFieldwork({
           db: database.db,
           clock: adapters.clock,

@@ -175,3 +175,73 @@ export function buktiPembayaranEmail(input: BuktiEmailInput): { subject: string;
     ].join("\n"),
   };
 }
+
+export interface LayananPesananTerbitEmailInput {
+  nomor: string;
+  lokasiName: string;
+  petakNomor: string;
+  /** Each Layanan ordered, with the date the family asked for. */
+  item: { label: string; targetDate: string }[];
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  tautan: string;
+}
+
+/**
+ * An order Layanan placed (transactional: any hour). It names the price and the
+ * deadline, because a standalone Layanan order is paid **before** the work: the
+ * message exists so nobody discovers the deadline by opening a bill.
+ */
+export function layananPesananTerbitEmail(input: LayananPesananTerbitEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Layanan untuk Petak ${input.petakNomor} di ${input.lokasiName} menunggu pembayaran`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pesanan layanan Anda di ${input.lokasiName} untuk Petak ${input.petakNomor} sudah kami terima.`,
+      ...input.item.map((satu) => `- ${satu.label}, dikerjakan ${formatTanggal(satu.targetDate)}.`),
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Layanan dikerjakan setelah pembayaran masuk, jadi jangan lupa membayar sebelum tenggatnya.",
+      "",
+      `Bayar di: ${input.tagihan.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface LayananPekerjaanSelesaiEmailInput {
+  nomor: string;
+  lokasiName: string;
+  petakNomor: string;
+  /** The Layanan that was done, in the wording the order kept. */
+  label: string;
+  selesaiAt: Date;
+  /** Each proof, named, with its link to open. */
+  bukti: { label: string; tautan: string | null }[];
+  tautan: string;
+}
+
+/**
+ * A job finished (transactional: any hour). It carries the **link to the photo
+ * proof** rather than the files: the proof lives in a private store, and the
+ * family opens it from their own order page.
+ */
+export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Layanan selesai: ${input.label} di Petak ${input.petakNomor}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `${input.label} untuk Petak ${input.petakNomor} di ${input.lokasiName} sudah selesai pada ${formatTanggalJam(input.selesaiAt)}.`,
+      ...input.bukti.flatMap((satu) => (satu.tautan ? [`${satu.label}: ${satu.tautan}`] : [`${satu.label}: belum bisa dibuka lewat email, ambil di halaman pesanan Anda.`])),
+      "Buka halaman pesanan Anda bila foto atau videonya tidak bisa dibuka dari email ini.",
+      "",
+      `Halaman pesanan: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

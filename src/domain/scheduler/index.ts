@@ -15,6 +15,7 @@ import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
+import { tandaiTerlambat } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -75,6 +76,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "notifications.kirim_pesan", cron: "* * * * *", tick: kirimPesanTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
+  // Layanan: a job past its target date with no proof is flagged Terlambat, which raises the Admin Lokasi's and Admin Platform's rows (ticket 50).
+  { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -92,4 +95,9 @@ async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
+async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await tandaiTerlambat(ctx.db, now);
 }

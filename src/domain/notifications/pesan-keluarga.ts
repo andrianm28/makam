@@ -52,6 +52,8 @@ export interface PesanKeluargaDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /** An order Layanan's own page, from its Nomor Pemesanan. */
+  layananUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({

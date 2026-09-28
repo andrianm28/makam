@@ -60,8 +60,14 @@ import {
 } from "./pesan-keluarga";
 import {
   pesanPemesanan,
+  layananPekerjaanSelesai,
+  layananPesananTerbit,
+  pesanLayanan,
   pesananDiajukan,
   pesananDikonfirmasi,
+  type LayananPekerjaanSelesaiInput,
+  type LayananPesananTerbitInput,
+  type PesanLayananResult,
   type PesanPemesananResult,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
@@ -76,8 +82,13 @@ export {
   type TeleponPemesan,
 } from "./telepon-pemesan";
 export {
+  layananPekerjaanSelesaiSchema,
+  layananPesananTerbitSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
+  type LayananPekerjaanSelesaiInput,
+  type LayananPesananTerbitInput,
+  type PesanLayananResult,
   type PesanPemesananResult,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
@@ -120,6 +131,8 @@ export interface NotificationsDeps {
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
   pesananUrl: (nomor: string) => string;
+  /** An order Layanan's own page, from its Nomor Pemesanan. */
+  layananUrl: (nomor: string) => string;
 }
 
 export interface PushDevice {
@@ -240,6 +253,12 @@ export interface Notifications {
    */
   pesananDiajukan(input: PesananDiajukanInput): Promise<PesanPemesananResult>;
   pesananDikonfirmasi(input: PesananDikonfirmasiInput): Promise<PesanPemesananResult>;
+  /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
+  layananPesananTerbit(input: LayananPesananTerbitInput): Promise<PesanLayananResult>;
+  /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
+  layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput): Promise<PesanLayananResult>;
+  /** Every logged message about one order Layanan, oldest first. */
+  pesanLayanan(nomorPemesanan: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
@@ -498,6 +517,15 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananDikonfirmasi(input) {
       return pesananDikonfirmasi(deps, input);
+    },
+    async layananPesananTerbit(input) {
+      return layananPesananTerbit(deps, input);
+    },
+    async layananPekerjaanSelesai(input) {
+      return layananPekerjaanSelesai(deps, input);
+    },
+    async pesanLayanan(nomorPemesanan) {
+      return pesanLayanan(deps, nomorPemesanan);
     },
 
     async pesanPemesanan(pemesananId) {

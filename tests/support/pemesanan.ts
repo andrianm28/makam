@@ -5,7 +5,7 @@ import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, Ter
 import { createPengurusan } from "@/domain/pengurusan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, adminPlatformOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -345,4 +345,4 @@ export function orderSaatDuka(lokasi: Awaited<ReturnType<typeof saatDukaFixture>
 }
 
 export { jenisMakamInput } from "./publish";
-export { logIn, signedInAdminPlatform } from "./identity";
+export { logIn } from "./identity";

@@ -1,6 +1,6 @@
 import { FakePaymentProvider, FakePdfRenderer, FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
-import { createBilling } from "@/domain/billing";
+import { createBilling, type PaymentEffect } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createNotifications } from "@/domain/notifications";
@@ -14,8 +14,14 @@ import { signedInAdminLokasi } from "./lokasi";
  * Postgres, sharing one fake Clock, FileStore, Identity and Audit Log (ticket
  * 16: the publish gate and Terencana switch compose the first four; ticket
  * 17's Tier 2 Pembayaran Perlu Ditinjau row needs Billing too).
+ *
+ * `paymentEffects` registers the downstream effects of a payment. It is empty by
+ * default — no fixture before ticket 50 had an effect to register — and a test
+ * that places an order and then **pays for it** (ticket 50's scheduling) passes
+ * the effect it wants fired, so that path is proven through the payment and not
+ * by calling the effect by hand.
  */
-export function publishOnTestDatabase(db: Database) {
+export function publishOnTestDatabase(db: Database, options: { paymentEffects?: readonly PaymentEffect[] } = {}) {
   const setup = inventoryOnTestDatabase(db);
   const webPush = new FakeWebPush();
   const operatorSettings = createOperatorSettings({ db, clock: setup.clock, audit: setup.audit });
@@ -29,6 +35,7 @@ export function publishOnTestDatabase(db: Database) {
     payments,
     documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
+    paymentEffects: options.paymentEffects,
     reportError: (error, context) => reportedErrors.push({ error, context }),
   });
   const notifications = createNotifications({
@@ -42,6 +49,7 @@ export function publishOnTestDatabase(db: Database) {
     tagihan: billing,
     dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
     pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,
+    layananUrl: (nomor) => `https://makam.test/layanan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,

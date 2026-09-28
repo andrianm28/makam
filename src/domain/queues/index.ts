@@ -21,6 +21,7 @@ import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
+import type { Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Clock } from "@/ports/clock";
@@ -59,6 +60,8 @@ export interface QueuesModuleDeps {
   pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
+  layanan: Pick<Layanan, "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 export interface Queues {

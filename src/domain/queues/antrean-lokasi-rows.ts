@@ -12,6 +12,7 @@
  * (the failed-message row, whose call is logged in place).
  */
 import type { Actor } from "@/domain/identity";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps } from "./row-types";
 
 /** The two groups the spec names (CONTEXT.md: "split into Mendesak and Lainnya"). */
@@ -42,6 +43,9 @@ export interface AntreanLokasiRowType {
 }
 
 const pemakamanHref = (lokasiId: string, nomor: string) => `/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`;
+
+/** Where the Admin Lokasi does the work: one job's own page, in its own Lokasi's staff area. */
+const pekerjaanHref = (lokasiId: string, pekerjaanId: string) => `/staf/admin-lokasi/${lokasiId}/pekerjaan/${pekerjaanId}`;
 
 /**
  * "Konfirmasi Saat Duka" (Mendesak): every order of that Lokasi Mitra still
@@ -127,5 +131,94 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Layanan hari ini" (Mendesak): the jobs of that Lokasi Mitra whose target date
+ * is today, so a job that can be done today is at the top of the list. No
+ * deadline of its own — the day the family asked for is the deadline, and the
+ * row's own `pastDeadline` is therefore always false; what makes it urgent is
+ * that it is due.
+ *
+ * The row closes itself the moment the job is finished, cancelled or moved to
+ * Keluhan, because the Layanan module's list only holds open jobs.
+ */
+export const layananHariIniRowType: AntreanLokasiRowType = {
+  key: "layanan_hari_ini",
+  grup: "mendesak",
+  label: "Layanan hari ini",
+  async rows(deps, by, lokasiId) {
+    const hariIni = wibDateOf(deps.clock.now());
+    const pekerjaan = await deps.layanan.pekerjaanUntukStafTerbaru(by, lokasiId);
+    return pekerjaan
+      .filter((satu) => satu.targetDate <= hariIni && satu.status !== "terlambat")
+      .map((satu) => ({
+        type: "layanan_hari_ini",
+        label: "Layanan hari ini",
+        subjectKind: "pekerjaan_layanan",
+        subjectId: satu.id,
+        subjectLabel: `${satu.pesanan.label} · Petak ${satu.petak.nomor}`,
+        href: pekerjaanHref(lokasiId, satu.id),
+        deadline: null,
+      }));
+  },
+};
+
+/**
+ * "Layanan akan datang" (Lainnya): the jobs whose target date is still ahead, so
+ * an Admin Lokasi can see what is coming rather than only what is due. It
+ * disappears on its own as the date arrives and the Mendesak row takes over.
+ */
+export const layananAkanDatangRowType: AntreanLokasiRowType = {
+  key: "layanan_akan_datang",
+  grup: "lainnya",
+  label: "Layanan akan datang",
+  async rows(deps, by, lokasiId) {
+    const hariIni = wibDateOf(deps.clock.now());
+    const pekerjaan = await deps.layanan.pekerjaanUntukStafTerbaru(by, lokasiId);
+    return pekerjaan
+      .filter((satu) => satu.targetDate > hariIni && satu.status !== "terlambat")
+      .map((satu) => ({
+        type: "layanan_akan_datang",
+        label: "Layanan akan datang",
+        subjectKind: "pekerjaan_layanan",
+        subjectId: satu.id,
+        subjectLabel: `${satu.pesanan.label} · Petak ${satu.petak.nomor}`,
+        href: pekerjaanHref(lokasiId, satu.id),
+        deadline: null,
+      }));
+  },
+};
+
+/**
+ * "Layanan terlambat" (Lainnya): the jobs the Terlambat tick flagged — target
+ * date + 2 days with no proof of completion. The deadline is the day the work was
+ * due, so the row shows as past its deadline the moment it is late.
+ */
+export const layananTerlambatRowType: AntreanLokasiRowType = {
+  key: "layanan_terlambat",
+  grup: "lainnya",
+  label: "Layanan terlambat",
+  async rows(deps, by, lokasiId) {
+    const pekerjaan = await deps.layanan.pekerjaanUntukStafTerbaru(by, lokasiId);
+    return pekerjaan
+      .filter((satu) => satu.status === "terlambat")
+      .map((satu) => ({
+        type: "layanan_terlambat",
+        label: "Layanan terlambat",
+        subjectKind: "pekerjaan_layanan",
+        subjectId: satu.id,
+        subjectLabel: `${satu.pesanan.label} · Petak ${satu.petak.nomor}`,
+        href: pekerjaanHref(lokasiId, satu.id),
+        deadline: wib(`${satu.targetDate} 23:59`),
+      }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
-export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [konfirmasiSaatDukaRowType, pesanLokasiGagalRowType, petakPerluVerifikasiRowType];
+export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
+  konfirmasiSaatDukaRowType,
+  pesanLokasiGagalRowType,
+  petakPerluVerifikasiRowType,
+  layananHariIniRowType,
+  layananAkanDatangRowType,
+  layananTerlambatRowType,
+];

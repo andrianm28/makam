@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import { createBilling, type Billing, type PaymentEffect } from "@/domain/billing";
+import { efekJadwalkanPekerjaan, type JadwalkanDeps } from "@/domain/layanan/pembayaran";
 import { efekBuktiPembayaran } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { documentPagePath } from "@/lib/document-links";
@@ -13,10 +14,11 @@ import type { Clock } from "@/ports/clock";
  * Perpanjangan, Pencairan due, Pekerjaan Layanan scheduled, Hak Pakai
  * extended or created). The modules that own them register them here, the one
  * registry both the `web` runtime and the worker's retry tick use. Built here:
- * Notifications' Bukti Pembayaran receipt email (ticket 20).
+ * Notifications' Bukti Pembayaran receipt email (ticket 20) and the Layanan
+ * module's scheduling of a paid order's jobs.
  */
-export function paymentEffects(deps: { clock: Clock; dokumenUrl: (link: string) => string }): readonly PaymentEffect[] {
-  return [efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl })];
+export function paymentEffects(deps: { clock: Clock; dokumenUrl: (link: string) => string; layanan: JadwalkanDeps }): readonly PaymentEffect[] {
+  return [efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }), efekJadwalkanPekerjaan(deps.layanan)];
 }
 
 /** Where a document's page lives: inside the container for the PdfRenderer, on the public site for payers. */
@@ -27,6 +29,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
     publicDocumentUrl: (link: string) => `${publicOrigin}${documentPagePath(link)}`,
     /** A Pemesanan Makam's own page, where a family follows its order (ticket 23). */
     pesananUrl: (nomor: string) => `${publicOrigin}/pesanan/${nomor}`,
+    /** An order Layanan's own page, where its Pemesan follows every job and its proof. */
+    layananUrl: (nomor: string) => `${publicOrigin}/layanan/${nomor}`,
   };
 }
 
@@ -36,6 +40,8 @@ export function composeBilling(deps: {
   db: Database;
   adapters: Adapters;
   operatorSettings: Pick<OperatorSettings, "current">;
+  /** What the Layanan module's payment effect needs: the database and a grave's Hak Pakai. */
+  layanan: JadwalkanDeps;
   reportError: ReportError;
 }): Billing {
   const urls = documentUrls(deps.env);
@@ -46,7 +52,7 @@ export function composeBilling(deps: {
     pdf: deps.adapters.pdf,
     payments: deps.adapters.payments,
     ...urls,
-    paymentEffects: paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl }),
+    paymentEffects: paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl, layanan: deps.layanan }),
     reportError: deps.reportError,
   });
 }
