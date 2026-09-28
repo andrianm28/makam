@@ -25,7 +25,7 @@ import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { DataKirim } from "./data-kirim";
 import { DenahPicker } from "./denah-picker";
-import { ringkasanPilihan } from "./ringkasan";
+import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import { pilihanDariParams, terencanaPath } from "./tautan";
 import { denahView, lokasiView, terkirimView, type LokasiView } from "./tampilan";
 
@@ -321,9 +321,7 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
 
   const petakNomor = denah.unit.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor);
   const kavlingNomor = denah.unit.find((satu) => satu.jenis === "kavling")?.nomor ?? null;
-  const kavlingTerpilih = kavlingNomor
-    ? (tampilan.blok.flatMap((blok) => blok.kavling).find((satu) => satu.nomor === kavlingNomor) ?? null)
-    : null;
+  const kavlingTerpilih = kavlingNomor ? kavlingByNomor(tampilan, kavlingNomor) : null;
   const ringkasan = ringkasanPilihan(tampilan, petakNomor, kavlingTerpilih);
 
   return (

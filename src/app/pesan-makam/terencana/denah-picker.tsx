@@ -7,7 +7,7 @@ import type { TahanUnit } from "@/domain/inventory";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { lanjutPilihPetak, type LanjutState } from "./actions";
-import { ringkasanPilihan } from "./ringkasan";
+import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import type { DenahView, KavlingView, SelView } from "./tampilan";
 import { terencanaPath } from "./tautan";
 import { TotalBarTerencana } from "./total-bar";
@@ -66,7 +66,7 @@ export function DenahPicker({
 
   const blok = denah.blok.find((satu) => satu.id === blokId) ?? denah.blok[0];
   const semuaKavling = denah.blok.flatMap((satu) => satu.kavling);
-  const kavlingTerpilih = semuaKavling.find((satu) => satu.nomor === kavling) ?? null;
+  const kavlingTerpilih = kavling ? kavlingByNomor(denah, kavling) : null;
   const unitDipilih = [
     ...petak.map((nomor) => ({ nomor, unit: unitOf.find((satu) => satu.nomor === nomor) })),
     ...(kavlingTerpilih ? [{ nomor: kavlingTerpilih.nomor, unit: unitOf.find((satu) => satu.nomor === kavlingTerpilih.nomor) }] : []),

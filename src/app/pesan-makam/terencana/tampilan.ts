@@ -3,6 +3,7 @@ import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import type { BarisTotal, DenahTerencana, KartuTerencana, PemesananTerencanaOrder } from "@/domain/pemesanan";
 import type { PilihanStatus } from "@/domain/inventory";
 import { formatRupiah } from "@/lib/rupiah";
+import { syaratLines } from "./syarat";
 
 /**
  * What the wizard's screens show, as plain values: the module's reads turned into
@@ -126,15 +127,6 @@ export interface SyaratView {
   masaPembatalanDays: number;
   refundPercent: number;
   lokasiNama: string;
-}
-
-/** The Syarat Pemesanan Terencana, in the words shown before Kirim and kept on the order. */
-export function syaratLines(syarat: SyaratView): string[] {
-  return [
-    `Masa Pembatalan ${syarat.masaPembatalanDays} hari sejak pembayaran: membatalkan Pemesanan Terencana dalam masa ini mengembalikan seluruh tarif.`,
-    `Setelah masa itu, pengembalian ${syarat.refundPercent}% dari tarif, sesuai kebijakan ${syarat.lokasiNama}.`,
-    `Hak Pakai diberikan oleh ${syarat.lokasiNama}; Makam.co.id mencatat dan menerima pembayarannya.`,
-  ];
 }
 
 export function denahView(denah: DenahTerencana): DenahView {

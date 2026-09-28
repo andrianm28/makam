@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 import { kirimPesananTerencana, verifikasiKodeMasukDanKirimTerencana } from "./actions";
 import type { PilihanPicker } from "./denah-picker";
 import { initialKirimState, type DraftTerencana, type KirimState } from "./draft";
+import { syaratLines } from "./syarat";
 import type { DenahView, SyaratView } from "./tampilan";
-import { syaratLines } from "./tampilan";
 import { terencanaPath } from "./tautan";
 import { TotalBarTerencana } from "./total-bar";
 
@@ -300,6 +300,13 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
   );
 }
 
+/**
+ * Looks like the prototype's button-style radios, but is native `<input
+ * type="radio">` under a styled `<label>`: one Tab stop for the whole group,
+ * arrow keys move the native selection between options, and a screen reader
+ * announces "radio button, N of M" on its own — none of which a `role="radio"`
+ * `<button>` gets for free.
+ */
 function Pilihan<T extends string>({
   name,
   value,
@@ -312,25 +319,29 @@ function Pilihan<T extends string>({
   options: [T, string][];
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label={name}>
+    <div className="grid gap-2 sm:grid-cols-2">
       {options.map(([nilai, label]) => (
-        <button
+        <label
           key={nilai}
-          type="button"
-          role="radio"
-          aria-checked={nilai === value}
-          onClick={() => onChange(nilai)}
           className={cn(
-            "flex h-12 items-center gap-3 rounded-lg border px-4 text-left text-body-lg",
+            "flex h-12 cursor-pointer items-center gap-3 rounded-lg border px-4 text-body-lg has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50",
             nilai === value ? "border-primary bg-brand-soft font-medium text-brand-soft-foreground" : "border-input bg-card",
           )}
         >
+          <input
+            type="radio"
+            name={name}
+            value={nilai}
+            checked={nilai === value}
+            onChange={() => onChange(nilai)}
+            className="sr-only"
+          />
           <span
-            className={cn("size-4 rounded-full border-2", nilai === value ? "border-primary bg-primary ring-2 ring-card ring-inset" : "border-border-strong")}
+            className={cn("size-4 shrink-0 rounded-full border-2", nilai === value ? "border-primary bg-primary ring-2 ring-card ring-inset" : "border-border-strong")}
             aria-hidden
           />
           {label}
-        </button>
+        </label>
       ))}
     </div>
   );
