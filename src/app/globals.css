@@ -49,6 +49,25 @@
   --text-caption--line-height: 1rem;
   --text-caption--letter-spacing: 0.01em;
 
+  /* Public site display type: the Beranda hero and public list/detail page
+     titles, values identical to the public-site prototype (owner, 2026-09-28:
+     "ikut prototipe persis 1:1"). Each pairs with Tailwind's own text-5xl /
+     text-4xl / text-3xl at the breakpoint where the prototype already lands on
+     a stock size, so only the sizes with no stock match get a name here. */
+  --text-hero: 2.125rem;
+  --text-hero--line-height: 1.15;
+  --text-hero--font-weight: 600;
+  --text-hero-lg: 3.5rem;
+  --text-hero-lg--line-height: 1.1;
+  --text-hero-lg--font-weight: 600;
+  --leading-hero: 1.1;
+  --text-page-title: 1.875rem;
+  --text-page-title--line-height: 2.25rem;
+  --text-page-title--font-weight: 600;
+  --text-section-title: 1.75rem;
+  --text-section-title--line-height: 1.25;
+  --text-section-title--font-weight: 600;
+
   /* Colour. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -138,6 +157,9 @@
   --shadow-sm: var(--elevation-sm);
   --shadow-md: var(--elevation-md);
   --shadow-lg: var(--elevation-lg);
+  /* Sticky bar: a booking wizard's bottom action bar, casting upward (public
+     site only, from the public-site prototype). */
+  --shadow-sticky: var(--elevation-sticky);
 
   /* Motion. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -158,11 +180,20 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --page-gutter: var(--space-4);
+  /* The public site shares this width with the staff area (docs/design-system.md,
+     The public site shell); ported public screens read it as --page-max-width,
+     never as a raw max-w-[80rem]. */
   --page-max-width: 80rem;
   --section-gap: var(--space-8);
   --header-height: 3.5rem;
+  /* The public site's own top bar and its drawer header (public-site prototype):
+     taller than the staff --header-height, which stays staff-only. */
+  --site-header-height: 4rem;
   --bottom-nav-height: 4rem;
   --touch-target: 2.75rem;
+  /* The Beranda hero's primary CTA and its quiet text link (public-site
+     prototype): taller than --touch-target, which still applies as the floor. */
+  --button-height-lg: 3.25rem;
   --row-height: 3rem;
   --row-height-compact: 2.25rem;
 
@@ -271,6 +302,9 @@
   --elevation-sm: 0 1px 2px oklch(0.37 0.044 164 / 0.06), 0 1px 3px oklch(0.37 0.044 164 / 0.04);
   --elevation-md: 0 6px 16px -4px oklch(0.37 0.044 164 / 0.1), 0 2px 4px oklch(0.37 0.044 164 / 0.04);
   --elevation-lg: 0 20px 44px -10px oklch(0.37 0.044 164 / 0.18), 0 4px 10px oklch(0.37 0.044 164 / 0.05);
+  /* Forest at 20% (public-site prototype); the public site is held to light, so
+     this has no dark-mode override. */
+  --elevation-sticky: 0 -8px 24px -12px oklch(0.373 0.044 164 / 0.2);
 }
 
 @media (min-width: 768px) {

@@ -14,7 +14,7 @@ import { contentPageLinks } from "@/lib/public-navigation";
 export function SiteFooter({ legalName, contact }: { legalName: string | null; contact: CsContact | null }) {
   return (
     <footer className="mt-auto border-t border-border bg-muted/50">
-      <div className="mx-auto grid max-w-[80rem] gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr] md:px-8">
+      <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr] md:px-8">
         <div className="flex flex-col gap-3">
           <BrandLogo />
           <p className="max-w-sm text-small text-muted-foreground">
@@ -40,7 +40,7 @@ export function SiteFooter({ legalName, contact }: { legalName: string | null; c
         ) : null}
       </div>
       <div className="border-t border-border">
-        <p className="mx-auto max-w-[80rem] px-4 py-4 text-caption text-muted-foreground md:px-8">
+        <p className="mx-auto max-w-(--page-max-width) px-4 py-4 text-caption text-muted-foreground md:px-8">
           {legalName ? `Makam.co.id dikelola oleh ${legalName}` : "Makam.co.id"}
         </p>
       </div>

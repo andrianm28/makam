@@ -17,7 +17,7 @@ export function SiteHeader({ items, contact }: { items: readonly PublicMenuItem[
   const menu = items.filter((item) => !isAccountItem(item));
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85">
-      <div className="mx-auto flex h-16 max-w-[80rem] items-center justify-between gap-6 px-4 md:px-8">
+      <div className="mx-auto flex h-(--site-header-height) max-w-(--page-max-width) items-center justify-between gap-6 px-4 md:px-8">
         <Link href="/" aria-label="Makam.co.id, ke Beranda" className="rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50">
           <BrandLogo />
         </Link>
