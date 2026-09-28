@@ -32,7 +32,7 @@ export function pemesananMessage(reason: PemesananRefusal): string {
     case "lokasi_tidak_terbuka":
       return "Lokasi Mitra ini sudah tidak menerima pesanan. Pilih Lokasi Mitra lain.";
     case "harga_tidak_tersedia":
-      return "Harga makam ini belum tersedia atau sudah berubah. Kembali ke pilihan makam.";
+      return "Harga Hak Pakai ini belum tersedia atau sudah berubah. Kembali ke pilihan makam.";
     case "pemesan_kosong":
       return "Tulis nama lengkap Anda.";
     case "almarhum_kosong":

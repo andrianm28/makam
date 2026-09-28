@@ -521,7 +521,7 @@ function ClearingDialog({
       {mode === "terisi" ? (
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={dataMenyusul} onChange={(event) => setDataMenyusul(event.target.checked)} /> Data menyusul (belum lengkap)
+            <input type="checkbox" checked={dataMenyusul} onChange={(event) => setDataMenyusul(event.target.checked)} /> Perlu Verifikasi
           </label>
           {!dataMenyusul ? (
             <>

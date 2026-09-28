@@ -95,7 +95,7 @@ function konfirmasiMessage(reason: string): string {
     case "kontak_pemesan_kosong":
       return "Pesan ini tidak punya nomor telepon untuk Tagihan. Minta nomor kepada keluarga, lalu konfirmasi lagi.";
     case "harga_tidak_tersedia":
-      return "Harga makam ini belum tersedia atau sudah berubah. Periksa tarif Lokasi Mitra ini.";
+      return "Harga Hak Pakai ini belum tersedia atau sudah berubah. Periksa tarif Lokasi Mitra ini.";
     case "tagihan_tidak_terbit":
       return "Tagihan belum bisa diterbitkan, jadi pesanan tidak jadi dikonfirmasi. Periksa Pengaturan Operator.";
     case "lokasi_tidak_terbuka":
