@@ -168,7 +168,13 @@ export type AuditAction =
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra completes one Hak Pakai flagged Perlu
+   * Verifikasi — the flag the first Perpanjangan or Layanan on that Hak Pakai waits
+   * for, and the exit a gate with no exit could not be opened through (ticket 50).
+   */
+  | "hak_pakai.selesaikan_verifikasi";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

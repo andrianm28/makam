@@ -1,11 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
+import { scheduledTicks } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
   layananOnTestDatabase,
   lokasiDenganLayanan,
   petakDenganHakPakai,
+  petakPerluVerifikasi,
   pemesanLayanan,
   siapkanOperatorLayanan,
   type LayananSetup,
@@ -175,6 +177,61 @@ describe("placing an order Layanan", () => {
     expect(lain).toEqual({ ok: false, reason: "grave_tidak_ditemukan" });
   });
 
+  it("refuses a Hak Pakai that has been given back, which AC 1 does not name", async () => {
+    const { setup, lokasi, petak, pemesan } = await siap();
+    // **The behaviour and the AC differ, and the difference is unconfirmed.** AC 1
+    // names only Berakhir, yet `pesanan.ts` refuses `dibatalkan` the same way: a
+    // given-back Hak Pakai is no right anybody holds, so a job there could never be
+    // carried out. That is this module's reading, not the ticket's sentence, and no
+    // owner has confirmed it. This test locks the behaviour **as it is**, so a later
+    // decision changes a test on purpose instead of a test nobody read. The write is
+    // a stand-in for the same reason as `berakhir` above: the Inventory flow that
+    // gives a Hak Pakai back (ticket 39) is not built yet.
+    await setup.db.execute(sql`update inventory_hak_pakai set status = 'dibatalkan', end_reason = 'Dikembalikan' where id = ${petak.hakPakaiId}`);
+    expect(await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"))).toEqual({
+      ok: false,
+      reason: "hak_pakai_berakhir",
+    });
+  });
+
+  it("charges the Biaya Layanan Platform once for an order of two Layanan, not once each", async () => {
+    const { setup, lokasi, petak, pemesan } = await siap({ amount: 750_000 });
+    const kedua = await setup.layanan.tambahVarian(lokasi.admin, lokasi.layanan.id, { name: "Marmer 80 cm", reason: null });
+    if (!kedua.ok) throw new Error("varian refused");
+    const ditawarkan = await setup.layanan.tawarkanLayanan(lokasi.admin, lokasi.lokasiMitra.id, kedua.varian.id, {
+      amount: 900_000,
+      effectiveOn: "2026-10-01",
+      reason: null,
+    });
+    if (!ditawarkan.ok) throw new Error("offering refused");
+
+    const hasil = await setup.layanan.placePesananLayanan(pemesan, {
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      lokasiId: lokasi.lokasiMitra.id,
+      petakId: petak.petakId,
+      item: [
+        { layananVariantId: lokasi.varian.id, targetDate: "2026-10-20", teks: null },
+        { layananVariantId: kedua.varian.id, targetDate: "2026-10-22", teks: null },
+      ],
+    });
+    if (!hasil.ok) throw new Error("order refused");
+
+    // One fee, whatever the order holds: 750.000 + 900.000 + 150.000. A fee per item
+    // would be 300.000, and the family would be charged twice for the same thing.
+    const tagihan = await setup.billing.tagihan(hasil.tagihan.id);
+    expect(tagihan?.lines.filter((satu) => satu.kind === "biaya_layanan_platform")).toHaveLength(1);
+    expect(tagihan?.lines.map((satu) => [satu.kind, satu.amount])).toEqual([
+      ["layanan", 750_000],
+      ["layanan", 900_000],
+      ["biaya_layanan_platform", 150_000],
+    ]);
+    expect(hasil.tagihan.total).toBe(1_800_000);
+    // And two jobs, one per Layanan, each carrying its own target date.
+    const dibaca = await setup.layanan.pesananLayananOf(hasil.pesanan.nomor, pemesan);
+    expect(dibaca?.item.map((satu) => satu.targetDate)).toEqual(["2026-10-20", "2026-10-22"]);
+  });
+
   it("names the Petak by the number the family knows, and the window the work may be done in", async () => {
     const { setup, lokasi, petak, pemesan } = await siap();
     const hasil = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"));
@@ -249,5 +306,82 @@ describe("paying for an order", () => {
     if (!lain.ok) throw new Error(`tagihan refused: ${lain.reason}`);
     setup.clock.set(wib("2026-10-01 10:00"));
     expect((await bayar(setup, lain.tagihan.id, wib("2026-10-01 10:00"))).ok).toBe(true);
+  });
+});
+
+/**
+ * AC 1's second half: a Hak Pakai flagged Perlu Verifikasi **may be ordered for**,
+ * but the money must not schedule its jobs until the Admin Lokasi has completed it.
+ * A gate and its exit are one round trip, so these read the whole way round —
+ * ordered, held, released, scheduled — not only the half where the gate holds.
+ */
+describe("a Hak Pakai the Admin Lokasi must still complete", () => {
+  /** One order on a grave whose Hak Pakai came out flagged: the second Petak, cleared "data menyusul". */
+  async function orderYangDiblokir() {
+    const setup = layananOnTestDatabase(db);
+    await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup);
+    const petak = await petakPerluVerifikasi(setup, lokasi);
+    const { pemesan } = await pemesanLayanan(setup);
+    const order = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"));
+    if (!order.ok) throw new Error(`order refused: ${order.reason}`);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    expect((await bayar(setup, order.tagihan.id, wib("2026-10-01 10:00"))).ok).toBe(true);
+    return { setup, lokasi, petak, pemesan, order };
+  }
+
+  it("holds the job when the money arrives, though the Tagihan is Lunas", async () => {
+    const { setup, lokasi, pemesan, order } = await orderYangDiblokir();
+
+    // The payment itself succeeded and the order is Terbayar; only the work is held,
+    // which is exactly what "completed before the first Layanan is scheduled" means.
+    const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
+    expect(dibaca).toMatchObject({ status: "terbayar", item: [{ pekerjaan: { status: "menunggu_pembayaran" } }] });
+    // And the Admin Lokasi is told which order is waiting, so the hold is not silence.
+    expect(await setup.layanan.pesananTertunda()).toMatchObject([
+      { nomor: order.pesanan.nomor, lokasiId: lokasi.lokasiMitra.id, petakNomor: lokasi.petak[1].nomorMakam },
+    ]);
+  });
+
+  it("is released by the Admin Lokasi completing it, and the job the money paid for is then scheduled", async () => {
+    const { setup, lokasi, petak, pemesan, order } = await orderYangDiblokir();
+
+    // **The exit.** Only the Admin Lokasi of that plot's own Lokasi Mitra may complete
+    // its Hak Pakai: the Operator chases a Lokasi by phone (story 117) and does not
+    // stand at the grave, so it is refused here.
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.admin, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({ ok: true });
+    // Twice is refused rather than quietly accepted: the flag is off, so there is
+    // nothing left to complete.
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({
+      ok: false,
+      reason: "tidak_perlu_verifikasi",
+    });
+
+    // The worker's tick is what notices the right is now complete, and it moves the
+    // job the money already paid for. Idempotent, as every tick is.
+    setup.clock.set(wib("2026-10-01 11:00"));
+    expect(await setup.layanan.jadwalkanTertunda(setup.clock.now())).toBe(1);
+    expect(await setup.layanan.jadwalkanTertunda(setup.clock.now())).toBe(0);
+    expect(await setup.layanan.pesananTertunda()).toEqual([]);
+    // The whole round trip ends where an ordinary paid order does.
+    expect(await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan)).toMatchObject({
+      status: "terbayar",
+      item: [{ pekerjaan: { status: "dijadwalkan" } }],
+    });
+  });
+
+  it("is the tick the worker runs, so nothing has to be released by hand", async () => {
+    const { setup, lokasi, petak } = await orderYangDiblokir();
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({ ok: true });
+
+    const tick = scheduledTicks.find((scheduled) => scheduled.name === "layanan.jadwalkan_tertunda");
+    if (!tick) throw new Error("the worker does not schedule the tick that releases a held job");
+    setup.clock.set(wib("2026-10-01 11:00"));
+    await tick.tick({ db: setup.db, inventory: setup.inventory } as never, setup.clock.now());
+    expect(await setup.layanan.pesananTertunda()).toEqual([]);
   });
 });

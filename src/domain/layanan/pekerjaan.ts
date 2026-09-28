@@ -56,6 +56,13 @@ export interface PekerjaanUntukStaf {
   batasTerlambat: string;
   /** True once the Terlambat tick flagged it, whatever state it is in since. */
   terlambat: boolean;
+  /**
+   * True when this job is held because this grave's Hak Pakai is still flagged Perlu
+   * Verifikasi, so the Admin Lokasi has to complete it before the job can be
+   * scheduled (AC 1). Read only for a job that is still waiting, because a job that
+   * has moved on is not held by anything.
+   */
+  hakPakaiPerluVerifikasi: boolean;
   mulaiAt: Date | null;
   /** What this job has to show, derived from the Layanan's own kind, and what is still missing. */
   harusBukti: ProofRequirement;
@@ -310,12 +317,16 @@ async function baca(deps: LayananDeps, pekerjaanId: string): Promise<PekerjaanUn
   const entry = (await katalog(deps.db)).find((satu) => satu.id === row.item.layananId);
   const harusBukti = entry ? proofOf(entry.jenis) : BUKTI_DEFAULT;
   const bukti = await buktiUntukPekerjaan(deps, row.job.id);
+  // Only a job the gate is holding needs the grave's right read, so the Lokasi's
+  // whole list does not pay for a read per row that cannot be held.
+  const hakPakai = row.job.status === "menunggu_pembayaran" ? await deps.inventory.hakPakaiOfUnit({ petakId: row.job.petakId }) : null;
   return {
     id: row.job.id,
     status: row.job.status,
     targetDate: row.job.targetDate,
     batasTerlambat: batasTerlambat(row.job.targetDate),
     terlambat: row.job.terlambatAt !== null,
+    hakPakaiPerluVerifikasi: hakPakai?.perluVerifikasi ?? false,
     mulaiAt: row.job.mulaiAt,
     harusBukti,
     dibutuhkan: jenisBuktiDibutuhkan(harusBukti),

@@ -160,4 +160,5 @@ export const pekerjaanPesanMessages = {
   belum_masuk: "Masuk dulu untuk mengerjakan layanan ini.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
   perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_perlu_verifikasi: "Hak Pakai petak ini sudah lengkap.",
 } as const satisfies Record<string, string>;

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
 import type { BuktiPekerjaan, PekerjaanUntukStaf } from "@/domain/layanan";
 import { AmbilBukti } from "./ambil-bukti";
-import { mulaiPekerjaanLokasi, selesaikanPekerjaanLokasi, type PekerjaanActionState } from "./actions";
+import { mulaiPekerjaanLokasi, selesaikanPekerjaanLokasi, selesaikanVerifikasiHakPakaiLokasi, type PekerjaanActionState } from "./actions";
 
 const initialState: PekerjaanActionState = { status: "idle" };
 
@@ -27,6 +27,7 @@ export function LangkahPekerjaan({ lokasiId, pekerjaan }: { lokasiId: string; pe
 
   return (
     <>
+      {pekerjaan.hakPakaiPerluVerifikasi ? <VerifikasiHakPakai lokasiId={lokasiId} petakId={pekerjaan.petak.id} /> : null}
       <Mulai lokasiId={lokasiId} pekerjaan={pekerjaan} />
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4" aria-labelledby="bukti-heading">
         <h2 id="bukti-heading" className="text-body font-semibold">
@@ -53,6 +54,40 @@ export function LangkahPekerjaan({ lokasiId, pekerjaan }: { lokasiId: string; pe
       </section>
       {!ditutup ? <Selesai lokasiId={lokasiId} pekerjaan={pekerjaan} kurang={pekerjaan.kurang} /> : null}
     </>
+  );
+}
+
+/**
+ * **The gate, and its exit.** A Hak Pakai flagged Perlu Verifikasi holds this job
+ * back: the family has paid, but the Lokasi has to complete the grave's record
+ * before the work can be scheduled (AC 1). The screen says so in the words the
+ * Admin Lokasi uses, and gives the one call that opens it — completing the Hak Pakai
+ * is the Lokasi's own, and nothing else about this screen changes.
+ */
+function VerifikasiHakPakai({ lokasiId, petakId }: { lokasiId: string; petakId: string }) {
+  const [state, formAction, pending] = useActionState(selesaikanVerifikasiHakPakaiLokasi, initialState);
+  return (
+    <form action={formAction} className="flex flex-col gap-2 rounded-lg border border-border bg-warning-soft p-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="petakId" value={petakId} />
+      <p className="text-body font-semibold">Hak Pakai petak ini belum dilengkapi</p>
+      <p className="text-small text-muted-foreground">
+        Record Hak Pakai petak ini masih perlu diverifikasi, jadi pekerjaan menunggu dan belum masuk jadwal. Setelah dilengkapi, pekerjaan ini masuk daftar Antrean pada tick berikutnya.
+      </p>
+      <Button type="submit" disabled={pending}>
+        {pending ? "Menyimpan…" : "Tandai Hak Pakai sudah dilengkapi"}
+      </Button>
+      {state.status === "gagal" ? (
+        <p role="alert" className="text-small text-destructive">
+          {state.message}
+        </p>
+      ) : null}
+      {state.status === "berhasil" ? (
+        <p role="status" className="text-small text-muted-foreground">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }
 

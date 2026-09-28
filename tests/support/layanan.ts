@@ -199,6 +199,24 @@ export async function petakDenganHakPakai(
   return { petakId: lokasi.petak[0].id, nomor: diberikan.nomor, hakPakaiId: diberikan.hakPakaiId };
 }
 
+/**
+ * A grave whose Hak Pakai the Admin Lokasi has still to complete: the Blok's
+ * second Petak, cleared *occupied* as **"data menyusul"**, which is exactly how a
+ * Hak Pakai comes out flagged (spec, Inventory: an imported or "data menyusul"
+ * Hak Pakai with a missing Pemegang Hak contact or tenure). It is the state AC 1's
+ * second half is about, reached through the module's own public clearing flow
+ * rather than by writing the flag onto a row.
+ */
+export async function petakPerluVerifikasi(setup: LayananSetup, lokasi: LokasiDenganLayanan) {
+  const diberikan = await setup.inventory.clearPetak(lokasi.adminLokasi, lokasi.lokasiMitra.id, lokasi.petak[1].id, {
+    mode: "terisi",
+    dataMenyusul: true,
+  });
+  if (!diberikan.ok) throw new Error(`clearPetak refused: ${diberikan.reason}`);
+  if (diberikan.hakPakaiId === null) throw new Error("clearPetak granted no Hak Pakai");
+  return { petakId: lokasi.petak[1].id, nomor: lokasi.petak[1].nomorMakam, hakPakaiId: diberikan.hakPakaiId };
+}
+
 /** A Pemesan with a proven email, a Kode Masuk away: the order's own Akun. */
 export async function pemesanLayanan(setup: LayananSetup, email = "pemesan.layanan@contoh.id") {
   return pemesanDenganEmail(setup, email);

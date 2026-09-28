@@ -162,7 +162,13 @@ export type Action =
   /** Read one Pekerjaan Layanan, or a Lokasi Mitra's whole open list, as staff (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "layanan.lihat_staf"
   /** The Admin Lokasi of a job's own Lokasi Mitra starts it, captures its proof and marks it Selesai. */
-  | "layanan.kerjakan";
+  | "layanan.kerjakan"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra's own Lokasi completes one Hak Pakai flagged
+   * Perlu Verifikasi, which the first Perpanjangan or Layanan on it waits for
+   * (spec, Inventory).
+   */
+  | "hak_pakai.selesaikan_verifikasi";
 
 /** What the action is done to. */
 export type Resource =
@@ -453,6 +459,13 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "layanan.kerjakan":
       // Only the Lokasi Mitra's own Admin Lokasi does its work, and only that
       // work: Admin Platform never fulfils a job.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "hak_pakai.selesaikan_verifikasi":
+      // The spec names the Admin Lokasi as the one who completes it ("The Admin Lokasi
+      // must complete it at the latest at the first Perpanjangan or Layanan on that Hak
+      // Pakai"), and only of that Lokasi: the record belongs to the place, and an
+      // Admin Platform chases a Lokasi by phone rather than completing its records
+      // (story 117, and the same rule as `denah.ubah`).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

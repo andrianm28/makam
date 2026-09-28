@@ -15,8 +15,9 @@ import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
-import { tandaiTerlambat } from "@/domain/layanan";
+import { jadwalkanTertunda, tandaiTerlambat } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
+import type { Inventory } from "@/domain/inventory";
 import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
@@ -36,6 +37,8 @@ export interface SchedulerContext {
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
+  /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
+  inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -78,6 +81,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
   // Layanan: a job past its target date with no proof is flagged Terlambat, which raises the Admin Lokasi's and Admin Platform's rows (ticket 50).
   { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
+  // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
+  { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -100,4 +105,13 @@ async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
 async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
+}
+
+/**
+ * The worker wrapper around the Layanan module's release tick: a job held by the Hak
+ * Pakai gate is scheduled once its Hak Pakai has been completed (idempotent there, as
+ * every tick is).
+ */
+async function jadwalkanTertundaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await jadwalkanTertunda({ db: ctx.db, inventory: ctx.inventory }, now);
 }

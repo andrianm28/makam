@@ -17,6 +17,7 @@ export function schedulerContext(parts: {
   reportError?: ReportError;
   notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
   pemesanan?: SchedulerContext["pemesanan"];
+  inventory?: SchedulerContext["inventory"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -32,6 +33,9 @@ export function schedulerContext(parts: {
         identity: { adminLokasiOf: async () => [] },
         notifikasi: DIAMDIAM,
       } satisfies SchedulerContext["pemesanan"]),
+    // A grave no tick but the Layanan release one reads: a test of another module's
+    // tick is undisturbed by it, and a test of the release one passes the real read.
+    inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
   };
 }
 

@@ -75,6 +75,42 @@ export async function unggahBuktiLokasi(_previous: PekerjaanActionState, formDat
   return { status: "berhasil", message: "Bukti tersimpan." };
 }
 
+/** What this form carries: the Lokasi whose Admin Lokasi is writing, and the Petak. */
+const petakFormSchema = z.object({ lokasiId: z.uuid(), petakId: z.uuid() });
+
+/**
+ * **The exit of the Hak Pakai gate** (AC 1): this grave's Hak Pakai is flagged Perlu
+ * Verifikasi, so the job is not scheduled, and only this Lokasi's Admin Lokasi can
+ * complete it. The form names the Petak; which Hak Pakai that is, and whether it is
+ * still flagged, is the Inventory module's business and is read through its own
+ * public function, never assumed here.
+ *
+ * The job does not move on this call — the payment that would have scheduled it is
+ * already recorded — so the screen says the work joins the Lokasi's list on the
+ * next tick rather than pretending it is scheduled now.
+ */
+export async function selesaikanVerifikasiHakPakaiLokasi(_previous: PekerjaanActionState, formData: FormData): Promise<PekerjaanActionState> {
+  const parsed = petakFormSchema.safeParse({ lokasiId: formData.get("lokasiId"), petakId: formData.get("petakId") });
+  if (!parsed.success) return { status: "gagal", message: pesan("input_tidak_valid") };
+  const { lokasiId, petakId } = parsed.data;
+  const result = await guarded({
+    action: "hak_pakai.selesaikan_verifikasi",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: z.object({ petakId: z.uuid() }),
+    input: { petakId },
+    run: async (actor, { petakId: unitId }) => {
+      const runtime = serverRuntime();
+      const hakPakai = await runtime.inventory.hakPakaiOfUnit({ petakId: unitId });
+      if (!hakPakai) return { ok: false as const, reason: "tidak_ditemukan" as const };
+      return runtime.inventory.selesaikanVerifikasiHakPakai(actor, lokasiId, hakPakai.id);
+    },
+  });
+  if (!result.ok) return { status: "gagal", message: pesan(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
+  if (!result.value.ok) return { status: "gagal", message: pesan(result.value.reason) };
+  return { status: "berhasil", message: "Hak Pakai dilengkapi. Pekerjaan ini masuk daftar Antrean pada tick berikutnya." };
+}
+
 /** The Admin Lokasi marks a job Selesai, and the Pemesan is sent its proof link. */
 export async function selesaikanPekerjaanLokasi(_previous: PekerjaanActionState, formData: FormData): Promise<PekerjaanActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");

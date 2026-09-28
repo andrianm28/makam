@@ -27,5 +27,6 @@ export function composeSchedulerContext(deps: {
     reportError: deps.reportError,
     notifications: deps.notifications,
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
+    inventory: deps.inventory,
   };
 }

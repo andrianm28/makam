@@ -88,7 +88,7 @@ import {
   type Tempat,
 } from "./harga";
 import { pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult } from "./pesanan";
-import { pesananTertunda } from "./pembayaran";
+import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
   pekerjaanUntukStaf,
@@ -171,7 +171,7 @@ export {
   simpanBukti,
   type BuktiTerbaca as BuktiPekerjaanTerbaca,
 } from "./bukti";
-export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
+export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, jadwalkanTertunda, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -268,6 +268,15 @@ export interface Layanan {
   pengembalianTerbuka(): Promise<PengembalianTerbuka[]>;
   /** The orders whose jobs are still waiting for a Hak Pakai to be completed. */
   pesananTertunda(): Promise<{ pesananId: string; nomor: string; lokasiId: string; petakNomor: string }[]>;
+  /**
+   * The worker's tick that **releases** a held job: every order whose Tagihan is paid
+   * and whose job is still waiting for its Hak Pakai is offered to the same scheduling
+   * rule again, and moves if the Admin Lokasi has completed that Hak Pakai in the
+   * meantime. Returns how many jobs moved; idempotent, as every tick is. Nothing can
+   * schedule a held job any other way — the payment that would have is already
+   * recorded — so this is what makes the gate a door and not a wall.
+   */
+  jadwalkanTertunda(now: Date): Promise<number>;
 
   /* ── fulfilling a job (the Admin Lokasi of that Lokasi Mitra) ── */
 
@@ -325,6 +334,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     batalkanPekerjaan: (pemesan, input) => batalkanPekerjaan(deps, pemesan, input),
     pengembalianTerbuka: () => pengembalianTerbuka(deps),
     pesananTertunda: () => pesananTertunda({ db: deps.db, inventory: deps.inventory }),
+    jadwalkanTertunda: (now) => jadwalkanTertundaTick({ db: deps.db, inventory: deps.inventory }, now),
 
     pekerjaanUntukStaf: (by, input) => pekerjaanUntukStaf(deps, by, input),
     pekerjaanUntukStafTerbaru: (by, lokasiId) => pekerjaanUntukStafTerbaru(deps, by, lokasiId),

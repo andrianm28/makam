@@ -17,6 +17,14 @@
  * Tagihan is Lunas and nothing about the payment went wrong. `jadwalkan` is the
  * one function that moves a job on, so completing the Hak Pakai and scheduling
  * the job it blocked are the same call, and running this twice changes nothing.
+ *
+ * **Its exit.** The flag itself belongs to the Inventory module, and
+ * `selesaikanVerifikasiHakPakai` there is what takes it off. A payment is recorded
+ * once and never looked at again, so a job the gate held is released by
+ * `jadwalkanTertunda` below: the tick that offers every paid order's held job to
+ * this same `jadwalkan` again, and moves it if the right has been completed since.
+ * Without it the gate is a one-way door, and the release lives here rather than in
+ * Inventory precisely because only this module knows what a job is.
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
@@ -126,4 +134,35 @@ export async function pesananTertunda(deps: Pick<JadwalkanDeps, "db" | "inventor
     }
   }
   return hasil;
+}
+
+/**
+ * The tick that **releases** a held job: every order whose Tagihan is paid and
+ * whose job is still `menunggu_pembayaran` is offered to `jadwalkan` again at `now`,
+ * which moves it if — and only if — the Hak Pakai has been completed in the meantime.
+ * Returns how many jobs moved.
+ *
+ * Without this a gate is a one-way door: the payment that could not schedule the job
+ * has already been recorded, so nothing else would ever look at it again, and a
+ * family that paid would be told to wait for a day that never came. The exit of
+ * `selesaikanVerifikasiHakPakai` is what makes the state change; this is what notices
+ * it, from database state alone, on the worker's schedule.
+ *
+ * Idempotent, as every tick is: `jadwalkan` matches each job on its status, so a
+ * second run for the same `now` moves nothing. An order whose Tagihan was never paid
+ * is skipped by the join — it is `menunggu_pembayaran` because nobody paid, not
+ * because a gate holds it, and lapsing at its due date is Billing's rule, not this.
+ */
+export async function jadwalkanTertunda(deps: Pick<JadwalkanDeps, "db" | "inventory">, now: Date): Promise<number> {
+  const tertunda = await deps.db
+    .selectDistinct({ pesananId: pekerjaanLayanan.pesananId })
+    .from(pekerjaanLayanan)
+    .innerJoin(pesananLayanan, eq(pesananLayanan.id, pekerjaanLayanan.pesananId))
+    .where(and(eq(pekerjaanLayanan.status, "menunggu_pembayaran"), eq(pesananLayanan.status, "terbayar")));
+  let dijadwalkan = 0;
+  for (const satu of tertunda) {
+    const hasil = await jadwalkan(deps.db, deps, satu.pesananId, now);
+    if (hasil.ok) dijadwalkan += hasil.dijadwalkan;
+  }
+  return dijadwalkan;
 }

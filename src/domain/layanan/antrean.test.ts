@@ -65,6 +65,32 @@ describe("the Antrean Lokasi's Layanan rows", () => {
     expect(antrean.mendesak.map((satu) => satu.type)).not.toContain("layanan_hari_ini");
   });
 
+  it("keep a job whose day has already passed in Mendesak, until the tick flags it late", async () => {
+    // "Layanan hari ini" is the rule `targetDate <= hariIni`, not `== hariIni`: a day
+    // that passed without the work being done is the most urgent thing there is, and
+    // a row listing only today's work would hide it until it went Terlambat.
+    const { setup, lokasi } = await orderYangDibayar("2026-10-01");
+    setup.clock.set(wib("2026-10-02 09:00"));
+
+    const komposisi = queuesOnTestDatabase(db);
+    komposisi.clock.set(wib("2026-10-02 09:00"));
+    const antrean = await komposisi.queues.antreanLokasi(lokasi.adminLokasi, lokasi.lokasiMitra.id);
+    expect(antrean.mendesak.find((satu) => satu.type === "layanan_hari_ini")).toMatchObject({
+      subjectKind: "pekerjaan_layanan",
+      subjectLabel: "Layanan – Pembersihan Makam (Reguler) · Petak A-01",
+    });
+    expect(antrean.lainnya.map((satu) => satu.type)).not.toContain("layanan_akan_datang");
+
+    // Flagged late, it moves to its own row and only there: the Mendesak row hides
+    // exactly what the Lainnya row now carries.
+    setup.clock.set(wib("2026-10-03 09:00"));
+    expect(await tandaiTerlambat(setup.db, setup.clock.now())).toBe(1);
+    komposisi.clock.set(wib("2026-10-03 09:00"));
+    const sesudah = await komposisi.queues.antreanLokasi(lokasi.adminLokasi, lokasi.lokasiMitra.id);
+    expect(sesudah.mendesak.map((satu) => satu.type)).not.toContain("layanan_hari_ini");
+    expect(sesudah.lainnya.map((satu) => satu.type)).toContain("layanan_terlambat");
+  });
+
   it("put a late job in Lainnya as Terlambat, and on the Admin Platform's Tier 2 row", async () => {
     const { setup, lokasi, order } = await orderYangDibayar("2026-10-01");
     setup.clock.set(wib("2026-10-03 09:00"));
