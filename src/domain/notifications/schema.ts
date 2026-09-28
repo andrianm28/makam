@@ -128,8 +128,12 @@ export const notificationsMessage = pgTable(
   ],
 );
 
-/** Why a "Telepon Pemesan" row was opened: every send failed, or the order never had an email. */
-export const teleponSebab = ["pesan_gagal", "tanpa_email"] as const;
+/**
+ * Why a "Telepon Pemesan" row was opened: every send failed, the order never had
+ * an email, or the family has to be called rather than emailed (a declined Saat
+ * Duka order, spec Work Queues Tier 1 "Saat Duka ditolak (call within 2 h)").
+ */
+export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak"] as const;
 
 /** What the staff member found when they called, logged to close the row. */
 export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah"] as const;

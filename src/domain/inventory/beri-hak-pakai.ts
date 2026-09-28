@@ -13,7 +13,7 @@
 import { and, eq } from "drizzle-orm";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
-import { currentHakPakaiOfPetak, forStatus, hakPakaiByTarget } from "./hak-pakai-reads";
+import { forStatus, hakPakaiByTarget, memegangPetak } from "./hak-pakai-reads";
 import { grantHakPakai, type NewPemegangHak } from "./hak-pakai-grant";
 import { lockBlok } from "./locks";
 import { inventoryBlok, inventoryPetak } from "./schema";
@@ -92,7 +92,8 @@ export async function beriHakPakai(
   if (!petak) return { ok: false, reason: "petak_tidak_ditemukan" };
   if (petak.kavlingId || petak.jenisMakamId !== input.jenisMakamId) return { ok: false, reason: "jenis_makam_beda" };
   if (petak.perluVerifikasi) return { ok: false, reason: "petak_belum_tersedia" };
-  if (await currentHakPakaiOfPetak(deps.db, petak.id)) return { ok: false, reason: "petak_belum_tersedia" };
+  // A right that was given back holds nothing, so that Petak is free again (see `memegangPetak`).
+  if (await memegangPetak(deps.db, petak.id)) return { ok: false, reason: "petak_belum_tersedia" };
   if (petak.tidakTersediaReason) return { ok: false, reason: "petak_belum_tersedia" };
 
   const tenure = await tenureOfJenisMakam(deps, by, lokasiId, input.jenisMakamId);
@@ -104,7 +105,7 @@ export async function beriHakPakai(
       .select()
       .from(inventoryPetak)
       .where(and(eq(inventoryPetak.id, petak.id), eq(inventoryPetak.lokasiId, lokasiId)));
-    if (!terkunci || terkunci.tidakTersediaReason || (await currentHakPakaiOfPetak(tx, petak.id))) {
+    if (!terkunci || terkunci.tidakTersediaReason || (await memegangPetak(tx, petak.id))) {
       return { ok: false as const, reason: "petak_belum_tersedia" as const };
     }
     const hakPakaiId = await grantHakPakai(tx, now, by, {

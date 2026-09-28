@@ -50,6 +50,17 @@ export interface PemesananNotifikasi {
   /** The Lokasi's confirmation of an order: the family hears the plot, the contact, the checklist and the Tagihan. */
   pesananDikonfirmasi(hasil: PemesananDikonfirmasi): Promise<void>;
   /**
+   * The Lokasi's Tolak: the family hears it was declined and why, and is sent to
+   * the Pilih makam list again with a banner, its own data and the rejecting
+   * Lokasi taken out (ticket 24). A family nobody can reach by email is a Tier 1
+   * call for Admin Platform, which this announcement opens.
+   */
+  pesananDitolak(hasil: PesananDitolak): Promise<void>;
+  /** The Lokasi's alternative the Pemesan has to answer with one tap, seeing the new all-in total. */
+  pesananAlternatifDitawarkan(hasil: PesananAlternatifDitawarkan): Promise<void>;
+  /** A cancelled order, said to the family: what it gave back and what is on its way back. */
+  pesananDibatalkan(hasil: PesananDibatalkan): Promise<void>;
+  /**
    * A Pemesanan Terencana the Lokasi Mitra has to confirm. It is a call of its own
    * and not a variant of that first one because the two say different things: a
    * Terencana order names several plots and a Calon Penghuni who is alive, so it has
@@ -114,6 +125,64 @@ export interface PemesananDikonfirmasi {
 }
 
 /**
+ * A declined Pemesanan Makam as its family is told about it (spec, Work Queues:
+ * Tier 1 "Saat Duka ditolak (call within 2 h)", Public site: "After a Tolak, the
+ * Pilih makam list opens with a banner, the rejecting Lokasi removed and the
+ * family's data prefilled"; ticket 24).
+ */
+export interface PesananDitolak {
+  pemesananId: string;
+  nomor: string;
+  /** The Email Terverifikasi the order was proven with; null when it has none (the call is then the only channel). */
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** The reason off the closed list, in the wording that list gives it. */
+  alasan: string;
+  /** The city the rejecting Lokasi Mitra is in: the list the family is sent back to is filtered by it. */
+  kota: string | null;
+  almarhum: { name: string; tanggalWafat: string };
+  /** The Pemesan to call, and the number to call. */
+  pemesan: { name: string; phoneNumber: string | null };
+}
+
+/** The alternative the Pemesan has to accept or decline, with the all-in total it would carry. */
+export interface PesananAlternatifDitawarkan {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** The Almarhum the burial is for, as the order recorded them. */
+  almarhum: { name: string; tanggalWafat: string };
+  /** What was ordered, and what is offered instead: either half may be null, never both. */
+  dari: { jenisMakam: string | null; pemakamanAt: Date | null };
+  ke: { jenisMakam: string | null; pemakamanAt: Date | null };
+  /** The all-in total the offer carries, as `quote()` priced it at this instant. */
+  total: number;
+  /** The lines behind that total, for the family to read before tapping one button. */
+  lines: { label: string; amount: number }[];
+}
+
+/** A cancelled Pemesanan Makam as its family is told about it: what was given back, and what is on its way. */
+export interface PesananDibatalkan {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { name: string };
+  almarhum: { name: string };
+  /** True when the Admin Lokasi recorded it for the family rather than the family itself. */
+  olehLokasi: boolean;
+  /** Why, in the family's own words where the family gave one. */
+  alasan: string | null;
+  /** The Tagihan cancelled with the order, and whether money is on its way back. */
+  tagihan: { nomorTagihan: string; dibatalkan: boolean; jumlahDikembalikan: number } | null;
+  /** What the plot became: a Terencana cancellation gives a plot back, a Saat Duka one has not taken one yet. */
+  petak: { nomor: string } | null;
+}
+
+/**
  * What the Pemesanan module needs from its neighbours: only their public
  * functions, never their tables. It reads the Lokasi Mitra's listing and
  * working time from Lokasi, its prices from Tariffs, what is still Tersedia
@@ -144,8 +213,10 @@ export interface PemesananDeps {
   inventory: Pick<
     Inventory,
     | "tersediaPerJenisMakam"
-    // A Saat Duka confirmation assigns a cleared Tersedia Petak and reads the ones it offers.
+    // A Saat Duka confirmation assigns a cleared Tersedia Petak and reads the ones it offers;
+    // a cancellation gives the Hak Pakai and its Petak back (ticket 24).
     | "beriHakPakai"
+    | "batalkanHakPakai"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"
@@ -153,8 +224,8 @@ export interface PemesananDeps {
     | "lepasTahan"
     | "within"
   >;
-  /** For the Nomor Pemesanan series and a confirmed order's Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  /** For the Nomor Pemesanan series, a confirmed order's Tagihan and the bill a cancellation cancels, all `within` the order's own transaction. */
+  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

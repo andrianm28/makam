@@ -30,6 +30,14 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
     publicDocumentUrl: (link: string) => `${publicOrigin}${documentPagePath(link)}`,
     /** A Pemesanan Makam's own page, where a family follows its order (ticket 23). */
     pesananUrl: (nomor: string) => `${publicOrigin}/pesanan/${nomor}`,
+    /**
+     * The Pilih makam list a family is sent back to after a Tolak, carrying the
+     * declined order's number: the page reads it, takes the rejecting Lokasi out
+     * of the list and prefills the family's data (spec, Public site: "After a
+     * Tolak, the Pilih makam list opens with a banner, the rejecting Lokasi
+     * removed and the family's data prefilled"; ticket 24).
+     */
+    pesananUlangUrl: (nomor: string) => `${publicOrigin}/pesan-makam/saat-duka?dari=${encodeURIComponent(nomor)}`,
   };
 }
 

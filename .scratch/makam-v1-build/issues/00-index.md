@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-28): 49 resolved, 29 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 88 tickets (as of 2026-09-28): 50 resolved, 29 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -27,7 +27,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [21](21-staff-pwa-and-web-push.md) | Staff PWA install and web push | resolved | 09 |
 | [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | resolved | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | resolved | 18, 20, 21, 22 |
-| [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | ready-for-agent | 23 |
+| [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | resolved | 23 |
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
 | [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | resolved | 22, 63 |
 | [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | ready-for-agent | 25, 82 |
@@ -337,4 +337,5 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 |---|---|---|---|
 | [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | resolved | 12 |
 
+| [88](88-pilih-makam-setelah-tolak.md) | Pilih makam after a Tolak: banner, the refusing Lokasi, and rebooking (deferred from the 24 merge) | ready-for-agent | 24 |
 | [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |

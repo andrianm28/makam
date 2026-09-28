@@ -47,6 +47,8 @@ describe("issuing a Tagihan", () => {
       addressee: { role: "pemesan", name: "Siti Rahmawati", phoneNumber: "+6281234567890", accountId: null },
       nomorPemesanan: "MKM-2026-000001",
       placeName: "Makam Wakaf Al-Ikhlas",
+      // Nothing has been asked back, and asking is a cancellation's own doing (ticket 24).
+      pengembalianDiminta: null,
       lines: [
         { kind: "harga_hak_pakai", label: "Harga Hak Pakai – Makam Standar", amount: 5_000_000, provider: LOKASI },
         { kind: "biaya_pemakaman", label: "Biaya Pemakaman", amount: 1_500_000, provider: LOKASI },
@@ -161,10 +163,13 @@ describe("issuing a Tagihan", () => {
 });
 
 describe("an issued Tagihan is immutable", () => {
-  it("Billing offers no way to change an issued Tagihan's lines: only issue, cancel-and-reissue, payment and reads", () => {
+  it("Billing offers no way to change an issued Tagihan's lines: only issue, cancel and reissue, cancel, payment and reads", () => {
     const billing = billingOnTestDatabase(db).billing;
 
     expect(Object.keys(billing).sort()).toEqual([
+      // Cancelling a Tagihan never changes its lines either: it ends the bill and
+      // records what is owed back, which is the cancellation's own rule (ticket 24).
+      "batalkanTagihan",
       "bayar",
       "documentByLink",
       "documentPdf",

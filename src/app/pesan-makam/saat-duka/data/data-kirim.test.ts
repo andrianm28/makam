@@ -22,7 +22,16 @@ const { DataKirim } = await import("./data-kirim");
 function layar(jumlahJamPembayaran: number | null) {
   return renderToStaticMarkup(
     createElement(DataKirim, {
-      draft: { lokasiId: "7a0c5a52-0000-4000-8000-000000000001", jenisMakamId: "b7d93983-c9f0-4088-a874-a65d4d762b40", email: "keluarga@contoh.id", pemesanName: "Budi Santoso", phoneNumber: "081234567890" },
+      draft: {
+        lokasiId: "7a0c5a52-0000-4000-8000-000000000001",
+        jenisMakamId: "b7d93983-c9f0-4088-a874-a65d4d762b40",
+        email: "keluarga@contoh.id",
+        pemesanName: "Budi Santoso",
+        phoneNumber: "081234567890",
+        almarhumName: "",
+        tanggalWafat: "",
+        rencanaPemakamanAt: "",
+      },
       kartu: {
         nama: "Reguler 1 × 2 m",
         tenure: "5 tahun",

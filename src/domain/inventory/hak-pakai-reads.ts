@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { ActiveHakPakaiForStatus, HakPakaiStatus } from "./status";
 import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak } from "./schema";
@@ -49,6 +49,35 @@ export async function currentHakPakaiOfPetak(db: Database, petakId: string): Pro
 export async function currentHakPakaiOfKavling(db: Database, kavlingId: string): Promise<HakPakaiRow | null> {
   const [row] = await db.select().from(inventoryHakPakai).where(eq(inventoryHakPakai.kavlingId, kavlingId)).orderBy(desc(inventoryHakPakai.startAt)).limit(1);
   return row ? toRow(row) : null;
+}
+
+/**
+ * The Hak Pakai that **holds** a Petak: the latest one that is not Dibatalkan.
+ *
+ * A Dibatalkan Hak Pakai holds nothing (spec, Pemesanan > Saat Duka: cancelling
+ * makes the Petak `Tersedia` at once), so a Petak whose right was given back is
+ * free to be cleared, given to another family and sold again — which is the whole
+ * point of cancelling. It is not the same question as `currentHakPakaiOfPetak`
+ * ("which Hak Pakai is on record here", which is what a staff read shows, cancelled
+ * or not), so both exist and neither is used for the other's question.
+ */
+export async function memegangPetak(db: Database, petakId: string): Promise<HakPakaiRow | null> {
+  return memegang(db, eq(inventoryHakPakai.petakId, petakId));
+}
+
+/** The Hak Pakai that holds a Kavling Keluarga; see `memegangPetak`. */
+export async function memegangKavling(db: Database, kavlingId: string): Promise<HakPakaiRow | null> {
+  return memegang(db, eq(inventoryHakPakai.kavlingId, kavlingId));
+}
+
+async function memegang(db: Database, diTarget: SQL<unknown>): Promise<HakPakaiRow | null> {
+  const rows = await db
+    .select()
+    .from(inventoryHakPakai)
+    .where(and(diTarget, ne(inventoryHakPakai.status, "dibatalkan")))
+    .orderBy(desc(inventoryHakPakai.startAt))
+    .limit(1);
+  return rows[0] ? toRow(rows[0]) : null;
 }
 
 /** Every current Hak Pakai of a whole Lokasi Mitra's Petak and Kavling Keluarga (for availability), by target id. */

@@ -178,7 +178,13 @@ export type AuditAction =
   /** Admin Platform records a Potongan a Lokasi Mitra owes (ticket 32). */
   | "pencairan.catat_potongan"
   /** Admin Platform records that a Potongan was paid outside a Pencairan run (ticket 32). */
-  | "pencairan.catat_potongan_lunas";
+  | "pencairan.catat_potongan_lunas"
+  /** An Admin Lokasi declines one of its Saat Duka orders, with a reason from the fixed list (ticket 24). */
+  | "pemesanan.tolak"
+  /** An Admin Lokasi offers a Saat Duka order an alternative, another Jenis Makam or day (ticket 24). */
+  | "pemesanan.tawarkan_alternatif"
+  /** An Admin Lokasi records a cancellation on a family's behalf (ticket 24). */
+  | "pemesanan.batalkan_untuk_pemesan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

@@ -22,14 +22,19 @@ export interface AntreanRowDeps {
   lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
-  /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
-  notifications: Pick<Notifications, "teleponPemesanTerbuka">;
   /**
-   * The Saat Duka confirmation rows read the Pemesanan module's own state: the
-   * Tier 1 "Konfirmasi Lokasi terlambat" row and the Antrean Lokasi's open
-   * confirmations (ticket 23). Never its tables.
+   * The Antrean's Tier 2 Telepon Pemesan row reads the open call rows, and its
+   * Tier 1 "Saat Duka ditolak" row reads whether one has already been logged
+   * (ticket 20, ticket 24).
    */
-  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat">;
+  notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat">;
+  /**
+   * The Saat Duka confirmation and decline rows read the Pemesanan module's own
+   * state: the Tier 1 "Konfirmasi Lokasi terlambat" row (ticket 23), its Tier 1
+   * "Saat Duka ditolak" row (ticket 24) and the Antrean Lokasi's open
+   * confirmations. Never its tables.
+   */
+  pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /**

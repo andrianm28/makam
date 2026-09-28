@@ -14,7 +14,7 @@ import { z } from "zod";
 import { queueFamilyEmail, type PesanKeluargaDeps, type PesanTercatat } from "./pesan-keluarga";
 import { notificationsMessage } from "./schema";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
-import { pesananDiajukanEmail, pesananDikonfirmasiEmail } from "./template";
+import { pesananAlternatifEmail, pesananDibatalkanEmail, pesananDiajukanEmail, pesananDikonfirmasiEmail, pesananDitolakEmail } from "./template";
 
 const lokasiSchema = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) });
 const almarhumSchema = z.object({ name: z.string().trim().min(1).max(200), tanggalWafat: z.iso.date() });
@@ -60,6 +60,62 @@ export const pesananDikonfirmasiSchema = z.object({
   }),
 });
 export type PesananDikonfirmasiInput = z.infer<typeof pesananDikonfirmasiSchema>;
+
+/** What it announces when the Admin Lokasi has declined that order. */
+export const pesananDitolakSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320).nullable(),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  /** The reason off the closed list, already worded by the Pemesanan module. */
+  alasan: z.string().trim().min(1).max(300),
+  /** The city the rejecting Lokasi Mitra is in, so the list the family is sent back to can be filtered by it. */
+  kota: z.string().trim().max(200).nullable(),
+  almarhum: almarhumSchema,
+  pemesan: z.object({ name: z.string().trim().min(1).max(200), phoneNumber: z.string().trim().max(30).nullable() }),
+});
+export type PesananDitolakInput = z.infer<typeof pesananDitolakSchema>;
+
+/** What it announces when the Lokasi has offered an alternative the Pemesan must answer. */
+export const pesananAlternatifDitawarkanSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320).nullable(),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  almarhum: almarhumSchema,
+  /** What was ordered: either half may be null, never both. */
+  dari: z.object({ jenisMakam: z.string().trim().max(200).nullable(), pemakamanAt: z.date().nullable() }),
+  /** What is offered instead: either half may be null, never both. */
+  ke: z.object({ jenisMakam: z.string().trim().max(200).nullable(), pemakamanAt: z.date().nullable() }),
+  total: z.number().int().nonnegative(),
+  lines: z.array(z.object({ label: z.string().trim().min(1).max(300), amount: z.number().int() })).min(1).max(30),
+});
+export type PesananAlternatifDitawarkanInput = z.infer<typeof pesananAlternatifDitawarkanSchema>;
+
+/** What it announces when the order was cancelled, by the family or for them. */
+export const pesananDibatalkanSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320).nullable(),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: z.object({ name: z.string().trim().min(1).max(200) }),
+  almarhum: z.object({ name: z.string().trim().min(1).max(200) }),
+  /** True when the Admin Lokasi recorded the cancellation for the family. */
+  olehLokasi: z.boolean(),
+  /** The Tagihan cancelled with the order and the money on its way back. */
+  tagihan: z
+    .object({
+      nomorTagihan: z.string().trim().min(1).max(50),
+      dibatalkan: z.boolean(),
+      jumlahDikembalikan: z.number().int().nonnegative(),
+    })
+    .nullable(),
+  /** The Petak Makam that went back to the Lokasi Mitra's list, when the order had one. */
+  petak: z.object({ nomor: z.string().trim().max(60) }).nullable(),
+});
+export type PesananDibatalkanInput = z.infer<typeof pesananDibatalkanSchema>;
 
 export type PesanPemesananResult = { ok: true } | { ok: false; reason: "pemesanan_tidak_valid" };
 
@@ -149,6 +205,146 @@ export async function pesananDikonfirmasi(
     pemesananId: data.pemesananId,
     nomorPemesanan: data.nomor,
     lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Announces a Tolak: the reason in the Lokasi's own words and the link back to
+ * the Pilih makam list, and — the part the email cannot do — a "Telepon Pemesan"
+ * row for **Admin Platform**, whose Tier 1 call is owed within 2 h (spec, Work
+ * Queues: "Saat Duka ditolak (call within 2 h)"; story 33).
+ *
+ * The row has no `lokasiId`, and that is deliberate: a declined family is
+ * Admin Platform's to call, not the Lokasi's own staff who just turned it away,
+ * and `catatPanggilan` refuses a Lokasi-scoped caller on such a row. An order
+ * with no email gets no message to queue and the call is then the only channel.
+ */
+export async function pesananDitolak(deps: PesanKeluargaDeps, input: PesananDitolakInput): Promise<PesanPemesananResult> {
+  const parsed = pesananDitolakSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  if (data.email) {
+    const email = pesananDitolakEmail({
+      nomor: data.nomor,
+      lokasiName: data.lokasi.name,
+      almarhumName: data.almarhum.name,
+      alasan: data.alasan,
+      tautan: deps.pesananUrl(data.nomor),
+      tautanPemesanUlang: deps.pesanUlangUrl(data.nomor),
+    });
+    await queueFamilyEmail(deps.db, now, {
+      template: "pesanan_ditolak",
+      pemesananId: data.pemesananId,
+      nomorPemesanan: data.nomor,
+      lokasiId: data.lokasi.id,
+      email: data.email,
+      subject: email.subject,
+      body: email.body,
+      // Transactional: a family that was just turned away hears it at any hour.
+      sendAfter: now,
+    });
+  }
+  await bukaTeleponPemesan(deps.db, now, {
+    subjectKind: "pemesanan",
+    subjectId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    // Admin Platform's own call row, never the rejecting Lokasi's.
+    lokasiId: null,
+    sebab: "saat_duka_ditolak",
+    perihal: `Pesanan ${data.nomor} ditolak ${data.lokasi.name} (${data.alasan}). Telepon ${data.pemesan.name} dan tawarkan pilihan lain.`,
+  });
+  return { ok: true };
+}
+
+/**
+ * Announces an alternative the Pemesan has to answer: the new all-in total, its
+ * lines and the two answers, so one tap decides on the real number. An order
+ * with no email has no way to answer, so the Lokasi's own staff call it — the
+ * same shape as every other family message that has nowhere to go.
+ */
+export async function pesananAlternatifDitawarkan(
+  deps: PesanKeluargaDeps,
+  input: PesananAlternatifDitawarkanInput,
+): Promise<PesanPemesananResult> {
+  const parsed = pesananAlternatifDitawarkanSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  if (!data.email) {
+    await bukaTeleponPemesan(deps.db, now, {
+      subjectKind: "pemesanan",
+      subjectId: data.pemesananId,
+      nomorPemesanan: data.nomor,
+      lokasiId: data.lokasi.id,
+      sebab: "tanpa_email",
+      perihal: `Pesanan ${data.nomor} di ${data.lokasi.name} punya pilihan lain untuk almarhumnya. Telepon keluarga dan tawarkan lewat telepon.`,
+    });
+    return { ok: true };
+  }
+  const email = pesananAlternatifEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    almarhumName: data.almarhum.name,
+    dariJenisMakamName: data.dari.jenisMakam,
+    dariPemakamanAt: data.dari.pemakamanAt,
+    keJenisMakamName: data.ke.jenisMakam,
+    kePemakamanAt: data.ke.pemakamanAt,
+    total: data.total,
+    lines: data.lines,
+    tautan: deps.pesananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "pesanan_alternatif_ditawarkan",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    // A family must answer this one, so it goes at once whatever the hour is.
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** Announces a cancellation: the Petak that went back, the Tagihan cancelled and the money on its way. */
+export async function pesananDibatalkan(deps: PesanKeluargaDeps, input: PesananDibatalkanInput): Promise<PesanPemesananResult> {
+  const parsed = pesananDibatalkanSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  if (!data.email) {
+    // A cancellation nobody was told about is a family that turns up at the gate; that Lokasi's own staff call.
+    await bukaTeleponPemesan(deps.db, now, {
+      subjectKind: "pemesanan",
+      subjectId: data.pemesananId,
+      nomorPemesanan: data.nomor,
+      lokasiId: null,
+      sebab: "tanpa_email",
+      perihal: `Pesanan ${data.nomor} dibatalkan dan tidak bisa dikirim lewat email. Beritahu keluarga agar tidak datang ke ${data.lokasi.name}.`,
+    });
+    return { ok: true };
+  }
+  const email = pesananDibatalkanEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    almarhumName: data.almarhum.name,
+    olehLokasi: data.olehLokasi,
+    petakNomor: data.petak?.nomor ?? null,
+    tagihan: data.tagihan ? { nomorTagihan: data.tagihan.nomorTagihan, jumlahDikembalikan: data.tagihan.jumlahDikembalikan } : null,
+    tautan: deps.pesananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "pesanan_dibatalkan",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: null,
     email: data.email,
     subject: email.subject,
     body: email.body,

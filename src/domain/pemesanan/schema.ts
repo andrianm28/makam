@@ -102,7 +102,25 @@ export const pemesananMakam = pgTable(
     hakPakaiId: text("hak_pakai_id"),
     pemakamanAt: at("pemakaman_at"),
     dikonfirmasiPada: at("dikonfirmasi_pada"),
-    /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
+    /**
+     * When the order became Ditolak or Dibatalkan (ticket 24), and the fixed
+     * reason a Tolak carries (the key, never free text: the list is closed, see
+     * `./alasan-tolak.ts`). A cancellation's own free-text reason is `alasan`.
+     */
+    ditolakPada: at("ditolak_pada"),
+    alasanTolak: text("alasan_tolak"),
+    dibatalkanPada: at("dibatalkan_pada"),
+    /**
+     * The alternative the Admin Lokasi has offered and the Pemesan has not yet
+     * answered (ticket 24): another Jenis Makam, another burial day, or both
+     * (spec, story 31). All three null while there is no offer on the table;
+     * `konfirmasi_due_at` is then recomputed from the moment it is accepted,
+     * never carried over from the day that was offered.
+     */
+    alternatifJenisMakamId: text("alternatif_jenis_makam_id"),
+    alternatifPemakamanAt: at("alternatif_pemakaman_at"),
+    alternatifDitawarkanPada: at("alternatif_ditawarkan_pada"),
+    /** Why the family cancelled, or what the Admin Lokasi recorded for them; null while none. */
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
   },

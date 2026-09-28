@@ -53,6 +53,7 @@ export function publishOnTestDatabase(db: Database, options: PublishOptions = {}
     tagihan: billing,
     dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
     pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,
+    pesanUlangUrl: (nomor) => `https://makam.test/pesan-makam/saat-duka?dari=${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,

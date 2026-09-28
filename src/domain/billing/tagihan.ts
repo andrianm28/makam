@@ -66,7 +66,14 @@ export interface Tagihan {
   link: string;
   replacesNomorTagihan: string | null;
   replacedByNomorTagihan: string | null;
-  cancelledReason: "batas_pembayaran_lewat" | "diganti" | null;
+  cancelledReason: "batas_pembayaran_lewat" | "diganti" | "pemesanan_dibatalkan" | null;
+  /**
+   * The refund this Tagihan's cancellation asked for, or null while none has been
+   * asked (no money came in, or only the Biaya Layanan Platform did). Approving
+   * and paying it out is ticket 31's; recording it here is what stops a
+   * cancellation from losing a payment (ticket 24).
+   */
+  pengembalianDiminta: { jumlah: Rupiah; dimintaPada: Date } | null;
 }
 
 export interface IssueTagihanInput {
@@ -363,6 +370,10 @@ async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promis
     replacesNomorTagihan: row.replacesId ? (numbers.get(row.replacesId) ?? null) : null,
     replacedByNomorTagihan: row.replacedById ? (numbers.get(row.replacedById) ?? null) : null,
     cancelledReason: row.cancelledReason,
+    pengembalianDiminta:
+      row.pengembalianDimintaAt && row.pengembalianJumlah !== null
+        ? { jumlah: row.pengembalianJumlah, dimintaPada: row.pengembalianDimintaAt }
+        : null,
   };
 }
 

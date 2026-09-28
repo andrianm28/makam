@@ -96,6 +96,134 @@ export function pesananDikonfirmasiEmail(input: PesananDikonfirmasiEmailInput): 
   };
 }
 
+export interface PesananDitolakEmailInput {
+  nomor: string;
+  lokasiName: string;
+  almarhumName: string;
+  /** The reason off the closed list, already in the wording that list gives it. */
+  alasan: string;
+  /** The order page's full URL, which is also where the rebook link leads from. */
+  tautan: string;
+  /** The Pilih makam list again, with the rejecting Lokasi taken out and the family's data carried over. */
+  tautanPemesanUlang: string;
+}
+
+/**
+ * A Pemesanan Makam declined (transactional: any hour): the reason in the Lokasi's
+ * own words, the promise that somebody will phone, and the link back to the list
+ * of other options (ADR 0004: the link goes by email, never WhatsApp).
+ */
+export function pesananDitolakEmail(input: PesananDitolakEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pesanan ${input.nomor} belum bisa dilayani ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Dengan sangat menyedihkan, ${input.lokasiName} belum bisa melayani pesanan saat duka untuk ${input.almarhumName}.`,
+      `Alasannya: ${input.alasan}.`,
+      "Pesanan ini kami tandai ditolak dan tidak ada yang perlu dibayar. Tim kami akan menghubungi Anda untuk mencarikan pilihan lain.",
+      "",
+      `Pilih makam lain di: ${input.tautanPemesanUlang}`,
+      `Data Anda sudah terisi, jadi tinggal pilih makamnya. ${input.lokasiName} tidak lagi muncul di daftar itu.`,
+      "",
+      `Detail pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface PesananAlternatifEmailInput {
+  nomor: string;
+  lokasiName: string;
+  almarhumName: string;
+  /** What was ordered; either half may be null, never both. */
+  dariJenisMakamName: string | null;
+  dariPemakamanAt: Date | null;
+  /** What is offered instead. */
+  keJenisMakamName: string | null;
+  kePemakamanAt: Date | null;
+  /** The all-in total the alternative carries, so one tap decides on the real number. */
+  total: number;
+  lines: { label: string; amount: number }[];
+  /** The order page, where the two buttons are. */
+  tautan: string;
+}
+
+/** An alternative offered: the new all-in total, its lines, and the two answers, in one tap each. */
+export function pesananAlternatifEmail(input: PesananAlternatifEmailInput): { subject: string; body: string } {
+  const dari = [
+    input.dariJenisMakamName ? input.dariJenisMakamName : "jenis makam yang sama",
+    input.dariPemakamanAt ? formatTanggalJam(input.dariPemakamanAt) : "tanggal yang sama",
+  ].join(", ");
+  const ke = [
+    input.keJenisMakamName ? input.keJenisMakamName : "jenis makam yang sama",
+    input.kePemakamanAt ? formatTanggalJam(input.kePemakamanAt) : "tanggal yang sama",
+  ].join(", ");
+  return {
+    subject: `Pilihan lain untuk pesanan ${input.nomor} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `${input.lokasiName} punya pilihan lain untuk pemakaman ${input.almarhumName}.`,
+      `Dulu: ${dari}.`,
+      `Sekarang bisa: ${ke}.`,
+      `Total semua biaya: ${formatRupiah(input.total)}.`,
+      ...input.lines.map((line) => `- ${line.label}: ${formatRupiah(line.amount)}`),
+      "",
+      "Terima atau tolak pilihan ini di halaman pesanan. Kalau ditolak, pesanan ini menjadi ditolak dan tim kami menghubungi Anda.",
+      `Halaman pesanan: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface PesananDibatalkanEmailInput {
+  nomor: string;
+  lokasiName: string;
+  almarhumName: string;
+  /** True when the Admin Lokasi recorded the cancellation for the family. */
+  olehLokasi: boolean;
+  /** The Petak Makam that went back to the Lokasi Mitra's list, when the order had one. */
+  petakNomor: string | null;
+  /** The Tagihan cancelled with the order, and the money on its way back (the Biaya Layanan Platform is never refunded). */
+  tagihan: { nomorTagihan: string; jumlahDikembalikan: number } | null;
+  tautan: string;
+}
+
+/** A cancelled order: what was given back, and that nothing is owed. */
+export function pesananDibatalkanEmail(input: PesananDibatalkanEmailInput): { subject: string; body: string } {
+  const petak = input.petakNomor ? `Petak Makam ${input.petakNomor} dikembalikan ke ${input.lokasiName}.` : null;
+  const uang = input.tagihan
+    ? input.tagihan.jumlahDikembalikan > 0
+      ? `Tagihan ${input.tagihan.nomorTagihan} dibatalkan. Uang yang sudah masuk ${formatRupiah(input.tagihan.jumlahDikembalikan)} sedang dikembalikan; Biaya Layanan Platform tidak dikembalikan.`
+      : `Tagihan ${input.tagihan.nomorTagihan} dibatalkan dan belum ada uang yang masuk.`
+    : "Belum ada Tagihan, jadi tidak ada yang perlu dibayar.";
+  return {
+    subject: `Pesanan ${input.nomor} dibatalkan`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pesanan saat duka untuk ${input.almarhumName} di ${input.lokasiName} sudah dibatalkan${
+        input.olehLokasi ? " atas permintaan keluarga, dicatat oleh Lokasi Mitra" : ""
+      }.`,
+      petak,
+      uang,
+      "Tidak ada biaya pembatalan.",
+      "",
+      `Detail pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ]
+      .filter((baris): baris is string => baris !== null)
+      .join("\n"),
+  };
+}
+
 export interface TagihanEmailInput {
   nomorTagihan: string;
   nomorPemesanan: string | null;

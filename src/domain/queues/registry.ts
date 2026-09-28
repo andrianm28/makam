@@ -4,6 +4,7 @@ import { teleponPemesanRowType } from "./telepon-pemesan-row";
 import { lokasiRevisitRowType, publishGateCheckRowType } from "./tier4-lokasi-rows";
 import { otherTugasLapanganRowType } from "./tier4-tugas-lapangan-row";
 import { konfirmasiLokasiTerlambatRowType } from "./tier1-konfirmasi-lokasi-terlambat-row";
+import { saatDukaDitolakRowType } from "./tier1-saat-duka-ditolak-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
 import { pencairanRowType } from "./tier3-pencairan-row";
 
@@ -16,9 +17,12 @@ import { pencairanRowType } from "./tier3-pencairan-row";
  * review) and Telepon Pemesan (ticket 20), Tier 1's Konfirmasi Lokasi
  * terlambat (ticket 23) and Tier 3's Pencairan (ticket 32 — the first Tier 3 row
  * type, and the foundation the rest of Tier 3 builds on).
+ * review) and Telepon Pemesan (ticket 20), and Tier 1's Konfirmasi Lokasi
+ * terlambat (ticket 23) and Saat Duka ditolak (ticket 24).
  */
 export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiLokasiTerlambatRowType,
+  saatDukaDitolakRowType,
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
   teleponPemesanRowType,

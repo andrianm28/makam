@@ -4,7 +4,10 @@
  * can follow the order itself.
  */
 import { and, eq } from "drizzle-orm";
+import { quoteLineLabel } from "@/lib/quote-line-label";
 import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
+import { alasanOrder } from "./alasan-tolak";
+import { saatDukaHarga } from "./pilihan";
 import type { PemesananDeps } from "./deps";
 import type { DokumenOrder } from "./reads-staf";
 
@@ -64,8 +67,27 @@ export interface PemesananOrder {
   tagihanId: string | null;
   /** The Lokasi Mitra's document checklist with what has arrived and what is ticked (spec, stories 29, 120). */
   dokumen: DokumenOrder[];
-  /** Why the Lokasi declined, or the family / CS cancelled; null while none. */
+  /** Why the Lokasi declined (the fixed list's wording), or why the family cancelled (their own words); null while none. */
   alasan: string | null;
+  /**
+   * The alternative the Lokasi has offered and the family has not answered, with
+   * the all-in total `quote()` prices it at right now (ticket 24, story 31: one
+   * tap, on the real number). Null while there is no offer on the table — which
+   * includes an order that was accepted or refused, since either settles it.
+   */
+  alternatif: {
+    jenisMakam: { id: string; name: string } | null;
+    pemakamanAt: Date | null;
+    /**
+     * The all-in total, or **null when the offer can no longer be priced** — never
+     * `0`. A zero here would reach a grieving family as "Total semua biaya Rp 0",
+     * which says the burial is free, and would sit next to an accept button the
+     * module then refuses with `harga_tidak_tersedia`. Null is the one honest
+     * answer, and the screen turns it into a person to ask rather than a figure.
+     */
+    total: number | null;
+    lines: { label: string; amount: number }[];
+  } | null;
   diajukanAt: Date;
 }
 
@@ -76,7 +98,7 @@ export interface PemesananOrder {
  * `pemesanan.lihat` on the Akun's own orders).
  */
 export async function orderOf(
-  deps: Pick<PemesananDeps, "db" | "lokasi">,
+  deps: Pick<PemesananDeps, "db" | "lokasi" | "tariffs" | "clock">,
   pemesan: { accountId: string },
   nomor: string,
 ): Promise<PemesananOrder | null> {
@@ -101,8 +123,39 @@ export async function orderOf(
     pemakaman: row.petakNomor && row.pemakamanAt ? { petakNomor: row.petakNomor, at: row.pemakamanAt } : null,
     tagihanId: row.tagihanId,
     dokumen: await dokumenMilik(deps, row.id, row.lokasiId),
-    alasan: row.alasan,
+    alasan: alasanOrder(row.alasanTolak, row.alasan),
+    alternatif: await alternatifOf(deps, row),
     diajukanAt: row.diajukanAt,
+  };
+}
+
+/**
+ * The offer on the table, priced now. The price is not read from the order — it
+ * never was stored there — so the family sees what `quote()` says at the moment
+ * it looks, which is the number accepting will be held to.
+ *
+ * An offer whose Jenis Makam can no longer be priced shows **no total at all**
+ * rather than a stale one — and no `0` either, which would read as a free
+ * burial: the family is offered nothing it could accept, so it is told that in
+ * words and sent to a person, not handed a figure.
+ */
+async function alternatifOf(
+  deps: Pick<PemesananDeps, "db" | "lokasi" | "tariffs" | "clock">,
+  row: typeof pemesananMakam.$inferSelect,
+): Promise<PemesananOrder["alternatif"]> {
+  if (!row.alternatifDitawarkanPada) return null;
+  const jenisId = row.alternatifJenisMakamId ?? row.jenisMakamId;
+  if (!jenisId) return null;
+  const harga = await saatDukaHarga(deps, row.lokasiId, jenisId, deps.clock.now());
+  const nama = row.alternatifJenisMakamId
+    ? (await deps.tariffs.lokasiPricing(row.lokasiId, deps.clock.now())).jenisMakam.find((one) => one.jenisMakam.id === jenisId)?.jenisMakam
+    : undefined;
+  return {
+    jenisMakam: nama ? { id: nama.id, name: nama.name } : null,
+    pemakamanAt: row.alternatifPemakamanAt,
+    // `null`, never `0`: the offer exists, its price does not. See `PemesananOrder`.
+    total: harga?.total ?? null,
+    lines: (harga?.lines ?? []).map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
   };
 }
 
