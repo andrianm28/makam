@@ -121,14 +121,14 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-[80rem] flex-col px-4 py-8 md:px-8 md:py-12">
+    <main className="mx-auto flex w-full max-w-(--page-max-width) flex-col px-4 py-8 md:px-8 md:py-12">
       <nav aria-label="Jejak halaman" className="text-small text-muted-foreground">
         <Link href="/" className="hover:text-forest">
           Beranda
         </Link>{" "}
         / Daftar Lokasi
       </nav>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-forest md:text-4xl">Daftar Lokasi Makam</h1>
+      <h1 className="mt-3 text-page-title tracking-tight text-forest md:text-4xl">Daftar Lokasi Makam</h1>
       <p className="mt-2 max-w-2xl text-body-lg text-muted-foreground">
         Setiap Lokasi Mitra di sini sudah Terverifikasi Makam.co.id: dikunjungi langsung, perjanjian ditandatangani dan
         tarifnya diperiksa. TPU DKI adalah kuburan resmi pemerintah daerah yang kami layani untuk pengurusan IPTM.
