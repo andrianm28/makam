@@ -5,10 +5,13 @@
  * reason, or occupied (a minimal Hak Pakai / Almarhum, or "data menyusul").
  * Not part of ticket 13's prototype (added by ticket 14, after the
  * prototype), so it is restyled to the same dialog chrome as the ported
- * dialogs rather than copied from one.
+ * dialogs rather than copied from one. Fields are the real shadcn Input,
+ * not a hand-rolled copy (docs/design-system.md).
  */
 import { useState } from "react";
-import { Dialog, DialogContent, Field, GhostButton, PrimaryButton, fieldInputClass } from "./../_parts/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, Field } from "./../_parts/dialog";
 
 export function ClearingDialog({
   open,
@@ -45,7 +48,7 @@ export function ClearingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Bersihkan" description={`Tandai status ${isKavling ? "Kavling Keluarga" : "Petak"} ini setelah diperiksa di lapangan.`}>
+      <DialogContent title="Bersihkan" description={`Tandai status ${isKavling ? "Kavling Keluarga" : "Petak"} ini setelah diperiksa di lapangan.`} width="md">
         {message ? (
           <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2.5 text-body text-danger-soft-foreground">
             {message}
@@ -64,7 +67,7 @@ export function ClearingDialog({
         </div>
         {mode === "tidak_tersedia" ? (
           <Field id="bersihkan-alasan" label="Alasan">
-            <input id="bersihkan-alasan" value={reason} onChange={(event) => setReason(event.target.value)} className={fieldInputClass} />
+            <Input id="bersihkan-alasan" value={reason} onChange={(event) => setReason(event.target.value)} />
           </Field>
         ) : null}
         {mode === "terisi" ? (
@@ -75,13 +78,13 @@ export function ClearingDialog({
             {!dataMenyusul ? (
               <>
                 <Field id="bersihkan-nama" label="Nama Pemegang Hak">
-                  <input id="bersihkan-nama" value={pemegangHakName} onChange={(event) => setPemegangHakName(event.target.value)} className={fieldInputClass} />
+                  <Input id="bersihkan-nama" value={pemegangHakName} onChange={(event) => setPemegangHakName(event.target.value)} />
                 </Field>
                 <Field id="bersihkan-telepon" label="Nomor telepon Pemegang Hak">
-                  <input id="bersihkan-telepon" value={pemegangHakPhone} onChange={(event) => setPemegangHakPhone(event.target.value)} className={fieldInputClass} />
+                  <Input id="bersihkan-telepon" value={pemegangHakPhone} onChange={(event) => setPemegangHakPhone(event.target.value)} />
                 </Field>
                 <Field id="bersihkan-email" label="Email Pemegang Hak" hint="Jika diketahui">
-                  <input id="bersihkan-email" value={pemegangHakEmail} onChange={(event) => setPemegangHakEmail(event.target.value)} className={fieldInputClass} />
+                  <Input id="bersihkan-email" value={pemegangHakEmail} onChange={(event) => setPemegangHakEmail(event.target.value)} />
                 </Field>
               </>
             ) : null}
@@ -89,20 +92,22 @@ export function ClearingDialog({
               <>
                 <p className="text-small text-muted-foreground">Isi data Almarhum jika sudah diketahui (boleh dikosongkan).</p>
                 <Field id="bersihkan-almarhum" label="Nama Almarhum">
-                  <input id="bersihkan-almarhum" value={almarhumName} onChange={(event) => setAlmarhumName(event.target.value)} className={fieldInputClass} />
+                  <Input id="bersihkan-almarhum" value={almarhumName} onChange={(event) => setAlmarhumName(event.target.value)} />
                 </Field>
                 <Field id="bersihkan-tanggal" label="Tanggal pemakaman">
-                  <input id="bersihkan-tanggal" type="date" value={almarhumDate} onChange={(event) => setAlmarhumDate(event.target.value)} className={fieldInputClass} />
+                  <Input id="bersihkan-tanggal" type="date" value={almarhumDate} onChange={(event) => setAlmarhumDate(event.target.value)} />
                 </Field>
               </>
             ) : null}
           </div>
         ) : null}
         <div className="flex justify-end gap-2 pt-1">
-          <GhostButton onClick={() => onOpenChange(false)}>Batal</GhostButton>
-          <PrimaryButton disabled={pending} onClick={submit}>
+          <Button type="button" variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+            Batal
+          </Button>
+          <Button type="button" size="lg" disabled={pending} onClick={submit}>
             {pending ? "Menyimpan…" : "Simpan"}
-          </PrimaryButton>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

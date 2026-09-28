@@ -12,7 +12,7 @@
  */
 import { useState } from "react";
 import { Lock, LogIn, Route, ScanLine, Square, TreePine, Trash2, X } from "lucide-react";
-import type { DenahCell, DenahKavling } from "@/domain/inventory";
+import type { DenahCell, DenahKavling } from "@/domain/inventory/reads";
 import { cn } from "@/lib/utils";
 
 interface JenisMakamOption {

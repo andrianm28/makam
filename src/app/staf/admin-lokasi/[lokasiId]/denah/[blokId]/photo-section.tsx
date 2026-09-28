@@ -6,8 +6,9 @@
  * card); once one is, it also serves the real upload the prototype never
  * needed to build (`uploadBlokPhotoAction`).
  */
-import { useTransition } from "react";
+import { useId, useTransition } from "react";
 import { ImageOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { uploadBlokPhotoAction } from "./actions";
 
 export function PhotoSection({
@@ -28,6 +29,7 @@ export function PhotoSection({
   onMessage: (message: string | null) => void;
 }) {
   const [pending, startTransition] = useTransition();
+  const inputId = useId();
 
   if (!fileStoreConfigured) {
     return (
@@ -51,7 +53,11 @@ export function PhotoSection({
         <p className="text-small text-muted-foreground">Belum ada foto.</p>
       )}
       {message ? <p className="text-small text-danger">{message}</p> : null}
-      <input
+      <label htmlFor={inputId} className="text-small font-medium text-foreground">
+        Unggah foto baru
+      </label>
+      <Input
+        id={inputId}
         type="file"
         accept="image/jpeg,image/png,image/webp"
         onChange={(event) => {
@@ -68,7 +74,6 @@ export function PhotoSection({
           });
         }}
         disabled={pending}
-        className="text-small"
       />
     </div>
   );

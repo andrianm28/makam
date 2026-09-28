@@ -13,7 +13,7 @@ import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, PencilLine, X } from "lucide-react";
 import { PageHeader } from "@/components/makam/page-header";
 import { DenahGrid, DenahLegend, type DenahCellStatus, type DenahEdge, type DenahGridCell } from "@/components/denah/grid";
-import type { DenahCell, DenahKavling } from "@/domain/inventory";
+import type { DenahCell, DenahKavling } from "@/domain/inventory/reads";
 import { cn } from "@/lib/utils";
 import { AturJenisMakamDialog, KavlingDialog, UbahNomorDialog } from "../_parts/blok-dialogs";
 import { BlokTabs } from "../_parts/blok-tabs";

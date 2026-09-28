@@ -6,11 +6,15 @@
  * nomor). Ported 1:1 from ticket 13's prototype (`pratinjau/denah/_parts/dialogs.tsx`):
  * same fields and copy, wired to the real Server Actions instead of client
  * state, so uniqueness and adjacency are judged server-side and shown through
- * `denahRefusalMessage`, never re-implemented here.
+ * `denahRefusalMessage`, never re-implemented here. Fields are the real
+ * shadcn Button/Input/Select (docs/design-system.md), not a hand-rolled copy.
  */
 import { useState, useTransition } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Dialog, DialogContent, Field, GhostButton, PrimaryButton, fieldInputClass, selectFieldClass } from "./dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, Field } from "./dialog";
 import { createBlokAction } from "../actions";
 
 interface JenisMakamOption {
@@ -23,6 +27,24 @@ function Refusal({ message }: { message: string }) {
     <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger-soft px-3 py-2.5 text-body text-danger-soft-foreground">
       <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /> {message}
     </p>
+  );
+}
+
+/** The Jenis Makam picker every dialog here shares: a Select over the same options. `items` so `SelectValue` shows the picked name, not its raw id, before the popup has ever opened. */
+function JenisMakamSelect({ id, value, onValueChange, options }: { id: string; value: string; onValueChange: (value: string) => void; options: JenisMakamOption[] }) {
+  return (
+    <Select value={value} onValueChange={(next) => onValueChange(next ?? "")} items={Object.fromEntries(options.map((jenis) => [jenis.id, jenis.name]))}>
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((jenis) => (
+          <SelectItem key={jenis.id} value={jenis.id}>
+            {jenis.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -91,31 +113,29 @@ export function NewBlokDialog({
         >
           {message ? <Refusal message={message} /> : null}
           <Field id="blok-nama" label="Nama Blok">
-            <input id="blok-nama" className={fieldInputClass} placeholder="A, Melati, …" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} autoFocus />
+            <Input id="blok-nama" placeholder="A, Melati, …" value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} autoFocus />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field id="blok-baris" label="Baris">
-              <input id="blok-baris" type="number" min={1} max={40} className={fieldInputClass} value={rows} onChange={(event) => setRows(Number(event.target.value) || 1)} />
+              <Input id="blok-baris" type="number" min={1} max={40} value={rows} onChange={(event) => setRows(Number(event.target.value) || 1)} />
             </Field>
             <Field id="blok-kolom" label="Kolom">
-              <input id="blok-kolom" type="number" min={1} max={40} className={fieldInputClass} value={cols} onChange={(event) => setCols(Number(event.target.value) || 1)} />
+              <Input id="blok-kolom" type="number" min={1} max={40} value={cols} onChange={(event) => setCols(Number(event.target.value) || 1)} />
             </Field>
           </div>
           <Field id="blok-pola" label="Pola Nomor Makam" hint={`Kosongkan untuk pola bawaan, mis. ${name.trim() || "A"}-{nn}`}>
-            <input id="blok-pola" className={fieldInputClass} value={numberPattern} onChange={(event) => setNumberPattern(event.target.value)} placeholder={`${name.trim() || "A"}-{nn}`} />
+            <Input id="blok-pola" value={numberPattern} onChange={(event) => setNumberPattern(event.target.value)} placeholder={`${name.trim() || "A"}-{nn}`} />
           </Field>
           <Field id="blok-jenis" label="Jenis Makam awal">
-            <select id="blok-jenis" className={selectFieldClass} value={jenisMakamId} onChange={(event) => setJenisMakamId(event.target.value)} required>
-              {jenisMakam.map((jenis) => (
-                <option key={jenis.id} value={jenis.id}>
-                  {jenis.name}
-                </option>
-              ))}
-            </select>
+            <JenisMakamSelect id="blok-jenis" value={jenisMakamId} onValueChange={setJenisMakamId} options={jenisMakam} />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
-            <GhostButton onClick={() => onOpenChange(false)}>Batal</GhostButton>
-            <PrimaryButton disabled={pending || !name.trim() || !jenisMakamId}>{pending ? "Membuat…" : "Buat Blok"}</PrimaryButton>
+            <Button type="button" variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" size="lg" disabled={pending || !name.trim() || !jenisMakamId}>
+              {pending ? "Membuat…" : "Buat Blok"}
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -153,17 +173,15 @@ export function AturJenisMakamDialog({
         >
           {message ? <Refusal message={message} /> : null}
           <Field id="atur-jenis" label="Jenis Makam">
-            <select id="atur-jenis" className={selectFieldClass} value={jenisMakamId} onChange={(event) => setJenisMakamId(event.target.value)} autoFocus>
-              {jenisMakam.map((jenis) => (
-                <option key={jenis.id} value={jenis.id}>
-                  {jenis.name}
-                </option>
-              ))}
-            </select>
+            <JenisMakamSelect id="atur-jenis" value={jenisMakamId} onValueChange={setJenisMakamId} options={jenisMakam} />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
-            <GhostButton onClick={() => onOpenChange(false)}>Batal</GhostButton>
-            <PrimaryButton disabled={pending || !jenisMakamId}>{pending ? "Menyimpan…" : "Terapkan"}</PrimaryButton>
+            <Button type="button" variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" size="lg" disabled={pending || !jenisMakamId}>
+              {pending ? "Menyimpan…" : "Terapkan"}
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -204,20 +222,18 @@ export function KavlingDialog({
         >
           {message ? <Refusal message={message} /> : null}
           <Field id="kavling-nomor" label="Nomor Kavling" hint="Kosongkan untuk otomatis">
-            <input id="kavling-nomor" className={fieldInputClass} value={nomorKavling} onChange={(event) => setNomorKavling(event.target.value)} autoFocus />
+            <Input id="kavling-nomor" value={nomorKavling} onChange={(event) => setNomorKavling(event.target.value)} autoFocus />
           </Field>
           <Field id="kavling-jenis" label="Jenis Makam Kavling">
-            <select id="kavling-jenis" className={selectFieldClass} value={jenisMakamId} onChange={(event) => setJenisMakamId(event.target.value)}>
-              {jenisMakam.map((jenis) => (
-                <option key={jenis.id} value={jenis.id}>
-                  {jenis.name}
-                </option>
-              ))}
-            </select>
+            <JenisMakamSelect id="kavling-jenis" value={jenisMakamId} onValueChange={setJenisMakamId} options={jenisMakam} />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
-            <GhostButton onClick={() => onOpenChange(false)}>Batal</GhostButton>
-            <PrimaryButton disabled={pending || !jenisMakamId}>{pending ? "Menyimpan…" : "Buat Kavling"}</PrimaryButton>
+            <Button type="button" variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" size="lg" disabled={pending || !jenisMakamId}>
+              {pending ? "Menyimpan…" : "Buat Kavling"}
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -256,14 +272,18 @@ export function UbahNomorDialog({
         >
           {message ? <Refusal message={message} /> : null}
           <Field id="ubah-pola" label="Pola nomor">
-            <input id="ubah-pola" className={fieldInputClass} value={pattern} onChange={(event) => setPattern(event.target.value)} autoFocus />
+            <Input id="ubah-pola" value={pattern} onChange={(event) => setPattern(event.target.value)} autoFocus />
           </Field>
           <Field id="ubah-mulai" label="Mulai dari">
-            <input id="ubah-mulai" type="number" min={1} className={fieldInputClass} value={startAt} onChange={(event) => setStartAt(Number(event.target.value) || 1)} />
+            <Input id="ubah-mulai" type="number" min={1} value={startAt} onChange={(event) => setStartAt(Number(event.target.value) || 1)} />
           </Field>
           <div className="flex justify-end gap-2 pt-1">
-            <GhostButton onClick={() => onOpenChange(false)}>Batal</GhostButton>
-            <PrimaryButton disabled={pending || !pattern.trim()}>{pending ? "Menyimpan…" : "Terapkan"}</PrimaryButton>
+            <Button type="button" variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" size="lg" disabled={pending || !pattern.trim()}>
+              {pending ? "Menyimpan…" : "Terapkan"}
+            </Button>
           </div>
         </form>
       </DialogContent>
