@@ -10,7 +10,7 @@ import { ingatKota } from "./actions";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
-import type { KartuView, GrupView, TpuKartuView } from "./tampilan";
+import { bentukKartu, type KartuView, type GrupView, type TpuKartuView } from "./tampilan";
 
 export interface PilihMakamProps {
   grup: GrupView[];
@@ -75,7 +75,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
       />
       <div className="mt-6 flex flex-col gap-6">
         <div>
-          <h1 className="text-title-1 text-foreground">Pilih makam</h1>
+          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih makam</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
             Diurutkan dari total biaya terendah. Hanya makam yang masih tersedia yang ditampilkan.
           </p>
@@ -87,7 +87,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
 
         {!lokasiSaja ? (
           grup.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
               Belum ada makam tersedia di kota ini. Coba kota lain, atau tanyakan kepada CS kami.
             </p>
           ) : (
@@ -109,7 +109,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
         ) : null}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
         <div className="mx-auto max-w-3xl px-4">
           {rincianTerbuka && terpilih ? (
             <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
@@ -267,7 +267,7 @@ function TpuSection({
         <h2 id="tpu-judul" className="text-title-3 text-foreground">
           TPU DKI
         </h2>
-        <p className="rounded-xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
           Belum ada TPU DKI yang menerima makam baru di kota ini.{" "}
           <Link href="/pengurusan-tpu" className="font-medium text-brand underline underline-offset-4">
             Lihat cara mengurus IPTM sendiri, gratis
@@ -287,7 +287,7 @@ function TpuSection({
           biaya jasa kami; Retribusi Pemda ditampilkan terpisah.
         </p>
       </div>
-      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-card" role="radiogroup" aria-label="TPU DKI">
+      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card" role="radiogroup" aria-label="TPU DKI">
         {tpu.map((kartu) => (
           <KartuTpu
             key={kartu.tpuId}
@@ -307,6 +307,32 @@ function TpuSection({
         </p>
       )}
     </section>
+  );
+}
+
+/** The radio dot every selectable row ends with, filled and checked once chosen. */
+function RadioDot({ dipilih, className }: { dipilih: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
+        dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
+        className,
+      )}
+      aria-hidden
+    >
+      {dipilih ? <Check className="size-3.5" /> : null}
+    </span>
+  );
+}
+
+/** A Lokasi Mitra's Kunjungan Verifikasi photo; nothing when it has none yet. */
+function FotoLokasi({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    // Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="size-16 shrink-0 rounded-xl object-cover sm:size-20" />
   );
 }
 
@@ -336,21 +362,19 @@ function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: b
             {kartu.konfirmasi}
           </span>
         </span>
-        <span
-          className={cn(
-            "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-            dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
-          )}
-          aria-hidden
-        >
-          {dipilih ? <Check className="size-3.5" /> : null}
-        </span>
+        <RadioDot dipilih={dipilih} className="mt-0.5" />
       </button>
     </li>
   );
 }
 
-/** One Lokasi Mitra: its promise said once, then each of its Jenis Makam with a Tersedia unit. */
+/**
+ * One Lokasi Mitra: the prototype's single flattened row when it has exactly
+ * one Jenis Makam tersedia, else its photo and promise said once above each
+ * of its Jenis Makam. The value a choice carries and the URL the next step
+ * builds are the same either way — `bentukKartu` only picks which markup
+ * shows the same `grup`/`kartu` pair.
+ */
 function GrupKartu({
   grup,
   terpilih,
@@ -360,25 +384,38 @@ function GrupKartu({
   terpilih: Terpilih | null;
   onPilih: (kartu: KartuView) => void;
 }) {
+  if (bentukKartu(grup) === "tunggal") {
+    const kartu = grup.pilihan[0];
+    const dipilih = terpilih?.kind === "lokasi_mitra" && terpilih.kartu.jenisMakamId === kartu.jenisMakamId;
+    return <GrupKartuTunggal grup={grup} kartu={kartu} dipilih={dipilih} onPilih={onPilih} />;
+  }
+
+  const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
   return (
     <li>
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="min-w-0">
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
+          adaTerpilih ? "border-primary ring-1 ring-primary" : "border-border",
+        )}
+      >
+        <div className="flex gap-4">
+          <FotoLokasi url={grup.photoUrl} />
+          <div className="min-w-0 flex-1">
             <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
             <p className="text-small text-muted-foreground">
               {grup.kota} · {grup.pilihan.length} Jenis Makam tersedia
             </p>
+            <Link href={`/lokasi/${grup.lokasiId}`} className="mt-1 inline-block text-small font-medium text-brand underline-offset-2 hover:underline">
+              Lihat lokasi
+            </Link>
           </div>
-          <Link href={`/lokasi/${grup.lokasiId}`} className="text-small font-medium text-brand underline underline-offset-4">
-            Lihat lokasi
-          </Link>
         </div>
 
         <KonfirmasiPromise grup={grup} />
 
         <ul
-          className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border"
+          className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border"
           role="radiogroup"
           aria-label={`Jenis Makam di ${grup.lokasiName}`}
         >
@@ -392,6 +429,86 @@ function GrupKartu({
           ))}
         </ul>
       </div>
+    </li>
+  );
+}
+
+/**
+ * A Lokasi Mitra with exactly one Jenis Makam tersedia, as one selectable row
+ * (spec, the prototype's own shape): photo, name, that one Jenis Makam and its
+ * price together, radio on the card itself — no inner list to open.
+ */
+function GrupKartuTunggal({
+  grup,
+  kartu,
+  dipilih,
+  onPilih,
+}: {
+  grup: GrupView;
+  kartu: KartuView;
+  dipilih: boolean;
+  onPilih: (kartu: KartuView) => void;
+}) {
+  return (
+    <li>
+      {/*
+        The same radiogroup semantics its "banyak" sibling gives its Jenis
+        Makam list, just with the one option this Lokasi Mitra has: a named
+        group, one radio inside it. `contents` on both wrappers keeps them
+        out of the box model entirely, so the card looks exactly as it did.
+      */}
+      <ul role="radiogroup" aria-label={`Jenis Makam di ${grup.lokasiName}`} className="contents">
+        <li className="contents">
+          <div
+            role="radio"
+            aria-checked={dipilih}
+            // Named explicitly, not from its whole subtree's content: that subtree also
+            // carries "Lihat lokasi" and a Kontak Siaga phone number, neither of them
+            // part of what this radio is choosing.
+            aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
+            tabIndex={0}
+            onClick={() => onPilih(kartu)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onPilih(kartu);
+              }
+            }}
+            className={cn(
+              "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
+              dipilih ? "border-primary ring-1 ring-primary" : "border-border",
+            )}
+          >
+            <div className="flex gap-4">
+              <FotoLokasi url={grup.photoUrl} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="min-w-0">
+                  <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
+                  <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
+                  <p className="text-small text-muted-foreground">
+                    {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
+                  </p>
+                </div>
+                <div className="sm:text-right">
+                  <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
+                  <p className="text-caption text-muted-foreground">semua biaya</p>
+                </div>
+              </div>
+              <RadioDot dipilih={dipilih} />
+            </div>
+
+            <KonfirmasiPromise grup={grup} />
+
+            <Link
+              href={`/lokasi/${grup.lokasiId}`}
+              onClick={(event) => event.stopPropagation()}
+              className="inline-block self-start text-small font-medium text-brand underline-offset-2 hover:underline"
+            >
+              Lihat lokasi
+            </Link>
+          </div>
+        </li>
+      </ul>
     </li>
   );
 }
@@ -420,15 +537,7 @@ function KartuJenis({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: bo
           <span className="block text-body-lg font-semibold tabular-nums text-foreground">{formatRupiah(kartu.total)}</span>
           <span className="block text-caption text-muted-foreground">semua biaya</span>
         </span>
-        <span
-          className={cn(
-            "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-            dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
-          )}
-          aria-hidden
-        >
-          {dipilih ? <Check className="size-3.5" /> : null}
-        </span>
+        <RadioDot dipilih={dipilih} />
       </button>
     </li>
   );
@@ -449,7 +558,7 @@ function KonfirmasiPromise({ grup }: { grup: GrupView }) {
     );
   }
   return (
-    <div className="rounded-lg bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground" data-testid="di luar jam operasional">
+    <div className="rounded-xl bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground" data-testid="di luar jam operasional">
       <p className="flex items-start gap-2">
         <MoonStar className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>

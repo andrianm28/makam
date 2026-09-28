@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { BrandLogo } from "@/components/makam/brand-logo";
+import { MessageCircle } from "lucide-react";
+import { BrandMark } from "@/components/makam/brand-logo";
 import { csWhatsAppLink } from "@/components/kode-masuk/state";
 import { serverRuntime } from "@/server/runtime";
 
@@ -19,19 +20,21 @@ export default async function PesanMakamLayout({ children }: LayoutProps<"/pesan
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" aria-label="Makam.co.id, beranda">
-            <BrandLogo />
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
+        <div className="mx-auto flex h-(--header-height) w-full max-w-3xl items-center justify-between gap-4 px-4">
+          <Link href="/" aria-label="Keluar dari pemesanan, ke Beranda" className="flex items-center gap-2.5">
+            <BrandMark className="h-8" />
+            <span className="text-small font-bold tracking-[0.04em] text-forest">MAKAM.CO.ID</span>
           </Link>
           {cs ? (
             <Link
               href={csWhatsAppLink(cs)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-body font-medium text-brand underline underline-offset-4"
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-small font-medium text-brand hover:bg-accent"
             >
-              Tanya CS
+              <MessageCircle className="size-4" aria-hidden />
+              <span>Tanya CS</span>
             </Link>
           ) : null}
         </div>

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ArrowRight, ChevronUp, Mail } from "lucide-react";
+import { ArrowRight, ChevronUp, Mail, MessageCircle, Phone } from "lucide-react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import {
+  csWhatsAppLink,
   initialKodeMasukVerifyState,
   type CsContact,
   type KodeMasukRequestState,
@@ -82,13 +83,13 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
       />
       <div className="mt-6 flex flex-col gap-6">
         <div>
-          <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
+          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
             Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-soft px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-soft px-4 py-3">
           <p className="min-w-0 text-body text-brand-soft-foreground">
             <span className="font-semibold">{kartu.jenisMakamName}</span> · {lokasi.name}
           </p>
@@ -100,6 +101,15 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           </Link>
         </div>
 
+        {/*
+          Every Input below carries both `text-body-lg` and `md:text-body-lg`:
+          the shared Input component's own default is `text-base md:text-sm`,
+          and `md:text-sm` only loses to a later unprefixed class below the
+          `md` breakpoint — at 768px and up it still wins over a bare
+          `text-body-lg`, so the `md:` copy is what actually keeps these at
+          the prototype's larger size on desktop too. Checked by measuring
+          getComputedStyle at 1440px: 14px without it, 16px with it.
+        */}
         <Fieldset legend="Data Anda">
           <Field id="pemesan-nama" label="Nama lengkap" error={salah.pemesanName}>
             <Input
@@ -109,7 +119,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               autoComplete="name"
               placeholder="Nama sesuai KTP"
               aria-invalid={salah.pemesanName ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field
@@ -136,7 +146,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               // A signed-in Pemesan's address is already proven: it is the account's
               // Email Terverifikasi, so the field only says which one it is.
               readOnly={sudahMasuk}
-              className={cn("h-11", sudahMasuk && "bg-muted text-muted-foreground")}
+              className={cn("h-12 text-body-lg md:text-body-lg", sudahMasuk && "bg-muted text-muted-foreground")}
             />
           </Field>
           <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar Lokasi Mitra dan tim kami bisa menelepon bila perlu." error={salah.phoneNumber}>
@@ -150,7 +160,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               inputMode="tel"
               placeholder="08xx-xxxx-xxxx"
               aria-invalid={salah.phoneNumber ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
         </Fieldset>
@@ -163,7 +173,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.almarhumName}
               onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
               aria-invalid={salah.almarhumName ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field id="wafat" label="Tanggal wafat" error={salah.tanggalWafat}>
@@ -174,7 +184,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.tanggalWafat}
               onChange={(event) => setisi({ ...isi, tanggalWafat: event.target.value })}
               aria-invalid={salah.tanggalWafat ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
         </Fieldset>
@@ -187,7 +197,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.rencanaPemakamanAt}
               onChange={(event) => setisi({ ...isi, rencanaPemakamanAt: event.target.value })}
               aria-invalid={salah.rencanaPemakamanAt ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field
@@ -201,7 +211,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               rows={2}
               value={isi.keinginanPenempatan}
               onChange={(event) => setisi({ ...isi, keinginanPenempatan: event.target.value })}
-              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-body-lg outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </Field>
         </Fieldset>
@@ -231,7 +241,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   value={pemegangHak.name}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
                   aria-invalid={salah["pemegangHak.name"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
               <Field id="ph-telepon" label="Nomor telepon Pemegang Hak" error={salah["pemegangHak.phoneNumber"]}>
@@ -243,7 +253,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
                   inputMode="tel"
                   aria-invalid={salah["pemegangHak.phoneNumber"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
               <Field
@@ -259,7 +269,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   value={pemegangHak.email}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
                   aria-invalid={salah["pemegangHak.email"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
             </div>
@@ -269,7 +279,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />
 
         {kodeMasukTerbuka ? (
-          <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">
+          <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
             <p className="flex items-center gap-2 text-title-3 text-foreground">
               <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode Masuk
             </p>
@@ -301,6 +311,29 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
             {hasil.status === "gagal" && !hasil.pesan ? <PesanGagal message={hasil.message} /> : null}
           </div>
         )}
+
+        {/*
+          "Tidak punya email? Minta bantuan CS" (spec, the prototype's Kirim
+          step), under the Kirim button from the first render — not only after
+          a failed send. KodeMasukForm carries its own copy of this same line
+          under its email field once it opens (`kodeMasukTerbuka`), so this one
+          steps aside there rather than showing two.
+        */}
+        {csContact && !kodeMasukTerbuka ? (
+          <div className="flex flex-col items-center gap-1 text-center text-body">
+            <a
+              href={csWhatsAppLink(csContact)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 font-semibold text-brand"
+            >
+              <MessageCircle className="size-4" aria-hidden /> Tidak punya email? Minta bantuan CS
+            </a>
+            <p className="inline-flex items-center gap-1.5 text-small text-muted-foreground">
+              <Phone className="size-3.5" aria-hidden /> {csContact.whatsApp} · CS dapat mengirimkan pesanan ini untuk Anda
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <StickyBar kartu={kartu} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
@@ -315,7 +348,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
  */
 function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
           <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
