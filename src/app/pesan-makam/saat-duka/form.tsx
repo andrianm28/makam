@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export function Fieldset({ legend, note, children }: { legend: string; note?: string; children: ReactNode }) {
   return (
-    <fieldset className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
       <legend className="sr-only">{legend}</legend>
       <div>
         <p className="text-title-3 text-foreground">{legend}</p>

@@ -35,6 +35,8 @@ export interface GrupView {
   /** The Kontak Siaga to phone outside Jam Operasional; null before one is picked. */
   kontakSiaga: { nama: string; telepon: string } | null;
   pilihan: KartuView[];
+  /** The Lokasi Mitra's own Kunjungan Verifikasi photo, signed for this request; null when it has none yet. */
+  photoUrl: string | null;
 }
 
 export function kartuView(kartu: PilihanSaatDuka): KartuView {
@@ -48,7 +50,7 @@ export function kartuView(kartu: PilihanSaatDuka): KartuView {
   };
 }
 
-export function grupView(grup: GrupSaatDuka): GrupView {
+export function grupView(grup: GrupSaatDuka, photoUrl: string | null = null): GrupView {
   return {
     lokasiId: grup.lokasi.id,
     lokasiName: grup.lokasi.name,
@@ -62,6 +64,7 @@ export function grupView(grup: GrupSaatDuka): GrupView {
         }
       : null,
     pilihan: grup.pilihan.map(kartuView),
+    photoUrl,
   };
 }
 

@@ -174,14 +174,14 @@ export function DataTpu({
       />
       <div className="mt-6 flex flex-col gap-6">
         <div>
-          <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
+          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
             Kami siapkan pemakamannya bersama TPU, lalu mengurus IPTM-nya. Isi
             yang kami perlukan dulu; sisanya menyusul.
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-soft px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-soft px-4 py-3">
           <p className="min-w-0 text-body text-brand-soft-foreground">
             <span className="font-semibold">{tpu.tpuName}</span> · {tpu.kota}
           </p>
@@ -532,7 +532,7 @@ export function DataTpu({
 
         <DuaDaftarDokumen view={dokumen} />
 
-        <div className="rounded-xl bg-info-soft p-4 text-body text-info-soft-foreground">
+        <div className="rounded-2xl bg-info-soft p-4 text-body text-info-soft-foreground">
           <p className="font-semibold">Belum ada yang dibayar sekarang.</p>
           <p className="mt-1">
             Tagihan terbit setelah pemakaman dikonfirmasi, dan jatuh tempo 3×24
@@ -542,7 +542,7 @@ export function DataTpu({
         </div>
 
         {kodeMasukTerbuka ? (
-          <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">
+          <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
             <p className="flex items-center gap-2 text-title-3 text-foreground">
               <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode
               Masuk
@@ -660,7 +660,7 @@ function StickyBar({
   setTerbuka: (buka: boolean) => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
           <dl

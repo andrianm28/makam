@@ -75,7 +75,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
       />
       <div className="mt-6 flex flex-col gap-6">
         <div>
-          <h1 className="text-title-1 text-foreground">Pilih makam</h1>
+          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih makam</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
             Diurutkan dari total biaya terendah. Hanya makam yang masih tersedia yang ditampilkan.
           </p>
@@ -87,7 +87,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
 
         {!lokasiSaja ? (
           grup.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
               Belum ada makam tersedia di kota ini. Coba kota lain, atau tanyakan kepada CS kami.
             </p>
           ) : (
@@ -109,7 +109,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
         ) : null}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
         <div className="mx-auto max-w-3xl px-4">
           {rincianTerbuka && terpilih ? (
             <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
@@ -267,7 +267,7 @@ function TpuSection({
         <h2 id="tpu-judul" className="text-title-3 text-foreground">
           TPU DKI
         </h2>
-        <p className="rounded-xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
           Belum ada TPU DKI yang menerima makam baru di kota ini.{" "}
           <Link href="/pengurusan-tpu" className="font-medium text-brand underline underline-offset-4">
             Lihat cara mengurus IPTM sendiri, gratis
@@ -287,7 +287,7 @@ function TpuSection({
           biaya jasa kami; Retribusi Pemda ditampilkan terpisah.
         </p>
       </div>
-      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-card" role="radiogroup" aria-label="TPU DKI">
+      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card" role="radiogroup" aria-label="TPU DKI">
         {tpu.map((kartu) => (
           <KartuTpu
             key={kartu.tpuId}
@@ -350,7 +350,7 @@ function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: b
   );
 }
 
-/** One Lokasi Mitra: its promise said once, then each of its Jenis Makam with a Tersedia unit. */
+/** One Lokasi Mitra: its photo, its promise said once, then each of its Jenis Makam with a Tersedia unit. */
 function GrupKartu({
   grup,
   terpilih,
@@ -360,25 +360,36 @@ function GrupKartu({
   terpilih: Terpilih | null;
   onPilih: (kartu: KartuView) => void;
 }) {
+  const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
   return (
     <li>
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="min-w-0">
+      <div
+        className={cn(
+          "flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
+          adaTerpilih ? "border-primary ring-1 ring-primary" : "border-border",
+        )}
+      >
+        <div className="flex gap-4">
+          {grup.photoUrl ? (
+            // Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={grup.photoUrl} alt="" className="size-16 shrink-0 rounded-xl object-cover sm:size-20" />
+          ) : null}
+          <div className="min-w-0 flex-1">
             <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
             <p className="text-small text-muted-foreground">
               {grup.kota} · {grup.pilihan.length} Jenis Makam tersedia
             </p>
+            <Link href={`/lokasi/${grup.lokasiId}`} className="mt-1 inline-block text-small font-medium text-brand underline-offset-2 hover:underline">
+              Lihat lokasi
+            </Link>
           </div>
-          <Link href={`/lokasi/${grup.lokasiId}`} className="text-small font-medium text-brand underline underline-offset-4">
-            Lihat lokasi
-          </Link>
         </div>
 
         <KonfirmasiPromise grup={grup} />
 
         <ul
-          className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border"
+          className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border"
           role="radiogroup"
           aria-label={`Jenis Makam di ${grup.lokasiName}`}
         >
@@ -449,7 +460,7 @@ function KonfirmasiPromise({ grup }: { grup: GrupView }) {
     );
   }
   return (
-    <div className="rounded-lg bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground" data-testid="di luar jam operasional">
+    <div className="rounded-xl bg-warning-soft px-3 py-2.5 text-small text-warning-soft-foreground" data-testid="di luar jam operasional">
       <p className="flex items-start gap-2">
         <MoonStar className="mt-0.5 size-4 shrink-0" aria-hidden />
         <span>

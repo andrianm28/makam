@@ -32,12 +32,14 @@ export interface LayarPilihMakam {
   asal: { id: string; name: string; city: string } | null;
   /** The chip the list is filtered by; an unrecognised one is "semua". */
   jenis: JenisPilihan;
+  /** One photo per Lokasi Mitra on the list (its Kunjungan Verifikasi's first upload), by its id; null when it has none yet. */
+  foto: Record<string, string | null>;
 }
 
 /** The modules this screen reads: the runtime is the page's, a test brings its own. */
 type Modul = {
   pemesanan: Pick<Pemesanan, "pilihanSaatDuka">;
-  lokasi: Pick<Lokasi, "publicLokasiMitra" | "publicLokasiMitraCities">;
+  lokasi: Pick<Lokasi, "publicLokasiMitra" | "publicLokasiMitraCities" | "publicVisitPhotoUrls">;
   pengurusan: Pick<Pengurusan, "pilihanSaatDukaTpu">;
 };
 
@@ -60,6 +62,17 @@ export async function layarPilihMakam(
     jenis === "tpu_dki" ? Promise.resolve([]) : modul.pemesanan.pilihanSaatDuka(kota ? { city: kota } : {}),
     jenis === "lokasi_mitra" ? Promise.resolve([]) : modul.pengurusan.pilihanSaatDukaTpu(kota ? { city: kota } : {}),
   ]);
+  // A photo thumbnail per card (spec, the prototype's "Pilih makam"), from each
+  // Lokasi Mitra's own Kunjungan Verifikasi: every Terverifikasi Lokasi Mitra
+  // has one (it is a publish gate), but a card never invents one it has none for.
+  const foto = Object.fromEntries(
+    await Promise.all(
+      grupLokasi.map(async (grup): Promise<[string, string | null]> => {
+        const urls = await modul.lokasi.publicVisitPhotoUrls(grup.lokasi.id);
+        return [grup.lokasi.id, urls[0] ?? null];
+      }),
+    ),
+  );
   return {
     grup: grupLokasi,
     tpu: kartuTpu.map(tpuKartuView),
@@ -67,6 +80,7 @@ export async function layarPilihMakam(
     kota,
     asal: asal ? { id: asal.id, name: asal.name, city: asal.city } : null,
     jenis,
+    foto,
   };
 }
 

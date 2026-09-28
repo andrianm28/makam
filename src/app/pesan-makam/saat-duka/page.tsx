@@ -28,7 +28,7 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
 
   return (
     <PilihMakam
-      grup={layar.grup.map(grupView)}
+      grup={layar.grup.map((satu) => grupView(satu, layar.foto[satu.lokasi.id] ?? null))}
       tpu={layar.tpu}
       semuaKota={layar.semuaKota}
       kota={layar.kota}

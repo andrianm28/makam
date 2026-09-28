@@ -82,13 +82,13 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
       />
       <div className="mt-6 flex flex-col gap-6">
         <div>
-          <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
+          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
           <p className="mt-1 text-body-lg text-muted-foreground">
             Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-soft px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-soft px-4 py-3">
           <p className="min-w-0 text-body text-brand-soft-foreground">
             <span className="font-semibold">{kartu.jenisMakamName}</span> · {lokasi.name}
           </p>
@@ -269,7 +269,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />
 
         {kodeMasukTerbuka ? (
-          <div className="flex flex-col gap-4 rounded-xl border-2 border-primary bg-card p-5">
+          <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
             <p className="flex items-center gap-2 text-title-3 text-foreground">
               <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode Masuk
             </p>
@@ -315,7 +315,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
  */
 function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-forest/20">
       <div className="mx-auto max-w-3xl px-4">
         {terbuka ? (
           <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
