@@ -23,6 +23,12 @@ The Antrean Lokasi projection (Mendesak and Lainnya groups sorted by deadline, r
 
 ## Comments
 
+- 2026-09-28 — **The `-- contract:` marker this migration needed, added when CI finally ran.** `CREATE UNIQUE INDEX "notifications_message_pemesanan_template_idx" ... WHERE pemesan_id is not null` was rejected by `scripts/migrations/check-destructive-ddl.ts` as an unmarked destructive statement, which blocked `Build image` and therefore every deploy. **The statement itself is sound and was not changed — only a comment line was added above it, so the diff is one insertion.**
+
+  The reason it cannot break the release still running on this schema is specific and worth recording, because the obvious reading of it is wrong. `pemesanan_id` **did not exist on `notifications_message` before this migration** — line 13 of this same file adds it, nullable. So every row the running release wrote has NULL there, this index is partial, and it matches **none** of them: `CREATE UNIQUE INDEX` has nothing to collide with. What almost made me conclude the opposite was the history of the writer — `queueFamilyEmail` already used `.onConflictDoNothing()` at the 0018 release, which reads like an idempotency guard that was there with nothing to guard on. It is not: at 0018 that call conflicted on the **Tagihan** index (added in `0018_chief_doctor_octopus.sql`), which is exactly what that commit says it was for — "one money message per Tagihan". The Pemesanan side had no column, so no duplicates were possible, and none exist. From 0023 on, this index is what makes a repeated **family** message idempotent, since `onConflictDoNothing` names no conflict target and needs an index to conflict on.
+
+  Worth noting how it stayed invisible for so long: the `Migration upgrade` job **had never successfully run**. `.github/actions/ghcr-login/action.yml` failed to load for every push, so the job died in 0 seconds before reaching the check, from the moment ticket 72 landed that action until 2026-09-28. The first time it ran, it found this on the first pass. A guard that has never executed is not a guard, and the number of things this one job was quietly checking is larger than the two failures it reported.
+
 ### Two-axis review (Standards + Spec), 2026-09-27
 
 Review record: the Spec finding (a user-facing deadline hardcoded in two files) and both Standards nits are fixed in the commit after the review; the AC 9 finding is kept in the record, and AC 9's tick now says what is and is not delivered.
