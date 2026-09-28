@@ -3,7 +3,7 @@
  * behind a Nomor Pemesanan, with the status track it runs through, so a family
  * can follow the order itself.
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { quoteLineLabel } from "@/lib/quote-line-label";
 import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
 import { alasanOrder } from "./alasan-tolak";
@@ -113,7 +113,29 @@ export async function orderOf(
     .select()
     .from(pemesananMakam)
     .where(and(eq(pemesananMakam.nomor, nomor), eq(pemesananMakam.pemesanAccountId, pemesan.accountId)));
-  if (!row) return null;
+  return row ? toOrder(deps, row) : null;
+}
+
+/**
+ * Every Pemesanan Makam of that Akun, newest first (Akun Saya's Pesanan tab,
+ * ticket 27, spec story 100): "including CS-submitted orders attached by
+ * Nomor Pemesanan" needs nothing special here — once an order's
+ * `pemesanAccountId` names this Akun, by whatever route, it is this Akun's own
+ * and belongs in the list like any other.
+ */
+export async function pesananSaya(
+  deps: Pick<PemesananDeps, "db" | "lokasi" | "tariffs" | "clock" | "billing">,
+  pemesan: { accountId: string },
+): Promise<PemesananOrder[]> {
+  const rows = await deps.db
+    .select()
+    .from(pemesananMakam)
+    .where(eq(pemesananMakam.pemesanAccountId, pemesan.accountId))
+    .orderBy(desc(pemesananMakam.diajukanAt));
+  return Promise.all(rows.map((row) => toOrder(deps, row)));
+}
+
+async function toOrder(deps: Pick<PemesananDeps, "db" | "lokasi" | "tariffs" | "clock" | "billing">, row: Row): Promise<PemesananOrder> {
   return {
     nomor: row.nomor,
     kind: row.kind,
@@ -137,6 +159,8 @@ export async function orderOf(
     diajukanAt: row.diajukanAt,
   };
 }
+
+type Row = typeof pemesananMakam.$inferSelect;
 
 /**
  * The offer on the table, priced now. The price is not read from the order — it
@@ -166,6 +190,27 @@ async function alternatifOf(
     total: harga?.total ?? null,
     lines: (harga?.lines ?? []).map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
   };
+}
+
+/**
+ * The Bukti Pemesanan of a Hak Pakai's own order, for the Akun Saya Makam tab
+ * (ticket 27, spec story 101: "documents"). At most one today — only a Saat
+ * Duka order grants a fresh Hak Pakai — but the query is not `limit(1)`: a
+ * later ticket's Ganti Pemegang Hak or Perpanjangan may add a further order (and
+ * a further document) under the same Hak Pakai, and this list is that
+ * extension point.
+ */
+export async function buktiUntukHakPakai(
+  deps: Pick<PemesananDeps, "db" | "billing">,
+  hakPakaiId: string,
+): Promise<{ id: string; nomor: string; link: string }[]> {
+  const rows = await deps.db
+    .select({ buktiPemesananId: pemesananMakam.buktiPemesananId })
+    .from(pemesananMakam)
+    .where(eq(pemesananMakam.hakPakaiId, hakPakaiId));
+  const ids = rows.map((row) => row.buktiPemesananId).filter((id): id is string => id !== null);
+  const bukti = await Promise.all(ids.map((id) => buktiMilik(deps, id)));
+  return bukti.filter((satu): satu is { id: string; nomor: string; link: string } => satu !== null);
 }
 
 /** The order's Bukti Pemesanan, read back through Billing's own public read (the document is Billing's row). */

@@ -30,7 +30,7 @@ import type { Actor } from "@/domain/identity";
 import type { Pemesan, PemesananDeps, TerencanaQuery } from "./deps";
 import { pilihanSaatDuka, type GrupSaatDuka, type PilihanSaatDukaQuery } from "./pilihan";
 import { placeSaatDuka, type PlaceSaatDukaInput, type PlaceSaatDukaResult } from "./saat-duka";
-import { orderOf, type PemesananOrder } from "./reads";
+import { buktiUntukHakPakai, orderOf, pesananSaya, type PemesananOrder } from "./reads";
 import { konfirmasiSaatDuka, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
 import { tolakSaatDuka, type TolakSaatDukaInput, type TolakSaatDukaResult } from "./tolak";
 import {
@@ -186,6 +186,10 @@ export interface Pemesanan {
   placeSaatDuka(input: PlaceSaatDukaInput): Promise<PlaceSaatDukaResult>;
   /** One Pemesanan Makam of that Akun, by its Nomor Pemesanan, or null. */
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananOrder | null>;
+  /** Every Pemesanan Makam of that Akun, newest first (Akun Saya's Pesanan tab, ticket 27). */
+  pesananSaya(pemesan: { accountId: string }): Promise<PemesananOrder[]>;
+  /** The Bukti Pemesanan of a Hak Pakai's own order(s) (Akun Saya's Makam tab, ticket 27). */
+  buktiUntukHakPakai(hakPakaiId: string): Promise<{ id: string; nomor: string; link: string }[]>;
   /**
    * That Lokasi's own Admin Lokasi confirms an order: the cleared Tersedia
    * Petak of the chosen Jenis Makam it assigns, the Aktif Hak Pakai that
@@ -289,6 +293,8 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     pilihanSaatDuka: (query) => pilihanSaatDuka(deps, query),
     placeSaatDuka: (input) => placeSaatDuka(deps, input),
     orderOf: (nomor, pemesan) => orderOf(deps, pemesan, nomor),
+    pesananSaya: (pemesan) => pesananSaya(deps, pemesan),
+    buktiUntukHakPakai: (hakPakaiId) => buktiUntukHakPakai(deps, hakPakaiId),
     konfirmasiSaatDuka: (by, input) => konfirmasiSaatDuka(deps, by, input),
     tolakSaatDuka: (by, input) => tolakSaatDuka(deps, by, input),
     ditolak: (lokasiId) => ditolakOf(deps, lokasiId),

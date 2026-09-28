@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PetakDitemukan } from "@/domain/inventory";
+import type { MakamSaya, PetakDitemukan } from "@/domain/inventory";
 import { pageExists } from "../../tests/support/page-exists";
 import {
   AKSI_MAKAM_KELUARGA,
@@ -11,6 +11,7 @@ import {
   bentukCariDari,
   hubPath,
   kartuAksi,
+  kartuMakamSaya,
   kartuUntuk,
   tileKeHub,
 } from "./makam-keluarga-content";
@@ -114,5 +115,58 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
     const baris = barisMakamSaya({ lokasiId: "lokasi-9", kavlingId: null, nomorKavling: null, petak: [petak("B-04")] }, nama);
 
     expect(baris.namaLokasi).toBe("Lokasi Mitra");
+  });
+});
+
+/** One `MakamSaya` unit, as the Inventory module hands it over for the Akun Saya Makam tab. */
+function makamSaya(over: Partial<MakamSaya> = {}): MakamSaya {
+  return {
+    hakPakaiId: "hak-pakai-1",
+    lokasiId: "lokasi-1",
+    kavlingId: null,
+    nomorKavling: null,
+    petak: [{ petakId: "id-A-01", nomorMakam: "A-01" }],
+    status: "aktif",
+    tenureYears: 5,
+    tanggalBerakhir: "2031-10-02",
+    pemakaman: [{ id: "pemakaman-1", lokasiId: "lokasi-1", petakId: "id-A-01", hakPakaiId: "hak-pakai-1", almarhumName: "Siti Nur", date: "2019-04-02", layer: 1 }],
+    ...over,
+  };
+}
+
+describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", () => {
+  const nama = new Map([["lokasi-1", "Makam Keluarga Sawah"]]);
+
+  it("carries the status in words, the end date, every Pemakaman and every document handed in", () => {
+    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
+
+    expect(kartu).toEqual({
+      hakPakaiId: "hak-pakai-1",
+      lokasiId: "lokasi-1",
+      namaLokasi: "Makam Keluarga Sawah",
+      nomor: "A-01",
+      petak: [{ nomorMakam: "A-01" }],
+      status: { key: "aktif", label: "Aktif", arti: expect.any(String) },
+      tanggalBerakhir: "2031-10-02",
+      pemakaman: [{ almarhumName: "Siti Nur", date: "2019-04-02" }],
+      dokumen: [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }],
+      alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
+    });
+  });
+
+  it("names a Kavling Keluarga by its own Nomor Kavling and looks it up as one whole, same as the shortcut row", () => {
+    const kartu = kartuMakamSaya(
+      makamSaya({ kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [{ petakId: "id-A-01", nomorMakam: "A-01" }, { petakId: "id-A-02", nomorMakam: "A-02" }] }),
+      nama,
+      [],
+    );
+
+    expect(kartu.nomor).toBe("A-K01");
+    expect(kartu.alamat).toBe("/makam-keluarga?lokasi=lokasi-1&cari=nomor_kavling&nomor=A-K01");
+    expect(kartu.petak).toEqual([{ nomorMakam: "A-01" }, { nomorMakam: "A-02" }]);
+  });
+
+  it("has no documents while none were handed in, rather than inventing one", () => {
+    expect(kartuMakamSaya(makamSaya(), nama, []).dokumen).toEqual([]);
   });
 });
