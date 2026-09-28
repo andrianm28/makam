@@ -1,6 +1,6 @@
 /**
  * `npx tsx src/cli/seed-contoh-publik.ts` (dev) or, in a local stack's image,
- * `node dist/seed-contoh-publik.mjs`: gives a development or test stack the
+ * `node dist/seed-contoh-publik.mjs [--izinkan-staging]`: gives a stack the
  * five example Lokasi Mitra of the public-site prototype
  * (`origin/prototype-public-site`'s `_mock/data.ts`), each taken all the way
  * to Terverifikasi through the real publish gate — a priced Jenis Makam per
@@ -8,8 +8,26 @@
  * JPEG Kunjungan Verifikasi photos and, where the mock has `terencanaAktif`,
  * "Pemesanan Terencana aktif" switched on through its own gate (Cek Denah,
  * every Petak cleared). It changes nothing once every one of the five is
- * already listed. Refused on staging and production. Exit 0 seeded or
- * already there, 1 refused or failed, 2 usage.
+ * already listed. Development and test always; staging — the environment the
+ * beta for UAT runs on — only with the named allowance `--izinkan-staging`,
+ * refused by default and named in the reason of every write that carries one
+ * (`alasanSeed`, the same pattern as `import-katalog-lama-command.ts`'s
+ * `alasanImport`). Production is refused outright. Exit 0 seeded or already
+ * there, 1 refused or failed, 2 usage.
+ *
+ * Every email this command sends (Undangan Staf, Undangan Admin Lokasi, Kode
+ * Masuk) goes to an address this command itself invented, never a real
+ * person's — so it composes its own `identity` on a `FakeEmailSender`
+ * regardless of environment, staging included, the same way
+ * `masukDenganKodeMasuk` (`dev-seed-support.ts`) already reads the Kode Masuk
+ * back from that fake in development and test. No real SMTP call is ever made
+ * for these five fixtures, and the invented addresses are themselves on the
+ * RFC 2606 reserved `.invalid` TLD besides, so even a future change that wired
+ * a live sender in here by mistake could not reach a real inbox. Every other
+ * port (FileStore, WebPush, PaymentProvider, PdfRenderer) stays whatever
+ * `createAdapters` gives the running environment: on staging that is the real
+ * live FileStore, so the Kunjungan Verifikasi photos and the agreement scan
+ * land in the same private volume a real Lokasi Mitra's would.
  *
  * These five are deliberately never marked `data_contoh` (the flag that hides
  * a Lokasi Mitra from the public listing, ticket 86): the whole point of this
@@ -54,8 +72,10 @@
  *   mechanism a real Admin Platform would use to schedule a price change.
  */
 import { readFileSync } from "node:fs";
+import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { FakeEmailSender } from "@/adapters/memory";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
@@ -80,7 +100,20 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import { cliFailure } from "./cli-failure";
 import { adminPlatform, masukSebagai, scanPerjanjian, type Gagal, type Modul } from "./dev-seed-support";
 
-const USAGE = "Pakai: seed-contoh-publik";
+const USAGE = "Pakai: seed-contoh-publik [--izinkan-staging]";
+
+const SEED_CONTOH_PUBLIK = "seed-contoh-publik";
+
+/**
+ * The reason every write this command makes carries (tariffs' own, and the
+ * two staff invites), the same pattern as `import-katalog-lama-command.ts`'s
+ * `alasanImport`: on staging it names the allowance, so the Audit Log of
+ * every row says the row was created on the beta's own environment under an
+ * explicit `--izinkan-staging`.
+ */
+function alasanSeed(staging: boolean): string {
+  return staging ? `${SEED_CONTOH_PUBLIK} (staging, --izinkan-staging)` : SEED_CONTOH_PUBLIK;
+}
 
 /** The Operator's flat platform fee (spec: Biaya Layanan Platform), as the prototype's mock has it. */
 const BIAYA_LAYANAN_PLATFORM = 250_000;
@@ -93,7 +126,11 @@ const DOKUMEN = [
   "KTP Pemegang Hak",
 ];
 
-const PETUGAS = { email: "petugas.contoh-publik@contoh.id", phoneNumber: "085299999999" };
+// Reserved by RFC 2606: never delegated, so an address on it can never reach a
+// real inbox even if a future change wired a live EmailSender in here by
+// mistake. The same domain family the identity module already uses for its
+// own undeliverable placeholders (`<id>@akun.makam.invalid`).
+const PETUGAS = { email: "petugas.contoh-publik@contoh.makam.invalid", phoneNumber: "085299999999" };
 
 function fixture(file: string): Uint8Array {
   const path = fileURLToPath(new URL(`./fixtures/contoh-publik/${file}`, import.meta.url));
@@ -180,7 +217,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     terencanaAktif: false,
     // The mock's full four photos, in the mock's own order.
     photos: ["lokasi-jalan-taman.jpg", "lokasi-pendopo.jpg", "lokasi-taman-tropis.jpg", "tile-perpanjang.jpg"],
-    adminLokasiEmail: "lokasi.firdaus@contoh.id",
+    adminLokasiEmail: "lokasi.firdaus@contoh.makam.invalid",
     adminLokasiPhone: "085100000001",
   },
   {
@@ -201,7 +238,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     refundAfterMasaPembatalanPercent: 50,
     terencanaAktif: true,
     photos: ["lokasi-makam-wakaf.jpg", "lokasi-blok.jpg"],
-    adminLokasiEmail: "lokasi.wakaf-al-ikhlas@contoh.id",
+    adminLokasiEmail: "lokasi.wakaf-al-ikhlas@contoh.makam.invalid",
     adminLokasiPhone: "085100000002",
   },
   {
@@ -221,7 +258,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     refundAfterMasaPembatalanPercent: 0,
     terencanaAktif: false,
     photos: ["lokasi-pendopo.jpg", "lokasi-jalan-taman.jpg"],
-    adminLokasiEmail: "lokasi.nurul-huda@contoh.id",
+    adminLokasiEmail: "lokasi.nurul-huda@contoh.makam.invalid",
     adminLokasiPhone: "085100000003",
   },
   {
@@ -245,7 +282,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     refundAfterMasaPembatalanPercent: 0,
     terencanaAktif: true,
     photos: ["lokasi-taman-tropis.jpg", "tile-perpanjang.jpg"],
-    adminLokasiEmail: "lokasi.hijau-asri@contoh.id",
+    adminLokasiEmail: "lokasi.hijau-asri@contoh.makam.invalid",
     adminLokasiPhone: "085100000004",
   },
   {
@@ -265,7 +302,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     refundAfterMasaPembatalanPercent: 0,
     terencanaAktif: false,
     photos: ["lokasi-blok.jpg", "lokasi-makam-wakaf.jpg"],
-    adminLokasiEmail: "lokasi.bukit-sejuk@contoh.id",
+    adminLokasiEmail: "lokasi.bukit-sejuk@contoh.makam.invalid",
     adminLokasiPhone: "085100000005",
   },
 ];
@@ -274,17 +311,57 @@ export async function seedContohPublikCommand(
   argv: string[],
   source: Record<string, string | undefined> = process.env,
 ): Promise<{ exitCode: number; output: string }> {
-  if (argv.length > 0) return { exitCode: 2, output: USAGE };
-  const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
-  if (!appEnv.success || !usesInMemoryFakes(appEnv.data)) {
-    return { exitCode: 1, output: "Ditolak: seed-contoh-publik hanya untuk development dan test." };
+  let izinkanStaging: boolean;
+  try {
+    const args = parseArgs({
+      args: argv,
+      options: { "izinkan-staging": { type: "boolean" } },
+      allowPositionals: false,
+      strict: true,
+    });
+    izinkanStaging = args.values["izinkan-staging"] === true;
+  } catch {
+    return { exitCode: 2, output: USAGE };
   }
+
+  const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
+  if (!appEnv.success) {
+    return { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` };
+  }
+  // The beta for UAT runs on staging, so this seed has to be able to run there too: the
+  // allowance is named, refused by default, and every write it makes says so in the Audit
+  // Log. Production is refused outright, allowance or not.
+  if (appEnv.data === "production") {
+    return { exitCode: 1, output: "Ditolak: seed-contoh-publik tidak pernah jalan di production." };
+  }
+  if (appEnv.data === "staging" && !izinkanStaging) {
+    return { exitCode: 1, output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan)." };
+  }
+  if (!usesInMemoryFakes(appEnv.data) && !izinkanStaging) {
+    return { exitCode: 1, output: "Ditolak: seed-contoh-publik hanya untuk development, test, atau staging dengan allowance." };
+  }
+  const staging = appEnv.data === "staging";
+  const alasan = alasanSeed(staging);
 
   try {
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-contoh-publik" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid, devFilesRoot: env.DEV_FILES_ROOT });
+      const adapters = createAdapters({
+        appEnv: env.APP_ENV,
+        vapid: env.vapid,
+        smtp: env.smtp,
+        sumopod: env.sumopod,
+        chromiumPath: env.CHROMIUM_PATH,
+        authSecret: env.AUTH_SECRET,
+        filesRoot: env.FILES_ROOT,
+        appBaseUrl: env.APP_BASE_URL,
+        devFilesRoot: env.DEV_FILES_ROOT,
+        // See this file's header comment: every email this command sends goes to an
+        // address it invented itself, never a real person's, so it never needs the
+        // live SMTP relay — staging included.
+        overrides: usesInMemoryFakes(env.APP_ENV) ? undefined : { email: new FakeEmailSender() },
+      });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
@@ -314,13 +391,13 @@ export async function seedContohPublikCommand(
         };
       }
 
-      const petugas = await undangPetugas(modul, admin);
+      const petugas = await undangPetugas(modul, admin, alasan);
       if (!petugas.ok) return { exitCode: 1, output: `Ditolak: Petugas Lapangan contoh tidak siap (${petugas.reason}).` };
 
       const hariIni = wibDateOf(adapters.clock.now());
       const diterbitkan: string[] = [];
       for (const spec of belum) {
-        const hasil = await seedOneLokasi(modul, admin, petugas.value, hariIni, spec);
+        const hasil = await seedOneLokasi(modul, admin, petugas.value, hariIni, spec, alasan);
         if (!hasil.ok) return { exitCode: 1, output: `Ditolak: ${spec.name} tidak siap (${hasil.reason}).` };
         diterbitkan.push(`${spec.name} (/lokasi/${hasil.id})`);
       }
@@ -337,14 +414,16 @@ export async function seedContohPublikCommand(
 }
 
 /** The one Petugas Lapangan every example Lokasi Mitra's Kunjungan Verifikasi and Cek Denah are done by (the role is not Lokasi-scoped). */
-async function undangPetugas(modul: Modul, admin: Actor): Promise<{ ok: true; value: Actor } | Gagal> {
-  return masukSebagai(modul, PETUGAS.email, () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" }));
+async function undangPetugas(modul: Modul, admin: Actor, alasan: string): Promise<{ ok: true; value: Actor } | Gagal> {
+  return masukSebagai(modul, PETUGAS.email, () =>
+    modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan", reason: alasan }),
+  );
 }
 
 /** This example Lokasi Mitra's own Admin Lokasi (and Kontak Siaga). */
-async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec): Promise<{ ok: true; value: Actor } | Gagal> {
+async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; value: Actor } | Gagal> {
   return masukSebagai(modul, spec.adminLokasiEmail, () =>
-    modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone }),
+    modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone, reason: alasan }),
   );
 }
 
@@ -362,6 +441,7 @@ async function bangunDenahJenisMakam(
   blokIndex: number,
   jenisMakamId: string,
   spec: JenisMakamSpec,
+  alasan: string,
 ): Promise<{ ok: true } | Gagal> {
   const { inventory } = modul;
   const blokName = String.fromCharCode(65 + blokIndex);
@@ -388,7 +468,7 @@ async function bangunDenahJenisMakam(
   const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
   for (const cell of denah?.cells ?? []) {
     const cleared = spec.kosong
-      ? await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tidak_tersedia", reason: "Dipesan lebih dulu (contoh data)" })
+      ? await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tidak_tersedia", reason: `${alasan}: Dipesan lebih dulu (contoh data)` })
       : await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tersedia" });
     if (!cleared.ok) return { ok: false, reason: `petak: ${cleared.reason}` };
   }
@@ -396,14 +476,14 @@ async function bangunDenahJenisMakam(
 }
 
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */
-async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni: string, spec: ContohLokasiSpec): Promise<{ ok: true; id: string } | Gagal> {
+async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; id: string } | Gagal> {
   const { lokasi, tariffs, fieldwork, inventory } = modul;
 
   const dibuat = await lokasi.createLokasiMitra(admin, { name: spec.name, pengelolaName: spec.pengelolaName, address: spec.address, city: spec.city });
   if (!dibuat.ok) return { ok: false, reason: `lokasi: ${dibuat.reason}` };
   const lokasiId = dibuat.lokasiMitra.id;
 
-  const adminLokasi = await undangAdminLokasi(modul, admin, lokasiId, spec);
+  const adminLokasi = await undangAdminLokasi(modul, admin, lokasiId, spec, alasan);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
 
   const agreement = await lokasi.uploadAgreement(admin, lokasiId, { scan: { body: scanPerjanjian, contentType: "application/pdf" }, signedOn: hariIni });
@@ -435,7 +515,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
       name: jm.name,
       description: jm.description,
       tariff: { hargaHakPakai: jm.hargaHakPakai, tenure: jm.tenure, hargaPerpanjangan: jm.hargaPerpanjangan, effectiveOn: hariIni },
-      reason: null,
+      reason: alasan,
     });
     if (!created.ok) return { ok: false, reason: `jenis makam ${jm.name}: ${created.reason}` };
     jenisMakamIds.push(created.jenisMakam.id);
@@ -446,7 +526,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
         tenure: jm.tenure,
         hargaPerpanjangan: jm.hargaPerpanjangan,
         effectiveOn: jm.hargaBaru.effectiveOn,
-        reason: null,
+        reason: alasan,
       });
       if (!scheduled.ok) return { ok: false, reason: `harga baru ${jm.name}: ${JSON.stringify(scheduled)}` };
     }
@@ -455,7 +535,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
     biayaPemakaman: spec.biayaPemakaman,
     biayaPemakamanTumpang: spec.biayaPemakamanTumpang,
     effectiveOn: hariIni,
-    reason: null,
+    reason: alasan,
   });
   if (!pemakaman.ok) return { ok: false, reason: `biaya pemakaman: ${pemakaman.reason}` };
 
@@ -463,11 +543,11 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
   // (by this command or another seed) and reused, never given a second version.
   const platformSudahAda = await tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now());
   if (!platformSudahAda) {
-    const platform = await tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: BIAYA_LAYANAN_PLATFORM, effectiveOn: hariIni, reason: null });
+    const platform = await tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: BIAYA_LAYANAN_PLATFORM, effectiveOn: hariIni, reason: alasan });
     if (!platform.ok) return { ok: false, reason: `biaya layanan platform: ${platform.reason}` };
   }
 
-  const checked = await tariffs.markTariffsChecked(admin, lokasiId, { reason: null });
+  const checked = await tariffs.markTariffsChecked(admin, lokasiId, { reason: alasan });
   if (!checked.ok) return { ok: false, reason: `tarif diperiksa: ${JSON.stringify(checked)}` };
   const fakta = await tariffs.asStaff(admin).tariffsChecked(lokasiId);
   const published = await lokasi.publish(admin, lokasiId, { tariffsChecked: fakta && { changedSinceCheck: fakta.changedSinceCheck } });
@@ -486,7 +566,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
   if (!kebijakan.ok) return { ok: false, reason: `kebijakan: ${kebijakan.reason}` };
 
   for (const [index, jm] of spec.jenisMakam.entries()) {
-    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, index, jenisMakamIds[index], jm);
+    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, index, jenisMakamIds[index], jm, alasan);
     if (!built.ok) return { ok: false, reason: `denah ${jm.name}: ${built.reason}` };
   }
 
