@@ -451,54 +451,64 @@ function GrupKartuTunggal({
 }) {
   return (
     <li>
-      <div
-        role="radio"
-        aria-checked={dipilih}
-        // Named explicitly, not from its whole subtree's content: that subtree also
-        // carries "Lihat lokasi" and a Kontak Siaga phone number, neither of them
-        // part of what this radio is choosing.
-        aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
-        tabIndex={0}
-        onClick={() => onPilih(kartu)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onPilih(kartu);
-          }
-        }}
-        className={cn(
-          "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
-          dipilih ? "border-primary ring-1 ring-primary" : "border-border",
-        )}
-      >
-        <div className="flex gap-4">
-          <FotoLokasi url={grup.photoUrl} />
-          <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
-              <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
-              <p className="text-small text-muted-foreground">
-                {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
-              </p>
+      {/*
+        The same radiogroup semantics its "banyak" sibling gives its Jenis
+        Makam list, just with the one option this Lokasi Mitra has: a named
+        group, one radio inside it. `contents` on both wrappers keeps them
+        out of the box model entirely, so the card looks exactly as it did.
+      */}
+      <ul role="radiogroup" aria-label={`Jenis Makam di ${grup.lokasiName}`} className="contents">
+        <li className="contents">
+          <div
+            role="radio"
+            aria-checked={dipilih}
+            // Named explicitly, not from its whole subtree's content: that subtree also
+            // carries "Lihat lokasi" and a Kontak Siaga phone number, neither of them
+            // part of what this radio is choosing.
+            aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
+            tabIndex={0}
+            onClick={() => onPilih(kartu)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onPilih(kartu);
+              }
+            }}
+            className={cn(
+              "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
+              dipilih ? "border-primary ring-1 ring-primary" : "border-border",
+            )}
+          >
+            <div className="flex gap-4">
+              <FotoLokasi url={grup.photoUrl} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                <div className="min-w-0">
+                  <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
+                  <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
+                  <p className="text-small text-muted-foreground">
+                    {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
+                  </p>
+                </div>
+                <div className="sm:text-right">
+                  <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
+                  <p className="text-caption text-muted-foreground">semua biaya</p>
+                </div>
+              </div>
+              <RadioDot dipilih={dipilih} />
             </div>
-            <div className="sm:text-right">
-              <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
-              <p className="text-caption text-muted-foreground">semua biaya</p>
-            </div>
+
+            <KonfirmasiPromise grup={grup} />
+
+            <Link
+              href={`/lokasi/${grup.lokasiId}`}
+              onClick={(event) => event.stopPropagation()}
+              className="inline-block self-start text-small font-medium text-brand underline-offset-2 hover:underline"
+            >
+              Lihat lokasi
+            </Link>
           </div>
-          <RadioDot dipilih={dipilih} />
-        </div>
-
-        <KonfirmasiPromise grup={grup} />
-
-        <Link
-          href={`/lokasi/${grup.lokasiId}`}
-          onClick={(event) => event.stopPropagation()}
-          className="inline-block self-start text-small font-medium text-brand underline-offset-2 hover:underline"
-        >
-          Lihat lokasi
-        </Link>
-      </div>
+        </li>
+      </ul>
     </li>
   );
 }
