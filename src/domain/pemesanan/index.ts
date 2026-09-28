@@ -188,7 +188,12 @@ export interface Pemesanan {
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananOrder | null>;
   /** Every Pemesanan Makam of that Akun, newest first (Akun Saya's Pesanan tab, ticket 27). */
   pesananSaya(pemesan: { accountId: string }): Promise<PemesananOrder[]>;
-  /** The Bukti Pemesanan of a Hak Pakai's own order(s) (Akun Saya's Makam tab, ticket 27). */
+  /**
+   * The Bukti Pemesanan of a Hak Pakai's own order(s) (Akun Saya's Makam tab,
+   * ticket 27). No actor: the caller must already know `hakPakaiId` is the
+   * asking Akun's own (see the doc comment on `buktiUntukHakPakai` in
+   * `./reads.ts` for the full contract, same as `inventory.hakPakaiById`).
+   */
   buktiUntukHakPakai(hakPakaiId: string): Promise<{ id: string; nomor: string; link: string }[]>;
   /**
    * That Lokasi's own Admin Lokasi confirms an order: the cleared Tersedia

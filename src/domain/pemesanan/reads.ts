@@ -199,6 +199,17 @@ async function alternatifOf(
  * later ticket's Ganti Pemegang Hak or Perpanjangan may add a further order (and
  * a further document) under the same Hak Pakai, and this list is that
  * extension point.
+ *
+ * **No actor, and deliberately so — the same contract as
+ * `inventory.hakPakaiById`**: whose Hak Pakai this is is not re-checked here.
+ * The caller must already have established that `hakPakaiId` is the asking
+ * Akun's own, which Akun Saya's Makam tab does by reading it back from
+ * `inventory.makamKeluargaSaya({ email })` before ever calling this — never
+ * from a request parameter or another Akun's page. A Pemesanan module read
+ * cannot check that itself: whose email is recorded against a Hak Pakai is
+ * Inventory's own fact (`inventory_pemegang_hak`), and Pemesanan does not read
+ * another module's tables (AGENTS.md). If a second caller is ever added, it
+ * must carry the same guarantee before calling this.
  */
 export async function buktiUntukHakPakai(
   deps: Pick<PemesananDeps, "db" | "billing">,

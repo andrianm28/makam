@@ -4,20 +4,19 @@
  * consent to give) through a registry other tickets add to."
  *
  * This is the registry: a pure function over one small summary per order, built
- * from the Pemesanan and Pengurusan modules' own reads (never a domain rule of
- * its own — no business decision is made here, only which of an order's own
- * facts deserves a row). A later ticket adds a further provider the same way:
- * one more `if` here, or a further field on `RingkasanTindakan` if the fact does
- * not exist on an order yet.
+ * from the Pemesanan and Pengurusan modules' own reads. Whether a fact deserves
+ * a row is decided here (unpaid, missing, waiting), but *what counts as* one of
+ * those facts is never decided here: "does this Tagihan still need paying" is
+ * Billing's own classification (`tagihanPerluDibayar`), read and never
+ * reimplemented. A later ticket adds a further provider the same way: one more
+ * `if` here, calling its owning module's own classification, or a further field
+ * on `RingkasanTindakan` if the fact does not exist on an order yet.
  *
  * Content, not domain data: no amount is written here, and an item's wording
  * never repeats a number the order page itself may have moved on from — it
  * names the order and sends the family to it.
  */
-import type { TagihanStatus } from "@/domain/billing";
-
-/** Every Tagihan status that still needs the family's money. */
-const TAGIHAN_PERLU_DIBAYAR: readonly TagihanStatus[] = ["belum_dibayar", "lewat_jatuh_tempo"];
+import { tagihanPerluDibayar, type TagihanStatus } from "@/domain/billing";
 
 /** One order's own facts, as much as a Perlu Tindakan row is built from, whatever kind of order it is. */
 export interface RingkasanTindakan {
@@ -50,7 +49,7 @@ export interface PerluTindakanItem {
 export function perluTindakanDariPesanan(daftar: readonly RingkasanTindakan[]): PerluTindakanItem[] {
   const item: PerluTindakanItem[] = [];
   for (const satu of daftar) {
-    if (satu.tagihan && TAGIHAN_PERLU_DIBAYAR.includes(satu.tagihan.status)) {
+    if (satu.tagihan && tagihanPerluDibayar(satu.tagihan.status)) {
       item.push({
         id: `tagihan:${satu.nomor}`,
         judul: `Tagihan pesanan ${satu.nomor} belum dibayar`,
