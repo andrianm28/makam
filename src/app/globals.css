@@ -298,10 +298,13 @@
   --sidebar-border: oklch(0.905 0.012 100);
   --sidebar-ring: var(--ring);
 
-  --elevation-xs: 0 1px 2px oklch(0.37 0.044 164 / 0.05);
-  --elevation-sm: 0 1px 2px oklch(0.37 0.044 164 / 0.06), 0 1px 3px oklch(0.37 0.044 164 / 0.04);
-  --elevation-md: 0 6px 16px -4px oklch(0.37 0.044 164 / 0.1), 0 2px 4px oklch(0.37 0.044 164 / 0.04);
-  --elevation-lg: 0 20px 44px -10px oklch(0.37 0.044 164 / 0.18), 0 4px 10px oklch(0.37 0.044 164 / 0.05);
+  /* All Forest-tinted: oklch(0.373 0.044 164) is --forest (#29483a) itself, kept
+     as the same literal here (and in --elevation-sticky below) so there is one
+     source of truth for the colour, only the alpha and offsets vary. */
+  --elevation-xs: 0 1px 2px oklch(0.373 0.044 164 / 0.05);
+  --elevation-sm: 0 1px 2px oklch(0.373 0.044 164 / 0.06), 0 1px 3px oklch(0.373 0.044 164 / 0.04);
+  --elevation-md: 0 6px 16px -4px oklch(0.373 0.044 164 / 0.1), 0 2px 4px oklch(0.373 0.044 164 / 0.04);
+  --elevation-lg: 0 20px 44px -10px oklch(0.373 0.044 164 / 0.18), 0 4px 10px oklch(0.373 0.044 164 / 0.05);
   /* Forest at 20% (public-site prototype); the public site is held to light, so
      this has no dark-mode override. */
   --elevation-sticky: 0 -8px 24px -12px oklch(0.373 0.044 164 / 0.2);

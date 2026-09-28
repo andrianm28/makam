@@ -17,6 +17,7 @@ import {
   ToiletIcon,
 } from "lucide-react";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
+import { FilterChip } from "@/components/makam/filter-chip";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type TerencanaQuery, type UnitTerencana } from "@/domain/pemesanan";
@@ -140,36 +141,36 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
       </div>
       <div className="flex flex-col gap-3">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Kota">
-          <Chip on={filter.kota === null} href={terencanaPath({ ...filter, kota: null })}>
+          <FilterChip href={terencanaPath({ ...filter, kota: null })} selected={filter.kota === null}>
             Semua kota
-          </Chip>
+          </FilterChip>
           {kotaList.map((nama) => (
-            <Chip key={nama} on={filter.kota === nama} href={terencanaPath({ ...filter, kota: nama })}>
+            <FilterChip key={nama} href={terencanaPath({ ...filter, kota: nama })} selected={filter.kota === nama}>
               {nama}
-            </Chip>
+            </FilterChip>
           ))}
         </div>
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Harga dan fasilitas">
           {HARGA_BANDS.map((band) => (
-            <Chip
+            <FilterChip
               key={band.key}
-              on={filter.harga === band.key}
               href={terencanaPath({ ...filter, harga: filter.harga === band.key ? null : band.key })}
+              selected={filter.harga === band.key}
             >
               {band.label}
-            </Chip>
+            </FilterChip>
           ))}
           <span className="mx-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
           {filterFasilitas.map((nilai) => {
             const aktif = filter.fasilitas.includes(nilai);
             return (
-              <Chip
+              <FilterChip
                 key={nilai}
-                on={aktif}
                 href={terencanaPath({ ...filter, fasilitas: aktif ? filter.fasilitas.filter((satu) => satu !== nilai) : [...filter.fasilitas, nilai] })}
+                selected={aktif}
               >
                 {lokasiFacilities[nilai] ?? nilai}
-              </Chip>
+              </FilterChip>
             );
           })}
         </div>
@@ -241,21 +242,6 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
         </div>
       </div>
     </li>
-  );
-}
-
-function Chip({ on, href, children }: { on: boolean; href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      aria-current={on ? "true" : undefined}
-      className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-body font-medium whitespace-nowrap ${
-        on ? "border-primary bg-primary text-primary-foreground" : "border-border-strong bg-card hover:bg-accent"
-      }`}
-    >
-      {on ? <Check className="size-4" aria-hidden /> : null}
-      {children}
-    </Link>
   );
 }
 

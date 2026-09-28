@@ -227,7 +227,7 @@ makam compositions (`src/components/makam/`):
 | `ThemeProvider` | next-themes, with the public pages held to light. |
 | `StaffToaster` | The staff area's Sonner toast host (`src/app/staf/layout.tsx` mounts it, so every staff form can report its result); the public pages are held to light and get none. |
 | `SiteFrame`, `SiteHeader`, `SiteFooter`, `PublicNavList`, `CsLink`, `ContentPage` | The public site's frame and its written pages' own frame (see The public site shell). |
-| `FilterChip` | A public-site filter chip: a plain link (shareable URL, no client JS), selected state in Forest with a check. Always at least `--touch-target` tall. Used on Daftar Lokasi; the booking wizards still carry their own older copies (follow-up to move them here). |
+| `FilterChip` | A public-site filter chip: a plain link (shareable URL, no client JS), selected state in Forest with a check. Always at least `--touch-target` tall. Used on Daftar Lokasi and the Saat Duka and Pemesanan Terencana wizards' link filters; Saat Duka's `ingatKota` city filter stays its own Button-in-form (it submits a Server Action, not a link). |
 
 ## The public site shell
 
