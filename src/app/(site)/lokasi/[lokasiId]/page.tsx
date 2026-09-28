@@ -133,6 +133,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   const tersediaByJenisMakam = new Map(ketersediaan.map((row) => [row.jenisMakamId, row.count]));
   const mapsQuery = mapsQueryFor(profile);
   const dikunjungi = profile.kunjunganVerifikasi ? formatBulanTahun(profile.kunjunganVerifikasi.visitedOn) : null;
+  // The photo mosaic captions the exact day, as the prototype's per-photo dates did; the real Kunjungan
+  // Verifikasi records one day for every photo, so every caption here reads the same, unlike the mock's.
+  const dikunjungiFoto = profile.kunjunganVerifikasi ? formatTanggalPanjang(profile.kunjunganVerifikasi.visitedOn) : null;
   const pesanHref = `/pesan-makam/saat-duka?lokasiId=${profile.id}`;
   const [mainPhoto, ...restPhotos] = photoUrls;
 
@@ -196,9 +199,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
             {/* Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={mainPhoto} alt={`Foto lokasi ${profile.name}`} className="h-full w-full object-cover" />
-            {dikunjungi ? (
+            {dikunjungiFoto ? (
               <figcaption className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1 text-caption font-medium text-foreground">
-                Foto kunjungan {dikunjungi}
+                Foto kunjungan {dikunjungiFoto}
               </figcaption>
             ) : null}
           </figure>
@@ -208,9 +211,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 <figure key={url} className="relative aspect-[4/3] overflow-hidden rounded-2xl md:aspect-auto md:min-h-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Foto lokasi ${profile.name} ${index + 2}`} className="h-full w-full object-cover" />
-                  {dikunjungi ? (
+                  {dikunjungiFoto ? (
                     <figcaption className="absolute bottom-2 left-2 hidden rounded-full bg-card/90 px-2 py-0.5 text-caption text-foreground sm:block">
-                      {dikunjungi}
+                      {dikunjungiFoto}
                     </figcaption>
                   ) : null}
                 </figure>
