@@ -63,6 +63,7 @@ import {
   type PencairanLokasi,
   type PencairanMitraJasa,
 } from "./reads";
+import { batalkanPembayaranLangsung, type BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 import { jalankanPencairan, tahanPencairan, type TahanPencairanResult } from "./run";
 import {
   buktiPencairanByLink,
@@ -95,6 +96,7 @@ export type { Penerima } from "./penerima";
 export type { BarisItemPencairan, BarisPencairan, BarisPotongan } from "./baca";
 export type { BuktiPencairan, DokumenBuktiPencairan, KirimBuktiPencairan, TerbitkanBuktiInput, TerbitkanBuktiResult } from "./transfer";
 export type { BarisPotonganUmum, CatatPotonganInput, CatatPotonganLunasResult, CatatPotonganResult } from "./potongan";
+export type { BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
@@ -152,6 +154,13 @@ export interface Payouts {
   terbitkanBuktiPencairan(by: Actor, input: TerbitkanBuktiInput): Promise<TerbitkanBuktiResult>;
   /** Admin Platform overrides what one item pays after a Keluhan, with a note. */
   turunkanJumlahPencairan(by: Actor, input: { itemId: string; amount: number; catatan: string }): Promise<TurunkanJumlahResult>;
+  /**
+   * Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra" record
+   * (ticket 30's AC 2): the platform-fee Potongan it raised is cancelled (or,
+   * if the tick has not run yet, nothing has been raised at all), and the
+   * order's ordinary tariff Pencairan is created on the next tick instead.
+   */
+  batalkanPembayaranLangsung(by: Actor, input: { tagihanId: string }): Promise<BatalkanPembayaranLangsungResult>;
   /**
    * A share the partner agreed to bear on an order (ticket 30), or a refund
    * netted from the partner (ticket 31), takes off that order's Pencairan. The
@@ -240,6 +249,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     tahanPencairan: (by, input) => tahanPencairan(runDeps, by, input),
     terbitkanBuktiPencairan: (by, input) => terbitkanBuktiPencairan(transferDeps, by, input),
     turunkanJumlahPencairan: (by, input) => turunkanJumlahPencairan(itemDeps, by, input),
+    batalkanPembayaranLangsung: (by, input) => batalkanPembayaranLangsung(potonganDeps, by, input),
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),

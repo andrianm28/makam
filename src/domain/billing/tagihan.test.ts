@@ -65,6 +65,7 @@ describe("issuing a Tagihan", () => {
       replacesNomorTagihan: null,
       replacedByNomorTagihan: null,
       cancelledReason: null,
+      hargaKhususPorsiMitra: null,
     });
   });
 
@@ -175,6 +176,10 @@ describe("an issued Tagihan is immutable", () => {
       "batalkanTagihan",
       "bayar",
       "buktiPemesananById",
+      // The manual and direct payment paths (ticket 30): both settle through
+      // `recordPayment` and record their own Entri Audit, never a line change.
+      "catatPembayaranLangsung",
+      "catatPembayaranManual",
       "documentByLink",
       "documentPdf",
       "issueBuktiPemesanan",
@@ -192,6 +197,9 @@ describe("an issued Tagihan is immutable", () => {
       // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
       // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).
       "tagihanRetribusiLunas",
+      // A Harga Khusus (ticket 30) is `reissueTagihan` plus a negative line: a
+      // cancel-and-reissue, never a line change on the Tagihan it replaces.
+      "tetapkanHargaKhusus",
       "within",
     ]);
   });
@@ -267,6 +275,29 @@ describe("an issued Tagihan is immutable", () => {
     });
 
     expect(reissued).toMatchObject({ ok: true, tagihan: { dueAt: wib("2026-10-04 10:00") } });
+  });
+
+  it("a pay-first Tagihan already past its due date cannot be reissued, even before the lapse tick has run (ticket 30: a reissue never revives a lapsed bill)", async () => {
+    const { billing, clock } = await billingWithOperatorSettings(db);
+    clock.set(wib("2026-10-01 10:00"));
+    const perpanjangan = {
+      moment: { kind: "perpanjangan" },
+      addressee: { name: "Ahmad Fauzi", phoneNumber: "081298765432", accountId: null },
+      nomorPemesanan: null,
+      placeName: "Makam Wakaf Al-Ikhlas",
+      lines: [{ kind: "perpanjangan", label: "Perpanjangan Makam", amount: rp(750_000), provider: LOKASI }],
+    } satisfies IssueTagihanInput;
+    const original = await billing.issueTagihan(perpanjangan);
+    if (!original.ok) throw new Error("not issued");
+    // Due 3×24 h after issue: exactly at the due date, before the lapse tick runs.
+    clock.set(wib("2026-10-04 10:00"));
+
+    expect(
+      await billing.reissueTagihan(original.tagihan.id, {
+        lines: [...perpanjangan.lines, { kind: "penyesuaian_harga_khusus", amount: rp(250_000) }],
+      }),
+    ).toEqual({ ok: false, reason: "tagihan_tidak_bisa_diganti" });
+    expect(await billing.tagihan(original.tagihan.id)).toMatchObject({ status: "belum_dibayar" });
   });
 
   it("a Tagihan that is already Dibatalkan cannot be reissued, and an unknown one is not found", async () => {

@@ -113,7 +113,7 @@ export interface BarisPotonganUmum {
   alasanKind: PotonganAlasanKind;
   alasan: string;
   tautan: string | null;
-  status: "berjalan" | "perlu_offline" | "terpotong" | "lunas";
+  status: "berjalan" | "perlu_offline" | "terpotong" | "lunas" | "dibatalkan";
   /** The instant it became an offline request (60 days), or null. */
   perluOfflinePada: Date | null;
   /** When it was settled: netted in a Bukti Pencairan, or paid offline. */

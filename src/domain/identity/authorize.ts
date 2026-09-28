@@ -176,7 +176,16 @@ export type Action =
    * (the operation that starts a fixed-term Hak Pakai's tenure clock). An Admin
    * Platform does it only through that Lokasi, never for it (ticket 25).
    */
-  | "pemakaman.catat";
+  | "pemakaman.catat"
+  /** Admin Platform marks a Tagihan paid by hand (Transfer manual / Tunai), with proof (ticket 30). */
+  | "tagihan.catat_pembayaran_manual"
+  /**
+   * The Admin Lokasi of the Tagihan's own Lokasi Mitra records "Dibayar
+   * langsung ke Lokasi Mitra", with proof (ticket 30).
+   */
+  | "tagihan.catat_pembayaran_langsung"
+  /** Admin Platform sets a Harga Khusus on an order: a reason, and a reissued Tagihan with a negative line (ticket 30). */
+  | "tagihan.tetapkan_harga_khusus";
 
 /** What the action is done to. */
 export type Resource =
@@ -203,7 +212,9 @@ export type Resource =
   /** The Setor Retribusi rows (Admin Platform, and the Petugas Lapangan who pays in person). */
   | { kind: "setor_retribusi" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
-  | { kind: "pemesanan_makam"; accountId: string };
+  | { kind: "pemesanan_makam"; accountId: string }
+  /** A Tagihan acted on directly by staff (manual payment, Harga Khusus): Admin Platform's own money work, not a Lokasi Mitra's. */
+  | { kind: "tagihan" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -306,6 +317,11 @@ export function pengurusanTpuResource(): Resource {
 /** The Setor Retribusi rows: the Tier 3 queue and the recording of a payment to the Pemda. */
 export function setorRetribusiResource(): Resource {
   return { kind: "setor_retribusi" };
+}
+
+/** A Tagihan acted on directly by staff: a manual payment or a Harga Khusus (Admin Platform's own money work). */
+export function tagihanResource(): Resource {
+  return { kind: "tagihan" };
 }
 
 export type Authorization =
@@ -499,6 +515,16 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "pemakaman.catat":
       // Only the Lokasi Mitra's own Admin Lokasi records a burial on its ground
       // (spec, Inventory > Operations); Admin Platform never does it for it.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "tagihan.catat_pembayaran_manual":
+    case "tagihan.tetapkan_harga_khusus":
+      // Both are Admin Platform's own money work on a Tagihan directly (spec,
+      // Billing > Payment): a manual transfer/tunai mark, or a Harga Khusus.
+      return resource.kind === "tagihan" && holds("admin_platform") ? allowed : denied;
+    case "tagihan.catat_pembayaran_langsung":
+      // Only the Tagihan's own Lokasi Mitra's Admin Lokasi records that the
+      // family paid it directly; Admin Platform never records this one on a
+      // partner's behalf (only reverses it, through pencairan.kelola).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

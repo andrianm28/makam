@@ -31,6 +31,8 @@ export interface BuktiPembayaran {
   header: DocumentHeader;
   /** The Tagihan it settles (whose lines it repeats), as it stands now. */
   tagihan: Tagihan;
+  /** The private FileStore key of the uploaded proof (manual, tunai, direct payment); null otherwise. */
+  proofKey: string | null;
 }
 
 export interface RecordPaymentInput {
@@ -38,6 +40,8 @@ export interface RecordPaymentInput {
   reference: string | null;
   /** When the money was paid (e.g. the transfer's time on its proof); not in the future. Default: now. */
   paidAt?: Date;
+  /** The private FileStore key of an uploaded proof (manual, tunai, direct payment); null or omitted otherwise. */
+  proofKey?: string | null;
 }
 
 export type RecordPaymentResult =
@@ -75,7 +79,7 @@ export async function recordPayment(
   if (!header) return noHeader;
   const reference = input.reference?.trim() || null;
   const settled = await refusable(deps.db, (tx) =>
-    settleIn(tx, deps, tagihanId, { method: method.data, reference, header, paidAt: paidAt.data }, now),
+    settleIn(tx, deps, tagihanId, { method: method.data, reference, header, paidAt: paidAt.data, proofKey: input.proofKey ?? null }, now),
   );
   if (!settled.ok) return settled;
   return { ok: true, bukti: await buktiById(deps.db, settled.buktiId) };
@@ -103,6 +107,7 @@ async function readBukti(db: Database, where: SQL): Promise<BuktiPembayaran | nu
     reference: row.reference,
     header: headerSchema.parse(row.header),
     tagihan,
+    proofKey: row.proofKey,
   };
 }
 

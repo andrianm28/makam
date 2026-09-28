@@ -74,6 +74,12 @@ export interface Tagihan {
    * cancellation from losing a payment (ticket 24).
    */
   pengembalianDiminta: { jumlah: Rupiah; dimintaPada: Date } | null;
+  /**
+   * The share of a Harga Khusus reduction the Lokasi Mitra agreed to bear,
+   * entered when this Tagihan was reissued for one (ticket 30); null while
+   * none was entered. 0 means the Operator bears the whole reduction.
+   */
+  hargaKhususPorsiMitra: { amount: Rupiah; catatan: string } | null;
 }
 
 export interface IssueTagihanInput {
@@ -82,6 +88,8 @@ export interface IssueTagihanInput {
   nomorPemesanan: string | null;
   placeName: string | null;
   lines: NewTagihanLine[];
+  /** The partner share of a Harga Khusus reduction (ticket 30's `tetapkanHargaKhusus` only). */
+  hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null;
 }
 
 export type IssueRefusal =
@@ -199,6 +207,8 @@ async function issueIn(
       // A Rp 0 Tagihan (a Harga Khusus waiver) is Lunas at once.
       status: checked.total === 0 ? "lunas" : "belum_dibayar",
       paidAt: checked.total === 0 ? now : null,
+      hargaKhususPorsiMitra: input.hargaKhususPorsiMitra?.amount ?? null,
+      hargaKhususPorsiMitraCatatan: input.hargaKhususPorsiMitra?.catatan ?? null,
     })
     .returning({ id: tagihan.id, link: tagihan.link });
   await tx.insert(tagihanLine).values(
@@ -254,7 +264,7 @@ const REISSUABLE: readonly TagihanStatus[] = ["belum_dibayar", "lewat_jatuh_temp
 export async function reissueTagihan(
   deps: TagihanDeps,
   tagihanId: string,
-  input: { lines: NewTagihanLine[] },
+  input: { lines: NewTagihanLine[]; hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null },
   now: Date,
 ): Promise<ReissueTagihanResult> {
   const header = await currentHeader(deps.operatorSettings);
@@ -263,7 +273,13 @@ export async function reissueTagihan(
     if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
     const [old] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!old) return { ok: false, reason: "tidak_ditemukan" };
-    if (!REISSUABLE.includes(old.status)) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
+    // Immutability holds even a moment before the lapse tick runs: a pay-first
+    // Tagihan at or past its own due date has already lapsed in fact, whether or
+    // not the tick has caught up yet (spec, Billing: "a reissue never extends the
+    // time to pay"), so it is refused here exactly as `notPayableBecause` refuses
+    // a payment on it.
+    const lapsedInFact = old.kind === "pay_first" && old.dueAt <= now;
+    if (!REISSUABLE.includes(old.status) || lapsedInFact) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
     const { anchorAt, ...moment } = momentOf(old.moment);
     const reissued = await issueIn(
       tx,
@@ -275,6 +291,7 @@ export async function reissueTagihan(
         nomorPemesanan: old.nomorPemesanan,
         placeName: old.placeName,
         lines: input.lines,
+        hargaKhususPorsiMitra: input.hargaKhususPorsiMitra,
       },
       header,
       now,
@@ -412,6 +429,8 @@ async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promis
       row.pengembalianDimintaAt && row.pengembalianJumlah !== null
         ? { jumlah: row.pengembalianJumlah, dimintaPada: row.pengembalianDimintaAt }
         : null,
+    hargaKhususPorsiMitra:
+      row.hargaKhususPorsiMitra !== null ? { amount: row.hargaKhususPorsiMitra, catatan: row.hargaKhususPorsiMitraCatatan ?? "" } : null,
   };
 }
 

@@ -106,6 +106,7 @@ export {
   pengurusanTpuResource,
   semuaLokasiMitraResource,
   setorRetribusiResource,
+  tagihanResource,
   needsTotp,
   pengaturanOperatorResource,
   stafMenuResource,

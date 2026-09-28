@@ -2,7 +2,7 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects } from "@/composition/billing";
+import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
@@ -87,7 +87,25 @@ export function serverRuntime(): ServerRuntime {
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
-    const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError };
+    // `payoutsRef.current` is filled in once Payouts is composed below (it is
+    // composed *after* Billing, since it reads a Tagihan through it): Billing's
+    // own Harga Khusus path (ticket 30) only ever *calls*
+    // `kurangiPencairanPesanan` once a write happens, well after this module
+    // has finished loading, so the closure over a not-yet-filled box is safe.
+    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const billingComposition: BillingComposition = {
+      env,
+      db: database.db,
+      adapters,
+      operatorSettings,
+      reportError,
+      audit,
+      files: adapters.files,
+      kurangiPencairanPesanan: (tx, input) => {
+        if (!payoutsRef.current) throw new Error("Payouts is not composed yet: kurangiPencairanPesanan was called before startup finished");
+        return payoutsRef.current.kurangiPencairanPesanan(tx, input);
+      },
+    };
     const notifications = composeNotifications({
       env,
       db: database.db,
@@ -151,6 +169,9 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       reportError,
     });
+    // Fills the lazy reference `billingComposition.kurangiPencairanPesanan`
+    // closed over above, now that Payouts exists to call.
+    payoutsRef.current = payouts;
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.
     const pengurusan = createPengurusan({

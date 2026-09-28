@@ -90,6 +90,61 @@ describe("what a Pencairan item is worth", () => {
     ]);
   });
 
+  it("is lowered by a Harga Khusus partner share entered before the Tagihan was paid: applied when the item is created, oldest item first (ticket 30)", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+    const konfirmasi = await konfirmasiPesanan(setup, fixture);
+
+    // No Pencairan item exists yet (the Tagihan is still unpaid): the share is
+    // only recorded on the reissued Tagihan here, and `trigger.ts` is what
+    // applies it once the item is actually created below.
+    const khusus = await setup.billing.tetapkanHargaKhusus(fixture.admin, {
+      tagihanId: konfirmasi.tagihanId,
+      amount: 3_000_000,
+      alasan: "Keluarga kurang mampu, disetujui manajer",
+      porsiMitra: 3_000_000,
+      catatanPorsiMitra: "Lokasi Mitra Bearing Rp 3.000.000 dari Harga Khusus",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+
+    await bayarTagihan(setup, khusus.tagihan.id);
+    await db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan: fixture.nomor, pemakamanAt: wib("2026-10-02 10:00") }));
+    await setup.payouts.tick();
+
+    const [row] = await setup.payouts.pencairanJatuhTempo();
+    expect(row?.amount).toBe(6_500_000);
+    const [run] = await setup.payouts.jalankanPencairan(fixture.admin);
+    expect(run?.items.map((item) => [item.kind, item.amount, item.catatanPenyesuaian])).toEqual([
+      ["harga_hak_pakai", 4_500_000, "Lokasi Mitra Bearing Rp 3.000.000 dari Harga Khusus"],
+      ["biaya_pemakaman", 2_000_000, null],
+    ]);
+  });
+
+  it("a Harga Khusus partner share that would empty an item entirely creates that item already cancelled, never at Rp 0 (ticket 30)", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+    const konfirmasi = await konfirmasiPesanan(setup, fixture);
+    // The Petak's own tariff is Rp 7.500.000; a Rp 9.000.000 partner share
+    // empties it completely and still has Rp 1.500.000 left for the next line.
+    const khusus = await setup.billing.tetapkanHargaKhusus(fixture.admin, {
+      tagihanId: konfirmasi.tagihanId,
+      amount: 9_000_000,
+      alasan: "Keringanan besar",
+      porsiMitra: 9_000_000,
+      catatanPorsiMitra: "Lokasi Mitra menanggung penuh",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+
+    await bayarTagihan(setup, khusus.tagihan.id);
+    await db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan: fixture.nomor, pemakamanAt: wib("2026-10-02 10:00") }));
+    await setup.payouts.tick();
+
+    const [row] = await setup.payouts.pencairanJatuhTempo();
+    expect(row?.amount).toBe(500_000);
+    const [run] = await setup.payouts.jalankanPencairan(fixture.admin);
+    expect(run?.items.map((item) => [item.kind, item.amount])).toEqual([["biaya_pemakaman", 500_000]]);
+  });
+
   it("is lowered by what Admin Platform overrides after a Keluhan, with the note that decision needs", async () => {
     const setup = payoutsOnTestDatabase(db);
     const order = await orderDue(setup);

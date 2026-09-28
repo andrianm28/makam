@@ -189,7 +189,8 @@ export const pencairanItem = pgTable(
  * netted again, and `bukti_pencairan_potongan.potongan_id` is unique, so that
  * is true in the database as well as in the code.
  */
-export const potonganStatuses = ["berjalan", "perlu_offline", "terpotong", "lunas"] as const;
+/** `dibatalkan` (ticket 30): a platform-fee Potongan of a "Dibayar langsung" record that Admin Platform reversed before it was netted or paid offline. */
+export const potonganStatuses = ["berjalan", "perlu_offline", "terpotong", "lunas", "dibatalkan"] as const;
 export type PotonganStatus = (typeof potonganStatuses)[number];
 
 /** Why a Lokasi Mitra owes the Operator, in the three ways the spec names them. */
@@ -342,6 +343,15 @@ export const pencairanPembayaran = pgTable("pencairan_pembayaran", {
   dibayarPada: at("dibayar_pada").notNull(),
   /** Billing's PaymentMethod as the effect was handed it: "dibayar langsung" owes no tariff Pencairan. */
   metode: jsonb("metode").notNull(),
+  /**
+   * Set when Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra"
+   * record (ticket 30's AC 2): null while it stands. Once set, the tick
+   * (`trigger.ts`) treats this order as an ordinary partner-paid one and
+   * creates its tariff Pencairan items instead of a platform-fee Potongan,
+   * whichever runs after — the row's own `metode` stays exactly as Billing
+   * handed it, so what actually happened is never rewritten.
+   */
+  dibayarLangsungDibatalkanPada: at("dibayar_langsung_dibatalkan_pada"),
 });
 
 /**
