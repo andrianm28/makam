@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Check, ChevronUp, Clock, MoonStar } from "lucide-react";
+import { FilterChip } from "@/components/makam/filter-chip";
 import { Button } from "@/components/ui/button";
 import { Progress } from "./progress";
 import { ingatKota } from "./actions";
@@ -193,16 +194,9 @@ function JenisFilter({ jenis, kembali, kota }: { jenis: JenisPilihan; kembali: s
   return (
     <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Jenis makam">
       {pilihan.map(([value, label]) => (
-        <Link key={value} href={hrefJenis(value, kembali, kota)} scroll={false} aria-current={jenis === value ? "true" : undefined}>
-          <Button
-            variant={jenis === value ? "default" : "outline"}
-            tabIndex={jenis === value ? 0 : -1}
-            className={cn("h-10 rounded-full px-4", jenis === value ? "" : "bg-card hover:bg-accent")}
-          >
-            {jenis === value ? <Check aria-hidden /> : null}
-            {label}
-          </Button>
-        </Link>
+        <FilterChip key={value} href={hrefJenis(value, kembali, kota)} selected={jenis === value} scroll={false}>
+          {label}
+        </FilterChip>
       ))}
     </div>
   );
@@ -218,7 +212,12 @@ function hrefJenis(value: JenisPilihan, kembali: string, kota: string | null): s
   return query === "" ? "/pesan-makam/saat-duka" : `/pesan-makam/saat-duka?${query}`;
 }
 
-/** "Semua kota" and every city, as one filter: each a form that remembers the choice for the next visit. */
+/**
+ * "Semua kota" and every city, as one filter: each a form submitting `ingatKota`
+ * (AGENTS.md's own exception — it writes the visitor's city-preference cookie),
+ * not a plain link, so it cannot be a `FilterChip` (a `<Link>` only); kept as its
+ * own Button-in-form, styled to match FilterChip's look.
+ */
 function KotaFilter({ semuaKota, kota, kembali, jenis }: { semuaKota: string[]; kota: string | null; kembali: string; jenis: JenisPilihan }) {
   const pilihan = [null, ...semuaKota];
   return (
@@ -231,7 +230,7 @@ function KotaFilter({ semuaKota, kota, kembali, jenis }: { semuaKota: string[]; 
           <Button
             type="submit"
             variant={kota === satu ? "default" : "outline"}
-            className={cn("h-10 rounded-full px-4", kota === satu ? "" : "bg-card hover:bg-accent")}
+            className={cn("h-10 rounded-full px-4", kota === satu ? "" : "border-border-strong bg-card hover:bg-accent")}
           >
             {kota === satu ? <Check aria-hidden /> : null}
             {satu ?? "Semua kota"}
