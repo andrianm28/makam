@@ -209,9 +209,11 @@ export interface Pemesanan {
 }
 
 export function createPemesanan(deps: PemesananDeps): Pemesanan {
-  // No Pencairan has been issued for any order until the Payouts module exists to issue one
-  // (ticket 32), so a share is never frozen before then; see `PemesananDeps.pencairanTerbit`.
-  const depsLengkap: PemesananDeps = { pencairanTerbit: async () => false, ...deps };
+  // No default for `pencairanTerbit`: the Payouts module (ticket 32) owns that answer, and a
+  // default that guessed "nothing has been paid out" would turn the partner-share freeze off
+  // silently the day it is needed. Absent means unknown, and a share is refused (see
+  // `tambahHargaKhusus`).
+  const depsLengkap: PemesananDeps = deps;
   return {
     pilihanSaatDuka: (query) => pilihanSaatDuka(depsLengkap, query),
     placeSaatDuka: (input) => placeSaatDuka(depsLengkap, input),

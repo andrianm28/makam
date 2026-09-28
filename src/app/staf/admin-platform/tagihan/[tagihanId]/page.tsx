@@ -159,7 +159,9 @@ export default async function TagihanPage({ params }: PageProps<"/staf/admin-pla
               Pesanan {tagihan.nomorPemesanan} di {pemesananOrder.lokasi.name}
               {pemesananOrder.pembayaran.kind === "langsung_ke_lokasi_mitra"
                 ? ". Pembayarannya diterima langsung oleh Lokasi Mitra, jadi tidak ada tarif Pencairan untuk pesanan ini dan biaya layanan platform menjadi Potongan."
-                : "."}
+                : pemesananOrder.pembayaran.kind === "tanpa_pembayaran"
+                  ? ". Seluruh Tagihannya diberikan sebagai Harga Khusus, jadi tidak ada uang yang masuk ke Operator: tidak ada tarif Pencairan dan tidak ada Potongan untuk pesanan ini."
+                  : "."}
               {pemesananOrder.partnerShare > 0
                 ? ` Lokasi Mitra menanggung ${formatRupiah(pemesananOrder.partnerShare)} dari pengurangan sebelumnya.`
                 : ""}

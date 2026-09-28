@@ -23,11 +23,41 @@ const terencana: IssueTagihanInput = {
   ],
 };
 
-async function issued(setup: Awaited<ReturnType<typeof billingWithOperatorSettings>>) {
-  const result = await setup.billing.issueTagihan(terencana);
+async function issued(setup: Awaited<ReturnType<typeof billingWithOperatorSettings>>, input: IssueTagihanInput = terencana) {
+  const result = await setup.billing.issueTagihan(input);
   if (!result.ok) throw new Error(`not issued: ${result.reason}`);
   return result.tagihan;
 }
+
+describe("the method a Tagihan was paid with", () => {
+  it("is null until the Tagihan is paid, and the payment's own method once it is", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+
+    expect(await setup.billing.metodePembayaran(tagihan.id)).toBeNull();
+    await setup.billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null });
+
+    expect(await setup.billing.metodePembayaran(tagihan.id)).toEqual({ kind: "tunai" });
+  });
+
+  it("a Rp 0 Tagihan is Lunas at issue and says so: no money moved, which is not a payment", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const waived = await issued(setup, {
+      ...terencana,
+      lines: [...terencana.lines, { kind: "penyesuaian_harga_khusus", amount: rp(5_150_000) }],
+    });
+
+    expect(waived.total).toBe(0);
+    expect(await setup.billing.metodePembayaran(waived.id)).toEqual({ kind: "tanpa_pembayaran" });
+  });
+
+  it("an unknown Tagihan has no method, and a bad id never reaches the database", async () => {
+    const setup = await billingWithOperatorSettings(db);
+
+    expect(await setup.billing.metodePembayaran("00000000-0000-4000-8000-000000000000")).toBeNull();
+    expect(await setup.billing.metodePembayaran("bukan-uuid")).toBeNull();
+  });
+});
 
 describe("the Tagihan page", () => {
   it("is found by its unguessable link; any other link finds nothing", async () => {

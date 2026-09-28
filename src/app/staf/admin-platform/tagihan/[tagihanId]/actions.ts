@@ -155,6 +155,8 @@ function hargaKhususMessage(reason: string, nomorPemesanan: string): string {
       return "Bagian yang ditanggung Lokasi Mitra tidak boleh melebihi pengurangannya.";
     case "partner_share_sudah_terkunci":
       return "Pencairan untuk pesanan ini sudah terbit, jadi bagian yang ditanggung Lokasi Mitra tidak bisa diubah lagi.";
+    case "partner_share_tidak_bisa_dicatat":
+      return "Bagian yang ditanggung Lokasi Mitra belum bisa dicatat: sistem belum tahu apakah Pencairan untuk pesanan ini sudah terbit. Kosongkan kolomnya dulu, atau catat bagiannya setelah Pencairan tersedia.";
     case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";

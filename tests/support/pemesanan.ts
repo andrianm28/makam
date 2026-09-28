@@ -75,6 +75,14 @@ export function pemesananOnTestDatabase(
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
 
 /**
+ * A stand-in for the Payouts module's own read, for a test that enters a partner
+ * share: the Payouts module is not built yet, and production supplies no read at
+ * all (a share is refused while the answer is unknown), so a test that needs the
+ * share recorded has to say that it stands in for it.
+ */
+export const belumAdaPencairan = { pencairanTerbit: async () => false };
+
+/**
  * What the fixtures below need from a setup: the modules, without the
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).

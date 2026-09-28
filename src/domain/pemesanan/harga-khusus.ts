@@ -71,7 +71,12 @@ export type TambahHargaKhususResult =
   /** A share larger than the reduction it shares. */
   | { ok: false; reason: "partner_share_melebihi_penyesuaian" }
   /** A Pencairan has already been issued for this order, so its share is frozen. */
-  | { ok: false, reason: "partner_share_sudah_terkunci" };
+  | { ok: false, reason: "partner_share_sudah_terkunci" }
+  /**
+   * Nothing can say whether a Pencairan was issued for this order, because the Payouts
+   * module does not exist yet (ticket 32), so a share is refused rather than assumed safe.
+   */
+  | { ok: false, reason: "partner_share_tidak_bisa_dicatat" };
 
 /**
  * Admin Platform sets a Harga Khusus on one order. The order's own Tagihan is
@@ -106,15 +111,17 @@ export async function tambahHargaKhusus(
   if (refusal) return refusal;
   if (!order.tagihanId) return { ok: false, reason: "tagihan_belum_ada" };
   const tagihanId = order.tagihanId;
-  // A share is agreed while the money is still with the Operator: once a Pencairan has been
-  // issued against it the Lokasi Mitra has been paid, and moving the share would change an
-  // amount already transferred (spec, Payouts). The read that says so belongs to the Payouts
-  // module and does not exist yet (ticket 32), so nothing supplies it and no order has been paid
-  // out; when Payouts lands it is wired here and nothing else changes. Until then the enforceable
-  // half of the rule holds on its own: a Harga Khusus needs a reissuable Tagihan, so no share is
-  // ever entered on an order that has already been paid.
-  if (share !== undefined && (await deps.pencairanTerbit?.(order.nomor))) {
-    return { ok: false, reason: "partner_share_sudah_terkunci" };
+  // A share is agreed while the money is still with the Operator: once a Pencairan has been issued
+  // against it the Lokasi Mitra has been paid, and moving the share would change an amount already
+  // transferred (spec, Payouts). So the rule **fails closed**: it needs the Payouts module's own read
+  // to say no (ticket 32), and with nothing to ask it says nothing — the share is refused rather
+  // than assumed safe, because the loss it would allow is the Lokasi Mitra being paid twice on a
+  // transfer already made. The composition root wires that read when Payouts exists; a test may
+  // supply a stand-in, and then the real rule applies. What holds meanwhile without any of that: a
+  // Harga Khusus needs a reissuable Tagihan, so no share is ever entered on an order already paid.
+  if (share !== undefined) {
+    if (!deps.pencairanTerbit) return { ok: false, reason: "partner_share_tidak_bisa_dicatat" };
+    if (await deps.pencairanTerbit(order.nomor)) return { ok: false, reason: "partner_share_sudah_terkunci" };
   }
 
   const tagihan = await deps.billing.tagihan(tagihanId);

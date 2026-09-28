@@ -170,6 +170,7 @@ describe("an issued Tagihan is immutable", () => {
       "documentByLink",
       "documentPdf",
       "issueTagihan",
+      "metodePembayaran",
       "nextDocumentNumber",
       "nextNomorPemesanan",
       "pembayaranPerluDitinjau",

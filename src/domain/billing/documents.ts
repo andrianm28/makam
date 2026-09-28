@@ -6,7 +6,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Rupiah } from "@/lib/rupiah";
 import type { FileStore } from "@/ports/file-store";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
-import { buktiPembayaran } from "./schema";
+import { buktiPembayaran, tagihan } from "./schema";
 import { notPayableBecause, settleIn, type NotPayable } from "./settlement";
 import {
   currentHeader,
@@ -118,6 +118,30 @@ export async function recordPaymentIn(
   );
   if (!settled.ok) return settled;
   return { ok: true, bukti: await buktiById(tx, settled.buktiId), settled: settled.settled };
+}
+
+/**
+ * The method a Tagihan's payment settled it with, or null while it has none
+ * (not Lunas, or no Bukti Pembayaran yet).
+ *
+ * This is a fact about the payment, not something a caller infers from the
+ * total: a Rp 0 Tagihan is Lunas at issue with the method `tanpa_pembayaran`,
+ * so **no money ever moved**, which is a different thing from a Tagihan the
+ * family paid. Whoever prices what is owed for an order (Payouts) has to be able
+ * to tell those apart, so the Bukti Pembayaran's own method is read rather than
+ * guessed at.
+ */
+export async function metodePembayaran(db: Database, tagihanId: string): Promise<PaymentMethod | null> {
+  if (!z.uuid().safeParse(tagihanId).success) return null;
+  const [row] = await db
+    .select({ status: tagihan.status, method: buktiPembayaran.method })
+    .from(tagihan)
+    .leftJoin(buktiPembayaran, eq(buktiPembayaran.tagihanId, tagihan.id))
+    .where(eq(tagihan.id, tagihanId))
+    .orderBy(asc(buktiPembayaran.paidAt))
+    .limit(1);
+  if (!row || row.status !== "lunas" || !row.method) return null;
+  return paymentMethodSchema.parse(row.method) as PaymentMethod;
 }
 
 /** A Bukti Pembayaran known to exist. */

@@ -12,6 +12,7 @@ import { actorOf, logIn } from "../../../tests/support/identity";
 import { cellsOf } from "../../../tests/support/inventory";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
+  belumAdaPencairan,
   orderSaatDuka,
   pemesananOnTestDatabase,
   saatDukaFixture,
@@ -100,7 +101,7 @@ describe("Admin Platform sets a Harga Khusus on an order", () => {
   });
 
   it("a non-zero partner share is kept on the order, with its note, for the Pencairan of that order", async () => {
-    const setup = pemesananOnTestDatabase(db);
+    const setup = pemesananOnTestDatabase(db, belumAdaPencairan);
     const fixture = await pesananTerkonfirmasi(setup);
     setup.clock.set(wib("2026-10-01 12:00"));
 
@@ -134,7 +135,7 @@ describe("Admin Platform sets a Harga Khusus on an order", () => {
   });
 
   it("a share without a note is refused, and so is one larger than the reduction it shares", async () => {
-    const setup = pemesananOnTestDatabase(db);
+    const setup = pemesananOnTestDatabase(db, belumAdaPencairan);
     const fixture = await pesananTerkonfirmasi(setup);
 
     expect(await setup.pemesanan.tambahHargaKhusus(fixture.admin, hargaKhusus(fixture.nomor, 2_000_000, { share: 500_000, note: "" }))).toEqual({
@@ -146,6 +147,23 @@ describe("Admin Platform sets a Harga Khusus on an order", () => {
     ).toEqual({ ok: false, reason: "partner_share_melebihi_penyesuaian" });
     // A share of nothing needs no note: that is the default, said out loud.
     expect((await setup.pemesanan.tambahHargaKhusus(fixture.admin, hargaKhusus(fixture.nomor, 2_000_000, { share: 0, note: "" }))).ok).toBe(true);
+    expect(await setup.pemesanan.pembayaranOrder(fixture.nomor)).toMatchObject({ partnerShare: 0, partnerShareNote: null });
+  });
+
+  it("a share is refused while nothing can say whether a Pencairan was issued: the rule about money that has left fails closed", async () => {
+    // The composition root of production wires no stand-in, because Payouts does not exist yet.
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananTerkonfirmasi(setup);
+    const sebelum = await setup.billing.tagihan(fixture.tagihanId);
+
+    const hasil = await setup.pemesanan.tambahHargaKhusus(
+      fixture.admin,
+      hargaKhusus(fixture.nomor, 2_000_000, { share: 500_000, note: "Lokasi Mitra mengiadakan sebagian" }),
+    );
+
+    expect(hasil).toEqual({ ok: false, reason: "partner_share_tidak_bisa_dicatat" });
+    // Nothing at all is written: not the Tagihan it would have replaced, not the share.
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toEqual(sebelum);
     expect(await setup.pemesanan.pembayaranOrder(fixture.nomor)).toMatchObject({ partnerShare: 0, partnerShareNote: null });
   });
 
@@ -232,7 +250,7 @@ describe("Admin Platform sets a Harga Khusus on an order", () => {
   });
 
   it("a second Harga Khusus adds its own Penyesuaian line, and a share agreed earlier stands unless a new one is entered", async () => {
-    const setup = pemesananOnTestDatabase(db);
+    const setup = pemesananOnTestDatabase(db, belumAdaPencairan);
     const fixture = await pesananTerkonfirmasi(setup);
     setup.clock.set(wib("2026-10-01 12:00"));
 
@@ -272,5 +290,21 @@ describe("Admin Platform sets a Harga Khusus on an order", () => {
     if (bukti?.type !== "bukti_pembayaran") throw new Error("no Bukti Pembayaran");
     expect(bukti.bukti.method).toEqual({ kind: "tanpa_pembayaran" });
     expect(bukti.bukti.tagihan.lines.at(-1)).toMatchObject({ label: "Penyesuaian Harga Khusus", amount: -9_650_000 });
+  });
+
+  it("a Rp 0 Tagihan is Lunas without any money moving: Payouts is told so, and owes no tariff for it", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananTerkonfirmasi(setup);
+    setup.clock.set(wib("2026-10-01 12:00"));
+    const hasil = await setup.pemesanan.tambahHargaKhusus(fixture.admin, hargaKhusus(fixture.nomor, 9_650_000));
+    expect(hasil).toMatchObject({ ok: true, tagihan: { total: 0, status: "lunas" } });
+
+    // Lunas is not the same as paid: this order owes the Lokasi Mitra nothing, and owes no
+    // Potongan either (a Potongan is a fee on money it received, and it received none).
+    expect(await setup.pemesanan.pembayaranOrder(fixture.nomor)).toMatchObject({
+      pembayaran: { kind: "tanpa_pembayaran" },
+      partnerShare: 0,
+    });
+    expect((await setup.pemesanan.pembayaranOrder(fixture.nomor))?.pembayaran).not.toMatchObject({ kind: "melalui_operator" });
   });
 });

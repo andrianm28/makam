@@ -17,7 +17,7 @@
  * Operator.
  */
 import { eq } from "drizzle-orm";
-import type { Tagihan } from "@/domain/billing";
+import type { PaymentMethod, Tagihan } from "@/domain/billing";
 import { pemesananMakam } from "./schema";
 import type { PemesananDeps } from "./deps";
 
@@ -37,6 +37,14 @@ export interface PembayaranOrder {
     /** The money reached the Operator through the Tagihan, so the Lokasi Mitra is paid its tariff. */
     | { kind: "melalui_operator" }
     /**
+     * A Harga Khusus covered the whole Tagihan, so it is Lunas at issue and **no money
+     * ever moved**: no tariff is due and no Potongan arises (a Potongan is a fee on money
+     * the Lokasi Mitra received, and it received none). The Operator bears the reduction,
+     * from the Biaya Layanan Platform first and then its own funds, unless a `partnerShare`
+     * was recorded — which lowers this order's Pencairan whatever the family paid.
+     */
+    | { kind: "tanpa_pembayaran" }
+    /**
      * The family paid the Lokasi Mitra itself, so no money reached the Operator:
      * **no tariff Pencairan is due for this order**, and `biayaPlatform` — the
      * Biaya Layanan Platform on its Tagihan — is owed as a Potongan instead.
@@ -50,17 +58,27 @@ export interface PembayaranOrder {
  * Pencairan item from, and it carries no family detail — only the Lokasi Mitra,
  * the Tagihan, the partner share and where the money went.
  */
-export async function pembayaranOrder(deps: Pick<PemesananDeps, "db" | "billing">, nomor: string): Promise<PembayaranOrder | null> {
+export async function pembayaranOrder(deps: OrderPembayaranDeps, nomor: string): Promise<PembayaranOrder | null> {
   const [row] = await deps.db.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, nomor));
   if (!row) return null;
   const tagihan = row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null;
-  return toPembayaranOrder(row, tagihan);
+  return toPembayaranOrder(row, tagihan, row.tagihanId ? await deps.billing.metodePembayaran(row.tagihanId) : null);
 }
+
+/** The two neighbours' own public reads this projection is built from. */
+export type OrderPembayaranDeps = Pick<PemesananDeps, "db" | "billing">;
 
 type Row = typeof pemesananMakam.$inferSelect;
 
-/** One order's money, given the Tagihan Billing read for it. */
-export function toPembayaranOrder(row: Row, tagihan: Tagihan | null): PembayaranOrder {
+/**
+ * One order's money, from the Tagihan Billing read for it and the method that
+ * settled it. The method is what separates "the family paid" from "a Harga
+ * Khusus gave it all away": both leave a Lunas Tagihan, and only one of them
+ * means money reached the Operator. An order whose Tagihan is Lunas with no
+ * method to show is reported as `belum_dibayar`, the answer that owes nobody a
+ * tariff until a payment says otherwise.
+ */
+export function toPembayaranOrder(row: Row, tagihan: Tagihan | null, metode: PaymentMethod | null): PembayaranOrder {
   const dasar = {
     nomor: row.nomor,
     lokasi: { id: row.lokasiId, name: row.lokasiName },
@@ -69,7 +87,8 @@ export function toPembayaranOrder(row: Row, tagihan: Tagihan | null): Pembayaran
     partnerShareNote: row.partnerShareNote,
   };
   if (!row.bayarLangsungPada) {
-    return { ...dasar, pembayaran: tagihan?.status === "lunas" ? { kind: "melalui_operator" } : { kind: "belum_dibayar" } };
+    if (metode?.kind === "tanpa_pembayaran") return { ...dasar, pembayaran: { kind: "tanpa_pembayaran" } };
+    return { ...dasar, pembayaran: metode ? { kind: "melalui_operator" } : { kind: "belum_dibayar" } };
   }
   return {
     ...dasar,

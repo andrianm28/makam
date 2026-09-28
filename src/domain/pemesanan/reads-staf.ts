@@ -166,7 +166,11 @@ export async function orderUntukStafTerbaru(
 async function toOrderStaf(deps: Pick<PemesananDeps, "db" | "billing">, row: Row): Promise<OrderStaf> {
   // The money facts come from the one projection Payouts reads, so the staff page and the
   // Pencairan run can never tell two different stories about the same order.
-  const uang = toPembayaranOrder(row, row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null);
+  const uang = toPembayaranOrder(
+    row,
+    row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null,
+    row.tagihanId ? await deps.billing.metodePembayaran(row.tagihanId) : null,
+  );
   return {
     pembayaran: uang.pembayaran,
     partnerShare: uang.partnerShare,

@@ -27,6 +27,7 @@ import type { PdfRenderer } from "@/ports/pdf-renderer";
 import {
   documentByLink,
   documentPdf,
+  metodePembayaran,
   recordPayment,
   type BillingDocument,
   type DocumentPdf,
@@ -44,6 +45,7 @@ import {
 } from "./payment";
 import { catatPembayaranManual, urlBukti, type CatatPembayaranManualResult } from "./pembayaran-manual";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
+import type { PaymentMethod } from "./shared";
 import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
@@ -109,6 +111,12 @@ export interface Billing {
   reissueTagihan(tagihanId: string, input: { lines: NewTagihanLine[] }): Promise<ReissueTagihanResult>;
   /** One Tagihan as issued, or null. */
   tagihan(tagihanId: string): Promise<Tagihan | null>;
+  /**
+   * The method a Tagihan's payment settled it with, or null while it has none. A
+   * Rp 0 Tagihan answers `tanpa_pembayaran`: Lunas at issue, with no money having
+   * moved at all, which no caller of this module should have to infer from a total of zero.
+   */
+  metodePembayaran(tagihanId: string): Promise<PaymentMethod | null>;
   /**
    * Records the payment of a Tagihan: Lunas, with exactly one Bukti Pembayaran
    * (recording it again returns the same one, with `settled` false). A Dibatalkan Tagihan can't be
@@ -196,6 +204,7 @@ export function createBilling(deps: BillingDeps): Billing {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
+    metodePembayaran: (tagihanId) => metodePembayaran(deps.db, tagihanId),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     catatPembayaranManual: (by, input) => catatPembayaranManual(deps, by, input, deps.clock.now()),
     urlBukti: (by, tagihanId) => urlBukti(deps, by, tagihanId),
