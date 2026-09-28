@@ -17,9 +17,18 @@
  * 08:00 the next morning, and one turned away at 02:00 at 08:00 the same
  * morning. A plain "+2 h" would put the deadline at 04:00, when nobody is awake
  * to make the call.
+ *
+ * The deadline is daytime time, so a decline at 02:00 is still answered in the
+ * morning: the row is announced at once (its subject is a Lokasi Mitra order,
+ * never a TPU, so no 06:00 hold) and every Admin Platform is alerted again 30
+ * minutes later while nobody has taken it (Ambil).
  */
 import { daytimeHoursDeadline } from "@/domain/lokasi";
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type {
+  AntreanRowDeps,
+  AntreanRowType,
+  RawAntreanRow,
+} from "./row-types";
 
 /** The Spec's "call within 2 h" of a declined order, in daytime hours. */
 export const JAM_TELPON_SAAT_DUKA_DITOLAK = 2;
@@ -31,13 +40,15 @@ export const saatDukaDitolakRowType: AntreanRowType = {
   key: "saat_duka_ditolak",
   tier: 1,
   label: "Saat Duka ditolak",
+  peringatan: { tpu: false, eskalasiMenit: [30] },
   async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
     const ditolak = await deps.pemesanan.saatDukaDitolak();
     const rows: RawAntreanRow[] = [];
     for (const order of ditolak) {
       // A family already reached on the phone is not a row any more: the call is
       // logged, and only the log is the truth of that.
-      if (await deps.notifications.teleponPemesanTercatat(SUBJECT, order.id)) continue;
+      if (await deps.notifications.teleponPemesanTercatat(SUBJECT, order.id))
+        continue;
       rows.push({
         subjectKind: "pemesanan_makam",
         subjectId: order.id,
@@ -45,7 +56,12 @@ export const saatDukaDitolakRowType: AntreanRowType = {
         // No Admin Platform page opens an order yet (ticket 25's order page is the
         // Lokasi's own), so the Antrean itself is where the call is placed from.
         href: "/staf/admin-platform/antrean",
-        deadline: daytimeHoursDeadline(order.ditolakPada, JAM_TELPON_SAAT_DUKA_DITOLAK),
+        deadline: daytimeHoursDeadline(
+          order.ditolakPada,
+          JAM_TELPON_SAAT_DUKA_DITOLAK,
+        ),
+        // The row opens when the Lokasi Mitra declines, at the Clock's instant.
+        openedAt: order.ditolakPada,
       });
     }
     return rows;

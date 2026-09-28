@@ -130,6 +130,12 @@ export type Action =
   | "antrean.lihat"
   /** Ambil an Antrean row: a soft claim, visible to all and takeable by anyone (Admin Platform only). */
   | "antrean.ambil"
+  /**
+   * Switch Bertugas on or off for one's own Akun, and be told who is on duty at the top of the Antrean
+   * (Admin Platform only; ticket 28). Bertugas is an attribute of the Antrean, not a role, so this is the
+   * Antrean's own action and not one on the Akun.
+   */
+  | "antrean.bertugas"
   /** Add a Catatan Internal to an Antrean row or an order (Admin Platform only; never shown to the Pemesan, Mitra Jasa or Admin Lokasi). */
   | "catatan_internal.tambah"
   /** Log the "Telepon Pemesan" call, closing its row (Admin Platform only; ticket 20). */
@@ -414,6 +420,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "lokasi_mitra" && holds("petugas_lapangan") ? allowed : denied;
     case "antrean.lihat":
     case "antrean.ambil":
+    case "antrean.bertugas":
     case "catatan_internal.tambah":
     case "telepon_pemesan.catat":
       return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;

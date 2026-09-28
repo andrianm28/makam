@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOutIcon, MailIcon, UserRoundIcon } from "lucide-react";
+import { LogOutIcon, MailIcon, TriangleAlertIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
@@ -216,7 +216,8 @@ function ShellHeader({
       : [];
 
   return (
-    <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md supports-backdrop-filter:bg-background/70 md:px-4">
+    <header className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-border bg-background/85 backdrop-blur-md supports-backdrop-filter:bg-background/70">
+      <div className="flex h-(--header-height) items-center gap-2 px-3 md:px-4">
       {/* Mitra Jasa and Petugas Lapangan navigate by the bottom navigation on phones: no sheet to open there. */}
       <SidebarTrigger className={cn("-ml-1", bottomNav && "max-md:hidden")} />
       <Separator orientation="vertical" className="mx-1 h-5 max-md:hidden" />
@@ -246,7 +247,28 @@ function ShellHeader({
         <ThemeToggle />
         <AccountMenu shell={shell} role={role} lokasi={lokasiOptions} currentLokasi={lokasiId ?? null} />
       </div>
+      </div>
+      {shell.tier1BelumAmbil > 0 ? <Tier1Banner jumlah={shell.tier1BelumAmbil} /> : null}
     </header>
+  );
+}
+
+/**
+ * The red banner in the header of every staff page while a Tier 1 Antrean row is untaken (spec, Work
+ * Queues; ticket 28). It stands in for a call row: the platform cannot place calls, and whoever missed
+ * the push and the email would miss a row too (decided 2026-09-26).
+ */
+function Tier1Banner({ jumlah }: { jumlah: number }) {
+  return (
+    <Link
+      href="/staf/admin-platform/antrean"
+      className="flex items-center gap-2 bg-danger-soft px-3 py-1.5 text-small font-medium text-danger-soft-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:px-4"
+    >
+      <TriangleAlertIcon aria-hidden className="size-4 shrink-0" />
+      {jumlah === 1
+        ? "Ada 1 baris Tier 1 di Antrean yang belum diambil — buka Antrean."
+        : `Ada ${jumlah} baris Tier 1 di Antrean yang belum diambil — buka Antrean.`}
+    </Link>
   );
 }
 

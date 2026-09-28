@@ -7,11 +7,15 @@ import { composeBilling, documentUrls } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
-import { pemesananNotifikasiDari } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
+import { createFieldwork } from "@/domain/fieldwork";
+import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createQueues } from "@/domain/queues";
+import { createTariffs } from "@/domain/tariffs";
 import { scheduledTicks } from "@/domain/scheduler";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -57,6 +61,38 @@ async function main() {
     reportError,
   });
 
+  // The Antrean's own row types, for the Tier 1 alerts and their escalations: a tick runs against the
+  // same projection the Antrean page reads, so the worker composes these four modules the way `web` does
+  // rather than a thinner copy that could drift from it (ticket 28).
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+  const fieldwork = createFieldwork({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity, notifications, lokasi });
+  const pemesanan = composePemesanan({
+    db: database.db,
+    clock: adapters.clock,
+    files: adapters.files,
+    audit,
+    lokasi,
+    tariffs,
+    inventory,
+    billing,
+    identity,
+    notifications,
+  });
+  const queues = createQueues({
+    db: database.db,
+    clock: adapters.clock,
+    audit,
+    lokasi,
+    fieldwork,
+    billing,
+    notifications,
+    inventory,
+    pemesanan,
+    payouts,
+    identity,
+  });
+
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
     context: composeSchedulerContext({
@@ -69,6 +105,7 @@ async function main() {
       identity,
       notifikasi: pemesananNotifikasiDari(notifications),
       payouts,
+      queues,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

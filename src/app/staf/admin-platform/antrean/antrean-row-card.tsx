@@ -33,7 +33,12 @@ export async function AntreanRowCard({ row, emailByAccountId }: { row: AntreanRo
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <AmbilForm type={row.type} subjectId={row.subjectId} sudahDiambil={row.ambil !== null} />
+          <AmbilForm
+            type={row.type}
+            subjectId={row.subjectId}
+            subjectKind={row.subjectKind}
+            sudahDiambil={row.ambil !== null}
+          />
           {row.type === "lokasi_syarat_tayang_ulang" ? <KonfirmasiSyaratTayangForm lokasiId={row.subjectId} /> : null}
         </div>
       </CardContent>

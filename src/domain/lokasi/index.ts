@@ -497,6 +497,8 @@ export {
   daytimeHoursDeadline,
   deadline,
   isOpenAt,
+  nextDaytimeEnd,
+  nextDaytimeStart,
   nextWorkingDayEnd,
   TPU_SCHEDULE,
   type HariLiburNasional,

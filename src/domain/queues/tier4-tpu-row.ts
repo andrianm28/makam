@@ -29,6 +29,7 @@ export const tpuFlagStaleRowType: AntreanRowType = {
         subjectLabel: item.name,
         href: `/staf/admin-platform/tpu/${item.id}`,
         deadline,
+        openedAt: null,
       });
     }
     return rows;

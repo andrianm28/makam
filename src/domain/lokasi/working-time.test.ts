@@ -4,6 +4,8 @@ import {
   adminPlatformCalendar,
   daytimeHoursDeadline,
   deadline,
+  nextDaytimeEnd,
+  nextDaytimeStart,
   nextWorkingDayEnd,
   TPU_SCHEDULE,
   type JamOperasional,
@@ -90,6 +92,27 @@ describe("daytime hours (the Keluhan first response): hours counted only within 
     ["4 daytime hours from 09:00 end 13:00", "2026-10-05 09:00", "2026-10-05 13:00"],
   ])("%s", (_case, start, expected) => {
     expect(daytimeHoursDeadline(wib(start), 4)).toEqual(wib(expected));
+  });
+});
+
+describe("the two ends of the daytime window, as instants (ticket 28's night TPU alert and the Bertugas auto-off)", () => {
+  it.each([
+    ["a 02:00 night waits for that morning's 06:00", "2026-10-05 02:00", "2026-10-05 06:00"],
+    ["a 19:00 evening waits for tomorrow's 06:00", "2026-10-05 19:00", "2026-10-06 06:00"],
+    ["05:59 has a minute to wait", "2026-10-05 05:59", "2026-10-05 06:00"],
+    ["06:00 itself has passed, so the next one is tomorrow", "2026-10-05 06:00", "2026-10-06 06:00"],
+    ["17:00 has tonight's 18:00 ahead of it but the next 06:00 is tomorrow's", "2026-10-05 17:00", "2026-10-06 06:00"],
+  ])("the 06:00 opening: %s", (_case, from, expected) => {
+    expect(nextDaytimeStart(wib(from))).toEqual(wib(expected));
+  });
+
+  it.each([
+    ["a 08:00 morning has tonight's 18:00 ahead of it", "2026-10-05 08:00", "2026-10-05 18:00"],
+    ["17:59 is a minute before tonight's close", "2026-10-05 17:59", "2026-10-05 18:00"],
+    ["19:00 is past tonight's close, so it is tomorrow's", "2026-10-05 19:00", "2026-10-06 18:00"],
+    ["02:00 has not reached tonight's close yet", "2026-10-05 02:00", "2026-10-05 18:00"],
+  ])("the 18:00 closing: %s", (_case, from, expected) => {
+    expect(nextDaytimeEnd(wib(from))).toEqual(wib(expected));
   });
 });
 

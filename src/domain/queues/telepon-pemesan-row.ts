@@ -40,6 +40,7 @@ export const teleponPemesanRowType: AntreanRowType = {
         subjectLabel: `${telepon.nomorTagihan ?? telepon.subjectId} · ${SEBAB_LABEL[telepon.sebab] ?? telepon.sebab}`,
         href: FALLBACK_HREF,
         deadline: null,
+        openedAt: null,
       }));
   },
 };

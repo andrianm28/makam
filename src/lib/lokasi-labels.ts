@@ -61,6 +61,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "tpu.ubah_flag": "Status makam baru TPU diperiksa",
   "catatan_internal.tulis": "Catatan Internal",
   "antrean.ambil": "Baris Antrean diambil",
+  "antrean.bertugas_nyalakan": "Bertugas dinyalakan",
+  "antrean.bertugas_matikan": "Bertugas dimatikan",
   "telepon_pemesan.catat_panggilan": "Panggilan Pemesan dicatat",
   "denah.buat_blok": "Blok dibuat",
   "denah.ubah_jenis_sel": "Jenis sel diubah",

@@ -29,6 +29,7 @@ export const pencairanRowType: AntreanRowType = {
       subjectLabel: `${row.recipient.nama} · ${row.itemCount} item · ${formatRupiah(row.amount)}`,
       href: HREF,
       deadline: row.jatuhTempoAt,
+      openedAt: null,
     }));
   },
 };

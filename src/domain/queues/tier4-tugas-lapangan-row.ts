@@ -32,6 +32,7 @@ export const otherTugasLapanganRowType: AntreanRowType = {
         subjectLabel: item.subject,
         href: "/staf/admin-platform/tugas-lapangan",
         deadline: overdueFrom(item.plannedDate),
+        openedAt: null,
       });
     }
     return rows;

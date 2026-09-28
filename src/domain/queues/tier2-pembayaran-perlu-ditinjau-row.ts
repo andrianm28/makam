@@ -31,6 +31,7 @@ export const pembayaranPerluDitinjauRowType: AntreanRowType = {
       subjectLabel: `${entry.tagihan?.nomorTagihan ?? entry.providerPaymentId} · ${formatRupiah(entry.amount)}`,
       href: FALLBACK_HREF,
       deadline: null,
+      openedAt: null,
     }));
   },
 };

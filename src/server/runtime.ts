@@ -157,6 +157,7 @@ export function serverRuntime(): ServerRuntime {
         inventory,
         pemesanan,
         payouts,
+        identity,
       }),
       pengurusan: createPengurusan({
         db: database.db,

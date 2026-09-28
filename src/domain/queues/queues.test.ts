@@ -371,14 +371,15 @@ describe("Antrean: sorting and deadlines", () => {
 });
 
 describe("Antrean: Tier 2 Pembayaran Perlu Ditinjau (spec-missing, ticket 19's review)", () => {
-  it("shows a Pembayaran Perlu Ditinjau Billing could not settle a Tagihan with: Tier 2, alerting, no deadline", async () => {
+  it("shows a Pembayaran Perlu Ditinjau Billing could not settle a Tagihan with: Tier 2, no deadline, and no alert (a Tier 2 row only shows)", async () => {
     const setup = queuesOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
 
     await pembayaranTidakDikenal(setup, admin, 500_000);
 
     const row = (await setup.queues.antrean(admin)).find((item) => item.type === "pembayaran_perlu_ditinjau");
-    expect(row).toMatchObject({ tier: 2, alerts: true, pastDeadline: false, deadline: null, ambil: null });
+    // Spec, Work Queues: only Tier 1 alerts; a Tier 2 row shows in the Antrean and is worked from there.
+    expect(row).toMatchObject({ tier: 2, alerts: false, pastDeadline: false, deadline: null, ambil: null });
     expect(row?.subjectLabel).toContain("Rp 500.000");
   });
 

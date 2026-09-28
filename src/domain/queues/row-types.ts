@@ -5,7 +5,7 @@
  */
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
-import type { Actor } from "@/domain/identity";
+import type { Actor, Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
@@ -23,11 +23,15 @@ export interface AntreanRowDeps {
   fieldwork: Pick<Fieldwork, "allTugasLapangan">;
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /**
-   * The Antrean's Tier 2 Telepon Pemesan row reads the open call rows, and its
+   * The Antrean's Tier 2 Telepon Pemesan row reads the open call rows, its
    * Tier 1 "Saat Duka ditolak" row reads whether one has already been logged
-   * (ticket 20, ticket 24).
+   * (ticket 20, ticket 24), and the Tier 1 alerts read the Perangkat Push that
+   * Bertugas needs and send the Peringatan Staf themselves (ticket 28).
    */
-  notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat">;
+  notifications: Pick<
+    Notifications,
+    "teleponPemesanTerbuka" | "teleponPemesanTercatat" | "sendStaffAlert" | "pushDevices"
+  >;
   /**
    * The Saat Duka confirmation and decline rows read the Pemesanan module's own
    * state: the Tier 1 "Konfirmasi Lokasi terlambat" row (ticket 23), its Tier 1
@@ -43,6 +47,11 @@ export interface AntreanRowDeps {
    * item was given when it became due.
    */
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  /**
+   * Every Akun holding Admin Platform, for the Tier 1 alerts' all-hands
+   * escalation (ticket 28). Only identity knows who holds a role.
+   */
+  identity: Pick<Identity, "adminPlatformOf">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */
@@ -54,6 +63,35 @@ export interface RawAntreanRow {
   href: string;
   /** null when this occurrence of the row has no deadline. */
   deadline: Date | null;
+  /**
+   * When this occurrence of the row appeared — the instant its subject reached
+   * the state the row reads, which is the same instant the row becomes open.
+   * A row type whose alerting is timed must say so here: a Tier 1 alert escalates
+   * by the minutes after this. Null when the row type does not know, and then
+   * the row is announced but never escalated.
+   */
+  openedAt: Date | null;
+}
+
+/**
+ * A row type that alerts (spec, Work Queues: Tier 1 today; Tier 2 shows without
+ * alerts and Tier 3–4 never alert). Its absence on a row type is the whole rule
+ * that keeps them quiet.
+ */
+export interface PeringatanAntrean {
+  /**
+   * True when the row's subject is a DKI TPU, so a row created outside
+   * 06:00–18:00 WIB is announced at 06:00 instead of in the middle of the night
+   * (spec: "Night TPU rows alert at 06:00").
+   */
+  tpu: boolean;
+  /**
+   * Minutes after the row was **announced** at which every Admin Platform is
+   * alerted again about it, each of them once: 30 for a Tier 1 row nobody took
+   * (Ambil), and 90 as well for Konfirmasi TPU Saat Duka (ticket 45 declares
+   * that row type's own pair; nothing else escalates twice).
+   */
+  eskalasiMenit: number[];
 }
 
 /** A row type's declaration: tier, query and deadline rule (the query returns each open row already past its own deadline rule). */
@@ -64,4 +102,6 @@ export interface AntreanRowType {
   label: string;
   /** Every row of this type currently open, for `by` (Admin Platform; empty for anyone else, see each type). */
   rows(deps: AntreanRowDeps, by: Actor): Promise<RawAntreanRow[]>;
+  /** Present when this type alerts, and then when and how far it escalates; absent on a type that never alerts. */
+  peringatan?: PeringatanAntrean;
 }

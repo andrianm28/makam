@@ -118,6 +118,7 @@ export function testServerRuntime() {
         inventory,
         pemesanan,
         payouts,
+        identity,
       }),
       pengurusan: createPengurusan({
         db: database.db,

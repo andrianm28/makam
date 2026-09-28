@@ -47,6 +47,7 @@ export const lokasiRevisitRowType: AntreanRowType = {
         subjectLabel: lokasi.name,
         href: lokasiHref(item.lokasiId),
         deadline: overdueFrom(item.plannedDate),
+        openedAt: null,
       });
     }
     return rows;
@@ -95,6 +96,7 @@ export const publishGateCheckRowType: AntreanRowType = {
         subjectLabel: lokasi.name,
         href: lokasiHref(lokasi.id),
         deadline: addWibDays(latestCompletedAt, PUBLISH_GATE_RECHECK_GRACE_DAYS),
+        openedAt: null,
       });
     }
     return rows;

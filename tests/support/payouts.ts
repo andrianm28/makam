@@ -107,6 +107,7 @@ export function payoutsOnTestDatabase(db: Database) {
     inventory: setup.inventory,
     pemesanan,
     payouts,
+    identity: setup.identity,
   });
   return { ...setup, pemesanan, pengurusan, payouts, dikirim, queues };
 }

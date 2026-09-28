@@ -139,3 +139,25 @@ export function daytimeHoursDeadline(start: Date, hours: number): Date {
   if (!due.ok) throw new Error("the TPU window is always set");
   return due.at;
 }
+
+const BUKA_HARI = minutesOf(daytime.opens);
+const TUTUP_HARI = minutesOf(daytime.closes);
+
+/**
+ * 06:00 WIB: the first minute of the daytime window strictly after `instant` (today's, or tomorrow's once
+ * the window has closed).
+ *
+ * This is an **instant, not a deadline**: a TPU row created at 02:00 is announced at 06:00, and no
+ * message window is any part of it. The hours stay in `daytime` above, so both ends of the window are
+ * named in one place.
+ */
+export function nextDaytimeStart(instant: Date): Date {
+  const today = new Date(wibDayStart(instant).getTime() + BUKA_HARI * MINUTE);
+  return today > instant ? today : addWibDays(today, 1);
+}
+
+/** 18:00 WIB: the closing minute of the daytime window strictly after `instant` — the hour a Bertugas shift ends. */
+export function nextDaytimeEnd(instant: Date): Date {
+  const today = new Date(wibDayStart(instant).getTime() + TUTUP_HARI * MINUTE);
+  return today > instant ? today : addWibDays(today, 1);
+}

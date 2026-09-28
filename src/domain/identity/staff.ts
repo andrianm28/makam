@@ -274,6 +274,33 @@ export async function deactivateStaff(
 }
 
 
+/** An Akun holding Admin Platform, as a message recipient of a Tier 1 alert. */
+export interface AdminPlatformAccount {
+  accountId: string;
+  email: string | null;
+  /** The name on record; empty until an Akun Saya profile or a wizard sets it. */
+  name: string;
+}
+
+/**
+ * Every Akun holding Admin Platform, oldest first: who an all-hands alert goes to (the Antrean's Tier 1
+ * escalation, ticket 28). An Akun that was Dinonaktifkan no longer holds the role, so it is not in this list.
+ */
+export async function adminPlatformOf(deps: { db: Database }): Promise<AdminPlatformAccount[]> {
+  const rows = await deps.db
+    .select({
+      accountId: identityUser.id,
+      email: identityUser.contactEmail,
+      name: identityUser.name,
+      grantedAt: identityStaffRole.grantedAt,
+    })
+    .from(identityStaffRole)
+    .innerJoin(identityUser, eq(identityUser.id, identityStaffRole.accountId))
+    .where(eq(identityStaffRole.role, "admin_platform"))
+    .orderBy(asc(identityStaffRole.grantedAt), asc(identityUser.id));
+  return rows.map(({ accountId, email, name }) => ({ accountId, email, name }));
+}
+
 /** Every Akun Staf, and every Akun that was one until it was Dinonaktifkan, oldest first. */
 export async function staffAccounts(deps: { db: Database }): Promise<StaffAccount[]> {
   const roles = await deps.db

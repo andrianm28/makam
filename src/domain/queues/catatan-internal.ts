@@ -29,11 +29,52 @@ export interface CatatanInternal {
   subjectKind: string;
   subjectId: string;
   authorAccountId: string;
+  /** True when the platform wrote the note itself (the Bertugas auto-off's hand-over note): the thread must not put a person's name on it. */
+  olehPlatform: boolean;
   body: string;
   createdAt: Date;
 }
 
 export type TambahCatatanInternalResult = { ok: true; catatan: CatatanInternal } | WriteRefusal | { ok: false; reason: "catatan_tidak_valid" };
+
+/** One note, written inside the calling write's own transaction; its Entri Audit is the caller's to record. */
+export async function catatTulis(
+  tx: Database,
+  note: { authorAccountId: string; subjectKind: string; subjectId: string; body: string; now: Date },
+): Promise<string> {
+  const [row] = await tx
+    .insert(catatanInternalTable)
+    .values({ ...barisDari(note), olehPlatform: false })
+    .returning({ id: catatanInternalTable.id });
+  return row.id;
+}
+
+/**
+ * One note the platform wrote itself, in the same shape: the Bertugas auto-off leaves each claim alone
+ * and says so where the work is (ticket 28). Nobody signed in, so `authorAccountId` names the Akun the
+ * note is *about* — whose duty ended — and `olehPlatform` is what the thread reads to show the platform
+ * as the author instead of a name.
+ */
+export async function catatOtomatis(
+  tx: Database,
+  note: { authorAccountId: string; subjectKind: string; subjectId: string; body: string; now: Date },
+): Promise<string> {
+  const [row] = await tx
+    .insert(catatanInternalTable)
+    .values({ ...barisDari(note), olehPlatform: true })
+    .returning({ id: catatanInternalTable.id });
+  return row.id;
+}
+
+function barisDari(note: { authorAccountId: string; subjectKind: string; subjectId: string; body: string; now: Date }) {
+  return {
+    authorAccountId: note.authorAccountId,
+    subjectKind: note.subjectKind,
+    subjectId: note.subjectId,
+    body: note.body,
+    createdAt: note.now,
+  };
+}
 
 /** Admin Platform adds a Catatan Internal on any row or order (`subjectKind` + `subjectId`, free text on both sides); audited. */
 export async function tambahCatatanInternal(
@@ -47,25 +88,17 @@ export async function tambahCatatanInternal(
   if (!parsed.success) return { ok: false, reason: "catatan_tidak_valid" };
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const [row] = await tx
-      .insert(catatanInternalTable)
-      .values({
-        subjectKind: parsed.data.subjectKind,
-        subjectId: parsed.data.subjectId,
-        authorAccountId: by.accountId,
-        body: parsed.data.body,
-        createdAt: now,
-      })
-      .returning();
+    const id = await catatTulis(tx, { authorAccountId: by.accountId, ...parsed.data, now });
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "catatan_internal.tulis",
-      entity: { kind: "catatan_internal", id: row.id },
+      entity: { kind: "catatan_internal", id },
       lokasiId: null,
       before: null,
-      after: { subjectKind: row.subjectKind, subjectId: row.subjectId },
+      after: { subjectKind: parsed.data.subjectKind, subjectId: parsed.data.subjectId },
       reason: null,
     });
+    const [row] = await tx.select().from(catatanInternalTable).where(eq(catatanInternalTable.id, id));
     return { ok: true, catatan: toCatatanInternal(row) } as const;
   });
 }
@@ -92,6 +125,7 @@ function toCatatanInternal(row: typeof catatanInternalTable.$inferSelect): Catat
     subjectKind: row.subjectKind,
     subjectId: row.subjectId,
     authorAccountId: row.authorAccountId,
+    olehPlatform: row.olehPlatform,
     body: row.body,
     createdAt: row.createdAt,
   };

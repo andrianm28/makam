@@ -49,9 +49,11 @@ import {
   staffRecipient,
   adminLokasiOf,
   adminLokasiSince,
+  adminPlatformOf,
   removeAdminLokasi,
   type RemoveAdminLokasiResult,
   type AdminLokasiAccount,
+  type AdminPlatformAccount,
   type DeactivateStaffResult,
   type SeedResult,
   type StaffAccount,
@@ -78,6 +80,7 @@ export type { ConfirmEmailVerificationResult, RequestEmailVerificationResult, Up
 export type { SessionCookie } from "./sessions";
 export type {
   AdminLokasiAccount,
+  AdminPlatformAccount,
   DeactivateStaffResult,
   RemoveAdminLokasiResult,
   SeedResult,
@@ -178,6 +181,11 @@ export interface Identity {
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
   /**
+   * Every Akun holding Admin Platform, oldest first: who an all-hands staff alert goes to (the Antrean's
+   * Tier 1 escalation).
+   */
+  adminPlatformOf(): Promise<AdminPlatformAccount[]>;
+  /**
    * The Akun Staf a Peringatan Staf goes to: its Email Terverifikasi and live
    * sessions. Null when it holds no staff role (never invited, or Dinonaktifkan).
    */
@@ -241,6 +249,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
+    adminPlatformOf: () => adminPlatformOf(deps),
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(reporting, by, input),
     adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),

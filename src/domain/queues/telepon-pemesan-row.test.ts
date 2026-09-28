@@ -10,7 +10,7 @@ afterAll(close);
 beforeEach(resetDatabase);
 
 describe("Antrean: Tier 2 Telepon Pemesan", () => {
-  it("a money message that finally fails opens a Tier 2 row that alerts, and logging the call closes it", async () => {
+  it("a money message that finally fails opens a Tier 2 row that shows without alerting, and logging the call closes it", async () => {
     const setup = queuesOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
@@ -32,7 +32,7 @@ describe("Antrean: Tier 2 Telepon Pemesan", () => {
       tier: 2,
       label: "Telepon Pemesan",
       subjectKind: "telepon_pemesan",
-      alerts: true,
+      alerts: false,
       pastDeadline: false,
       ambil: null,
     });

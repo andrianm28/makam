@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   akunResource,
+  antreanResource,
   auditLogResource,
   authorize,
   pengaturanOperatorResource,
@@ -213,5 +214,19 @@ describe("who may open the Pengaturan Operator screen", () => {
       reason: "tidak_berwenang",
     });
     expect(open(pemesan)).toEqual({ allowed: false, reason: "tidak_berwenang" });
+  });
+});
+
+describe("who may be Bertugas (antrean.bertugas)", () => {
+  it("only an Admin Platform past TOTP: Bertugas is a fact of the Antrean, and the Antrean is the Admin Platform's", () => {
+    const onDuty = (who: Actor) => authorize(who, "antrean.bertugas", antreanResource());
+
+    expect(onDuty(adminPlatform)).toEqual({ allowed: true });
+    expect(onDuty(staff(["admin_platform"], "perlu_verifikasi"))).toEqual({ allowed: false, reason: "perlu_totp" });
+    for (const who of [staff(["admin_lokasi", "petugas_lapangan", "mitra_jasa"]), pemesan]) {
+      expect(onDuty(who)).toEqual({ allowed: false, reason: "tidak_berwenang" });
+    }
+    // The Antrean's own resource and no other's: this is not a write on an Akun.
+    expect(authorize(adminPlatform, "antrean.bertugas", stafResource())).toEqual({ allowed: false, reason: "tidak_berwenang" });
   });
 });

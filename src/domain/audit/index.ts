@@ -127,6 +127,9 @@ export type AuditAction =
   | "catatan_internal.tulis"
   /** Admin Platform takes (Ambil) an Antrean row (ticket 17): never in the Admin Lokasi view. */
   | "antrean.ambil"
+  /** An Akun Staf switches itself Bertugas, or comes off duty by hand (ticket 28): a claim's own hand-over, so never in the Admin Lokasi view. */
+  | "antrean.bertugas_nyalakan"
+  | "antrean.bertugas_matikan"
   /** Admin Platform logs the "Telepon Pemesan" call, closing its row (ticket 20): never in the Admin Lokasi view. */
   | "telepon_pemesan.catat_panggilan"
   /** An Admin Lokasi creates a Blok on its Denah (size, numbering pattern, initial Jenis Makam). */
@@ -188,9 +191,15 @@ export type AuditAction =
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
- * Log): Catatan Internal and Antrean claims.
+ * Log): Catatan Internal, Antrean claims, and the Bertugas duty roster (a
+ * claim's own hand-over, ticket 28).
  */
-const HIDDEN_FROM_ADMIN_LOKASI: readonly AuditAction[] = ["catatan_internal.tulis", "antrean.ambil"];
+const HIDDEN_FROM_ADMIN_LOKASI: readonly AuditAction[] = [
+  "catatan_internal.tulis",
+  "antrean.ambil",
+  "antrean.bertugas_nyalakan",
+  "antrean.bertugas_matikan",
+];
 
 export interface NewAuditEntry {
   /** The Akun that did the write, and the role it acted under. */

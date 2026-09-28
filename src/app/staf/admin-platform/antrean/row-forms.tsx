@@ -7,13 +7,27 @@ import { ambilAntreanRow, konfirmasiSyaratTayangMasihTerpenuhi, tambahCatatanInt
 
 const idle: FormState = { status: "idle" };
 
-/** Any Admin Platform takes (Ambil) this row, replacing any earlier claim (spec, story 141). */
-export function AmbilForm({ type, subjectId, sudahDiambil }: { type: string; subjectId: string; sudahDiambil: boolean }) {
+/**
+ * Any Admin Platform takes (Ambil) this row, replacing any earlier claim (spec, story 141).
+ * `subjectKind` rides with the claim so a hand-over can write the row's Catatan Internal thread (ticket 28).
+ */
+export function AmbilForm({
+  type,
+  subjectId,
+  subjectKind,
+  sudahDiambil,
+}: {
+  type: string;
+  subjectId: string;
+  subjectKind: string;
+  sudahDiambil: boolean;
+}) {
   const [state, action, pending] = useActionState(ambilAntreanRow, idle);
   return (
     <form action={action} className="flex flex-col items-end gap-1">
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="subjectId" value={subjectId} />
+      <input type="hidden" name="subjectKind" value={subjectKind} />
       <Button type="submit" variant={sudahDiambil ? "outline" : "default"} size="sm" disabled={pending}>
         {sudahDiambil ? "Ambil ulang" : "Ambil"}
       </Button>

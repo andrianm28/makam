@@ -18,6 +18,7 @@ import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Queues } from "@/domain/queues";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -41,6 +42,12 @@ export interface SchedulerContext {
    * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
    */
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  /**
+   * The Work Queues module's own ticks: the Tier 1 Peringatan Staf and their 30 / 90 minute escalations,
+   * and the Bertugas auto-off (ticket 28). The worker composes the whole Antrean to run them, because the
+   * rows are its projection.
+   */
+  queues: Pick<Queues, "tickPeringatan" | "tickBertugas">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -85,6 +92,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
   // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
+  // Work Queues: a new Tier 1 row is announced, and an untaken one re-alerts everyone at 30 / 90 min (ticket 28).
+  { name: "queues.peringatan_antrean", cron: "* * * * *", tick: peringatanAntreanTick },
+  // Work Queues: a Bertugas duty ends by itself at 18:00 WIB or after 12 h (ticket 28).
+  { name: "queues.bertugas_auto_off", cron: "*/5 * * * *", tick: bertugasAutoOffTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -107,6 +118,16 @@ async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Payouts trigger (idempotent there, as every tick is). */
 async function pencairanDueTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.payouts.tick(now);
+}
+
+/** The worker wrapper around the Tier 1 alerts and their escalations (idempotent there, as every tick is). */
+async function peringatanAntreanTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.tickPeringatan(now);
+}
+
+/** The worker wrapper around the Bertugas auto-off (idempotent there, as every tick is). */
+async function bertugasAutoOffTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.tickBertugas(now);
 }
 
 /** The worker wrapper around the Potongan ageing tick (idempotent there, as every tick is). */

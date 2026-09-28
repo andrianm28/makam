@@ -20,8 +20,15 @@ export interface AmbilDeps {
 
 export type AmbilRowResult = { ok: true; claimedAt: Date } | WriteRefusal;
 
+/** The row to take: its type and subject, plus the `subjectKind` its Catatan Internal thread is keyed on (a hand-over writes that thread, ticket 28). */
+export interface AmbilRowInput {
+  type: string;
+  subjectId: string;
+  subjectKind?: string;
+}
+
 /** `by` takes (Ambil) the row `${type}:${subjectId}`, replacing any earlier claim; audited. */
-export async function ambilRow(deps: AmbilDeps, by: Actor, input: { type: string; subjectId: string }): Promise<AmbilRowResult> {
+export async function ambilRow(deps: AmbilDeps, by: Actor, input: AmbilRowInput): Promise<AmbilRowResult> {
   const refusal = writeRefusal(by, "antrean.ambil", antreanResource());
   if (refusal) return refusal;
   const rowKey = rowKeyOf(input.type, input.subjectId);
@@ -30,10 +37,10 @@ export async function ambilRow(deps: AmbilDeps, by: Actor, input: { type: string
     const [existing] = await tx.select().from(antreanAmbil).where(eq(antreanAmbil.rowKey, rowKey));
     await tx
       .insert(antreanAmbil)
-      .values({ rowKey, claimedByAccountId: by.accountId, claimedAt: now })
+      .values({ rowKey, subjectKind: input.subjectKind ?? null, claimedByAccountId: by.accountId, claimedAt: now })
       .onConflictDoUpdate({
         target: antreanAmbil.rowKey,
-        set: { claimedByAccountId: by.accountId, claimedAt: now },
+        set: { subjectKind: input.subjectKind ?? null, claimedByAccountId: by.accountId, claimedAt: now },
       });
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },

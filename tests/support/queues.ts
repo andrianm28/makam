@@ -38,6 +38,7 @@ export function queuesOnTestDatabase(db: Database) {
     inventory: setup.inventory,
     pemesanan,
     payouts,
+    identity: setup.identity,
   });
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
   // Pengurusan module, which the shared Pemesanan fixture type requires.

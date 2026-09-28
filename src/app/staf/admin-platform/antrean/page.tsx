@@ -1,4 +1,5 @@
 import { InboxIcon } from "lucide-react";
+import { z } from "zod";
 import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
 import { StatCard } from "@/components/makam/stat-card";
@@ -6,6 +7,21 @@ import type { AntreanRow, AntreanTier } from "@/domain/queues";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { AntreanRowCard } from "./antrean-row-card";
+import { BertugasPanel } from "./bertugas-panel";
+
+/** What the Bertugas actions left on the query, and what the panel says about it. */
+const hasilBertugasSchema = z.object({ bertugas: z.enum(["ok", "tidak-ada-push", "tidak-berwenang"]).optional() });
+const hasilBertugasPesan: Record<string, { role: "status" | "alert"; text: string }> = {
+  ok: {
+    role: "status",
+    text: "Anda Bertugas sekarang. Peringatan Staf Tier 1 dikirim ke perangkat push dan ke email Anda.",
+  },
+  "tidak-ada-push": {
+    role: "alert",
+    text: "Belum bisa Bertugas: nyalakan dulu notifikasi push di perangkat ini lewat panel push di bagian atas halaman ini. Peringatan Staf hanya sampai ke perangkat push dan ke email.",
+  },
+  "tidak-berwenang": { role: "alert", text: "Hanya Admin Platform yang bisa Bertugas." },
+};
 
 const TIERS: AntreanTier[] = [1, 2, 3, 4];
 const tierLabels: Record<AntreanTier, string> = {
@@ -18,17 +34,23 @@ const tierLabels: Record<AntreanTier, string> = {
 /**
  * Admin Platform's Antrean (spec, Work Queues; ticket 17): every open row,
  * grouped by tier then sorted by deadline, the counter strip, Ambil and
- * Catatan Internal. Tier 1 and 2 alerting and Bertugas arrive in ticket 28.
+ * Catatan Internal, and who is Bertugas now at the top (ticket 28).
  */
-export default async function AntreanPage() {
+export default async function AntreanPage({ searchParams }: PageProps<"/staf/admin-platform/antrean">) {
   const actor = await staffMenuActor("admin_platform");
   const { queues, identity } = serverRuntime();
-  const [rows, counters, staffAccounts] = await Promise.all([
+  const [query, rows, counters, petugas, staffAccounts] = await Promise.all([
+    searchParams,
     queues.antrean(actor),
     queues.counters(actor),
+    queues.petugasBertugas(actor),
     identity.staffAccounts(),
   ]);
-  const emailByAccountId = new Map(staffAccounts.map((account) => [account.accountId, account.email ?? account.accountId]));
+  const hasil = hasilBertugasSchema.safeParse(await query).data?.bertugas;
+  const pesanHasil = hasil ? hasilBertugasPesan[hasil] : undefined;
+  const emailByAccountId = new Map(
+    staffAccounts.map((account) => [account.accountId, account.email ?? account.accountId]),
+  );
 
   const byTier = new Map<AntreanTier, AntreanRow[]>();
   for (const row of rows) byTier.set(row.tier, [...(byTier.get(row.tier) ?? []), row]);
@@ -38,6 +60,14 @@ export default async function AntreanPage() {
       <PageHeader
         title="Antrean"
         description="Setiap baris kerja terbuka dari Lokasi Mitra, Tugas Lapangan, Tagihan dan Pencairan, per tier lalu tenggat. Baris menutup diri sendiri begitu keadaannya berubah."
+      />
+
+      <BertugasPanel
+        petugas={petugas}
+        accountIdSaya={actor.accountId}
+        emailByAccountId={emailByAccountId}
+        klaimSaya={rows.filter((row) => row.ambil?.accountId === actor.accountId)}
+        pesan={pesanHasil}
       />
 
       <section aria-label="Ringkasan" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

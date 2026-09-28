@@ -11,7 +11,12 @@ import { pencairanRowType } from "./tier3-pencairan-row";
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
  * adding it here, never changing the aggregator (`./antrean.ts`) or the UI.
- * The rest of Tier 2 and 3 arrive with ticket 28 and their own; built here:
+ * A row type that alerts also declares it in its own `peringatan`
+ * (`./row-types.ts`), which ticket 28's tick reads: the two Tier 1 types below
+ * are the only ones so far. Tier 2 shows without alerting and Tier 3-4 never
+ * alert, so a type of those declares nothing.
+ *
+ * The rest of Tier 2 and 3 arrive with their own tickets; built here:
  * the framework's three Tier 4 types (including the TPU flag stale row of
  * ticket 43), Tier 2's Pembayaran Perlu Ditinjau (spec-missing; ticket 19's
  * review) and Telepon Pemesan (ticket 20), Tier 1's Konfirmasi Lokasi
