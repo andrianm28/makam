@@ -1,7 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Check, MapPin } from "lucide-react";
+import {
+  AmbulanceIcon,
+  ArmchairIcon,
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheckIcon,
+  Check,
+  DropletIcon,
+  LandmarkIcon,
+  LightbulbIcon,
+  MapPin,
+  ShieldCheckIcon,
+  SquareParkingIcon,
+  ToiletIcon,
+} from "lucide-react";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
@@ -11,8 +25,21 @@ import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { DataKirim } from "./data-kirim";
 import { DenahPicker } from "./denah-picker";
+import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import { pilihanDariParams, terencanaPath } from "./tautan";
 import { denahView, lokasiView, terkirimView, type LokasiView } from "./tampilan";
+
+/** One icon per facility (lucide, the design system's icon set), as the Lokasi step's cards show them. */
+const facilityIcons: Record<LokasiFacility, typeof SquareParkingIcon> = {
+  parkir: SquareParkingIcon,
+  musala: LandmarkIcon,
+  toilet: ToiletIcon,
+  air_bersih: DropletIcon,
+  penerangan: LightbulbIcon,
+  pos_jaga: ShieldCheckIcon,
+  akses_ambulans: AmbulanceIcon,
+  tempat_duduk: ArmchairIcon,
+};
 
 // Every screen of the wizard is rendered per request: its prices, the Denah and the
 // confirmation's own order come from the database at that moment, and a build must
@@ -66,7 +93,10 @@ function Progress({ langkah, total, backHref, backLabel }: { langkah: number; to
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <Link href={backHref} className="-ml-2 inline-flex items-center gap-1.5 text-body font-medium text-primary">
+        <Link
+          href={backHref}
+          className="-ml-2 inline-flex h-10 items-center gap-1.5 rounded-lg px-2 text-body font-medium text-primary hover:bg-accent"
+        >
           <ArrowLeft className="size-4" aria-hidden /> {backLabel}
         </Link>
         <span className="text-small text-muted-foreground">
@@ -89,53 +119,60 @@ function Progress({ langkah, total, backHref, backLabel }: { langkah: number; to
 
 /** Step 1: only Lokasi Mitra that take Pemesanan Terencana, by city, price band and facilities. */
 async function PilihLokasiScreen({ filter }: { filter: Filter }) {
-  const { pemesanan } = serverRuntime();
+  const { pemesanan, lokasi } = serverRuntime();
   const [daftar, kotaList] = await Promise.all([
     pemesanan.pilihanTerencana({ city: filter.kota ?? undefined, harga: filter.harga ?? undefined, facilities: filter.fasilitas }),
     pemesanan.kotaTerencana(),
   ]);
-  const kartu = daftar.map(lokasiView);
+  // The Kunjungan Verifikasi's first photo, signed for this request; a Lokasi not yet
+  // visited (no photo taken) shows the card without one, never a placeholder image.
+  const foto = await Promise.all(daftar.map((kartu) => lokasi.publicVisitPhotoUrls(kartu.lokasi.id)));
+  const kartu = daftar.map((satu, index) => lokasiView(satu, foto[index]?.at(0) ?? null));
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
       <Progress langkah={1} total={3} backHref="/" backLabel="Kembali" />
       <div>
-        <h1 className="text-title-1 text-foreground">Pilih lokasi</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih lokasi</h1>
         <p className="mt-1 max-w-2xl text-body-lg text-muted-foreground">
           Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih sendiri petaknya di denah.
         </p>
       </div>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Filter kota, harga dan fasilitas">
-        <Chip on={filter.kota === null} href={terencanaPath({ ...filter, kota: null })}>
-          Semua kota
-        </Chip>
-        {kotaList.map((nama) => (
-          <Chip key={nama} on={filter.kota === nama} href={terencanaPath({ ...filter, kota: nama })}>
-            {nama}
+      <div className="flex flex-col gap-3">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Kota">
+          <Chip on={filter.kota === null} href={terencanaPath({ ...filter, kota: null })}>
+            Semua kota
           </Chip>
-        ))}
-        <span className="mx-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
-        {HARGA_BANDS.map((band) => (
-          <Chip
-            key={band.key}
-            on={filter.harga === band.key}
-            href={terencanaPath({ ...filter, harga: filter.harga === band.key ? null : band.key })}
-          >
-            {band.label}
-          </Chip>
-        ))}
-        {filterFasilitas.map((nilai) => {
-          const aktif = filter.fasilitas.includes(nilai);
-          return (
-            <Chip
-              key={nilai}
-              on={aktif}
-              href={terencanaPath({ ...filter, fasilitas: aktif ? filter.fasilitas.filter((satu) => satu !== nilai) : [...filter.fasilitas, nilai] })}
-            >
-              {lokasiFacilities[nilai] ?? nilai}
+          {kotaList.map((nama) => (
+            <Chip key={nama} on={filter.kota === nama} href={terencanaPath({ ...filter, kota: nama })}>
+              {nama}
             </Chip>
-          );
-        })}
+          ))}
+        </div>
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Harga dan fasilitas">
+          {HARGA_BANDS.map((band) => (
+            <Chip
+              key={band.key}
+              on={filter.harga === band.key}
+              href={terencanaPath({ ...filter, harga: filter.harga === band.key ? null : band.key })}
+            >
+              {band.label}
+            </Chip>
+          ))}
+          <span className="mx-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
+          {filterFasilitas.map((nilai) => {
+            const aktif = filter.fasilitas.includes(nilai);
+            return (
+              <Chip
+                key={nilai}
+                on={aktif}
+                href={terencanaPath({ ...filter, fasilitas: aktif ? filter.fasilitas.filter((satu) => satu !== nilai) : [...filter.fasilitas, nilai] })}
+              >
+                {lokasiFacilities[nilai] ?? nilai}
+              </Chip>
+            );
+          })}
+        </div>
       </div>
       {kartu.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
@@ -154,37 +191,54 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
 
 function Kartu({ kartu }: { kartu: LokasiView }) {
   return (
-    <li className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-5 shadow-xs">
-      <div>
-        <h2 className="text-title-2 text-foreground">
-          <Link href={terencanaPath({ langkah: "petak", lokasiId: kartu.id })} className="hover:underline">
-            {kartu.name}
-          </Link>
-        </h2>
-        <p className="mt-1 flex items-center gap-1 text-small text-muted-foreground">
-          <MapPin className="size-3.5" aria-hidden /> {kartu.city}
-        </p>
-      </div>
-      <p className="text-small font-medium text-success-soft-foreground">{kartu.terverifikasi}</p>
-      <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+    <li className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-xs transition-shadow hover:shadow-md">
+      {kartu.foto ? (
+        <div className="relative aspect-video overflow-hidden">
+          {/* Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={kartu.foto} alt={`Foto ${kartu.name}`} className="size-full object-cover" />
+        </div>
+      ) : null}
+      <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
-          <p className="text-caption text-muted-foreground">mulai</p>
-          <p className="text-title-2 tabular-nums">{kartu.mulai ?? "belum ada harga"}</p>
-          <p className="text-caption text-muted-foreground">Hak Pakai; biaya pemakaman dibayar nanti</p>
+          <h2 className="text-title-2 text-foreground">
+            <Link href={terencanaPath({ langkah: "petak", lokasiId: kartu.id })} className="text-left after:absolute after:inset-0">
+              {kartu.name}
+            </Link>
+          </h2>
+          <p className="mt-1 flex items-center gap-1 text-small text-muted-foreground">
+            <MapPin className="size-3.5" aria-hidden /> {kartu.city}
+          </p>
         </div>
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {kartu.fasilitas.map((satu) => (
-            <span key={satu} className="rounded-full border border-border px-2.5 py-1 text-caption text-muted-foreground">
-              {satu}
-            </span>
-          ))}
+        <p className="flex items-center gap-1.5 text-small font-medium text-success-soft-foreground">
+          <BadgeCheckIcon className="size-4" aria-hidden /> {kartu.terverifikasi}
+        </p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+          <div>
+            <p className="text-caption text-muted-foreground">mulai</p>
+            <p className="text-title-2 tabular-nums">{kartu.mulai ?? "belum ada harga"}</p>
+            <p className="text-caption text-muted-foreground">Hak Pakai; biaya pemakaman dibayar nanti</p>
+          </div>
+          {kartu.fasilitas.length > 0 ? (
+            <ul className="flex items-center gap-1.5" aria-label="Fasilitas">
+              {kartu.fasilitas.map((satu) => {
+                const Icon = facilityIcons[satu.key];
+                return (
+                  <li key={satu.key} title={satu.label} className="inline-flex size-8 items-center justify-center rounded-full bg-brand-soft text-primary">
+                    <Icon className="size-4" aria-hidden />
+                    <span className="sr-only">{satu.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-        <span className="text-small text-foreground">{kartu.tersedia}</span>
-        <Link href={terencanaPath({ langkah: "petak", lokasiId: kartu.id })} className="text-body font-semibold text-primary">
-          Pilih petak
-        </Link>
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+          <span className="text-small text-foreground">{kartu.tersedia}</span>
+          <span className="inline-flex items-center gap-1 text-body font-semibold text-primary">
+            Pilih petak <ArrowRight className="size-4" aria-hidden />
+          </span>
+        </div>
       </div>
     </li>
   );
@@ -216,10 +270,10 @@ async function PilihPetakScreen({ lokasiId, pilihan, filter, pesan }: { lokasiId
   const unitOf = denah.unit.map(({ jenis, id, nomor }) => ({ jenis, id, nomor }));
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-40">
       <Progress langkah={2} total={3} backHref={terencanaPath(filter)} backLabel="Pilih lokasi" />
       <div>
-        <h1 className="text-title-1 text-foreground">Pilih petak</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih petak</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">
           {tampilan.lokasi.name}, {tampilan.lokasi.city}.{" "}
           <Link href={`/lokasi/${tampilan.lokasi.id}`} className="font-medium text-primary underline underline-offset-2">
@@ -265,21 +319,24 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
     );
   }
 
-  const ringkasan = denah.unit
-    .map((satu) => (satu.jenis === "kavling" ? `Kavling Keluarga ${satu.nomor}` : satu.nomor))
-    .join(", ");
+  const petakNomor = denah.unit.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor);
+  const kavlingNomor = denah.unit.find((satu) => satu.jenis === "kavling")?.nomor ?? null;
+  const kavlingTerpilih = kavlingNomor ? kavlingByNomor(tampilan, kavlingNomor) : null;
+  const ringkasan = ringkasanPilihan(tampilan, petakNomor, kavlingTerpilih);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-16">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-40">
       <Progress langkah={3} total={3} backHref={terencanaPath({ langkah: "petak", lokasiId, ...pilihan })} backLabel="Pilih petak" />
       <div>
-        <h1 className="text-title-1 text-foreground">Data &amp; kirim</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">Data untuk mencatat Hak Pakai. Tidak ada yang dibayar saat mengirim.</p>
       </div>
       <DataKirim
         draft={{ lokasiId, units, email: actor?.email ?? "", phoneNumber: actor?.phoneNumber ?? "" }}
         pilihan={pilihan}
         ringkasan={ringkasan}
+        lokasiName={tampilan.lokasi.name}
+        denah={tampilan}
         syarat={tampilan.syarat}
         sudahMasuk={actor !== null}
         mintaKodeMasuk={kirimKodeMasuk}
@@ -307,7 +364,7 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
         <span className="inline-flex size-11 items-center justify-center rounded-full bg-success-soft text-success-soft-foreground">
           <Check className="size-6" aria-hidden />
         </span>
-        <h1 className="text-title-1 text-foreground">Pesanan terkirim</h1>
+        <h1 className="text-title-1 text-forest">Pesanan terkirim</h1>
         <p className="text-body-lg text-muted-foreground">
           Nomor Pemesanan <span className="font-mono font-semibold text-foreground">{tampil.nomor}</span>
         </p>

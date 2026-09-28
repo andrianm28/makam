@@ -3,6 +3,7 @@ import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import type { BarisTotal, DenahTerencana, KartuTerencana, PemesananTerencanaOrder } from "@/domain/pemesanan";
 import type { PilihanStatus } from "@/domain/inventory";
 import { formatRupiah } from "@/lib/rupiah";
+import { syaratLines } from "./syarat";
 
 /**
  * What the wizard's screens show, as plain values: the module's reads turned into
@@ -18,27 +19,30 @@ export interface LokasiView {
   city: string;
   /** "Terverifikasi · dikunjungi September 2026". */
   terverifikasi: string;
-  /** "mulai Rp 2.650.000", or null while nothing here is priced. */
+  /** "Rp 2.650.000" (the card's own "mulai" caption sits above it), or null while nothing here is priced. */
   mulai: string | null;
   /** "5 petak atau kavling bisa dipilih", or "Belum ada petak yang tersedia". */
   tersedia: string;
-  /** Up to three facility labels, as the card shows them. */
-  fasilitas: string[];
+  /** Up to three facilities, by their key (for the icon) and label. */
+  fasilitas: { key: LokasiFacility; label: string }[];
+  /** The Kunjungan Verifikasi's first photo, signed; null before one has been taken. */
+  foto: string | null;
 }
 
-export function lokasiView(kartu: KartuTerencana): LokasiView {
+export function lokasiView(kartu: KartuTerencana, foto: string | null): LokasiView {
   const visited = kartu.lokasi.kunjungan;
   return {
     id: kartu.lokasi.id,
     name: kartu.lokasi.name,
     city: kartu.lokasi.city,
     terverifikasi: visited ? `Terverifikasi · dikunjungi ${formatBulanTahun(visited.visitedOn)}` : "Terverifikasi",
-    mulai: kartu.mulaiDari === null ? null : `mulai ${formatRupiah(kartu.mulaiDari)}`,
+    mulai: kartu.mulaiDari === null ? null : formatRupiah(kartu.mulaiDari),
     tersedia:
       kartu.tersedia > 0
         ? `${kartu.tersedia} petak atau kavling bisa dipilih`
         : "Belum ada petak yang tersedia",
-    fasilitas: (kartu.lokasi.facilities as LokasiFacility[]).slice(0, 3).map((facility) => lokasiFacilities[facility]),
+    fasilitas: (kartu.lokasi.facilities as LokasiFacility[]).slice(0, 3).map((facility) => ({ key: facility, label: lokasiFacilities[facility] })),
+    foto,
   };
 }
 
@@ -123,15 +127,6 @@ export interface SyaratView {
   masaPembatalanDays: number;
   refundPercent: number;
   lokasiNama: string;
-}
-
-/** The Syarat Pemesanan Terencana, in the words shown before Kirim and kept on the order. */
-export function syaratLines(syarat: SyaratView): string[] {
-  return [
-    `Masa Pembatalan ${syarat.masaPembatalanDays} hari sejak pembayaran: membatalkan Pemesanan Terencana dalam masa ini mengembalikan seluruh tarif.`,
-    `Setelah masa itu, pengembalian ${syarat.refundPercent}% dari tarif, sesuai kebijakan ${syarat.lokasiNama}.`,
-    `Hak Pakai diberikan oleh ${syarat.lokasiNama}; Makam.co.id mencatat dan menerima pembayarannya.`,
-  ];
 }
 
 export function denahView(denah: DenahTerencana): DenahView {
