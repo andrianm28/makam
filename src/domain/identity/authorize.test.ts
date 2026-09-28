@@ -187,6 +187,41 @@ describe("who may build a Lokasi Mitra's Denah (denah.ubah)", () => {
   });
 });
 
+describe("who may complete a Hak Pakai flagged Perlu Verifikasi (hak_pakai.selesaikan_verifikasi)", () => {
+  it("only that Lokasi's own Admin Lokasi; not Admin Platform, and not another Lokasi's Admin Lokasi", () => {
+    // The same rule as `denah.ubah` and for the same reason: the record of what
+    // stands at a grave is the Lokasi's own, and the Operator chases a Lokasi by
+    // phone rather than completing its records (story 117). It is this action the
+    // first Perpanjangan or Layanan on a flagged Hak Pakai waits for.
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const otherLokasiId = "5d1f4c2e-0000-4000-8000-000000000002";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+    const adminLokasiElsewhere = { ...staff(["admin_lokasi"]), lokasiIds: [otherLokasiId] };
+
+    expect(authorize(adminLokasi, "hak_pakai.selesaikan_verifikasi", lokasiMitraResource(lokasiId))).toEqual({ allowed: true });
+    for (const who of [adminPlatform, adminLokasiElsewhere, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
+      expect(authorize(who, "hak_pakai.selesaikan_verifikasi", lokasiMitraResource(lokasiId))).toEqual({
+        allowed: false,
+        reason: "tidak_berwenang",
+      });
+    }
+    // The right is the Lokasi's, not the row's: a different resource is refused.
+    expect(authorize(adminLokasi, "hak_pakai.selesaikan_verifikasi", semuaLokasiMitraResource())).toEqual({
+      allowed: false,
+      reason: "tidak_berwenang",
+    });
+  });
+
+  it("an Admin Lokasi that also holds Admin Platform without TOTP still can't complete it", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const notYet = { ...staff(["admin_platform", "admin_lokasi"], "perlu_verifikasi"), lokasiIds: [lokasiId] };
+    expect(authorize(notYet, "hak_pakai.selesaikan_verifikasi", lokasiMitraResource(lokasiId))).toEqual({
+      allowed: false,
+      reason: "perlu_totp",
+    });
+  });
+});
+
 describe("who may see a Lokasi Mitra's Denah (denah.lihat)", () => {
   it("Admin Platform sees every Lokasi Mitra's Denah; an Admin Lokasi only its own", () => {
     const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
