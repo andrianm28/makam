@@ -44,9 +44,17 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     const terencanaAktif = listed.filter((one) => one.terencanaAktif).map((one) => one.name).sort();
     expect(terencanaAktif).toEqual(["Pemakaman Wakaf Al-Ikhlas", "Taman Peristirahatan Hijau Asri"].sort());
 
-    // Every one has its Kunjungan Verifikasi photos stored as real JPEG bytes, reachable through the public read.
+    // Every one's Kunjungan Verifikasi photo count matches the mock's own count exactly (Firdaus gets all four
+    // of its mock photos, the other four their two each).
+    const mockPhotoCount: Record<string, number> = {
+      "Taman Makam Firdaus": 4,
+      "Pemakaman Wakaf Al-Ikhlas": 2,
+      "Makam Masjid Nurul Huda": 2,
+      "Taman Peristirahatan Hijau Asri": 2,
+      "Pemakaman Bukit Sejuk": 2,
+    };
     for (const one of listed) {
-      expect(one.kunjunganVerifikasi?.photos.length).toBeGreaterThan(0);
+      expect(one.kunjunganVerifikasi?.photos.length).toBe(mockPhotoCount[one.name]);
     }
 
     // Hijau Asri's Kunjungan Verifikasi records no pin (the mock has none for it either).
@@ -65,6 +73,12 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     const tersedia = await setup.inventory.tersediaPerJenisMakam(firdausId);
     expect(tersedia).toHaveLength(3);
     for (const one of tersedia) expect(one.count).toBeGreaterThan(0);
+
+    // Firdaus's hargaBaru: "Makam Standar" is scheduled to become Rp 9.000.000 from 1 Januari 2027, through the
+    // Tariffs module's own versioning — read the way the public Lokasi page reads a scheduled price change.
+    const pricing = await setup.tariffs.lokasiPricing(firdausId, setup.clock.now());
+    const standar = pricing.jenisMakam.find((card) => card.jenisMakam.name === "Makam Standar");
+    expect(standar?.hakPakai.scheduledChange).toEqual({ effectiveOn: "2027-01-01", total: 9_000_000 + 250_000 });
 
     // Wakaf Al-Ikhlas's "Kavling Keluarga 2 Petak" is a real Kavling Keluarga (Perlu Verifikasi is cleared, so
     // "Pemesanan Terencana aktif" is on, which needs every Petak here resolved).

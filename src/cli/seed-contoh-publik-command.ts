@@ -40,35 +40,45 @@
  *   1:1 (mushola→musala, akses-mobil→akses_ambulans, keamanan→pos_jaga,
  *   pendopo→tempat_duduk, air→air_bersih, parkir and toilet unchanged); every
  *   mock facility has a real counterpart, so none is dropped.
+ * - The mock's `dikunjungi` month ("Agustus 2026", ...) is not reproduced:
+ *   `recordKunjunganVerifikasi`'s date is always its own Clock's "now" at the
+ *   moment the visit is completed (fieldwork's `completeTugasLapangan`, which
+ *   this command drives through its public function like anything else), and
+ *   this command runs the real `SystemClock`, never a faked one — faking the
+ *   Clock to backdate a visit is exactly the shortcut AGENTS.md rules out for
+ *   domain code. Every seeded Lokasi Mitra's Kunjungan Verifikasi is dated the
+ *   day this command is run.
+ * - Firdaus's `hargaBaru` (a scheduled Harga Hak Pakai change) IS reproduced:
+ *   a second tariff version on its "Makam Standar", effective 1 January 2027,
+ *   through Tariffs' own versioning (`setJenisMakamTariff`) — the same
+ *   mechanism a real Admin Platform would use to schedule a price change.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { FakeEmailSender } from "@/adapters/memory";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { createAdapters } from "@/composition/adapters";
-import { createDatabase, type Database } from "@/db/client";
-import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
-import type { Actor, Identity } from "@/domain/identity";
-import { createInventory, type Inventory } from "@/domain/inventory";
+import { createDatabase } from "@/db/client";
+import { createFieldwork } from "@/domain/fieldwork";
+import type { Actor } from "@/domain/identity";
+import { createInventory } from "@/domain/inventory";
 import {
   createLokasi,
   DEFAULT_FLAGS,
   DEFAULT_POLICIES,
-  type Lokasi,
   type LokasiFacility,
   type LokasiFlags,
   type LokasiPolicies,
 } from "@/domain/lokasi";
 import type { JamOperasional } from "@/domain/lokasi/jam-operasional-schema";
 import { createOperatorSettings } from "@/domain/operator-settings";
-import { createTariffs, type Tariffs } from "@/domain/tariffs";
+import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
-import type { Adapters } from "@/ports";
 import { cliFailure } from "./cli-failure";
+import { adminPlatform, masukSebagai, scanPerjanjian, type Gagal, type Modul } from "./dev-seed-support";
 
 const USAGE = "Pakai: seed-contoh-publik";
 
@@ -84,8 +94,6 @@ const DOKUMEN = [
 ];
 
 const PETUGAS = { email: "petugas.contoh-publik@contoh.id", phoneNumber: "085299999999" };
-
-const scanPerjanjian = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
 
 function fixture(file: string): Uint8Array {
   const path = fileURLToPath(new URL(`./fixtures/contoh-publik/${file}`, import.meta.url));
@@ -118,6 +126,8 @@ interface JenisMakamSpec {
   kavlingPetak?: number;
   /** The mock's one `tersedia: 0` entry: its single Petak is cleared Tidak Tersedia instead of Tersedia. */
   kosong?: boolean;
+  /** The mock's `hargaBaru`: a second tariff version scheduled for a future date, same tenure and Perpanjangan price. */
+  hargaBaru?: { effectiveOn: string; hargaHakPakai: number };
 }
 
 interface ContohLokasiSpec {
@@ -152,14 +162,24 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 2_500_000,
     biayaPemakamanTumpang: 1_750_000,
     jenisMakam: [
-      { name: "Makam Standar", description: "Ukuran 1 × 2,5 m", tenure: { kind: "tahun", years: 20 }, hargaHakPakai: 8_500_000, hargaPerpanjangan: 4_000_000, tersedia: 3 },
+      {
+        name: "Makam Standar",
+        description: "Ukuran 1 × 2,5 m",
+        tenure: { kind: "tahun", years: 20 },
+        hargaHakPakai: 8_500_000,
+        hargaPerpanjangan: 4_000_000,
+        tersedia: 3,
+        // Mock's hargaBaru: "Makam Standar menjadi Rp 9.000.000" from 1 Januari 2027.
+        hargaBaru: { effectiveOn: "2027-01-01", hargaHakPakai: 9_000_000 },
+      },
       { name: "Makam Taman", description: "Ukuran 1,5 × 3 m, tepi jalan setapak", tenure: { kind: "tahun", years: 20 }, hargaHakPakai: 14_000_000, hargaPerpanjangan: 6_500_000, tersedia: 3 },
       { name: "Makam Selamanya", description: "Ukuran 1,5 × 3 m", tenure: { kind: "selamanya" }, hargaHakPakai: 32_000_000, hargaPerpanjangan: null, tersedia: 3 },
     ],
     masaPembatalanDays: 14,
     refundAfterMasaPembatalanPercent: 70,
     terencanaAktif: false,
-    photos: ["lokasi-jalan-taman.jpg", "lokasi-pendopo.jpg"],
+    // The mock's full four photos, in the mock's own order.
+    photos: ["lokasi-jalan-taman.jpg", "lokasi-pendopo.jpg", "lokasi-taman-tropis.jpg", "tile-perpanjang.jpg"],
     adminLokasiEmail: "lokasi.firdaus@contoh.id",
     adminLokasiPhone: "085100000001",
   },
@@ -250,19 +270,6 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
   },
 ];
 
-/** The modules this command drives, each through its own public functions. */
-interface Modul {
-  db: Database;
-  adapters: Adapters;
-  identity: Identity;
-  lokasi: Lokasi;
-  tariffs: Tariffs;
-  inventory: Inventory;
-  fieldwork: Fieldwork;
-}
-
-type Gagal = { ok: false; reason: string };
-
 export async function seedContohPublikCommand(
   argv: string[],
   source: Record<string, string | undefined> = process.env,
@@ -329,58 +336,16 @@ export async function seedContohPublikCommand(
   }
 }
 
-/**
- * The stack's first Admin Platform (seeded by seed:admin) as a local developer
- * with the stack's shell could act. Never on staging or production: the command
- * above refuses those before this is reached.
- */
-async function adminPlatform(identity: Identity): Promise<Actor | null> {
-  const admin = (await identity.staffAccounts()).find((account) => account.roles.includes("admin_platform") && !account.deactivated);
-  if (!admin) return null;
-  return {
-    accountId: admin.accountId,
-    email: admin.email ?? "",
-    phoneNumber: admin.phoneNumber,
-    roles: ["admin_platform"],
-    lokasiIds: [],
-    totp: "lolos",
-    sessionId: `seed-contoh-publik-${admin.accountId}`,
-  };
-}
-
-/** A fresh benchmarking IP per Kode Masuk request: the per-IP limit allows one per 60 s, and this command sends several in a row. */
-function benchmarkingIp(): string {
-  return `198.18.1.${1 + Math.floor(Math.random() * 250)}`;
-}
-
-async function masukDenganKodeMasuk(modul: Modul, email: string): Promise<{ ok: true; value: Actor } | Gagal> {
-  const { identity, adapters } = modul;
-  const sent = await identity.requestKodeMasuk({ email, ip: benchmarkingIp() });
-  if (!sent.ok) return { ok: false, reason: sent.reason };
-  const code = (adapters.email as FakeEmailSender).sent
-    .filter((message) => message.to === sent.email)
-    .at(-1)
-    ?.text.match(/\b(\d{6})\b/)?.[1];
-  if (!code) return { ok: false, reason: "kode_tidak_terkirim" };
-  const login = await identity.verifyKodeMasuk({ email, code });
-  if (!login.ok) return { ok: false, reason: login.reason };
-  const cookies = login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
-  const actor = await identity.actorFromCookies(cookies);
-  return actor ? { ok: true, value: actor } : { ok: false, reason: "belum_masuk" };
-}
-
 /** The one Petugas Lapangan every example Lokasi Mitra's Kunjungan Verifikasi and Cek Denah are done by (the role is not Lokasi-scoped). */
 async function undangPetugas(modul: Modul, admin: Actor): Promise<{ ok: true; value: Actor } | Gagal> {
-  const invited = await modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" });
-  if (!invited.ok) return { ok: false, reason: invited.reason };
-  return masukDenganKodeMasuk(modul, PETUGAS.email);
+  return masukSebagai(modul, PETUGAS.email, () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" }));
 }
 
 /** This example Lokasi Mitra's own Admin Lokasi (and Kontak Siaga). */
 async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec): Promise<{ ok: true; value: Actor } | Gagal> {
-  const invited = await modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone });
-  if (!invited.ok) return { ok: false, reason: invited.reason };
-  return masukDenganKodeMasuk(modul, spec.adminLokasiEmail);
+  return masukSebagai(modul, spec.adminLokasiEmail, () =>
+    modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone }),
+  );
 }
 
 /**
@@ -474,6 +439,17 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
     });
     if (!created.ok) return { ok: false, reason: `jenis makam ${jm.name}: ${created.reason}` };
     jenisMakamIds.push(created.jenisMakam.id);
+
+    if (jm.hargaBaru) {
+      const scheduled = await tariffs.setJenisMakamTariff(admin, created.jenisMakam.id, {
+        hargaHakPakai: jm.hargaBaru.hargaHakPakai,
+        tenure: jm.tenure,
+        hargaPerpanjangan: jm.hargaPerpanjangan,
+        effectiveOn: jm.hargaBaru.effectiveOn,
+        reason: null,
+      });
+      if (!scheduled.ok) return { ok: false, reason: `harga baru ${jm.name}: ${JSON.stringify(scheduled)}` };
+    }
   }
   const pemakaman = await tariffs.setBiayaPemakaman(admin, lokasiId, {
     biayaPemakaman: spec.biayaPemakaman,
