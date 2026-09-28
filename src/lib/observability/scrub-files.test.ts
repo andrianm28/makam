@@ -11,13 +11,15 @@
  * message or a tag, and a signed Dokumen URL in a request or a breadcrumb.
  *
  * They were first written as the behaviour the scrubber had, not the behaviour
- * we would want, and each named the line that let it through. Every one the fix
- * reaches now asserts the fixed behaviour instead: opaque bytes become a
+ * we would want, and each named the line that let it through. Four of those
+ * seven now assert the fixed behaviour instead: opaque bytes become a
  * placeholder, and a signed Dokumen URL keeps its path and loses the query that
- * carries its read permission. Two shapes are still what they were, and say so
- * where they sit: a base64 `data:` URL and a signed URL inside a message are
- * both text, `event.message` goes through `scrubText` alone (`scrub.ts:145`),
- * and neither has a producer in this app.
+ * carries its read permission. The other three still assert what they did, and
+ * each says where it sits and why it is still so — a base64 `data:` URL and a
+ * signed URL inside a message are text, and `event.message` goes through
+ * `scrubText` alone (`scrub.ts:145`), so neither has a rule behind it; a bare
+ * FileStore key has neither a `?` nor a `sig=`, so the rule takes a document's
+ * read permission rather than the id that names it.
  */
 import type { Breadcrumb, ErrorEvent, EventHint } from "@sentry/core";
 import { describe, expect, it } from "vitest";
@@ -104,14 +106,37 @@ describe("Dokumen bytes inside the event payload", () => {
     expect(event.logentry?.params).toEqual(["[berkas]"]);
   });
 
+  // The cap is MAX_DEPTH and `extra` is depth 0, so a value under seven wrappers
+  // sits at depth 8 — exactly on it. The cap returns such a value untouched, but
+  // a string is tested for *before* the cap and a Uint8Array was not, so a
+  // document on that boundary went out as { "0": 37, … } while a phone number on
+  // the same boundary was still caught. `isBinary` now sits above the cap,
+  // beside the string test, and this is that boundary. One level deeper is a
+  // different thing: the bytes are then inside an object the cap returns whole,
+  // which it does for a phone number in the same place too, and closing that
+  // would mean walking past the cap the cap exists to hold.
+  it("replaces a document's bytes that sit exactly at the depth cap, where a string still is", () => {
+    const tujuh = (isi: unknown) => {
+      let dalam: Record<string, unknown> = { isi };
+      for (let tingkat = 0; tingkat < 7; tingkat++) dalam = { anak: dalam };
+      return dalam;
+    };
+
+    const event = scrubEvent({ type: undefined, extra: tujuh(new Uint8Array([0x25, 0x50])) } as ErrorEvent);
+    const telepon = scrubEvent({ type: undefined, extra: tujuh("nomor 081234567890") } as ErrorEvent);
+
+    expect(JSON.stringify(event.extra)).toContain('"isi":"[berkas]"');
+    expect(JSON.stringify(telepon.extra)).toContain("nomor [telepon]");
+  });
+
   it("keeps a base64 data: URL of a photo in a message, which no rule here reaches", () => {
     // An inline `data:` URL is the document itself, base64. `scrubUrl` drops a
     // signed Dokumen URL's query and `scrubValue` replaces opaque bytes, but a
     // message is text and `event.message` goes through `scrubText` alone
     // (`scrub.ts:145`). Nothing in this app builds one: an upload is a `File`
     // body through a Server Action, and no `readAsDataURL`, `toDataURL` or
-    // `data:image` exists under `src/`. A hole in the control rather than a
-    // reachable leak, recorded here rather than closed.
+    // `data:image` is written outside this file. A hole in the control rather
+    // than a reachable leak, recorded here rather than closed.
     const event = scrubEvent({ type: undefined, message: `Gagal merender ${DATA_URL_KTP}` } as ErrorEvent);
 
     expect(event.message).toBe(`Gagal merender ${DATA_URL_KTP}`);

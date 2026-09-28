@@ -111,6 +111,24 @@ describe("Sentry event scrubbing", () => {
     expect(event.user).toEqual({ id: "u1" });
   });
 
+  it("replaces a file's bytes at the depth cap itself, which is the level the walk reaches", () => {
+    // MAX_DEPTH bounds how far `scrubValue` walks, not what a leaf may be. A
+    // Uint8Array handed back untouched is sent whole as { "0": 37, "1": 80, … },
+    // so the depth cap was a way round the rule: `extra` at depth 0, and the
+    // file's bytes land at depth 8, the last level the walk visits.
+    // `scrub-files.test.ts` covers the shapes; this covers how deep they may sit.
+    let dalam: Record<string, unknown> = { bukti: new Uint8Array([0x25, 0x50, 0x44, 0x46]) };
+    for (let i = 0; i < 7; i++) dalam = { anak: dalam };
+    const event = scrubEvent({ type: undefined, extra: dalam } as ErrorEvent);
+
+    const dasar = (node: unknown): unknown =>
+      typeof node === "object" && node !== null && "anak" in node
+        ? dasar((node as Record<string, unknown>).anak)
+        : node;
+
+    expect(dasar(event.extra)).toEqual({ bukti: "[berkas]" });
+  });
+
   it("scrubs breadcrumbs and drops their request/response bodies", () => {
     const crumb = scrubBreadcrumb({
       category: "fetch",

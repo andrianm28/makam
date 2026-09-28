@@ -99,8 +99,12 @@ function isBinary(value: object): boolean {
 
 function scrubValue(value: unknown, depth = 0): unknown {
   if (typeof value === "string") return scrubUrl(value);
-  if (depth >= MAX_DEPTH || value === null || typeof value !== "object") return value;
+  if (value === null || typeof value !== "object") return value;
+  // The binary test comes before the depth cap, not after it: the cap returns a
+  // value untouched, and a Uint8Array returned untouched is sent whole as
+  // { "0": 37, "1": 80, … }, so a document nested past MAX_DEPTH would still go.
   if (isBinary(value)) return BERKAS_PLACEHOLDER;
+  if (depth >= MAX_DEPTH) return value;
   if (Array.isArray(value)) return value.map((item) => scrubValue(item, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [key, scrubValue(item, depth + 1)]),
