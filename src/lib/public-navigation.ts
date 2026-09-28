@@ -51,6 +51,11 @@ export function publicMenu(options: { signedIn: boolean }): PublicMenuItem[] {
   return [...items, account];
 }
 
+/** The account entry (Masuk or Akun Saya), which the top bar shows as its own button. */
+export function isAccountItem(item: PublicMenuItem): boolean {
+  return item.href === "/masuk" || item.href === "/akun";
+}
+
 /** The content pages, in the order the footer lists them. */
 export interface ContentPageLink {
   href: string;

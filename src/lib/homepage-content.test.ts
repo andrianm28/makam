@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homepageHero, homepageTiles, homepageTrust } from "./homepage-content";
+import { homepageHero, homepageTiles, homepageTrust, homepageTrustLink } from "./homepage-content";
 
 /**
  * The Beranda's hero, tile row and trust strip (spec, Public site and routing
@@ -23,10 +23,8 @@ describe("the Beranda's hero", () => {
     expect(homepageHero.planned.label).toBe("Siapkan makam untuk nanti");
   });
 
-  it("does not prefetch the Terencana route while that wizard is not built yet", () => {
-    // A prefetch of a route that answers 404 never settles, which would leave a
-    // request open on every view of the Beranda. This is the flag ticket 36 clears.
-    expect(homepageHero.planned.prefetch).toBe(false);
+  it("tells a family that nothing is paid when the order is sent", () => {
+    expect(homepageHero.reassurance).toMatch(/Tidak ada yang dibayar/);
   });
 });
 
@@ -50,13 +48,14 @@ describe("the Beranda's tile row", () => {
     expect(byLabel.get("Layanan Makam")?.href).toBe("/makam-keluarga?aksi=layanan");
     for (const label of ["Urus di TPU DKI", "Wakaf Tanah"]) {
       expect(byLabel.get(label)?.href, label).toBeUndefined();
-      expect(byLabel.get(label)?.description, label).toBe("Segera hadir.");
     }
-    expect(homepageTiles.map((tile) => tile.description).join(" ")).not.toMatch(/\d{4}/);
+    expect(homepageTiles.map((tile) => tile.summary).join(" ")).not.toMatch(/\d{4}/);
   });
 
-  it("carries an icon and one line each, in Bahasa Indonesia", () => {
+  it("carries a photograph with alt text and one line each, in Bahasa Indonesia", () => {
     for (const tile of homepageTiles) {
+      expect(tile.image).toMatch(/^\/content\/.+\.jpg$/);
+      expect(tile.imageAlt).toMatch(/[.!?]$/);
       expect(tile.summary.length).toBeGreaterThan(20);
       expect(tile.summary).toMatch(/[.!?]$/);
     }
@@ -73,7 +72,7 @@ describe("the Beranda's trust strip", () => {
   });
 
   it("links to Cara Kami Bekerja, where each claim is explained", () => {
-    expect(new Set(homepageTrust.map((column) => column.href))).toEqual(new Set(["/cara-kami-bekerja"]));
+    expect(homepageTrustLink.href).toBe("/cara-kami-bekerja");
   });
 
   it("makes no claim about TPU paperwork in this release", () => {

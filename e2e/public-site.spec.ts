@@ -41,7 +41,8 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
   await expect(page.getByRole("heading", { name: "Wakaf Tanah" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Perpanjang Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=perpanjang");
   await expect(page.getByRole("link", { name: "Layanan Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
-  await expect(page.getByRole("link", { name: /^Aman/ })).toHaveAttribute("href", "/cara-kami-bekerja");
+  await expect(page.getByRole("heading", { name: "Dibantu, jelas, aman" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Cara Kami Bekerja" }).first()).toHaveAttribute("href", "/cara-kami-bekerja");
 });
 
 test("the Makam keluarga hub answers 'Di mana makamnya?', with the branch it was opened with", async ({ page }) => {
@@ -62,9 +63,11 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
   await page.goto("/");
 
   const menu = page.getByRole("navigation", { name: "Menu utama" });
-  for (const label of [...menuLabels, "Masuk"]) {
+  for (const label of menuLabels) {
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
   }
+  // The account entry is its own outlined button beside the menu.
+  await expect(page.getByRole("banner").getByRole("link", { name: "Masuk" })).toHaveAttribute("href", "/masuk");
   for (const label of belumHadir) {
     // Listed, and said to be coming — but not a link to a page that is not there.
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
