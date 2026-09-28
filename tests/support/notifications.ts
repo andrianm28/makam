@@ -35,6 +35,7 @@ export function notificationsOnTestDatabase(
     dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     pesananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesanan/${nomor}`,
     pesanUlangUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesan-makam/saat-duka?dari=${nomor}`,
+    pengurusanUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pengurusan/${nomor}`,
   });
   return { ...setup, webPush, notifications, reported };
 }
@@ -46,6 +47,11 @@ export function notificationsOnTestDatabase(
  * `notificationsOnTestDatabase`, which has the real module.
  */
 export const TAGIHAN_TIDAK_ADA: Pick<Billing, "tagihan"> = { tagihan: async () => null };
+
+/** Billing's Retribusi read for a setup that has no Tagihan at all: nothing to setor. */
+export const TAGIHAN_RETRIBUSI_KOSONG: Pick<Billing, "tagihanRetribusiLunas"> = {
+  tagihanRetribusiLunas: async () => [],
+};
 
 /** An Akun Staf holding `role`, invited by the first Admin Platform and logged in with a Kode Masuk. */
 export async function signedInStaff(

@@ -5,6 +5,9 @@ import { lokasiRevisitRowType, publishGateCheckRowType } from "./tier4-lokasi-ro
 import { otherTugasLapanganRowType } from "./tier4-tugas-lapangan-row";
 import { konfirmasiLokasiTerlambatRowType } from "./tier1-konfirmasi-lokasi-terlambat-row";
 import { saatDukaDitolakRowType } from "./tier1-saat-duka-ditolak-row";
+import { konfirmasiTpuSaatDukaRowType } from "./tier1-konfirmasi-tpu-saat-duka-row";
+import { ambilSuratPengantarRowType } from "./tier2-ambil-surat-pengantar-row";
+import { setorRetribusiRowType } from "./tier3-setor-retribusi-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
 import { pencairanRowType } from "./tier3-pencairan-row";
 
@@ -15,14 +18,17 @@ import { pencairanRowType } from "./tier3-pencairan-row";
  * the framework's three Tier 4 types (including the TPU flag stale row of
  * ticket 43), Tier 2's Pembayaran Perlu Ditinjau (spec-missing; ticket 19's
  * review) and Telepon Pemesan (ticket 20), Tier 1's Konfirmasi Lokasi
- * terlambat (ticket 23) and Tier 3's Pencairan (ticket 32 — the first Tier 3 row
- * type, and the foundation the rest of Tier 3 builds on).
- * review) and Telepon Pemesan (ticket 20), and Tier 1's Konfirmasi Lokasi
- * terlambat (ticket 23) and Saat Duka ditolak (ticket 24).
+ * terlambat (ticket 23), Saat Duka ditolak (ticket 24), and Tier 3's Pencairan
+ * (ticket 32 — the first Tier 3 row type, and the foundation the rest of Tier 3
+ * builds on); plus ticket 45's three: Tier 1's Konfirmasi TPU Saat Duka, Tier
+ * 2's Ambil surat pengantar and Tier 3's Setor Retribusi.
  */
 export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiLokasiTerlambatRowType,
   saatDukaDitolakRowType,
+  konfirmasiTpuSaatDukaRowType,
+  ambilSuratPengantarRowType,
+  setorRetribusiRowType,
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
   teleponPemesanRowType,

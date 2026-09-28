@@ -11,6 +11,8 @@ import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, 
 
 export interface StaffAccount {
   accountId: string;
+  /** The name as the Akun carries it, empty on an Akun that has never set one. */
+  name: string;
   /** The email on record: its Email Terverifikasi, or (an Akun from before ADR 0004) one only typed in. */
   email: string | null;
   /** False for an Akun from before ADR 0004 without an Email Terverifikasi: it cannot log in until a Pemulihan Akun. */
@@ -286,6 +288,7 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
   const users = await deps.db
     .select({
       id: identityUser.id,
+      name: identityUser.name,
       email: identityUser.contactEmail,
       emailVerifiedAt: identityUser.emailVerifiedAt,
       phoneNumber: identityUser.phoneNumber,
@@ -302,6 +305,7 @@ export async function staffAccounts(deps: { db: Database }): Promise<StaffAccoun
     const held = staffRoles.filter((role) => byAccount.get(user.id)?.has(role));
     return {
       accountId: user.id,
+      name: user.name,
       email: user.email,
       emailTerverifikasi: Boolean(user.email && user.emailVerifiedAt),
       phoneNumber: user.phoneNumber,
@@ -346,5 +350,43 @@ export async function staffRecipient(
     email: user.email && user.emailVerifiedAt ? user.email : null,
     roles,
     liveSessionIds: sessions.map((session) => session.id),
+  };
+}
+
+/**
+ * One Akun Staf by its id, or null. The narrow read behind a family's own page
+ * showing who has taken their order: a name and a contact number, and nothing
+ * else about the account.
+ */
+export async function staffAccountById(
+  deps: { db: Database },
+  accountId: string,
+): Promise<StaffAccount | null> {
+  const [user] = await deps.db
+    .select({
+      id: identityUser.id,
+      name: identityUser.name,
+      email: identityUser.contactEmail,
+      emailVerifiedAt: identityUser.emailVerifiedAt,
+      phoneNumber: identityUser.phoneNumber,
+    })
+    .from(identityUser)
+    .where(eq(identityUser.id, accountId));
+  if (!user) return null;
+  const roles = await deps.db
+    .select({ role: identityStaffRole.role })
+    .from(identityStaffRole)
+    .where(eq(identityStaffRole.accountId, accountId));
+  const held = staffRoles.filter((role) => roles.some((satu) => satu.role === role));
+  return {
+    accountId: user.id,
+    name: user.name,
+    email: user.email,
+    emailTerverifikasi: Boolean(user.email && user.emailVerifiedAt),
+    phoneNumber: user.phoneNumber,
+    roles: held,
+    // A row here means the Akun is still a member of the staff roster; an
+    // Akun that lost every role is Dinonaktifkan and nobody may be handed to it.
+    deactivated: held.length === 0,
   };
 }

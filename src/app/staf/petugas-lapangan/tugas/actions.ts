@@ -20,6 +20,11 @@ const domainRefusalMessages: Record<string, string> = {
   berkas_gagal_disimpan: "Berkas tidak bisa disimpan. Coba lagi.",
   kunjungan_tidak_valid: "Periksa lagi pin dan fasilitas: pin harus di Indonesia.",
   catatan_tidak_valid: "Catatan Cek Denah terlalu panjang.",
+  // A Setor Retribusi Tugas is refused for two different reasons, and each one
+  // sends the Petugas somewhere else (ticket 45).
+  setor_tidak_tercatat:
+    "Tagihan ini tidak punya Retribusi Pemda yang perlu disetor, jadi Tugas ini tidak bisa diselesaikan. Hubungi Admin Platform.",
+  sudah_disetor: "Setor Retribusi untuk Tagihan ini sudah tercatat. Hubungi Admin Platform.",
 };
 
 const facilityKeys = Object.keys(lokasiFacilities) as [string, ...string[]];

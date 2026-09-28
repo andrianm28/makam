@@ -25,6 +25,7 @@ export const TEMPLATE_EMAIL = [
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
   "bukti_pembayaran_terbit",
+  "pengurusan_dikonfirmasi",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -51,6 +52,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
+  pengurusan_dikonfirmasi: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -81,6 +83,7 @@ export const TABEL_ACARA: Record<
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
+  | "pengurusan_dikonfirmasi"
   | "peringatan_staf",
   Acara
 > = {
@@ -143,6 +146,19 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "bukti_pembayaran_terbit",
     waktu: WAKTU_TEMPLATE.bukti_pembayaran_terbit,
+  },
+  /**
+   * A Saat Duka TPU order reaches its family by email only, at any hour (ticket
+   * 45), like the two Lokasi Mitra order messages: the burial is already
+   * arranged, so nothing in it asks the family to act. A send that keeps failing
+   * opens a "Telepon Pemesan" row with no Lokasi Mitra behind it, so it reaches
+   * Admin Platform.
+   */
+  pengurusan_dikonfirmasi: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "pengurusan_dikonfirmasi",
+    waktu: WAKTU_TEMPLATE.pengurusan_dikonfirmasi,
   },
   /**
    * The staff events, one Peringatan Staf per kind (the module's

@@ -33,6 +33,9 @@ describe("seeding the first Admin Platform", () => {
         accountId: expect.any(String),
         email: "admin@makam.co.id",
         emailTerverifikasi: true,
+        // The seeded Akun has set no name yet, so a family reading "who is
+        // handling my order" (ticket 45) falls back to its email, never to "".
+        name: "",
         phoneNumber: "+6281111111111",
         roles: ["admin_platform"],
         deactivated: false,
@@ -472,6 +475,7 @@ describe("deactivating an Akun Staf", () => {
       accountId: staff.login.account.id,
       email: "lokasi@contoh.id",
       emailTerverifikasi: true,
+      name: "",
       phoneNumber: "+6282222222222",
       roles: [],
       deactivated: true,

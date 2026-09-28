@@ -100,7 +100,7 @@ describe("the Saat Duka TPU submission", () => {
       almarhum: { name: "Siti Aminah", tanggalWafat: "2026-09-30" },
       jenisPenguburan: "baru",
       // Nothing is billed at submission: the Tagihan is issued at the confirmation.
-      tagihanId: null,
+      tagihan: null,
       konfirmasiDueAt: wib("2026-10-02 08:00"),
       diajukanAt: wib("2026-10-01 23:00"),
     });

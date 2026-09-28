@@ -66,6 +66,19 @@ export function testServerRuntime() {
       identity,
       notifications,
       lokasi,
+      billing,
+    });
+    const pengursModule = createPengurusan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      billing,
+      identity,
+      fieldwork,
+      notifikasi: notifications,
     });
     const pemesanan = composePemesanan({
       db: database.db,
@@ -111,6 +124,7 @@ export function testServerRuntime() {
         db: database.db,
         clock: adapters.clock,
         audit,
+        identity,
         lokasi,
         fieldwork,
         billing,
@@ -118,16 +132,9 @@ export function testServerRuntime() {
         inventory,
         pemesanan,
         payouts,
+        pengurusan: pengursModule,
       }),
-      pengurusan: createPengurusan({
-        db: database.db,
-        clock: adapters.clock,
-        files: adapters.files,
-        lokasi,
-        tariffs,
-        billing,
-        identity,
-      }),
+      pengurusan: pengursModule,
     };
   }
   afterAll(async () => {

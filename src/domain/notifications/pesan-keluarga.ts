@@ -54,6 +54,8 @@ export interface PesanKeluargaDeps {
   pesananUrl: (nomor: string) => string;
   /** The Pilih makam list a declined order sends the family back to, with that order's number on the link. */
   pesanUlangUrl: (nomor: string) => string;
+  /** A Pengurusan order's own page from its Nomor Pemesanan, where a family follows a TPU filing. */
+  pengurusanUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({

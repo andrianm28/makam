@@ -18,14 +18,15 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
-import type { Actor } from "@/domain/identity";
+import type { Actor, Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Pengurusan } from "@/domain/pengurusan";
 import type { Clock } from "@/ports/clock";
-import { ambilRow, type AmbilRowResult } from "./ambil";
+import { ambilPengurus, ambilRow, type AmbilRowResult, type PengurusAmbil } from "./ambil";
 import { antrean, antreanCounters, type AntreanCounters, type AntreanRow } from "./antrean";
 import { antreanLokasi, type AntreanLokasiAntrean } from "./antrean-lokasi";
 import {
@@ -37,11 +38,13 @@ import {
 } from "./catatan-internal";
 
 export { catatanInternalInputSchema, type CatatanInternal, type CatatanInternalInput, type TambahCatatanInternalResult } from "./catatan-internal";
-export type { AmbilRowResult } from "./ambil";
+export type { AmbilRowResult, PengurusAmbil } from "./ambil";
 export { rowKeyOf, type AntreanCounters, type AntreanRow } from "./antrean";
 export { antreanLokasiRowTypes, type AntreanLokasiGrup, type AntreanLokasiRow, type AntreanLokasiRowType } from "./antrean-lokasi";
 export { antreanRowTypes } from "./registry";
 export { TPU_FLAG_STALE_DAYS } from "./tier4-tpu-row";
+/** The Tier 1 row type's key: a family page looks its own Ambil claim up by it (ticket 45). */
+export { KONFIRMASI_TPU_SAAT_DUKA_TYPE } from "./tier1-konfirmasi-tpu-saat-duka-row";
 export type { AntreanRowDeps, AntreanRowType, AntreanTier, RawAntreanRow } from "./row-types";
 
 export interface QueuesModuleDeps {
@@ -50,8 +53,8 @@ export interface QueuesModuleDeps {
   audit: AuditLog;
   /** The Antrean's Tier 4 Lokasi rows read every Lokasi Mitra's status and publish/recheck timestamps, and the Tier 4 TPU flag row every DKI TPU's flag date. */
   lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
-  /** The Antrean's Tier 4 rows read every Tugas Lapangan. */
-  fieldwork: Pick<Fieldwork, "allTugasLapangan">;
+  /** The Antrean's Tier 4 rows read every Tugas; its Tier 2 "Ambil surat pengantar" and Tier 3 "Setor Retribusi" rows read this module's own two reads. */
+  fieldwork: Pick<Fieldwork, "allTugasLapangan" | "ambilSuratPengantarTerbuka" | "setorRetribusiTerbuka">;
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
   billing: Pick<Billing, "pembayaranPerluDitinjau">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
@@ -62,6 +65,10 @@ export interface QueuesModuleDeps {
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
+  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  /** The Ambil claim a family's own order page shows, as a name and a contact number. */
+  identity: Pick<Identity, "staffAccountById">;
 }
 
 export interface Queues {
@@ -78,6 +85,12 @@ export interface Queues {
   antreanLokasi(by: Actor, lokasiId: string): Promise<AntreanLokasiAntrean>;
   /** Any Admin Platform takes (Ambil) a row, replacing any earlier claim; logged in the Audit Log. */
   ambilRow(by: Actor, input: { type: string; subjectId: string }): Promise<AmbilRowResult>;
+  /**
+   * The staff member who has taken a row, as a name and a contact number, or null
+   * when nobody has. A read, and the one that lets a family see who is handling
+   * its own order (spec, story 73) without the Antrean page reading identity.
+   */
+  ambilPengurus(row: { type: string; subjectId: string }): Promise<PengurusAmbil | null>;
   /** Admin Platform adds a Catatan Internal on any row or order; audited, never shown to the Pemesan, Mitra Jasa or Admin Lokasi. */
   tambahCatatanInternal(by: Actor, input: CatatanInternalInput): Promise<TambahCatatanInternalResult>;
   /** Every Catatan Internal on one subject, oldest first (Admin Platform only). */
@@ -90,6 +103,7 @@ export function createQueues(deps: QueuesModuleDeps): Queues {
     counters: (by) => antreanCounters(deps, by),
     antreanLokasi: (by, lokasiId) => antreanLokasi(deps, by, lokasiId),
     ambilRow: (by, input) => ambilRow(deps, by, input),
+    ambilPengurus: (row) => ambilPengurus(deps, row),
     tambahCatatanInternal: (by, input) => tambahCatatanInternal(deps, by, input),
     catatanInternal: (by, subjectKind, subjectId) => catatanInternalFor(deps, by, subjectKind, subjectId),
   };

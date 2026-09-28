@@ -184,7 +184,13 @@ export type AuditAction =
   /** An Admin Lokasi offers a Saat Duka order an alternative, another Jenis Makam or day (ticket 24). */
   | "pemesanan.tawarkan_alternatif"
   /** An Admin Lokasi records a cancellation on a family's behalf (ticket 24). */
-  | "pemesanan.batalkan_untuk_pemesan";
+  | "pemesanan.batalkan_untuk_pemesan"
+  /** Admin Platform confirms a Saat Duka TPU order: the agreed burial, the Tagihan issued and the Ambil surat pengantar Tugas (ticket 45). */
+  | "pengurusan.konfirmasi_saat_duka_tpu"
+  /** Admin Platform offers the family another TPU for a Saat Duka order (ticket 45). */
+  | "pengurusan.tawarkan_tpu_lain"
+  /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
+  | "setor_retribusi.catat";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
