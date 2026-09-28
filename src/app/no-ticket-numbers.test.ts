@@ -13,9 +13,10 @@ const SRC_DIR = join(__dirname, "..");
 
 describe("no internal ticket numbers in user-facing copy", () => {
   it("no string or JSX text in a non-test file a page can render from names a ticket", () => {
-    // The pages, the shared components **and** src/lib: the public site's copy
-    // lives in modules a page imports (`content-pages.ts`, `homepage-content.ts`),
-    // so a guard that stopped at src/app would pass without reading a word of it.
+    // The pages, the shared components, `src/lib` (the public site's copy lives
+    // in modules a page imports: `content-pages.ts`, `homepage-content.ts`) and
+    // `src/domain` (every family-facing email body). A guard that stopped at
+    // src/app would pass without reading a word of the family's own email.
     const violations = copyScanDirs(SRC_DIR)
       .flatMap((dir) => sourceFiles(dir))
       .flatMap((file) =>
