@@ -142,6 +142,8 @@ export const staffAlertKinds = [
   "staf_tugas_lapangan_baru",
   "staf_hak_pakai_berakhir",
   "staf_calon_penghuni_diubah",
+  /** A Bukti Pencairan was issued to a Lokasi Mitra's staff or to a Mitra Jasa (ticket 32). */
+  "staf_bukti_pencairan",
 ] as const;
 export type StaffAlertKind = (typeof staffAlertKinds)[number];
 

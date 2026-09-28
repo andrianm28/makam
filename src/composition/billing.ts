@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import { createBilling, type Billing, type PaymentEffect } from "@/domain/billing";
 import { efekBuktiPembayaran } from "@/domain/notifications";
+import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { documentPagePath } from "@/lib/document-links";
 import type { RuntimeEnv } from "@/lib/env";
@@ -13,10 +14,12 @@ import type { Clock } from "@/ports/clock";
  * Perpanjangan, Pencairan due, Pekerjaan Layanan scheduled, Hak Pakai
  * extended or created). The modules that own them register them here, the one
  * registry both the `web` runtime and the worker's retry tick use. Built here:
- * Notifications' Bukti Pembayaran receipt email (ticket 20).
+ * Notifications' Bukti Pembayaran receipt email (ticket 20) and the Payouts
+ * module's record of a settled payment, which is the Lunas half of the Saat Duka
+ * Pencairan trigger (ticket 32).
  */
 export function paymentEffects(deps: { clock: Clock; dokumenUrl: (link: string) => string }): readonly PaymentEffect[] {
-  return [efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl })];
+  return [efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }), efekPencairanSaatLunas()];
 }
 
 /** Where a document's page lives: inside the container for the PdfRenderer, on the public site for payers. */

@@ -1,6 +1,6 @@
 import { FakePaymentProvider, FakePdfRenderer, FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
-import { createBilling } from "@/domain/billing";
+import { createBilling, type PaymentEffect } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createNotifications } from "@/domain/notifications";
@@ -15,7 +15,17 @@ import { signedInAdminLokasi } from "./lokasi";
  * 16: the publish gate and Terencana switch compose the first four; ticket
  * 17's Tier 2 Pembayaran Perlu Ditinjau row needs Billing too).
  */
-export function publishOnTestDatabase(db: Database) {
+export interface PublishOptions {
+  /**
+   * The downstream effects of a payment this Billing runs, for a test that
+   * composes a module which registers one of its own (ticket 32's Pencairan
+   * effect takes no dependencies, so it can be listed before the module that
+   * also needs this Billing exists).
+   */
+  paymentEffects?: PaymentEffect[];
+}
+
+export function publishOnTestDatabase(db: Database, options: PublishOptions = {}) {
   const setup = inventoryOnTestDatabase(db);
   const webPush = new FakeWebPush();
   const operatorSettings = createOperatorSettings({ db, clock: setup.clock, audit: setup.audit });
@@ -29,6 +39,7 @@ export function publishOnTestDatabase(db: Database) {
     payments,
     documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
+    paymentEffects: options.paymentEffects,
     reportError: (error, context) => reportedErrors.push({ error, context }),
   });
   const notifications = createNotifications({

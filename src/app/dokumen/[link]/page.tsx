@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
 import { documentLinkSchema, type BillingDocument, type NotPayable, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import type { DokumenBuktiPencairan } from "@/domain/payouts";
 import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
@@ -15,11 +16,18 @@ import { bayarTagihan } from "./actions";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
 
-async function documentOf(params: Promise<{ link: string }>): Promise<{ link: string; document: BillingDocument } | null> {
+type Document = BillingDocument | { type: "bukti_pencairan"; pencairan: DokumenBuktiPencairan };
+
+async function documentOf(params: Promise<{ link: string }>): Promise<{ link: string; document: Document } | null> {
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) return null;
-  const document = await serverRuntime().billing.documentByLink(parsed.data.link);
-  return document && { link: parsed.data.link, document };
+  const runtime = serverRuntime();
+  const document = await runtime.billing.documentByLink(parsed.data.link);
+  if (document) return { link: parsed.data.link, document };
+  // A Bukti Pencairan is the Payouts module's document, not Billing's: whoever it
+  // was paid to opens it on the same unguessable link (spec, Billing > Pencairan run).
+  const pencairan = await runtime.payouts.buktiPencairan(parsed.data.link);
+  return pencairan && { link: parsed.data.link, document: { type: "bukti_pencairan", pencairan } };
 }
 
 export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">): Promise<Metadata> {
@@ -28,7 +36,9 @@ export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">)
     ? "Dokumen tidak ditemukan"
     : found.document.type === "tagihan"
       ? `Tagihan ${found.document.tagihan.nomorTagihan}`
-      : `Bukti Pembayaran ${found.document.bukti.nomorBukti}`;
+      : found.document.type === "bukti_pembayaran"
+        ? `Bukti Pembayaran ${found.document.bukti.nomorBukti}`
+        : `Bukti Pencairan ${found.document.pencairan.nomorBukti}`;
   // A document's link is its only key: never indexed, never followed.
   return { title: `${title} · Makam.co.id`, robots: { index: false, follow: false } };
 }
@@ -55,8 +65,12 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
       <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
         {document.type === "tagihan" ? (
           <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
-        ) : (
+        ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
+        ) : document.pencairan.type === "bukti_pencairan" ? (
+          <BuktiPencairanView bukti={document.pencairan} />
+        ) : (
+          <BuktiPencairanMitraJasaView bukti={document.pencairan} />
         )}
       </article>
     </main>
@@ -154,6 +168,119 @@ function BuktiView({ bukti }: { bukti: BuktiPembayaran }) {
       <p className="text-muted-foreground">Terima kasih. Pembayaran untuk Tagihan {bukti.tagihan.nomorTagihan} sudah kami terima dengan baik.</p>
       <DocumentFoot header={bukti.header} />
     </>
+  );
+}
+
+/** The Bukti Pencairan a Lokasi Mitra reads: every item it covers, less the Potongan netted. */
+function BuktiPencairanView({ bukti }: { bukti: Extract<DokumenBuktiPencairan, { type: "bukti_pencairan" }> }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Pencairan" number={bukti.nomorBukti} status="Lunas" />
+      <Facts
+        facts={[
+          ["Untuk", `Lokasi Mitra ${bukti.recipient.nama}`],
+          ["Tanggal transfer", formatTanggal(`${bukti.ditransferPada}T00:00`)],
+          ["Jumlah ditransfer", formatRupiah(bukti.amount)],
+        ]}
+      />
+      <BuktiTable
+        caption="Pencairan"
+        rows={bukti.items.map((item) => [item.label, formatRupiah(item.amount)])}
+        total={formatRupiah(bukti.items.reduce((sum, item) => sum + item.amount, 0))}
+        totalLabel="Total Pencairan"
+      />
+      {bukti.potongan.length > 0 ? (
+        <BuktiTable
+          caption="Potongan"
+          rows={bukti.potongan.map((entry) => [entry.alasan, `−${formatRupiah(entry.amount)}`])}
+          total={`−${formatRupiah(bukti.potongan.reduce((sum, entry) => sum + entry.amount, 0))}`}
+          totalLabel="Total Potongan"
+        />
+      ) : null}
+      <p className="text-muted-foreground">
+        Bukti ini mencatat satu transfer bank dan semua pekerjaan yang dicakupnya. Potongan yang mengurangi transfer ini tercantum di atas.
+      </p>
+      <DocumentFoot header={bukti.header} />
+    </>
+  );
+}
+
+/**
+ * The Mitra Jasa version of the same document: the job, the Layanan, the date and
+ * the rate only (spec, story 181). The data it is handed has no other field, so
+ * nothing else about the order can be printed here even by mistake.
+ */
+function BuktiPencairanMitraJasaView({ bukti }: { bukti: Extract<DokumenBuktiPencairan, { type: "bukti_pencairan_mitra_jasa" }> }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Pencairan" number={bukti.nomorBukti} status="Lunas" />
+      <Facts
+        facts={[
+          ["Untuk", `Mitra Jasa ${bukti.recipient.nama}`],
+          ["Tanggal transfer", formatTanggal(`${bukti.ditransferPada}T00:00`)],
+          ["Jumlah ditransfer", formatRupiah(bukti.amount)],
+        ]}
+      />
+      <BuktiTable
+        caption="Pekerjaan"
+        rows={bukti.pekerjaan.map((pekerjaan) => [
+          [
+            pekerjaan.layanan ? `${pekerjaan.pekerjaan} · ${pekerjaan.layanan}` : pekerjaan.pekerjaan,
+            pekerjaan.tanggal ? ` · ${formatTanggal(`${pekerjaan.tanggal}T00:00`)}` : "",
+          ].join(""),
+          formatRupiah(pekerjaan.tarif),
+        ])}
+        total={formatRupiah(bukti.pekerjaan.reduce((sum, pekerjaan) => sum + pekerjaan.tarif, 0))}
+        totalLabel="Total"
+      />
+      <p className="text-muted-foreground">Bukti ini memuat pekerjaan, Layanan, tanggal, dan tarif yang dibayarkan.</p>
+      <DocumentFoot header={bukti.header} />
+    </>
+  );
+}
+
+/** One table of a Bukti Pencairan: a caption, its lines, and what they come to. */
+function BuktiTable({
+  caption,
+  rows,
+  total,
+  totalLabel,
+}: {
+  caption: string;
+  rows: [string, string][];
+  total: string;
+  totalLabel: string;
+}) {
+  return (
+    <table className="w-full border-collapse text-left">
+      <caption className="pb-2 text-left text-base font-semibold">{caption}</caption>
+      <thead>
+        <tr className="border-b text-muted-foreground">
+          <th scope="col" className="py-2 pr-4 font-normal">
+            Rincian
+          </th>
+          <th scope="col" className="py-2 text-right font-normal">
+            Jumlah
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, jumlah]) => (
+          <tr key={label} className="border-b">
+            <td className="py-2 pr-4">{label}</td>
+            <td className="py-2 text-right whitespace-nowrap tabular-nums">{jumlah}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row" className="pt-3 pr-4 font-semibold">
+            {totalLabel}
+          </th>
+          <td className="pt-3 text-right text-base font-semibold whitespace-nowrap tabular-nums">{total}</td>
+        </tr>
+      </tfoot>
+    </table>
   );
 }
 

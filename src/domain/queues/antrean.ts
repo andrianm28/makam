@@ -79,7 +79,7 @@ export function rowKeyOf(type: string, subjectId: string): string {
 }
 
 export interface AntreanCounters {
-  /** Pencairan due (payouts module; ticket 32 fills this in). */
+  /** Recipients with a transfer waiting (the Tier 3 Pencairan rows; ticket 32). */
   pencairanDue: number;
   /** Overdue Tagihan (billing module; ticket 29 fills this in). */
   tagihanOverdue: number;
@@ -95,7 +95,9 @@ export interface AntreanCounters {
 export async function antreanCounters(deps: QueuesAntreanDeps, by: Actor): Promise<AntreanCounters> {
   const rows = await antrean(deps, by);
   return {
-    pencairanDue: 0,
+    // The Tier 3 Pencairan rows themselves are the count: one per recipient with a
+    // transfer waiting, which is what "Pencairan due" means to Admin Platform.
+    pencairanDue: rows.filter((row) => row.type === "pencairan").length,
     tagihanOverdue: 0,
     terlambatJobs: 0,
     keluhanOpen: 0,

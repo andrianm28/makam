@@ -150,7 +150,15 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
   | "pemesanan.konfirmasi"
   /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** Open the Pencairan run: every recipient with money waiting (Admin Platform only). */
+  | "pencairan.lihat_semua"
+  /** Read one Lokasi Mitra's own Pencairan, its Bukti Pencairan and its Potongan (Admin Platform, or that Lokasi's Admin Lokasi). */
+  | "pencairan.lihat"
+  /** Read one's own Pencairan and Bukti Pencairan (a Mitra Jasa, and nobody else's). */
+  | "pencairan.punya_saya"
+  /** Hold an item out of a run, override what it pays, record a Potongan, and transfer with a Bukti Pencairan (Admin Platform only). */
+  | "pencairan.kelola";
 
 /** What the action is done to. */
 export type Resource =
@@ -170,6 +178,8 @@ export type Resource =
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
   | { kind: "antrean" }
+  /** The Pencairan run and its Bukti Pencairan (the run spans every Lokasi Mitra and Mitra Jasa at once). */
+  | { kind: "pencairan" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string };
 
@@ -254,6 +264,11 @@ export function tugasLapanganResource(id: string): Resource {
 /** The Antrean: its rows, counter strip, Ambil claims and Catatan Internal threads (Admin Platform only). */
 export function antreanResource(): Resource {
   return { kind: "antrean" };
+}
+
+/** The Pencairan run: every recipient's due items and Potongan, and the Bukti Pencairan a transfer issues. */
+export function pencairanResource(): Resource {
+  return { kind: "pencairan" };
 }
 
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
@@ -420,5 +435,21 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // checklists; Admin Platform does not confirm (spec, story 117: an
       // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "pencairan.lihat_semua":
+    case "pencairan.kelola":
+      // The run and every transfer are Admin Platform's alone (spec, Identity &
+      // Access): an Admin Lokasi reconciles its own Lokasi's Pencairan, and a
+      // Mitra Jasa reads its own, but neither moves money.
+      return resource.kind === "pencairan" && holds("admin_platform") ? allowed : denied;
+    case "pencairan.lihat":
+      // An Admin Lokasi sees its own Lokasi Mitra's Pencairan and no other's
+      // (story 135); Admin Platform sees every one of them.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
+    case "pencairan.punya_saya":
+      // A Mitra Jasa reads its own Pencairan and no one's else: an Admin Platform
+      // has the run instead, and a suspended or ended one keeps this (story 182).
+      return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
   }
 }
