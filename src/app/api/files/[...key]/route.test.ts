@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiskFileStore } from "@/adapters/live/disk-file-store";
+import type { FileStore, StoredFile } from "@/ports/file-store";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { browser } from "../../../../../tests/support/next-request";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
@@ -40,6 +41,32 @@ async function withDiskFileStore<T>(run: (store: DiskFileStore) => Promise<T>): 
 }
 
 const get = (url: string, key: string[]) => GET(new Request(url), { params: Promise.resolve({ key }) });
+
+/**
+ * Structurally identical to `DiskFileStore` (delegates every call to a real
+ * one) but deliberately not an `instanceof` it — standing in for what
+ * happens across a Next.js bundle boundary: `serverRuntime()` caches its
+ * adapters on `globalThis`, and if a *different* bundle's copy of the
+ * `DiskFileStore` class had created and cached the store, this route's own
+ * `import { DiskFileStore }` would never recognise it, even though every
+ * behaviour is identical. The route must recognise this store by capability
+ * (`supportsSignedReads`), not by class identity.
+ */
+class OtherBundleFileStore implements FileStore {
+  constructor(private readonly inner: DiskFileStore) {}
+  put(file: StoredFile) {
+    return this.inner.put(file);
+  }
+  signedUrl(key: string, options: { expiresInSeconds: number }) {
+    return this.inner.signedUrl(key, options);
+  }
+  delete(key: string) {
+    return this.inner.delete(key);
+  }
+  readSigned(key: string, expiresAt: number, signature: string) {
+    return this.inner.readSigned(key, expiresAt, signature);
+  }
+}
 
 describe("GET /api/files/[...key] (a FileStore signed URL)", () => {
   it("serves the file's bytes and content type, never cached and never indexed", async () =>
@@ -98,6 +125,26 @@ describe("GET /api/files/[...key] (a FileStore signed URL)", () => {
       expect(missingSig.status).toBe(404);
       expect(nonNumericExp.status).toBe(404);
     }));
+
+  it("serves the file even when the cached FileStore is a structurally-identical class the route did not import (cross-bundle DiskFileStore identity)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "makam-files-route-"));
+    const { adapters } = server.runtime();
+    const original = adapters.files;
+    const real = new DiskFileStore({ root, secret: "route-test-secret", publicOrigin: "http://localhost", clock: adapters.clock });
+    adapters.files = new OtherBundleFileStore(real);
+    try {
+      await real.put({ key: "a.jpg", body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" });
+      const url = await real.signedUrl("a.jpg", { expiresInSeconds: 300 });
+
+      const response = await get(url, ["a.jpg"]);
+
+      expect(response.status).toBe(200);
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    } finally {
+      adapters.files = original;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 
   it("404s while development/test's in-memory FakeFileStore is in use (never served over HTTP)", async () => {
     const response = await get("http://localhost/api/files/a.jpg?exp=9999999999&sig=" + "a".repeat(40), ["a.jpg"]);

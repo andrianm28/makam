@@ -38,6 +38,12 @@ interface CommonAdapterOptions {
   filesRoot?: string;
   /** The app's own origin, for building FileStore signed URLs (`env.APP_BASE_URL`); ignored in development and test. */
   appBaseUrl?: string;
+  /**
+   * Development only (`env.DEV_FILES_ROOT`): keep files on this local directory,
+   * so a seed CLI and the dev web server see the same files. Ignored in test,
+   * staging and production.
+   */
+  devFilesRoot?: string;
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
@@ -69,6 +75,13 @@ export type AdapterOptions = CommonAdapterOptions &
  */
 export function createAdapters(options: AdapterOptions): Adapters {
   const clock = options.overrides?.clock ?? new SystemClock();
+  const diskFiles = (root: string) =>
+    new DiskFileStore({
+      root,
+      secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
+      publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
+      clock,
+    });
 
   const base: Adapters = usesInMemoryFakes(options.appEnv)
     ? createMemoryAdapters(clock, { paymentWebhookSecret: options.fakePaymentWebhookSecret })
@@ -81,16 +94,16 @@ export function createAdapters(options: AdapterOptions): Adapters {
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
         webPush: new VapidWebPush({ ...requiredVapid(options), clock }),
-        files: new DiskFileStore({
-          root: options.filesRoot ?? DEFAULT_FILES_ROOT,
-          secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
-          publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
-          clock,
-        }),
+        files: diskFiles(options.filesRoot ?? DEFAULT_FILES_ROOT),
         pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH }),
       };
 
-  return { ...base, ...options.overrides };
+  const files =
+    options.appEnv === "development" && options.devFilesRoot
+      ? diskFiles(options.devFilesRoot)
+      : base.files;
+
+  return { ...base, files, ...options.overrides };
 }
 
 /** The VAPID keys; the type demands them in staging and production, and a caller that got round it fails here. */

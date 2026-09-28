@@ -252,6 +252,13 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   CHROMIUM_PATH: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").default(DEFAULT_CHROMIUM_PATH)),
   /** Where the live FileStore (host disk, ticket 60) reads and writes; the private volume's mount point. Development and test use the in-memory fake and never touch disk. */
   FILES_ROOT: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").default(DEFAULT_FILES_ROOT)),
+  /**
+   * Development only, opt-in: keep the FileStore on this directory of the local
+   * disk instead of in memory, so files a seed CLI stores (Lokasi photos) are
+   * served by the dev web server, which is another process. Refused outside
+   * development; unset keeps the in-memory fake.
+   */
+  DEV_FILES_ROOT: z.preprocess(emptyToUndefined, z.string().startsWith("/", "must be an absolute path").optional()),
   /** The port the web server listens on (the image sets 3000). */
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(3000)),
   /**
@@ -263,6 +270,9 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   .superRefine((env, ctx) => {
     requireSmtpOutsideFakes(env, ctx);
     requireSumopodOutsideFakes(env, ctx);
+    if (env.DEV_FILES_ROOT && env.APP_ENV !== "development") {
+      ctx.addIssue({ code: "custom", path: ["DEV_FILES_ROOT"], message: `DEV_FILES_ROOT is for development only, not ${env.APP_ENV}` });
+    }
     if (usesInMemoryFakes(env.APP_ENV)) return;
     for (const key of liveRequired) {
       if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required in ${env.APP_ENV}` });
