@@ -20,7 +20,6 @@ export function queuesOnTestDatabase(db: Database) {
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     inventory: setup.inventory,
-    operatorSettings: setup.operatorSettings,
     billing: setup.billing,
     identity: setup.identity,
     notifications: setup.notifications,

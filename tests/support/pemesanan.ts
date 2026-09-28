@@ -89,7 +89,6 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     inventory: setup.inventory,
-    operatorSettings: setup.operatorSettings,
     billing,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,

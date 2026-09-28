@@ -98,12 +98,6 @@ export async function antreanKonfirmasi(deps: Pick<PemesananDeps, "db">, lokasiI
 }
 
 /**
- * Every order still waiting for its confirmation past the deadline its Lokasi's
- * Jam Operasional gave: the Admin Platform Antrean's Tier 1 "Konfirmasi Lokasi
- * terlambat" rows (spec, Work Queues; ticket 23). No deadline of its own — the
- * order's own is the row's. No actor: the Antrean is Admin Platform's.
- */
-/**
  * Every order of one Lokasi Mitra still waiting for its Pemakaman to be
  * recorded, oldest first: the Antrean Lokasi's "Catat Pemakaman" rows
  * (ticket 25's AC 1). The row is raised by the worker's prompt, the day after

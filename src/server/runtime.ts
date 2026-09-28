@@ -108,7 +108,6 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       tariffs,
       inventory,
-      operatorSettings,
       billing: billingOn(billingComposition, database.db),
       identity,
       notifikasi,

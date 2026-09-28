@@ -197,6 +197,13 @@
       "when": 1790535853063,
       "tag": "0027_abnormal_the_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790535853063,
+      "tag": "0028_bukti_pemesanan_append_only",
+      "breakpoints": true
     }
   ]
 }

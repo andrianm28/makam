@@ -10,6 +10,7 @@
  * ground). The Bukti is numbered once and never twice.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf } from "../../../tests/support/inventory";
@@ -136,5 +137,21 @@ describe("the Bukti Pemesanan of a paid burial", () => {
     const dicatat = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: kedua.pemesanan.nomor, tanggal: "2026-10-02" });
     expect(dicatat).toMatchObject({ ok: true, pesanan: { status: "selesai" }, buktiPemesananNomor: "BPM/2026/000002" });
     expect((await setup.billing.allBuktiPemesanan()).map((satu) => satu.nomor)).toEqual(["BPM/2026/000001", "BPM/2026/000002"]);
+  });
+
+  it("is append-only: the database refuses to change or delete an issued Bukti Pemesanan", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    setup.clock.set(wib("2026-10-02 11:00"));
+    await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-02" });
+    await bayar(setup, fixture.tagihanId);
+    const [terbit] = await setup.billing.allBuktiPemesanan();
+    if (!terbit) throw new Error("no Bukti Pemesanan issued");
+
+    // A Bukti Pemesanan is a family's proof of a grave: nothing may quietly change
+    // it afterwards, exactly as for a Bukti Pembayaran and a Tagihan's lines.
+    await expect(db.execute(sql`update bukti_pemesanan set pemegang_hak_name = 'Orang Lain' where id = ${terbit.id}`)).rejects.toThrow();
+    await expect(db.execute(sql`delete from bukti_pemesanan where id = ${terbit.id}`)).rejects.toThrow();
+    expect(await setup.billing.allBuktiPemesanan()).toEqual([terbit]);
   });
 });

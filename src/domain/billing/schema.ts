@@ -199,6 +199,11 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
  * header values in force at issue. `pemesanan_id` names the order and has no
  * foreign key: Billing does not own it, and it is unique, so one paid order can
  * never be given two numbers.
+ *
+ * Append-only, like `bukti_pembayaran` and `tagihan_line` (the migration adds a
+ * trigger refusing UPDATE and DELETE). This document is a family's proof of a
+ * grave: if it could be quietly rewritten or removed, nobody could tell afterwards
+ * that it had been.
  */
 export const buktiPemesanan = pgTable(
   "bukti_pemesanan",

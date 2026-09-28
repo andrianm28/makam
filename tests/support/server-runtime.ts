@@ -74,7 +74,6 @@ export function testServerRuntime() {
       lokasi,
       tariffs,
       inventory,
-      operatorSettings,
       billing: billingOn(billingComposition, database.db),
       identity,
       notifikasi,

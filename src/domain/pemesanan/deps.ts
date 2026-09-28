@@ -4,7 +4,6 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
-import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -183,8 +182,6 @@ export interface PemesananDeps {
   >;
   /** For the Nomor Pemesanan series, a confirmed order's Tagihan, the Bukti Pemesanan it earned, and the pay-after clock a recorded burial starts, all `within` the order's own transaction. */
   billing: Pick<Billing, "within" | "tagihan" | "buktiPemesananById" | "issueBuktiPemesanan">;
-  /** Pengaturan Operator's header, which every document a payment issues is headed with (ticket 25). */
-  operatorSettings: Pick<OperatorSettings, "current">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

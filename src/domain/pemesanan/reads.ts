@@ -124,7 +124,8 @@ async function buktiMilik(
   return bukti && { id: bukti.id, nomor: bukti.nomor, link: bukti.link };
 }
 
-/** The order's own documents, with the Lokasi Mitra's checklist items it has none of yet. */async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
+/** The order's own documents, with the Lokasi Mitra's checklist items it has none of yet. */
+async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
   const [rows, checklist] = await Promise.all([
     deps.db.select().from(pemesananBerkas).where(eq(pemesananBerkas.pemesananId, pemesananId)),
     deps.lokasi.documentChecklistOf(lokasiId),

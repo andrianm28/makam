@@ -84,7 +84,10 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </section>
       ) : null}
 
-      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
+      {order.pemakaman ? (
+        <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} />
+      ) : order.konfirmasiDueAt ? (
+        <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
           Statusnya bisa Anda ikuti di halaman ini, dan kabar ini datang ke email Anda.
         </p>
