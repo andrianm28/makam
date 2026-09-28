@@ -18,7 +18,7 @@ export function composeSchedulerContext(deps: {
   dokumenUrl: (link: string) => string;
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
   identity: Pick<Identity, "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

@@ -57,7 +57,11 @@ async function main() {
     dokumenUrl: urls.publicDocumentUrl,
     buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
   });
-  const billing = composeBilling({ ...billingComposition, paymentEffects: efek });
+  const billing = composeBilling({
+    ...billingComposition,
+    hasLoggedCall: (tagihanId) => notifications.teleponPemesanTercatat("tagihan", tagihanId),
+    paymentEffects: efek,
+  });
   // Payouts, for the Pencairan trigger and the Potongan ageing the worker runs.
   const payouts = composePayouts({
     env,

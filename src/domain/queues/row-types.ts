@@ -23,7 +23,7 @@ export interface AntreanRowDeps {
   lokasi: Pick<Lokasi, "allLokasiMitra" | "tpuDkiList">;
   /** The Tier 4 rows read every Tugas; the Tier 2 "Ambil surat pengantar" and Tier 3 "Setor Retribusi" rows read this module's own two reads. */
   fieldwork: Pick<Fieldwork, "allTugasLapangan" | "ambilSuratPengantarTerbuka" | "setorRetribusiTerbuka">;
-  billing: Pick<Billing, "pembayaranPerluDitinjau">;
+  billing: Pick<Billing, "pembayaranPerluDitinjau" | "tagihanLewatJatuhTempo">;
   /**
    * The Antrean's Tier 2 Telepon Pemesan row reads the open call rows, and its
    * Tier 1 "Saat Duka ditolak" row reads whether one has already been logged

@@ -26,6 +26,8 @@ export const TEST_PUBLIC_ORIGIN = "https://makam.test";
 export interface BillingTestOptions {
   /** The downstream effects of a payment, as later modules register them. */
   paymentEffects?: PaymentEffect[];
+  /** Whether a call has been logged for a Tagihan's chasing (ticket 29's `declareTidakTertagih` guard); defaults to "never". */
+  hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
 }
 
 /**
@@ -49,6 +51,7 @@ export function billingOnTestDatabase(db: Database, options: BillingTestOptions 
     documentPageUrl: (link) => `${TEST_DOCUMENT_ORIGIN}/dokumen/${link}`,
     publicDocumentUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     paymentEffects: options.paymentEffects,
+    hasLoggedCall: options.hasLoggedCall,
     reportError: (error, context) => reportedErrors.push({ error, context }),
   });
   return { ...setup, operatorSettings, pdf, payments, reportedErrors, billing };

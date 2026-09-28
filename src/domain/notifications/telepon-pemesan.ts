@@ -107,6 +107,28 @@ export async function bukaTeleponPemesan(
   return { id: open.id, baru: false };
 }
 
+/** One "Telepon Pemesan" row as a call log entry: open, or closed with what the staff member found. */
+export interface TeleponPemesanRiwayat extends TeleponPemesan {
+  ditutupPada: Date | null;
+  hasil: (typeof teleponHasil)[number] | null;
+  catatan: string | null;
+}
+
+/**
+ * Every "Telepon Pemesan" row ever opened for one subject, oldest first: the
+ * overdue list's own call log (ticket 29's AC 2, 3), where a subject expects
+ * several calls over time and each is its own row (the mechanism reopens once
+ * the last one closes).
+ */
+export async function teleponPemesanRiwayat(db: Database, subjectKind: string, subjectId: string): Promise<TeleponPemesanRiwayat[]> {
+  const rows = await db
+    .select()
+    .from(notificationsTeleponPemesan)
+    .where(and(eq(notificationsTeleponPemesan.subjectKind, subjectKind), eq(notificationsTeleponPemesan.subjectId, subjectId)))
+    .orderBy(asc(notificationsTeleponPemesan.dibukaPada), asc(notificationsTeleponPemesan.id));
+  return rows.map((row) => ({ ...toTeleponPemesan(row), ditutupPada: row.ditutupPada, hasil: row.hasil, catatan: row.catatan }));
+}
+
 /** Every open "Telepon Pemesan" row, oldest first: what the two Antrean's rows read. */
 export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesan[]> {
   const rows = await db
@@ -115,6 +137,32 @@ export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesa
     .where(isNull(notificationsTeleponPemesan.ditutupPada))
     .orderBy(asc(notificationsTeleponPemesan.dibukaPada), asc(notificationsTeleponPemesan.id));
   return rows.map(toTeleponPemesan);
+}
+
+/**
+ * Whether a "Telepon Pemesan" row has ever been opened for this subject and
+ * this `sebab`, open or closed: the H+1 Chasing escalation's own guard (ticket
+ * 29), so opening the call row and sending the Admin Lokasi push happen once
+ * per Tagihan even though the row itself reopens for every later call the
+ * overdue list still expects (around H+14).
+ */
+export async function teleponPemesanAdaUntukSebab(
+  db: Database,
+  subjectKind: string,
+  subjectId: string,
+  sebab: (typeof teleponSebab)[number],
+): Promise<boolean> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(notificationsTeleponPemesan)
+    .where(
+      and(
+        eq(notificationsTeleponPemesan.subjectKind, subjectKind),
+        eq(notificationsTeleponPemesan.subjectId, subjectId),
+        eq(notificationsTeleponPemesan.sebab, sebab),
+      ),
+    );
+  return (row?.n ?? 0) > 0;
 }
 
 /**

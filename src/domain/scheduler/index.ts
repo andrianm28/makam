@@ -32,8 +32,8 @@ export interface SchedulerContext {
   /** The downstream effects of a payment (src/composition/billing.ts), for re-running failed ones. */
   paymentEffects: readonly PaymentEffect[];
   reportError: ReportError;
-  /** Family messages due, sent through the worker (ticket 20). */
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
+  /** Family messages due, sent through the worker (ticket 20), and the Chasing escalation tick (ticket 29). */
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
   /**
@@ -81,6 +81,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "billing.retry_payment_effects", cron: "*/10 * * * *", tick: retryFailedPaymentEffectsTick },
   // Notifications: queued family messages whose time has come are sent (ticket 20).
   { name: "notifications.kirim_pesan", cron: "* * * * *", tick: kirimPesanTick },
+  // Notifications: a Tagihan still Lewat Jatuh Tempo at H+1 gets its call row opened and its Lokasi pushed (ticket 29).
+  { name: "notifications.chasing_eskalasi", cron: "* * * * *", tick: chasingEskalasiTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
   // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32).
@@ -101,6 +103,11 @@ async function pruneCariMakamAttemptsTick(ctx: { db: Database }, now: Date): Pro
 
 async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.notifications.kirimPesanJatuhTempo(now);
+}
+
+/** The worker wrapper around Notifications' Chasing escalation tick (idempotent there, as every tick is). */
+async function chasingEskalasiTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.notifications.chasingEskalasiTick(now);
 }
 
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */

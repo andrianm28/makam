@@ -38,6 +38,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       pesananDibatalkan: async () => {},
       pesananBuktiPemesanan: async () => {},
       terencanaDiajukan: async () => {},
+      chasingDijadwalkan: async () => {},
     };
   }
   return {
@@ -81,6 +82,9 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     // send. The Pemesanan module's own test records the call, so the seam is not a
     // mechanism nothing can reach.
     terencanaDiajukan: async () => {},
+    chasingDijadwalkan: async (input) => {
+      await notifications.jadwalkanChasing(input);
+    },
   };
 }
 

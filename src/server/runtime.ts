@@ -125,6 +125,11 @@ export function serverRuntime(): ServerRuntime {
     });
     const billing = composeBilling({
       ...billingComposition,
+      // Notifications already exists by this point (built just above, from a
+      // read-only Billing of the same database): `declareTidakTertagih`'s
+      // guard reads its own call log, without Billing importing Notifications
+      // back (ticket 29).
+      hasLoggedCall: (tagihanId) => notifications.teleponPemesanTercatat("tagihan", tagihanId),
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,

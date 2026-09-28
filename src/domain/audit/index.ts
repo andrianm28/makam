@@ -194,7 +194,9 @@ export type AuditAction =
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */
   | "pemakaman.catat"
   /** An Admin Lokasi records the burial of one of its orders, which makes that order Dimakamkan (ticket 25). */
-  | "pemesanan.catat_pemakaman";
+  | "pemesanan.catat_pemakaman"
+  /** The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
+  | "hak_pakai.akhiri_tidak_tertagih";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

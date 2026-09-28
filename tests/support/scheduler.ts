@@ -15,7 +15,7 @@ export function schedulerContext(parts: {
   db: Database;
   paymentEffects?: readonly PaymentEffect[];
   reportError?: ReportError;
-  notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
+  notifications?: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
   pemesanan?: SchedulerContext["pemesanan"];
   payouts?: SchedulerContext["payouts"];
 }): SchedulerContext {
@@ -23,7 +23,10 @@ export function schedulerContext(parts: {
     db: parts.db,
     paymentEffects: parts.paymentEffects ?? [],
     reportError: parts.reportError ?? (() => {}),
-    notifications: parts.notifications ?? { kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }) },
+    notifications: parts.notifications ?? {
+      kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }),
+      chasingEskalasiTick: async () => ({ dieskalasi: 0 }),
+    },
     pemesanan:
       parts.pemesanan ??
       ({
@@ -53,4 +56,5 @@ const DIAMDIAM: PemesananNotifikasi = {
   pesananDibatalkan: async () => {},
   pesananBuktiPemesanan: async () => {},
   terencanaDiajukan: async () => {},
+  chasingDijadwalkan: async () => {},
 };

@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
+import { catatPanggilanSchema } from "@/domain/notifications";
 import {
   batalkanSaatDukaSchema,
   catatPemakamanOrderSchema,
@@ -163,11 +163,7 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   const result = await guarded({
     action: "telepon_pemesan.catat_lokasi",
     resource: () => lokasiMitraResource(lokasiId),
-    schema: z.object({
-      teleponId: z.uuid(),
-      hasil: z.enum(["sudah_dihubungi", "tidak_diangkat", "nomor_salah"]),
-      catatan: z.string().trim().max(500).optional(),
-    }),
+    schema: catatPanggilanSchema,
     input: {
       teleponId: formData.get("teleponId"),
       hasil: formData.get("hasil"),

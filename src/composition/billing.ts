@@ -17,6 +17,14 @@ export interface BillingComposition {
   adapters: Adapters;
   operatorSettings: Pick<OperatorSettings, "current">;
   reportError: ReportError;
+  /**
+   * Whether a call has been logged for a Tagihan's chasing (ticket 29's
+   * `declareTidakTertagih` guard), composed from Notifications'
+   * `teleponPemesanTercatat`. Left out for a read-only Billing (`billingOn`)
+   * or one composed before Notifications exists: unwired means nothing can be
+   * declared Tidak Tertagih, the safe default.
+   */
+  hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
 }
 
 /**
@@ -75,6 +83,7 @@ function billingDeps(deps: BillingComposition, paymentEffects: readonly PaymentE
     ...urls,
     paymentEffects,
     reportError: deps.reportError,
+    hasLoggedCall: deps.hasLoggedCall,
   };
 }
 

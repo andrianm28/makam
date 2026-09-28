@@ -7,6 +7,7 @@ import { efekBuktiPembayaran } from "@/domain/notifications";
 import { efekBuktiPemesanan } from "@/domain/pemesanan";
 import type {
   PesananAlternatifDitawarkan,
+  ChasingDijadwalkan,
   PemesananBuktiPemesanan,
   PemesananDiajukan,
   PesananDibatalkan,
@@ -47,6 +48,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const dibatalkan: PesananDibatalkan[] = [];
   /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
   const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
+  /** Every Chasing schedule the Pemesanan module announced, once a pay-after Tagihan's overdue anchor is known (ticket 29). */
+  const chasingDijadwalkan: ChasingDijadwalkan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -71,6 +74,9 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     },
     terencanaDiajukan: async (order) => {
       terencana.push(order);
+    },
+    chasingDijadwalkan: async (input) => {
+      chasingDijadwalkan.push(input);
     },
   };
   // Billing composed the way the runtime composes it (src/server/runtime.ts): with its
@@ -146,6 +152,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     terencana,
     notifikasi: terkumpul,
     pengurusanDikonfirmasi,
+    chasingDijadwalkan,
   };
 }
 
@@ -167,6 +174,7 @@ export type PemesananModul = Omit<
   | "terencana"
   | "notifikasi"
   | "pengurusanDikonfirmasi"
+  | "chasingDijadwalkan"
 >;
 
 /**

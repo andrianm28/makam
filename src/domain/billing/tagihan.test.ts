@@ -175,12 +175,18 @@ describe("an issued Tagihan is immutable", () => {
       "batalkanTagihan",
       "bayar",
       "buktiPemesananById",
+      // Chasing's own status write: guarded on H+30 of the overdue anchor and a
+      // logged call, never a line change (ticket 29).
+      "declareTidakTertagih",
       "documentByLink",
       "documentPdf",
       "issueBuktiPemesanan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
+      // Chasing's own reads: every pay-after Tagihan with a known anchor, and
+      // those currently Lewat Jatuh Tempo or Tidak Tertagih (ticket 29).
+      "payAfterAnchored",
       "pembayaranPerluDitinjau",
       "receivePaymentWebhook",
       "recordPayment",
@@ -189,6 +195,7 @@ describe("an issued Tagihan is immutable", () => {
       // column of the Tagihan, never a line, and never the due date it was issued with.
       "setOverdueAnchor",
       "tagihan",
+      "tagihanLewatJatuhTempo",
       // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
       // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).
       "tagihanRetribusiLunas",

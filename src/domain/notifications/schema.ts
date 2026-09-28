@@ -130,13 +130,22 @@ export const notificationsMessage = pgTable(
 
 /**
  * Why a "Telepon Pemesan" row was opened: every send failed, the order never had
- * an email, or the family has to be called rather than emailed (a declined Saat
- * Duka order, spec Work Queues Tier 1 "Saat Duka ditolak (call within 2 h)").
+ * an email, the family has to be called rather than emailed (a declined Saat
+ * Duka order, spec Work Queues Tier 1 "Saat Duka ditolak (call within 2 h)"),
+ * or a pay-after Tagihan is overdue and must be chased (ticket 29's Chasing;
+ * the row reopens for each call the overdue list still expects, around H+1
+ * and H+14).
  */
-export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak"] as const;
+export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak", "tagihan_lewat_jatuh_tempo"] as const;
 
-/** What the staff member found when they called, logged to close the row. */
-export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah"] as const;
+/**
+ * What the staff member found when they called, logged to close the row.
+ * `janji_bayar` and `menolak` are Chasing's own outcomes (spec, Billing >
+ * Chasing: "outcome janji bayar / tidak diangkat / menolak / nomor salah"),
+ * offered on every call log all the same: the row is one mechanism, whatever
+ * it is open for.
+ */
+export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah", "janji_bayar", "menolak"] as const;
 
 /**
  * Owned by the notifications module: one "Telepon Pemesan" call request

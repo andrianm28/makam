@@ -176,7 +176,20 @@ export type Action =
    * (the operation that starts a fixed-term Hak Pakai's tenure clock). An Admin
    * Platform does it only through that Lokasi, never for it (ticket 25).
    */
-  | "pemakaman.catat";
+  | "pemakaman.catat"
+  /**
+   * Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing >
+   * Chasing; ticket 29): never the Admin Lokasi it is against, which only
+   * reads and adds notes on the same call log.
+   */
+  | "tagihan.nyatakan_tidak_tertagih"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra ends a Hak Pakai once its Saat Duka
+   * Tagihan is Tidak Tertagih (spec, Billing > Chasing: "the Admin Lokasi may
+   * end the Hak Pakai", never for a burial under an existing Hak Pakai;
+   * ticket 29).
+   */
+  | "hak_pakai.akhiri_tidak_tertagih";
 
 /** What the action is done to. */
 export type Resource =
@@ -499,6 +512,15 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "pemakaman.catat":
       // Only the Lokasi Mitra's own Admin Lokasi records a burial on its ground
       // (spec, Inventory > Operations); Admin Platform never does it for it.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "tagihan.nyatakan_tidak_tertagih":
+      // Chasing's own money decision: Admin Platform alone (spec, Billing >
+      // Chasing), whatever Lokasi Mitra it is against.
+      return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;
+    case "hak_pakai.akhiri_tidak_tertagih":
+      // The Lokasi Mitra's own Admin Lokasi ends its Hak Pakai once Admin
+      // Platform gave the Tagihan up; Admin Platform never does it for it
+      // (spec, Billing > Chasing).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

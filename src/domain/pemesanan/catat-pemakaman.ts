@@ -18,7 +18,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { MasaHakPakai } from "@/domain/inventory";
 import { terbitkanBukti } from "./efek-bukti-pemesanan";
-import type { PemesananDeps } from "./deps";
+import type { ChasingDijadwalkan, PemesananDeps } from "./deps";
 import { pemesananMakam } from "./schema";
 
 /** What the Admin Lokasi's "Catat Pemakaman" form sends. */
@@ -85,6 +85,10 @@ export async function catatPemakaman(
   if (input.tanggal > wibDateOf(deps.clock.now())) return { ok: false, reason: "tanggal_pemakaman_tidak_valid" };
 
   const now = deps.clock.now();
+  // Assigned inside the transaction below and read after it commits, so
+  // Chasing's reminders are queued only once the burial is really on record
+  // (never against a transaction that later rolls back).
+  let chasing: ChasingDijadwalkan | null = null;
   const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const dicatat = await deps.inventory.within(tx).catatPemakaman(by, order.lokasiId, {
       hakPakaiId: order.hakPakaiId!,
@@ -108,6 +112,23 @@ export async function catatPemakaman(
       const jam = await deps.billing.within(tx).setOverdueAnchor(order.tagihanId, now);
       // A Tagihan with no pay-after clock is nothing to do; its money did not change.
       if (!jam.ok && jam.reason !== "tidak_pay_after") return { ok: false as const, reason: "tagihan_tidak_ditemukan" as const };
+      if (jam.ok) {
+        // Chasing's four reminders are queued once the anchor is known (ticket
+        // 29): the Tagihan itself, read fresh, carries the total and link.
+        const tagihan = await deps.billing.within(tx).tagihan(order.tagihanId);
+        if (tagihan) {
+          chasing = {
+            tagihanId: order.tagihanId,
+            nomorTagihan: tagihan.nomorTagihan,
+            nomorPemesanan: order.nomor,
+            email: order.email,
+            perihal: `Pemakaman ${order.almarhumName} di ${order.lokasiName}`,
+            total: tagihan.total,
+            lewatJatuhTempoAt: jam.lewatJatuhTempoAt,
+            link: tagihan.link,
+          };
+        }
+      }
     }
 
     await record({
@@ -160,5 +181,6 @@ export async function catatPemakaman(
       buktiPemesananNomor: buktiNomor,
     };
   });
+  if (hasil.ok && chasing) await deps.notifikasi.chasingDijadwalkan(chasing);
   return hasil;
 }

@@ -40,6 +40,11 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
+      // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 of the overdue anchor.
+      "tagihan_pengingat_h3",
+      "tagihan_pengingat_h7",
+      "tagihan_pengingat_h14",
+      "tagihan_pengingat_h30",
       "bukti_pembayaran_terbit",
       // A Saat Duka TPU confirmation (ticket 45): transactional, like the two
       // Lokasi Mitra order messages, because the burial is already arranged.

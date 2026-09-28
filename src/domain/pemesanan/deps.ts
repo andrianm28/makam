@@ -75,6 +75,26 @@ export interface PemesananNotifikasi {
    * are held outright at submission, and the Tagihan follows the confirmation).
    */
   terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+  /**
+   * A pay-after Tagihan's overdue anchor just became known (`catatPemakaman`,
+   * right after `billing.setOverdueAnchor` sets it): Chasing's four H+3/7/14/30
+   * reminders are queued from here (spec, Billing > Chasing; ticket 29). Never
+   * called for a Tagihan with no anchor (a pay-first moment).
+   */
+  chasingDijadwalkan(input: ChasingDijadwalkan): Promise<void>;
+}
+
+/** What Chasing needs to schedule a pay-after Tagihan's reminders, the moment its overdue anchor becomes known. */
+export interface ChasingDijadwalkan {
+  tagihanId: string;
+  nomorTagihan: string;
+  nomorPemesanan: string | null;
+  /** The Email Terverifikasi every family message goes to; null for an order CS placed with no email. */
+  email: string | null;
+  perihal: string;
+  total: number;
+  lewatJatuhTempoAt: Date;
+  link: string;
 }
 
 /** A new Pemesanan Terencana as the staff who must see it are told about it. */
@@ -242,6 +262,8 @@ export interface PemesananDeps {
     | "batalkanHakPakai"
     // Recording the burial, which starts that Hak Pakai's tenure clock (ticket 25).
     | "catatPemakaman"
+    // The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (ticket 29).
+    | "akhiriHakPakai"
     // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
     | "hakPakaiById"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).

@@ -32,6 +32,13 @@ import {
 } from "./documents";
 import { lewatJatuhTempoPayAfterTagihan, setOverdueAnchor, type SetOverdueAnchorResult } from "./lewat-jatuh-tempo";
 import {
+  declareTidakTertagih,
+  listPayAfterAnchored,
+  listTagihanLewatJatuhTempo,
+  type DeclareTidakTertagihResult,
+  type PayAfterAnchored,
+} from "./chasing";
+import {
   allBuktiPemesanan,
   buktiPemesananById,
   issueBuktiPemesanan,
@@ -82,6 +89,7 @@ export {
   type PaymentMethod,
 } from "./shared";
 export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
+export { TIDAK_TERTAGIH_HARI, type DeclareTidakTertagihResult, type PayAfterAnchored } from "./chasing";
 export type { BuktiPemesanan, IssueBuktiPemesananInput, IssueBuktiPemesananResult } from "./bukti-pemesanan";
 export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
@@ -116,6 +124,16 @@ export interface BillingDeps {
   paymentEffects?: readonly PaymentEffect[];
   /** Where Billing reports what needs a human (a failed downstream effect, an odd webhook). */
   reportError?: ReportError;
+  /**
+   * Whether at least one call has been logged for a Tagihan's chasing
+   * (ticket 29): `declareTidakTertagih`'s own guard. Composed from
+   * Notifications' `teleponPemesanTercatat` once both modules are built
+   * (never the other way: Notifications already depends on Billing for a
+   * Tagihan's status, so Billing importing Notifications back would cycle).
+   * Left unwired, nothing can ever be declared Tidak Tertagih — a safe
+   * default, never a false positive.
+   */
+  hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
 }
 
 export interface Billing {
@@ -185,6 +203,25 @@ export interface Billing {
    */
   setOverdueAnchor(tagihanId: string, burialRecordedAt: Date): Promise<SetOverdueAnchorResult>;
   /**
+   * Every pay-after Tagihan whose overdue anchor is known, oldest anchor
+   * first, whatever its status (ticket 29): what Notifications' Chasing
+   * schedules its four H+3/7/14/30 reminders from.
+   */
+  payAfterAnchored(): Promise<PayAfterAnchored[]>;
+  /**
+   * Every Tagihan currently Lewat Jatuh Tempo or Tidak Tertagih, oldest
+   * anchor first (ticket 29): the overdue list (Admin Platform's, and Admin
+   * Lokasi's filtered to its own Lokasi), the Tier 3 Antrean row and the H+1
+   * escalation tick.
+   */
+  tagihanLewatJatuhTempo(): Promise<PayAfterAnchored[]>;
+  /**
+   * Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing >
+   * Chasing): guarded on H+30 of its overdue anchor and at least one logged
+   * call. The Tagihan stays payable afterwards.
+   */
+  declareTidakTertagih(tagihanId: string): Promise<DeclareTidakTertagihResult>;
+  /**
    * Issues the one Bukti Pemesanan of a paid order (numbered BPM/…, in the Lokasi
    * Mitra's name, carrying no amounts). Taken `within` the transaction that
    * makes the Tagihan Lunas, so the document, its number and the order's own
@@ -252,6 +289,10 @@ export function createBilling(deps: BillingDeps): Billing {
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
     setOverdueAnchor: (tagihanId, burialRecordedAt) => setOverdueAnchor(deps, tagihanId, burialRecordedAt),
+    payAfterAnchored: () => listPayAfterAnchored(deps.db),
+    tagihanLewatJatuhTempo: () => listTagihanLewatJatuhTempo(deps.db),
+    declareTidakTertagih: (tagihanId) =>
+      declareTidakTertagih({ db: deps.db, hasLoggedCall: deps.hasLoggedCall ?? (async () => false) }, tagihanId, deps.clock.now()),
     issueBuktiPemesanan: (input) => issueBuktiPemesanan(deps, input, deps.clock.now()),
     buktiPemesananById: (id) => buktiPemesananById(deps.db, id),
     allBuktiPemesanan: () => allBuktiPemesanan(deps.db),

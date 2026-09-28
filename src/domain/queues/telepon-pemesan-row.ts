@@ -24,6 +24,9 @@ const SEBAB_LABEL = {
   // A declined order's row is Tier 1 (spec, Work Queues) and is read by that row
   // type, not by this Tier 2 one; the label keeps a stray row readable all the same.
   saat_duka_ditolak: "pesanan ditolak, keluarga harus ditelepon",
+  // A Saat Duka Tagihan Lewat Jatuh Tempo (spec, Work Queues Tier 2; ticket 29): the
+  // Tier 3 "Tagihan lewat jatuh tempo" row tracks the Tagihan itself, this one the call.
+  tagihan_lewat_jatuh_tempo: "Tagihan lewat jatuh tempo, hubungi keluarga",
 } as const;
 
 export const teleponPemesanRowType: AntreanRowType = {
@@ -38,7 +41,8 @@ export const teleponPemesanRowType: AntreanRowType = {
         subjectKind: "telepon_pemesan",
         subjectId: telepon.id,
         subjectLabel: `${telepon.nomorTagihan ?? telepon.subjectId} · ${SEBAB_LABEL[telepon.sebab] ?? telepon.sebab}`,
-        href: FALLBACK_HREF,
+        // Chasing's own overdue-list page reads a Tagihan by id (ticket 29); every other money subject still has none.
+        href: telepon.sebab === "tagihan_lewat_jatuh_tempo" ? "/staf/admin-platform/tagihan-lewat-jatuh-tempo" : FALLBACK_HREF,
         deadline: null,
       }));
   },

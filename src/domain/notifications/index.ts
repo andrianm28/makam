@@ -25,7 +25,7 @@ import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import type { Billing } from "@/domain/billing";
+import type { Billing, PayAfterAnchored } from "@/domain/billing";
 import {
   akunResource,
   staffRoles,
@@ -44,12 +44,15 @@ import type { EmailSender } from "@/ports/email-sender";
 import type { PushNotification, PushSubscription, WebPush } from "@/ports/web-push";
 import {
   catatPanggilan,
+  teleponPemesanRiwayat,
   teleponPemesanTercatat,
   teleponPemesanTerbuka,
   type CatatPanggilanInput,
   type CatatPanggilanResult,
   type TeleponPemesan,
+  type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
+import { chasingEskalasiTick, jadwalkanChasing, pushTidakTertagih, type JadwalkanChasingInput } from "./chasing";
 import {
   kirimPesanJatuhTempo,
   pesanTagihan,
@@ -89,6 +92,7 @@ export {
   type CatatPanggilanInput,
   type CatatPanggilanResult,
   type TeleponPemesan,
+  type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
 export {
   pesananBuktiPemesananSchema,
@@ -130,14 +134,22 @@ export interface NotificationsDeps {
   clock: Clock;
   email: EmailSender;
   webPush: WebPush;
-  /** Who an Akun Staf is and which of its sessions are live: a Perangkat Push lasts as long as its session. */
-  identity: Pick<Identity, "staffRecipient">;
+  /**
+   * Who an Akun Staf is and which of its sessions are live: a Perangkat Push
+   * lasts as long as its session. Chasing's H+1/Tidak Tertagih push reads
+   * `adminLokasiOf` too (ticket 29): which Akun Staf are a Lokasi Mitra's own
+   * Admin Lokasi is Identity's own fact.
+   */
+  identity: Pick<Identity, "staffRecipient" | "adminLokasiOf">;
   /** Where a failed send goes (error monitoring), while the outcome is kept. */
   reportError: ReportError;
   /** Turning push on or off is a staff write: one Entri Audit each. */
   audit: AuditLog;
-  /** Tagihan status reads for the reminder stop rule; only billing reads its tables. */
-  tagihan: Pick<Billing, "tagihan">;
+  /**
+   * Tagihan status reads for the reminder stop rule, plus Chasing's own two
+   * queries (ticket 29): only billing reads its tables.
+   */
+  tagihan: Pick<Billing, "tagihan" | "payAfterAnchored" | "tagihanLewatJatuhTempo">;
   /** The Tagihan page's full URL from its link, for the family email's link into the app. */
   dokumenUrl: (link: string) => string;
   /** The order page's full URL from its Nomor Pemesanan, for a Pemesanan Makam's own messages. */
@@ -170,6 +182,10 @@ export const staffAlertKinds = [
   "staf_calon_penghuni_diubah",
   /** A Bukti Pencairan was issued to a Lokasi Mitra's staff or to a Mitra Jasa (ticket 32). */
   "staf_bukti_pencairan",
+  /** A Lokasi Mitra Saat Duka Tagihan reached H+1 overdue (ticket 29's Chasing). */
+  "staf_tagihan_lewat_jatuh_tempo",
+  /** Admin Platform declared a Lokasi Mitra Saat Duka Tagihan Tidak Tertagih (ticket 29). */
+  "staf_tagihan_tidak_tertagih",
 ] as const;
 export type StaffAlertKind = (typeof staffAlertKinds)[number];
 
@@ -299,6 +315,8 @@ export interface Notifications {
   pesanStaf(akunStafId: string, options?: { limit?: number }): Promise<PesanTercatat[]>;
   /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
   teleponPemesanTerbuka(): Promise<TeleponPemesan[]>;
+  /** Every "Telepon Pemesan" row ever opened for one subject, oldest first: the overdue list's own call log (ticket 29). */
+  teleponPemesanRiwayat(subjectKind: string, subjectId: string): Promise<TeleponPemesanRiwayat[]>;
   /**
    * Whether the call to one subject has already been logged (a closed row): what
    * the Tier 1 "Saat Duka ditolak" row reads to know it is done. A subject that
@@ -308,6 +326,24 @@ export interface Notifications {
   teleponPemesanTercatat(subjectKind: string, subjectId: string): Promise<boolean>;
   /** An Admin Platform logs the call: the "Telepon Pemesan" row closes; audited. */
   catatPanggilan(by: Actor, input: CatatPanggilanInput): Promise<CatatPanggilanResult>;
+  /**
+   * Queues a pay-after Tagihan's four Chasing reminders (H+3/7/14/30 of its
+   * overdue anchor), the moment the module that recorded the burial learns it
+   * (ticket 29). Called once; calling it again queues nothing new.
+   */
+  jadwalkanChasing(input: JadwalkanChasingInput): Promise<{ dijadwalkan: number }>;
+  /**
+   * The worker's Chasing escalation tick (ticket 29): every Tagihan still
+   * Lewat Jatuh Tempo at H+1 of its overdue anchor gets its "Telepon Pemesan"
+   * row opened and its Lokasi's Admin Lokasi pushed once. Idempotent.
+   */
+  chasingEskalasiTick(now: Date): Promise<{ dieskalasi: number }>;
+  /**
+   * The Admin Lokasi push "on Tidak Tertagih" (spec, Notifications' reminder
+   * table): the Server Action that just called `billing.declareTidakTertagih`
+   * calls this next, since only it holds both modules (ticket 29's Comments).
+   */
+  pushTidakTertagih(tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total" | "lokasiId">): Promise<void>;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -325,7 +361,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
   };
   const countDevices = async (tx: Database, accountId: string) => (await devicesOf(tx, accountId)).length;
 
-  return {
+  const notifications: Notifications = {
     async enablePush(by, input) {
       const writer = pushWriter(by);
       if (!writer.ok) return writer;
@@ -608,6 +644,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return teleponPemesanTerbuka(db);
     },
 
+    async teleponPemesanRiwayat(subjectKind, subjectId) {
+      return teleponPemesanRiwayat(db, subjectKind, subjectId);
+    },
+
     async teleponPemesanTercatat(subjectKind, subjectId) {
       return teleponPemesanTercatat(db, subjectKind, subjectId);
     },
@@ -615,7 +655,23 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async catatPanggilan(by, input) {
       return catatPanggilan(deps, by, input);
     },
+
+    async jadwalkanChasing(input) {
+      return jadwalkanChasing(deps, input);
+    },
+
+    async chasingEskalasiTick(now) {
+      return chasingEskalasiTick(
+        { db, billing: deps.tagihan, identity: deps.identity, send: (alert) => notifications.sendStaffAlert(alert) },
+        now,
+      );
+    },
+
+    async pushTidakTertagih(tagihan) {
+      await pushTidakTertagih({ identity: deps.identity, send: (alert) => notifications.sendStaffAlert(alert) }, tagihan);
+    },
   };
+  return notifications;
 }
 
 /** An email address anywhere in a text. */

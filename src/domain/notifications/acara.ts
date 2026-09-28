@@ -25,6 +25,13 @@ export const TEMPLATE_EMAIL = [
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
+  // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 after the Tagihan's
+  // own Lewat Jatuh Tempo anchor (the recorded burial plus its payment
+  // window), stopping the moment it is Lunas or Tidak Tertagih.
+  "tagihan_pengingat_h3",
+  "tagihan_pengingat_h7",
+  "tagihan_pengingat_h14",
+  "tagihan_pengingat_h30",
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
 ] as const;
@@ -53,6 +60,10 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
+  tagihan_pengingat_h3: "pengingat",
+  tagihan_pengingat_h7: "pengingat",
+  tagihan_pengingat_h14: "pengingat",
+  tagihan_pengingat_h30: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
   pengurusan_dikonfirmasi: "transaksional",
 };
@@ -215,6 +226,9 @@ export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, string> = {
 /** The pay-first moments, whose reminders this ticket schedules. */
 export const MOMEN_PAY_FIRST: ReadonlySet<MacamMomenTagihan> = new Set(["perpanjangan", "pengurusan_berkas", "layanan"]);
 
+/** The pay-after moments Chasing reminds (ticket 29): a burial already happened, so there is no hold to lose by waiting. */
+export const MOMEN_PAY_AFTER: ReadonlySet<MacamMomenTagihan> = new Set(["saat_duka", "pemakaman_hak_pakai_ada"]);
+
 /** The start (inclusive) and end (exclusive) of the reminder window, WIB wall-clock hours. */
 export const JAM_KIRIM_MULAI = 8;
 export const JAM_KIRIM_AKHIR = 20;
@@ -269,6 +283,30 @@ export function jadwalPengingatPayFirst(
     { macam: "hari_h" as const, saat: wib(`${wibDateOf(dueAt)} 08:00`) },
   ];
   return candidates.filter((candidate) => candidate.saat > now);
+}
+
+/**
+ * Chasing's own reminder days (spec, Billing > Chasing; Notifications' reminder
+ * table): H+3, H+7, H+14, H+30 after a pay-after Tagihan's Lewat Jatuh Tempo
+ * anchor (`lewatJatuhTempoAt`, the recorded burial plus its payment window —
+ * never the printed due date, which stays the planned burial's).
+ */
+export const CHASING_HARI = [3, 7, 14, 30] as const;
+export type ChasingHari = (typeof CHASING_HARI)[number];
+
+/** The overdue list starts H+1 after the same anchor (spec, Billing > Chasing). */
+export const CHASING_ESKALASI_HARI = 1;
+
+/**
+ * The four Chasing reminder times for a Tagihan whose Lewat Jatuh Tempo anchor
+ * is `anchorAt`: 08:00 WIB on each H+N day, keeping only times after `now` (the
+ * same shape as `jadwalPengingatPayFirst`, so a burial recorded mid-window still
+ * gets every reminder still ahead of it, and none already past).
+ */
+export function jadwalPengingatPayAfter(anchorAt: Date, now: Date): { macam: ChasingHari; saat: Date }[] {
+  return CHASING_HARI.map((hari) => ({ macam: hari, saat: wib(`${wibDateOf(addWibDays(anchorAt, hari))} 08:00`) })).filter(
+    (candidate) => candidate.saat > now,
+  );
 }
 
 /** Sends: the first attempt plus 3 retries with backoff, then a "Telepon Pemesan" row. */
