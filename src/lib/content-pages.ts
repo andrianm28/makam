@@ -60,7 +60,7 @@ export const caraKamiBekerjaSections: ContentSection[] = [
     label: "Harga di halaman sama dengan Tagihan",
     paragraphs: [
       "Harga yang tertera pada halaman Lokasi Mitra adalah harga yang akan masuk Tagihan Anda. Tidak ada jumlah lain yang muncul belakangan di luar yang tertulis di halaman itu.",
-      "Biaya Layanan Platform selalu ditulis terpisah dari harga makam, pada baris tersendiri di Tagihan. Jadi jelas berapa yang untuk makam dan berapa yang untuk layanan makam.co.id.",
+      "Biaya Layanan Platform selalu ditulis terpisah dari Harga Hak Pakai, pada baris tersendiri di Tagihan. Jadi jelas berapa yang untuk makam dan berapa yang untuk layanan makam.co.id.",
       "Kalau sebuah pesanan memakai Harga Khusus, jumlahnya dan masa berlakunya tertera pada Tagihan itu sendiri, bukan pada halaman Lokasi.",
     ],
   },
@@ -93,7 +93,7 @@ export function faqQuestions(legalName: string | null): FaqEntry[] {
     },
     {
       question: "Apa yang dibayar, dan kapan?",
-      answer: `Pada Pemesanan Saat Duka, Tagihan terbit begitu pesanan dikirim, dan Tagihan itu yang dibayar keluarga sebelum Lokasi Mitra dapat mengonfirmasi. Pembayaran lewat bank transfer atau dompet digital, dan Bukti Pemesanan terbit sendiri setelah pembayaran diterima. Uang yang dibayar keluarga diterima lebih dulu oleh ${penerimaDana}, lalu diteruskan kepada Lokasi Mitra sebagai hak atas Petak Makam. Dua bagian itu selalu terlihat terpisah pada Tagihan: harga makam, dan Biaya Layanan Platform.`,
+      answer: `Pada Pemesanan Saat Duka, Tagihan terbit begitu pesanan dikirim, dan Tagihan itu yang dibayar keluarga sebelum Lokasi Mitra dapat mengonfirmasi. Pembayaran lewat bank transfer atau dompet digital, dan Bukti Pemesanan terbit sendiri setelah pembayaran diterima. Uang yang dibayar keluarga diterima lebih dulu oleh ${penerimaDana}, lalu diteruskan kepada Lokasi Mitra sebagai hak atas Petak Makam. Dua bagian itu selalu terlihat terpisah pada Tagihan: Harga Hak Pakai, dan Biaya Layanan Platform.`,
     },
     {
       question: "Pembatalan",

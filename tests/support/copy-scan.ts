@@ -7,12 +7,19 @@ export type CopyMention = { line: number; text: string };
 /**
  * The directories whose strings and JSX text a page can end up rendering, and so
  * the ones the copy guards read: the pages themselves, the shared components they
- * compose, and `src/lib` — where the public site's written copy lives, in modules
- * a page imports (`content-pages.ts`, `homepage-content.ts`). A guard that stopped
- * at `src/app` would pass without ever reading the words a family reads.
+ * compose, `src/lib` — where the public site's written copy lives, in modules a
+ * page imports (`content-pages.ts`, `homepage-content.ts`) — and `src/domain`,
+ * where every family-facing email body lives (`notifications/template.ts`,
+ * `identity/email-templates.ts`) and every refusal message a Server Action shows.
+ * A guard that stopped at `src/app` would pass without ever reading the words a
+ * family reads.
+ *
+ * Most of `src/domain` is code rather than prose, which the AST scan survives:
+ * comments and regex literals are never mistaken for copy, and the rest is
+ * compared against the guards' own patterns rather than a list of strings.
  */
 export function copyScanDirs(srcDir: string): string[] {
-  return ["app", "components", "lib"].map((dir) => join(srcDir, dir));
+  return ["app", "components", "lib", "domain"].map((dir) => join(srcDir, dir));
 }
 
 const TICKET_NUMBER = /\btiket\s+\d+/i;
