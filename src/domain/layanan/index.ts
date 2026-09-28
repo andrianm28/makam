@@ -87,7 +87,7 @@ import {
   type LayananUntukPesanan,
   type Tempat,
 } from "./harga";
-import { pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult } from "./pesanan";
+import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
@@ -248,6 +248,16 @@ export interface Layanan {
    */
   hargaPesananLayanan(lokasiId: string, layananVariantIds: readonly string[]): Promise<HargaPesananLayanan | null>;
   /**
+   * Whether a grave may take a Layanan order at all, and the number the family and
+   * the Lokasi both know it by — **the same read `placePesananLayanan` decides on**,
+   * so the checkout screen and the order that places cannot disagree about which
+   * grave is open. Only a **Berakhir** Hak Pakai refuses; a given-back (`dibatalkan`)
+   * one does not, by the owner's settled decision, and `perluVerifikasi` is reported
+   * rather than refused (AC 1: the grave may be ordered for, and the job waits for
+   * the Admin Lokasi to complete the record).
+   */
+  cekHakPakai(lokasiId: string, petakId: string): Promise<Tertulis>;
+  /**
    * Places an order Layanan: one grave, one or more Layanan, a target date outside
    * each one's lead time, and the pay-first Tagihan issued with it. A Berakhir (or
    * given-back) Hak Pakai takes no further Layanan; a Hak Pakai flagged Perlu
@@ -329,6 +339,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
 
     penawaranUntukPesanan: (lokasiId) => penawaranUntukPesanan(deps, lokasiId, now()),
     hargaPesananLayanan: (lokasiId, ids) => hargaPesananLayanan(deps, lokasiId, ids, now()),
+    cekHakPakai: (lokasiId, petakId) => cekHakPakai(deps, lokasiId, petakId),
     placePesananLayanan: (pemesan, input) => placePesananLayanan(deps, pemesan, input),
     pesananLayananOf: (nomor, pemesan) => pesananLayananOf(deps, nomor, pemesan),
     batalkanPekerjaan: (pemesan, input) => batalkanPekerjaan(deps, pemesan, input),

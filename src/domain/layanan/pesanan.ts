@@ -312,7 +312,7 @@ function barisTagihan(
 }
 
 /** The grave an order is for, as the checkout must find it: the Hak Pakai's state and the Petak's own number. */
-type Tertulis =
+export type Tertulis =
   | { ok: true; hak: { id: string; perluVerifikasi: boolean }; petak: { nomor: string }; lokasi: { id: string; name: string } }
   | { ok: false; reason: "grave_tidak_ditemukan" | "lokasi_tidak_terbuka" | "hak_pakai_berakhir" };
 
@@ -320,15 +320,36 @@ type Tertulis =
  * The grave this order is for, read now: a Terverifikasi Lokasi Mitra, a Petak
  * Makam of it with a Hak Pakai that is not Berakhir, and the number the Lokasi
  * and the family both know it by.
+ *
+ * **This is the only place the orderability of a grave is decided**, and it is
+ * public so the checkout screen asks this rather than re-deriving it: the screen
+ * used to carry its own copy of the rule, and the two drifting apart is exactly
+ * how a status the owner had ruled on kept blocking in one place and not the
+ * other. What the screen shows and what `placePesananLayanan` accepts now come
+ * from one read.
  */
-async function cekHakPakai(deps: LayananDeps, lokasiId: string, petakId: string): Promise<Tertulis> {
+export async function cekHakPakai(deps: LayananDeps, lokasiId: string, petakId: string): Promise<Tertulis> {
   if (!z.uuid().safeParse(lokasiId).success || !z.uuid().safeParse(petakId).success) return { ok: false, reason: "grave_tidak_ditemukan" };
   if (!(await deps.lokasi.isTerverifikasi(lokasiId))) return { ok: false, reason: "lokasi_tidak_terbuka" };
   const hak = await deps.inventory.hakPakaiOfUnit({ petakId });
   if (!hak || hak.lokasiId !== lokasiId) return { ok: false, reason: "grave_tidak_ditemukan" };
-  // Berakhir is the ticket's own rule. Dibatalkan is read the same way: a given-back
-  // Hak Pakai is no right anybody holds, so a job there could never be carried out.
-  if (hak.status === "berakhir" || hak.status === "dibatalkan") return { ok: false, reason: "hak_pakai_berakhir" };
+  // Berakhir is the ticket's own rule, and the only one (AC 1 names no other).
+  //
+  // **`dibatalkan` does not block, and that is the owner's settled decision**, not a
+  // reading of the AC: this module used to refuse it here as well, on the argument
+  // that a given-back Hak Pakai is no right anybody holds. The owner chose the AC
+  // instead, and the asymmetry is what decided it — with a one-way block, **one**
+  // failed service prevents **every other** service the family has already paid for,
+  // which is the wrong way round for a family that has committed money. An order
+  // whose one job was cancelled may still take another Layanan.
+  //
+  // What stays true either way, because it is about the record and not the money:
+  // cancellation in this flow is per job only, there is no order cancellation, the
+  // order status never leaves `terbayar` (`jadwalkan` is its only writer), and no
+  // money moves here. So a given-back Hak Pakai can be ordered for and nothing else
+  // about it changes; `Pencairan` cannot see a paid-then-cancelled Layanan, which is
+  // a recorded gap with its own tickets, not this rule's business.
+  if (hak.status === "berakhir") return { ok: false, reason: "hak_pakai_berakhir" };
   if (hak.nomor === null) return { ok: false, reason: "grave_tidak_ditemukan" };
   const lokasi = await deps.lokasi.publicLokasiMitra(lokasiId);
   if (!lokasi) return { ok: false, reason: "lokasi_tidak_terbuka" };

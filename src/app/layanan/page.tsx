@@ -70,7 +70,7 @@ export default async function PesanLayananPage({ searchParams }: PageProps<"/lay
       {tampilan.status === "grave_tidak_ditemukan" || tampilan.status === "hak_pakai_berakhir" ? (
         <p className="rounded-lg bg-warning-soft p-3 text-body text-warning-soft-foreground">
           {tampilan.status === "hak_pakai_berakhir"
-            ? "Hak Pakai di petak ini sudah berakhir atau sudah dikembalikan, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra."
+            ? "Hak Pakai di petak ini sudah Berakhir, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra."
             : "Makam ini tidak ditemukan. "}
           <Link href={HUB_PATH} className="font-medium underline underline-offset-4">
             Cari ulang lewat Makam Keluarga

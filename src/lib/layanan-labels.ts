@@ -112,8 +112,11 @@ export const layananOrderMessages: Record<AlasanTolakPesanan | "belum_masuk" | "
   input_tidak_valid: "Periksa lagi isian Anda.",
   grave_tidak_ditemukan: "Makam ini tidak ditemukan. Cari ulang lewat Makam Keluarga.",
   lokasi_tidak_terbuka: "Lokasi Mitra ini sudah tidak menerima pesanan layanan. Pilih Lokasi Mitra lain.",
-  hak_pakai_berakhir:
-    "Hak Pakai di makam ini sudah berakhir atau sudah dikembalikan, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra.",
+  // Names only Berakhir, because only Berakhir blocks. A given-back (Dibatalkan)
+  // Hak Pakai may still be ordered for, by the owner's settled decision: with a
+  // one-way block, one failed service would prevent every other service the family
+  // has already paid for. So this sentence must not widen itself to cover it again.
+  hak_pakai_berakhir: "Hak Pakai di makam ini sudah Berakhir, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra.",
   layanan_tidak_tersedia: "Layanan ini tidak tersedia di Lokasi Mitra tersebut. Pilih dari daftar yang tersedia.",
   baris_tidak_bisa_ditagih: "Harga layanan ini belum bisa ditagihkan. Periksa tarif Lokasi Mitra ini.",
   lead_time_melewati: "Tanggal yang dipilih masih di dalam masa tunggu layanan. Pilih tanggal yang lebih jauh.",

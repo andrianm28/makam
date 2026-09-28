@@ -177,21 +177,66 @@ describe("placing an order Layanan", () => {
     expect(lain).toEqual({ ok: false, reason: "grave_tidak_ditemukan" });
   });
 
-  it("refuses a Hak Pakai that has been given back, which AC 1 does not name", async () => {
+  it("may still take another Layanan on a Hak Pakai that has been given back, and only Berakhir refuses", async () => {
     const { setup, lokasi, petak, pemesan } = await siap();
-    // **The behaviour and the AC differ, and the difference is unconfirmed.** AC 1
-    // names only Berakhir, yet `pesanan.ts` refuses `dibatalkan` the same way: a
-    // given-back Hak Pakai is no right anybody holds, so a job there could never be
-    // carried out. That is this module's reading, not the ticket's sentence, and no
-    // owner has confirmed it. This test locks the behaviour **as it is**, so a later
-    // decision changes a test on purpose instead of a test nobody read. The write is
-    // a stand-in for the same reason as `berakhir` above: the Inventory flow that
-    // gives a Hak Pakai back (ticket 39) is not built yet.
+    // **The owner's settled decision, not this module's reading.** AC 1 names only
+    // Berakhir; this module used to refuse `dibatalkan` here as well, and the owner
+    // chose the AC. The asymmetry decided it: with a one-way block, **one** failed
+    // service prevents **every other** service the family has already paid for, which
+    // is the wrong way round for a family that has committed money. So an order whose
+    // one job was cancelled may still take another Layanan, and this test holds the
+    // order **open** — the one that matters, because a test that only refused would
+    // have passed under either behaviour and proved nothing about the decision.
+    //
+    // The write is a stand-in for the same reason as `berakhir` above: the Inventory
+    // flow that gives a Hak Pakai back (ticket 39) is not built yet.
     await setup.db.execute(sql`update inventory_hak_pakai set status = 'dibatalkan', end_reason = 'Dikembalikan' where id = ${petak.hakPakaiId}`);
+    const hasil = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"));
+    if (!hasil.ok) throw new Error(`order refused: ${hasil.reason}`);
+    // It is a real order on a real Tagihan, not a shrug: it issues, it is priced, and
+    // the Pemesan reads it back as their own.
+    const dibaca = await setup.layanan.pesananLayananOf(hasil.pesanan.nomor, pemesan);
+    expect(dibaca).toMatchObject({ status: "menunggu_pembayaran", total: 900_000, petak: { nomor: petak.nomor } });
+
+    // And the rule is still exactly one block: `berakhir` refuses, and it refuses with
+    // the same reason, so the screen's one message covers the only state that blocks.
+    await setup.db.execute(sql`update inventory_hak_pakai set status = 'berakhir', end_reason = 'Selesai' where id = ${petak.hakPakaiId}`);
     expect(await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"))).toEqual({
       ok: false,
       reason: "hak_pakai_berakhir",
     });
+  });
+
+  it("reads which graves are open from one read, so the screen and the order cannot disagree", async () => {
+    const { setup, lokasi, petak } = await siap();
+    // `cekHakPakai` is the single rule both the checkout screen and `placePesananLayanan`
+    // decide on, so this is the test that holds one status open and one shut. The screen
+    // used to carry its own copy of the rule and the two drifted; there is no longer a
+    // second copy to drift.
+    const terbuka = await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId);
+    expect(terbuka).toMatchObject({ ok: true, petak: { nomor: petak.nomor }, hak: { perluVerifikasi: false } });
+
+    // A grave that is not there is not a grave, whatever the status says.
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, "00000000-0000-4000-8000-000000000000")).toEqual({
+      ok: false,
+      reason: "grave_tidak_ditemukan",
+    });
+
+    // **The owner's settled decision, read through the one read:** a given-back Hak Pakai
+    // is still a grave a family may order another Layanan for. `berakhir` is the only
+    // state that shuts it, which is what AC 1 names.
+    await setup.db.execute(sql`update inventory_hak_pakai set status = 'dibatalkan', end_reason = 'Dikembalikan' where id = ${petak.hakPakaiId}`);
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toMatchObject({ ok: true });
+    await setup.db.execute(sql`update inventory_hak_pakai set status = 'berakhir', end_reason = 'Selesai' where id = ${petak.hakPakaiId}`);
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toEqual({
+      ok: false,
+      reason: "hak_pakai_berakhir",
+    });
+
+    // A flagged Hak Pakai is reported, not refused: the grave may be ordered for and the
+    // job waits for the Admin Lokasi (AC 1's second half, and the gate's round trip).
+    await setup.db.execute(sql`update inventory_hak_pakai set status = 'aktif', perlu_verifikasi = true where id = ${petak.hakPakaiId}`);
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toMatchObject({ ok: true, hak: { perluVerifikasi: true } });
   });
 
   it("charges the Biaya Layanan Platform once for an order of two Layanan, not once each", async () => {

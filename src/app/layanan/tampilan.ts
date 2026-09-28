@@ -66,25 +66,25 @@ export async function tampilanPesananLayanan(
   const parsed = querySchema.safeParse(params);
   const query = parsed.success ? parsed.data : {};
   const now = serverRuntime().adapters.clock.now();
-  const { layanan, lokasi, inventory } = serverRuntime();
+  const { layanan } = serverRuntime();
 
   const kosong: TampilanPesananLayanan = { status: "siap", lokasi: null, petak: null, layanan: [], harga: null, pemesan };
   if (!query.lokasi || !query.petak) return kosong;
 
-  if (!(await lokasi.isTerverifikasi(query.lokasi))) return { ...kosong, status: "lokasi_tidak_terbuka", lokasi: { id: query.lokasi, name: "" } };
-  const hakPakai = await inventory.hakPakaiOfUnit({ petakId: query.petak });
-  if (!hakPakai || hakPakai.lokasiId !== query.lokasi) return { ...kosong, status: "grave_tidak_ditemukan" };
-  if (hakPakai.status === "berakhir" || hakPakai.status === "dibatalkan") return { ...kosong, status: "hak_pakai_berakhir" };
-
-  if (hakPakai.nomor === null) return { ...kosong, status: "grave_tidak_ditemukan" };
-  const profil = await lokasi.publicLokasiMitra(query.lokasi);
-  if (!profil) return { ...kosong, status: "lokasi_tidak_terbuka" };
+  // **Which graves are open is the domain's rule, not this screen's.** `cekHakPakai` is
+  // the same read `placePesananLayanan` decides on, so what the family is shown and
+  // what the order accepts come from one place. The screen used to carry its own copy
+  // of the rule, and the two copies drifting is how a status the owner had ruled on
+  // ended up blocking here and not there.
+  const hak = await layanan.cekHakPakai(query.lokasi, query.petak);
+  if (!hak.ok) return { ...kosong, status: hak.reason };
+  if (hak.petak.nomor === null) return { ...kosong, status: "grave_tidak_ditemukan" };
 
   const penawaran = await layanan.penawaranUntukPesanan(query.lokasi);
   return {
     status: "siap",
-    lokasi: { id: query.lokasi, name: profil.name },
-    petak: { id: query.petak, nomor: hakPakai.nomor, perluVerifikasi: hakPakai.perluVerifikasi },
+    lokasi: { id: query.lokasi, name: hak.lokasi.name },
+    petak: { id: query.petak, nomor: hak.petak.nomor, perluVerifikasi: hak.hak.perluVerifikasi },
     layanan: penawaran.map((grup) => ({
       id: grup.layanan.id,
       name: grup.layanan.name,
