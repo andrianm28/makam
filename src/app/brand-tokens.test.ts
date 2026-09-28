@@ -61,7 +61,26 @@ describe("brand tokens", () => {
   it("round controls at 10 px and cards at 12 px", () => {
     expect(light.get("radius")).toBe("0.625rem");
   });
+
+  it("carry the public-site prototype's display type, sticky-bar shadow and layout widths, exactly (owner, 2026-09-28: follow the prototype 1:1)", () => {
+    expect(themeInlineValue("text-hero")).toBe("2.125rem");
+    expect(themeInlineValue("text-hero-lg")).toBe("3.5rem");
+    expect(themeInlineValue("leading-hero")).toBe("1.1");
+    expect(themeInlineValue("text-page-title")).toBe("1.875rem");
+    expect(themeInlineValue("text-section-title")).toBe("1.75rem");
+    expect(light.get("page-max-width")).toBe("80rem");
+    expect(light.get("site-header-height")).toBe("4rem");
+    expect(light.get("button-height-lg")).toBe("3.25rem");
+    expect(light.get("elevation-sticky")).toContain("0 -8px 24px -12px");
+  });
 });
+
+/** A single custom property's raw value, wherever it is declared (globals.css is small enough that the name alone is unambiguous). */
+function themeInlineValue(name: string, css = readFileSync("src/app/globals.css", "utf8")): string {
+  const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(css);
+  if (!match) throw new Error(`no --${name} token`);
+  return match[1].trim();
+}
 
 /** Every text colour on every surface it is used on: [text, background]. */
 const textPairs: [string, string][] = [
