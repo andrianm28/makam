@@ -327,8 +327,12 @@ A Lokasi Mitra's fee for carrying out one Pemakaman, charged on every burial inc
 _Avoid_: Biaya gali, ongkos kubur
 
 **Biaya Layanan Platform**:
-The Operator's own flat fee on a Lokasi Mitra order, shown to the Pemesan as a separate line on top of the Lokasi Mitra's tariff.
+The Operator's own flat fee on a Lokasi Mitra order, shown to the Pemesan as a separate line on top of the Lokasi Mitra's tariff. It exists because the Operator is the seller of record and disburses the partner itself, so it never appears on a TPU order — there the Operator's income is the Biaya Pengurusan and the Margin Layanan TPU.
 _Avoid_: Komisi, admin fee, markup
+
+**Margin Layanan TPU**:
+The Operator's own income from a Layanan the family buys at a TPU, already inside that Layanan's price and never shown as a line of its own. It is not a Biaya Layanan Platform: the fee rides on top of a partner's tariff, while the margin is part of the price the family pays a TPU.
+_Avoid_: Platform fee, admin fee, markup, komisi
 
 **Biaya Pengurusan**:
 The Operator's own service fee for a Pengurusan at a TPU, one amount when it arranges a burial and a lower one for filing only, shown on the Tagihan as a service fee, never as a government charge.
@@ -337,6 +341,10 @@ _Avoid_: Biaya admin, jasa urus
 **Retribusi Pemda**:
 A government fee for a TPU permit or burial, collected at cost as its own line and paid on to the Pemda; shown as Rp 0 where the Pemda charges nothing.
 _Avoid_: Pajak, biaya pemerintah
+
+**Setor Retribusi**:
+The Operator's own act of passing a collected Retribusi Pemda on to the Pemerintah Daerah, recorded with its proof. It falls due once a Tagihan carrying that fee has been paid, and is never owed by the family.
+_Avoid_: Retribusi Daerah, pajak daerah, setoran pajak
 
 **Tagihan**:
 The Operator's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a standalone Layanan order, a Paket Layanan cycle); never changed once issued, only cancelled and replaced. Most are paid before anything happens and simply lapse when unpaid; only those for a burial that has already happened (a Saat Duka order, a burial under an existing Hak Pakai) are chased after their due date.
