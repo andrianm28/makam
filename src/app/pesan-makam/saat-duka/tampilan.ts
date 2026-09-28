@@ -50,6 +50,17 @@ export function kartuView(kartu: PilihanSaatDuka): KartuView {
   };
 }
 
+/**
+ * The shape "Pilih makam" draws a Lokasi Mitra card in (the prototype's own
+ * distinction): a single Jenis Makam collapses into one selectable row (photo,
+ * name, price and radio together, no inner list); more than one keeps the
+ * header-plus-list shape, because there is a choice to lay out. Pure and
+ * total: never anything to invent, so it takes only the one fact it needs.
+ */
+export function bentukKartu(grup: Pick<GrupView, "pilihan">): "tunggal" | "banyak" {
+  return grup.pilihan.length === 1 ? "tunggal" : "banyak";
+}
+
 export function grupView(grup: GrupSaatDuka, photoUrl: string | null = null): GrupView {
   return {
     lokasiId: grup.lokasi.id,

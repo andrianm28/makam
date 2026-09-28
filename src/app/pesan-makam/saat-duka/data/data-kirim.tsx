@@ -109,7 +109,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               autoComplete="name"
               placeholder="Nama sesuai KTP"
               aria-invalid={salah.pemesanName ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field
@@ -136,7 +136,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               // A signed-in Pemesan's address is already proven: it is the account's
               // Email Terverifikasi, so the field only says which one it is.
               readOnly={sudahMasuk}
-              className={cn("h-11", sudahMasuk && "bg-muted text-muted-foreground")}
+              className={cn("h-12 text-body-lg md:text-body-lg", sudahMasuk && "bg-muted text-muted-foreground")}
             />
           </Field>
           <Field id="pemesan-telepon" label="Nomor telepon" hint="Agar Lokasi Mitra dan tim kami bisa menelepon bila perlu." error={salah.phoneNumber}>
@@ -150,7 +150,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               inputMode="tel"
               placeholder="08xx-xxxx-xxxx"
               aria-invalid={salah.phoneNumber ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
         </Fieldset>
@@ -163,7 +163,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.almarhumName}
               onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
               aria-invalid={salah.almarhumName ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field id="wafat" label="Tanggal wafat" error={salah.tanggalWafat}>
@@ -174,7 +174,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.tanggalWafat}
               onChange={(event) => setisi({ ...isi, tanggalWafat: event.target.value })}
               aria-invalid={salah.tanggalWafat ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
         </Fieldset>
@@ -187,7 +187,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               value={isi.rencanaPemakamanAt}
               onChange={(event) => setisi({ ...isi, rencanaPemakamanAt: event.target.value })}
               aria-invalid={salah.rencanaPemakamanAt ? true : undefined}
-              className="h-11"
+              className="h-12 text-body-lg md:text-body-lg"
             />
           </Field>
           <Field
@@ -201,7 +201,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               rows={2}
               value={isi.keinginanPenempatan}
               onChange={(event) => setisi({ ...isi, keinginanPenempatan: event.target.value })}
-              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-body-lg outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </Field>
         </Fieldset>
@@ -231,7 +231,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   value={pemegangHak.name}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
                   aria-invalid={salah["pemegangHak.name"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
               <Field id="ph-telepon" label="Nomor telepon Pemegang Hak" error={salah["pemegangHak.phoneNumber"]}>
@@ -243,7 +243,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
                   inputMode="tel"
                   aria-invalid={salah["pemegangHak.phoneNumber"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
               <Field
@@ -259,7 +259,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
                   value={pemegangHak.email}
                   onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
                   aria-invalid={salah["pemegangHak.email"] ? true : undefined}
-                  className="h-11"
+                  className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
             </div>

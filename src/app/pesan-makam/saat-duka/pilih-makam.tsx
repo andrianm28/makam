@@ -10,7 +10,7 @@ import { ingatKota } from "./actions";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
-import type { KartuView, GrupView, TpuKartuView } from "./tampilan";
+import { bentukKartu, type KartuView, type GrupView, type TpuKartuView } from "./tampilan";
 
 export interface PilihMakamProps {
   grup: GrupView[];
@@ -310,6 +310,32 @@ function TpuSection({
   );
 }
 
+/** The radio dot every selectable row ends with, filled and checked once chosen. */
+function RadioDot({ dipilih, className }: { dipilih: boolean; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
+        dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
+        className,
+      )}
+      aria-hidden
+    >
+      {dipilih ? <Check className="size-3.5" /> : null}
+    </span>
+  );
+}
+
+/** A Lokasi Mitra's Kunjungan Verifikasi photo; nothing when it has none yet. */
+function FotoLokasi({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    // Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="size-16 shrink-0 rounded-xl object-cover sm:size-20" />
+  );
+}
+
 /** One TPU: its name, where it is, what the burial costs all-in, and when it will be confirmed. */
 function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: boolean; onPilih: (kartu: TpuKartuView) => void }) {
   return (
@@ -336,21 +362,19 @@ function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: b
             {kartu.konfirmasi}
           </span>
         </span>
-        <span
-          className={cn(
-            "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-            dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
-          )}
-          aria-hidden
-        >
-          {dipilih ? <Check className="size-3.5" /> : null}
-        </span>
+        <RadioDot dipilih={dipilih} className="mt-0.5" />
       </button>
     </li>
   );
 }
 
-/** One Lokasi Mitra: its photo, its promise said once, then each of its Jenis Makam with a Tersedia unit. */
+/**
+ * One Lokasi Mitra: the prototype's single flattened row when it has exactly
+ * one Jenis Makam tersedia, else its photo and promise said once above each
+ * of its Jenis Makam. The value a choice carries and the URL the next step
+ * builds are the same either way — `bentukKartu` only picks which markup
+ * shows the same `grup`/`kartu` pair.
+ */
 function GrupKartu({
   grup,
   terpilih,
@@ -360,6 +384,12 @@ function GrupKartu({
   terpilih: Terpilih | null;
   onPilih: (kartu: KartuView) => void;
 }) {
+  if (bentukKartu(grup) === "tunggal") {
+    const kartu = grup.pilihan[0];
+    const dipilih = terpilih?.kind === "lokasi_mitra" && terpilih.kartu.jenisMakamId === kartu.jenisMakamId;
+    return <GrupKartuTunggal grup={grup} kartu={kartu} dipilih={dipilih} onPilih={onPilih} />;
+  }
+
   const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
   return (
     <li>
@@ -370,11 +400,7 @@ function GrupKartu({
         )}
       >
         <div className="flex gap-4">
-          {grup.photoUrl ? (
-            // Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={grup.photoUrl} alt="" className="size-16 shrink-0 rounded-xl object-cover sm:size-20" />
-          ) : null}
+          <FotoLokasi url={grup.photoUrl} />
           <div className="min-w-0 flex-1">
             <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
             <p className="text-small text-muted-foreground">
@@ -407,6 +433,76 @@ function GrupKartu({
   );
 }
 
+/**
+ * A Lokasi Mitra with exactly one Jenis Makam tersedia, as one selectable row
+ * (spec, the prototype's own shape): photo, name, that one Jenis Makam and its
+ * price together, radio on the card itself — no inner list to open.
+ */
+function GrupKartuTunggal({
+  grup,
+  kartu,
+  dipilih,
+  onPilih,
+}: {
+  grup: GrupView;
+  kartu: KartuView;
+  dipilih: boolean;
+  onPilih: (kartu: KartuView) => void;
+}) {
+  return (
+    <li>
+      <div
+        role="radio"
+        aria-checked={dipilih}
+        // Named explicitly, not from its whole subtree's content: that subtree also
+        // carries "Lihat lokasi" and a Kontak Siaga phone number, neither of them
+        // part of what this radio is choosing.
+        aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
+        tabIndex={0}
+        onClick={() => onPilih(kartu)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onPilih(kartu);
+          }
+        }}
+        className={cn(
+          "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
+          dipilih ? "border-primary ring-1 ring-primary" : "border-border",
+        )}
+      >
+        <div className="flex gap-4">
+          <FotoLokasi url={grup.photoUrl} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
+              <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
+              <p className="text-small text-muted-foreground">
+                {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
+              </p>
+            </div>
+            <div className="sm:text-right">
+              <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
+              <p className="text-caption text-muted-foreground">semua biaya</p>
+            </div>
+          </div>
+          <RadioDot dipilih={dipilih} />
+        </div>
+
+        <KonfirmasiPromise grup={grup} />
+
+        <Link
+          href={`/lokasi/${grup.lokasiId}`}
+          onClick={(event) => event.stopPropagation()}
+          className="inline-block self-start text-small font-medium text-brand underline-offset-2 hover:underline"
+        >
+          Lihat lokasi
+        </Link>
+      </div>
+    </li>
+  );
+}
+
 /** One Jenis Makam card: the all-in total and the Tersedia count, selectable by keyboard as well as by tap. */
 function KartuJenis({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: boolean; onPilih: (kartu: KartuView) => void }) {
   return (
@@ -431,15 +527,7 @@ function KartuJenis({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: bo
           <span className="block text-body-lg font-semibold tabular-nums text-foreground">{formatRupiah(kartu.total)}</span>
           <span className="block text-caption text-muted-foreground">semua biaya</span>
         </span>
-        <span
-          className={cn(
-            "inline-flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-            dipilih ? "border-primary bg-primary text-primary-foreground" : "border-border-strong",
-          )}
-          aria-hidden
-        >
-          {dipilih ? <Check className="size-3.5" /> : null}
-        </span>
+        <RadioDot dipilih={dipilih} />
       </button>
     </li>
   );
