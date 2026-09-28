@@ -61,6 +61,15 @@ testing only). It copies the compose files, scripts, units and the nginx proxy
 snippet, runs `nginx -t`, and never touches env files, nginx sites, or reloads
 nginx.
 
+**Run it as `ubuntu`, not with `sudo`.** The script escalates the two writes
+that need root itself (`/etc/nginx/snippets/`, `/etc/systemd/system/` and the
+`systemctl` calls), and everything under `/opt/makam-v1` has to end up owned by
+`ubuntu`, because the deploy units run as `User=ubuntu` and
+`makam-deploy` refuses without a readable `compose.yml`. A `sudo` run instead
+leaves `$ROOT` root-owned, which a later run as `ubuntu` cannot write to and
+the units cannot read; repair it once with
+`sudo chown -R ubuntu:ubuntu /opt/makam-v1`.
+
 ### `staging.env`
 
 The compose file has **no defaults** for the settings that pick an

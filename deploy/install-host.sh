@@ -6,8 +6,27 @@
 # containers. It installs the nginx proxy snippet and runs `nginx -t`, but
 # never reloads nginx.
 #
-#   deploy/install-host.sh                  # from a clean checkout of main, as ubuntu
+# One way to run it, and this header used to name it without saying it was the
+# only one that worked:
+#
+#   deploy/install-host.sh                  # as ubuntu, from a clean checkout of main
 #   deploy/install-host.sh --allow-branch   # testing only: any branch, dirty tree allowed
+#
+# Not `sudo deploy/install-host.sh`, and not as any other user. Two things
+# break, both measured on this host:
+#
+#   * `git status` refreshes .git/index and writes it back, so a root run left
+#     the caller's index owned by root and every later git command by that user
+#     failed with "fatal: .git/index: index file open failed: Permission
+#     denied". The scratch index below means a root run can no longer do that.
+#   * `install -m 0600` as root leaves $ROOT/<env>/compose.yml owned by root, and
+#     the units that read it run as User=ubuntu, so the next deploy refuses with
+#     "missing $DIR/compose.yml" (exit 78) until someone chowns it back.
+#
+# $ROOT is ubuntu's — the units are granted write access to it — and the sudo
+# lines below are only for /etc and systemd, which are root's. A run made under
+# sudo leaves $ROOT partly root-owned; repair it once with
+# `sudo chown -R ubuntu:ubuntu /opt/makam-v1` before running this as ubuntu.
 #
 # cosign public keys: the private keys never leave GitHub (CI signs with them),
 # so the public halves live on the host only and are NOT in this repository.
@@ -31,6 +50,22 @@ esac
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 ROOT=${MAKAM_ROOT:-/opt/makam-v1}
 
+# `git status` refreshes the index and writes it back, which is how a root run
+# of this script left the caller's .git/index owned by root. So every git call
+# below runs against a copy of that index in a temporary directory: the copy is
+# what git refreshes, and the trap throws it away. The real .git/index is read
+# once, by cp, and never opened for writing. The copy is byte-identical, so a
+# dirty tree still reads dirty and both refusals below fire exactly as before —
+# only the file git writes is a throwaway. $git_dir is asked of git rather than
+# assumed, because .git is a file, not a directory, in a linked worktree.
+git_dir=$(git -C "$REPO" rev-parse --absolute-git-dir)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+export GIT_INDEX_FILE="$scratch/index"
+if [ -f "$git_dir/index" ]; then
+  cp "$git_dir/index" "$GIT_INDEX_FILE" || { echo "refusing: cannot copy $git_dir/index" >&2; exit 1; }
+fi
+
 branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD)
 if [ "$ALLOW_BRANCH" = 0 ]; then
   [ "$branch" = main ] || { echo "refusing: $REPO is on '$branch', not main (use --allow-branch only for testing)" >&2; exit 1; }
@@ -46,6 +81,10 @@ for env in staging prod; do
   grep -qx "MAKAM_PROJECT=makam-$env" "$file" || { echo "refusing: add MAKAM_PROJECT=makam-$env to $file" >&2; exit 1; }
 done
 
+# Everything under $ROOT is ubuntu's on purpose and is deliberately not sudo:
+# the deploy units run as User=ubuntu, read compose.yml out of $ROOT and are
+# granted write access to it. The sudo lines further down are the ones that
+# need root, and they write to /etc and to systemd.
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/prod" "$ROOT/glitchtip" "$ROOT/nginx-backups"
 install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-image" \
   "$REPO/deploy/bin/makam-deploy-status" "$REPO/deploy/bin/makam-glitchtip-release" \
