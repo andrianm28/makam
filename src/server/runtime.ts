@@ -97,6 +97,9 @@ export function serverRuntime(): ServerRuntime {
       identity,
       notifications,
       lokasi,
+      // The Tier 3 "Setor Retribusi" row and the payment that closes it read
+      // Billing's own query of the Lunas Retribusi Tagihan.
+      billing,
     });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
@@ -112,6 +115,22 @@ export function serverRuntime(): ServerRuntime {
       billing,
       identity,
       notifications,
+    });
+    // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
+    // module, so it is composed before the queue that runs its query.
+    const pengurusan = createPengurusan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      billing,
+      identity,
+      // The "Ambil surat pengantar" Tugas a confirmation creates, inside the
+      // confirmation's own transaction.
+      fieldwork,
+      notifikasi: notifications,
     });
     globalForRuntime.__makamRuntime = {
       env,
@@ -132,22 +151,16 @@ export function serverRuntime(): ServerRuntime {
         db: database.db,
         clock: adapters.clock,
         audit,
+        identity,
         lokasi,
         fieldwork,
         billing,
         notifications,
         inventory,
         pemesanan,
+        pengurusan,
       }),
-      pengurusan: createPengurusan({
-        db: database.db,
-        clock: adapters.clock,
-        files: adapters.files,
-        lokasi,
-        tariffs,
-        billing,
-        identity,
-      }),
+      pengurusan,
     };
   }
   return globalForRuntime.__makamRuntime;

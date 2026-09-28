@@ -26,8 +26,8 @@ export type PengurusanTpuKind = (typeof pengurusanTpuKinds)[number];
  * Dimakamkan → Dokumen Lengkap → IPTM Diajukan → IPTM Terbit, a Perpanjangan
  * TPU goes Diajukan → (Perlu Perbaikan) → Menunggu Pembayaran → Diproses →
  * IPTM Diajukan → IPTM Terbit, and a filing-only Pengurusan IPTM starts at
- * Dimakamkan. This ticket only ever writes Diajukan; the later steps are tickets
- * 45, 46, 47 and 48.
+ * Dimakamkan. This ticket writes Diajukan and Dikonfirmasi; the later steps are
+ * tickets 46, 47 and 48.
  */
 export const pengurusanTpuStatuses = [
   "diajukan",
@@ -43,6 +43,21 @@ export const pengurusanTpuStatuses = [
   "dibatalkan",
 ] as const;
 export type PengurusanTpuStatus = (typeof pengurusanTpuStatuses)[number];
+
+/** The TPU's own office contact, as Admin Platform arranges the burial through it. */
+export interface KontakTpu {
+  /** The office's name as the staff member gives it, e.g. "Samsat TPU Kober". */
+  name: string;
+  /** A contact number, as typed: never verified, never a login. */
+  phoneNumber: string;
+}
+
+/** One price line as the confirmation shows it, kept on the order so the family reads the same figure later. */
+export interface HargaBaris {
+  kind: string;
+  label: string;
+  amount: number;
+}
 
 /**
  * Owned by the Pengurusan module: one Pengurusan order at a DKI TPU — the
@@ -67,10 +82,23 @@ export type PengurusanTpuStatus = (typeof pengurusanTpuStatuses)[number];
  * snapshotted onto the order when it was placed, so a later change of the
  * module's own list cannot change what this family was told to bring.
  *
- * Nothing is billed here: the Tagihan is issued at the confirmation (ticket 45),
- * so `tagihan_id` is null until then and a submission carries no money.
- * `konfirmasi_due_at` is the instant the TPU window (06:00–18:00 WIB, ticket
- * 11's calculator) gave at submission: two service hours.
+ * Nothing is billed at submission: the Tagihan is issued at the confirmation
+ * (ticket 45), so `tagihan_id` is null until then. `konfirmasi_due_at` is the
+ * instant the TPU window (06:00–18:00 WIB, ticket 11's calculator) gave at
+ * submission: two service hours, counted again if Admin Platform has to offer
+ * another TPU.
+ *
+ * From the confirmation on, the order carries what the family is told to
+ * expect (spec, story 73): `pemakaman_at` the burial agreed with the TPU,
+ * `kontak_tpu` the TPU's own office, `admin_platform_*` the staff member who
+ * took the order and may be called, and `harga` the price lines the Tagihan
+ * carries, so the confirmation a family reads later says the same figures the
+ * Tagihan did. `catatan_konfirmasi` is the one line Admin Platform adds for this
+ * family.
+ *
+ * An offer of another TPU is a row of its own and never an edit: the order keeps
+ * the TPU the family applied to until they answer, and `tpu_ditawarkan_*` is
+ * what waits for their answer.
  *
  * `pemesan_account_id` and `email` are null for an order CS placed on a family's
  * behalf with no Akun to attach (a later ticket); every family message goes to
@@ -111,13 +139,38 @@ export const pengurusanTpu = pgTable(
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /** The Tagihan issued at the confirmation; null until then. */
     tagihanId: text("tagihan_id"),
+    /** The Tagihan's own number, copied at issue so the order page names it without billing's read. */
+    tagihanNomor: text("tagihan_nomor"),
+    /** The burial Admin Platform agreed with the TPU; null until the confirmation. */
+    pemakamanAt: at("pemakaman_at"),
+    /** The TPU's own office contact, as recorded at the confirmation. */
+    kontakTpu: jsonb("kontak_tpu").$type<KontakTpu>(),
+    /** The Admin Platform who took the order: the person the family may call. */
+    adminPlatformAccountId: text("admin_platform_account_id"),
+    adminPlatformName: text("admin_platform_name"),
+    adminPlatformPhoneNumber: text("admin_platform_phone_number"),
+    /** The price lines the Tagihan carried, so the order page quotes the same figures later. */
+    harga: jsonb("harga").$type<HargaBaris[]>(),
+    /** The one line Admin Platform added for this family at the confirmation. */
+    catatanKonfirmasi: text("catatan_konfirmasi"),
+    /** The TPU offered instead, while the family has not answered. */
+    tpuDitawarkanId: text("tpu_ditawarkan_id"),
+    tpuDitawarkanName: text("tpu_ditawarkan_name"),
+    tpuDitawarkanAddress: text("tpu_ditawarkan_address"),
+    /** Why Admin Platform offered it, in the family's own words. */
+    alasanTpuDitawarkan: text("alasan_tpu_ditawarkan"),
+    tpuDitawarkanPada: at("tpu_ditawarkan_pada"),
     /** Why the order was cancelled, or a filing rejected; null while none. */
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
+    dikonfirmasiPada: at("dikonfirmasi_pada"),
   },
   (table) => [
     uniqueIndex("pengurusan_tpu_nomor_idx").on(table.nomor),
     index("pengurusan_tpu_pemesan_idx").on(table.pemesanAccountId),
     index("pengurusan_tpu_tpu_idx").on(table.tpuId),
+    // The Tier 1 "Konfirmasi TPU Saat Duka" row reads the orders still waiting
+    // for a confirmation, so the one column it filters on is indexed.
+    index("pengurusan_tpu_status_idx").on(table.status),
   ],
 );

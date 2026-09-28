@@ -45,6 +45,7 @@ import { actorFromCookies, endSession } from "./sessions";
 import {
   deactivateStaff,
   seedFirstAdminPlatform,
+  staffAccountById,
   staffAccounts,
   staffRecipient,
   adminLokasiOf,
@@ -101,7 +102,9 @@ export {
   layananKatalogResource,
   lokasiMitraResource,
   pemesananResource,
+  pengurusanTpuResource,
   semuaLokasiMitraResource,
+  setorRetribusiResource,
   needsTotp,
   pengaturanOperatorResource,
   stafMenuResource,
@@ -177,6 +180,11 @@ export interface Identity {
   /** Every Akun Staf, with its roles and whether it is Dinonaktifkan. */
   staffAccounts(): Promise<StaffAccount[]>;
   /**
+   * One Akun Staf by its id, or null. The narrow read behind a family's own page
+   * naming the staff member who took their order: a name and a contact number.
+   */
+  staffAccountById(accountId: string): Promise<StaffAccount | null>;
+  /**
    * The Akun Staf a Peringatan Staf goes to: its Email Terverifikasi and live
    * sessions. Null when it holds no staff role (never invited, or Dinonaktifkan).
    */
@@ -240,6 +248,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     endSession: (cookieHeader) => endSession({ auth, secret: deps.secret }, cookieHeader),
     seedFirstAdminPlatform: (input) => seedFirstAdminPlatform(deps, input),
     staffAccounts: () => staffAccounts(deps),
+    staffAccountById: (accountId) => staffAccountById(deps, accountId),
     staffRecipient: (accountId) => staffRecipient(deps, accountId),
     inviteStaff: (by, input) => inviteStaff(reporting, by, input),
     adminLokasiOf: (lokasiId) => adminLokasiOf(deps, lokasiId),

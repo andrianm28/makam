@@ -44,12 +44,14 @@ import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
+  listTagihanRetribusiLunas,
   readTagihan,
   reissueTagihan,
   type IssueTagihanInput,
   type IssueTagihanResult,
   type NewTagihanLine,
   type ReissueTagihanResult,
+  type RetribusiTagihan,
   type Tagihan,
 } from "./tagihan";
 
@@ -69,6 +71,7 @@ export {
   type LineProvider,
   type NewTagihanLine,
   type ReissueTagihanResult,
+  type RetribusiTagihan,
   type Tagihan,
   type TagihanLine,
   type TagihanStatus,
@@ -124,6 +127,12 @@ export interface Billing {
    * reported as paid that Billing could not settle a Tagihan with.
    */
   pembayaranPerluDitinjau(): Promise<PembayaranPerluDitinjau[]>;
+  /**
+   * Every Lunas Tagihan carrying a non-zero Retribusi Pemda line, oldest payment
+   * first. The town is paid on to separately, and this is the query its Tier 3
+   * "Setor Retribusi" row is a projection of (spec, Work Queues; ticket 45).
+   */
+  tagihanRetribusiLunas(): Promise<RetribusiTagihan[]>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -172,6 +181,7 @@ export function createBilling(deps: BillingDeps): Billing {
     bayar: (link) => bayar(deps, link, deps.clock.now()),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
+    tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),

@@ -37,5 +37,6 @@ export function composeNotifications(deps: {
     tagihan: deps.billing,
     dokumenUrl: urls.publicDocumentUrl,
     pesananUrl: urls.pesananUrl,
+    pengurusanUrl: urls.pengurusanUrl,
   });
 }

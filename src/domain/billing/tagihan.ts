@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -323,6 +323,60 @@ export async function readTagihan(db: Database, tagihanId: string): Promise<Tagi
   const [row] = await db.select().from(tagihan).where(eq(tagihan.id, tagihanId));
   if (!row) return null;
   return toTagihan(db, row);
+}
+
+/** A Lunas Tagihan the Operator still owes a town's charge on: the shape the Setor Retribusi row and its recording are about. */
+export interface RetribusiTagihan {
+  tagihanId: string;
+  nomorTagihan: string;
+  /** The order the Retribusi line was charged on, when it is about one. */
+  nomorPemesanan: string | null;
+  /** The TPU the charge belongs to, as the Tagihan named the place; a filing-only charge has none. */
+  placeName: string | null;
+  /** When the money came in, the instant the Setor Retribusi deadline counts from. */
+  lunasAt: Date;
+  /** The Retribusi Pemda line's own amount: what has to reach the town, never the order's total. */
+  amount: number;
+}
+
+/**
+ * Every Lunas Tagihan carrying a non-zero Retribusi Pemda line, oldest payment
+ * first (spec, Work Queues: the Tier 3 "Setor Retribusi" row, due two working
+ * days after Lunas, "only for a non-zero Retribusi Pemda line"). A Rp 0 line
+ * charges the family nothing and the town is owed nothing, so it never appears:
+ * every Retribusi is Rp 0 today, and v1 builds the structure only.
+ */
+export async function listTagihanRetribusiLunas(db: Database): Promise<RetribusiTagihan[]> {
+  const rows = await db
+    .select({
+      id: tagihan.id,
+      nomor: tagihan.nomor,
+      nomorPemesanan: tagihan.nomorPemesanan,
+      placeName: tagihan.placeName,
+      paidAt: tagihan.paidAt,
+    })
+    .from(tagihan)
+    .where(and(eq(tagihan.status, "lunas"), isNotNull(tagihan.paidAt)))
+    .orderBy(asc(tagihan.paidAt), asc(tagihan.nomor));
+
+  const found: RetribusiTagihan[] = [];
+  for (const row of rows) {
+    const [line] = await db
+      .select({ amount: tagihanLine.amount })
+      .from(tagihanLine)
+      .where(and(eq(tagihanLine.tagihanId, row.id), eq(tagihanLine.kind, "retribusi_pemda")));
+    // A Tagihan with no Retribusi line at all, or a Rp 0 one, is nobody's row.
+    if (!line || line.amount <= 0 || !row.paidAt) continue;
+    found.push({
+      tagihanId: row.id,
+      nomorTagihan: row.nomor,
+      nomorPemesanan: row.nomorPemesanan,
+      placeName: row.placeName,
+      lunasAt: row.paidAt,
+      amount: line.amount,
+    });
+  }
+  return found;
 }
 
 /** The Tagihan behind a document link, or null. */

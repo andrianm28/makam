@@ -3,9 +3,10 @@ import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
+import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, adminPlatformOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -25,6 +26,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
   const terencana: TerencanaDiajukan[] = [];
+  /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
+  const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -59,12 +62,20 @@ const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     billing: setup.billing,
     identity: setup.identity,
+    fieldwork: setup.fieldwork,
+    notifikasi: {
+      pengurusanDikonfirmasi: async (hasil) => {
+        pengurusanDikonfirmasi.push(hasil);
+        return { ok: true };
+      },
+    },
   });
-  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, terencana, notifikasi: terkumpul };
+  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, terencana, pengurusanDikonfirmasi, notifikasi: terkumpul };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -74,7 +85,10 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  * announcement collectors (a setup that composes the Pemesanan module itself,
  * as the Antrean Lokasi's tests do, has its own).
  */
-export type PemesananModul = Omit<PemesananSetup, "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi">;
+export type PemesananModul = Omit<
+  PemesananSetup,
+  "diumumkan" | "dikonfirmasi" | "terencana" | "notifikasi" | "pengurusanDikonfirmasi"
+>;
 
 /**
  * Pengaturan Operator entered by the first Admin Platform, as every document
@@ -345,4 +359,4 @@ export function orderSaatDuka(lokasi: Awaited<ReturnType<typeof saatDukaFixture>
 }
 
 export { jenisMakamInput } from "./publish";
-export { logIn, signedInAdminPlatform } from "./identity";
+export { logIn } from "./identity";

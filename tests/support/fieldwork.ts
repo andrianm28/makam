@@ -6,7 +6,7 @@ import { createNotifications } from "@/domain/notifications";
 import { logIn } from "./identity";
 import { lokasiOnTestDatabase } from "./lokasi";
 import { TEST_PUBLIC_ORIGIN } from "./billing";
-import { TAGIHAN_TIDAK_ADA } from "./notifications";
+import { TAGIHAN_RETRIBUSI_KOSONG, TAGIHAN_TIDAK_ADA } from "./notifications";
 
 /**
  * The Field Work module next to Lokasi, identity and notifications on the
@@ -27,6 +27,7 @@ export function fieldworkOnTestDatabase(db: Database) {
     tagihan: TAGIHAN_TIDAK_ADA,
     dokumenUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     pesananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesanan/${nomor}`,
+    pengurusanUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pengurusan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,
@@ -36,6 +37,10 @@ export function fieldworkOnTestDatabase(db: Database) {
     identity: lokasiSetup.identity,
     notifications,
     lokasi: lokasiSetup.lokasi,
+    // No Tagihan exists in this setup, so the Retribusi read answers nothing and
+    // the Setor Retribusi rows are empty; the ones that need a real Tagihan are
+    // composed in publish.ts, which has Billing beside it.
+    billing: TAGIHAN_RETRIBUSI_KOSONG,
   });
   return { ...lokasiSetup, notifications, webPush, fieldwork };
 }

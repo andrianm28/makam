@@ -36,8 +36,21 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
       "bukti_pembayaran_terbit",
+      // A Saat Duka TPU confirmation (ticket 45): transactional, like the two
+      // Lokasi Mitra order messages, because the burial is already arranged.
+      "pengurusan_dikonfirmasi",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
+  });
+
+  it("times a Saat Duka TPU confirmation as transactional, like the two Lokasi Mitra order messages", () => {
+    expect(WAKTU_TEMPLATE.pengurusan_dikonfirmasi).toBe("transaksional");
+    expect(TABEL_ACARA.pengurusan_dikonfirmasi).toEqual({
+      penerima: "email_pemesan",
+      kanal: "email",
+      template: "pengurusan_dikonfirmasi",
+      waktu: "transaksional",
+    });
   });
 
   it("times the Tagihan on issue as a reminder, inside 08:00–20:00 WIB", () => {

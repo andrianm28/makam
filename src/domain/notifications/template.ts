@@ -96,6 +96,70 @@ export function pesananDikonfirmasiEmail(input: PesananDikonfirmasiEmailInput): 
   };
 }
 
+export interface PengurusanDikonfirmasiEmailInput {
+  nomor: string;
+  tpu: { name: string; address: string };
+  almarhum: { name: string; tanggalWafat: string };
+  /** The burial agreed with the TPU, which the Tagihan's 3×24 h counts from. */
+  pemakamanAt: Date;
+  /** The Admin Platform who took the order, the person the family may write to. */
+  adminPlatform: { name: string; phoneNumber: string | null };
+  /** The TPU office's own contact, as Admin Platform arranged the burial through it. */
+  kontakTpu: { name: string; phoneNumber: string };
+  /** The one line Admin Platform added for this family; null while none. */
+  catatan: string | null;
+  /** Both document sets, as the order carries them. */
+  dokumen: {
+    pemakaman: { nama: string; catatan: string | null }[];
+    pengajuan: { nama: string; catatan: string | null }[];
+  };
+  /** The price lines the Tagihan carries, named exactly as it names them. */
+  harga: { kind: string; label: string; amount: number }[];
+  /** The pay-after Tagihan issued with the confirmation. */
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  /** The order page's full URL, into the app. */
+  tautan: string;
+}
+
+/**
+ * A Saat Duka TPU confirmation (transactional: any hour). The burial the family
+ * agreed to, where it happens and whom to call about it, both document lists,
+ * what it costs and that the burial does not wait for the payment.
+ */
+export function pengurusanDikonfirmasiEmail(input: PengurusanDikonfirmasiEmailInput): { subject: string; body: string } {
+  const admin = input.adminPlatform.phoneNumber
+    ? `${input.adminPlatform.name}, ${input.adminPlatform.phoneNumber}`
+    : input.adminPlatform.name;
+  const harga = input.harga.map((line) => `${line.label} ${formatRupiah(line.amount)}`).join(", ");
+  const pemakaman = input.dokumen.pemakaman.map((satu) => satu.nama);
+  const pengajuan = input.dokumen.pengajuan.map((satu) => satu.nama);
+  return {
+    subject: `Pengurusan ${input.nomor} dikonfirmasi: pemakaman di ${input.tpu.name}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pengurusan untuk ${input.almarhum.name} (wafat ${formatTanggal(input.almarhum.tanggalWafat)}) sudah kami konfirmasi`,
+      `dengan ${input.tpu.name}, ${input.tpu.address}.`,
+      `Pemakaman: ${formatTanggalJam(input.pemakamanAt)}.`,
+      `Kantor TPU: ${input.kontakTpu.name}, ${input.kontakTpu.phoneNumber}.`,
+      `Admin Platform yang menangani: ${admin}.`,
+      ...(input.catatan ? [`Catatan: ${input.catatan}`] : []),
+      "",
+      `Dokumen dibawa saat pemakaman: ${pemakaman.length > 0 ? pemakaman.join(", ") : "belum ada daftar"}.`,
+      `Dokumen diunggah setelah pemakaman: ${pengajuan.length > 0 ? pengajuan.join(", ") : "belum ada daftar"}.`,
+      `Biaya: ${harga}.`,
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Pemakaman tetap berjalan walaupun pembayaran belum masuk. Dokumen boleh menyusul setelah pemakaman.",
+      "",
+      `Tagihan: ${input.tagihan.tautan}`,
+      `Ikuti pengurusan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface TagihanEmailInput {
   nomorTagihan: string;
   nomorPemesanan: string | null;

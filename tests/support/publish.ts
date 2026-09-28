@@ -42,6 +42,7 @@ export function publishOnTestDatabase(db: Database) {
     tagihan: billing,
     dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
     pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,
+    pengurusanUrl: (nomor) => `https://makam.test/pengurusan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,
@@ -51,6 +52,9 @@ export function publishOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications,
     lokasi: setup.lokasi,
+    // Billing sits beside it, so the Tier 3 "Setor Retribusi" row and the
+    // payment that closes it see the same Tagihan the rest of the setup does.
+    billing,
   });
   return { db, ...setup, notifications, webPush, fieldwork, operatorSettings, payments, reportedErrors, billing };
 }

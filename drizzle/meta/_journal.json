@@ -183,6 +183,13 @@
       "when": 1790533600389,
       "tag": "0025_naive_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790561971806,
+      "tag": "0026_closed_galactus",
+      "breakpoints": true
     }
   ]
 }

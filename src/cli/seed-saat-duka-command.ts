@@ -103,6 +103,8 @@ export async function seedSaatDukaCommand(
           identity,
           notifications,
           lokasi,
+          // Billing is composed above, so the Setor Retribusi read is the real one.
+          billing,
         }),
       };
 

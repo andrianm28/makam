@@ -82,6 +82,9 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "pemesanan.konfirmasi_saat_duka": "Pesanan Saat Duka dikonfirmasi",
   "pemesanan.centang_dokumen": "Dokumen ditandai sudah ada",
   "lokasi.konfirmasi_syarat_tayang": "Syarat tayang dikonfirmasi masih terpenuhi",
+  "pengurusan.konfirmasi_saat_duka_tpu": "Pengurusan Saat Duka di TPU dikonfirmasi",
+  "pengurusan.tawarkan_tpu_lain": "TPU lain ditawarkan",
+  "setor_retribusi.catat": "Setor Retribusi dicatat",
 };
 
 /** The role an Entri Audit's actor wrote under. */

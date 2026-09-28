@@ -150,7 +150,13 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra confirms it, by assigning a cleared Tersedia Petak. */
   | "pemesanan.konfirmasi"
   /** The Admin Lokasi of the order's own Lokasi Mitra ticks off a document on its checklist. */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** Read a Saat Duka TPU order (Admin Platform only: a TPU is the Operator's own work, never a partner's). */
+  | "pengurusan.lihat_staf"
+  /** Confirm a Saat Duka TPU order, or offer the family another TPU (Admin Platform only). */
+  | "pengurusan.konfirmasi"
+  /** Read the open Setor Retribusi rows, and record a payment to the Pemda (Admin Platform, or the Petugas Lapangan who paid it). */
+  | "setor_retribusi.kelola";
 
 /** What the action is done to. */
 export type Resource =
@@ -170,6 +176,10 @@ export type Resource =
   | { kind: "tugas_lapangan_semua" }
   | { kind: "tugas_lapangan"; id: string }
   | { kind: "antrean" }
+  /** Every Saat Duka TPU order (Admin Platform alone: a TPU order is the Operator's own work). */
+  | { kind: "pengurusan_tpu" }
+  /** The Setor Retribusi rows (Admin Platform, and the Petugas Lapangan who pays in person). */
+  | { kind: "setor_retribusi" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string };
 
@@ -259,6 +269,16 @@ export function antreanResource(): Resource {
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
 export function pemesananResource(accountId: string): Resource {
   return { kind: "pemesanan_makam", accountId };
+}
+
+/** Every Saat Duka TPU order (the Antrean's Tier 1 confirmation row, and its confirmation screen). */
+export function pengurusanTpuResource(): Resource {
+  return { kind: "pengurusan_tpu" };
+}
+
+/** The Setor Retribusi rows: the Tier 3 queue and the recording of a payment to the Pemda. */
+export function setorRetribusiResource(): Resource {
+  return { kind: "setor_retribusi" };
 }
 
 export type Authorization =
@@ -420,5 +440,14 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // checklists; Admin Platform does not confirm (spec, story 117: an
       // Admin Platform may only chase the Lokasi by phone, see its Tier 1 row).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "pengurusan.lihat_staf":
+    case "pengurusan.konfirmasi":
+      // A TPU is a Pemda's cemetery, never a partner the Operator onboards, so
+      // there is no Admin Lokasi of one: Admin Platform alone confirms these orders.
+      return resource.kind === "pengurusan_tpu" && holds("admin_platform") ? allowed : denied;
+    case "setor_retribusi.kelola":
+      // Admin Platform hands the setor to a Petugas Lapangan and records it
+      // themselves; a Petugas records only the payment they made in person.
+      return resource.kind === "setor_retribusi" && (holds("admin_platform") || holds("petugas_lapangan")) ? allowed : denied;
   }
 }
