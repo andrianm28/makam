@@ -184,7 +184,11 @@ export type AuditAction =
   /** An Admin Lokasi offers a Saat Duka order an alternative, another Jenis Makam or day (ticket 24). */
   | "pemesanan.tawarkan_alternatif"
   /** An Admin Lokasi records a cancellation on a family's behalf (ticket 24). */
-  | "pemesanan.batalkan_untuk_pemesan";
+  | "pemesanan.batalkan_untuk_pemesan"
+  /** Admin Platform approves a refund, which is the only way money may leave for one (ticket 31, AC 2). */
+  | "pengembalian.setujui"
+  /** Admin Platform issues a Bukti Pengembalian Dana for a transfer, with its lines and proof (ticket 31, AC 4). */
+  | "pengembalian.terbitkan_bukti";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

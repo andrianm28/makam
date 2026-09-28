@@ -303,3 +303,41 @@ export function buktiPembayaranEmail(input: BuktiEmailInput): { subject: string;
     ].join("\n"),
   };
 }
+
+export interface BuktiPengembalianEmailInput {
+  nomorBukti: string;
+  nomorTagihan: string;
+  /** Whole rupiah that went back to the Pemesan. */
+  jumlah: number;
+  /** The date Admin Platform entered for the transfer (WIB "YYYY-MM-DD"). */
+  ditransferPada: string;
+  /** Whether the Biaya Layanan Platform came back with it, which the spec says the Bukti states. */
+  biayaLayananPlatformDikembalikan: boolean;
+  /** The Bukti Pengembalian Dana page's full URL. */
+  tautan: string;
+}
+
+/**
+ * A Bukti Pengembalian Dana issued (transactional: any hour — a family waiting on
+ * its own money hears about it at once, and the message asks nothing of it).
+ * Whether the Operator's fee came back is stated here as well as on the Bukti,
+ * because a family told only an amount would have to guess what the difference was.
+ */
+export function buktiPengembalianEmail(input: BuktiPengembalianEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pengembalian dana ${input.nomorBukti} – Tagihan ${input.nomorTagihan}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pengembalian dana sebesar ${formatRupiah(input.jumlah)} untuk Tagihan ${input.nomorTagihan} telah kami transfer pada ${input.ditransferPada}.`,
+      input.biayaLayananPlatformDikembalikan
+        ? "Biaya Layanan Platform ikut dikembalikan."
+        : "Biaya Layanan Platform tidak dikembalikan.",
+      "",
+      `Unduh Bukti Pengembalian Dana ${input.nomorBukti} di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

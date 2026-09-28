@@ -102,6 +102,7 @@ export {
   lokasiMitraResource,
   pemesananResource,
   pencairanResource,
+  pengembalianResource,
   semuaLokasiMitraResource,
   needsTotp,
   pengaturanOperatorResource,

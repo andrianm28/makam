@@ -164,7 +164,11 @@ export type Action =
   /** The Admin Lokasi of the order's own Lokasi Mitra offers an alternative (another Jenis Makam or day). */
   | "pemesanan.tawarkan_alternatif"
   /** The Admin Lokasi of the order's own Lokasi Mitra records a cancellation on the family's behalf. */
-  | "pemesanan.batalkan_untuk_pemesan";
+  | "pemesanan.batalkan_untuk_pemesan"
+  /** See every refund waiting for a decision (Admin Platform only; ticket 31). */
+  | "pengembalian.lihat_semua"
+  /** Approve a refund, record where its money goes, and transfer it with a Bukti Pengembalian Dana (Admin Platform only; ticket 31). */
+  | "pengembalian.kelola";
 
 /** What the action is done to. */
 export type Resource =
@@ -186,6 +190,12 @@ export type Resource =
   | { kind: "antrean" }
   /** The Pencairan run and its Bukti Pencairan (the run spans every Lokasi Mitra and Mitra Jasa at once). */
   | { kind: "pencairan" }
+  /**
+   * Refunds (ticket 31). The whole platform's, like `pencairan`: a refund is
+   * approved by Admin Platform and paid to a Pemesan, never by the Lokasi Mitra
+   * whose work it reverses, so there is no per-Lokasi resource for it.
+   */
+  | { kind: "pengembalian" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string };
 
@@ -275,6 +285,11 @@ export function antreanResource(): Resource {
 /** The Pencairan run: every recipient's due items and Potongan, and the Bukti Pencairan a transfer issues. */
 export function pencairanResource(): Resource {
   return { kind: "pencairan" };
+}
+
+/** Refunds (ticket 31): Admin Platform's alone, the whole platform's at once, like the run. */
+export function pengembalianResource(): Resource {
+  return { kind: "pengembalian" };
 }
 
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
@@ -461,5 +476,13 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // A Mitra Jasa reads its own Pencairan and no one's else: an Admin Platform
       // has the run instead, and a suspended or ended one keeps this (story 182).
       return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
+    case "pengembalian.lihat_semua":
+    case "pengembalian.kelola":
+      // Approving and transferring a refund is Admin Platform's alone (spec, story
+      // 161: "I want to approve every refund and then transfer it by hand with
+      // proof, so money leaves only with a record"), and the same is true of
+      // seeing them all: an Admin Lokasi reconciles its own Lokasi's Pencairan but
+      // never a family's money going back to that family.
+      return resource.kind === "pengembalian" && holds("admin_platform") ? allowed : denied;
   }
 }

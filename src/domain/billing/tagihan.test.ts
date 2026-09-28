@@ -49,6 +49,9 @@ describe("issuing a Tagihan", () => {
       placeName: "Makam Wakaf Al-Ikhlas",
       // Nothing has been asked back, and asking is a cancellation's own doing (ticket 24).
       pengembalianDiminta: null,
+      // No money has arrived yet, which is the fact a refund reads before it asks
+      // for anything back (ticket 31).
+      paidAt: null,
       lines: [
         { kind: "harga_hak_pakai", label: "Harga Hak Pakai – Makam Standar", amount: 5_000_000, provider: LOKASI },
         { kind: "biaya_pemakaman", label: "Biaya Pemakaman", amount: 1_500_000, provider: LOKASI },
@@ -181,6 +184,10 @@ describe("an issued Tagihan is immutable", () => {
       "recordPayment",
       "reissueTagihan",
       "tagihan",
+      // Ticket 31 reads a cancellation's recorded requests, and moves the bill once
+      // a refund has been paid out. Neither changes a Tagihan's lines.
+      "tagihanDenganPermintaanPengembalian",
+      "terimaPengembalian",
       "within",
     ]);
   });
@@ -191,10 +198,19 @@ describe("an issued Tagihan is immutable", () => {
     const reissued = await billing.issueTagihan(saatDukaCheckout());
     if (!paid.ok || !reissued.ok) throw new Error("not issued");
 
-    await billing.recordPayment(paid.tagihan.id, { method: { kind: "tunai" }, reference: null });
+    const pembayaran = await billing.recordPayment(paid.tagihan.id, { method: { kind: "tunai" }, reference: null });
     await billing.reissueTagihan(reissued.tagihan.id, { lines: saatDukaCheckout().lines.slice(0, 1) });
+    if (!pembayaran.ok) throw new Error(`payment refused: ${pembayaran.reason}`);
 
-    expect(await billing.tagihan(paid.tagihan.id)).toEqual({ ...paid.tagihan, status: "lunas" });
+    // A paid Tagihan reads back with the instant its money arrived — the same one
+    // the Bukti Pembayaran carries, and the fact a refund reads before it asks for
+    // anything back (ticket 31) — and with nothing else changed, which is the whole
+    // point of the immutability guard.
+    expect(await billing.tagihan(paid.tagihan.id)).toEqual({
+      ...paid.tagihan,
+      status: "lunas",
+      paidAt: pembayaran.bukti.paidAt,
+    });
     expect(await billing.tagihan(reissued.tagihan.id)).toEqual({
       ...reissued.tagihan,
       status: "dibatalkan",

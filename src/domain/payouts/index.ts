@@ -15,7 +15,9 @@
  * on the Bukti's item lines. See `./transfer.ts`.
  *
  * Owns tables: pencairan_item, potongan, bukti_pencairan, bukti_pencairan_item,
- * bukti_pencairan_potongan, pencairan_pembayaran, pencairan_pemakaman.
+ * bukti_pencairan_potongan, pencairan_pembayaran, pencairan_pemakaman, and —
+ * since ticket 31, and for the reason `./refund.ts` sets out — pengembalian,
+ * pengembalian_baris, bukti_pengembalian_dana.
  *
  * Every other module's data is reached through that module's own public
  * interface, never its tables: Billing for the issued Tagihan and the document
@@ -63,6 +65,28 @@ import {
   type PencairanLokasi,
   type PencairanMitraJasa,
 } from "./reads";
+import {
+  buktiPengembalianByLink,
+  catatPermintaanPengembalian,
+  catatRekeningPengembalian,
+  pengembalianById,
+  pengembalianDiminta,
+  pengembalianSiapDitransfer,
+  permintaanTagihan,
+  setujuiPengembalian,
+  terbitkanBuktiPengembalian,
+  type BarisSiapDitransfer,
+  type CatatPermintaanPengembalianInput,
+  type CatatPermintaanPengembalianResult,
+  type CatatRekeningPengembalianResult,
+  type DokumenBuktiPengembalian,
+  type KirimBuktiPengembalian,
+  type PengembalianRow,
+  type PermintaanTagihan,
+  type SetujuiPengembalianResult,
+  type TerbitkanBuktiPengembalianInput,
+  type TerbitkanBuktiPengembalianResult,
+} from "./refund";
 import { jalankanPencairan, tahanPencairan, type TahanPencairanResult } from "./run";
 import {
   buktiPencairanByLink,
@@ -78,12 +102,25 @@ export { NAMA_EFEK_PENCAIRAN, efekPencairanSaatLunas } from "./efek";
 export { BIAYA_LAYANAN_PLATFORM, TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
 export { USIA_POTONGAN_HARI } from "./potongan";
 export {
+  biayaLayananPlatformDikembalikan,
+  TENGGAT_PENGEMBALIAN_HARI_KERJA,
+  BUKTI_PENGEMBALIAN_MAX_BYTES,
+} from "./refund";
+export {
   pencairanItemBatalReasons,
   pencairanItemKinds,
   pencairanItemReasons,
   pencairanItemStatuses,
+  pengembalianFaults,
+  pengembalianPenanggung,
+  pengembalianSebabs,
+  pengembalianStatuses,
   potonganAlasanKinds,
   potonganStatuses,
+  type PengembalianFault,
+  type PengembalianPenanggung,
+  type PengembalianSebab,
+  type PengembalianStatus,
   type PencairanItemBatalReason,
   type PencairanItemKind,
   type PencairanItemReason,
@@ -95,6 +132,24 @@ export type { Penerima } from "./penerima";
 export type { BarisItemPencairan, BarisPencairan, BarisPotongan } from "./baca";
 export type { BuktiPencairan, DokumenBuktiPencairan, KirimBuktiPencairan, TerbitkanBuktiInput, TerbitkanBuktiResult } from "./transfer";
 export type { BarisPotonganUmum, CatatPotonganInput, CatatPotonganLunasResult, CatatPotonganResult } from "./potongan";
+export type {
+  BarisPengembalian,
+  BarisSiapDitransfer,
+  BuktiPengembalian,
+  BuktiPengembalianTerbit,
+  DokumenBuktiPengembalian,
+  KirimBuktiPengembalian,
+  PengembalianRow,
+  PermintaanTagihan,
+  RekeningTujuan,
+  SetujuiPengembalianResult,
+  TagihanRingkasan,
+  TerbitkanBuktiPengembalianInput,
+  TerbitkanBuktiPengembalianResult,
+  CatatPermintaanPengembalianInput,
+  CatatPermintaanPengembalianResult,
+  CatatRekeningPengembalianResult,
+} from "./refund";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
@@ -109,8 +164,12 @@ export interface PayoutsDeps {
   lokasi: Pick<Lokasi, "adminPlatformCalendar" | "lokasiMitra">;
   /** Whether an id is a Lokasi Mitra's at all, so a Potongan is never charged to nothing. */
   lokasiAda: (lokasiId: string) => Promise<boolean>;
-  /** The issued Tagihan (never its tables) and the `BKP/YYYY/NNNNNN` series, `within` the issuing transaction. */
-  billing: Pick<Billing, "tagihan" | "within">;
+  /**
+   * The issued Tagihan (never its tables) and the `BKP/YYYY/NNNNNN` series, `within`
+   * the issuing transaction — and, for ticket 31's Refunds flow, the `RFD` series,
+   * ticket 24's recorded requests, and the Tagihan's own status once money goes back.
+   */
+  billing: Pick<Billing, "tagihan" | "tagihanDenganPermintaanPengembalian" | "terimaPengembalian" | "within">;
   operatorSettings: Pick<OperatorSettings, "current">;
   /** The Bukti Pencairan page's absolute URL: what the recipient is sent and the PDF rendered from. */
   buktiUrl: (link: string) => string;
@@ -118,6 +177,8 @@ export interface PayoutsDeps {
   pdf: PdfRenderer;
   /** Sends the recipient its Bukti Pencairan link, once the transfer is recorded. */
   kirimBukti: KirimBuktiPencairan;
+  /** Sends the Pemesan its Bukti Pengembalian Dana link, once the refund is transferred (ticket 31). */
+  kirimBuktiPengembalian: KirimBuktiPengembalian;
   reportError?: ReportError;
 }
 
@@ -203,6 +264,56 @@ export interface Payouts {
   /** Every Potongan waiting to be paid offline, oldest first. */
   potonganPerluOffline(): Promise<BarisPotonganUmum[]>;
 
+  // ---- Refunds and Bukti Pengembalian Dana (ticket 31) ----
+  /**
+   * Records a refund request, **inside the caller's own transaction**: a refund is
+   * always a consequence of something else (a cancellation, a Keluhan, a
+   * Pembatalan, a PTSP refusal, a Berhenti leftover, a goodwill decision), and it
+   * is part of that module's staff write rather than a second decision of its own.
+   * Nothing leaves here: money cannot move until an Admin Platform approves it.
+   */
+  catatPermintaanPengembalian(
+    tx: Database,
+    input: CatatPermintaanPengembalianInput,
+  ): Promise<CatatPermintaanPengembalianResult>;
+  /**
+   * Every Tagihan whose cancellation asked for money back, oldest first: the
+   * requests ticket 24 records on the bill itself, which this flow approves and
+   * pays. Reading them through Billing keeps those two columns private to it.
+   */
+  permintaanTagihan(): Promise<PermintaanTagihan[]>;
+  /** Every refund still waiting for an Admin Platform's decision, oldest first. */
+  pengembalianDiminta(): Promise<PengembalianRow[]>;
+  /** One refund, or null. */
+  pengembalian(pengembalianId: string): Promise<PengembalianRow | null>;
+  /**
+   * Admin Platform approves a refund. The only gate in the flow (AC 2) and the
+   * moment the Tier 3 Antrean row opens with its 2 Hari Kerja deadline (AC 3).
+   * Audited, and one-way.
+   */
+  setujuiPengembalian(by: Actor, input: { pengembalianId: string }): Promise<SetujuiPengembalianResult>;
+  /**
+   * Records the bank account a refund is paid to (AC 5), entered by the Pemesan or
+   * by Admin Platform. Inside the caller's own transaction, and refused once the
+   * money has gone: where it went is no longer anyone's to change.
+   */
+  catatRekeningPengembalian(
+    tx: Database,
+    input: { pengembalianId: string; rekening: unknown },
+  ): Promise<CatatRekeningPengembalianResult>;
+  /**
+   * Admin Platform transfers by hand, uploads the proof and enters the date: one
+   * `RFD/YYYY/NNNNNN` Bukti Pengembalian Dana, the Tagihan moved to Dikembalikan
+   * Sebagian or Penuh, the Pemesan told, and the partner's side settled (AC 4, 6, 7).
+   */
+  terbitkanBuktiPengembalian(by: Actor, input: TerbitkanBuktiPengembalianInput): Promise<TerbitkanBuktiPengembalianResult>;
+  /** The Antrean's Tier 3 "refund transfer" row's own query: every approved refund still waiting for its money. */
+  pengembalianSiapDitransfer(): Promise<BarisSiapDitransfer[]>;
+  /** The Bukti Pengembalian Dana behind an unguessable link. */
+  buktiPengembalian(link: string): Promise<DokumenBuktiPengembalian | null>;
+  /** "Unduh PDF" of a Bukti Pengembalian Dana, or null for a link that finds none. */
+  buktiPengembalianPdf(link: string): Promise<{ fileName: string; bytes: Uint8Array } | null>;
+
   // ---- reads (AC 6, 7, 8) ----
   /** The Antrean's Tier 3 "Pencairan" row's own query: one open row per recipient, with its deadline. */
   pencairanJatuhTempo(): Promise<BarisJatuhTempo[]>;
@@ -232,6 +343,22 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     reportError: deps.reportError,
   };
   const runDeps = { db: deps.db, clock: deps.clock, audit: deps.audit, lokasi: deps.lokasi };
+  // Refunds (ticket 31) need the same things a Bukti Pencairan does — the private
+  // FileStore for the transfer proof, Billing for the Tagihan and the RFD series,
+  // the calendar for the 2 Hari Kerja deadline — and one more: a way to tell the
+  // Pemesan, which a Bukti Pencairan's recipient is not.
+  const refundDeps = {
+    db: deps.db,
+    clock: deps.clock,
+    audit: deps.audit,
+    files: deps.files,
+    billing: deps.billing,
+    lokasi: deps.lokasi,
+    operatorSettings: deps.operatorSettings,
+    buktiUrl: deps.buktiUrl,
+    kirimBukti: deps.kirimBuktiPengembalian,
+    ...(deps.reportError ? { reportError: deps.reportError } : {}),
+  };
   return {
     pemakamanTercatat: (tx, input) => pemakamanTercatat(tx, input),
     tick: (now) => tickPencairan(pemicu, now ?? deps.clock.now()),
@@ -245,6 +372,21 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),
     jadikanJatuhTempo: async (tx, itemId) => itemJatuhTempo(tx, itemId, { now: deps.clock.now(), jatuhTempoAt: await tenggat(deps.lokasi, deps.clock.now()) }),
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
+    catatPermintaanPengembalian: (tx, input) => catatPermintaanPengembalian(refundDeps, tx, input, deps.clock.now()),
+    permintaanTagihan: () => permintaanTagihan({ billing: deps.billing }),
+    pengembalianDiminta: () => pengembalianDiminta(deps.db),
+    pengembalian: (pengembalianId) => pengembalianById(deps.db, pengembalianId),
+    setujuiPengembalian: (by, input) => setujuiPengembalian(refundDeps, by, input),
+    catatRekeningPengembalian: (tx, input) => catatRekeningPengembalian(refundDeps, tx, input),
+    terbitkanBuktiPengembalian: (by, input) => terbitkanBuktiPengembalian(refundDeps, by, input),
+    pengembalianSiapDitransfer: () => pengembalianSiapDitransfer(deps.db),
+    buktiPengembalian: (link) => buktiPengembalianByLink(deps.db, link),
+    buktiPengembalianPdf: async (link) => {
+      const document = await buktiPengembalianByLink(deps.db, link);
+      if (!document) return null;
+      const bytes = await deps.pdf.render({ url: deps.buktiUrl(link) });
+      return { fileName: `${document.nomorBukti.replaceAll("/", "-")}.pdf`, bytes };
+    },
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),
     tickPotongan: (now) => tickPotonganUsia(deps.db, now ?? deps.clock.now()),
     potonganOfLokasi: (lokasiId) => potonganOfLokasi(deps.db, lokasiId),

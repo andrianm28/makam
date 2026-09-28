@@ -38,11 +38,13 @@ export interface AntreanRowDeps {
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /**
-   * The Antrean's Tier 3 "Pencairan" row reads the Payouts module's own query
-   * (ticket 32): one open row per recipient with the 2 Hari Kerja deadline the
-   * item was given when it became due.
+   * The Antrean's Tier 3 rows read the Payouts module's own queries: the
+   * "Pencairan" row is one open row per recipient with the 2 Hari Kerja deadline
+   * the item was given when it became due (ticket 32), and the "refund transfer"
+   * row is every approved refund still waiting for its money, with the deadline
+   * stamped on it at approval (ticket 31).
    */
-  payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  payouts: Pick<Payouts, "pencairanJatuhTempo" | "pengembalianSiapDitransfer">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

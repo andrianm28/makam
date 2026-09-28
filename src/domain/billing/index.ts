@@ -1,7 +1,9 @@
 /**
  * Billing (spec, domain module 10): Tagihan, Bukti Pembayaran, document
- * numbering and the document pages; refunds and Bukti Pengembalian Dana come
- * with their tickets.
+ * numbering and the document pages. A refund's own record, its approval and its
+ * Bukti Pengembalian Dana are Payouts' (ticket 31, which composes after this
+ * module); Billing's part of one is `terimaPengembalian`, the Tagihan's own
+ * status moving on.
  *
  * A Tagihan is one per payment moment and immutable once issued: a change is a
  * cancel-and-reissue with a new Nomor Tagihan. Its kind (pay-first or
@@ -21,6 +23,7 @@ import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Clock } from "@/ports/clock";
 import type { PaymentProvider, WebhookRequest } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
+import type { Rupiah } from "@/lib/rupiah";
 import {
   documentByLink,
   documentPdf,
@@ -41,12 +44,14 @@ import {
   type PembayaranPerluDitinjau,
 } from "./payment";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
+import { terimaPengembalian, type TerimaPengembalianResult } from "./pengembalian";
 import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
   readTagihan,
   reissueTagihan,
+  tagihanDenganPermintaanPengembalian,
   type IssueTagihanInput,
   type IssueTagihanResult,
   type NewTagihanLine,
@@ -71,6 +76,7 @@ export {
   type PaymentMethod,
 } from "./shared";
 export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
+export type { TerimaPengembalianResult } from "./pengembalian";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
@@ -111,6 +117,13 @@ export interface Billing {
   reissueTagihan(tagihanId: string, input: { lines: NewTagihanLine[] }): Promise<ReissueTagihanResult>;
   /** One Tagihan as issued, or null. */
   tagihan(tagihanId: string): Promise<Tagihan | null>;
+  /**
+   * Every Tagihan whose cancellation asked for money back, oldest first: the
+   * requests ticket 24 records on the bill itself, which the Refunds flow
+   * (ticket 31) approves and pays. Reading them here is what keeps those two
+   * columns private to Billing.
+   */
+  tagihanDenganPermintaanPengembalian(): Promise<Tagihan[]>;
   /**
    * Cancels one Tagihan because the order it was for will not happen, and in the
    * same transaction records the refund of any payment it had, less the Biaya
@@ -156,6 +169,14 @@ export interface Billing {
   nextDocumentNumber(type: DocumentType): Promise<string>;
   /** The next Nomor Pemesanan, `MKM-2026-000123`: one series for every order kind. Take it `within` the order's transaction. */
   nextNomorPemesanan(): Promise<string>;
+  /**
+   * Moves a Tagihan to Dikembalikan Sebagian or Dikembalikan Penuh once the money
+   * has gone back, inside the caller's own transaction (ticket 31). **Payouts is
+   * the caller**: it issues the Bukti Pengembalian Dana and moves the bill in the
+   * one commit that records the transfer, which is the direction this dependency
+   * can take (Payouts composes after Billing).
+   */
+  terimaPengembalian(tx: Database, input: { tagihanId: string; jumlah: Rupiah }): Promise<TerimaPengembalianResult>;
   /** The same functions inside an open transaction (another module's), committing or rolling back with it. */
   within(tx: Database): Billing;
 }
@@ -187,6 +208,7 @@ export function createBilling(deps: BillingDeps): Billing {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
+    tagihanDenganPermintaanPengembalian: () => tagihanDenganPermintaanPengembalian(deps.db),
     batalkanTagihan: (tagihanId, input) => batalkanTagihan(deps, tagihanId, input, deps.clock.now()),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
@@ -196,6 +218,7 @@ export function createBilling(deps: BillingDeps): Billing {
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
+    terimaPengembalian: (tx, input) => terimaPengembalian(tx, input),
     within: (tx) => createBilling({ ...deps, db: tx }),
   };
 }

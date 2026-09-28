@@ -288,6 +288,23 @@ export async function pesanTagihan(deps: Pick<PesanKeluargaDeps, "db">, tagihanI
 }
 
 /**
+ * The address one Tagihan's family messages go to, as recorded when the Tagihan
+ * was announced (`tagihanTerbit`), or null when it was announced with no email.
+ *
+ * **This is the only place a family email address is read from**, which is why the
+ * Refunds flow (ticket 31) does not copy an address onto a refund: the Bukti
+ * Pengembalian Dana is sent by asking this, so a family whose address changed is
+ * reached at the new one without a refund being rewritten.
+ */
+export async function emailTagihan(db: Database, tagihanId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ email: notificationsTagihanKontak.email })
+    .from(notificationsTagihanKontak)
+    .where(eq(notificationsTagihanKontak.tagihanId, tagihanId));
+  return row?.email ?? null;
+}
+
+/**
  * Queues one family email and reports whether it was new: one message per
  * Tagihan (or per Pemesanan Makam) per template, whatever queues it twice —
  * the announcement replayed, an effect run again, a tick run twice. `lokasiId`

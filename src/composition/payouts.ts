@@ -5,7 +5,7 @@ import type { Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
-import { createPayouts, type KirimBuktiPencairan, type Payouts } from "@/domain/payouts";
+import { createPayouts, type KirimBuktiPencairan, type KirimBuktiPengembalian, type Payouts } from "@/domain/payouts";
 import { documentPagePath } from "@/lib/document-links";
 import type { RuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -89,7 +89,7 @@ export function composePayouts(deps: {
   lokasi: Pick<Lokasi, "adminPlatformCalendar" | "lokasiMitra" | "jamOperasionalOf">;
   billing: Billing;
   operatorSettings: Pick<OperatorSettings, "current">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "sendStaffAlert" | "buktiPengembalianTerbit" | "emailTagihan">;
   reportError: ReportError;
 }): Payouts {
   const urls = buktiPencairanUrl(deps.env);
@@ -108,6 +108,40 @@ export function composePayouts(deps: {
     buktiUrl: urls.publicUrl,
     pdf: deps.adapters.pdf,
     kirimBukti: kirimBuktiPencairanKe({ identity: deps.identity, notifications: deps.notifications }),
+    kirimBuktiPengembalian: kirimBuktiPengembalianKe({ notifications: deps.notifications }),
     reportError: deps.reportError,
   });
+}
+
+/**
+ * Sends a family its Bukti Pengembalian Dana (ticket 31). The **link** travels by
+ * email, the way every document link to a Pemesan does, and the push is not used:
+ * a Peringatan Staf's push opens a staff page and nothing else, while this message
+ * is about a family's own money and its link is a public document page.
+ *
+ * Where the family reads is the Notifications module's own fact (the address the
+ * order was announced with), so it is asked of that module and never guessed here.
+ * A recipient nobody can reach is not an error: the Bukti is in Admin Platform's
+ * refund list and the Tagihan's own page either way, and a message is a courtesy on
+ * top of the record, never the record itself.
+ */
+export function kirimBuktiPengembalianKe(deps: {
+  notifications: Pick<Notifications, "buktiPengembalianTerbit" | "emailTagihan">;
+}): KirimBuktiPengembalian {
+  return async (bukti) => {
+    await deps.notifications.buktiPengembalianTerbit({
+      tagihanId: bukti.tagihanId,
+      nomorTagihan: bukti.nomorTagihan,
+      nomorPemesanan: bukti.nomorPemesanan,
+      // Where the family reads is the Notifications module's own fact, asked of it
+      // rather than copied onto the refund when the request was recorded.
+      email: await deps.notifications.emailTagihan(bukti.tagihanId),
+      pemesanName: bukti.pemesan.nama,
+      nomorBukti: bukti.nomorBukti,
+      jumlah: bukti.jumlah,
+      ditransferPada: bukti.ditransferPada,
+      biayaLayananPlatformDikembalikan: bukti.biayaLayananPlatformDikembalikan,
+      url: bukti.url,
+    });
+  };
 }

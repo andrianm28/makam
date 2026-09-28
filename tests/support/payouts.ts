@@ -1,7 +1,7 @@
 import { FakePdfRenderer } from "@/adapters/memory";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
-import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
+import { createPayouts, type KirimBuktiPencairan, type KirimBuktiPengembalian } from "@/domain/payouts";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createQueues } from "@/domain/queues";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
@@ -34,6 +34,8 @@ import { publishOnTestDatabase, type PublishSetup } from "./publish";
  */
 export function payoutsFor(setup: PublishSetup) {
   const dikirim: Parameters<KirimBuktiPencairan>[0][] = [];
+  /** Every Bukti Pengembalian Dana the flow issues (ticket 31), the same way round. */
+  const dikirimPengembalian: Parameters<KirimBuktiPengembalian>[0][] = [];
   const payouts = createPayouts({
     db: setup.db,
     clock: setup.clock,
@@ -51,8 +53,11 @@ export function payoutsFor(setup: PublishSetup) {
     kirimBukti: async (bukti) => {
       dikirim.push(bukti);
     },
+    kirimBuktiPengembalian: async (bukti) => {
+      dikirimPengembalian.push(bukti);
+    },
   });
-  return { payouts, dikirim };
+  return { payouts, dikirim, dikirimPengembalian };
 }
 
 /**
@@ -79,7 +84,7 @@ export function payoutsOnTestDatabase(db: Database) {
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts, dikirim } = payoutsFor(setup);
+  const { payouts, dikirim, dikirimPengembalian } = payoutsFor(setup);
   // Ticket 44 put the Pengurusan module on `PemesananSetup`, and every fixture
   // that composes the Pemesanan module itself owes one: `PemesananModul` is an
   // Omit of that setup, so a setup without it stops satisfying it. The wizard's
@@ -108,7 +113,7 @@ export function payoutsOnTestDatabase(db: Database) {
     pemesanan,
     payouts,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, dikirim, queues };
+  return { ...setup, pemesanan, pengurusan, payouts, dikirim, dikirimPengembalian, queues };
 }
 
 export type PayoutsSetup = ReturnType<typeof payoutsOnTestDatabase>;

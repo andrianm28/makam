@@ -14,6 +14,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   customType,
   date,
@@ -21,6 +22,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -29,6 +31,8 @@ import {
 import { RUPIAH_MAX, rupiahFromDatabase, type Rupiah } from "@/lib/rupiah";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+/** A plain Postgres `boolean`, named so a field and a column helper never collide. */
+const flag = (name: string) => boolean(name);
 
 /**
  * Whole rupiah in a Postgres `bigint`. Never a float: the driver's text is
@@ -359,3 +363,223 @@ export const pencairanPemakaman = pgTable("pencairan_pemakaman", {
   nomorPemesanan: text("nomor_pemesanan").primaryKey(),
   pemakamanPada: at("pemakaman_pada").notNull(),
 });
+
+/**
+ * Whose fault a refund is (spec, Billing > Refunds: "Whether the Biaya Layanan
+ * Platform is refunded"). The whole rule of the table below is these four words:
+ * the Operator's own fee is kept for `pemesan` and refunded for the other three,
+ * because the fee buys the convenience the Pemesan chose and the Operator owes
+ * nothing back when the fault is not the Pemesan's.
+ *
+ * `lokasi` and `mitra_jasa` are separate, not one "partner": a Mitra Jasa is
+ * never clawed back (spec, Payouts) and a Lokasi Mitra's share becomes a
+ * Potongan, so the two cannot share a value.
+ */
+export const pengembalianFaults = ["pemesan", "lokasi", "mitra_jasa", "operator"] as const;
+export type PengembalianFault = (typeof pengembalianFaults)[number];
+
+/**
+ * What asked for the money back, in the six words the spec and the ticket use
+ * (ticket 31: "a cancellation, a Keluhan, a Pembatalan, a PTSP rejection,
+ * Berhenti leftovers or a goodwill decision"). It is a **why**, kept on the row
+ * so the Entri Audit and the Bukti Pengembalian Dana can name it; the amount
+ * itself comes from the lines, never from this list.
+ */
+export const pengembalianSebabs = [
+  /** A Saat Duka order cancelled after confirmation (ticket 24). */
+  "pemesanan_dibatalkan",
+  /** A Keluhan, decided by Admin Platform. */
+  "keluhan",
+  /** A Terencana Hak Pakai's Pembatalan (ticket 38). */
+  "pembatalan",
+  /** A TPU Pengurusan refused at the PTSP (ticket 47). */
+  "ptsp_ditolak",
+  /** Open Pekerjaan Layanan left over when a Lokasi Mitra goes Berhenti (spec, Lokasi). */
+  "sisa_berhenti",
+  /** A goodwill decision the Operator makes of its own accord. */
+  "goodwill",
+] as const;
+export type PengembalianSebab = (typeof pengembalianSebabs)[number];
+
+/**
+ * Who bears the money (spec, Billing > Refunds: "Goodwill refunds the Operator
+ * chooses to give come from its own funds and are never netted as a Potongan, so
+ * each refund records whether it is netted from the partner or Operator-funded").
+ * `mitra` is the only value that may produce a Potongan, and it may produce one
+ * only for a Lokasi Mitra's own share.
+ */
+export const pengembalianPenanggung = ["mitra", "operator"] as const;
+export type PengembalianPenanggung = (typeof pengembalianPenanggung)[number];
+
+/**
+ * A refund's one-way status. `diminta` → `disetujui` → `ditransfer`, and
+ * `ditransfer` is terminal: money that has left the bank is not asked for
+ * again, which is what makes "no money leaves without an approval" (AC 2) and
+ * "an amount cannot be refunded twice" the same rule. The Tier 3 Antrean row is
+ * exactly the `disetujui` rows, so it closes itself on the transfer (AC 3).
+ */
+export const pengembalianStatuses = ["diminta", "disetujui", "ditransfer"] as const;
+export type PengembalianStatus = (typeof pengembalianStatuses)[number];
+
+/**
+ * Owned by the Payouts module: one refund — a request for a Pemesan's money to
+ * go back, from the moment something asks for it to the moment the transfer
+ * proof is uploaded.
+ *
+ * A refund is **not** an edit of a Tagihan. The Tagihan keeps the two columns
+ * ticket 24 wrote (`pengembalian_diminta_at` / `pengembalian_jumlah`) as the
+ * *request* a cancellation made, and Billing moves the Tagihan's own status when
+ * the money is transferred; this row is the decision about the money, which is
+ * the Operator's and lives here. The Tagihan's number, the Pemesan's name and
+ * phone, and each line's label, amount and provider are **copied** on the way
+ * in, exactly as a Bukti Pencairan copies its items' wording: a document must
+ * never need a read back to say what it says, and a tariff or a name entered
+ * later must not move a number the family has already been sent.
+ *
+ * `jumlah` is what leaves the bank, and `biaya_layanan_platform` is the Operator's
+ * own fee on this bill — the amount that was **kept** when
+ * `biaya_layanan_platform_dikembalikan` is false, and part of `jumlah` when it
+ * is true. Keeping the fee's own figure (rather than only a yes/no) is what lets
+ * the Bukti say "Biaya Layanan Platform: tidak dikembalikan, Rp 150.000" in the
+ * words the spec asks for, without adding it up again.
+ */
+export const pengembalian = pgTable(
+  "pengembalian",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Billing's Tagihan this reverses, as a plain id (no foreign key across modules). */
+    tagihanId: text("tagihan_id").notNull(),
+    /** `TGH/2026/000123`, copied at the request so a document never reads Billing back. */
+    nomorTagihan: text("nomor_tagihan").notNull(),
+    nomorPemesanan: text("nomor_pemesanan"),
+    /** The addressee the money goes to: the Pemesan who paid, who may not be the Pemegang Hak. */
+    pemesanNama: text("pemesan_nama").notNull(),
+    pemesanTelepon: text("pemesan_telepon").notNull(),
+    pemesanAkunId: text("pemesan_akun_id"),
+    /** Whose fault it is, which is what decides the Biaya Layanan Platform. */
+    fault: text("fault", { enum: pengembalianFaults }).notNull(),
+    /** What asked for it, in the six words above. */
+    sebab: text("sebab", { enum: pengembalianSebabs }).notNull(),
+    /** Whole rupiah to give back: the sum of `pengembalian_baris`. */
+    jumlah: rupiah("jumlah").notNull(),
+    /** The Biaya Layanan Platform on this bill; 0 when the bill has none. */
+    biayaLayananPlatform: rupiah("biaya_layanan_platform").notNull().default(sql`'0'::bigint`),
+    /** The fault rule, stored rather than recomputed: what the Bukti has to say. */
+    biayaLayananPlatformDikembalikan: flag("biaya_layanan_platform_dikembalikan").notNull(),
+    /** Whether the money comes out of the partner's share or the Operator's own funds. */
+    penanggung: text("penanggung", { enum: pengembalianPenanggung }).notNull(),
+    /** Why, in words; required for a goodwill decision, which is the Operator's own money. */
+    catatan: text("catatan"),
+    /**
+     * Where the money goes: `{ bankName, accountNumber, accountHolder }`, entered
+     * by the Pemesan or recorded by Admin Platform (AC 5). Null until someone
+     * records it, and a transfer is refused without it — the account is a person's
+     * statement about where to pay, never a value this module can guess.
+     */
+    rekening: jsonb("rekening"),
+    status: text("status", { enum: pengembalianStatuses }).notNull(),
+    dimintaPada: at("diminta_pada").notNull(),
+    /** Who asked for it: an Admin Platform's account, or null when another module asked in its own write. */
+    dimintaOleh: text("diminta_oleh"),
+    disetujuiPada: at("disetujui_pada"),
+    disetujuiOleh: text("disetujui_oleh"),
+    /**
+     * `disetujui_pada` plus 2 Hari Kerja on the Admin Platform calendar: the Tier 3
+     * Antrean row's deadline (AC 3), stamped once at approval and read, never
+     * recalculated. Null until it is approved.
+     */
+    jatuhTempoAt: at("jatuh_tempo_at"),
+    /** The transfer's date as Admin Platform entered it (WIB "YYYY-MM-DD"), null until the transfer. */
+    ditransferPada: date("ditransfer_pada", { mode: "string" }),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [
+    // The Tier 3 row's own query: every approved refund still waiting for its money.
+    index("pengembalian_status_idx").on(table.status, table.jatuhTempoAt),
+    // One **live** request per Tagihan per cause, so a cancellation that records
+    // its request twice does not queue two approvals for the same rupiah, while a
+    // second refund of the same cause after the first was paid out is still
+    // possible (the condition is what makes that true).
+    uniqueIndex("pengembalian_tagihan_sebab_idx")
+      .on(table.tagihanId, table.sebab)
+      .where(sql`${table.status} <> 'ditransfer'`),
+    check("pengembalian_jumlah_check", inPositiveRupiahRange(table.jumlah)),
+    check("pengembalian_biaya_layanan_platform_check", inRupiahRange(table.biayaLayananPlatform)),
+    // A fee that was refunded is part of the amount refunded, never more: the two
+    // columns are the fault rule, and a stored pair that contradicts it is refused.
+    check(
+      "pengembalian_biaya_layanan_platform_dikembalikan_check",
+      sql`${table.biayaLayananPlatform} = 0 or ${table.biayaLayananPlatform} <= ${table.jumlah}`,
+    ),
+  ],
+);
+
+/**
+ * One issued Tagihan line a refund gives back, with the wording and the amount
+ * as that line was issued. `posisi` is the line's own position inside the Tagihan,
+ * so a Bukti Pengembalian Dana lists its lines in the order the family saw on the
+ * bill.
+ *
+ * The primary key is (`pengembalian_id`, `posisi`) so a line can be refunded by
+ * two separate partial refunds — which is normal — and the guard against
+ * over-refunding is the amount rule, not a uniqueness: a request whose lines
+ * would give back more than a line is still worth is refused.
+ */
+export const pengembalianBaris = pgTable(
+  "pengembalian_baris",
+  {
+    pengembalianId: uuid("pengembalian_id")
+      .notNull()
+      .references(() => pengembalian.id),
+    /** The issued Tagihan line's own position. */
+    posisi: integer("posisi").notNull(),
+    label: text("label").notNull(),
+    /** Whole rupiah given back for this line. */
+    jumlah: rupiah("jumlah").notNull(),
+    /** The issued line's provider, copied: the Bukti says who provided what it returns. */
+    provider: jsonb("provider").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.pengembalianId, table.posisi] }),
+    check("pengembalian_baris_jumlah_check", inPositiveRupiahRange(table.jumlah)),
+  ],
+);
+
+/**
+ * Owned by the Payouts module: one Bukti Pengembalian Dana (CONTEXT.md: the
+ * Operator's record of a refund transfer to a Pemesan, referencing the Tagihan it
+ * partly or fully reverses). The number comes from Billing's own `RFD/YYYY/NNNNNN`
+ * series inside the transaction that issues it, exactly as a Bukti Pencairan
+ * takes `BKP/…`.
+ *
+ * The same three guards as `terbitkanBuktiPencairan` make it impossible to pay
+ * one refund twice: a row lock on the refund, the one-way `ditransfer` status,
+ * and a unique index on `pengembalian_id`.
+ */
+export const buktiPengembalianDana = pgTable(
+  "bukti_pengembalian_dana",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** `RFD/2026/000001`. */
+    nomor: text("nomor").notNull().unique(),
+    /** The unguessable part of the Bukti Pengembalian Dana page's link (256 random bits, base64url). */
+    link: text("link").notNull().unique(),
+    pengembalianId: uuid("pengembalian_id")
+      .notNull()
+      .references(() => pengembalian.id),
+    /** Whole rupiah: what left the bank. */
+    jumlah: rupiah("jumlah").notNull(),
+    /** The transfer's date as Admin Platform entered it (WIB "YYYY-MM-DD" on a `date`). */
+    ditransferPada: date("ditransfer_pada", { mode: "string" }).notNull(),
+    /** The private FileStore key of the uploaded transfer proof; the key is the record, never the bytes. */
+    buktiTransferKey: text("bukti_transfer_key").notNull(),
+    /** Pengaturan Operator's header values in force when the Bukti was issued. */
+    header: jsonb("header").notNull(),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [
+    // One transfer per refund, for ever: a bug above this line cannot pay twice.
+    uniqueIndex("bukti_pengembalian_dana_pengembalian_idx").on(table.pengembalianId),
+    check("bukti_pengembalian_dana_jumlah_check", inPositiveRupiahRange(table.jumlah)),
+  ],
+);

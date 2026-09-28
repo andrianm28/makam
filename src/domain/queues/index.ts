@@ -60,8 +60,8 @@ export interface QueuesModuleDeps {
   pemesanan: Pick<Pemesanan, "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak">;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
-  /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
-  payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  /** The Antrean's Tier 3 rows read the Payouts module's own queries: Pencairan, and the refund transfers. */
+  payouts: Pick<Payouts, "pencairanJatuhTempo" | "pengembalianSiapDitransfer">;
 }
 
 export interface Queues {

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -67,6 +67,12 @@ export interface Tagihan {
   replacesNomorTagihan: string | null;
   replacedByNomorTagihan: string | null;
   cancelledReason: "batas_pembayaran_lewat" | "diganti" | "pemesanan_dibatalkan" | null;
+  /**
+   * When the money arrived, or null while it has not. Part of the Tagihan as
+   * issued, and the fact a refund needs: a bill that never took money has nothing
+   * to give back, and only Billing knows which bills those are.
+   */
+  paidAt: Date | null;
   /**
    * The refund this Tagihan's cancellation asked for, or null while none has been
    * asked (no money came in, or only the Biaya Layanan Platform did). Approving
@@ -338,6 +344,21 @@ export async function tagihanByLink(db: Database, link: string): Promise<Tagihan
   return row ? toTagihan(db, row) : null;
 }
 
+/**
+ * Every Tagihan whose cancellation asked for money back, oldest first: the
+ * requests ticket 24 records on the bill itself, which the Refunds flow
+ * (ticket 31) picks up and approves. A Billing read of Billing's own table, so no
+ * other module has to know these two columns exist.
+ */
+export async function tagihanDenganPermintaanPengembalian(db: Database): Promise<Tagihan[]> {
+  const rows = await db
+    .select()
+    .from(tagihan)
+    .where(isNotNull(tagihan.pengembalianDimintaAt))
+    .orderBy(asc(tagihan.pengembalianDimintaAt), asc(tagihan.nomor));
+  return Promise.all(rows.map((row) => toTagihan(db, row)));
+}
+
 async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promise<Tagihan> {
   const lines = await db.select().from(tagihanLine).where(eq(tagihanLine.tagihanId, row.id)).orderBy(asc(tagihanLine.position));
   const chained = [row.replacesId, row.replacedById].filter((id): id is string => id !== null);
@@ -370,6 +391,7 @@ async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promis
     replacesNomorTagihan: row.replacesId ? (numbers.get(row.replacesId) ?? null) : null,
     replacedByNomorTagihan: row.replacedById ? (numbers.get(row.replacedById) ?? null) : null,
     cancelledReason: row.cancelledReason,
+    paidAt: row.paidAt,
     pengembalianDiminta:
       row.pengembalianDimintaAt && row.pengembalianJumlah !== null
         ? { jumlah: row.pengembalianJumlah, dimintaPada: row.pengembalianDimintaAt }

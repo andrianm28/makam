@@ -39,6 +39,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
       "bukti_pembayaran_terbit",
+      // A family's money coming back (ticket 31): transactional, like the receipt.
+      "bukti_pengembalian_terbit",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
   });

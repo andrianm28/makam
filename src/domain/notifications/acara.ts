@@ -25,6 +25,7 @@ export const TEMPLATE_EMAIL = [
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
   "bukti_pembayaran_terbit",
+  "bukti_pengembalian_terbit",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -51,6 +52,10 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
+  // A family's money going back to it (ticket 31). Transactional: the transfer has
+  // already happened by the time this is written, and a family waiting on its own
+  // money is not served by a morning window.
+  bukti_pengembalian_terbit: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -81,6 +86,7 @@ export const TABEL_ACARA: Record<
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
+  | "bukti_pengembalian_terbit"
   | "peringatan_staf",
   Acara
 > = {
@@ -143,6 +149,18 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "bukti_pembayaran_terbit",
     waktu: WAKTU_TEMPLATE.bukti_pembayaran_terbit,
+  },
+  /**
+   * A family's money going back to it (ticket 31): the Bukti Pengembalian Dana by
+   * email, at any hour, exactly as its receipt is. A refund is transactional in
+   * the strict sense — the transfer has already happened when this is written, and
+   * the family is waiting on its own money.
+   */
+  bukti_pengembalian_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "bukti_pengembalian_terbit",
+    waktu: WAKTU_TEMPLATE.bukti_pengembalian_terbit,
   },
   /**
    * The staff events, one Peringatan Staf per kind (the module's

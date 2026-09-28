@@ -53,6 +53,7 @@ import {
 import {
   kirimPesanJatuhTempo,
   pesanTagihan,
+  emailTagihan,
   tagihanTerbit,
   type KirimJatuhTempo,
   type PesanTercatat,
@@ -73,6 +74,11 @@ import {
   type PesananDikonfirmasiInput,
   type PesananDitolakInput,
 } from "./pesan-pemesanan";
+import {
+  buktiPengembalianTerbit,
+  type BuktiPengembalianInput,
+  type PesanBuktiPengembalianResult,
+} from "./pesan-pengembalian";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
@@ -96,6 +102,11 @@ export {
   type TagihanTerbitInput,
   type TagihanTerbitResult,
 } from "./pesan-keluarga";
+export {
+  buktiPengembalianSchema,
+  type BuktiPengembalianInput,
+  type PesanBuktiPengembalianResult,
+} from "./pesan-pengembalian";
 /** The event table and the reminder rules, as the spec lists them, for anything that reports on them. */
 export { ATURAN_PENGINGAT, MACAM_MOMEN_TAGIHAN, TABEL_ACARA, TEMPLATE_EMAIL, WAKTU_TEMPLATE } from "./acara";
 
@@ -243,6 +254,13 @@ export interface Notifications {
   /** Every logged message about one Tagihan, oldest first: what its order page shows. */
   pesanTagihan(tagihanId: string): Promise<PesanTercatat[]>;
   /**
+   * The address one Tagihan's family messages go to, as recorded when the Tagihan
+   * was announced, or null when it was announced with no email (ticket 31's Bukti
+   * Pengembalian Dana is sent to whatever this says, and never to an address
+   * copied onto a refund).
+   */
+  emailTagihan(tagihanId: string): Promise<string | null>;
+  /**
    * Announces a Pemesanan Makam to its family: the order submitted, or the
    * same order confirmed with its Petak, the Lokasi's contact, the document
    * checklist and the pay-after Tagihan (ticket 23). Queued first, the worker's
@@ -264,6 +282,15 @@ export interface Notifications {
   pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
+  /**
+   * Announces a Bukti Pengembalian Dana to the Pemesan it was paid to (ticket 31,
+   * AC 4). Logged against the Tagihan, so the order page shows the family the
+   * record of its own money coming back. A family with no email gets a "Telepon
+   * Pemesan" row for **Admin Platform** instead — nobody at the Lokasi whose work
+   * was refunded can hand a family its money back. The Refunds flow (Payouts) is
+   * the caller, after the transfer has been recorded.
+   */
+  buktiPengembalianTerbit(input: BuktiPengembalianInput): Promise<PesanBuktiPengembalianResult>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
   pesanStaf(akunStafId: string, options?: { limit?: number }): Promise<PesanTercatat[]>;
   /** Every open "Telepon Pemesan" row, oldest first: what the Antrean's Tier 2 row reads. */
@@ -521,6 +548,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pesanTagihan(deps, tagihanId);
     },
 
+    async emailTagihan(tagihanId) {
+      return emailTagihan(db, tagihanId);
+    },
+
     async pesananDiajukan(input) {
       return pesananDiajukan(deps, input);
     },
@@ -543,6 +574,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesanPemesanan(pemesananId) {
       return pesanPemesanan(deps, pemesananId);
+    },
+
+    async buktiPengembalianTerbit(input) {
+      return buktiPengembalianTerbit(deps, input);
     },
 
     async pesanStaf(akunStafId, options = {}) {
