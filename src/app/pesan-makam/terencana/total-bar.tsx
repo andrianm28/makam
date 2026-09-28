@@ -34,7 +34,7 @@ export function TotalBarTerencana({
   const total = denah.total;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-8px_24px_-12px] shadow-primary/20">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
       <div className="mx-auto max-w-5xl px-4">
         {pesanBatas ? (
           <p role="alert" className="border-b border-border bg-warning-soft px-3 py-2 text-small text-warning-soft-foreground">
