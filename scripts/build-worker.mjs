@@ -1,6 +1,7 @@
 // Bundles the non-Next entry points (worker, migrate, ops CLIs) into self-contained ESM
 // files in dist/, so the runtime image needs no node_modules for them.
 import { build } from "esbuild";
+import { cp, mkdir, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const src = fileURLToPath(new URL("../src", import.meta.url));
@@ -12,6 +13,7 @@ await build({
     "seed-admin": "src/cli/seed-admin.ts",
     "seed-tagihan": "src/cli/seed-tagihan.ts",
     "seed-saat-duka": "src/cli/seed-saat-duka.ts",
+    "seed-contoh-publik": "src/cli/seed-contoh-publik.ts",
     "reset-totp": "src/cli/reset-totp.ts",
     "verify-email": "src/cli/verify-email.ts",
     "sentry-check": "src/cli/sentry-check.ts",
@@ -41,3 +43,16 @@ await build({
   },
   logLevel: "info",
 });
+
+// seed-contoh-publik's fixture() resolves its Kunjungan Verifikasi JPEGs relative to
+// its own file's import.meta.url, so once bundled to dist/seed-contoh-publik.mjs it
+// reads them from dist/fixtures/contoh-publik, not from src/cli/fixtures/contoh-publik
+// (the source layout, which the runtime image never gets: only dist/ is copied in).
+// Only the .jpg fixtures are copied — the fixtures directory's own PHOTOS.md is
+// documentation for the source tree, nothing the command reads.
+const fixturesSrc = fileURLToPath(new URL("../src/cli/fixtures/contoh-publik", import.meta.url));
+const fixturesDest = fileURLToPath(new URL("../dist/fixtures/contoh-publik", import.meta.url));
+const photos = (await readdir(fixturesSrc)).filter((name) => name.endsWith(".jpg"));
+await mkdir(fixturesDest, { recursive: true });
+await Promise.all(photos.map((name) => cp(`${fixturesSrc}/${name}`, `${fixturesDest}/${name}`)));
+console.log(`Copied ${photos.length} JPEG fixture(s) to dist/fixtures/contoh-publik`);
