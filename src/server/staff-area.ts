@@ -41,6 +41,8 @@ export interface StaffShell {
   account: { email: string; phoneNumber: string | null };
   /** The Lokasi Mitra this Akun works on, by id, so breadcrumbs can name them. */
   lokasiNames: Record<string, string>;
+  /** Every Blok of this Akun's own Lokasi Mitra (Admin Lokasi only), by id, so a Denah editor's breadcrumb can name it. */
+  blokNames: Record<string, string>;
   /** The signed-in Akun's own Lokasi Mitra, for the header's Lokasi switcher; empty unless it holds Admin Lokasi. */
   adminLokasi: LokasiMitraSummary[];
   /**
@@ -63,7 +65,7 @@ export async function staffShell(): Promise<StaffShell | null> {
   const held = heldStaffRoles(actor.roles);
   if (held.length === 0) return null;
 
-  const { lokasi, notifications } = serverRuntime();
+  const { lokasi, inventory, notifications } = serverRuntime();
   const [lokasiMitra, alerts] = await Promise.all([
     held.includes("admin_platform")
       ? lokasi.allLokasiMitra(actor)
@@ -79,11 +81,17 @@ export async function staffShell(): Promise<StaffShell | null> {
       : role === "admin_lokasi"
         ? lokasiMitra.filter((item) => actor.lokasiIds.includes(item.id))
         : [];
+  const ownLokasi = lokasiOf("admin_lokasi");
+  // Only an Admin Lokasi's own (few) Lokasi Mitra, so this stays as small as lokasiNames above; Admin Platform's Denah has no per-Blok route to name.
+  const bloksByLokasi = held.includes("admin_lokasi")
+    ? await Promise.all(ownLokasi.map((item) => inventory.asStaff(actor).bloks(item.id)))
+    : [];
   return {
     roles: held.map((role) => ({ role, label: staffRoleLabels[role], href: staffRoleHome(role) })),
     account: { email: actor.email, phoneNumber: actor.phoneNumber },
     lokasiNames: Object.fromEntries(lokasiMitra.map((item) => [item.id, item.name])),
-    adminLokasi: lokasiOf("admin_lokasi"),
+    blokNames: Object.fromEntries(bloksByLokasi.flat().map((blok) => [blok.id, blok.name])),
+    adminLokasi: ownLokasi,
     palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role))])),
     alerts: alerts.ok ? { unread: alerts.unread, latest: alerts.latest } : { unread: 0, latest: [] },
   };

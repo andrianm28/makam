@@ -206,7 +206,11 @@ function ShellHeader({
   palette: PaletteGroup[];
   bottomNav: boolean;
 }) {
-  const trail = staffBreadcrumbs(pathname, (id) => shell.lokasiNames[id]);
+  const trail = staffBreadcrumbs(
+    pathname,
+    (id) => shell.lokasiNames[id],
+    (id) => shell.blokNames[id],
+  );
   const current = trail[trail.length - 1];
   const roleOptions = shell.roles.map((option) => ({ value: option.role, label: option.label, href: option.href }));
   // Only on an Admin Lokasi page scoped to one of its own Lokasi Mitra; LokasiSwitcher itself hides when there is one.

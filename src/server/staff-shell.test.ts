@@ -90,6 +90,22 @@ describe("the staff shell", () => {
     expect((await staffShell())?.lokasiNames).toEqual({ [lokasiId]: "Makam Wakaf Al-Ikhlas" });
   });
 
+  it("names every Blok of the signed-in Admin Lokasi's own Lokasi Mitra, for the Denah editor's breadcrumb (staffBreadcrumbs)", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    const jenisMakam = await server.runtime().tariffs.createJenisMakam(admin, lokasiId, {
+      name: "Reguler 1 × 2 m",
+      description: "",
+      tariff: { hargaHakPakai: 7_500_000, tenure: { kind: "tahun", years: 5 }, hargaPerpanjangan: 3_000_000, effectiveOn: "2026-10-01" },
+      reason: null,
+    });
+    if (!jenisMakam.ok) throw new Error(`Jenis Makam refused: ${jenisMakam.reason}`);
+    const adminLokasi = await signInAsAdminLokasi(server, admin, lokasiId);
+    const blok = await server.runtime().inventory.createBlok(adminLokasi, lokasiId, { name: "A", rows: 2, cols: 2, jenisMakamId: jenisMakam.jenisMakam.id });
+    if (!blok.ok) throw new Error(`Blok refused: ${blok.reason}`);
+
+    expect((await staffShell())?.blokNames).toEqual({ [blok.blok.id]: "A" });
+  });
+
   it("carries the signed-in Admin Lokasi's own Lokasi Mitra for the header's Lokasi switcher; empty for an Admin Platform", async () => {
     const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
     const other = await server.runtime().lokasi.createLokasiMitra(admin, {

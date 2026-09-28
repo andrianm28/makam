@@ -328,14 +328,20 @@ const subPages: Record<string, string> = {
 /**
  * The breadcrumbs of a staff page: its role, the menu item it sits under, then
  * the pages below that. `lokasiName` names a Lokasi Mitra by id; one it cannot
- * name reads "Lokasi Mitra".
+ * name reads "Lokasi Mitra". `blokName` likewise names a Blok under an Admin
+ * Lokasi's Denah (`/denah/<blokId>`); one it cannot name reads "Blok".
  */
-export function staffBreadcrumbs(pathname: string, lokasiName: (lokasiId: string) => string | undefined): Crumb[] {
+export function staffBreadcrumbs(
+  pathname: string,
+  lokasiName: (lokasiId: string) => string | undefined,
+  blokName: (blokId: string) => string | undefined,
+): Crumb[] {
   const { role, lokasiId } = staffPage(pathname);
   if (!role) return [{ label: sharedPages[pathname] ?? "Area Staf" }];
   const home = staffRoleHome(role);
   const trail: Crumb[] = [{ label: staffRoleLabels[role], href: home }];
   const nameOf = (id: string) => lokasiName(id) ?? "Lokasi Mitra";
+  const blokLabel = (id: string) => `Blok ${blokName(id) ?? ""}`.trim();
 
   let base: string;
   if (role === "admin_lokasi") {
@@ -354,7 +360,12 @@ export function staffBreadcrumbs(pathname: string, lokasiName: (lokasiId: string
   const below = pathname.slice(base.length).split("/").filter(Boolean);
   below.forEach((segment, index) => {
     base = `${base}/${segment}`;
-    const label = index === 0 && base.startsWith(`${home}/lokasi/`) ? nameOf(segment) : (subPages[segment] ?? segment);
+    const label =
+      index === 0 && base.startsWith(`${home}/lokasi/`)
+        ? nameOf(segment)
+        : index === 1 && role === "admin_lokasi" && below[0] === "denah"
+          ? blokLabel(segment)
+          : (subPages[segment] ?? segment);
     trail.push({ label, href: base });
   });
   return withoutLastLink(trail);

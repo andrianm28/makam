@@ -23,14 +23,15 @@ function SheetPortal({ ...props }: SheetPrimitive.Portal.Props) {
   return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
 }
 
+/** The dim backdrop behind any base-ui popup (a Sheet, or a centered Dialog such as the Denah editor's — `src/app/staf/admin-lokasi/[lokasiId]/denah/_parts/dialog.tsx`), so every one dims the page the same way. */
+export const popupOverlayClassName =
+  "fixed inset-0 z-50 bg-overlay transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs"
+
 function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
   return (
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
-      className={cn(
-        "fixed inset-0 z-50 bg-overlay transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
-        className
-      )}
+      className={cn(popupOverlayClassName, className)}
       {...props}
     />
   )

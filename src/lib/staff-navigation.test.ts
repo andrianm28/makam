@@ -25,6 +25,7 @@ function linked(groups: ReturnType<typeof staffMenu>) {
 }
 
 const lokasiId = "0b7c9a52-4c1e-4a57-9d4f-1f0f5e1b2c3d";
+const blokId = "6e2b8b3a-9f0d-4e1a-8c3d-2a7f5b6c9d10";
 
 describe("the staff menu of each role", () => {
   it("Admin Platform works in four groups: Kerja harian, Lokasi dan harga, Orang, Operator, with Audit Log under Operator", () => {
@@ -140,17 +141,36 @@ describe("where a staff page sits in the menu", () => {
     [`/staf/admin-platform/lokasi/${lokasiId}/audit-log`, ["Admin Platform", "Lokasi Mitra", "Makam Wakaf Al-Ikhlas", "Audit Log"]],
     [`/staf/admin-lokasi/${lokasiId}`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas"]],
     [`/staf/admin-lokasi/${lokasiId}/jam-operasional`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas", "Jam Operasional"]],
+    [`/staf/admin-lokasi/${lokasiId}/denah`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas", "Denah"]],
+    [`/staf/admin-lokasi/${lokasiId}/denah/${blokId}`, ["Admin Lokasi", "Makam Wakaf Al-Ikhlas", "Denah", "Blok A"]],
     ["/staf/admin-lokasi", ["Admin Lokasi", "Beranda"]],
     ["/staf/petugas-lapangan/tugas", ["Petugas Lapangan", "Tugas"]],
     ["/staf/mitra-jasa/pekerjaan", ["Mitra Jasa", "Pekerjaan"]],
     ["/staf/email", ["Email"]],
   ])("the breadcrumbs of %s read %j", (pathname, labels) => {
     const names = (id: string) => (id === lokasiId ? "Makam Wakaf Al-Ikhlas" : undefined);
-    expect(staffBreadcrumbs(pathname, names).map((crumb) => crumb.label)).toEqual(labels);
+    const bloks = (id: string) => (id === blokId ? "A" : undefined);
+    expect(staffBreadcrumbs(pathname, names, bloks).map((crumb) => crumb.label)).toEqual(labels);
+  });
+
+  it("a Blok it cannot name reads Blok, and only a Denah's second segment is read as a Blok", () => {
+    expect(staffBreadcrumbs(`/staf/admin-lokasi/${lokasiId}/denah/${blokId}`, () => "Makam Wakaf Al-Ikhlas", () => undefined).map((crumb) => crumb.label)).toEqual([
+      "Admin Lokasi",
+      "Makam Wakaf Al-Ikhlas",
+      "Denah",
+      "Blok",
+    ]);
+    // A Lokasi Mitra whose id happens to sit right after another menu item (not "denah") is never read as a Blok.
+    expect(staffBreadcrumbs(`/staf/admin-lokasi/${lokasiId}/jam-operasional/${blokId}`, () => "Makam Wakaf Al-Ikhlas", () => "A").map((crumb) => crumb.label)).toEqual([
+      "Admin Lokasi",
+      "Makam Wakaf Al-Ikhlas",
+      "Jam Operasional",
+      blokId,
+    ]);
   });
 
   it("each breadcrumb but the current page links back up; a Lokasi Mitra it cannot name reads Lokasi Mitra", () => {
-    expect(staffBreadcrumbs(`/staf/admin-platform/lokasi/${lokasiId}/tarif`, () => undefined)).toEqual([
+    expect(staffBreadcrumbs(`/staf/admin-platform/lokasi/${lokasiId}/tarif`, () => undefined, () => undefined)).toEqual([
       { label: "Admin Platform", href: "/staf/admin-platform" },
       { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },
       { label: "Lokasi Mitra", href: `/staf/admin-platform/lokasi/${lokasiId}` },
