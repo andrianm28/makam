@@ -489,6 +489,10 @@ output. A warm `main` run takes about 11 to 12 minutes.
   rows (the run fails if any table stays empty: an empty table would hide
   exactly the breakage this test exists to catch), then this commit's migrations
   run on it (Vitest's global setup) and the domain tests run on the result.
+  A value the catalog cannot imply — a CHECK that ties two columns together, or
+  one that lists the values a `text` column may hold — is stated in `OVERRIDES`
+  in that script, beside the constraint it answers; a new table carrying such a
+  CHECK leaves the run failing until it is stated there too.
   Before that, every
   migration file the running release does not have is checked for destructive
   DDL (DROP, TRUNCATE, RENAME, SET NOT NULL, a type change, a NOT NULL column
