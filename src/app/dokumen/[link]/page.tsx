@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
 import { documentLinkSchema, type BillingDocument, type BuktiPemesanan, type BuktiPembayaran, type NotPayable, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
-import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
+import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
@@ -177,13 +177,15 @@ function BuktiPemesananView({ bukti }: { bukti: BuktiPemesanan }) {
           ["Lokasi Mitra", bukti.lokasiName],
           ["Petak Makam", bukti.petakNomor],
           ["Pemegang Hak", bukti.pemegangHakName],
-          ["Masa Hak Pakai", bukti.masa.selesai ? `${formatTanggal(bukti.masa.mulai)} sampai ${formatTanggal(bukti.masa.selesai)}` : `${formatTanggal(bukti.masa.mulai)} · selamanya`],
+          // The row and the sentence below read this one masa, so the two cannot
+          // disagree about whether the right has an end (a fixed term is never
+          // called limitless; see `buktiPemesananHak`).
+          ["Masa Hak Pakai", buktiPemesananMasa(bukti.masa)],
           ["Tanggal terbit", formatTanggalJam(bukti.issuedAt)],
         ]}
       />
-      <p className="text-muted-foreground">
-        Hak Pakai ini diberikan oleh {bukti.lokasiName} kepada {bukti.pemegangHakName}, dan sah tanpa batas waktu untuk Petak Makam{" "}
-        {bukti.petakNomor} sejak pemakaman pertama pada {formatTanggal(bukti.masa.mulai)}.
+      <p className="text-muted-foreground" data-testid="bukti-pemesanan-hak">
+        {buktiPemesananHak(bukti, bukti.masa)}
       </p>
       {bukti.petunjukArah ? (
         <div className="print:hidden">

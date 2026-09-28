@@ -154,4 +154,17 @@ describe("the Bukti Pemesanan of a paid burial", () => {
     await expect(db.execute(sql`delete from bukti_pemesanan where id = ${terbit.id}`)).rejects.toThrow();
     expect(await setup.billing.allBuktiPemesanan()).toEqual([terbit]);
   });
+
+  it("states the Hak Pakai's own term: fixed-term names its end date, and a term it cannot read issues no Bukti at all", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    setup.clock.set(wib("2026-10-02 11:00"));
+    await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-02" });
+    await bayar(setup, fixture.tagihanId);
+
+    // The fixture's Jenis Makam has a 5-year term, so the document carries its end
+    // date: a `selesai` of null on a Bukti means a perpetual Hak Pakai and nothing else.
+    const [terbit] = await setup.billing.allBuktiPemesanan();
+    expect(terbit?.masa).toEqual({ mulai: "2026-10-02", selesai: "2031-10-02" });
+  });
 });

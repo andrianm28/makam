@@ -1,4 +1,5 @@
 import type { BillingDocument, LineProvider, PaymentMethod, Tagihan, TagihanStatus } from "@/domain/billing";
+import { formatTanggal } from "@/lib/time/jakarta";
 
 /**
  * How Tagihan and Bukti Pembayaran read on their pages (and so in their PDFs).
@@ -50,4 +51,41 @@ export function lineProviderText(provider: LineProvider): string {
     case "pemda":
       return "Pemda (disetor sesuai biaya)";
   }
+}
+
+/** The Hak Pakai's term, as a Bukti Pemesanan states it: whole dates, and no end for a perpetual one. */
+export interface MasaBuktiPemesanan {
+  mulai: string;
+  /** The end of a fixed term; null only for a perpetual (Selamanya) one — never for an unknown term. */
+  selesai: string | null;
+}
+
+/**
+ * A Bukti Pemesanan's "Masa Hak Pakai" row. A `selesai` of null means the Hak
+ * Pakai is perpetual, and says so in words rather than leaving the family to
+ * wonder; a fixed term names both of its dates.
+ */
+export function buktiPemesananMasa(masa: MasaBuktiPemesanan): string {
+  return masa.selesai ? `${formatTanggal(masa.mulai)} sampai ${formatTanggal(masa.selesai)}` : `${formatTanggal(masa.mulai)} · selamanya`;
+}
+
+/**
+ * The Bukti Pemesanan's own sentence, saying what the right is and for how long.
+ *
+ * It reads the same `masa` as `buktiPemesananMasa`, so the sentence and the row
+ * above it cannot contradict each other: a fixed-term Hak Pakai is **never**
+ * described as having no end, because that sentence is the one a family reads
+ * when it decides whether the grave is theirs for good. "Tanpa batas waktu" is
+ * printed for a perpetual Hak Pakai alone — a null `selesai` on a Bukti Pemesanan
+ * means exactly that and never an unknown term, because the module issues no
+ * document at all for a Hak Pakai whose term it cannot read.
+ */
+export function buktiPemesananHak(
+  bukti: { lokasiName: string; pemegangHakName: string; petakNomor: string },
+  masa: MasaBuktiPemesanan,
+): string {
+  const sejak = `sejak pemakaman pertama pada ${formatTanggal(masa.mulai)}`;
+  return masa.selesai
+    ? `Hak Pakai ini diberikan oleh ${bukti.lokasiName} kepada ${bukti.pemegangHakName} untuk Petak Makam ${bukti.petakNomor}, berlaku ${sejak} sampai ${formatTanggal(masa.selesai)}.`
+    : `Hak Pakai ini diberikan oleh ${bukti.lokasiName} kepada ${bukti.pemegangHakName} untuk Petak Makam ${bukti.petakNomor}, berlaku ${sejak}, dan sah tanpa batas waktu.`;
 }

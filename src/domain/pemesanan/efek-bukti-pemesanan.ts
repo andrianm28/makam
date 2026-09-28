@@ -22,6 +22,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Billing, PaymentEffect, SettledPayment } from "@/domain/billing";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
+import type { MasaBuktiPemesanan } from "@/lib/billing-labels";
 import { pemesananMakam } from "./schema";
 import type { PemesananDeps } from "./deps";
 
@@ -84,6 +85,10 @@ export async function terbitkanBukti(
   if (!order.pemakamanTanggal) return null;
 
   const hakPakai = await deps.inventory.within(tx).hakPakaiById(order.hakPakaiId);
+  // The document states the Hak Pakai's own term; a term it cannot read is not
+  // stated, and the order stays short of Selesai until a human looks.
+  const masa = masaHakPakai(hakPakai);
+  if (!masa) return null;
   const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
   const query = lokasi ? mapsQueryFor(lokasi) : null;
   const bukti = await deps.billingOn(tx).issueBuktiPemesanan({
@@ -93,7 +98,7 @@ export async function terbitkanBukti(
     lokasiName: order.lokasiName,
     petakNomor: order.petakNomor,
     pemegangHakName: hakPakai?.pemegangHak?.name ?? order.pemegangHak.name,
-    masa: masaHakPakai(hakPakai, order.pemakamanTanggal),
+    masa,
     petunjukArah: query ? directionsUrl(query) : null,
   });
   if (!bukti.ok) return null;
@@ -119,15 +124,20 @@ export async function terbitkanBukti(
 }
 
 /**
- * The Hak Pakai's own masa, from the Inventory module's read: the first
- * Pemakaman's date and the end of a fixed term (null for a Selamanya Jenis Makam).
+ * The Hak Pakai's own masa, read from the Inventory module: the first
+ * Pemakaman's date, and the end of a fixed term (null for a Selamanya Jenis
+ * Makam). Null when the Hak Pakai cannot be read at all, or its term clock has
+ * not started — and then **no Bukti Pemesanan is issued at all**, because a
+ * document that proves a right must state the right's term rather than guess:
+ * a null end date printed as "selamanya" on a term nobody has read would be the
+ * same lie as calling a five-year right limitless.
  */
-function masaHakPakai(
-  hakPakai: { tenureStartAt: Date | null; endDate: Date | null } | null,
-  pemakamanTanggal: string,
-): { mulai: string; selesai: string | null } {
+function masaHakPakai(hakPakai: { tenureStartAt: Date | null; endDate: Date | null } | null): MasaBuktiPemesanan | null {
+  if (!hakPakai?.tenureStartAt) return null;
   // `tenure_start_at` and `end_date` are date columns written at UTC midnight, so
   // they read back as the calendar days they were — never as a WIB instant.
-  const mulai = hakPakai?.tenureStartAt ? hakPakai.tenureStartAt.toISOString().slice(0, 10) : pemakamanTanggal;
-  return { mulai, selesai: hakPakai?.endDate ? hakPakai.endDate.toISOString().slice(0, 10) : null };
+  return {
+    mulai: hakPakai.tenureStartAt.toISOString().slice(0, 10),
+    selesai: hakPakai.endDate ? hakPakai.endDate.toISOString().slice(0, 10) : null,
+  };
 }
