@@ -5,8 +5,11 @@
  *
  * An item whose page has not been built yet carries no href and says
  * "Segera hadir." — never a dead link, never a date (docs/design-system.md, voice
- * and tone: no uncertain claims).
+ * and tone: no uncertain claims). The Makam Keluarga hub is built, so its item
+ * opens the hub.
  */
+
+import { HUB_PATH } from "@/lib/makam-keluarga-content";
 
 export interface PublicMenuItem {
   /** What the item is called in the top bar, the drawer and the footer's sitemap. */
@@ -34,7 +37,7 @@ const items: PublicMenuItem[] = [
     href: "/pesan-makam/saat-duka",
     description: "Pesan makam saat keluarga berduka, atau siapkan untuk nanti.",
   },
-  { label: "Makam Keluarga", description: SEGERA },
+  { label: "Makam Keluarga", href: HUB_PATH, description: "Cari di mana makam keluarga Anda berada, lalu perpanjang, rawat atau urus berkasnya." },
   { label: "Layanan", description: SEGERA },
   { label: "Wakaf Tanah", description: SEGERA },
   { label: "Daftar Lokasi", href: "/lokasi", description: "Lokasi Mitra yang sudah Terverifikasi, per kota dan fasilitas." },

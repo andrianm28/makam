@@ -5,6 +5,8 @@ import { EmailSection, PhoneSection } from "./email-section";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { akunResource, authorize } from "@/domain/identity";
+import { barisMakamSaya } from "@/lib/makam-keluarga-content";
+import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { heldStaffRoles } from "@/server/staff-area";
 import { KeluarButton } from "./keluar-button";
@@ -16,8 +18,9 @@ export const metadata: Metadata = {
 
 /**
  * Akun Saya: the Email Terverifikasi (changed by Verifikasi email) and the
- * phone number (a contact); the Pemesan's orders, Makam Keluarga and Pengajuan
- * Wakaf are shells until their slices arrive.
+ * phone number (a contact); the Pemesan's orders and the Makam Keluarga tab
+ * (every grave whose Pemegang Hak recorded this email, as shortcuts into the
+ * hub) are here, and the Pengajuan Wakaf is a shell until its slice arrives.
  */
 export default async function AkunSayaPage() {
   const actor = await currentActor();
@@ -25,6 +28,11 @@ export default async function AkunSayaPage() {
   const authorization = authorize(actor, "akun.lihat", akunResource(actor.accountId));
   if (!authorization.allowed) redirect(authorization.reason === "perlu_totp" ? "/staf/totp" : "/masuk");
   const isStaff = heldStaffRoles(actor.roles).length > 0;
+  const { inventory, lokasi } = serverRuntime();
+  const namaLokasi = new Map((await lokasi.publicLokasiMitraList()).map((satu) => [satu.id, satu.name]));
+  // The same row the hub's own tab shows, from the same rule: a shortcut into the hub with
+  // no branch chosen here, because Akun Saya is not one of the tiles.
+  const tab = (await inventory.makamPemegangHak({ email: actor.email })).map((satu) => barisMakamSaya(satu, namaLokasi));
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-6 py-16">
@@ -74,8 +82,28 @@ export default async function AkunSayaPage() {
       <Card>
         <CardHeader>
           <CardTitle>Makam Keluarga</CardTitle>
-          <CardDescription>Belum ada makam yang tercatat atas email ini.</CardDescription>
+          <CardDescription>
+            {tab.length === 0
+              ? "Belum ada makam yang tercatat atas email ini."
+              : "Makam yang tercatat atas email ini, masing-masing sebuah pintasan ke Makam Keluarga."}
+          </CardDescription>
         </CardHeader>
+        {tab.length > 0 ? (
+          <CardContent>
+            <ul className="flex flex-col gap-2">
+              {tab.map((satu) => (
+                <li key={`${satu.lokasiId}-${satu.nomor}`}>
+                  <Link href={satu.alamat} className="font-medium text-brand underline underline-offset-4">
+                    {satu.namaLokasi} · {satu.nomor}
+                  </Link>
+                  <p className="text-small text-muted-foreground">
+                    {satu.almarhum.length > 0 ? satu.almarhum.join(", ") : "Belum ada nama Almarhum yang tercatat"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        ) : null}
       </Card>
     </main>
   );

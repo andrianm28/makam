@@ -29,13 +29,17 @@ describe("the public site menu", () => {
   });
 
   it("never links an item whose page is not built yet, and says so instead of a date", () => {
-    // The Makam keluarga hub, Layanan and Wakaf Tanah ship in later releases.
-    // A dead link is worse than an honest "Segera hadir", so those items carry no
-    // href at all and never a release date (the brand's guardrails).
+    // The Makam keluarga hub is built, so that item opens it; Layanan and Wakaf Tanah
+    // ship in later releases. A dead link is worse than an honest "Segera hadir", so
+    // those items carry no href at all and never a release date (the brand's guardrails).
     const unbuilt = publicMenu({ signedIn: false }).filter((item) => !item.href);
-    expect(unbuilt.map((item) => item.label)).toEqual(["Makam Keluarga", "Layanan", "Wakaf Tanah"]);
+    expect(unbuilt.map((item) => item.label)).toEqual(["Layanan", "Wakaf Tanah"]);
     for (const item of unbuilt) expect(item.description).toBe("Segera hadir.");
     expect(publicMenu({ signedIn: false }).map((item) => item.description).join(" ")).not.toMatch(/\d{4}/);
+  });
+
+  it("opens the Makam keluarga hub for the item that owns it", () => {
+    expect(publicMenu({ signedIn: false }).find((item) => item.label === "Makam Keluarga")?.href).toBe("/makam-keluarga");
   });
 });
 

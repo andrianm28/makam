@@ -13,8 +13,8 @@ import { expect, test } from "@playwright/test";
  */
 const menuLabels = ["Pesan Makam", "Makam Keluarga", "Layanan", "Wakaf Tanah", "Daftar Lokasi"];
 
-/** The three services that arrive in a later release. */
-const belumHadir = ["Makam Keluarga", "Layanan", "Wakaf Tanah"];
+/** The two services that arrive in a later release; Makam Keluarga is built and opens the hub. */
+const belumHadir = ["Layanan", "Wakaf Tanah"];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -35,10 +35,27 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
     "/pesan-makam/terencana",
   );
 
-  // The tile row, then the trust strip below it.
+  // The tile row, then the trust strip below it. Perpanjang Makam and Layanan Makam are
+  // arranged at the Makam keluarga hub, so those two tiles open it with the action chosen.
   await expect(page.getByRole("heading", { name: "Perpanjang Makam" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Wakaf Tanah" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Perpanjang Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=perpanjang");
+  await expect(page.getByRole("link", { name: "Layanan Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
   await expect(page.getByRole("link", { name: /^Aman/ })).toHaveAttribute("href", "/cara-kami-bekerja");
+});
+
+test("the Makam keluarga hub answers 'Di mana makamnya?', with the branch it was opened with", async ({ page }) => {
+  await page.goto("/makam-keluarga?aksi=perpanjang");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Makam Keluarga" })).toBeVisible();
+  await expect(page.getByText("Anda membuka")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cari makam" })).toBeVisible();
+
+  // An empty form asks for what is missing instead of answering as a miss, and the TPU
+  // branch is on the same page for a grave that is not at a Lokasi Mitra.
+  await page.getByRole("button", { name: "Cari makam" }).click();
+  await expect(page.getByText("Lengkapi dulu Lokasi Mitra")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Panduan Pengurusan di TPU DKI" })).toBeVisible();
 });
 
 test("the top bar lists the whole menu, and only opens the pages that exist", async ({ page }) => {

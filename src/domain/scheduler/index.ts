@@ -14,6 +14,7 @@
 import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
+import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -64,6 +65,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "scheduler.heartbeat", cron: "* * * * *", tick: heartbeatTick },
   // Identity & Access: per-IP request records for emailed codes older than 24 h (ticket 67).
   { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
+  // Inventory: the Makam keluarga hub's per-IP lookup attempts older than 24 h (ticket 34).
+  { name: "inventory.prune_cari_makam_attempts", cron: "23 * * * *", tick: pruneCariMakamAttemptsTick },
   // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
   // Billing: a downstream effect of a payment that failed is run again (ticket 19).
@@ -76,6 +79,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
   await pruneIpRequests(ctx, now);
+}
+
+async function pruneCariMakamAttemptsTick(ctx: { db: Database }, now: Date): Promise<void> {
+  await pruneCariMakamAttempts(ctx, now);
 }
 
 async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {

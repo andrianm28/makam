@@ -183,6 +183,13 @@
       "when": 1790533600389,
       "tag": "0025_naive_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790560213227,
+      "tag": "0026_stiff_khan",
+      "breakpoints": true
     }
   ]
 }
