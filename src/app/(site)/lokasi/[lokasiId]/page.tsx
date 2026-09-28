@@ -181,7 +181,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   );
 
   return (
-    <div className="mx-auto w-full max-w-[80rem] px-4 pt-6 pb-28 md:px-8 md:pt-8 lg:pb-16">
+    <div className="mx-auto w-full max-w-(--page-max-width) px-4 pt-6 pb-28 md:px-8 md:pt-8 lg:pb-16">
       <nav aria-label="Jejak halaman" className="text-small text-muted-foreground">
         <Link href="/" className="hover:text-forest">
           Beranda
@@ -226,7 +226,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_22rem]">
         <div className="flex min-w-0 flex-col gap-10">
           <header className="flex flex-col gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-forest md:text-4xl">{profile.name}</h1>
+            <h1 className="text-page-title tracking-tight text-forest md:text-4xl">{profile.name}</h1>
             <p className="flex items-start gap-1.5 text-body-lg text-muted-foreground">
               <MapPinIcon className="mt-1 size-4 shrink-0" aria-hidden />
               <span>
