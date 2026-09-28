@@ -9,22 +9,21 @@
  * or failed, 2 usage.
  */
 import { z } from "zod";
-import { FakeEmailSender } from "@/adapters/memory";
 import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { createAdapters } from "@/composition/adapters";
-import { createDatabase, type Database } from "@/db/client";
-import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
-import type { Actor, Identity } from "@/domain/identity";
-import { createInventory, type Inventory } from "@/domain/inventory";
-import { createLokasi, type Lokasi } from "@/domain/lokasi";
+import { createDatabase } from "@/db/client";
+import { createFieldwork } from "@/domain/fieldwork";
+import type { Actor } from "@/domain/identity";
+import { createInventory } from "@/domain/inventory";
+import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
-import { createTariffs, type Tariffs } from "@/domain/tariffs";
+import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
-import type { Adapters } from "@/ports";
 import { cliFailure } from "./cli-failure";
+import { adminPlatform, masukSebagai, scanPerjanjian, type Gagal, type Modul } from "./dev-seed-support";
 
 const USAGE = "Pakai: seed-saat-duka";
 
@@ -52,20 +51,6 @@ const jamOperasional = {
   tanggalTutup: [],
 };
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
-const scanPerjanjian = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
-
-/** The modules this command drives, each through its own public functions. */
-interface Modul {
-  db: Database;
-  adapters: Adapters;
-  identity: Identity;
-  lokasi: Lokasi;
-  tariffs: Tariffs;
-  inventory: Inventory;
-  fieldwork: Fieldwork;
-}
-
-type Gagal = { ok: false; reason: string };
 
 export async function seedSaatDukaCommand(
   argv: string[],
@@ -81,7 +66,7 @@ export async function seedSaatDukaCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-saat-duka" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
+      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid, devFilesRoot: env.DEV_FILES_ROOT });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
@@ -124,25 +109,6 @@ export async function seedSaatDukaCommand(
   }
 }
 
-/**
- * The stack's first Admin Platform (seeded by seed:admin) as a local developer
- * with the stack's shell could act. Never on staging or production: the command
- * above refuses those before this is reached.
- */
-async function adminPlatform(identity: Identity): Promise<Actor | null> {
-  const admin = (await identity.staffAccounts()).find((account) => account.roles.includes("admin_platform") && !account.deactivated);
-  if (!admin) return null;
-  return {
-    accountId: admin.accountId,
-    email: admin.email ?? "",
-    phoneNumber: admin.phoneNumber,
-    roles: ["admin_platform"],
-    lokasiIds: [],
-    totp: "lolos",
-    sessionId: `seed-saat-duka-${admin.accountId}`,
-  };
-}
-
 /** One Lokasi Mitra taken all the way to Terverifikasi, with four cleared Tersedia Petak to choose from. */
 async function seedLokasiMitra(modul: Modul, admin: Actor): Promise<{ exitCode: number; output: string }> {
   const { lokasi, inventory } = modul;
@@ -150,9 +116,9 @@ async function seedLokasiMitra(modul: Modul, admin: Actor): Promise<{ exitCode: 
   if (!dibuat.ok) return { exitCode: 1, output: `Ditolak: Lokasi Mitra contoh tidak dibuat (${dibuat.reason}).` };
   const lokasiId = dibuat.lokasiMitra.id;
 
-  const adminLokasi = await masukSebagai(modul, admin, lokasiId, ADMIN_LOKASI, "admin_lokasi");
+  const adminLokasi = await masukSebagai(modul, ADMIN_LOKASI.email, () => lokasi.inviteAdminLokasi(admin, lokasiId, ADMIN_LOKASI));
   if (!adminLokasi.ok) return { exitCode: 1, output: `Ditolak: Admin Lokasi contoh tidak siap (${adminLokasi.reason}).` };
-  const petugas = await masukSebagai(modul, admin, lokasiId, PETUGAS, "petugas_lapangan");
+  const petugas = await masukSebagai(modul, PETUGAS.email, () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" }));
   if (!petugas.ok) return { exitCode: 1, output: `Ditolak: Petugas Lapangan contoh tidak siap (${petugas.reason}).` };
 
   const terbit = await terbitkan(modul, admin, lokasiId, adminLokasi.value, petugas.value);
@@ -169,37 +135,6 @@ async function seedLokasiMitra(modul: Modul, admin: Actor): Promise<{ exitCode: 
     exitCode: 0,
     output: `Lokasi Mitra contoh ${CONTOH_LOKASI.name} terbit (Terverifikasi) dengan 4 Petak Tersedia. Lokasi Mitra: /lokasi/${lokasiId}`,
   };
-}
-
-/** An Akun the Admin Platform invites for the fixture, logged in with a Kode Masuk (which grants the role). */
-async function masukSebagai(
-  modul: Modul,
-  admin: Actor,
-  lokasiId: string,
-  staf: { email: string; phoneNumber: string },
-  role: "admin_lokasi" | "petugas_lapangan",
-): Promise<{ ok: true; value: Actor } | Gagal> {
-  const { identity, adapters, lokasi } = modul;
-  const invited =
-    role === "admin_lokasi"
-      ? await lokasi.inviteAdminLokasi(admin, lokasiId, staf)
-      : await identity.inviteStaff(admin, { ...staf, role });
-  if (!invited.ok) return { ok: false, reason: invited.reason };
-
-  // A fresh benchmarking IP per staff login: the per-IP limit allows one
-  // emailed code per 60 s, and the fixture invites two in a row.
-  const sent = await identity.requestKodeMasuk({ email: staf.email, ip: `198.18.0.${1 + Math.floor(Math.random() * 250)}` });
-  if (!sent.ok) return { ok: false, reason: sent.reason };
-  const code = (adapters.email as FakeEmailSender).sent
-    .filter((message) => message.to === sent.email)
-    .at(-1)
-    ?.text.match(/\b(\d{6})\b/)?.[1];
-  if (!code) return { ok: false, reason: "kode_tidak_terkirim" };
-  const login = await identity.verifyKodeMasuk({ email: staf.email, code });
-  if (!login.ok) return { ok: false, reason: login.reason };
-  const cookies = login.session.cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
-  const actor = await identity.actorFromCookies(cookies);
-  return actor ? { ok: true, value: actor } : { ok: false, reason: "belum_masuk" };
 }
 
 /** The agreement, the Jam Operasional, the Kontak Siaga, the Kunjungan Verifikasi and the tariffs the listing gate needs. */

@@ -20,6 +20,11 @@ const VAPID = {
 };
 
 describe("runtime environment", () => {
+  it("accepts DEV_FILES_ROOT in development and refuses it anywhere else", () => {
+    expect(readRuntimeEnv({ DATABASE_URL, APP_ENV: "development", DEV_FILES_ROOT: "/tmp/makam-files" }).DEV_FILES_ROOT).toBe("/tmp/makam-files");
+    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV: "test", DEV_FILES_ROOT: "/tmp/makam-files" })).toThrow(/DEV_FILES_ROOT/);
+  });
+
   it("reads the migrations folder the image sets", () => {
     const env = readRuntimeEnv({ DATABASE_URL, MIGRATIONS_DIR: "/app/drizzle" });
     expect(env.MIGRATIONS_DIR).toBe("/app/drizzle");
