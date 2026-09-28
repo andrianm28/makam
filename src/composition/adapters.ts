@@ -75,6 +75,13 @@ export type AdapterOptions = CommonAdapterOptions &
  */
 export function createAdapters(options: AdapterOptions): Adapters {
   const clock = options.overrides?.clock ?? new SystemClock();
+  const diskFiles = (root: string) =>
+    new DiskFileStore({
+      root,
+      secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
+      publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
+      clock,
+    });
 
   const base: Adapters = usesInMemoryFakes(options.appEnv)
     ? createMemoryAdapters(clock, { paymentWebhookSecret: options.fakePaymentWebhookSecret })
@@ -87,23 +94,13 @@ export function createAdapters(options: AdapterOptions): Adapters {
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
         webPush: new VapidWebPush({ ...requiredVapid(options), clock }),
-        files: new DiskFileStore({
-          root: options.filesRoot ?? DEFAULT_FILES_ROOT,
-          secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
-          publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
-          clock,
-        }),
+        files: diskFiles(options.filesRoot ?? DEFAULT_FILES_ROOT),
         pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH }),
       };
 
   const files =
     options.appEnv === "development" && options.devFilesRoot
-      ? new DiskFileStore({
-          root: options.devFilesRoot,
-          secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
-          publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
-          clock,
-        })
+      ? diskFiles(options.devFilesRoot)
       : base.files;
 
   return { ...base, files, ...options.overrides };
