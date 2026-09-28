@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 88 tickets (as of 2026-09-28): 51 resolved, 28 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 88 tickets (as of 2026-09-28): 52 resolved, 27 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -28,7 +28,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 88 tickets (as of 2026-0
 | [22](22-saat-duka-wizard.md) | Pemesanan Saat Duka wizard at a Lokasi Mitra | resolved | 16, 82 |
 | [23](23-antrean-lokasi-and-saat-duka-confirmation.md) | Antrean Lokasi and Saat Duka confirmation | resolved | 18, 20, 21, 22 |
 | [24](24-saat-duka-alternatif-tolak-and-cancellation.md) | Saat Duka alternatif, Tolak and cancellation | resolved | 23 |
-| [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | ready-for-agent | 19, 23 |
+| [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | resolved | 19, 23 |
 | [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | resolved | 22, 63 |
 | [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | ready-for-agent | 25, 82 |
 | [28](28-bertugas-and-tier-1-escalation.md) | Bertugas, Tier 1 alerts and escalation | ready-for-agent | 21, 24 |

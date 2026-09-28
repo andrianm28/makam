@@ -1,6 +1,6 @@
 # Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 19, 23
 Spec: Domain modules > 5. Inventory (Pemakaman); 6. Pemesanan (Saat Duka statuses, Selesai); 10. Billing (pay-after clock, Documents); 16. Scheduler ("Catat Pemakaman" prompts); Testing Decisions > End-to-end 1; stories 36, 37, 119
 
@@ -43,4 +43,5 @@ The Admin Lokasi records the Pemakaman (date, Petak, layer), prompted by a Catat
     - **Reading 1 (already recorded above, confirmed).** "On Lunas" and "Lunas, then Dimakamkan → Selesai" can only both hold if the Bukti is issued where the second fact lands. A consequence worth the owner's eye: a paid order whose burial is not yet recorded has no Bukti at all and is Dikonfirmasi, not Selesai.
     - **Reading 2 (new, and the owner's to confirm).** AC 4's "for an order with no email, CS shares it by hand" is implemented as the Notifications module opening its existing **Telepon Pemesan** row. That is a stronger, queued guarantee than "by hand", and it reuses a term the glossary already has — but it is a reading of the sentence, not the sentence.
   - **Not provable through the public interface, deliberately.** The Antrean Lokasi row as a rendered screen; the unreadable-term guard (unreachable, above); the e2e path; and CS's human act of sharing a link.
+- 2026-09-28 — **Two-axis review** at merge time: independent two-axis review (Standards and Spec, two parallel sub-agents) of `origin/main...ticket-25-pemakaman-bukti-pesanan` found no hard violation. Spec confirmed all six ACs and both readings (Bukti issued at the second of Lunas/Pemakaman to land; the Telepon Pemesan row opened for an order with no email) against the spec text. Standards smells: an orphaned comment in `efek-bukti-pemesanan.ts` (fixed at merge), composition wiring now duplicated in three copies (`src/server/runtime.ts`, `src/worker/main.ts`, `tests/support/server-runtime.ts`), and Feature Envy in `catatPemakaman` (left as follow-ups). Migrations renumbered at merge to `0030_nervous_spirit` (the branch's `0025_wakeful_tigra` + `0026_numerous_spiral` + `0027_abnormal_the_fury`, drizzle-regenerated as one file since drizzle diffs against the newest snapshot only) and `0031_bukti_pemesanan_append_only` (the branch's hand-written `0028_bukti_pemesanan_append_only.sql`, custom-generated and pasted in byte-identical). Unblocks 27, 29, 30 (and 35 with 34).
 
