@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 46 resolved, 32 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-09-27): 47 resolved, 31 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -47,7 +47,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 87 tickets (as of 2026-0
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
 | [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | resolved | 16, 17 |
-| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | ready-for-agent | 22, 43, 63, 82 |
+| [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | resolved | 22, 43, 63, 82 |
 | [45](45-tpu-saat-duka-confirmation-and-surat-pengantar.md) | TPU Saat Duka confirmation and Ambil surat pengantar | ready-for-agent | 28, 44 |
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | ready-for-agent | 45 |
 | [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | ready-for-agent | 31, 46 |

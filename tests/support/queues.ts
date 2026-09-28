@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createQueues } from "@/domain/queues";
+import { createPengurusan } from "@/domain/pengurusan";
 import { publishOnTestDatabase } from "./publish";
 
 /**
@@ -35,7 +36,18 @@ export function queuesOnTestDatabase(db: Database) {
     inventory: setup.inventory,
     pemesanan,
   });
-  return { ...setup, pemesanan, queues };
+  // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
+  // Pengurusan module, which the shared Pemesanan fixture type requires.
+  const pengurusan = createPengurusan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    billing: setup.billing,
+    identity: setup.identity,
+  });
+  return { ...setup, pemesanan, pengurusan, queues };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

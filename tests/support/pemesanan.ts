@@ -5,7 +5,7 @@ import type { PemesananDiajukan, PemesananDikonfirmasi, PemesananNotifikasi, Ter
 import { createPengurusan } from "@/domain/pengurusan";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
-import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
+import { actorOf, adminPlatformOf, logIn, nextTestIp, signedInAdminPlatform } from "./identity";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -103,15 +103,15 @@ export async function unitIds(setup: PemesananSetup, fixture: TerencanaLokasi, n
   return Object.fromEntries(found);
 }
 
-/** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */
-const admins = new WeakMap<object, Promise<{ actor: Actor; cookies: string }>>();
+/**
+ * The one Admin Platform a setup's fixtures act as. The cache lives in the shared
+ * identity fixture, as `adminPlatformOf`: ticket 23 kept a second WeakMap here,
+ * and two caches over one seed means whichever misses second is refused with
+ * `admin_platform_sudah_ada`. One cache, in one place, is the whole point.
+ */
 function adminPlatform(setup: PemesananModul) {
-  let admin = admins.get(setup);
-  if (!admin) {
-    admin = signedInAdminPlatform(setup);
-    admins.set(setup, admin);
-  }
-  return admin;}
+  return adminPlatformOf(setup);
+}
 
 /** The one PetugasLapangan of a setup: a Kode Masuk is sent at most once a minute per email. */
 const petugasCache = new WeakMap<object, Promise<Actor>>();
