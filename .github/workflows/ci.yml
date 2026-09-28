@@ -390,6 +390,12 @@ jobs:
       # docker run in a workflow, so this one is a manual bump, as cosign is).
       SENTRY_CLI: ghcr.io/getsentry/sentry-cli:2.46.0@sha256:03db524ab5066f720a66aaeae46820e41fbcf4a6c0f60d326c81cb59aa0df6ee
     steps:
+      # A **local** composite action is read out of the checked-out repository,
+      # so this job needs the tree before it. Without it the job dies in 0
+      # seconds with "Can't find 'action.yml' ... Did you forget to run
+      # actions/checkout before running your local action?" — which reads like
+      # a missing secret and is not one.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
       - name: Upload the source maps of that image
         run: scripts/ci/upload-sourcemaps.sh
@@ -432,6 +438,14 @@ jobs:
       ref: ${{ needs.deploy-gate.outputs.ref }}
       digest: ${{ steps.parts.outputs.digest }}
     steps:
+      # Both of this job's steps below are **local** composite actions
+      # (`.github/actions/ghcr-login` and `.github/actions/cosign-sign`), and a
+      # local action is read out of the checked-out repository. Without this step
+      # the runner has no tree, so the first one dies in 0 seconds with
+      # "Can't find 'action.yml' ... Did you forget to run actions/checkout before
+      # running your local action?" — which reads like a missing secret and is
+      # not one. Same pin as the rest of this workflow.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
       - name: The signed digest
         id: parts

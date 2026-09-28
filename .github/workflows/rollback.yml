@@ -60,6 +60,12 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "Rolling back to ${{ inputs.release_tag }} ($digest, from $sha)"
+      # A **local** composite action is read out of the checked-out repository,
+      # so this job needs the tree before it. Without it the job dies in 0
+      # seconds with "Can't find 'action.yml' ... Did you forget to run
+      # actions/checkout before running your local action?" — which reads like
+      # a missing secret and is not one.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
       - name: cosign (the production key, again)
         uses: ./.github/actions/cosign-sign
