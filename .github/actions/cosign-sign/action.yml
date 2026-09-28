@@ -53,31 +53,38 @@ runs:
             exit 1
             ;;
         esac
-        # The key goes into the container as an environment variable, not as a
-        # file. cosign reads COSIGN_PRIVATE_KEY and COSIGN_PASSWORD from the
-        # environment, and a file was wrong three times over, all one cause: the
-        # cosign container runs as uid 65532 and the runner writes 0600. The key
-        # was unreadable (permission denied); the passphrase was only ever
-        # written to cosign.password, which cosign never reads; and the
-        # registry credentials are still 0600 today, which is what actually
-        # stopped this job — cosign fell back to an anonymous pull and ghcr
-        # answered UNAUTHORIZED, forty runs in a row with nothing to read.
+        # Everything cosign needs goes into one scratch directory it can read.
         #
-        # So the credentials get the same treatment as the key, in a scratch
-        # copy the container can read, leaving the runner's own file at 0600 and
-        # nothing behind on a failure. DOCKER_CONFIG is set rather than relying
-        # on the image's home directory, so the mount path is not a guess.
-        DOCKER_SCRATCH="$RUNNER_TEMP/cosign-docker-config"
-        rm -rf "$DOCKER_SCRATCH"
-        install -d -m 0755 "$DOCKER_SCRATCH"
-        install -m 0644 "${DOCKER_CONFIG:-$HOME/.docker}/config.json" "$DOCKER_SCRATCH/config.json"
+        # The container runs as uid 65532 and the runner writes 0600, so three
+        # separate things went wrong in a row, all one cause: a 0600 key was
+        # unreadable, the passphrase was written to cosign.password which cosign
+        # never reads, and the registry credentials were unreadable too — which
+        # is what actually stopped this job, with ghcr answering UNAUTHORIZED.
+        #
+        # A file is unavoidable, not a policy choice: cosign v2.6.1 has no
+        # --key-env (only --key, and a KMS URI), so a key pair can only arrive
+        # as a path. What the earlier version of this comment claimed — that
+        # nothing touches the runner's disk — was wrong twice: COSIGN_PRIVATE_KEY
+        # is not a variable cosign reads, so the key was never being used at
+        # all, and cosign silently fell back to keyless signing and waited for a
+        # browser. The scratch copy is 0644 so uid 65532 can read it, it is
+        # removed on every exit path including failure, and COSIGN_PASSWORD still
+        # travels as an environment variable, which cosign does read.
+        SCRATCH="$RUNNER_TEMP/cosign-scratch"
+        rm -rf "$SCRATCH"
+        install -d -m 0755 "$SCRATCH/keys" "$SCRATCH/docker"
+        printf '%s' "$COSIGN_PRIVATE_KEY" > "$SCRATCH/keys/cosign.key"
+        chmod 0644 "$SCRATCH/keys/cosign.key"
+        install -m 0644 "${DOCKER_CONFIG:-$HOME/.docker}/config.json" "$SCRATCH/docker/config.json"
 
+        status=0
         docker run --rm \
-          -e COSIGN_PRIVATE_KEY \
           -e COSIGN_PASSWORD \
           -e DOCKER_CONFIG=/docker \
-          -v "$DOCKER_SCRATCH:/docker:ro" \
+          -v "$SCRATCH/keys:/keys:ro" \
+          -v "$SCRATCH/docker:/docker:ro" \
           --entrypoint cosign "$COSIGN" sign --yes \
-          "$IMAGE"
-
-        rm -rf "$DOCKER_SCRATCH"
+          --key /keys/cosign.key \
+          "$IMAGE" || status=$?
+        rm -rf "$SCRATCH"
+        exit "$status"
