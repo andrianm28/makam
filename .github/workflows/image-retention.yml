@@ -72,9 +72,11 @@ jobs:
       PACKAGE: ${{ github.event.repository.name }}
       MAX_AGE_DAYS: ${{ inputs.max_age_days || 30 }}
       DRY_RUN: ${{ inputs.dry_run || false }}
-      VERSIONS: ${{ runner.temp }}/ghcr-versions.json
-      DEPLOYMENTS: ${{ runner.temp }}/deployments.json
-      EXPIRED: ${{ runner.temp }}/expired.txt
+      # The three scratch paths used to be `${{ runner.temp }}` here. The `runner`
+      # context is not available in a job-level `env:` — GitHub refused to parse
+      # the workflow at all ("Unrecognized named-value: 'runner'"), which is why
+      # every push produced a run with no jobs. `RUNNER_TEMP` is set in every
+      # step, so each step that needs one says so itself.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -99,6 +101,8 @@ jobs:
           # folds the pages `gh api` writes one after another back into one
           # array, which is the shape the script reads.
           set -euo pipefail
+          VERSIONS="$RUNNER_TEMP/ghcr-versions.json"
+          DEPLOYMENTS="$RUNNER_TEMP/deployments.json"
           gh api --paginate "$ENDPOINT/packages/container/$PACKAGE/versions?per_page=100" | jq -s 'add' > "$VERSIONS"
           gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments?per_page=100" | jq -s 'add' > "$DEPLOYMENTS"
           printf '%s versions, %s deployments read\n' \
@@ -114,6 +118,7 @@ jobs:
       - name: Delete them, one version at a time
         run: |
           set -euo pipefail
+          EXPIRED="$RUNNER_TEMP/expired.txt"
           # The summary is appended to, never piped through: in a pipeline the
           # step's status is the last command's, so a failed delete would be
           # reported as a green run. `run:` uses `bash -e`, so gh's own exit
