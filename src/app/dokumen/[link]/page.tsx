@@ -4,9 +4,18 @@ import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
-import { documentLinkSchema, type BillingDocument, type NotPayable, type BuktiPembayaran, type DocumentHeader, type Tagihan, type TagihanLine } from "@/domain/billing";
+import {
+  documentLinkSchema,
+  type BillingDocument,
+  type BuktiPemesanan,
+  type BuktiPembayaran,
+  type NotPayable,
+  type DocumentHeader,
+  type Tagihan,
+  type TagihanLine,
+} from "@/domain/billing";
 import type { DokumenBuktiPencairan } from "@/domain/payouts";
-import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
+import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
@@ -38,7 +47,9 @@ export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">)
       ? `Tagihan ${found.document.tagihan.nomorTagihan}`
       : found.document.type === "bukti_pembayaran"
         ? `Bukti Pembayaran ${found.document.bukti.nomorBukti}`
-        : `Bukti Pencairan ${found.document.pencairan.nomorBukti}`;
+        : found.document.type === "bukti_pemesanan"
+          ? `Bukti Pemesanan ${found.document.bukti.nomor}`
+          : `Bukti Pencairan ${found.document.pencairan.nomorBukti}`;
   // A document's link is its only key: never indexed, never followed.
   return { title: `${title} · Makam.co.id`, robots: { index: false, follow: false } };
 }
@@ -67,6 +78,8 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
           <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
         ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
+        ) : document.type === "bukti_pemesanan" ? (
+          <BuktiPemesananView bukti={document.bukti} />
         ) : document.pencairan.type === "bukti_pencairan" ? (
           <BuktiPencairanView bukti={document.pencairan} />
         ) : (
@@ -234,6 +247,44 @@ function BuktiPencairanMitraJasaView({ bukti }: { bukti: Extract<DokumenBuktiPen
         totalLabel="Total"
       />
       <p className="text-muted-foreground">Bukti ini memuat pekerjaan, Layanan, tanggal, dan tarif yang dibayarkan.</p>
+      <DocumentFoot header={bukti.header} />
+    </>
+  );
+}
+
+/**
+ * The Bukti Pemesanan (CONTEXT.md): the proof of the Hak Pakai a paid Pemesanan
+ * Makam bought, in the Lokasi Mitra's name. It names the right and nothing else —
+ * no amounts, because the money has its own Bukti Pembayaran — and the Lokasi's
+ * "Petunjuk arah" link, so a family can find the gate again.
+ */
+function BuktiPemesananView({ bukti }: { bukti: BuktiPemesanan }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Pemesanan" number={bukti.nomor} status="Diterbitkan" />
+      <Facts
+        facts={[
+          ["Nomor Pemesanan", bukti.nomorPemesanan],
+          ["Lokasi Mitra", bukti.lokasiName],
+          ["Petak Makam", bukti.petakNomor],
+          ["Pemegang Hak", bukti.pemegangHakName],
+          // The row and the sentence below read this one masa, so the two cannot
+          // disagree about whether the right has an end (a fixed term is never
+          // called limitless; see `buktiPemesananHak`).
+          ["Masa Hak Pakai", buktiPemesananMasa(bukti.masa)],
+          ["Tanggal terbit", formatTanggalJam(bukti.issuedAt)],
+        ]}
+      />
+      <p className="text-muted-foreground" data-testid="bukti-pemesanan-hak">
+        {buktiPemesananHak(bukti, bukti.masa)}
+      </p>
+      {bukti.petunjukArah ? (
+        <div className="print:hidden">
+          <a href={bukti.petunjukArah} target="_blank" rel="noreferrer noopener" className={buttonVariants({ variant: "outline" })}>
+            Petunjuk arah ke {bukti.lokasiName}
+          </a>
+        </div>
+      ) : null}
       <DocumentFoot header={bukti.header} />
     </>
   );

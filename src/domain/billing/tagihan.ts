@@ -9,7 +9,7 @@ import { tagihanDue, type DueLine, type PaymentMoment, type TagihanKind } from "
 import { nextDocumentNumber } from "./numbering";
 import { tagihan, tagihanLine, type tagihanStatuses } from "./schema";
 import { issueBuktiPembayaranIn, type EffectDeps } from "./settlement";
-import { currentHeader, headerSchema, newDocumentLink, noHeader, withinPaymentCap, type DocumentHeader } from "./shared";
+import { currentHeader, headerSchema, momentOf, newDocumentLink, noHeader, withinPaymentCap, type DocumentHeader } from "./shared";
 
 /** Who provides a line: the Lokasi Mitra for its tariff lines (named as it was at issue), the Operator, or the Pemda. */
 export type LineProvider = { kind: "lokasi_mitra"; lokasiId: string; name: string } | { kind: "operator" } | { kind: "pemda" };
@@ -131,22 +131,6 @@ const newLineSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("penyesuaian_harga_khusus"), amount: rupiahSchema }),
 ]);
-
-const instant = z.coerce.date();
-/** A payment moment as kept on the Tagihan, plus the instant its issue-relative due rules count from. */
-const storedMomentSchema = z.intersection(
-  z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("saat_duka"), burialAt: instant, paymentWindowHours: z.number().int().min(1).max(24 * 30) }),
-    z.object({ kind: z.literal("pemakaman_hak_pakai_ada"), burialAt: instant }),
-    z.object({ kind: z.literal("terencana"), holdExpiresAt: instant }),
-    z.object({ kind: z.literal("perpanjangan") }),
-    z.object({ kind: z.literal("pengurusan_berkas") }),
-    z.object({ kind: z.literal("layanan") }),
-    z.object({ kind: z.literal("paket_cycle"), cycleDate: wibDate }),
-  ]),
-  z.object({ anchorAt: instant }),
-);
-type StoredMoment = PaymentMoment & { anchorAt: Date };
 
 /** The lines as issued, or why they are refused. */
 function linesToIssue(lines: readonly NewTagihanLine[]): { ok: true; lines: TagihanLine[]; total: Rupiah } | IssueRefusal {
@@ -280,7 +264,7 @@ export async function reissueTagihan(
     const [old] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!old) return { ok: false, reason: "tidak_ditemukan" };
     if (!REISSUABLE.includes(old.status)) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
-    const { anchorAt, ...moment } = storedMomentSchema.parse(old.moment) as StoredMoment;
+    const { anchorAt, ...moment } = momentOf(old.moment);
     const reissued = await issueIn(
       tx,
       deps,

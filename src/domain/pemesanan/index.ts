@@ -44,7 +44,9 @@ import {
 } from "./alternatif";
 import { batalkanSaatDuka, batalkanUntukPemesan, type BatalkanSaatDukaInput, type BatalkanSaatDukaResult } from "./pembatalan";
 import { rebookPesanan, type RebookPesanan } from "./rebook";
+import { catatPemakaman, type CatatPemakamanOrderInput, type CatatPemakamanOrderResult } from "./catat-pemakaman";
 import {
+  antreanCatatPemakaman,
   antreanKonfirmasi,
   ditolak as ditolakOf,
   konfirmasiLewatTenggat,
@@ -66,6 +68,7 @@ import {
   type UnggahDokumenInput,
 } from "./berkas";
 import { realertKonfirmasiSaatDukaTick } from "./realert";
+
 import {
   denahTerencana,
   kotaTerencana,
@@ -83,6 +86,7 @@ import {
 } from "./terencana";
 
 export type {
+  PemesananBuktiPemesanan,
   PemesananDeps,
   Pemesan,
   PesananAlternatifDitawarkan,
@@ -128,10 +132,12 @@ export {
 } from "./alasan-tolak";
 export type { RebookPesanan } from "./rebook";
 export type { DokumenOrder, OrderAntrean, OrderDitolak, OrderStaf } from "./reads-staf";
+export { catatPemakamanOrderSchema, type CatatPemakamanOrderInput, type CatatPemakamanOrderResult } from "./catat-pemakaman";
 export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";
 export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
+export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } from "./prompt-catat-pemakaman";
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
@@ -222,6 +228,12 @@ export interface Pemesanan {
    */
   rebook(nomor: string, pemesan: { accountId: string }): Promise<RebookPesanan | null>;
   /**
+   * That Lokasi's own Admin Lokasi records the order's burial: the Pemakaman on
+   * the Hak Pakai its confirmation created, the start of that Hak Pakai's tenure
+   * clock at the recorded date, and the order Dimakamkan.
+   */
+  catatPemakaman(by: Actor, input: CatatPemakamanOrderInput): Promise<CatatPemakamanOrderResult>;
+  /**
    * One order as that Lokasi Mitra's staff read it, with the family's own
    * details and its documents; null for an order that is not theirs (an Admin
    * Lokasi sees its own Lokasi's orders only).
@@ -229,6 +241,12 @@ export interface Pemesanan {
   orderUntukStaf(by: Actor, nomor: string): Promise<OrderStaf | null>;
   /** That Lokasi's own open orders, newest first: what an Admin Lokasi works down. */
   orderUntukStafTerbaru(by: Actor, lokasiId: string): Promise<OrderStaf[]>;
+  /**
+   * Every order of that Lokasi Mitra whose agreed burial day has passed with no
+   * Pemakaman recorded yet, oldest first: the Antrean Lokasi's "Catat Pemakaman"
+   * rows (ticket 25). A recorded burial removes its row for good.
+   */
+  antreanCatatPemakaman(lokasiId: string): Promise<OrderAntrean[]>;
   /** Every order of one Lokasi Mitra still waiting for its confirmation, oldest first (the Antrean Lokasi's row). */
   antreanKonfirmasi(lokasiId: string): Promise<OrderAntrean[]>;
   /** Every order past the deadline its Lokasi's Jam Operasional gave (the Admin Platform Tier 1 row). */
@@ -281,8 +299,10 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     batalkanSaatDuka: (pemesan, input) => batalkanSaatDuka(deps, pemesan, input),
     batalkanUntukPemesan: (by, input) => batalkanUntukPemesan(deps, by, input),
     rebook: (nomor, pemesan) => rebookPesanan(deps, nomor, pemesan),
+    catatPemakaman: (by, input) => catatPemakaman(deps, by, input),
     orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
     orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
+    antreanCatatPemakaman: (lokasiId) => antreanCatatPemakaman(deps, lokasiId),
     antreanKonfirmasi: (lokasiId) => antreanKonfirmasi(deps, lokasiId),
     konfirmasiLewatTenggat: () => konfirmasiLewatTenggat(deps, deps.clock.now()),
     konfirmasiTerlambat: (lokasiId) => konfirmasiTerlambat(deps, lokasiId),
@@ -301,3 +321,5 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
 
 /** The worker's tick, as the scheduler registry calls it: the Saat Duka re-alert (ticket 23). */
 export const pemesananRealertTick = realertKonfirmasiSaatDukaTick;
+
+export { efekBuktiPemesanan, type BuktiPemesananEffectDeps } from "./efek-bukti-pemesanan";

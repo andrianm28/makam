@@ -170,7 +170,13 @@ export type Action =
   /** Confirm a Saat Duka TPU order, or offer the family another TPU (Admin Platform only). */
   | "pengurusan.konfirmasi"
   /** Read the open Setor Retribusi rows, and record a payment to the Pemda (Admin Platform, or the Petugas Lapangan who paid it). */
-  | "setor_retribusi.kelola";
+  | "setor_retribusi.kelola"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra records a Pemakaman on one of its plots
+   * (the operation that starts a fixed-term Hak Pakai's tenure clock). An Admin
+   * Platform does it only through that Lokasi, never for it (ticket 25).
+   */
+  | "pemakaman.catat";
 
 /** What the action is done to. */
 export type Resource =
@@ -490,5 +496,9 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // Admin Platform hands the setor to a Petugas Lapangan and records it
       // themselves; a Petugas records only the payment they made in person.
       return resource.kind === "setor_retribusi" && (holds("admin_platform") || holds("petugas_lapangan")) ? allowed : denied;
+    case "pemakaman.catat":
+      // Only the Lokasi Mitra's own Admin Lokasi records a burial on its ground
+      // (spec, Inventory > Operations); Admin Platform never does it for it.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

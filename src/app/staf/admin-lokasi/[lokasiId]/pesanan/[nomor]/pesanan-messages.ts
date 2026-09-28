@@ -66,6 +66,30 @@ export function batalkanMessage(reason: string): string {
   }
 }
 
+/** Why a burial could not be recorded, saying what to do next (ticket 25). */
+export function catatPemakamanMessage(reason: string): string {
+  switch (reason) {
+    case "pesanan_tidak_ditemukan":
+      return PESANAN_TIDAK_DITEMUKAN;
+    case "pesanan_belum_dikonfirmasi":
+      return "Pesanan ini belum dikonfirmasi, jadi belum ada petak untuk dimakamkan. Konfirmasi dulu.";
+    case "pemakaman_sudah_dicatat":
+      return "Pemakaman pesanan ini sudah dicatat. Yang dicatat adalah pemakaman pertama, dan itu yang menghitung.";
+    case "tanggal_pemakaman_tidak_valid":
+      return "Tanggal pemakaman tidak valid. Tanggal hari ini atau sebelumnya, sesuai zona waktu lokasi.";
+    case "tagihan_tidak_ditemukan":
+      return "Tagihan pesanan ini tidak ditemukan, jadi pemakaman tidak bisa dicatat. Periksa di Tagihan.";
+    case "hak_pakai_tidak_ditemukan":
+    case "petak_tidak_ditemukan":
+      return "Hak Pakai petak ini tidak ditemukan, jadi pemakaman tidak bisa dicatat. Periksa Denah Lokasi Mitra ini.";
+    case "perlu_totp":
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
+    default:
+      return "Periksa lagi isian Anda.";
+  }
+}
+
 /** Why a confirmation was refused, saying what to do next. */
 export function konfirmasiMessage(reason: string): string {
   switch (reason) {

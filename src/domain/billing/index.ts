@@ -30,6 +30,15 @@ import {
   type RecordPaymentInput,
   type RecordPaymentResult,
 } from "./documents";
+import { lewatJatuhTempoPayAfterTagihan, setOverdueAnchor, type SetOverdueAnchorResult } from "./lewat-jatuh-tempo";
+import {
+  allBuktiPemesanan,
+  buktiPemesananById,
+  issueBuktiPemesanan,
+  type BuktiPemesanan,
+  type IssueBuktiPemesananInput,
+  type IssueBuktiPemesananResult,
+} from "./bukti-pemesanan";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
 import { batalkanTagihan, type BatalkanTagihanAlasan, type BatalkanTagihanResult } from "./batalkan-tagihan";
 import {
@@ -73,6 +82,8 @@ export {
   type PaymentMethod,
 } from "./shared";
 export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
+export type { BuktiPemesanan, IssueBuktiPemesananInput, IssueBuktiPemesananResult } from "./bukti-pemesanan";
+export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
@@ -165,6 +176,29 @@ export interface Billing {
   nextDocumentNumber(type: DocumentType): Promise<string>;
   /** The next Nomor Pemesanan, `MKM-2026-000123`: one series for every order kind. Take it `within` the order's transaction. */
   nextNomorPemesanan(): Promise<string>;
+  /**
+   * Starts a pay-after Tagihan's Lewat Jatuh Tempo clock, counted from the
+   * burial that was **recorded** rather than the one that was planned. Taken by
+   * the module that owns the order, `within` the transaction that records the
+   * burial, so the clock and the burial commit together. Never moved once set,
+   * and never reissuing the Tagihan (its printed due date stands).
+   */
+  setOverdueAnchor(tagihanId: string, burialRecordedAt: Date): Promise<SetOverdueAnchorResult>;
+  /**
+   * Issues the one Bukti Pemesanan of a paid order (numbered BPM/…, in the Lokasi
+   * Mitra's name, carrying no amounts). Taken `within` the transaction that
+   * makes the Tagihan Lunas, so the document, its number and the order's own
+   * Selesai status commit together. Idempotent by order: a redelivered payment
+   * or a retried effect issues no second Bukti.
+   */
+  issueBuktiPemesanan(input: IssueBuktiPemesananInput): Promise<IssueBuktiPemesananResult>;
+  /** One Bukti Pemesanan by its id, or null; how the order page reads the one it was given. */
+  buktiPemesananById(id: string): Promise<BuktiPemesanan | null>;
+  /**
+   * Every Bukti Pemesanan issued, oldest first: the numbering's own proof that
+   * one order gets one number and a rolled-back issue gives its number back.
+   */
+  allBuktiPemesanan(): Promise<BuktiPemesanan[]>;
   /** The same functions inside an open transaction (another module's), committing or rolling back with it. */
   within(tx: Database): Billing;
 }
@@ -176,6 +210,17 @@ export interface Billing {
  */
 export async function lapsePayFirstTagihanTick(ctx: { db: Database }, now: Date): Promise<void> {
   await lapseDuePayFirstTagihan(ctx.db, now);
+}
+
+/**
+ * Scheduler tick: every pay-after Tagihan whose recorded burial has been overdue
+ * for its Lokasi Mitra's payment window becomes Lewat Jatuh Tempo (ticket 25).
+ * The clock itself is set by `setOverdueAnchor`, in the transaction that recorded
+ * the burial, so this tick only decides when the status shows. Pay-first Tagihan
+ * are the lapse tick's, never this one. Idempotent.
+ */
+export async function lewatJatuhTempoPayAfterTagihanTick(ctx: { db: Database }, now: Date): Promise<void> {
+  await lewatJatuhTempoPayAfterTagihan(ctx.db, now);
 }
 
 /**
@@ -206,6 +251,10 @@ export function createBilling(deps: BillingDeps): Billing {
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
+    setOverdueAnchor: (tagihanId, burialRecordedAt) => setOverdueAnchor(deps, tagihanId, burialRecordedAt),
+    issueBuktiPemesanan: (input) => issueBuktiPemesanan(deps, input, deps.clock.now()),
+    buktiPemesananById: (id) => buktiPemesananById(deps.db, id),
+    allBuktiPemesanan: () => allBuktiPemesanan(deps.db),
     within: (tx) => createBilling({ ...deps, db: tx }),
   };
 }

@@ -2,10 +2,10 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling } from "@/composition/billing";
+import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
-import { composePemesanan } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
@@ -84,16 +84,20 @@ export function serverRuntime(): ServerRuntime {
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
-    const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError });
+    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
+    const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError };
     const notifications = composeNotifications({
       env,
       db: database.db,
       adapters,
       audit,
       identity,
-      billing,
+      billing: billingOn(billingComposition, database.db),
       reportError,
     });
+    const notifikasi = pemesananNotifikasiDari(notifications);
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -104,10 +108,8 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       // The Tier 3 "Setor Retribusi" row and the payment that closes it read
       // Billing's own query of the Lunas Retribusi Tagihan.
-      billing,
+      billing: billingOn(billingComposition, database.db),
     });
-    // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // The wizard's own messages, and the Lokasi's when it confirms an order, go out through Notifications.
     const pemesanan = composePemesanan({
       db: database.db,
@@ -117,9 +119,24 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       tariffs,
       inventory,
-      billing,
+      billing: billingOn(billingComposition, database.db),
       identity,
-      notifications,
+      notifikasi,
+    });
+    const billing = composeBilling({
+      ...billingComposition,
+      paymentEffects: paymentEffects({
+        clock: adapters.clock,
+        dokumenUrl: documentUrls(env).publicDocumentUrl,
+        // A paid order earns its Bukti Pemesanan and becomes Selesai, in the payment's own transaction (ticket 25).
+        buktiPemesanan: buktiPemesananEffect({
+          clock: adapters.clock,
+          compose: billingComposition,
+          inventory,
+          lokasi,
+          notifikasi,
+        }),
+      }),
     });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.
     const payouts = composePayouts({

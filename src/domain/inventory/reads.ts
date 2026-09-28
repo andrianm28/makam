@@ -1,9 +1,10 @@
 import { and, count, eq } from "drizzle-orm";
+import { z } from "zod";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { availability, type AvailabilityCount } from "./availability";
 import { findBlok, isUsed, loadBloks, loadCells, loadKavlingByBlok, type BlokRecord, type CellRow, type KavlingRow } from "./grid";
-import { inventoryPetak } from "./schema";
+import { inventoryHakPakai, inventoryPetak } from "./schema";
 import {
   currentHakPakaiOfKavling,
   currentHakPakaiOfPetak,
@@ -49,6 +50,23 @@ async function hakPakaiDetailOf(db: InventoryDeps["db"], hakPakai: HakPakaiRow |
   return { ...hakPakai, pemegangHak: pemegangHak ? { name: pemegangHak.name, phoneNumber: pemegangHak.phoneNumber, email: pemegangHak.email } : null, pemakaman };
 }
 
+/** A `inventory_hak_pakai` row as the module's own reads keep it. */
+function toHakPakaiRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
+  return {
+    id: row.id,
+    lokasiId: row.lokasiId,
+    petakId: row.petakId,
+    kavlingId: row.kavlingId,
+    status: row.status,
+    endReason: row.endReason,
+    tenureYears: row.tenureYears,
+    startAt: row.startAt,
+    tenureStartAt: row.tenureStartAt,
+    endDate: row.endDate,
+    perluVerifikasi: row.perluVerifikasi,
+  };
+}
+
 export interface StaffInventoryReads {
   /** Every Blok of a Lokasi Mitra this actor may see, by name. */
   bloks(lokasiId: string): Promise<BlokRecord[]>;
@@ -68,6 +86,19 @@ export interface StaffInventoryReads {
 
 function canSee(by: Actor, lokasiId: string): boolean {
   return authorize(by, "denah.lihat", lokasiMitraResource(lokasiId)).allowed;
+}
+
+/**
+ * One Hak Pakai by its id, with its current Pemegang Hak and its Pemakaman, or
+ * null. No actor, and deliberately so: what a reader may see here is a document
+ * the Pemesanan module issues (a Bukti Pemesanan names the holder and the term),
+ * and the modules that call it are given the id by the order that owns the plot.
+ * Every staff screen reads a Hak Pakai through `asStaff(by).hakPakaiOfPetak`.
+ */
+export async function hakPakaiById(deps: { db: InventoryDeps["db"] }, hakPakaiId: string): Promise<HakPakaiDetail | null> {
+  if (!z.uuid().safeParse(hakPakaiId).success) return null;
+  const [row] = await deps.db.select().from(inventoryHakPakai).where(eq(inventoryHakPakai.id, hakPakaiId));
+  return hakPakaiDetailOf(deps.db, row ? toHakPakaiRow(row) : null);
 }
 
 export function staffInventoryReads(deps: InventoryDeps, by: Actor): StaffInventoryReads {

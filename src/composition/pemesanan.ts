@@ -36,6 +36,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       pesananDitolak: async () => {},
       pesananAlternatifDitawarkan: async () => {},
       pesananDibatalkan: async () => {},
+      pesananBuktiPemesanan: async () => {},
       terencanaDiajukan: async () => {},
     };
   }
@@ -68,6 +69,9 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     },
     pesananDibatalkan: async (hasil) => {
       await notifications.pesananDibatalkan(hasil);
+    },
+    pesananBuktiPemesanan: async (hasil) => {
+      await notifications.pesananBuktiPemesanan(hasil);
     },
     // A Pemesanan Terencana needs a Peringatan Staf of its own, and Notifications has
     // no kind for it yet: adding one belongs to the Lokasi Mitra's confirmation

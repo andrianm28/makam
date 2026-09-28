@@ -61,6 +61,13 @@ export interface PemesananNotifikasi {
   /** A cancelled order, said to the family: what it gave back and what is on its way back. */
   pesananDibatalkan(hasil: PesananDibatalkan): Promise<void>;
   /**
+   * The Bukti Pemesanan of a paid order: the link to the document that proves the
+   * right (ADR 0004 — by email; an order with no email opens the call row, and
+   * CS shares the link by hand). It is a call of its own because it says
+   * something no other message does: the family now owns a plot, by name.
+   */
+  pesananBuktiPemesanan(hasil: PemesananBuktiPemesanan): Promise<void>;
+  /**
    * A Pemesanan Terencana the Lokasi Mitra has to confirm. It is a call of its own
    * and not a variant of that first one because the two say different things: a
    * Terencana order names several plots and a Calon Penghuni who is alive, so it has
@@ -124,6 +131,22 @@ export interface PemesananDikonfirmasi {
   tagihan: { nomorTagihan: string; total: number; dueAt: Date; link: string };
 }
 
+/** The Bukti Pemesanan of a paid Pemesanan Makam, as its family is told about it. */
+export interface PemesananBuktiPemesanan {
+  pemesananId: string;
+  nomor: string;
+  /** The Email Terverifikasi the order was proven with; null when the order has none (CS shares the link by hand). */
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  /** The document itself: its number and the unguessable part of its page's link. */
+  bukti: { nomor: string; link: string };
+  /** The right it proves, so the email can name it before the family opens the link. */
+  petakNomor: string;
+  pemegangHakName: string;
+  masa: { mulai: string; selesai: string | null };
+}
+
 /**
  * A declined Pemesanan Makam as its family is told about it (spec, Work Queues:
  * Tier 1 "Saat Duka ditolak (call within 2 h)", Public site: "After a Tolak, the
@@ -185,10 +208,10 @@ export interface PesananDibatalkan {
 /**
  * What the Pemesanan module needs from its neighbours: only their public
  * functions, never their tables. It reads the Lokasi Mitra's listing and
- * working time from Lokasi, its prices from Tariffs, what is still Tersedia
- * and the Hak Pakai a confirmation creates from Inventory, the Nomor Pemesanan's
- * series and the Tagihan from Billing, and which Akun an email belongs to from
- * Identity.
+ * working time from Lokasi, its prices from Tariffs, what is still Tersedia,
+ * the Hak Pakai a confirmation creates and the one a Bukti Pemesanan names from
+ * Inventory, the Nomor Pemesanan's series, the Tagihan and the Bukti Pemesanan
+ * from Billing, and which Akun an email belongs to from Identity.
  */
 export interface PemesananDeps {
   db: Database;
@@ -217,6 +240,10 @@ export interface PemesananDeps {
     // a cancellation gives the Hak Pakai and its Petak back (ticket 24).
     | "beriHakPakai"
     | "batalkanHakPakai"
+    // Recording the burial, which starts that Hak Pakai's tenure clock (ticket 25).
+    | "catatPemakaman"
+    // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
+    | "hakPakaiById"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"
@@ -224,8 +251,12 @@ export interface PemesananDeps {
     | "lepasTahan"
     | "within"
   >;
-  /** For the Nomor Pemesanan series, a confirmed order's Tagihan and the bill a cancellation cancels, all `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan">;
+  /**
+   * For the Nomor Pemesanan series, a confirmed order's Tagihan, the bill a
+   * cancellation cancels, the Bukti Pemesanan it earned, and the pay-after
+   * clock a recorded burial starts, all `within` the order's own transaction.
+   */
+  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

@@ -89,6 +89,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "pemesanan.tolak": "Pesanan Saat Duka ditolak",
   "pemesanan.tawarkan_alternatif": "Alternatif ditawarkan",
   "pemesanan.batalkan_untuk_pemesan": "Pembatalan dicatat untuk keluarga",
+  "pemakaman.catat": "Pemakaman dicatat",
+  "pemesanan.catat_pemakaman": "Pemakaman pesanan dicatat",
   "lokasi.konfirmasi_syarat_tayang": "Syarat tayang dikonfirmasi masih terpenuhi",
   "pengurusan.konfirmasi_saat_duka_tpu": "Pengurusan Saat Duka di TPU dikonfirmasi",
   "pengurusan.tawarkan_tpu_lain": "TPU lain ditawarkan",

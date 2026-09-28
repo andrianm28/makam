@@ -4,6 +4,7 @@ import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
+import { buktiPemesananByLink, type BuktiPemesanan } from "./bukti-pemesanan";
 import { buktiPembayaran } from "./schema";
 import { notPayableBecause, settleIn, type NotPayable } from "./settlement";
 import {
@@ -109,7 +110,13 @@ async function readBukti(db: Database, where: SQL): Promise<BuktiPembayaran | nu
 export type BillingDocument =
   /** A Tagihan: why Bayar is not offered on it (null while it is), and the link of its Bukti Pembayaran once Lunas. */
   | { type: "tagihan"; tagihan: Tagihan; notPayableBecause: NotPayable | null; buktiLink: string | null }
-  | { type: "bukti_pembayaran"; bukti: BuktiPembayaran };
+  | { type: "bukti_pembayaran"; bukti: BuktiPembayaran }
+  /**
+   * A Bukti Pemesanan: the proof of the right a paid Pemesanan Makam bought. It
+   * names the Pemegang Hak, so it lives on an unguessable link exactly like every
+   * other document and is never listed, indexed or guessed.
+   */
+  | { type: "bukti_pemesanan"; bukti: BuktiPemesanan };
 
 /** The document behind an unguessable link, or null (anything not shaped like a link finds nothing without a lookup). */
 export async function documentByLink(db: Database, link: string, now: Date): Promise<BillingDocument | null> {
@@ -125,7 +132,9 @@ export async function documentByLink(db: Database, link: string, now: Date): Pro
     return { type: "tagihan", tagihan, notPayableBecause: notPayableBecause(tagihan, now), buktiLink: bukti?.link ?? null };
   }
   const bukti = await readBukti(db, eq(buktiPembayaran.link, link));
-  return bukti && { type: "bukti_pembayaran", bukti };
+  if (bukti) return { type: "bukti_pembayaran", bukti };
+  const pemesanan = await buktiPemesananByLink(db, link);
+  return pemesanan && { type: "bukti_pemesanan", bukti: pemesanan };
 }
 
 export interface DocumentPdf {
@@ -145,7 +154,8 @@ export async function documentPdf(
 ): Promise<DocumentPdf | null> {
   const document = await documentByLink(deps.db, link, now);
   if (!document) return null;
-  const number = document.type === "tagihan" ? document.tagihan.nomorTagihan : document.bukti.nomorBukti;
+  const number =
+    document.type === "tagihan" ? document.tagihan.nomorTagihan : document.type === "bukti_pembayaran" ? document.bukti.nomorBukti : document.bukti.nomor;
   const bytes = await deps.pdf.render({ url: deps.documentPageUrl(link) });
   return { fileName: `${number.replaceAll("/", "-")}.pdf`, bytes };
 }

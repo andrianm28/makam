@@ -190,7 +190,11 @@ export type AuditAction =
   /** Admin Platform offers the family another TPU for a Saat Duka order (ticket 45). */
   | "pengurusan.tawarkan_tpu_lain"
   /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
-  | "setor_retribusi.catat";
+  | "setor_retribusi.catat"
+  /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */
+  | "pemakaman.catat"
+  /** An Admin Lokasi records the burial of one of its orders, which makes that order Dimakamkan (ticket 25). */
+  | "pemesanan.catat_pemakaman";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

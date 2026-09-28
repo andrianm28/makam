@@ -1,4 +1,4 @@
-import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -120,7 +120,36 @@ export const pemesananMakam = pgTable(
     alternatifJenisMakamId: text("alternatif_jenis_makam_id"),
     alternatifPemakamanAt: at("alternatif_pemakaman_at"),
     alternatifDitawarkanPada: at("alternatif_ditawarkan_pada"),
-    /** Why the family cancelled, or what the Admin Lokasi recorded for them; null while none. */
+    /**
+     * When the Admin Lokasi recorded the burial, and the day it happened (a
+     * whole date, which is what a burial is). The pay-after Tagihan's overdue
+     * clock counts from this date, never from `pemakaman_at`, the day the two
+     * agreed: a burial can happen days later than the plan, and the family's
+     * three days run from when the ground was actually dug (ticket 25). Both
+     * null while the order is not yet Dimakamkan.
+     */
+    dimakamkanPada: at("dimakamkan_pada"),
+    pemakamanTanggal: date("pemakaman_tanggal", { mode: "string" }),
+    /** Which layer of the plot the Almarhum was laid in, recorded with the burial (1 by default). */
+    pemakamanLayer: integer("pemakaman_layer"),
+    /**
+     * When the worker's "Catat Pemakaman" prompt was raised: once the day after
+     * the agreed burial has come with the order still Dikonfirmasi. Set by the
+     * claim that raises it, so a tick that runs twice (or two workers at once)
+     * raises it once; the Antrean Lokasi row reads it and closes when the burial
+     * is recorded (ticket 25).
+     */
+    catatPemakamanDitagihPada: at("catat_pemakaman_ditagih_pada"),
+    /**
+     * The Bukti Pemesanan issued when this order's Tagihan became Lunas, and the
+     * instant it did. Selesai is exactly this: a Lunas Tagihan plus the Bukti
+     * (spec, Pemesanan > Saat Duka: "Selesai = Tagihan Lunas + Bukti Pemesanan
+     * issued"), both null until the payment settles. The document itself is
+     * Billing's, read back through its own public read.
+     */
+    buktiPemesananId: text("bukti_pemesanan_id"),
+    selesaiPada: at("selesai_pada"),
+    /** Why the Lokasi declined, or the family cancelled, or the Admin Lokasi recorded for them; null while none. */
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
   },

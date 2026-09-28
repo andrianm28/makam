@@ -1,7 +1,20 @@
+import { FakePdfRenderer } from "@/adapters/memory";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
+import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
-import type { PesananAlternatifDitawarkan, PemesananDiajukan, PesananDibatalkan, PemesananDikonfirmasi, PesananDitolak, PemesananNotifikasi, TerencanaDiajukan } from "@/domain/pemesanan";
+import { efekBuktiPembayaran } from "@/domain/notifications";
+import { efekBuktiPemesanan } from "@/domain/pemesanan";
+import type {
+  PesananAlternatifDitawarkan,
+  PemesananBuktiPemesanan,
+  PemesananDiajukan,
+  PesananDibatalkan,
+  PemesananDikonfirmasi,
+  PesananDitolak,
+  PemesananNotifikasi,
+  TerencanaDiajukan,
+} from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
 import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { PENGATURAN_OPERATOR } from "./billing";
@@ -25,6 +38,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
   const dikonfirmasi: PemesananDikonfirmasi[] = [];
+  /** Every Bukti Pemesanan the Pemesanan module announced (ticket 25). */
+  const buktiPemesanan: PemesananBuktiPemesanan[] = [];
   const terencana: TerencanaDiajukan[] = [];
   /** Every decline, alternative and cancellation the module announced, for a test that reads the family message. */
   const ditolak: PesananDitolak[] = [];
@@ -51,10 +66,39 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     pesananDibatalkan: async (hasil) => {
       dibatalkan.push(hasil);
     },
+    pesananBuktiPemesanan: async (hasil) => {
+      buktiPemesanan.push(hasil);
+    },
     terencanaDiajukan: async (order) => {
       terencana.push(order);
     },
   };
+  // Billing composed the way the runtime composes it (src/server/runtime.ts): with its
+  // payment effects registered, so a payment that settles an order issues its Bukti
+  // Pemesanan and makes the order Selesai exactly as it does in production.
+  const deps = {
+    db,
+    clock: setup.clock,
+    operatorSettings: setup.operatorSettings,
+    pdf: new FakePdfRenderer(),
+    payments: setup.payments,
+    documentPageUrl: (link: string) => `http://127.0.0.1:3000/dokumen/${link}`,
+    publicDocumentUrl: (link: string) => `https://makam.test/dokumen/${link}`,
+    reportError: (error: unknown, context: Record<string, unknown>) => setup.reportedErrors.push({ error, context }),
+  };
+  const billing = createBilling({
+    ...deps,
+    paymentEffects: [
+      efekBuktiPembayaran({ clock: setup.clock, dokumenUrl: deps.publicDocumentUrl }),
+      efekBuktiPemesanan({
+        clock: setup.clock,
+        billingOn: (tx) => createBilling({ ...deps, db: tx }),
+        inventory: setup.inventory,
+        lokasi: setup.lokasi,
+        notifikasi: terkumpul,
+      }),
+    ],
+  });
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -63,7 +107,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     inventory: setup.inventory,
-    billing: setup.billing,
+    billing,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
@@ -78,7 +122,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
-    billing: setup.billing,
+    billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     notifikasi: {
@@ -88,7 +132,21 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
       },
     },
   });
-  return { ...setup, pemesanan, pengurusan, diumumkan, dikonfirmasi, ditolak, alternatif, dibatalkan, terencana, notifikasi: terkumpul, pengurusanDikonfirmasi };
+  return {
+    ...setup,
+    billing,
+    pemesanan,
+    pengurusan,
+    diumumkan,
+    dikonfirmasi,
+    buktiPemesanan,
+    ditolak,
+    alternatif,
+    dibatalkan,
+    terencana,
+    notifikasi: terkumpul,
+    pengurusanDikonfirmasi,
+  };
 }
 
 export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
@@ -100,7 +158,15 @@ export type PemesananSetup = ReturnType<typeof pemesananOnTestDatabase>;
  */
 export type PemesananModul = Omit<
   PemesananSetup,
-  "diumumkan" | "dikonfirmasi" | "ditolak" | "alternatif" | "dibatalkan" | "terencana" | "notifikasi" | "pengurusanDikonfirmasi"
+  | "diumumkan"
+  | "dikonfirmasi"
+  | "buktiPemesanan"
+  | "ditolak"
+  | "alternatif"
+  | "dibatalkan"
+  | "terencana"
+  | "notifikasi"
+  | "pengurusanDikonfirmasi"
 >;
 
 /**

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { addresseeText, lineProviderText, paymentMethodText, tagihanStatusText } from "./billing-labels";
+import {
+  addresseeText,
+  buktiPemesananHak,
+  buktiPemesananMasa,
+  lineProviderText,
+  paymentMethodText,
+  tagihanStatusText,
+} from "./billing-labels";
 
 describe("how a Tagihan and a Bukti Pembayaran read", () => {
   it("names every Tagihan status as the glossary does", () => {
@@ -39,5 +46,45 @@ describe("how a Tagihan and a Bukti Pembayaran read", () => {
     expect(lineProviderText({ kind: "lokasi_mitra", lokasiId: "x", name: "Makam Wakaf Al-Ikhlas" })).toBe("Makam Wakaf Al-Ikhlas");
     expect(lineProviderText({ kind: "operator" })).toBe("Makam.co.id");
     expect(lineProviderText({ kind: "pemda" })).toBe("Pemda (disetor sesuai biaya)");
+  });
+});
+
+/**
+ * A Bukti Pemesanan states one right for a fixed length of time or for ever, and
+ * a document that proves a grave may never say both at once. The row and the
+ * sentence are locked together here, because a family reads the sentence when it
+ * decides whether the plot is theirs for good.
+ */
+describe("what a Bukti Pemesanan says about the Hak Pakai's term", () => {
+  const hak = { lokasiName: "Makam Wakaf Al-Ikhlas", pemegangHakName: "Budi Santoso", petakNomor: "A-01" };
+  const tetap = { mulai: "2026-10-02", selesai: "2031-10-02" };
+  const selamanya = { mulai: "2026-10-02", selesai: null };
+
+  it("a fixed-term Hak Pakai names both of its dates, and is never called limitless", () => {
+    expect(buktiPemesananMasa(tetap)).toBe("2 Oktober 2026 sampai 2 Oktober 2031");
+    const kalimat = buktiPemesananHak(hak, tetap);
+    expect(kalimat).toContain("2 Oktober 2026");
+    expect(kalimat).toContain("2 Oktober 2031");
+    expect(kalimat).not.toContain("tanpa batas waktu");
+    expect(kalimat).not.toContain("selamanya");
+  });
+
+  it("a perpetual Hak Pakai says so, in the row and in the sentence", () => {
+    expect(buktiPemesananMasa(selamanya)).toBe("2 Oktober 2026 · selamanya");
+    const kalimat = buktiPemesananHak(hak, selamanya);
+    expect(kalimat).toContain("sah tanpa batas waktu");
+    expect(kalimat).toContain("2 Oktober 2026");
+    expect(kalimat).not.toMatch(/sampai \d/);
+  });
+
+  it("the sentence and the row read one masa, so they can never disagree", () => {
+    // The defect this locks: the row said "sampai 2 Oktober 2031" while the
+    // sentence said "sah tanpa batas waktu" on the very same document.
+    for (const masa of [tetap, selamanya]) {
+      const ringkasan = buktiPemesananMasa(masa);
+      const kalimat = buktiPemesananHak(hak, masa);
+      const tanpaAkhir = ringkasan.includes("selamanya");
+      expect(kalimat.includes("sah tanpa batas waktu")).toBe(tanpaAkhir);
+    }
   });
 });

@@ -167,12 +167,17 @@ describe("an issued Tagihan is immutable", () => {
     const billing = billingOnTestDatabase(db).billing;
 
     expect(Object.keys(billing).sort()).toEqual([
+      // The Bukti Pemesanan is a document, not a line: it adds no way to change an
+      // issued Tagihan either, and is idempotent by the order it names (ticket 25).
+      "allBuktiPemesanan",
       // Cancelling a Tagihan never changes its lines either: it ends the bill and
       // records what is owed back, which is the cancellation's own rule (ticket 24).
       "batalkanTagihan",
       "bayar",
+      "buktiPemesananById",
       "documentByLink",
       "documentPdf",
+      "issueBuktiPemesanan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
@@ -180,6 +185,9 @@ describe("an issued Tagihan is immutable", () => {
       "receivePaymentWebhook",
       "recordPayment",
       "reissueTagihan",
+      // The pay-after overdue clock, counted from the recorded burial: it sets a
+      // column of the Tagihan, never a line, and never the due date it was issued with.
+      "setOverdueAnchor",
       "tagihan",
       // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
       // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).

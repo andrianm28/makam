@@ -76,6 +76,28 @@ export function tagihanDue(moment: PaymentMoment, lines: readonly DueLine[], iss
   return { kind: own.kind, dueAt: dues.reduce((earliest, due) => (due < earliest ? due : earliest)) };
 }
 
+/**
+ * When a pay-after payment moment counted from the burial that was **recorded**
+ * is Lewat Jatuh Tempo: the moment's own window — the Lokasi Mitra's Saat Duka
+ * payment window, or 3×24 h for a burial under an existing Hak Pakai — moved
+ * onto `recordedBurialAt` (spec, Billing: "the clock counted from the recorded
+ * burial date"). Null for a pay-first moment, which has no such clock at all.
+ *
+ * It never re-derives the printed due date: `tagihanDue` counted from the
+ * planned burial at confirmation, and that date stays on the document whatever
+ * the burial turns out to be.
+ */
+export function lewatJatuhTempoAt(moment: PaymentMoment, recordedBurialAt: Date): Date | null {
+  switch (moment.kind) {
+    case "saat_duka":
+      return hoursAfter(recordedBurialAt, moment.paymentWindowHours);
+    case "pemakaman_hak_pakai_ada":
+      return hoursAfter(recordedBurialAt, THREE_DAYS_HOURS);
+    default:
+      return null;
+  }
+}
+
 /** The moment's own kind and due date; a standalone Layanan order has none of its own (only its lines'). */
 function momentDue(moment: PaymentMoment, issuedAt: Date): { kind: TagihanKind; dueAt: Date | null } {
   switch (moment.kind) {

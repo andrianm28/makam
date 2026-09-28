@@ -12,11 +12,11 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
-import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
+import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
-import { realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
+import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
@@ -34,7 +34,7 @@ export interface SchedulerContext {
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20). */
   notifications: Pick<Notifications, "kirimPesanJatuhTempo">;
-  /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23). */
+  /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
   /**
    * The Payouts module's own ticks: the Saat Duka Pencairan trigger (Lunas **and**
@@ -75,6 +75,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "inventory.prune_cari_makam_attempts", cron: "23 * * * *", tick: pruneCariMakamAttemptsTick },
   // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
+  // Billing: a pay-after Tagihan whose recorded burial has passed its window becomes Lewat Jatuh Tempo (ticket 25).
+  { name: "billing.lewat_jatuh_tempo_pay_after", cron: "* * * * *", tick: lewatJatuhTempoPayAfterTagihanTick },
   // Billing: a downstream effect of a payment that failed is run again (ticket 19).
   { name: "billing.retry_payment_effects", cron: "*/10 * * * *", tick: retryFailedPaymentEffectsTick },
   // Notifications: queued family messages whose time has come are sent (ticket 20).
@@ -85,6 +87,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
   // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
+  // Pemesanan: the day after a burial it agreed, the Lokasi is asked to record it (ticket 25).
+  { name: "pemesanan.catat_pemakaman", cron: "* * * * *", tick: catatPemakamanPromptTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -112,4 +116,9 @@ async function pencairanDueTick(ctx: SchedulerContext, now: Date): Promise<void>
 /** The worker wrapper around the Potongan ageing tick (idempotent there, as every tick is). */
 async function potonganUsiaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.payouts.tickPotongan(now);
+}
+
+/** The worker wrapper around the Pemesanan module's "Catat Pemakaman" prompt (idempotent there too). */
+async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await catatPemakamanTick(ctx.pemesanan, now);
 }

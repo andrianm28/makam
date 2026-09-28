@@ -62,6 +62,7 @@ import {
 import {
   pesananAlternatifDitawarkan,
   pesananDibatalkan,
+  pesananBuktiPemesanan,
   pesananDiajukan,
   pesananDikonfirmasi,
   pesananDitolak,
@@ -69,6 +70,7 @@ import {
   type PesanPemesananResult,
   type PesananAlternatifDitawarkanInput,
   type PesananDibatalkanInput,
+  type PesananBuktiPemesananInput,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
   type PesananDitolakInput,
@@ -89,9 +91,11 @@ export {
   type TeleponPemesan,
 } from "./telepon-pemesan";
 export {
+  pesananBuktiPemesananSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
   type PesanPemesananResult,
+  type PesananBuktiPemesananInput,
   type PesananDiajukanInput,
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
@@ -275,6 +279,12 @@ export interface Notifications {
   pesananAlternatifDitawarkan(input: PesananAlternatifDitawarkanInput): Promise<PesanPemesananResult>;
   /** A cancelled order: the Petak given back, the Tagihan cancelled and the money on its way back. */
   pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
+  /**
+   * Announces the Bukti Pemesanan of a paid order: the link to the document that
+   * proves the right, by email (ADR 0004; ticket 25). An order with no email
+   * opens a call row, and CS hands the link over by hand.
+   */
+  pesananBuktiPemesanan(input: PesananBuktiPemesananInput): Promise<PesanPemesananResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -566,6 +576,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananDibatalkan(input) {
       return pesananDibatalkan(deps, input);
+    },
+
+    async pesananBuktiPemesanan(input) {
+      return pesananBuktiPemesanan(deps, input);
     },
 
     async pesanPemesanan(pemesananId) {

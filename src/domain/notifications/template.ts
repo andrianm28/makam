@@ -159,6 +159,18 @@ export interface PengurusanDikonfirmasiEmailInput {
   tautan: string;
 }
 
+export interface PesananBuktiPemesananEmailInput {
+  nomor: string;
+  lokasiName: string;
+  /** The Bukti Pemesanan's own number, and the page's URL into the app. */
+  bukti: { nomor: string; tautan: string };
+  petakNomor: string;
+  pemegangHakName: string;
+  /** The Hak Pakai's term: the first Pemakaman's date, and the end of a fixed term (null for a Selamanya one). */
+  masa: { mulai: string; selesai: string | null };
+  tautan: string;
+}
+
 /**
  * A Saat Duka TPU confirmation (transactional: any hour). The burial the family
  * agreed to, where it happens and whom to call about it, both document lists,
@@ -191,6 +203,35 @@ export function pengurusanDikonfirmasiEmail(input: PengurusanDikonfirmasiEmailIn
       "",
       `Tagihan: ${input.tagihan.tautan}`,
       `Ikuti pengurusan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+/**
+ * The Bukti Pemesanan of a paid order (transactional: any hour — the family is
+ * owed its proof the moment the money settles, not in the morning). It names the
+ * right it proves and carries no amounts: the payment has its own Bukti.
+ */
+export function pesananBuktiPemesananEmail(input: PesananBuktiPemesananEmailInput): { subject: string; body: string } {
+  const masa = input.masa.selesai ? `${formatTanggal(input.masa.mulai)} sampai ${formatTanggal(input.masa.selesai)}` : `mulai ${formatTanggal(input.masa.mulai)}, selamanya`;
+  return {
+    subject: `Bukti Pemesanan ${input.bukti.nomor}: hak atas Petak Makam ${input.petakNomor} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pembayaran Pesanan ${input.nomor} sudah kami terima, dan hak makamnya sudah resmi.`,
+      `Bukti Pemesanan: ${input.bukti.nomor}.`,
+      `Lokasi: ${input.lokasiName}.`,
+      `Petak Makam: ${input.petakNomor}.`,
+      `Pemegang Hak: ${input.pemegangHakName}.`,
+      `Masa Hak Pakai: ${masa}.`,
+      "",
+      "Simpan tautan ini. Di dalamnya ada Bukti Pemesanan lengkap yang bisa diunduh sebagai PDF.",
+      `Bukti Pemesanan: ${input.bukti.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
       "",
       "Hormat kami,",
       "Tim makam.co.id",

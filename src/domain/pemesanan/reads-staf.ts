@@ -36,8 +36,14 @@ export interface OrderStaf {
   rencanaPemakamanAt: Date | null;
   /** What the Lokasi agreed; null until the order is Dikonfirmasi. */
   pemakamanAt: Date | null;
+  /** What the Admin Lokasi recorded as the day the burial actually happened; null until it did (ticket 25). */
+  pemakamanTanggal: string | null;
+  /** Which layer of the plot the Almarhum was laid in, once recorded. */
+  pemakamanLayer: number | null;
   petakNomor: string | null;
   tagihanId: string | null;
+  /** The Bukti Pemesanan issued when that Tagihan went Lunas; null until it did. */
+  buktiPemesananId: string | null;
   konfirmasiDueAt: Date | null;
   diajukanAt: Date;
   /** Why the Lokasi declined, or the family cancelled; null while none. */
@@ -101,10 +107,34 @@ export async function antreanKonfirmasi(deps: Pick<PemesananDeps, "db">, lokasiI
 }
 
 /**
+ * Every order of one Lokasi Mitra still waiting for its Pemakaman to be
+ * recorded, oldest first: the Antrean Lokasi's "Catat Pemakaman" rows
+ * (ticket 25's AC 1). The row is raised by the worker's prompt, the day after
+ * the agreed burial, and closes itself: an order that is no longer `dikonfirmasi`
+ * (recorded, declined or cancelled) never appears again, and one never prompted
+ * yet is not yet on the list. No actor: the caller passes the Lokasi an Admin
+ * Lokasi is scoped to (the queue module's read).
+ */
+export async function antreanCatatPemakaman(deps: Pick<PemesananDeps, "db">, lokasiId: string): Promise<OrderAntrean[]> {
+  const rows = await deps.db
+    .select()
+    .from(pemesananMakam)
+    .where(
+      and(
+        eq(pemesananMakam.lokasiId, lokasiId),
+        eq(pemesananMakam.status, "dikonfirmasi"),
+        isNotNull(pemesananMakam.catatPemakamanDitagihPada),
+      ),
+    )
+    .orderBy(pemesananMakam.catatPemakamanDitagihPada, pemesananMakam.nomor);
+  return rows.map(toAntrean);
+}
+
+/**
  * Every order still waiting for its confirmation past the deadline its Lokasi's
  * Jam Operasional gave: the Admin Platform Antrean's Tier 1 "Konfirmasi Lokasi
- * terlambat" rows (spec, Work Queues; ticket 23). No deadline of its own — the
- * order's own is the row's. No actor: the Antrean is Admin Platform's.
+ * terlambat" rows (spec, Work Queues; ticket 23). No deadline of its own —
+ * the order's own is the row's. No actor: the Antrean is Admin Platform's.
  */
 export async function konfirmasiLewatTenggat(deps: Pick<PemesananDeps, "db" | "clock">, now: Date): Promise<OrderAntrean[]> {
   const rows = await deps.db
@@ -230,8 +260,11 @@ async function toOrderStaf(deps: Pick<PemesananDeps, "db">, row: Row): Promise<O
     pemegangHak: row.pemegangHak,
     rencanaPemakamanAt: row.rencanaPemakamanAt,
     pemakamanAt: row.pemakamanAt,
+    pemakamanTanggal: row.pemakamanTanggal,
+    pemakamanLayer: row.pemakamanLayer,
     petakNomor: row.petakNomor,
     tagihanId: row.tagihanId,
+    buktiPemesananId: row.buktiPemesananId,
     konfirmasiDueAt: row.konfirmasiDueAt,
     diajukanAt: row.diajukanAt,
     alasan: alasanOrder(row.alasanTolak, row.alasan),

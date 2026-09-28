@@ -3,11 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
-import { batalkanSaatDukaSchema, centangDokumenSchema, konfirmasiSaatDukaSchema, tolakSaatDukaSchema, tawarkanAlternatifSchema } from "@/domain/pemesanan";
+import {
+  batalkanSaatDukaSchema,
+  catatPemakamanOrderSchema,
+  centangDokumenSchema,
+  konfirmasiSaatDukaSchema,
+  tolakSaatDukaSchema,
+  tawarkanAlternatifSchema,
+} from "@/domain/pemesanan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
-import { alternatifMessage, batalkanMessage, konfirmasiMessage, tolakMessage } from "./pesanan-messages";
+import { alternatifMessage, batalkanMessage, catatPemakamanMessage, konfirmasiMessage, tolakMessage } from "./pesanan-messages";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type PesananActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -98,6 +105,38 @@ export async function batalkanPesanan(_previous: PesananActionState, formData: F
   return {
     status: "berhasil",
     message: `Pesanan ${result.value.pesanan.nomor} dibatalkan. Petak dikembalikan, Tagihan dibatalkan, dan keluarga diberi tahu.`,
+  };
+}
+
+/**
+ * The burial itself, the day it actually happened: the Hak Pakai's term starts
+ * here and the order becomes Dimakamkan (Selesai too, when its Tagihan has
+ * already been paid).
+ */
+export async function catatPemakaman(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pemakaman.catat",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: catatPemakamanOrderSchema,
+    input: {
+      nomor: formData.get("nomor"),
+      tanggal: formData.get("tanggal"),
+      layer: formData.get("layer") || undefined,
+    },
+    run: (actor, data) => serverRuntime().pemesanan.catatPemakaman(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: catatPemakamanMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: result.value.buktiPemesananNomor
+      ? `Pemakaman dicatat. Pesanan selesai dengan Bukti Pemesanan ${result.value.buktiPemesananNomor}.`
+      : `Pemakaman dicatat. Pesanan ${result.value.pesanan.nomor} sudah Dimakamkan.`,
   };
 }
 

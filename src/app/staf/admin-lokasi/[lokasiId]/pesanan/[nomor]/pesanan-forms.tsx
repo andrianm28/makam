@@ -8,6 +8,7 @@ import type { AlasanTolakLokasi } from "@/domain/pemesanan";
 import type { TersediaUnit } from "@/domain/inventory";
 import {
   batalkanPesanan,
+  catatPemakaman,
   centangDokumen,
   konfirmasiPesanan,
   tolakPesanan,
@@ -71,6 +72,58 @@ export function KonfirmasiForm({
             Tidak ada petak kosong dari jenis makam ini. Bersihkan petak di Denah lebih dulu, atau tawarkan alternatif.
           </p>
         ) : null}
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/**
+ * The burial, the day it actually happened (spec, Inventory > Pemakaman; the
+ * Antrean Lokasi's "Catat Pemakaman" row asks for it the day after the agreed
+ * date). Two facts only: the day and the layer — the plot and the Almarhum are
+ * the order's own.
+ */
+export function CatatPemakamanForm({
+  lokasiId,
+  nomor,
+  tanggalAwal,
+  layerAwal,
+  hariIni,
+}: {
+  lokasiId: string;
+  nomor: string;
+  /** The agreed burial day, as a `date` input holds it; the Lokasi corrects it when the burial moved. */
+  tanggalAwal: string;
+  layerAwal: number;
+  /** Today in WIB from the Clock, which is the last day a burial may be recorded for. */
+  hariIni: string;
+}) {
+  const [state, action, pending] = useActionState(catatPemakaman, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="tanggal" className="text-sm font-medium">Tanggal pemakaman</label>
+        <Input id="tanggal" name="tanggal" type="date" defaultValue={tanggalAwal} max={hariIni} required />
+        <p className="text-small text-muted-foreground">
+          Hari pemakaman benar-benar dilaksanakan. Masa Hak Pakai dihitung dari tanggal ini, bukan dari rencana.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="layer" className="text-sm font-medium">Lapis</label>
+        <Input id="layer" name="layer" type="number" min={1} max={20} defaultValue={layerAwal} required />
+        <p className="text-small text-muted-foreground">Lapis petak yang dipakai. Isi 1 untuk pemakaman pertama.</p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Mencatat…" : "Catat pemakaman"}
+        </Button>
         {state.status !== "idle" ? (
           <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
             {state.message}
