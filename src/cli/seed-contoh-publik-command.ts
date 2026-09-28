@@ -41,19 +41,27 @@
  * - `jenis` (Swasta/Wakaf/Yayasan/Masjid) is prototype-only; the real Lokasi
  *   Mitra record has no such field (its `pengelolaName` carries the same
  *   flavour in free text).
- * - `kontakSiaga.nama` ("Bapak Hendra") has no real counterpart either: the
- *   Kontak Siaga is a real Admin Lokasi Akun, and an Akun's `name` starts
- *   empty until its own holder sets it (Akun Saya profile), which is not
- *   something a seed CLI does on someone else's behalf. Its phone number is
- *   real (the invited Admin Lokasi's own).
- * - A "Kavling Keluarga N Petak" mock entry becomes a real Kavling Keluarga
- *   (Inventory's `createKavling` + `clearKavling`), but only one unit each
- *   (the mock's own `tersedia` count, 1–2, is already small); every other
- *   Jenis Makam's Tersedia Petak count is capped at 3 cleared units even
- *   where the mock's is much larger (9–118), so the Denah this seeds stays
- *   small. The one Jenis Makam the mock lists with `tersedia: 0` (Hijau
- *   Asri's "Makam Taman") is reproduced with its one Petak cleared Tidak
- *   Tersedia, which is what a real zero-availability Jenis Makam looks like.
+ * - `kontakSiaga.nama` ("Bapak Hendra", ...) IS reproduced 1:1: the Kontak
+ *   Siaga is a real Admin Lokasi Akun, and an Akun's `name` starts empty
+ *   until its own holder sets it (Akun Saya profile) — so this command's own
+ *   `masukSebagai` (`dev-seed-support.ts`) passes the mock's name the same
+ *   way a wizard's Kirim would, filling the Akun's name at its first Kode
+ *   Masuk login (`identity.verifyKodeMasuk`'s existing optional `name`). Its
+ *   phone number is real (the invited Admin Lokasi's own).
+ * - Every Jenis Makam's Tersedia Petak count IS reproduced 1:1 with the
+ *   mock's own `tersedia` (9–118 for most, down to the mock's small
+ *   Kavling Keluarga counts): its Denah is one or more one-row Bloks, each at
+ *   most Inventory's own `MAX_BLOK_DIMENSION` (40) wide (`denahChunksFor`),
+ *   every cell of every one cleared Tersedia through `clearPetak`,
+ *   sequentially — never a leftover Perlu Verifikasi cell anywhere at the
+ *   Lokasi, which the two mock entries with `terencanaAktif: true` (Wakaf
+ *   Al-Ikhlas, Hijau Asri) need to switch it on at all. A "Kavling Keluarga N
+ *   Petak" mock entry becomes that many real Kavling Keluarga units instead
+ *   (`createKavling` + `clearKavling`, one call per unit), the mock's own
+ *   `tersedia` count of units (1–2). The one Jenis Makam the mock lists with
+ *   `tersedia: 0` (Hijau Asri's "Makam Taman") is reproduced with its one
+ *   Petak cleared Tidak Tersedia, which is what a real zero-availability
+ *   Jenis Makam looks like.
  * - The mock's facilities are mapped onto the Kunjungan Verifikasi checklist
  *   1:1 (mushola→musala, akses-mobil→akses_ambulans, keamanan→pos_jaga,
  *   pendopo→tempat_duduk, air→air_bersih, parkir and toilet unchanged); every
@@ -83,7 +91,7 @@ import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
-import { createInventory } from "@/domain/inventory";
+import { createInventory, MAX_BLOK_DIMENSION } from "@/domain/inventory";
 import {
   createLokasi,
   DEFAULT_FLAGS,
@@ -184,6 +192,8 @@ interface ContohLokasiSpec {
   photos: string[];
   adminLokasiEmail: string;
   adminLokasiPhone: string;
+  /** The mock's `kontakSiaga.nama`, given to `verifyKodeMasuk` at this Admin Lokasi's first Kode Masuk login. */
+  kontakSiagaName: string;
 }
 
 /** The prototype's five example Lokasi Mitra (`_mock/data.ts` on `origin/prototype-public-site`), as close to the mock as the real domain allows. */
@@ -205,11 +215,11 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
         tenure: { kind: "tahun", years: 20 },
         hargaHakPakai: 8_500_000,
         hargaPerpanjangan: 4_000_000,
-        tersedia: 3,
+        tersedia: 42,
         // Mock's hargaBaru: "Makam Standar menjadi Rp 9.000.000" from 1 Januari 2027.
         hargaBaru: { effectiveOn: "2027-01-01", hargaHakPakai: 9_000_000 },
       },
-      { name: "Makam Taman", description: "Ukuran 1,5 × 3 m, tepi jalan setapak", tenure: { kind: "tahun", years: 20 }, hargaHakPakai: 14_000_000, hargaPerpanjangan: 6_500_000, tersedia: 3 },
+      { name: "Makam Taman", description: "Ukuran 1,5 × 3 m, tepi jalan setapak", tenure: { kind: "tahun", years: 20 }, hargaHakPakai: 14_000_000, hargaPerpanjangan: 6_500_000, tersedia: 9 },
       { name: "Makam Selamanya", description: "Ukuran 1,5 × 3 m", tenure: { kind: "selamanya" }, hargaHakPakai: 32_000_000, hargaPerpanjangan: null, tersedia: 3 },
     ],
     masaPembatalanDays: 14,
@@ -219,6 +229,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     photos: ["lokasi-jalan-taman.jpg", "lokasi-pendopo.jpg", "lokasi-taman-tropis.jpg", "tile-perpanjang.jpg"],
     adminLokasiEmail: "lokasi.firdaus@contoh.makam.invalid",
     adminLokasiPhone: "085100000001",
+    kontakSiagaName: "Bapak Hendra",
   },
   {
     name: "Pemakaman Wakaf Al-Ikhlas",
@@ -231,8 +242,8 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 1_500_000,
     biayaPemakamanTumpang: 1_000_000,
     jenisMakam: [
-      { name: "Makam Umum", description: "Ukuran 1 × 2 m", tenure: { kind: "selamanya" }, hargaHakPakai: 3_000_000, hargaPerpanjangan: null, tersedia: 3 },
-      { name: "Kavling Keluarga 2 Petak", description: "2 petak bersebelahan", tenure: { kind: "selamanya" }, hargaHakPakai: 6_500_000, hargaPerpanjangan: null, tersedia: 1, kavlingPetak: 2 },
+      { name: "Makam Umum", description: "Ukuran 1 × 2 m", tenure: { kind: "selamanya" }, hargaHakPakai: 3_000_000, hargaPerpanjangan: null, tersedia: 118 },
+      { name: "Kavling Keluarga 2 Petak", description: "2 petak bersebelahan", tenure: { kind: "selamanya" }, hargaHakPakai: 6_500_000, hargaPerpanjangan: null, tersedia: 2, kavlingPetak: 2 },
     ],
     masaPembatalanDays: 7,
     refundAfterMasaPembatalanPercent: 50,
@@ -240,6 +251,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     photos: ["lokasi-makam-wakaf.jpg", "lokasi-blok.jpg"],
     adminLokasiEmail: "lokasi.wakaf-al-ikhlas@contoh.makam.invalid",
     adminLokasiPhone: "085100000002",
+    kontakSiagaName: "Ustaz Farid",
   },
   {
     name: "Makam Masjid Nurul Huda",
@@ -252,7 +264,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 1_250_000,
     biayaPemakamanTumpang: 900_000,
     jenisMakam: [
-      { name: "Makam Umum", description: "Ukuran 1 × 2 m", tenure: { kind: "tahun", years: 10 }, hargaHakPakai: 2_500_000, hargaPerpanjangan: 1_500_000, tersedia: 3 },
+      { name: "Makam Umum", description: "Ukuran 1 × 2 m", tenure: { kind: "tahun", years: 10 }, hargaHakPakai: 2_500_000, hargaPerpanjangan: 1_500_000, tersedia: 27 },
     ],
     masaPembatalanDays: 7,
     refundAfterMasaPembatalanPercent: 0,
@@ -260,6 +272,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     photos: ["lokasi-pendopo.jpg", "lokasi-jalan-taman.jpg"],
     adminLokasiEmail: "lokasi.nurul-huda@contoh.makam.invalid",
     adminLokasiPhone: "085100000003",
+    kontakSiagaName: "Bapak Syamsul",
   },
   {
     name: "Taman Peristirahatan Hijau Asri",
@@ -274,7 +287,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 3_000_000,
     biayaPemakamanTumpang: 2_000_000,
     jenisMakam: [
-      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 11_000_000, hargaPerpanjangan: 5_000_000, tersedia: 3 },
+      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 11_000_000, hargaPerpanjangan: 5_000_000, tersedia: 64 },
       { name: "Makam Taman", description: "Ukuran 2 × 3 m, dengan pagar rendah", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 22_500_000, hargaPerpanjangan: 9_000_000, tersedia: 0, kosong: true },
       { name: "Kavling Keluarga 4 Petak", description: "2 × 2 petak bersebelahan", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 40_000_000, hargaPerpanjangan: 18_000_000, tersedia: 1, kavlingPetak: 4 },
     ],
@@ -284,6 +297,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     photos: ["lokasi-taman-tropis.jpg", "tile-perpanjang.jpg"],
     adminLokasiEmail: "lokasi.hijau-asri@contoh.makam.invalid",
     adminLokasiPhone: "085100000004",
+    kontakSiagaName: "Ibu Ratna",
   },
   {
     name: "Pemakaman Bukit Sejuk",
@@ -296,7 +310,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 2_000_000,
     biayaPemakamanTumpang: 1_500_000,
     jenisMakam: [
-      { name: "Makam Standar", description: "Ukuran 1 × 2,5 m", tenure: { kind: "tahun", years: 15 }, hargaHakPakai: 6_000_000, hargaPerpanjangan: 3_000_000, tersedia: 3 },
+      { name: "Makam Standar", description: "Ukuran 1 × 2,5 m", tenure: { kind: "tahun", years: 15 }, hargaHakPakai: 6_000_000, hargaPerpanjangan: 3_000_000, tersedia: 30 },
     ],
     masaPembatalanDays: 14,
     refundAfterMasaPembatalanPercent: 0,
@@ -304,6 +318,7 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
     photos: ["lokasi-blok.jpg", "lokasi-makam-wakaf.jpg"],
     adminLokasiEmail: "lokasi.bukit-sejuk@contoh.makam.invalid",
     adminLokasiPhone: "085100000005",
+    kontakSiagaName: "Bapak Yusuf",
   },
 ];
 
@@ -420,19 +435,37 @@ async function undangPetugas(modul: Modul, admin: Actor, alasan: string): Promis
   );
 }
 
-/** This example Lokasi Mitra's own Admin Lokasi (and Kontak Siaga). */
+/** This example Lokasi Mitra's own Admin Lokasi (and Kontak Siaga): its first Kode Masuk login is given the mock's `kontakSiaga.nama`. */
 async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; value: Actor } | Gagal> {
-  return masukSebagai(modul, spec.adminLokasiEmail, () =>
-    modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone, reason: alasan }),
+  return masukSebagai(
+    modul,
+    spec.adminLokasiEmail,
+    () => modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone, reason: alasan }),
+    spec.kontakSiagaName,
   );
 }
 
 /**
- * The Denah behind one Jenis Makam's Tersedia Petak count: its own Blok (one
- * row, one cell per unit), cleared Tersedia — or, for a mock "Kavling
- * Keluarga N Petak" entry, grouped into real Kavling Keluarga units instead of
- * standalone Petak; or, for the mock's one `tersedia: 0` entry, its single
- * Petak cleared Tidak Tersedia.
+ * `count` split into chunks of at most `MAX_BLOK_DIMENSION`, the size of the
+ * one-row Bloks a Jenis Makam's Tersedia Petak count is built from: every
+ * cell of every one of them is cleared (never a leftover Perlu Verifikasi
+ * cell anywhere in the Lokasi), which "Pemesanan Terencana aktif" needs
+ * globally, not just for the Jenis Makam being built.
+ */
+function denahChunksFor(count: number): number[] {
+  const chunks: number[] = [];
+  for (let remaining = count; remaining > 0; remaining -= MAX_BLOK_DIMENSION) {
+    chunks.push(Math.min(remaining, MAX_BLOK_DIMENSION));
+  }
+  return chunks;
+}
+
+/**
+ * The Denah behind one Jenis Makam's Tersedia Petak count: one or more Bloks
+ * (`denahChunksFor`'s chunks, every cell cleared Tersedia), or, for a mock
+ * "Kavling Keluarga N Petak" entry, grouped into real Kavling Keluarga units
+ * instead of standalone Petak; or, for the mock's one `tersedia: 0` entry, its
+ * single Petak cleared Tidak Tersedia.
  */
 async function bangunDenahJenisMakam(
   modul: Modul,
@@ -463,14 +496,17 @@ async function bangunDenahJenisMakam(
   }
 
   const count = spec.kosong ? 1 : Math.max(spec.tersedia, 1);
-  const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: blokName, rows: 1, cols: count, jenisMakamId });
-  if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
-  const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
-  for (const cell of denah?.cells ?? []) {
-    const cleared = spec.kosong
-      ? await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tidak_tersedia", reason: `${alasan}: Dipesan lebih dulu (contoh data)` })
-      : await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tersedia" });
-    if (!cleared.ok) return { ok: false, reason: `petak: ${cleared.reason}` };
+  for (const [chunkIndex, chunkSize] of denahChunksFor(count).entries()) {
+    const chunkName = chunkIndex === 0 ? blokName : `${blokName}-${chunkIndex + 1}`;
+    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: chunkName, rows: 1, cols: chunkSize, jenisMakamId });
+    if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
+    const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
+    for (const cell of denah?.cells ?? []) {
+      const cleared = spec.kosong
+        ? await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tidak_tersedia", reason: `${alasan}: Dipesan lebih dulu (contoh data)` })
+        : await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tersedia" });
+      if (!cleared.ok) return { ok: false, reason: `petak: ${cleared.reason}` };
+    }
   }
   return { ok: true };
 }
