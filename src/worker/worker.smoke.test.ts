@@ -40,6 +40,7 @@ describe("pg-boss wiring (smoke)", () => {
         lokasi: { serviceHoursDeadline: async () => ({ ok: false, reason: "jam_operasional_belum_diisi" as const }), kontakSiagaOf: async () => null },
         identity: { adminLokasiOf: async () => [] },
         notifikasi: { pesananDiajukan: async () => {}, pesananBelumDikonfirmasi: async () => {}, pesananDikonfirmasi: async () => {}, terencanaDiajukan: async () => {} },
+        payouts: { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
       }),
       clock,
       ticks: scheduledTicks,

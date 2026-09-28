@@ -204,10 +204,11 @@ describe("the ticket workflow discipline", () => {
     // point: writing the record is a visible act, so the number that watches it
     // moves. Ticket 26 took this from 7 to 8, and ticket 23 from 8 to 9, both on
     // 2026-09-27; ticket 34 took it from 9 to 10 on 2026-09-28, its review record
-    // having been written in the marker's wording from the start. The half that
-    // has no record at all never moves downwards on its own — only a real merge
-    // can.
-    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(10);
+    // having been written in the marker's wording from the start, and ticket 32
+    // took it from 10 to 11 the same day, its two axis reports having been in the
+    // ticket already. The half that has no record at all never moves downwards on
+    // its own — only a real merge can.
+    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(11);
     expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
   });
 

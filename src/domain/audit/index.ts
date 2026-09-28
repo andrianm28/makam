@@ -168,7 +168,17 @@ export type AuditAction =
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
-  | "pemesanan.centang_dokumen";
+  | "pemesanan.centang_dokumen"
+  /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */
+  | "pencairan.tahan"
+  /** Admin Platform overrides what a Pencairan item pays after a Keluhan, with a note (ticket 32). */
+  | "pencairan.override_jumlah"
+  /** Admin Platform issues a Bukti Pencairan for a transfer, with its items and Potongan (ticket 32). */
+  | "pencairan.terbitkan_bukti"
+  /** Admin Platform records a Potongan a Lokasi Mitra owes (ticket 32). */
+  | "pencairan.catat_potongan"
+  /** Admin Platform records that a Potongan was paid outside a Pencairan run (ticket 32). */
+  | "pencairan.catat_potongan_lunas";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
