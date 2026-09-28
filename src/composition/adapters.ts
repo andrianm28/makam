@@ -38,6 +38,12 @@ interface CommonAdapterOptions {
   filesRoot?: string;
   /** The app's own origin, for building FileStore signed URLs (`env.APP_BASE_URL`); ignored in development and test. */
   appBaseUrl?: string;
+  /**
+   * Development only (`env.DEV_FILES_ROOT`): keep files on this local directory,
+   * so a seed CLI and the dev web server see the same files. Ignored in test,
+   * staging and production.
+   */
+  devFilesRoot?: string;
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
@@ -90,7 +96,17 @@ export function createAdapters(options: AdapterOptions): Adapters {
         pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH }),
       };
 
-  return { ...base, ...options.overrides };
+  const files =
+    options.appEnv === "development" && options.devFilesRoot
+      ? new DiskFileStore({
+          root: options.devFilesRoot,
+          secret: options.authSecret ?? FALLBACK_AUTH_SECRET,
+          publicOrigin: new URL(options.appBaseUrl ?? FALLBACK_APP_BASE_URL).origin,
+          clock,
+        })
+      : base.files;
+
+  return { ...base, files, ...options.overrides };
 }
 
 /** The VAPID keys; the type demands them in staging and production, and a caller that got round it fails here. */

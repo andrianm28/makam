@@ -76,6 +76,7 @@ export function serverRuntime(): ServerRuntime {
       authSecret: env.AUTH_SECRET,
       filesRoot: env.FILES_ROOT,
       appBaseUrl: env.APP_BASE_URL,
+      devFilesRoot: env.DEV_FILES_ROOT,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
