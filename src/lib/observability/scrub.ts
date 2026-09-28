@@ -8,6 +8,11 @@ import type { SentryEnv } from "@/lib/env";
  * request bodies, no phone numbers, no email addresses, no files, no cookies.
  *
  * Shared by the web server, the browser and the worker.
+ *
+ * A Dokumen is the most sensitive thing this system holds, so two rules cover
+ * it: opaque bytes (a `Uint8Array`, a `Blob`, a whole file) never survive as
+ * values, and a signed Dokumen URL never survives with its query — the `sig` in
+ * that query is the document's read permission for the life of the URL.
  */
 
 export const PHONE_PLACEHOLDER = "[telepon]";
@@ -46,11 +51,56 @@ export function scrubText(text: string): string {
   return text.replace(EMAIL, EMAIL_PLACEHOLDER).replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER);
 }
 
+/**
+ * A signed Dokumen URL: the app's own file route, its key, and everything from
+ * the `?` on. That query is `exp` and `sig` (`DiskFileStore.signedUrl`,
+ * `src/adapters/live/disk-file-store.ts:92`) and the signature is the document's
+ * read permission for the life of the URL (`DOKUMEN_URL_SECONDS`, five minutes),
+ * so a match keeps the path — which names a Lokasi, an order id and a UUID, not
+ * a family — and drops the query. The origin is optional because a same-origin
+ * navigation is recorded as its relative form, and because the fetch and xhr
+ * crumbs keep whichever form the caller passed to `fetch` or `XMLHttpRequest`.
+ */
+const SIGNED_DOKUMEN_URL = /((?:[a-z][a-z0-9+.-]*:\/\/[^\s?"'<>]*)?\/api\/files\/[^\s?"'<>]*)\?[^\s"'<>]*/gi;
+
+/**
+ * The same rule for the half of it that arrives without its path: the SDK
+ * collects a request's query twice, inside the URL and again as
+ * `request.query_string`, and a bare query string has no path for
+ * SIGNED_DOKUMEN_URL to match. `sig=` is written in exactly one place in this
+ * app — `DiskFileStore.signedUrl` — so a `sig` anywhere is a document's read
+ * permission, while the `sig` inside `?design=…` or a value like `?p=&sig=1`
+ * is not one.
+ */
+const SIGNATURE_PARAMETER = /(?<=[?&])sig=[^&\s"'<>]*/g;
+
+/** What a document's read permission becomes where the URL it belonged to is not in sight. */
+const SIGNATURE_PLACEHOLDER = "sig=[tanda tangan]";
+
+/** What opaque bytes become: a name for them, never their contents. */
+const BERKAS_PLACEHOLDER = "[berkas]";
+
+/** Phone numbers, email addresses, and the read permission a signed Dokumen URL carries in its query. */
+function scrubUrl(text: string): string {
+  return scrubText(text).replace(SIGNED_DOKUMEN_URL, "$1").replace(SIGNATURE_PARAMETER, SIGNATURE_PLACEHOLDER);
+}
+
 const MAX_DEPTH = 8;
 
+/**
+ * Opaque bytes rather than a record to walk: a `Uint8Array` (and the `Buffer`
+ * and `DataView` beside it), a bare `ArrayBuffer`, a `Blob`. None is an array
+ * and none is stopped by the depth check, so walking one reshapes a scanned KTP
+ * into `{"0":37,"1":80,…}` and sends it whole.
+ */
+function isBinary(value: object): boolean {
+  return ArrayBuffer.isView(value) || value instanceof ArrayBuffer || value instanceof Blob;
+}
+
 function scrubValue(value: unknown, depth = 0): unknown {
-  if (typeof value === "string") return scrubText(value);
+  if (typeof value === "string") return scrubUrl(value);
   if (depth >= MAX_DEPTH || value === null || typeof value !== "object") return value;
+  if (isBinary(value)) return BERKAS_PLACEHOLDER;
   if (Array.isArray(value)) return value.map((item) => scrubValue(item, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [key, scrubValue(item, depth + 1)]),
@@ -74,8 +124,12 @@ export function scrubEvent<E extends ErrorEvent>(event: E, hint?: EventHint): E 
     delete rest.cookies;
     event.request = {
       ...rest,
-      url: url ? scrubText(url) : url,
-      query_string: typeof query_string === "string" ? scrubText(query_string) : undefined,
+      // The SDK's own `urlQueryParams: false` already drops a server request's
+      // query, but the browser's `HttpContext` writes the page URL in
+      // `request.url` ungated by `dataCollection`, and this rule holds even if
+      // that option is ever relaxed.
+      url: url ? scrubUrl(url) : url,
+      query_string: typeof query_string === "string" ? scrubUrl(query_string) : undefined,
       headers: headers
         ? Object.fromEntries(
             Object.entries(headers)
