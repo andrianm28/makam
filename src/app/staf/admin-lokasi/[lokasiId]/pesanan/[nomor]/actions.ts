@@ -16,6 +16,13 @@ import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
 import { alternatifMessage, batalkanMessage, catatPemakamanMessage, konfirmasiMessage, tolakMessage } from "./pesanan-messages";
 
+/** The proof, as the form's file input hands it over (matches `setor-retribusi`'s own action). */
+async function buktiFromForm(formData: FormData) {
+  const file = formData.get("bukti");
+  if (!(file instanceof File) || file.size === 0) return null;
+  return { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
+}
+
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type PesananActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
 
@@ -179,4 +186,56 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
+}
+
+/**
+ * The Tagihan's own Admin Lokasi records that the family paid it directly
+ * (spec, Billing > Payment: "Dibayar langsung ke Lokasi Mitra"; ticket 30's
+ * AC 2), with a required proof file: the Tagihan becomes Lunas, and Payouts
+ * reads the same method to owe no tariff Pencairan and a platform-fee
+ * Potongan instead.
+ */
+export async function catatPembayaranLangsung(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const nomor = String(formData.get("nomor") ?? "");
+  const bukti = await buktiFromForm(formData);
+  const result = await guarded({
+    action: "tagihan.catat_pembayaran_langsung",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: z.object({ tagihanId: z.uuid(), bukti: z.object({ body: z.instanceof(Uint8Array), contentType: z.string() }) }),
+    input: { tagihanId: formData.get("tagihanId"), bukti },
+    run: (actor, data) => serverRuntime().billing.catatPembayaranLangsung(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: pembayaranLangsungMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: `Pembayaran langsung dicatat. Bukti Pembayaran ${result.value.bukti.nomorBukti} terbit.`,
+  };
+}
+
+/** Why a direct payment was refused, saying what to do next. */
+function pembayaranLangsungMessage(reason: string): string {
+  switch (reason) {
+    case "tidak_ditemukan":
+      return "Tagihan ini tidak ditemukan.";
+    case "sudah_lunas":
+      return "Tagihan ini sudah Lunas, jadi pembayarannya sudah tercatat lewat jalan lain.";
+    case "tagihan_dibatalkan":
+      return "Tagihan ini sudah dibatalkan, jadi tidak bisa dibayar lagi.";
+    case "batas_pembayaran_lewat":
+      return "Pembayaran ini sudah lewat batas waktu Tagihan.";
+    case "berkas_tidak_didukung":
+      return "Bukti pembayaran harus foto (JPG, PNG) atau PDF, paling besar 10 MB.";
+    case "bukan_lokasi_mitra":
+      return "Tagihan ini bukan tagihan Lokasi Mitra, jadi tidak bisa dicatat dibayar langsung.";
+    case "pengaturan_operator_belum_diisi":
+      return "Pengaturan Operator belum diisi, jadi Bukti Pembayaran tidak bisa diterbitkan.";
+    case "perlu_totp":
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
+    default:
+      return "Periksa lagi isian Anda.";
+  }
 }

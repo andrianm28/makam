@@ -9,6 +9,7 @@ import type { TersediaUnit } from "@/domain/inventory";
 import {
   batalkanPesanan,
   catatPemakaman,
+  catatPembayaranLangsung,
   centangDokumen,
   konfirmasiPesanan,
   tolakPesanan,
@@ -274,6 +275,40 @@ function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: strin
       <div className="flex flex-col items-start gap-2">
         <Button type="submit" variant="outline" disabled={pending}>
           {pending ? "Menolak…" : "Tolak pesanan"}
+        </Button>
+        {state.status !== "idle" ? (
+          <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/**
+ * "Dibayar langsung ke Lokasi Mitra" (spec, Billing > Payment; ticket 30's AC
+ * 2): the Admin Lokasi records that the family paid it directly, with proof.
+ * The Tagihan becomes Lunas here; Payouts reads the same method to owe this
+ * Lokasi no tariff Pencairan and the platform fee as a Potongan instead.
+ */
+export function PembayaranLangsungForm({ lokasiId, nomor, tagihanId }: { lokasiId: string; nomor: string; tagihanId: string }) {
+  const [state, action, pending] = useActionState(catatPembayaranLangsung, idle);
+  return (
+    <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <input type="hidden" name="tagihanId" value={tagihanId} />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="buktiLangsung" className="text-sm font-medium">
+          Bukti pembayaran
+        </label>
+        <Input id="buktiLangsung" name="bukti" type="file" accept="image/jpeg,image/png,application/pdf" required />
+        <p className="text-small text-muted-foreground">Foto atau PDF bukti keluarga membayar langsung ke Lokasi Mitra ini. Paling besar 10 MB.</p>
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button type="submit" variant="outline" disabled={pending}>
+          {pending ? "Mencatat…" : "Catat dibayar langsung"}
         </Button>
         {state.status !== "idle" ? (
           <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">

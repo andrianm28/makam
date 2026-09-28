@@ -16,7 +16,7 @@
 import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
 import { formatRupiah } from "@/lib/rupiah";
 
-/** No admin page reads a Tagihan by id yet (only by its unguessable link, which this row is not given); the Antrean itself until one exists. */
+/** The Antrean itself, for an entry whose money names no known Tagihan at all (`tagihan` is null). */
 const FALLBACK_HREF = "/staf/admin-platform/antrean";
 
 export const pembayaranPerluDitinjauRowType: AntreanRowType = {
@@ -29,7 +29,10 @@ export const pembayaranPerluDitinjauRowType: AntreanRowType = {
       subjectKind: "pembayaran_perlu_ditinjau",
       subjectId: entry.id,
       subjectLabel: `${entry.tagihan?.nomorTagihan ?? entry.providerPaymentId} · ${formatRupiah(entry.amount)}`,
-      href: FALLBACK_HREF,
+      // Ticket 30: the Tagihan page now exists (`/staf/admin-platform/tagihan/[tagihanId]`),
+      // so a row that names one opens it directly, where the money can be
+      // resolved by hand (e.g. recorded as a manual payment) if that is the answer.
+      href: entry.tagihan ? `/staf/admin-platform/tagihan/${entry.tagihan.id}` : FALLBACK_HREF,
       deadline: null,
     }));
   },

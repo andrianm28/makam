@@ -136,6 +136,7 @@ describe("where a staff page sits in the menu", () => {
   it.each<[string, string[]]>([
     ["/staf/admin-platform", ["Admin Platform", "Beranda"]],
     ["/staf/admin-platform/tarif", ["Admin Platform", "Tarif global"]],
+    ["/staf/admin-platform/tagihan/00000000-0000-4000-8000-000000000001", ["Admin Platform", "Tagihan", "00000000-0000-4000-8000-000000000001"]],
     [`/staf/admin-platform/lokasi/${lokasiId}`, ["Admin Platform", "Lokasi Mitra", "Makam Wakaf Al-Ikhlas"]],
     [`/staf/admin-platform/lokasi/${lokasiId}/tarif`, ["Admin Platform", "Lokasi Mitra", "Makam Wakaf Al-Ikhlas", "Tarif"]],
     [`/staf/admin-platform/lokasi/${lokasiId}/audit-log`, ["Admin Platform", "Lokasi Mitra", "Makam Wakaf Al-Ikhlas", "Audit Log"]],

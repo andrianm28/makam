@@ -1,7 +1,7 @@
 import { afterAll, inject } from "vitest";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
-import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
@@ -48,7 +48,23 @@ export function testServerRuntime() {
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
-    const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError: () => {} };
+    // Filled in once Payouts is composed below (ticket 30: Billing's own Harga
+    // Khusus path only ever *calls* this once a write happens, well after this
+    // module has finished loading), mirroring `src/server/runtime.ts`.
+    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const billingComposition: BillingComposition = {
+      env,
+      db: database.db,
+      adapters,
+      operatorSettings,
+      reportError: () => {},
+      audit,
+      files: adapters.files,
+      kurangiPencairanPesanan: (tx, input) => {
+        if (!payoutsRef.current) throw new Error("Payouts is not composed yet");
+        return payoutsRef.current.kurangiPencairanPesanan(tx, input);
+      },
+    };
     const notifications = composeNotifications({
       env,
       db: database.db,
@@ -113,6 +129,7 @@ export function testServerRuntime() {
       notifications,
       reportError: () => {},
     });
+    payoutsRef.current = payouts;
     holder.__makamRuntime = {
       env,
       database,
