@@ -89,9 +89,9 @@ const MAX_DEPTH = 8;
 
 /**
  * Opaque bytes rather than a record to walk: a `Uint8Array` (and the `Buffer`
- * and `DataView` beside it), a bare `ArrayBuffer`, a `Blob`. None is an array
- * and none is stopped by the depth check, so walking one reshapes a scanned KTP
- * into `{"0":37,"1":80,…}` and sends it whole.
+ * and `DataView` beside it), a bare `ArrayBuffer`, a `Blob`. None is an array,
+ * so walking one reshapes a scanned KTP into `{"0":37,"1":80,…}` and sends it
+ * whole; each of them becomes a placeholder instead.
  */
 function isBinary(value: object): boolean {
   return ArrayBuffer.isView(value) || value instanceof ArrayBuffer || value instanceof Blob;
