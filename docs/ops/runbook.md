@@ -61,14 +61,21 @@ testing only). It copies the compose files, scripts, units and the nginx proxy
 snippet, runs `nginx -t`, and never touches env files, nginx sites, or reloads
 nginx.
 
-**Run it as `ubuntu`, not with `sudo`.** The script escalates the two writes
-that need root itself (`/etc/nginx/snippets/`, `/etc/systemd/system/` and the
-`systemctl` calls), and everything under `/opt/makam-v1` has to end up owned by
-`ubuntu`, because the deploy units run as `User=ubuntu` and
-`makam-deploy` refuses without a readable `compose.yml`. A `sudo` run instead
-leaves `$ROOT` root-owned, which a later run as `ubuntu` cannot write to and
-the units cannot read; repair it once with
-`sudo chown -R ubuntu:ubuntu /opt/makam-v1`.
+**Run it as `ubuntu`, not with `sudo`.** The script escalates itself only for
+the writes that need root (`/etc/nginx/snippets/`, `/etc/systemd/system/` and
+the `systemctl` calls), and everything under `/opt/makam-v1` has to end up owned
+by `ubuntu`, because the deploy units run as `User=ubuntu` and `makam-deploy`
+refuses without a readable `compose.yml`. Nothing in the script writes under
+`$ROOT` with sudo, the cosign public keys included.
+
+A `sudo` run instead leaves `$ROOT` root-owned, which a later run as `ubuntu`
+cannot write to and the units cannot read. **The script now refuses that run**
+before it installs anything (`refusing: this script must not run as root`), and
+also refuses a `$ROOT` that exists but is not writable by you — the same
+failure, one run late. It refuses rather than repairs on purpose: `sudo chown -R
+ubuntu:ubuntu /opt/makam-v1` is the owner's call, and it is the remedy it names
+in the message. That chown does **not** repair `.git/index`, which a root run
+also breaks and which it does not target.
 
 ### `staging.env`
 
@@ -591,8 +598,13 @@ Installing the public half on the host (it is not in the repo, so
 
 ```bash
 MAKAM_COSIGN_PUB_STAGING=/tmp/cosign.pub deploy/install-host.sh
-sudo install -m 0644 /tmp/cosign.pub /opt/makam-v1/prod/cosign.pub   # production
+install -m 0644 /tmp/cosign.pub /opt/makam-v1/prod/cosign.pub   # production
 ```
+
+**No `sudo` on either line.** The deploy units read these files as `User=ubuntu`
+out of a tree that is ubuntu's, and a public key is world-readable anyway, so
+root buys nothing and risks the exit 78 described above. If a key sits somewhere
+only root can read, copy it somewhere this user can read first.
 
 Without a public key an environment's deploys are **refused** (exit 78), never
 silently run unverified. `makam-deploy --local` skips the check and is refused

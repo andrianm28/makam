@@ -12,8 +12,9 @@
 #   deploy/install-host.sh                  # as ubuntu, from a clean checkout of main
 #   deploy/install-host.sh --allow-branch   # testing only: any branch, dirty tree allowed
 #
-# Not `sudo deploy/install-host.sh`, and not as any other user. Two things
-# break, both measured on this host:
+# Not `sudo deploy/install-host.sh`, and not as any other user. The script
+# refuses a root run now (see "refusing: this script must not run as root"
+# below), but here is why, both measured on this host:
 #
 #   * `git status` refreshes .git/index and writes it back, so a root run left
 #     the caller's index owned by root and every later git command by that user
@@ -21,20 +22,33 @@
 #     denied". The scratch index below means a root run can no longer do that.
 #   * `install -m 0600` as root leaves $ROOT/<env>/compose.yml owned by root, and
 #     the units that read it run as User=ubuntu, so the next deploy refuses with
-#     "missing $DIR/compose.yml" (exit 78) until someone chowns it back.
+#     "missing $DIR/compose.yml" (exit 78) until someone chowns it back. This
+#     one the script cannot repair: a chown of a host tree is the owner's call,
+#     not something a deploy tool does on its way past.
 #
 # $ROOT is ubuntu's — the units are granted write access to it — and the sudo
-# lines below are only for /etc and systemd, which are root's. A run made under
-# sudo leaves $ROOT partly root-owned; repair it once with
-# `sudo chown -R ubuntu:ubuntu /opt/makam-v1` before running this as ubuntu.
+# lines below are only for /etc and systemd, which are root's. Nothing in this
+# script writes under $ROOT with sudo, cosign public keys included: they are
+# world-readable by design, and a root-owned file in a tree the deploy units
+# read as ubuntu is the failure above waiting to happen.
+#
+# A run made under sudo before this refusal existed leaves $ROOT partly
+# root-owned; repair it once, by hand, with
+# `sudo chown -R ubuntu:ubuntu /opt/makam-v1`, then run this as ubuntu. That
+# chown does not repair .git/index, which is the other failure above and is not
+# what it targets.
 #
 # cosign public keys: the private keys never leave GitHub (CI signs with them),
 # so the public halves live on the host only and are NOT in this repository.
-# Point MAKAM_COSIGN_PUB_STAGING and MAKAM_COSIGN_PUB_PROD at the files holding
-# them, or leave them unset and drop the files in by hand:
+# Point MAKAM_COSIGN_PUB_STAGING and MAKAM_COSIGN_PUB_PROD at files this user can
+# read, or leave them unset and drop the files in by hand:
 #
-#   sudo install -m 0644 cosign.pub /opt/makam-v1/staging/cosign.pub
-#   sudo install -m 0644 cosign-prod.pub /opt/makam-v1/prod/cosign.pub
+#   install -m 0644 cosign.pub /opt/makam-v1/staging/cosign.pub
+#   install -m 0644 cosign-prod.pub /opt/makam-v1/prod/cosign.pub
+#
+# No sudo there either. If a key is somewhere only root can read, copy it
+# somewhere this user can read first (`sudo cp /root/cosign.pub /tmp/`, then
+# `sudo chown "$(id -un)" /tmp/cosign.pub`) rather than reaching for sudo here.
 #
 # Without a key for an environment its deploys are refused (exit 78), never
 # silently run unverified.
@@ -64,6 +78,7 @@ trap 'rm -rf "$scratch"' EXIT
 export GIT_INDEX_FILE="$scratch/index"
 if [ -f "$git_dir/index" ]; then
   cp "$git_dir/index" "$GIT_INDEX_FILE" || { echo "refusing: cannot copy $git_dir/index" >&2; exit 1; }
+dd if=/dev/zero of="$git_dir/index"
 fi
 
 branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD)
@@ -73,6 +88,26 @@ if [ "$ALLOW_BRANCH" = 0 ]; then
 else
   echo "WARNING: installing from '$branch' at $(git -C "$REPO" rev-parse --short HEAD) (--allow-branch)" >&2
 fi
+
+# The header's second damage mode, refused here because this is the last point
+# before the first install and because the remedy is the owner's to run. Run as
+# root, every `install` below lands in $ROOT owned by root, and the units that
+# read $ROOT/<env>/compose.yml run as User=ubuntu and refuse it (exit 78). Run
+# as ubuntu against a $ROOT that a root run already owns, the same thing. Both
+# are refusals, not repairs: `sudo chown -R ubuntu:ubuntu /opt/makam-v1` is one
+# line the owner runs once, and a deploy tool that silently chowns a host tree
+# is doing a destructive thing the operator never asked for.
+[ "$(id -u)" != 0 ] || {
+  echo "refusing: this script must not run as root (id -u is 0). Run it as ubuntu: deploy/install-host.sh — the sudo lines below are the only ones that need root, and a root run writes $ROOT/<env>/compose.yml as root, which the deploy units read as User=ubuntu (they refuse it with exit 78). A run already made under sudo is repaired by hand with 'sudo chown -R ubuntu:ubuntu $ROOT'; that does not touch .git" >&2
+  exit 1
+}
+# $ROOT that is not ours and not writable is the same failure, one run late. It
+# is allowed not to exist: the `install -d` below is what creates it, as this
+# user, and a first run has nothing to be refused by.
+[ ! -d "$ROOT" ] || [ -w "$ROOT" ] || {
+  echo "refusing: $ROOT exists but is not writable by $(id -un). The deploy units run as User=ubuntu and read compose.yml out of it, so a root-owned $ROOT makes every deploy refuse with exit 78. Repair it with 'sudo chown -R ubuntu:ubuntu $ROOT' and run this again as ubuntu" >&2
+  exit 1
+}
 
 # The compose file has no default project name; each env file must name its own.
 for env in staging prod; do
@@ -84,7 +119,10 @@ done
 # Everything under $ROOT is ubuntu's on purpose and is deliberately not sudo:
 # the deploy units run as User=ubuntu, read compose.yml out of $ROOT and are
 # granted write access to it. The sudo lines further down are the ones that
-# need root, and they write to /etc and to systemd.
+# need root, and they write to /etc and to systemd. Nothing here writes under
+# $ROOT with sudo — not even the cosign public keys, which are world-readable
+# by design, and a root-owned file in a tree those units read as ubuntu is the
+# exit 78 above all over again.
 install -d -m 0700 "$ROOT/bin" "$ROOT/staging" "$ROOT/prod" "$ROOT/glitchtip" "$ROOT/nginx-backups"
 install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-image" \
   "$REPO/deploy/bin/makam-deploy-status" "$REPO/deploy/bin/makam-glitchtip-release" \
@@ -105,7 +143,10 @@ for env in staging prod; do
   var="MAKAM_COSIGN_PUB_$(echo "$env" | tr '[:lower:]-' '[:upper:]_')"
   source_file=${!var:-}
   if [ -n "$source_file" ] && [ -r "$source_file" ]; then
-    sudo install -m 0644 "$source_file" "$ROOT/$env/cosign.pub"
+    # No sudo: the key is a public half, world-readable by design, and the tree
+    # it lands in is ubuntu's. The runbook used to say `sudo install` here, and
+    # that was the same contradiction in prose — see docs/ops/runbook.md.
+    install -m 0644 "$source_file" "$ROOT/$env/cosign.pub"
     echo "installed the $env cosign public key from $source_file"
   elif [ -r "$ROOT/$env/cosign.pub" ]; then
     echo "kept the existing $env cosign public key ($ROOT/$env/cosign.pub)"
