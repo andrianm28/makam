@@ -94,8 +94,19 @@ const burialLines = [
  * **refusal**, never a silent omission: a quote that carried a line this order
  * cannot charge would produce a Tagihan missing it, and under-charging the
  * family is exactly what the check exists to prevent.
+ *
+ * `biaya_layanan_platform` is deliberately **absent**, and that absence is the
+ * spec's own rule rather than an oversight: the Operator's flat fee applies
+ * "per Tagihan where it applies (Lokasi Mitra only)" (spec, Tariffs > all-in
+ * quote), and a TPU is a town's cemetery, never a partner whose order the
+ * Operator bills a fee for. `quote()` cannot produce that line here anyway — it
+ * adds the fee only when the quote carries a `lokasi_mitra` line — so naming it
+ * here would be a permission nothing may use, and a widening of `quote()`
+ * (Layanan at a TPU, ticket 56) could then hand this flow a fee it would
+ * cheerfully bill. Refusing it instead aborts the whole confirmation, so the
+ * failure is "no Tagihan at all" rather than "a family charged for nothing".
  */
-const KINDS_YANG_BISA_DITAGIH = ["biaya_pengurusan", "retribusi_pemda", "biaya_layanan_platform"] as const;
+const KINDS_YANG_BISA_DITAGIH = ["biaya_pengurusan", "retribusi_pemda"] as const;
 
 /**
  * Confirms one Diajukan Saat Duka TPU order: the status, the agreed burial, the

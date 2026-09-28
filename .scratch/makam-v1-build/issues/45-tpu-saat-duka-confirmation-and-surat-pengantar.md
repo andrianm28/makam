@@ -25,6 +25,64 @@ Admin Platform confirms a Saat Duka TPU order from a Tier 1 "Konfirmasi TPU Saat
 
 ## Comments
 
+- 2026-09-28 — **Two-axis review, axis Spec: 2 temuan, keduanya keras, keduanya diperbaiki di bawah.** (1) **Biaya Layanan Platform masih diizinkan pada Tagihan TPU.** `KINDS_YANG_BISA_DITAGIH` di `src/domain/pengurusan/konfirmasi-saat-duka-tpu.ts:98` memuat `biaya_layanan_platform`, padahal `spec.md:370` menetapkan fee itu "one Biaya Layanan Platform per Tagihan where it applies (**Lokasi Mitra only**)", `pilihan.ts` memilih dua baris tanpa fee, dan test membuktikan harganya bebas fee. Izin itu membuat **tipe dan kode berbeda dengan spec dan dengan quote yang memanggilnya**. (2) **AC "no Pencairan involved" terpenuhi oleh ketiadaan, bukan oleh test** — `grep Pencairan` di empat file test tiket ini kosong, jadi tidak ada test yang merah kalau Pencairan suatu saat muncul untuk order TPU. Yang **diperiksa benar dan sengaja tidak diubah**: `burialAt` adalah pemakaman *rencana* dengan tenggat 3×24 jam diukur darinya (`spec.md:460`), dan jangkar "recorded" milik tick Lewat Jatuh Tempo (tiket 29); tawaran alternatif hanya TPU DKI (`tawarkan-tpu-lain.ts:89-90`); Surat Pengantar tetap Tugas untuk Petugas dengan bukti wajib dan tenggat Tier 2 23:59 hari pemakaman; baris Tier 1 tetap berbagi Antrean dengan tenggat dua jam kerja; `assignee_account_id` tetap NOT NULL (`spec.md:519`); tidak ada `new Date()`; tidak ada nomor tiket di copy; migrasi `0026` tidak disentuh.
+
+- 2026-09-28 — **Axis Standards belum selesai saat fix pass ini dimulai**, jadi fix pass ini hanya menyentuh dua item Spec di atas dan tidak menyentuhnya, sesuai instruksi.
+
+- 2026-09-28 — **Fix pass item 1 — fee dicabut dari daftar, bukan dari pemanggil.** `biaya_layanan_platform` **dihapus dari `KINDS_YANG_BISA_DITAGIH`**. Bentuk parameternya (`quoted: readonly QuotedLine[]`) tidak berubah dan **tidak ada call site lain**: satu-satunya pemanggil adalah `konfirmasiSaatDukaTpu` sendiri, yang mengisinya dari `burialLines` lokal yang dua barisnya, dan `quote()` hanya menambah fee bila baris ber-`provider: lokasi_mitra` ada (tidak ada di quote TPU). Jadi ini **bukan** signature change dan tidak ada call site yang harus diikuti — permission-nya sendiri yang salah. "Kenapa lubang, bukan kenyamanan": fungsi yang menerima parameter berbentuk fee padahal tidak boleh menerimanya berarti kebenarannya bergantung pada **apa yang pemanggil kirim**, bukan pada apa yang tiket ini mengizinkan; pemanggil lain, atau pelebaran `quote()` di masa depan (Layanan di TPU = tiket 56), bisa mengirim fee dan mendiagnosisnya sebagai baris yang sah. Menolaknya di dalam daftar membuat kegagalan itu **refusal yang membatalkan seluruh konfirmasi** — tidak ada Tagihan terbit sama sekali, bukan menagih keluarga biaya yang bukan haknya — dan refusal itu punya test sendiri. Test yang membuktikan: "refuses a quote carrying a Biaya Layanan Platform, because a TPU order never carries the Operator platform fee" (spec 370).
+
+- 2026-09-28 — **Fix pass item 2 — AC "no Pencairan involved" tidak bisa diuji persis seperti yang diminta, dan alasannya dicatat.** Modul Payouts di pohon ini **placeholder kosong**: tidak ada fungsi publik, tidak ada tabel, tidak ada satu pun `CREATE TABLE` pencairan di `drizzle/`. **Tidak ada Pencairan yang bisa dibuat**, jadi bukti merah yang diminta ("create the Pencairan, show the test failing, then remove it") tidak dapat dilakukan — bukan karena sulit, tetapi karena objeknya belum ada; yang memilikinya adalah **tiket 32** (`Pencairan and Potongan`, `ready-for-agent`). Yang ditulis sebagai gantinya, dengan jujur tentang apa yang ia buktikan: konfirmasi TPU **tidak menghasilkan Tagihan dengan satu pun baris ber-`provider: lokasi_mitra`, dan order itu tidak punya Petak Makam** — dua fakta yang membuat Pencairan mustahil, karena **setiap trigger Pencairan di `spec.md:493-501` berkeyat pada Lokasi Mitra, Mitra Jasa, atau Petak Makam**, dan order TPU tidak punya satu pun ketiganya. Jadi test ini **lebih lemah dari AC**: ia mengunci subjeknya, bukan "tidak ada Pencairan" secara langsung, dan ia akan menguat begitu tiket 32 menyelesaikannya dan `payouts.pencairanOpen()` tersedia untuk dibaca. **Saya tidak menulis test yang lolos karena alasan yang salah** (memeriksa tabel yang memang tidak ada, atau list kosong karena memang tidak ada apa pun untuk diperiksa). Bukti merahnya di entri berikutnya: yang disuntikkan adalah subjek Pencairan itu sendiri, dengan konfirmasi tetap berhasil supaya tidak ada error lain yang menutupi.
+
+- 2026-09-28 — **Fix pass item 1, bukti merah.** Izin `biaya_layanan_platform` sengaja dikembalikan ke `KINDS_YANG_BISA_DITAGIH`, lalu `npx vitest run src/domain/pengurusan/tanpa-pencairan.test.ts` dijalankan:
+
+```
+FAIL  src/domain/pengurusan/tanpa-pencairan.test.ts > a Saat Duka TPU Tagihan never
+      carries a Lokasi Mitra line > charges only the Operator's Biaya Pengurusan
+      and the town's Retribusi: never the Operator's platform fee
+AssertionError: expected [ 'biaya_pengurusan', …(2) ] to deeply equal [ 'biaya_pengurusan', …(1) ]
+- Expected
++ Received
+  [
+    "biaya_pengurusan",
+    "retribusi_pemda",
++   "biaya_layanan_platform",
+  ]
+ ❯ src/domain/pengurusan/tanpa-pencairan.test.ts:51:36
+```
+
+Izin itu lalu ditarik lagi dan test hijau. Test ini **guard di level sumber**, seperti `src/app/no-ticket-numbers.test.ts` dan sekelasnya, karena yang bisa salah di item 1 adalah **konstanta saat kompilasi**, bukan state saat runtime: `quote()` tidak pernah menghasilkan fee itu untuk quote TPU, jadi tidak ada jalan publik mana pun untuk mencapainya — dan test yang memeriksa total Tagihan saja akan tetap hijau meski izinnya dikembalikan, yaitu persis "lolos karena alasan yang salah".
+
+- 2026-09-28 — **Fix pass item 2, bukti merah.** Pencairan tidak bisa dibuat (lihat entri di atas), jadi yang disuntikkan adalah **subjeknya**: `lineProviderOf` sengaja diubah agar baris Biaya Pengurusan membawa `provider: { kind: "lokasi_mitra", … }` — persis kondisi yang membuat `spec.md:493-501` menarik Pencairan. Konfirmasi **tetap berhasil**, jadi tidak ada error lain yang menutupi, lalu test gagal tepat di assertion subjek:
+
+```
+FAIL  src/domain/pengurusan/tanpa-pencairan.test.ts > a Saat Duka TPU Tagihan never
+      carries a Lokasi Mitra line > leaves the order with no plot and every line on
+      no Lokasi Mitra, which is what makes a Pencairan impossible
+AssertionError: expected [ { …(4) }, { …(4) } ] to deeply equal [ …(2) ]
+  {
+    "amount": 1750000,
+    "kind": "biaya_pengurusan",
+    "label": "Biaya Pengurusan",
+    "provider": {
+-       "kind": "operator",
++       "kind": "lokasi_mitra",
++       "lokasiId": "00000000-0000-0000-0000-000000000001",
++       "name": "Sabotase",
+    },
+  }
+ ❯ src/domain/pengurusan/tanpa-pencairan.test.ts:74:28
+```
+
+Baris `provider` itu lalu dikembalikan ke `operator` dan test hijau. Kegagalan mendarat **tepat di subjek Pencairan**, bukan di error lain, jadi yang terbukti memang assertion itu yang bekerja.
+
+- 2026-09-28 — **Catatan untuk merge (bukan bagian dari dua fix Spec):** `origin/main` sudah bergerak sejak branch ini dibuat — main sekarang punya `0026_stiff_khan` (tiket 34) dan `0027_fresh_firebird`, sedangkan branch ini membawa `0026_closed_galactus`. **Nomor migrasi akan bentrok dan itu pekerjaan orchestrator di merge worktree** (AGENTS: jangan edit `_journal.json`, jangan rename `.sql` di branch). Saya **tidak menyentuh** `drizzle/0026_closed_galactus.sql` maupun `_journal.json`; keduanya bersih di `git status`.
+
+- 2026-09-28 — **`new Date()` di kode saya sendiri, dibersihkan.** `setor-retribusi.ts` pernah memanggil `new Date(\`${data.dibayarkanPada}T00:00:00+07:00\`)` untuk mengubah tanggal kalender WIB yang tertulis di bukti setor menjadi instan. Itu **bukan** baca "now" (argumennya data yang diketik manusia, dan "now" sendiri tetap dari Clock), tapi aturan repo menyebut konversi tanggal hanya lewat `@/lib/time/jakarta`, dan file saya yang lain sudah memakai `wib()` untuk hal yang persis sama. Sekarang konsisten: `wib(\`${data.dibayarkanPada} 00:00\`)`, nilai instannya identik, test tetap hijau. Tiga `new Date()` yang tersisa di `acara.ts` dan `pesan-keluarga.ts` adalah kode `main` yang tidak saya tulis — semuanya aritmetika atas instan yang sudah diketahui (`start.getTime() + 8h`), bukan `new Date()` tanpa argumen.
+
+- 2026-09-28 — **Empat test yang sudah hijau + `tests/support/queues.ts` dari commit pertama masih dibenarkan** setelah kedua fix ini; tidak ada yang dibatalkan, dan tidak ada assertion lama yang dilonggarkan.
+
+## Comments (lanjutan)
+
 - 2026-09-28 — **AC 1 terpenuhi separuh, dan separuhnya milik tiket 28.** Baris Tier 1 "Konfirmasi TPU Saat Duka" dibangun sebagai proyeksi murni dari `pengurusan.konfirmasiTpuTerbuka()` (order `diajukan`), dengan `deadline` = `konfirmasi_due_at` milik order itu sendiri — dua jam kerja di jam layanan TPU, dihitung `daytimeHoursDeadline` milik Lokasi (tiket 11) **saat pengajuan**, bukan saat baris dibaca. Baris menutup dirinya saat order dikonfirmasi atau ditolak. Yang **tidak** dibangun: Bertugas, alert 30/90 menit, dan alert 06:00 untuk baris malam — semuanya milik **tiket 28** (`ready-for-agent`). `tier: 1` membuat baris otomatis `alerts: true` lewat agregator, jadi tiket 28 punya hook-nya lewat konstanta `KONFIRMASI_TPU_SAAT_DUKA_TYPE` yang diekspor ke publik. **Angka 30/90 menit tidak diuji di sini dan tidak boleh diklaim terbukti.**
 
 - 2026-09-28 — **AC 2 dibaca "nama dan kontak", dan Akun Staf tidak punya nama.** `identity_user.name` ada tapi tidak diisi wizard mana pun; satu-satunya yang bisa dibaca adalah Email Terverifikasi + nomor telepon. `queues.ambilPengurus` mengembalikan nama dengan fallback ke email (`name.trim() || email || accountId`), jadi keluarga tidak pernah melihat string kosong. Ini **read tanpa Actor** di modul queues (dokumentasi di method-nya): satu-satunya pembacanya adalah halaman order milik Pemesan itu sendiri, dan `lokasi.kontakSiagaOf` sudah jadi preseden untuk kontak staf yang tampil ke keluarga.

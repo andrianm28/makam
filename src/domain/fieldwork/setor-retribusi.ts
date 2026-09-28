@@ -29,7 +29,7 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { setorRetribusiResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
-import { wibDateOf } from "@/lib/time/jakarta";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import type { Billing, RetribusiTagihan } from "@/domain/billing";
@@ -121,7 +121,9 @@ export async function catatSetorRetribusi(
   const data = parsed.data;
 
   const now = deps.clock.now();
-  const dibayarkanPada = new Date(`${data.dibayarkanPada}T00:00:00+07:00`);
+  // A WIB calendar date the receipt names, turned into the instant it starts.
+  // `wib()` is the one way that conversion happens, as everywhere in the app.
+  const dibayarkanPada = wib(`${data.dibayarkanPada} 00:00`);
   if (dibayarkanPada.getTime() > now.getTime()) return { ok: false, reason: "tanggal_di_masa_depan" };
 
   if (data.bukti.body.byteLength > BUKTI_MAX_BYTES) return { ok: false, reason: "input_tidak_valid" };
