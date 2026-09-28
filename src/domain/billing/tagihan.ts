@@ -370,6 +370,48 @@ export async function listTagihanRetribusiLunas(db: Database): Promise<Retribusi
   return found;
 }
 
+/**
+ * Every Tagihan whose cancellation (or another module's write) asked for money
+ * back, oldest request first: the Refunds module's (ticket 31) own source for
+ * what still needs an Admin Platform decision. A Tagihan a refund has already
+ * been issued for stays in this list — Billing does not know Refunds' own
+ * state — so the caller (Refunds) is the one that skips what it already holds
+ * a request for.
+ */
+export async function listTagihanMenungguPengembalian(db: Database): Promise<Tagihan[]> {
+  const rows = await db
+    .select({ id: tagihan.id })
+    .from(tagihan)
+    .where(isNotNull(tagihan.pengembalianDimintaAt))
+    .orderBy(asc(tagihan.pengembalianDimintaAt), asc(tagihan.id));
+  const found: Tagihan[] = [];
+  for (const row of rows) {
+    const read = await readTagihan(db, row.id);
+    if (read) found.push(read);
+  }
+  return found;
+}
+
+export type TandaiPengembalianResult = { ok: true } | { ok: false; reason: "tidak_ditemukan" };
+
+/**
+ * Moves a Tagihan to Dikembalikan sebagian / penuh once a Bukti Pengembalian
+ * Dana is issued for it (spec, Billing > Documents; ticket 31's own write,
+ * taken `within` the transaction that issues that Bukti, so the two commit
+ * together). This is the one place anything but Billing itself changes a
+ * Tagihan's status, because the Tagihan is Billing's own table.
+ */
+export async function tandaiPengembalian(
+  db: Database,
+  tagihanId: string,
+  input: { kind: "sebagian" | "penuh" },
+): Promise<TandaiPengembalianResult> {
+  if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
+  const status = input.kind === "penuh" ? "dikembalikan_penuh" : "dikembalikan_sebagian";
+  const updated = await db.update(tagihan).set({ status }).where(eq(tagihan.id, tagihanId)).returning({ id: tagihan.id });
+  return updated.length > 0 ? { ok: true } : { ok: false, reason: "tidak_ditemukan" };
+}
+
 /** The Tagihan behind a document link, or null. */
 export async function tagihanByLink(db: Database, link: string): Promise<Tagihan | null> {
   const [row] = await db.select().from(tagihan).where(eq(tagihan.link, link));

@@ -4,6 +4,7 @@ import { createQueues } from "@/domain/queues";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
 import { payoutsFor } from "./payouts";
+import { refundsFor } from "./refunds";
 import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { publishOnTestDatabase } from "./publish";
 
@@ -29,6 +30,7 @@ export function queuesOnTestDatabase(db: Database) {
     notifications: setup.notifications,
   });
   const { payouts } = payoutsFor(setup);
+  const { refunds } = refundsFor(setup, payouts);
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
   // Pengurusan module, and ticket 45 gave the Antrean a Tier 1 row that reads it,
   // so the queue is composed after it and holds it. Its family message is
@@ -65,8 +67,9 @@ export function queuesOnTestDatabase(db: Database) {
     pemesanan,
     payouts,
     pengurusan,
+    refunds,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, pengurusan, payouts, refunds, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

@@ -103,6 +103,7 @@ export {
   lokasiMitraResource,
   pemesananResource,
   pencairanResource,
+  pengembalianResource,
   pengurusanTpuResource,
   semuaLokasiMitraResource,
   setorRetribusiResource,

@@ -7,6 +7,7 @@ import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentE
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
+import { composeRefunds } from "@/composition/refunds";
 import { pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
@@ -71,6 +72,20 @@ async function main() {
     notifications,
     reportError,
   });
+  // Refunds, for the worker's materialising tick (ticket 31): composed after
+  // Payouts, exactly as it is composed after Billing.
+  const refunds = composeRefunds({
+    env,
+    db: database.db,
+    adapters,
+    audit,
+    lokasi,
+    billing,
+    payouts,
+    notifications,
+    operatorSettings,
+    reportError,
+  });
 
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
@@ -86,6 +101,7 @@ async function main() {
       identity,
       notifikasi,
       payouts,
+      refunds,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

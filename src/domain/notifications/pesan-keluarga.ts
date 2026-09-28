@@ -38,7 +38,7 @@ import {
   type TemplateEmail,
 } from "./acara";
 import { notificationsMessage, notificationsTagihanKontak, pesanStatuses } from "./schema";
-import { tagihanPengingatEmail, tagihanTerbitEmail, type TagihanEmailInput } from "./template";
+import { pengembalianTerbitEmail, tagihanPengingatEmail, tagihanTerbitEmail, type TagihanEmailInput } from "./template";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
 
 export interface PesanKeluargaDeps {
@@ -167,6 +167,68 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       }
     }
     return { ok: true, diingatkan };
+  });
+}
+
+export const pengembalianTerbitSchema = z.object({
+  tagihanId: z.uuid(),
+  nomorTagihan: z.string().trim().min(1).max(50),
+  nomorPemesanan: z.string().trim().min(1).max(50).nullable(),
+  jumlah: z.number().int().nonnegative(),
+  biayaLayananPlatformDikembalikan: z.boolean(),
+  /** The unguessable part of the Bukti Pengembalian Dana page's link. */
+  link: z.string().trim().min(1).max(100),
+});
+export type PengembalianTerbitInput = z.infer<typeof pengembalianTerbitSchema>;
+
+export type PengembalianTerbitResult = { ok: true } | { ok: false; reason: "tagihan_tidak_valid" };
+
+/**
+ * Announces a Bukti Pengembalian Dana: the link, in the family's own email —
+ * the Tagihan's own contact, recorded when the Tagihan itself was announced
+ * (`tagihanTerbit`). An order with no email opens the call row instead; the
+ * message asks nothing, so it goes at any hour (ticket 31).
+ */
+export async function pengembalianTerbit(deps: PesanKeluargaDeps, input: PengembalianTerbitInput): Promise<PengembalianTerbitResult> {
+  const parsed = pengembalianTerbitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "tagihan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  return refusable<PengembalianTerbitResult>(deps.db, async (tx) => {
+    const [kontak] = await tx
+      .select({ email: notificationsTagihanKontak.email })
+      .from(notificationsTagihanKontak)
+      .where(eq(notificationsTagihanKontak.tagihanId, data.tagihanId));
+    const email = kontak?.email ?? null;
+    if (!email) {
+      await bukaTeleponPemesan(tx, now, {
+        subjectKind: "tagihan",
+        subjectId: data.tagihanId,
+        nomorTagihan: data.nomorTagihan,
+        nomorPemesanan: data.nomorPemesanan,
+        sebab: "tanpa_email",
+      });
+      return { ok: true };
+    }
+    const terbit = pengembalianTerbitEmail({
+      nomorTagihan: data.nomorTagihan,
+      nomorPemesanan: data.nomorPemesanan,
+      jumlah: data.jumlah,
+      biayaLayananPlatformDikembalikan: data.biayaLayananPlatformDikembalikan,
+      tautan: deps.dokumenUrl(data.link),
+    });
+    await queueFamilyEmail(tx, now, {
+      template: "pengembalian_terbit",
+      pemesananId: null,
+      tagihanId: data.tagihanId,
+      nomorTagihan: data.nomorTagihan,
+      nomorPemesanan: data.nomorPemesanan,
+      email,
+      subject: terbit.subject,
+      body: terbit.body,
+      sendAfter: now,
+    });
+    return { ok: true };
   });
 }
 

@@ -6,6 +6,7 @@ import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
+import { composeRefunds } from "@/composition/refunds";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
@@ -113,6 +114,17 @@ export function testServerRuntime() {
       notifications,
       reportError: () => {},
     });
+    const refunds = composeRefunds({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      lokasi,
+      billing,
+      payouts,
+      notifications,
+      operatorSettings,
+    });
     holder.__makamRuntime = {
       env,
       database,
@@ -129,6 +141,7 @@ export function testServerRuntime() {
       fieldwork,
       pemesanan,
       payouts,
+      refunds,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -142,6 +155,7 @@ export function testServerRuntime() {
         pemesanan,
         payouts,
         pengurusan: pengursModule,
+        refunds,
       }),
       pengurusan: pengursModule,
     };

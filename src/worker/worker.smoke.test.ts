@@ -50,6 +50,7 @@ describe("pg-boss wiring (smoke)", () => {
           terencanaDiajukan: async () => {},
         },
         payouts: { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
+        refunds: { tick: async () => ({ materialised: 0 }) },
       }),
       clock,
       ticks: scheduledTicks,

@@ -32,7 +32,7 @@ import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
-import type { BarisPencairan } from "./baca";
+import { sudahDicairkanUntukTagihan, type BarisPencairan } from "./baca";
 import {
   batalkanPencairanTagihan,
   catatItemLayananMitraJasa,
@@ -169,6 +169,12 @@ export interface Payouts {
    */
   batalkanPencairanTagihan(tx: Database, input: { tagihanId: string }): Promise<BatalkanTagihanResult>;
   /**
+   * What a Tagihan's items already paid to a Lokasi Mitra come to, by Lokasi:
+   * what `batalkanPencairanTagihan` left alone. The Refunds module (ticket 31)
+   * reads this to know whether a full refund owes a Potongan, and for how much.
+   */
+  sudahDicairkanUntukTagihan(tagihanId: string): Promise<{ lokasiId: string; amount: number }[]>;
+  /**
    * The Layanan module (ticket 51) records a Mitra Jasa's job as a Pencairan
    * item, carrying the four things a Mitra Jasa may see about it, and later makes
    * it due when the job's Keluhan window closes — the moment the spec says a
@@ -242,6 +248,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     turunkanJumlahPencairan: (by, input) => turunkanJumlahPencairan(itemDeps, by, input),
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
+    sudahDicairkanUntukTagihan: (tagihanId) => sudahDicairkanUntukTagihan(deps.db, tagihanId),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),
     jadikanJatuhTempo: async (tx, itemId) => itemJatuhTempo(tx, itemId, { now: deps.clock.now(), jatuhTempoAt: await tenggat(deps.lokasi, deps.clock.now()) }),
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),

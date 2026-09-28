@@ -52,9 +52,12 @@ import {
 } from "./telepon-pemesan";
 import {
   kirimPesanJatuhTempo,
+  pengembalianTerbit,
   pesanTagihan,
   tagihanTerbit,
   type KirimJatuhTempo,
+  type PengembalianTerbitInput,
+  type PengembalianTerbitResult,
   type PesanTercatat,
   type TagihanTerbitInput,
   type TagihanTerbitResult,
@@ -250,6 +253,13 @@ export interface Notifications {
    * payment effect instead.
    */
   tagihanTerbit(input: TagihanTerbitInput): Promise<TagihanTerbitResult>;
+  /**
+   * Announces a Bukti Pengembalian Dana to the Tagihan's own contact (the
+   * address `tagihanTerbit` recorded); an order with no email opens a Telepon
+   * Pemesan row instead. The Refunds module (ticket 31) calls this once a
+   * transfer's Bukti exists.
+   */
+  pengembalianTerbit(input: PengembalianTerbitInput): Promise<PengembalianTerbitResult>;
   /**
    * The worker's send tick: sends every queued message whose time has come
    * (reminders only 08:00–20:00 WIB), retries with backoff, drops reminders
@@ -542,6 +552,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async tagihanTerbit(input) {
       return tagihanTerbit(deps, input);
+    },
+
+    async pengembalianTerbit(input) {
+      return pengembalianTerbit(deps, input);
     },
 
     async kirimPesanJatuhTempo(now) {

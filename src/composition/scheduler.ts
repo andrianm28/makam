@@ -5,6 +5,7 @@ import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { PemesananNotifikasi } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Refunds } from "@/domain/refunds";
 import type { SchedulerContext } from "@/domain/scheduler";
 import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
@@ -23,6 +24,7 @@ export function composeSchedulerContext(deps: {
   identity: Pick<Identity, "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  refunds: Pick<Refunds, "tick">;
 }): SchedulerContext {
   return {
     db: deps.db,
@@ -31,5 +33,6 @@ export function composeSchedulerContext(deps: {
     notifications: deps.notifications,
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
     payouts: deps.payouts,
+    refunds: deps.refunds,
   };
 }

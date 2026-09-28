@@ -194,7 +194,15 @@ export type AuditAction =
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */
   | "pemakaman.catat"
   /** An Admin Lokasi records the burial of one of its orders, which makes that order Dimakamkan (ticket 25). */
-  | "pemesanan.catat_pemakaman";
+  | "pemesanan.catat_pemakaman"
+  /** Admin Platform raises a goodwill refund on a Tagihan, from the Operator's own funds (ticket 31). */
+  | "pengembalian.ajukan_goodwill"
+  /** Admin Platform approves a refund request: the Tier 3 "refund transfer" row appears (ticket 31). */
+  | "pengembalian.setujui"
+  /** The refund's destination bank account is recorded by Admin Platform on the Pemesan's behalf (ticket 31). */
+  | "pengembalian.isi_rekening"
+  /** Admin Platform transfers a refund by hand, uploads the proof and enters the date: one Bukti Pengembalian Dana (ticket 31). */
+  | "pengembalian.terbitkan_bukti";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

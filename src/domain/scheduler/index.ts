@@ -18,6 +18,7 @@ import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Refunds } from "@/domain/refunds";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
 
@@ -41,6 +42,8 @@ export interface SchedulerContext {
    * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
    */
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
+  refunds: Pick<Refunds, "tick">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -89,6 +92,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
   // Pemesanan: the day after a burial it agreed, the Lokasi is asked to record it (ticket 25).
   { name: "pemesanan.catat_pemakaman", cron: "* * * * *", tick: catatPemakamanPromptTick },
+  // Refunds: every Tagihan Billing flagged for a refund becomes a request here (ticket 31).
+  { name: "refunds.materialise", cron: "* * * * *", tick: refundsMaterialiseTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -121,4 +126,9 @@ async function potonganUsiaTick(ctx: SchedulerContext, now: Date): Promise<void>
 /** The worker wrapper around the Pemesanan module's "Catat Pemakaman" prompt (idempotent there too). */
 async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await catatPemakamanTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Refunds materialising tick (idempotent there, as every tick is). */
+async function refundsMaterialiseTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.refunds.tick(now);
 }

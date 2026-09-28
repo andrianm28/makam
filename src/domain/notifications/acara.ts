@@ -27,6 +27,7 @@ export const TEMPLATE_EMAIL = [
   "tagihan_pengingat_hari_h",
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
+  "pengembalian_terbit",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -55,6 +56,9 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_pengingat_hari_h: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
   pengurusan_dikonfirmasi: "transaksional",
+  // A Bukti Pengembalian Dana asks nothing (the money is already on its way),
+  // exactly like a Bukti Pembayaran (ticket 31).
+  pengembalian_terbit: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */

@@ -54,15 +54,18 @@ import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
+  listTagihanMenungguPengembalian,
   listTagihanRetribusiLunas,
   readTagihan,
   reissueTagihan,
+  tandaiPengembalian,
   type IssueTagihanInput,
   type IssueTagihanResult,
   type NewTagihanLine,
   type ReissueTagihanResult,
   type RetribusiTagihan,
   type Tagihan,
+  type TandaiPengembalianResult,
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
@@ -98,6 +101,7 @@ export {
   type Tagihan,
   type TagihanLine,
   type TagihanStatus,
+  type TandaiPengembalianResult,
   type TariffLineKind,
 } from "./tagihan";
 
@@ -163,6 +167,20 @@ export interface Billing {
    * "Setor Retribusi" row is a projection of (spec, Work Queues; ticket 45).
    */
   tagihanRetribusiLunas(): Promise<RetribusiTagihan[]>;
+  /**
+   * Every Tagihan that asked for money back and has not been paid out yet
+   * (spec, Billing > Refunds), oldest request first: the Refunds module's
+   * (ticket 31) own source for the automatic half of "one refund flow for the
+   * whole platform" — a Saat Duka cancellation (ticket 24) today.
+   */
+  tagihanMenungguPengembalian(): Promise<Tagihan[]>;
+  /**
+   * Moves a Tagihan to Dikembalikan sebagian / penuh once its Bukti
+   * Pengembalian Dana is issued. The Refunds module (ticket 31) calls this
+   * `within` the same transaction that issues that Bukti, so the two commit
+   * together; only Billing itself writes a Tagihan's status otherwise.
+   */
+  tandaiPengembalian(tagihanId: string, input: { kind: "sebagian" | "penuh" }): Promise<TandaiPengembalianResult>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -247,6 +265,8 @@ export function createBilling(deps: BillingDeps): Billing {
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),
+    tagihanMenungguPengembalian: () => listTagihanMenungguPengembalian(deps.db),
+    tandaiPengembalian: (tagihanId, input) => tandaiPengembalian(deps.db, tagihanId, input),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
