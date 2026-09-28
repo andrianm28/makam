@@ -12,4 +12,14 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        # `github.token`, not `secrets.GITHUB_TOKEN`: a composite action is
+        # validated as its own manifest, and the `secrets` context is not a
+        # recognised named-value there, so GitHub refused to load the action at
+        # all and every job that logs in to ghcr failed in 0s. The `github`
+        # context is available, and `github.token` is the same workflow token
+        # that `secrets.GITHUB_TOKEN` names (GitHub: "An action can access the
+        # GITHUB_TOKEN through the `github.token` context even if the workflow
+        # does not explicitly pass the GITHUB_TOKEN to the action"). What it may
+        # do is still only this job's `permissions` block, so least privilege
+        # stays where the description says it does.
+        password: ${{ github.token }}
