@@ -55,14 +55,29 @@ runs:
         esac
         # The key goes into the container as an environment variable, not as a
         # file. cosign reads COSIGN_PRIVATE_KEY and COSIGN_PASSWORD from the
-        # environment, and a file was wrong twice over: the cosign container runs
-        # as uid 65532, so a 0600 key owned by the runner was unreadable
-        # (permission denied), and the passphrase was only ever written to
-        # cosign.password, which cosign never reads. Nothing touches the runner's
-        # disk, so there is nothing left behind to delete if the sign fails.
+        # environment, and a file was wrong three times over, all one cause: the
+        # cosign container runs as uid 65532 and the runner writes 0600. The key
+        # was unreadable (permission denied); the passphrase was only ever
+        # written to cosign.password, which cosign never reads; and the
+        # registry credentials are still 0600 today, which is what actually
+        # stopped this job — cosign fell back to an anonymous pull and ghcr
+        # answered UNAUTHORIZED, forty runs in a row with nothing to read.
+        #
+        # So the credentials get the same treatment as the key, in a scratch
+        # copy the container can read, leaving the runner's own file at 0600 and
+        # nothing behind on a failure. DOCKER_CONFIG is set rather than relying
+        # on the image's home directory, so the mount path is not a guess.
+        DOCKER_SCRATCH="$RUNNER_TEMP/cosign-docker-config"
+        rm -rf "$DOCKER_SCRATCH"
+        install -d -m 0755 "$DOCKER_SCRATCH"
+        install -m 0644 "${DOCKER_CONFIG:-$HOME/.docker}/config.json" "$DOCKER_SCRATCH/config.json"
+
         docker run --rm \
           -e COSIGN_PRIVATE_KEY \
           -e COSIGN_PASSWORD \
-          -v "$HOME/.docker:/home/cosign/.docker:ro" \
+          -e DOCKER_CONFIG=/docker \
+          -v "$DOCKER_SCRATCH:/docker:ro" \
           --entrypoint cosign "$COSIGN" sign --yes \
           "$IMAGE"
+
+        rm -rf "$DOCKER_SCRATCH"
