@@ -8,7 +8,7 @@ import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
 import { composeRefunds } from "@/composition/refunds";
-import { pemesananNotifikasiDari } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
 import { createInventory } from "@/domain/inventory";
@@ -98,6 +98,21 @@ async function main() {
     reportError,
   });
 
+  // The Pemesanan module, for the tick that lets a Terencana order's payment hold lapse (ticket 37): it reaches
+  // Billing on the database (the Tagihan it cancels is Billing's own write) and Inventory (the plots it releases).
+  const pemesanan = composePemesanan({
+    db: database.db,
+    clock: adapters.clock,
+    files: adapters.files,
+    audit,
+    lokasi,
+    tariffs,
+    inventory,
+    billing: billingOn(billingComposition, database.db),
+    identity,
+    notifikasi,
+  });
+
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
     context: composeSchedulerContext({
@@ -113,6 +128,7 @@ async function main() {
       notifikasi,
       payouts,
       refunds,
+      terencana: pemesanan,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

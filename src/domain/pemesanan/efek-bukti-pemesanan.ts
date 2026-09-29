@@ -23,7 +23,8 @@ import type { Database } from "@/db/client";
 import type { Billing, PaymentEffect, SettledPayment } from "@/domain/billing";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
 import type { MasaBuktiPemesanan } from "@/lib/billing-labels";
-import { pemesananMakam } from "./schema";
+import { pemesananMakam, pemesananTerencana } from "./schema";
+import { aktifkanTerencana } from "./terencana-aktif";
 import type { PemesananDeps } from "./deps";
 
 export interface BuktiPemesananEffectDeps {
@@ -38,6 +39,12 @@ export interface BuktiPemesananEffectDeps {
   inventory: Pick<PemesananDeps["inventory"], "within">;
   lokasi: Pick<PemesananDeps["lokasi"], "publicLokasiMitra">;
   notifikasi: PemesananDeps["notifikasi"];
+  /**
+   * Payouts' record that a paid Pemesanan Terencana's Masa Pembatalan runs until a given
+   * instant, written in the payment's own transaction (ticket 37). Payouts is composed after
+   * Billing, so this is the one function it exposes without needing the module itself.
+   */
+  pencairan: { masaPembatalanDimulai(tx: Database, input: { nomorPemesanan: string; berakhirPada: Date }): Promise<void> };
 }
 
 /**
@@ -52,6 +59,15 @@ export function efekBuktiPemesanan(deps: BuktiPemesananEffectDeps): PaymentEffec
     async run(tx: Database, payment: SettledPayment) {
       const now = deps.clock.now();
       if (!payment.nomorPemesanan) return;
+      // A Pemesanan Terencana is paid first: its payment is what makes it Aktif (ticket 37).
+      const [terencana] = await tx
+        .select({ id: pemesananTerencana.id })
+        .from(pemesananTerencana)
+        .where(eq(pemesananTerencana.nomor, payment.nomorPemesanan));
+      if (terencana) {
+        await aktifkanTerencana(tx, deps, { nomorPemesanan: payment.nomorPemesanan, tagihanId: payment.tagihanId, paidAt: payment.paidAt });
+        return;
+      }
       const [order] = await tx.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, payment.nomorPemesanan));
       if (!order || order.kind !== "saat_duka") return;
       // The burial must already be on record: the document names the Hak Pakai's

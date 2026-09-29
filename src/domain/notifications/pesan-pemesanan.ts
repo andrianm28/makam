@@ -134,7 +134,7 @@ export const pesananBuktiPemesananSchema = z.object({
   bukti: z.object({ nomor: z.string().trim().min(1).max(50), link: z.string().trim().min(1).max(100) }),
   petakNomor: z.string().trim().min(1).max(60),
   pemegangHakName: z.string().trim().min(1).max(200),
-  masa: z.object({ mulai: z.iso.date(), selesai: z.iso.date().nullable() }),
+  masa: z.object({ mulai: z.iso.date().nullable(), selesai: z.iso.date().nullable(), tahun: z.number().int().min(1).max(200).nullable().optional() }),
 });
 export type PesananBuktiPemesananInput = z.infer<typeof pesananBuktiPemesananSchema>;
 

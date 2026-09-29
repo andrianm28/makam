@@ -3,7 +3,7 @@ import type { PaymentEffect } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
-import type { PemesananNotifikasi } from "@/domain/pemesanan";
+import type { Pemesanan, PemesananNotifikasi } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
 import type { SchedulerContext } from "@/domain/scheduler";
@@ -25,6 +25,8 @@ export function composeSchedulerContext(deps: {
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   refunds: Pick<Refunds, "tick">;
+  /** The Pemesanan module, for the Terencana payment-hold lapse (ticket 37). */
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
 }): SchedulerContext {
   return {
     db: deps.db,
@@ -34,5 +36,6 @@ export function composeSchedulerContext(deps: {
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
     payouts: deps.payouts,
     refunds: deps.refunds,
+    terencana: deps.terencana,
   };
 }

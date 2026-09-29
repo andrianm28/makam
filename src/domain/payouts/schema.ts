@@ -369,3 +369,17 @@ export const pencairanPemakaman = pgTable("pencairan_pemakaman", {
   nomorPemesanan: text("nomor_pemesanan").primaryKey(),
   pemakamanPada: at("pemakaman_pada").notNull(),
 });
+
+/**
+ * Owned by the Payouts module: the Masa Pembatalan half of the Pemesanan Terencana
+ * Pencairan trigger (spec, Billing > Payouts: "Pemesanan Terencana Hak Pakai | end
+ * of the Masa Pembatalan, or the first Pemakaman if sooner"; ticket 37). Written by
+ * the Pemesanan module in the very transaction that makes the order Aktif, and only
+ * the instant Payouts needs, the end of the period in which a Pembatalan would still
+ * refund everything, so nothing here is read back from another module, and a
+ * redelivered payment leaves one row (`nomor_pemesanan` is the primary key).
+ */
+export const pencairanTerencana = pgTable("pencairan_terencana", {
+  nomorPemesanan: text("nomor_pemesanan").primaryKey(),
+  masaPembatalanBerakhirPada: at("masa_pembatalan_berakhir_pada").notNull(),
+});

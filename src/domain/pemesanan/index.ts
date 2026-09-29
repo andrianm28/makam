@@ -80,6 +80,23 @@ import {
 } from "./chasing";
 
 import {
+  konfirmasiTerencana,
+  lewatBatasBayarTerencana,
+  tarikTerencana,
+  tolakTerencana,
+  type KonfirmasiTerencanaResult,
+  type LewatBatasBayarHasil,
+  type TarikTerencanaResult,
+  type TolakTerencanaResult,
+} from "./terencana-konfirmasi";
+import {
+  antreanKonfirmasiTerencana,
+  konfirmasiTerencanaLewatTenggat,
+  terencanaUntukStaf,
+  type OrderTerencanaAntrean,
+  type OrderTerencanaStaf,
+} from "./reads-terencana-staf";
+import {
   denahTerencana,
   kotaTerencana,
   periksaPilihanTerencana,
@@ -156,6 +173,21 @@ export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDok
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
 export { HARGA_BANDS } from "./terencana";
+export {
+  konfirmasiTerencanaSchema,
+  tarikTerencanaSchema,
+  tolakTerencanaSchema,
+  type KonfirmasiTerencanaInput,
+  type KonfirmasiTerencanaResult,
+  type LewatBatasBayarHasil,
+  type TarikTerencanaInput,
+  type TarikTerencanaResult,
+  type TolakTerencanaInput,
+  type TolakTerencanaResult,
+} from "./terencana-konfirmasi";
+export { ALASAN_BATAL_TERENCANA, alasanBatalTerencana, type AlasanBatalTerencana } from "./alasan-batal-terencana";
+export { alasanTolakTerencanaKeys, type AlasanTolakTerencana } from "./alasan-tolak";
+export type { OrderTerencanaAntrean, OrderTerencanaStaf, UnitTerencanaBaca } from "./reads-terencana-staf";
 /**
  * The Terencana wizard's boundaries. A Client Component (the wizard's form) takes
  * these from this file rather than from this module's barrel, because a bundler keeps
@@ -306,6 +338,27 @@ export interface Pemesanan {
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
   /**
+   * The Lokasi Mitra's answer to a Pemesanan Terencana (ticket 37). `konfirmasiTerencana` starts
+   * the payment hold (Lokasi policy, 24 h by default) and issues the pay-first Tagihan due when it
+   * ends; `tolakTerencana` declines with a reason off the closed list and releases the plots.
+   * Only that Lokasi's Admin Lokasi; both audited in their own transaction.
+   */
+  konfirmasiTerencana(by: Actor, input: unknown): Promise<KonfirmasiTerencanaResult>;
+  tolakTerencana(by: Actor, input: unknown): Promise<TolakTerencanaResult>;
+  /** The Pemesan withdraws its own order, free, any time before paying: the plots are released and a confirmed order's Tagihan is cancelled. */
+  tarikTerencana(pemesan: Pemesan, input: unknown): Promise<TarikTerencanaResult>;
+  /**
+   * The scheduler's tick: a confirmed Terencana order whose payment hold ended with its Tagihan
+   * unpaid becomes Dibatalkan ("batas pembayaran lewat") and its plots are released. Idempotent.
+   */
+  lewatBatasBayarTick(now?: Date): Promise<LewatBatasBayarHasil>;
+  /** One Terencana order as the Lokasi Mitra's own staff read it; null for one that is not theirs. */
+  terencanaUntukStaf(by: Actor, nomor: string): Promise<OrderTerencanaStaf | null>;
+  /** The Antrean Lokasi's "Konfirmasi Terencana" rows: every Diajukan order of that Lokasi Mitra, oldest first. */
+  antreanKonfirmasiTerencana(lokasiId: string): Promise<OrderTerencanaAntrean[]>;
+  /** Admin Platform's Tier 3 "Konfirmasi Terencana terlambat" rows: Diajukan orders past the end of their Lokasi's next working day. */
+  konfirmasiTerencanaLewatTenggat(): Promise<OrderTerencanaAntrean[]>;
+  /**
    * True while a Lokasi Mitra Saat Duka Tagihan on this Hak Pakai is Lewat
    * Jatuh Tempo (spec, Billing > Chasing; ticket 29): blocks Perpanjangan and
    * Ganti Pemegang Hak.
@@ -360,6 +413,13 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
+    tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
+    tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),
+    lewatBatasBayarTick: (now) => lewatBatasBayarTerencana(deps, now ?? deps.clock.now()),
+    terencanaUntukStaf: (by, nomor) => terencanaUntukStaf(deps, by, nomor),
+    antreanKonfirmasiTerencana: (lokasiId) => antreanKonfirmasiTerencana(deps, lokasiId),
+    konfirmasiTerencanaLewatTenggat: () => konfirmasiTerencanaLewatTenggat(deps, deps.clock.now()),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
     nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),
     akhiriHakPakaiTidakTertagih: (by, input) => akhiriHakPakaiTidakTertagih(deps, by, input),

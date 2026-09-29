@@ -22,6 +22,8 @@ export const statusVocabulary = {
   belum_dibayar: { label: "Belum Dibayar", tone: "warning" },
   diajukan: { label: "Diajukan", tone: "info" },
   dikonfirmasi: { label: "Dikonfirmasi", tone: "success" },
+  // A Pemesanan Terencana that has been paid: its Hak Pakai runs (ticket 37).
+  aktif: { label: "Aktif", tone: "success" },
   dimakamkan: { label: "Dimakamkan", tone: "success" },
   selesai: { label: "Selesai", tone: "success" },
   ditolak: { label: "Ditolak", tone: "warning" },

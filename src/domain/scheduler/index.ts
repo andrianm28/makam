@@ -16,6 +16,7 @@ import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFail
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
+import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
@@ -42,6 +43,11 @@ export interface SchedulerContext {
    * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
    */
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  /**
+   * The Pemesanan module's own tick for a Pemesanan Terencana whose payment hold ran out unpaid
+   * (ticket 37): the order becomes Dibatalkan and its plots are released.
+   */
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
 }
@@ -88,7 +94,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "notifications.chasing_eskalasi", cron: "* * * * *", tick: chasingEskalasiTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
-  // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32).
+  // Pemesanan: a confirmed Terencana order whose payment hold ended unpaid is cancelled and its plots released (ticket 37).
+  { name: "pemesanan.lewat_batas_bayar_terencana", cron: "* * * * *", tick: lewatBatasBayarTerencanaTick },
+  // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32);
+  // a paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa Pembatalan (ticket 37).
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
   // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
@@ -118,6 +127,11 @@ async function chasingEskalasiTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Pemesanan module's Terencana payment-hold lapse (idempotent there, as every tick is). */
+async function lewatBatasBayarTerencanaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.terencana.lewatBatasBayarTick(now);
 }
 
 /** The worker wrapper around the Payouts trigger (idempotent there, as every tick is). */

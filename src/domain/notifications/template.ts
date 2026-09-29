@@ -166,8 +166,8 @@ export interface PesananBuktiPemesananEmailInput {
   bukti: { nomor: string; tautan: string };
   petakNomor: string;
   pemegangHakName: string;
-  /** The Hak Pakai's term: the first Pemakaman's date, and the end of a fixed term (null for a Selamanya one). */
-  masa: { mulai: string; selesai: string | null };
+  /** The Hak Pakai's term: the first Pemakaman's date (null while none is recorded), the end of a fixed term (null for a Selamanya one), and the term's length while it has not started. */
+  masa: { mulai: string | null; selesai: string | null; tahun?: number | null };
   tautan: string;
 }
 
@@ -216,7 +216,14 @@ export function pengurusanDikonfirmasiEmail(input: PengurusanDikonfirmasiEmailIn
  * right it proves and carries no amounts: the payment has its own Bukti.
  */
 export function pesananBuktiPemesananEmail(input: PesananBuktiPemesananEmailInput): { subject: string; body: string } {
-  const masa = input.masa.selesai ? `${formatTanggal(input.masa.mulai)} sampai ${formatTanggal(input.masa.selesai)}` : `mulai ${formatTanggal(input.masa.mulai)}, selamanya`;
+  const masa =
+    input.masa.mulai === null
+      ? input.masa.tahun
+        ? `${input.masa.tahun} tahun sejak pemakaman pertama`
+        : "selamanya, sejak pemakaman pertama"
+      : input.masa.selesai
+        ? `${formatTanggal(input.masa.mulai)} sampai ${formatTanggal(input.masa.selesai)}`
+        : `mulai ${formatTanggal(input.masa.mulai)}, selamanya`;
   return {
     subject: `Bukti Pemesanan ${input.bukti.nomor}: hak atas Petak Makam ${input.petakNomor} di ${input.lokasiName}`,
     body: [

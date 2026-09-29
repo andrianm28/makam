@@ -19,6 +19,7 @@ import {
   KonfirmasiForm,
   PembayaranLangsungForm,
 } from "./pesanan-forms";
+import { TerencanaPesananView } from "./terencana-view";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -41,8 +42,15 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
   const { actor, current } = await adminLokasiScope(lokasiId);
   const { pemesanan, inventory } = serverRuntime();
   const order = await pemesanan.orderUntukStaf(actor, parsed.data);
+  if (!order) {
+    // A Pemesanan Terencana shares the Nomor Pemesanan series and this address (ticket 37), and is read from
+    // its own tables; another Lokasi Mitra's order is nothing found, as it is for a Saat Duka order.
+    const terencana = await pemesanan.terencanaUntukStaf(actor, parsed.data);
+    if (!terencana || terencana.lokasi.id !== current.id) notFound();
+    return <TerencanaPesananView order={terencana} lokasiId={current.id} />;
+  }
   // Another Lokasi Mitra's order is nothing found here, exactly as it is nowhere else in this area.
-  if (!order || order.lokasi.id !== current.id) notFound();
+  if (order.lokasi.id !== current.id) notFound();
 
   const menunggu = order.status === "diajukan";
   const petak = menunggu && order.jenisMakam

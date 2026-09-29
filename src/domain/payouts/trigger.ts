@@ -22,7 +22,7 @@
  * to change them) and the family has been sent that number, so a tariff entered
  * between the issue and the burial must not move what the Lokasi Mitra is paid.
  */
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -31,7 +31,7 @@ import { addWorkingDays, type Lokasi } from "@/domain/lokasi";
 import type { ReportError } from "@/lib/observability/report-error";
 import { sumRupiah, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
-import { pencairanItem, pencairanPemakaman, pencairanPembayaran, type PencairanItemKind } from "./schema";
+import { pencairanItem, pencairanPemakaman, pencairanPembayaran, pencairanTerencana, type PencairanItemKind } from "./schema";
 import { sisipPotongan } from "./potongan";
 
 /** How long after an item becomes due Admin Platform must have transferred it: 2 Hari Kerja (AC 6). */
@@ -153,10 +153,123 @@ function tenggat(dueAt: Date, calendar: Awaited<ReturnType<Lokasi["adminPlatform
 }
 
 /**
+ * One paid order's Pencairan, made due at `dueAt`: what both triggers do once
+ * their own condition holds. Everything an order's items need is read from the
+ * issued Tagihan, and the whole is one transaction that skips an order whose items
+ * already exist, so calling it again (a second tick, the other trigger arriving
+ * later) changes nothing.
+ */
+async function tulisPencairan(
+  deps: PemicuDeps,
+  row: { tagihanId: string; nomorPemesanan: string; metode: unknown; dibatalkan: Date | null; dibayarPada: Date; dueAt: Date },
+  calendar: Awaited<ReturnType<Lokasi["adminPlatformCalendar"]>>,
+  now: Date,
+): Promise<HasilSatu> {
+  // A payment method that does not read is not a trigger this module acts on:
+  // a row it cannot understand is left alone rather than guessed at.
+  const metode = paymentMethodSchema.safeParse(row.metode);
+  if (!metode.success) return { ok: false, dibuat: 0, dilewati: false, potongan: false };
+  // Read before the transaction opens, so a write never holds its connection
+  // while another read is pending.
+  const tagihan = await deps.billing.tagihan(row.tagihanId);
+  if (!tagihan) return { ok: false, dibuat: 0, dilewati: false, potongan: false };
+  const langsung = metode.data.kind === "langsung_ke_lokasi" && !row.dibatalkan;
+  const ditulis = await refusable<{ ok: boolean; dibuat: number; dilewati: boolean }>(deps.db, async (tx) => {
+    const sudah = await tx
+      .select({ id: pencairanItem.id })
+      .from(pencairanItem)
+      .where(eq(pencairanItem.tagihanId, row.tagihanId))
+      .limit(1);
+    if (sudah.length > 0) return { ok: true, dibuat: 0, dilewati: true };
+    const partner = linesOfPartner(tagihan);
+    if (!partner.ok) {
+      deps.reportError?.(new Error("a Tagihan line the partner provides has no Pencairan item kind"), {
+        tags: { module: "payouts", event: "pencairan_item_jenis_tidak_dikenal", nomorTagihan: tagihan.nomorTagihan },
+      });
+      return { ok: false, dibuat: 0, dilewati: false };
+    }
+    // A Tagihan refunded in full owes nobody anything: the family's money went
+    // back to them, so no partner is paid for it and nothing is clawed back
+    // afterwards (the owner's decision recorded in the ticket's Comments).
+    if (tagihan.status === "dikembalikan_penuh") return { ok: true, dibuat: 0, dilewati: true };
+
+    const jatuhTempoAt = tenggat(row.dueAt, calendar);
+    if (langsung) {
+      // "Dibayar langsung": the family paid the Lokasi Mitra itself, so no
+      // tariff is owed to it — and the Operator's own fee becomes a Potongan.
+      return { ok: true, dibuat: await potongLangsung(tx, tagihan, partner.lines, now), dilewati: false };
+    }
+    const porsiMitra = porsiMitraOf(tagihan, partner.lines);
+    const dibuat = await tx
+      .insert(pencairanItem)
+      .values(
+        partner.lines.map(({ position, line }) => {
+          const adjustment = porsiMitra.get(position);
+          return {
+            penerimaKind: "lokasi_mitra" as const,
+            lokasiId: line.provider.lokasiId,
+            penerimaNama: line.provider.name,
+            penerimaAkunId: null,
+            kind: ITEM_KIND_BY_LINE[line.kind] as PencairanItemKind,
+            label: line.label,
+            amount: line.amount as Rupiah,
+            tagihanId: tagihan.id,
+            tagihanPosisi: position,
+            nomorPemesanan: tagihan.nomorPemesanan,
+            tanggalLayanan: line.kind === "layanan" ? line.targetDate : null,
+            // A line kind whose own trigger another ticket owns (a Perpanjangan
+            // paid straight away, a Layanan's job after its Keluhan window) is
+            // recorded now and waits: the amount is fixed by the issued Tagihan
+            // either way, and nothing is ever paid before its own trigger says so.
+            dueAt: milikTriggerIni(line.kind) ? row.dueAt : null,
+            jatuhTempoAt: milikTriggerIni(line.kind) ? jatuhTempoAt : null,
+            status:
+              adjustment?.habis ? ("dibatalkan" as const) : milikTriggerIni(line.kind) ? ("jatuh_tempo" as const) : ("belum_jatuh_tempo" as const),
+            batalAlasan: adjustment?.habis ? ("telah_ditanggung" as const) : null,
+            batalPada: adjustment?.habis ? now : null,
+            jumlahDisesuaikan: adjustment && !adjustment.habis ? adjustment.jumlahDisesuaikan : null,
+            alasanPenyesuaian: adjustment && !adjustment.habis ? ("porsi_pemegang_saham" as const) : null,
+            catatanPenyesuaian: adjustment && !adjustment.habis ? tagihan.hargaKhususPorsiMitra!.catatan : null,
+            disesuaikanPada: adjustment && !adjustment.habis ? now : null,
+            dibuatPada: now,
+          };
+        }),
+      )
+      .onConflictDoNothing({ target: [pencairanItem.tagihanId, pencairanItem.tagihanPosisi] })
+      .returning({ id: pencairanItem.id });
+    return { ok: true, dibuat: dibuat.length, dilewati: false };
+  });
+  return { ...ditulis, potongan: langsung };
+}
+
+/** What writing one order's Pencairan came to. */
+interface HasilSatu {
+  ok: boolean;
+  dibuat: number;
+  dilewati: boolean;
+  /** The order was paid straight to the Lokasi Mitra, so what was written is a Potongan, not items. */
+  potongan: boolean;
+}
+
+/** Adds one order's outcome to a tick's totals. */
+function catat(hasil: TickPencairanResult, satu: HasilSatu): void {
+  if (!satu.ok) return;
+  if (satu.dilewati) hasil.dilewati += 1;
+  else if (satu.potongan) hasil.potongan += satu.dibuat;
+  else hasil.items += satu.dibuat;
+}
+
+/**
  * Every order whose Tagihan is Lunas **and** whose Pemakaman is recorded gets
  * its Pencairan items, due from the later of the two instants. Idempotent.
+ *
+ * A Pemesanan Terencana has its own trigger beside it (`tickPencairanTerencana`,
+ * run first): its Hak Pakai item is due at the end of the Masa Pembatalan, or at
+ * the first Pemakaman if that comes sooner, and the Pemakaman is this trigger's own
+ * fact, so the sooner of the two is whichever condition the ticks find first.
  */
 export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPencairanResult> {
+  const { hasil: terencana, diperiksa } = await tickPencairanTerencana(deps, now);
   const menunggu = await deps.db
     .select({
       tagihanId: pencairanPembayaran.tagihanId,
@@ -172,92 +285,76 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
     .innerJoin(pencairanPemakaman, eq(pencairanPemakaman.nomorPemesanan, pencairanPembayaran.nomorPemesanan))
     .where(isNotNull(pencairanPembayaran.nomorPemesanan))
     .orderBy(pencairanPembayaran.dibayarPada);
-  if (menunggu.length === 0) return { items: 0, potongan: 0, dilewati: 0 };
+  if (menunggu.length === 0) return terencana;
 
   const calendar = await deps.lokasi.adminPlatformCalendar();
-  const hasil: TickPencairanResult = { items: 0, potongan: 0, dilewati: 0 };
+  const hasil: TickPencairanResult = { ...terencana };
   for (const row of menunggu) {
-    if (row.nomorPemesanan === null) continue;
-    // A payment method that does not read is not a trigger this module acts on:
-    // a row it cannot understand is left alone rather than guessed at.
-    const metode = paymentMethodSchema.safeParse(row.metode);
-    if (!metode.success) continue;
-    // Read before the transaction opens, so a write never holds its connection
-    // while another read is pending.
-    const tagihan = await deps.billing.tagihan(row.tagihanId);
-    if (!tagihan) continue;
-    const ditulis = await refusable(deps.db, async (tx) => {
-      const sudah = await tx
-        .select({ id: pencairanItem.id })
-        .from(pencairanItem)
-        .where(eq(pencairanItem.tagihanId, row.tagihanId))
-        .limit(1);
-      if (sudah.length > 0) return { ok: true, dibuat: 0, dilewati: true } as const;
-      const partner = linesOfPartner(tagihan);
-      if (!partner.ok) {
-        deps.reportError?.(new Error("a Tagihan line the partner provides has no Pencairan item kind"), {
-          tags: { module: "payouts", event: "pencairan_item_jenis_tidak_dikenal", nomorTagihan: tagihan.nomorTagihan },
-        });
-        return { ok: false, dibuat: 0, dilewati: false } as const;
-      }
-      // A Tagihan refunded in full owes nobody anything: the family's money went
-      // back to them, so no partner is paid for it and nothing is clawed back
-      // afterwards (the owner's decision recorded in the ticket's Comments).
-      if (tagihan.status === "dikembalikan_penuh") return { ok: true, dibuat: 0, dilewati: true } as const;
-
-      const dueAt = new Date(Math.max(row.dibayarPada.getTime(), row.pemakamanPada.getTime()));
-      const jatuhTempoAt = tenggat(dueAt, calendar);
-      if (metode.data.kind === "langsung_ke_lokasi" && !row.dibatalkan) {
-        // "Dibayar langsung": the family paid the Lokasi Mitra itself, so no
-        // tariff is owed to it — and the Operator's own fee becomes a Potongan.
-        return { ok: true, dibuat: await potongLangsung(tx, tagihan, partner.lines, now), dilewati: false } as const;
-      }
-      const porsiMitra = porsiMitraOf(tagihan, partner.lines);
-      const dibuat = await tx
-        .insert(pencairanItem)
-        .values(
-          partner.lines.map(({ position, line }) => {
-            const adjustment = porsiMitra.get(position);
-            return {
-              penerimaKind: "lokasi_mitra" as const,
-              lokasiId: line.provider.lokasiId,
-              penerimaNama: line.provider.name,
-              penerimaAkunId: null,
-              kind: ITEM_KIND_BY_LINE[line.kind] as PencairanItemKind,
-              label: line.label,
-              amount: line.amount as Rupiah,
-              tagihanId: tagihan.id,
-              tagihanPosisi: position,
-              nomorPemesanan: tagihan.nomorPemesanan,
-              tanggalLayanan: line.kind === "layanan" ? line.targetDate : null,
-              // A line kind whose own trigger another ticket owns (a Perpanjangan
-              // paid straight away, a Layanan's job after its Keluhan window) is
-              // recorded now and waits: the amount is fixed by the issued Tagihan
-              // either way, and nothing is ever paid before its own trigger says so.
-              dueAt: milikTriggerIni(line.kind) ? dueAt : null,
-              jatuhTempoAt: milikTriggerIni(line.kind) ? jatuhTempoAt : null,
-              status:
-                adjustment?.habis ? ("dibatalkan" as const) : milikTriggerIni(line.kind) ? ("jatuh_tempo" as const) : ("belum_jatuh_tempo" as const),
-              batalAlasan: adjustment?.habis ? ("telah_ditanggung" as const) : null,
-              batalPada: adjustment?.habis ? now : null,
-              jumlahDisesuaikan: adjustment && !adjustment.habis ? adjustment.jumlahDisesuaikan : null,
-              alasanPenyesuaian: adjustment && !adjustment.habis ? ("porsi_pemegang_saham" as const) : null,
-              catatanPenyesuaian: adjustment && !adjustment.habis ? tagihan.hargaKhususPorsiMitra!.catatan : null,
-              disesuaikanPada: adjustment && !adjustment.habis ? now : null,
-              dibuatPada: now,
-            };
-          }),
-        )
-        .onConflictDoNothing({ target: [pencairanItem.tagihanId, pencairanItem.tagihanPosisi] })
-        .returning({ id: pencairanItem.id });
-      return { ok: true, dibuat: dibuat.length, dilewati: false } as const;
-    });
-    if (!ditulis.ok) continue;
-    if (ditulis.dilewati) hasil.dilewati += 1;
-    else if (metode.data.kind === "langsung_ke_lokasi" && !row.dibatalkan) hasil.potongan += ditulis.dibuat;
-    else hasil.items += ditulis.dibuat;
+    // An order the Terencana trigger just looked at is not this trigger's to count a second time.
+    if (row.nomorPemesanan === null || diperiksa.has(row.tagihanId)) continue;
+    const dueAt = new Date(Math.max(row.dibayarPada.getTime(), row.pemakamanPada.getTime()));
+    catat(hasil, await tulisPencairan(deps, { ...row, nomorPemesanan: row.nomorPemesanan, dueAt }, calendar, now));
   }
   return hasil;
+}
+
+/**
+ * Records that a Pemesanan Terencana was paid and its Masa Pembatalan runs until
+ * `berakhirPada` (spec, Billing > Payouts: "Pemesanan Terencana Hak Pakai | end of
+ * the Masa Pembatalan, or the first Pemakaman if sooner"; ticket 37). The caller is
+ * the Pemesanan module, inside the very transaction that makes the order Aktif, so
+ * the fact commits with the payment; the item it makes due is the tick's. Idempotent:
+ * recording the same order again keeps the first end.
+ */
+export async function masaPembatalanDimulai(tx: Database, input: { nomorPemesanan: string; berakhirPada: Date }): Promise<void> {
+  const nomor = nomorPemesananSchema.safeParse(input.nomorPemesanan);
+  const berakhirPada = z.date().safeParse(input.berakhirPada);
+  if (!nomor.success || !berakhirPada.success) {
+    throw new Error("masaPembatalanDimulai needs a Nomor Pemesanan and the instant the Masa Pembatalan ends");
+  }
+  await tx
+    .insert(pencairanTerencana)
+    .values({ nomorPemesanan: nomor.data, masaPembatalanBerakhirPada: berakhirPada.data })
+    .onConflictDoNothing();
+}
+
+/**
+ * Every paid Pemesanan Terencana whose Masa Pembatalan has ended gets its Pencairan
+ * items, due at that end, or at the first Pemakaman recorded under it when that came
+ * sooner. Reads the two facts (the Lunas half from the payment effect, the Masa
+ * Pembatalan from `masaPembatalanDimulai`), so it is idempotent twice over: an order
+ * that already has its items is skipped, and the unique index on an item's Tagihan
+ * line makes a repeated insert a no-op.
+ */
+async function tickPencairanTerencana(deps: PemicuDeps, now: Date): Promise<{ hasil: TickPencairanResult; diperiksa: Set<string> }> {
+  const selesai = await deps.db
+    .select({
+      tagihanId: pencairanPembayaran.tagihanId,
+      nomorPemesanan: pencairanPembayaran.nomorPemesanan,
+      dibayarPada: pencairanPembayaran.dibayarPada,
+      metode: pencairanPembayaran.metode,
+      dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
+      berakhirPada: pencairanTerencana.masaPembatalanBerakhirPada,
+      pemakamanPada: pencairanPemakaman.pemakamanPada,
+    })
+    .from(pencairanPembayaran)
+    .innerJoin(pencairanTerencana, eq(pencairanTerencana.nomorPemesanan, pencairanPembayaran.nomorPemesanan))
+    .leftJoin(pencairanPemakaman, eq(pencairanPemakaman.nomorPemesanan, pencairanPembayaran.nomorPemesanan))
+    .where(and(isNotNull(pencairanPembayaran.nomorPemesanan), lte(pencairanTerencana.masaPembatalanBerakhirPada, now)))
+    .orderBy(pencairanPembayaran.dibayarPada);
+  const hasil: TickPencairanResult = { items: 0, potongan: 0, dilewati: 0 };
+  const diperiksa = new Set<string>();
+  if (selesai.length === 0) return { hasil, diperiksa };
+
+  const calendar = await deps.lokasi.adminPlatformCalendar();
+  for (const row of selesai) {
+    if (row.nomorPemesanan === null) continue;
+    diperiksa.add(row.tagihanId);
+    const lebihAwal = row.pemakamanPada && row.pemakamanPada < row.berakhirPada ? row.pemakamanPada : row.berakhirPada;
+    const dueAt = new Date(Math.max(row.dibayarPada.getTime(), lebihAwal.getTime()));
+    catat(hasil, await tulisPencairan(deps, { ...row, nomorPemesanan: row.nomorPemesanan, dueAt }, calendar, now));
+  }
+  return { hasil, diperiksa };
 }
 
 /** The platform-fee Potongan a "dibayar langsung" order leaves the Operator with; 0 when the Tagihan carried no fee line. */

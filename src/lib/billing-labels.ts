@@ -53,19 +53,28 @@ export function lineProviderText(provider: LineProvider): string {
   }
 }
 
-/** The Hak Pakai's term, as a Bukti Pemesanan states it: whole dates, and no end for a perpetual one. */
+/**
+ * The Hak Pakai's term, as a Bukti Pemesanan states it: whole dates, and no end
+ * for a perpetual one. A Terencana right nobody is buried in yet has no first
+ * Pemakaman: its `mulai` is null and the term is stated by its length instead.
+ */
 export interface MasaBuktiPemesanan {
-  mulai: string;
-  /** The end of a fixed term; null only for a perpetual (Selamanya) one — never for an unknown term. */
+  /** The first Pemakaman's date; null only while the term has not started (a Pemesanan Terencana, paid, no burial yet). */
+  mulai: string | null;
+  /** The end of a fixed term; null for a perpetual (Selamanya) one and for a term that has not started — never for an unknown term. */
   selesai: string | null;
+  /** The fixed term in years, given only while `mulai` is null; null there means perpetual. */
+  tahun?: number | null;
 }
 
 /**
  * A Bukti Pemesanan's "Masa Hak Pakai" row. A `selesai` of null means the Hak
  * Pakai is perpetual, and says so in words rather than leaving the family to
- * wonder; a fixed term names both of its dates.
+ * wonder; a fixed term names both of its dates. A term that has not started says
+ * how long it will run and from when, never an invented date.
  */
 export function buktiPemesananMasa(masa: MasaBuktiPemesanan): string {
+  if (masa.mulai === null) return masa.tahun ? `${masa.tahun} tahun sejak pemakaman pertama` : "selamanya";
   return masa.selesai ? `${formatTanggal(masa.mulai)} sampai ${formatTanggal(masa.selesai)}` : `${formatTanggal(masa.mulai)} · selamanya`;
 }
 
@@ -84,8 +93,14 @@ export function buktiPemesananHak(
   bukti: { lokasiName: string; pemegangHakName: string; petakNomor: string },
   masa: MasaBuktiPemesanan,
 ): string {
+  const kepada = `Hak Pakai ini diberikan oleh ${bukti.lokasiName} kepada ${bukti.pemegangHakName} untuk Petak Makam ${bukti.petakNomor}`;
+  if (masa.mulai === null) {
+    return masa.tahun
+      ? `${kepada}, berlaku ${masa.tahun} tahun sejak pemakaman pertama.`
+      : `${kepada}, berlaku sejak pemakaman pertama dan sah tanpa batas waktu.`;
+  }
   const sejak = `sejak pemakaman pertama pada ${formatTanggal(masa.mulai)}`;
   return masa.selesai
-    ? `Hak Pakai ini diberikan oleh ${bukti.lokasiName} kepada ${bukti.pemegangHakName} untuk Petak Makam ${bukti.petakNomor}, berlaku ${sejak} sampai ${formatTanggal(masa.selesai)}.`
-    : `Hak Pakai ini diberikan oleh ${bukti.lokasiName} kepada ${bukti.pemegangHakName} untuk Petak Makam ${bukti.petakNomor}, berlaku ${sejak}, dan sah tanpa batas waktu.`;
+    ? `${kepada}, berlaku ${sejak} sampai ${formatTanggal(masa.selesai)}.`
+    : `${kepada}, berlaku ${sejak}, dan sah tanpa batas waktu.`;
 }

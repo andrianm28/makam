@@ -197,7 +197,7 @@ export interface Billing {
    * Layanan Platform (ticket 24). What the refund is paid out through is ticket
    * 31's; that it is *asked for* is part of cancelling the bill.
    */
-  batalkanTagihan(tagihanId: string, input: { alasan: BatalkanTagihanAlasan }): Promise<BatalkanTagihanResult>;
+  batalkanTagihan(tagihanId: string, input: { alasan: BatalkanTagihanAlasan; hanyaBelumDibayar?: boolean }): Promise<BatalkanTagihanResult>;
   /**
    * Records the payment of a Tagihan: Lunas, with exactly one Bukti Pembayaran
    * (recording it again returns the same one). A Dibatalkan Tagihan can't be

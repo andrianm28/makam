@@ -40,6 +40,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
+      // A Pemesanan Terencana's payment hold (ticket 37): once, about 4 h before it ends.
+      "tagihan_pengingat_tahan",
       // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 of the overdue anchor.
       "tagihan_pengingat_h3",
       "tagihan_pengingat_h7",
