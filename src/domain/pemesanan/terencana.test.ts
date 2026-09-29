@@ -4,6 +4,7 @@ import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { pemesananOnTestDatabase, pemesanDenganEmail, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
 import { signedInAdminPlatform } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
+import { HARGA_BANDS } from "./terencana";
 import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
 import { QRIS_PAYMENT_CAP, withinPaymentCap } from "@/domain/billing";
 import type { TerencanaOptions } from "../../../tests/support/terencana";
@@ -46,6 +47,11 @@ describe("the Terencana wizard's Lokasi step", () => {
     expect(pilihan.map((satu) => satu.lokasi.id)).not.toContain(tanpaTerencana.lokasiMitra.id);
     expect(pilihan[0]).toMatchObject({ mulaiDari: 2_650_000, tersedia: 5 });
     expect(pilihan[0].lokasi.kunjungan?.visitedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("names the price bands of the Lokasi step without overlap: each starts where the one before ends", () => {
+    expect(HARGA_BANDS.map((band) => band.label)).toEqual(["Hingga Rp 3 jt", "Rp 3–6 jt", "Di atas Rp 6 jt sampai Rp 10 jt"]);
+    expect(HARGA_BANDS.at(-1)?.until).toBe(QRIS_PAYMENT_CAP);
   });
 
   it("never shows a starting price v1 could not be paid for: a Jenis Makam above the QRIS cap is no card price at all", async () => {

@@ -51,7 +51,7 @@ export interface KartuTerencana {
 export const HARGA_BANDS = [
   { key: "hingga_3_juta", label: "Hingga Rp 3 jt", until: 3_000_000 },
   { key: "3_sampai_6_juta", label: "Rp 3–6 jt", until: 6_000_000 },
-  { key: "di_atas_6_juta", label: `Di atas Rp 3 jt sampai ${rupiahPendek(QRIS_PAYMENT_CAP)}`, until: QRIS_PAYMENT_CAP },
+  { key: "di_atas_6_juta", label: `Di atas Rp 6 jt sampai ${rupiahPendek(QRIS_PAYMENT_CAP)}`, until: QRIS_PAYMENT_CAP },
 ] as const satisfies readonly { key: NonNullable<TerencanaQuery["harga"]>; label: string; until: number }[];
 
 /** "Rp 10 jt" of a whole amount, the way the chips say it. */

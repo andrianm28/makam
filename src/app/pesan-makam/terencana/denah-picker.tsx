@@ -7,6 +7,7 @@ import type { TahanUnit } from "@/domain/inventory";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { lanjutPilihPetak, type LanjutState } from "./actions";
+import { formatTelepon } from "@/lib/format-telepon";
 import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import type { DenahView, KavlingView, SelView } from "./tampilan";
 import { terencanaPath } from "./tautan";
@@ -138,7 +139,7 @@ export function DenahPicker({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Blok">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Blok">
         {denah.blok.map((satu) => {
           const aktif = satu.id === blok?.id;
           return (
@@ -152,7 +153,7 @@ export function DenahPicker({
                 setFokus(null);
               }}
               className={cn(
-                "inline-flex h-11 shrink-0 flex-col items-start justify-center rounded-xl border px-4 text-left",
+                "inline-flex h-11 flex-col items-start justify-center rounded-xl border px-4 text-left",
                 aktif ? "border-primary bg-primary text-primary-foreground" : "border-border-strong bg-card hover:bg-accent",
               )}
             >
@@ -420,7 +421,7 @@ function Detail({ denah, fokus, terpilih, onTutup }: { denah: DenahView; fokus: 
       {isi}
       {fokus.tumpangSaja && denah.kontakSiaga ? (
         <a href={`tel:${denah.kontakSiaga.telepon.replace(/-/g, "")}`} className="inline-flex items-center gap-1.5 font-semibold text-primary">
-          <Phone className="size-4" aria-hidden /> Hubungi Admin Lokasi: {denah.kontakSiaga.nama}, {denah.kontakSiaga.telepon}
+          <Phone className="size-4" aria-hidden /> Hubungi Admin Lokasi: {denah.kontakSiaga.nama}, {formatTelepon(denah.kontakSiaga.telepon)}
         </a>
       ) : null}
       <button type="button" onClick={onTutup} aria-label="Tutup detail petak" className="absolute top-2 right-2 inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
@@ -485,7 +486,7 @@ function alasanKavling(kavling: KavlingView): string {
 
 /** A Terisi plot that can still take a tumpang: a tumpang is arranged with the Admin Lokasi, not bought here. */
 function tumpangSentence(cell: SelView, denah: DenahView): string {
-  const siapa = denah.kontakSiaga ? `: ${denah.kontakSiaga.nama}, ${denah.kontakSiaga.telepon}` : ".";
+  const siapa = denah.kontakSiaga ? `: ${denah.kontakSiaga.nama}, ${formatTelepon(denah.kontakSiaga.telepon)}` : ".";
   return cell.kavling
     ? `Kavling Keluarga ${cell.kavling.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang. Pengaturannya lewat Admin Lokasi${siapa}`
     : `${cell.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang (pemakaman di makam yang sudah ada). Pengaturannya lewat Admin Lokasi${siapa}`;
