@@ -3,10 +3,32 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
+import { tambahCatatanTagihanSchema } from "@/domain/notifications";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../form-state";
 import { guardMessage } from "../../../messages";
+
+/**
+ * The Admin Lokasi adds a standalone note to its own Lokasi's chased Tagihan
+ * (spec, story 133; ticket 29's AC 3): no call row is needed or closed, and it
+ * is never a call. There is deliberately no action here that declares Tidak
+ * Tertagih.
+ */
+export async function tambahCatatanTagihanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const result = await guarded({
+    action: "telepon_pemesan.catat_lokasi",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: tambahCatatanTagihanSchema,
+    input: { tagihanId: formData.get("tagihanId"), catatan: formData.get("catatan") },
+    run: (actor, data) => serverRuntime().notifications.tambahCatatanTagihan(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/tagihan-lewat-jatuh-tempo`);
+  if (!result.value.ok) return { status: "gagal", message: "Catatan tidak bisa disimpan: Tagihan ini tidak sedang dikejar atau catatan kosong." };
+  return { status: "berhasil", message: "Catatan ditambahkan." };
+}
 
 const GAGAL_AKHIRI: Record<string, string> = {
   hak_pakai_tidak_ditemukan: "Hak Pakai ini tidak ditemukan.",

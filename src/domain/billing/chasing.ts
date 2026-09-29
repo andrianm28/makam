@@ -18,12 +18,12 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
+import { DAY_MS } from "@/lib/time/jakarta";
 import { tagihan, tagihanLine } from "./schema";
 import type { TagihanStatus } from "./tagihan";
 
 /** How long a pay-after Tagihan is chased before Admin Platform may give up on it (spec, Billing > Chasing). */
 export const TIDAK_TERTAGIH_HARI = 30;
-const HARI_MS = 24 * 60 * 60 * 1000;
 
 /** One pay-after Tagihan whose overdue clock is running: what the overdue list, the Tier 3 row and the Chasing reminders are about. */
 export interface PayAfterAnchored {
@@ -54,33 +54,49 @@ const chasingSelection = {
   link: tagihan.link,
 };
 
-/** The Lokasi Mitra a Tagihan's tariff line names, or null (a TPU order has none). */
-async function lokasiIdOf(db: Database, tagihanId: string): Promise<string | null> {
-  const [line] = await db
-    .select({ provider: tagihanLine.provider })
+/** The Lokasi Mitra each Tagihan's tariff line names, for all of them in one query (a TPU order has none). */
+async function lokasiIdsOf(db: Database, tagihanIds: string[]): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  if (tagihanIds.length === 0) return found;
+  const lines = await db
+    .select({ tagihanId: tagihanLine.tagihanId, provider: tagihanLine.provider })
     .from(tagihanLine)
-    .where(and(eq(tagihanLine.tagihanId, tagihanId), inArray(tagihanLine.kind, ["harga_hak_pakai", "biaya_pemakaman"])))
-    .limit(1);
-  const provider = line?.provider as { kind: string; lokasiId?: string } | undefined;
-  return provider?.kind === "lokasi_mitra" ? (provider.lokasiId ?? null) : null;
+    .where(and(inArray(tagihanLine.tagihanId, tagihanIds), inArray(tagihanLine.kind, ["harga_hak_pakai", "biaya_pemakaman"])));
+  for (const line of lines) {
+    const provider = line.provider as { kind: string; lokasiId?: string };
+    if (provider.kind === "lokasi_mitra" && provider.lokasiId && !found.has(line.tagihanId)) found.set(line.tagihanId, provider.lokasiId);
+  }
+  return found;
 }
 
-async function toAnchored(
-  db: Database,
-  row: { id: string; nomor: string; nomorPemesanan: string | null; placeName: string | null; addresseeName: string; addresseePhone: string; addresseeAccountId: string | null; total: Rupiah; status: TagihanStatus; lewatJatuhTempoAt: Date | null; link: string },
-): Promise<PayAfterAnchored> {
-  return {
+type ChasingRow = {
+  id: string;
+  nomor: string;
+  nomorPemesanan: string | null;
+  placeName: string | null;
+  addresseeName: string;
+  addresseePhone: string;
+  addresseeAccountId: string | null;
+  total: Rupiah;
+  status: TagihanStatus;
+  lewatJatuhTempoAt: Date | null;
+  link: string;
+};
+
+async function toAnchoredAll(db: Database, rows: ChasingRow[]): Promise<PayAfterAnchored[]> {
+  const lokasi = await lokasiIdsOf(db, rows.map((row) => row.id));
+  return rows.map((row) => ({
     id: row.id,
     nomorTagihan: row.nomor,
     nomorPemesanan: row.nomorPemesanan,
     placeName: row.placeName,
-    lokasiId: await lokasiIdOf(db, row.id),
+    lokasiId: lokasi.get(row.id) ?? null,
     addressee: { name: row.addresseeName, phoneNumber: row.addresseePhone, accountId: row.addresseeAccountId },
     total: row.total,
     status: row.status,
     lewatJatuhTempoAt: row.lewatJatuhTempoAt as Date,
     link: row.link,
-  };
+  }));
 }
 
 /**
@@ -96,7 +112,7 @@ export async function listPayAfterAnchored(db: Database): Promise<PayAfterAnchor
     .from(tagihan)
     .where(isNotNull(tagihan.lewatJatuhTempoAt))
     .orderBy(asc(tagihan.lewatJatuhTempoAt), asc(tagihan.nomor));
-  return Promise.all(rows.map((row) => toAnchored(db, row)));
+  return toAnchoredAll(db, rows);
 }
 
 /**
@@ -111,7 +127,7 @@ export async function listTagihanLewatJatuhTempo(db: Database): Promise<PayAfter
     .from(tagihan)
     .where(inArray(tagihan.status, ["lewat_jatuh_tempo", "tidak_tertagih"]))
     .orderBy(asc(tagihan.lewatJatuhTempoAt), asc(tagihan.nomor));
-  return Promise.all(rows.map((row) => toAnchored(db, row)));
+  return toAnchoredAll(db, rows);
 }
 
 export type DeclareTidakTertagihResult =
@@ -141,11 +157,11 @@ export async function declareTidakTertagih(
   return refusable<DeclareTidakTertagihResult>(deps.db, async (tx) => {
     const [row] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" };
-    if (row.status === "tidak_tertagih") return { ok: true, tagihan: await toAnchored(tx, row) };
+    if (row.status === "tidak_tertagih") return { ok: true, tagihan: (await toAnchoredAll(tx, [row]))[0]! };
     if (row.status !== "lewat_jatuh_tempo" || !row.lewatJatuhTempoAt) {
       return { ok: false, reason: "tagihan_tidak_lewat_jatuh_tempo" };
     }
-    const h30 = new Date(row.lewatJatuhTempoAt.getTime() + TIDAK_TERTAGIH_HARI * HARI_MS);
+    const h30 = new Date(row.lewatJatuhTempoAt.getTime() + TIDAK_TERTAGIH_HARI * DAY_MS);
     if (now < h30) return { ok: false, reason: "belum_h30" };
     if (!(await deps.hasLoggedCall(tagihanId))) return { ok: false, reason: "belum_ada_panggilan" };
     const [moved] = await tx
@@ -154,6 +170,6 @@ export async function declareTidakTertagih(
       .where(and(eq(tagihan.id, row.id), eq(tagihan.status, "lewat_jatuh_tempo")))
       .returning({ id: tagihan.id });
     if (!moved) return { ok: false, reason: "tagihan_tidak_lewat_jatuh_tempo" };
-    return { ok: true, tagihan: await toAnchored(tx, { ...row, status: "tidak_tertagih" }) };
+    return { ok: true, tagihan: (await toAnchoredAll(tx, [{ ...row, status: "tidak_tertagih" }]))[0]! };
   });
 }

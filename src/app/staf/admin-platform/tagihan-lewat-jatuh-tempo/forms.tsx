@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { FormState } from "../../form-state";
-import { catatPanggilanTagihan, nyatakanTidakTertagih } from "./actions";
+import { catatPanggilanTagihan, nyatakanTidakTertagih, tambahCatatanTagihan } from "./actions";
 
 const idle: FormState = { status: "idle" };
 
@@ -38,6 +38,27 @@ export function CatatPanggilanTagihanForm({ teleponId }: { teleponId: string }) 
         <Input name="catatan" placeholder="Catatan (opsional)" maxLength={500} className="w-56" />
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Menyimpan…" : "Catat panggilan"}
+        </Button>
+      </div>
+      {state.status !== "idle" ? (
+        <p role={state.status === "gagal" ? "alert" : "status"} className="text-caption text-muted-foreground">
+          {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+/** A standalone note on this Tagihan's call log: closes no call row and is never counted as a call. */
+export function CatatanTagihanForm({ tagihanId }: { tagihanId: string }) {
+  const [state, action, pending] = useActionState(tambahCatatanTagihan, idle);
+  return (
+    <form action={action} className="flex flex-col items-start gap-1">
+      <input type="hidden" name="tagihanId" value={tagihanId} />
+      <div className="flex items-end gap-2">
+        <Input name="catatan" placeholder="Tambah catatan" required maxLength={500} className="w-64" />
+        <Button type="submit" variant="outline" size="sm" disabled={pending}>
+          Tambah catatan
         </Button>
       </div>
       {state.status !== "idle" ? (

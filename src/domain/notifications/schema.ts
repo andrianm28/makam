@@ -208,3 +208,24 @@ export const notificationsTagihanKontak = pgTable("notifications_tagihan_kontak"
   /** The email on the order; null when CS submitted it with no email. */
   email: text("email"),
 });
+
+/**
+ * Owned by the notifications module: a standalone note on a chased Tagihan's
+ * call log (ticket 29's AC 3: "the Admin Lokasi adds its notes on the same call
+ * log"). It is **not a call**: a note never opens, closes or counts as a
+ * "Telepon Pemesan" row, so it can never satisfy `declareTidakTertagih`'s "at
+ * least one logged call". `tagihan_id` is Billing's, not a foreign key.
+ */
+export const notificationsCatatanTagihan = pgTable(
+  "notifications_catatan_tagihan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tagihanId: text("tagihan_id").notNull(),
+    /** The Lokasi Mitra the Tagihan is against, so its Admin Lokasi's write is checked against it. */
+    lokasiId: text("lokasi_id"),
+    catatan: text("catatan").notNull(),
+    ditulisOleh: text("ditulis_oleh").notNull(),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [index("notifications_catatan_tagihan_idx").on(table.tagihanId, table.dibuatPada)],
+);

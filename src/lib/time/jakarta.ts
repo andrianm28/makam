@@ -53,7 +53,8 @@ export function wibDateOf(instant: Date): string {
 }
 
 const HOUR_MS = 3_600_000;
-const DAY_MS = 24 * HOUR_MS;
+/** One 24 h day in milliseconds (a fixed span; WIB has no daylight saving). */
+export const DAY_MS = 24 * HOUR_MS;
 const OFFSET_MS = 7 * HOUR_MS;
 
 /** The instant shifted to WIB wall-clock, for reading its UTC fields as WIB fields. */

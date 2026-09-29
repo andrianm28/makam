@@ -72,6 +72,10 @@ import {
   akhiriHakPakaiTidakTertagih,
   hakPakaiIdForTagihan,
   isBlockedByOverdueTagihan,
+  nyatakanTidakTertagih,
+  nyatakanTidakTertagihSchema,
+  type NyatakanTidakTertagihInput,
+  type NyatakanTidakTertagihResult,
   type AkhiriHakPakaiTidakTertagihResult,
 } from "./chasing";
 
@@ -93,6 +97,7 @@ import {
 
 export type {
   ChasingDijadwalkan,
+  TidakTertagihDinyatakan,
   PemesananBuktiPemesanan,
   PemesananDeps,
   Pemesan,
@@ -145,6 +150,7 @@ export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
 export type { AkhiriHakPakaiTidakTertagihResult } from "./chasing";
+export { nyatakanTidakTertagihSchema, type NyatakanTidakTertagihInput, type NyatakanTidakTertagihResult };
 export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } from "./prompt-catat-pemakaman";
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
@@ -306,6 +312,12 @@ export interface Pemesanan {
    */
   isBlockedByOverdueTagihan(hakPakaiId: string): Promise<boolean>;
   /**
+   * Admin Platform declares a chased Tagihan Tidak Tertagih (ticket 29): the
+   * status change (guarded on H+30 and a logged call), its Entri Audit and the
+   * queued Admin Lokasi push, in one transaction.
+   */
+  nyatakanTidakTertagih(by: Actor, input: NyatakanTidakTertagihInput): Promise<NyatakanTidakTertagihResult>;
+  /**
    * The Admin Lokasi ends a Hak Pakai once its own Saat Duka Tagihan is Tidak
    * Tertagih (spec, Billing > Chasing; ticket 29).
    */
@@ -349,6 +361,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
+    nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),
     akhiriHakPakaiTidakTertagih: (by, input) => akhiriHakPakaiTidakTertagih(deps, by, input),
     hakPakaiIdForTagihan: (tagihanId) => hakPakaiIdForTagihan(deps, tagihanId),
   };

@@ -140,18 +140,18 @@ export async function teleponPemesanTerbuka(db: Database): Promise<TeleponPemesa
 }
 
 /**
- * Whether a "Telepon Pemesan" row has ever been opened for this subject and
- * this `sebab`, open or closed: the H+1 Chasing escalation's own guard (ticket
- * 29), so opening the call row and sending the Admin Lokasi push happen once
- * per Tagihan even though the row itself reopens for every later call the
- * overdue list still expects (around H+14).
+ * How many "Telepon Pemesan" rows have ever been opened for this subject and
+ * this `sebab`, open or closed: the Chasing escalation's own guard (ticket 29).
+ * The overdue list expects two calls (spec: "around H+1 and around H+14"), so 0
+ * means the H+1 row is still to open and 1 means the H+14 one is; each opens
+ * exactly once however often the tick runs.
  */
-export async function teleponPemesanAdaUntukSebab(
+export async function teleponPemesanHitungUntukSebab(
   db: Database,
   subjectKind: string,
   subjectId: string,
   sebab: (typeof teleponSebab)[number],
-): Promise<boolean> {
+): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(notificationsTeleponPemesan)
@@ -162,7 +162,7 @@ export async function teleponPemesanAdaUntukSebab(
         eq(notificationsTeleponPemesan.sebab, sebab),
       ),
     );
-  return (row?.n ?? 0) > 0;
+  return row?.n ?? 0;
 }
 
 /**
@@ -266,7 +266,7 @@ function toTeleponPemesan(row: typeof notificationsTeleponPemesan.$inferSelect):
 }
 
 /** The role the Entri Audit names: whichever staff role the caller holds first (both may log a call). */
-function staffRoleOf(by: Actor): StaffRole {
+export function staffRoleOf(by: Actor): StaffRole {
   const role = staffRoles.find((held) => by.roles.includes(held));
   if (!role) throw new Error("a call is only ever logged by a staff member");
   return role;

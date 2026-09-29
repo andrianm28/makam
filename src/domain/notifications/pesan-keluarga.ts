@@ -191,7 +191,7 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
   const due = await deps.db
     .select()
     .from(notificationsMessage)
-    .where(and(eq(notificationsMessage.status, "menunggu"), lte(notificationsMessage.sendAfter, now)))
+    .where(and(eq(notificationsMessage.status, "menunggu"), eq(notificationsMessage.channel, "email"), lte(notificationsMessage.sendAfter, now)))
     .orderBy(asc(notificationsMessage.sendAfter), asc(notificationsMessage.id))
     .limit(200);
   const hasil: KirimJatuhTempo = { terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 };
@@ -340,7 +340,7 @@ export async function queueFamilyEmail(
  * is only a lease — a worker that dies mid-send costs the family a delay, not
  * a message.
  */
-async function klaim(db: Database, pesan: { id: string; sendAfter: Date }, now: Date): Promise<boolean> {
+export async function klaim(db: Database, pesan: { id: string; sendAfter: Date }, now: Date): Promise<boolean> {
   const claimed = await db
     .update(notificationsMessage)
     .set({ sendAfter: new Date(now.getTime() + KLAIM_MENIT * 60_000) })
@@ -355,7 +355,7 @@ async function klaim(db: Database, pesan: { id: string; sendAfter: Date }, now: 
   return claimed.length > 0;
 }
 
-async function mark(
+export async function mark(
   db: Database,
   id: string,
   patch: Partial<{ status: (typeof pesanStatuses)[number]; attempts: number; sendAfter: Date; sentAt: Date }>,

@@ -43,7 +43,15 @@ async function main() {
   // The Lokasi module's own records (Jam Operasional, Kontak Siaga), which the Saat Duka re-alert reads.
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
   const urls = documentUrls(env);
-  const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError };
+  const billingComposition = {
+    env,
+    db: database.db,
+    adapters,
+    operatorSettings,
+    reportError,
+    // Billing's guard on Tidak Tertagih reads Notifications' call log; the closure runs only once both are built (ticket 29).
+    hasLoggedCall: (tagihanId: string): Promise<boolean> => notifications.teleponPemesanTercatat("tagihan", tagihanId),
+  };
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing: billingOn(billingComposition, database.db), reportError });
   // The worker re-runs a payment's failed effects, so it holds the same registry the
   // web runtime does: a Bukti Pemesanan that failed once must be issuable here too.
@@ -59,7 +67,6 @@ async function main() {
   });
   const billing = composeBilling({
     ...billingComposition,
-    hasLoggedCall: (tagihanId) => notifications.teleponPemesanTercatat("tagihan", tagihanId),
     paymentEffects: efek,
   });
   // Payouts, for the Pencairan trigger and the Potongan ageing the worker runs.

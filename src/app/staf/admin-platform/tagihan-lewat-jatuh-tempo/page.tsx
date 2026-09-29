@@ -7,7 +7,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { CatatPanggilanTagihanForm, NyatakanTidakTertagihForm } from "./forms";
+import { CatatanTagihanForm, CatatPanggilanTagihanForm, NyatakanTidakTertagihForm } from "./forms";
 
 export const metadata: Metadata = { title: "Tagihan lewat jatuh tempo · Area Staf" };
 
@@ -30,6 +30,7 @@ export default async function TagihanLewatJatuhTempoPage() {
   const { billing, notifications } = serverRuntime();
   const overdue = await billing.tagihanLewatJatuhTempo();
   const riwayat = await Promise.all(overdue.map((t) => notifications.teleponPemesanRiwayat("tagihan", t.id)));
+  const catatan = await Promise.all(overdue.map((t) => notifications.catatanTagihan(t.id)));
 
   return (
     <>
@@ -72,8 +73,18 @@ export default async function TagihanLewatJatuhTempoPage() {
                       ))}
                     </ul>
                   )}
+                  {catatan[i]!.length > 0 ? (
+                    <ul className="flex flex-col gap-1 text-caption text-muted-foreground">
+                      {catatan[i]!.map((note) => (
+                        <li key={note.id}>
+                          {formatTanggalJam(note.dibuatPada)} — Catatan: {note.catatan}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
+                  <CatatanTagihanForm tagihanId={t.id} />
                   {(() => {
                     const open = riwayat[i]!.find((call) => !call.ditutupPada);
                     return open ? <CatatPanggilanTagihanForm teleponId={open.id} /> : null;

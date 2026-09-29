@@ -297,6 +297,9 @@ export type ChasingHari = (typeof CHASING_HARI)[number];
 /** The overdue list starts H+1 after the same anchor (spec, Billing > Chasing). */
 export const CHASING_ESKALASI_HARI = 1;
 
+/** The second call the overdue list expects, "around H+14" (spec, Billing > Chasing: "at least two calls, around H+1 and around H+14 (08:00–20:00)"). */
+export const CHASING_PANGGILAN_KEDUA_HARI = 14;
+
 /**
  * The four Chasing reminder times for a Tagihan whose Lewat Jatuh Tempo anchor
  * is `anchorAt`: 08:00 WIB on each H+N day, keeping only times after `now` (the

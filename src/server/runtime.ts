@@ -87,7 +87,16 @@ export function serverRuntime(): ServerRuntime {
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
-    const billingComposition = { env, db: database.db, adapters, operatorSettings, reportError };
+    // Every Billing of this runtime (the read-only ones the other modules hold included, since Pemesanan declares Tidak Tertagih through its own) guards it with
+    // Notifications' call log; the closure runs only after both are built (ticket 29).
+    const billingComposition = {
+      env,
+      db: database.db,
+      adapters,
+      operatorSettings,
+      reportError,
+      hasLoggedCall: (tagihanId: string): Promise<boolean> => notifications.teleponPemesanTercatat("tagihan", tagihanId),
+    };
     const notifications = composeNotifications({
       env,
       db: database.db,
@@ -125,11 +134,6 @@ export function serverRuntime(): ServerRuntime {
     });
     const billing = composeBilling({
       ...billingComposition,
-      // Notifications already exists by this point (built just above, from a
-      // read-only Billing of the same database): `declareTidakTertagih`'s
-      // guard reads its own call log, without Billing importing Notifications
-      // back (ticket 29).
-      hasLoggedCall: (tagihanId) => notifications.teleponPemesanTercatat("tagihan", tagihanId),
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,

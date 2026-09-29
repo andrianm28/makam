@@ -6,6 +6,7 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { lewatJatuhTempoPayAfterTagihanTick } from "@/domain/billing";
 import { tagihan as tagihanTable } from "@/domain/billing/schema";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
@@ -111,5 +112,70 @@ describe("akhiriHakPakaiTidakTertagih", () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await pesananDikonfirmasi(setup);
     expect(await setup.pemesanan.hakPakaiIdForTagihan(fixture.tagihanId)).toBe(fixture.hakPakaiId);
+  });
+});
+
+describe("nyatakanTidakTertagih: one transaction for the status, its Entri Audit and the queued Admin Lokasi push", () => {
+  /** Buried on 2026-10-06 08:00, Lewat Jatuh Tempo from 10-09 08:00, called once at H+1 (10-10). */
+  async function dikejar(setup: PemesananSetup) {
+    const fixture = await pesananDikonfirmasi(setup);
+    setup.clock.set(wib("2026-10-06 08:00"));
+    const dicatat = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" });
+    expect(dicatat.ok).toBe(true);
+    await lewatJatuhTempoPayAfterTagihanTick({ db }, wib("2026-10-09 08:00"));
+    setup.clock.set(wib("2026-10-10 08:00"));
+    await setup.notifications.chasingEskalasiTick(setup.clock.now());
+    const [panggilan] = await setup.notifications.teleponPemesanTerbuka();
+    const dicatatPanggilan = await setup.notifications.catatPanggilan(fixture.admin, { teleponId: panggilan!.id, hasil: "menolak" });
+    expect(dicatatPanggilan.ok).toBe(true);
+    return fixture;
+  }
+
+  it("is refused before H+30, and for the Lokasi's Admin Lokasi, who cannot declare it at all", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const fixture = await dikejar(setup);
+
+    setup.clock.set(wib("2026-11-07 08:00")); // H+29
+    expect(await setup.pemesanan.nyatakanTidakTertagih(fixture.admin, { tagihanId: fixture.tagihanId })).toMatchObject({
+      ok: false,
+      reason: "belum_h30",
+    });
+    setup.clock.set(wib("2026-11-08 08:00")); // H+30
+    expect(await setup.pemesanan.nyatakanTidakTertagih(fixture.adminLokasi, { tagihanId: fixture.tagihanId })).toMatchObject({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "lewat_jatuh_tempo" });
+    expect(await setup.audit.entriesAbout({ kind: "tagihan", id: fixture.tagihanId })).toEqual([]);
+  });
+
+  it("at H+30 after a logged call: Tidak Tertagih, an Entri Audit with before/after and reason, and one push for the Admin Lokasi", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const fixture = await dikejar(setup);
+    setup.clock.set(wib("2026-11-08 08:00"));
+
+    const hasil = await setup.pemesanan.nyatakanTidakTertagih(fixture.admin, { tagihanId: fixture.tagihanId, alasan: "Keluarga menolak membayar" });
+    expect(hasil).toMatchObject({ ok: true, tagihan: { status: "tidak_tertagih" } });
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "tidak_tertagih" });
+
+    expect(await setup.audit.entriesAbout({ kind: "tagihan", id: fixture.tagihanId })).toEqual([
+      expect.objectContaining({
+        action: "tagihan.tidak_tertagih",
+        before: { status: "lewat_jatuh_tempo" },
+        after: expect.objectContaining({ status: "tidak_tertagih" }),
+        reason: "Keluarga menolak membayar",
+      }),
+    ]);
+
+    // The push was queued with the declaration; the worker's tick delivers it, once.
+    const tidakTertagih = async () =>
+      (await setup.notifications.pesanStaf(fixture.adminLokasi.accountId)).filter((m) => m.template === "staf_tagihan_tidak_tertagih");
+    expect(await tidakTertagih()).toHaveLength(0);
+    await setup.notifications.chasingEskalasiTick(setup.clock.now());
+    await setup.notifications.chasingEskalasiTick(setup.clock.now());
+    expect(await tidakTertagih()).toHaveLength(1);
+
+    // And the Admin Lokasi may now end the Hak Pakai.
+    expect(await setup.pemesanan.akhiriHakPakaiTidakTertagih(fixture.adminLokasi, { hakPakaiId: fixture.hakPakaiId })).toMatchObject({ ok: true });
   });
 });

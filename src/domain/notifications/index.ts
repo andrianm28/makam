@@ -52,7 +52,17 @@ import {
   type TeleponPemesan,
   type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
-import { chasingEskalasiTick, jadwalkanChasing, pushTidakTertagih, type JadwalkanChasingInput } from "./chasing";
+import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
+import {
+  catatanTagihan,
+  tambahCatatanTagihan,
+  tambahCatatanTagihanSchema,
+  type CatatanTagihan,
+  type TambahCatatanTagihanInput,
+  type TambahCatatanTagihanResult,
+} from "./catatan-tagihan";
+
+export { tambahCatatanTagihanSchema, type CatatanTagihan, type TambahCatatanTagihanInput, type TambahCatatanTagihanResult };
 import {
   kirimPesanJatuhTempo,
   pesanTagihan,
@@ -339,11 +349,18 @@ export interface Notifications {
    */
   chasingEskalasiTick(now: Date): Promise<{ dieskalasi: number }>;
   /**
-   * The Admin Lokasi push "on Tidak Tertagih" (spec, Notifications' reminder
-   * table): the Server Action that just called `billing.declareTidakTertagih`
-   * calls this next, since only it holds both modules (ticket 29's Comments).
+   * Queues the Admin Lokasi push "on Tidak Tertagih" (spec, Notifications'
+   * reminder table) inside the caller's own transaction `tx`, so it commits with
+   * the declaration itself; the worker's Chasing tick sends it (ticket 29).
    */
-  pushTidakTertagih(tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total" | "lokasiId">): Promise<void>;
+  antrekanPeringatanTidakTertagih(tx: Database, tagihan: Pick<PayAfterAnchored, "id" | "nomorTagihan" | "total" | "lokasiId">): Promise<void>;
+  /**
+   * A standalone note on a chased Tagihan's call log, by that Lokasi's Admin
+   * Lokasi or Admin Platform: closes no row and is never a call (ticket 29).
+   */
+  tambahCatatanTagihan(by: Actor, input: TambahCatatanTagihanInput): Promise<TambahCatatanTagihanResult>;
+  /** Every standalone note on one Tagihan's call log, oldest first. */
+  catatanTagihan(tagihanId: string): Promise<CatatanTagihan[]>;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -667,8 +684,16 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       );
     },
 
-    async pushTidakTertagih(tagihan) {
-      await pushTidakTertagih({ identity: deps.identity, send: (alert) => notifications.sendStaffAlert(alert) }, tagihan);
+    async antrekanPeringatanTidakTertagih(tx, tagihan) {
+      await antrekanPeringatanLokasi(tx, deps.clock.now(), "staf_tagihan_tidak_tertagih", tagihan);
+    },
+
+    async tambahCatatanTagihan(by, input) {
+      return tambahCatatanTagihan(deps, by, input);
+    },
+
+    async catatanTagihan(tagihanId) {
+      return catatanTagihan(db, tagihanId);
     },
   };
   return notifications;

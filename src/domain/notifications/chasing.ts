@@ -1,36 +1,36 @@
 /**
  * Chasing overdue pay-after Tagihan (spec, Billing > Chasing; Notifications'
- * reminder table; ticket 29's AC 1, 2, 5). Two moments, both driven from
- * Billing's own `lewat_jatuh_tempo_at` anchor (ticket 25), never recomputed
- * here:
+ * reminder table; ticket 29's AC 1, 2, 5). Everything is driven from Billing's
+ * own `lewat_jatuh_tempo_at` anchor (ticket 25), never recomputed here:
  *
  * - `jadwalkanChasing` queues the four family reminders (H+3/7/14/30) the
- *   moment the anchor becomes known — called once, from the module that
- *   recorded the burial, the same way `tagihanTerbit` queues a pay-first
- *   Tagihan's own reminders at issue. Idempotent by the same
- *   Tagihan-per-template index `queueFamilyEmail` already relies on.
- * - `chasingEskalasiTick` is the worker's periodic tick: at H+1 of a Tagihan
- *   still Lewat Jatuh Tempo, it opens the "Telepon Pemesan" row the overdue
- *   list is a projection of and pushes that Lokasi's Admin Lokasi once. Both
- *   fire exactly once per Tagihan — `teleponPemesanAdaUntukSebab` is the
- *   guard, since the row itself reopens for every later call the list still
- *   expects (around H+14) and must not re-trigger the push each time.
+ *   moment the anchor becomes known, the way `tagihanTerbit` queues a pay-first
+ *   Tagihan's own. Idempotent by the Tagihan-per-template index.
+ * - `chasingEskalasiTick` is the worker's periodic tick. Spec: "at least two
+ *   calls, around H+1 and around H+14 (08:00–20:00)" and "All go out within
+ *   08:00–20:00 WIB". Inside that window it opens the first "Telepon Pemesan"
+ *   row at H+1 (with the Admin Lokasi push queued in the **same transaction**)
+ *   and the second at H+14, each exactly once (`teleponPemesanHitungUntukSebab`).
+ * - The Admin Lokasi push is a queued message (`notifications_message`, channel
+ *   push), driven from database state: `kirimPeringatanLokasi` sends what is
+ *   due and marks it, so a tick that dies mid-send re-sends on its next run and
+ *   a tick run twice sends once. `antrekanPeringatanTidakTertagih` queues the
+ *   "on Tidak Tertagih" one inside the caller's own transaction.
  */
+import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Billing, PayAfterAnchored } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import { formatRupiah } from "@/lib/rupiah";
 import { STAFF_AREA_PATH } from "@/lib/staff-area-path";
+import { DAY_MS } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
-import type { PushNotification } from "@/ports/web-push";
-import { CHASING_ESKALASI_HARI, jadwalPengingatPayAfter } from "./acara";
-import { notificationsTagihanKontak } from "./schema";
+import { CHASING_ESKALASI_HARI, CHASING_PANGGILAN_KEDUA_HARI, dalamJamKirim, jadwalPengingatPayAfter, tundaSampaiJamKirim } from "./acara";
+import { klaim, mark, queueFamilyEmail } from "./pesan-keluarga";
+import { notificationsMessage, notificationsTagihanKontak } from "./schema";
 import { tagihanPengingatLewatJatuhTempoEmail, type TagihanEmailInput } from "./template";
-import { bukaTeleponPemesan, teleponPemesanAdaUntukSebab } from "./telepon-pemesan";
-import { queueFamilyEmail } from "./pesan-keluarga";
+import { bukaTeleponPemesan, teleponPemesanHitungUntukSebab } from "./telepon-pemesan";
 import type { StaffAlert, StaffAlertResult } from "./index";
-
-const HARI_MS = 24 * 60 * 60 * 1000;
 
 export interface JadwalkanChasingInput {
   tagihanId: string;
@@ -91,51 +91,118 @@ export async function jadwalkanChasing(
   return { dijadwalkan };
 }
 
-/** Lock-screen-safe Admin Lokasi push + email for one Chasing escalation (ticket 29). */
-function chasingLokasiAlert(
-  tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total">,
-  lokasiId: string,
-  kind: "h1" | "tidak_tertagih",
-): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
-  const url = `${STAFF_AREA_PATH}/admin-lokasi/${lokasiId}/tagihan-lewat-jatuh-tempo`;
-  if (kind === "h1") {
-    return {
-      email: {
+type KindPeringatanLokasi = "staf_tagihan_lewat_jatuh_tempo" | "staf_tagihan_tidak_tertagih";
+const KIND_PERINGATAN_LOKASI: readonly KindPeringatanLokasi[] = ["staf_tagihan_lewat_jatuh_tempo", "staf_tagihan_tidak_tertagih"];
+
+const PUSH_TITLE: Record<KindPeringatanLokasi, string> = {
+  staf_tagihan_lewat_jatuh_tempo: "Tagihan lewat jatuh tempo",
+  staf_tagihan_tidak_tertagih: "Tagihan dinyatakan Tidak Tertagih",
+};
+
+/** The email a Chasing push to an Admin Lokasi carries (the push itself is lock-screen safe: title and Nomor Tagihan only). */
+function emailPeringatanLokasi(kind: KindPeringatanLokasi, tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total">) {
+  return kind === "staf_tagihan_lewat_jatuh_tempo"
+    ? {
         subject: `Tagihan ${tagihan.nomorTagihan} lewat jatuh tempo`,
         text: `Tagihan ${tagihan.nomorTagihan} sebesar ${formatRupiah(tagihan.total)} sudah lewat jatuh tempo sehari. Buka daftar Tagihan lewat jatuh tempo untuk menelepon keluarga.`,
-      },
-      push: { title: "Tagihan lewat jatuh tempo", body: tagihan.nomorTagihan, url },
-    };
-  }
-  return {
-    email: {
-      subject: `Tagihan ${tagihan.nomorTagihan} dinyatakan Tidak Tertagih`,
-      text: `Admin Platform menyatakan Tagihan ${tagihan.nomorTagihan} Tidak Tertagih. Hak Pakai terkait sudah bisa diakhiri dari daftar Tagihan lewat jatuh tempo.`,
-    },
-    push: { title: "Tagihan dinyatakan Tidak Tertagih", body: tagihan.nomorTagihan, url },
-  };
-}
-
-/** Every Akun Staf a Chasing alert must reach: that Lokasi's own Admin Lokasi (spec: "Admin Lokasi push"). */
-async function pushLokasi(
-  deps: { identity: Pick<Identity, "adminLokasiOf">; send: (alert: StaffAlert) => Promise<StaffAlertResult> },
-  tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total">,
-  lokasiId: string,
-  kind: "h1" | "tidak_tertagih",
-): Promise<void> {
-  const alert = chasingLokasiAlert(tagihan, lokasiId, kind);
-  const admins = await deps.identity.adminLokasiOf(lokasiId);
-  for (const admin of admins) {
-    await deps.send({ to: { accountId: admin.accountId }, kind: kind === "h1" ? "staf_tagihan_lewat_jatuh_tempo" : "staf_tagihan_tidak_tertagih", ...alert });
-  }
+      }
+    : {
+        subject: `Tagihan ${tagihan.nomorTagihan} dinyatakan Tidak Tertagih`,
+        text: `Admin Platform menyatakan Tagihan ${tagihan.nomorTagihan} Tidak Tertagih. Hak Pakai terkait sudah bisa diakhiri dari daftar Tagihan lewat jatuh tempo.`,
+      };
 }
 
 /**
- * The worker's Chasing escalation tick: every Tagihan still Lewat Jatuh Tempo
- * at H+1 of its overdue anchor gets its "Telepon Pemesan" call row opened and
- * its Lokasi's Admin Lokasi pushed once, guarded by
- * `teleponPemesanAdaUntukSebab` so a tick run twice (or the row reopening
- * later for the H+14 call) never re-fires either.
+ * Queues one Admin Lokasi push (with its email) for a Tagihan, inside the
+ * caller's own transaction `tx`, so it commits or rolls back with the data
+ * that caused it. Held for 08:00–20:00 WIB (spec: every reminder goes out
+ * within it) and once per Tagihan per kind (the Tagihan-per-template index).
+ * A Tagihan with no Lokasi Mitra (a TPU order) has no Admin Lokasi to push.
+ */
+export async function antrekanPeringatanLokasi(
+  tx: Database,
+  now: Date,
+  kind: KindPeringatanLokasi,
+  tagihan: Pick<PayAfterAnchored, "id" | "nomorTagihan" | "total" | "lokasiId">,
+): Promise<boolean> {
+  if (!tagihan.lokasiId) return false;
+  const email = emailPeringatanLokasi(kind, tagihan);
+  const inserted = await tx
+    .insert(notificationsMessage)
+    .values({
+      template: kind,
+      channel: "push",
+      tagihanId: tagihan.id,
+      nomorTagihan: tagihan.nomorTagihan,
+      lokasiId: tagihan.lokasiId,
+      subject: email.subject,
+      body: email.text,
+      status: "menunggu",
+      attempts: 0,
+      sendAfter: tundaSampaiJamKirim(now),
+      createdAt: now,
+    })
+    .onConflictDoNothing()
+    .returning({ id: notificationsMessage.id });
+  return inserted.length > 0;
+}
+
+/**
+ * Sends every queued Admin Lokasi push that is due: to each Admin Lokasi of its
+ * Lokasi, claimed first (a lease, as the family emails use) and marked sent
+ * afterwards. A send that throws leaves the row `menunggu`, so the next tick
+ * sends it again; one run twice sends once.
+ */
+export async function kirimPeringatanLokasi(
+  deps: {
+    db: Database;
+    identity: Pick<Identity, "adminLokasiOf">;
+    send: (alert: StaffAlert) => Promise<StaffAlertResult>;
+  },
+  now: Date,
+): Promise<number> {
+  const due = await deps.db
+    .select()
+    .from(notificationsMessage)
+    .where(
+      and(
+        eq(notificationsMessage.status, "menunggu"),
+        eq(notificationsMessage.channel, "push"),
+        inArray(notificationsMessage.template, [...KIND_PERINGATAN_LOKASI]),
+        lte(notificationsMessage.sendAfter, now),
+      ),
+    )
+    .orderBy(asc(notificationsMessage.sendAfter), asc(notificationsMessage.id))
+    .limit(200);
+  let terkirim = 0;
+  for (const pesan of due) {
+    if (!(await klaim(deps.db, pesan, now))) continue;
+    const kind = pesan.template as KindPeringatanLokasi;
+    if (!pesan.lokasiId) {
+      await mark(deps.db, pesan.id, { status: "dibatalkan" });
+      continue;
+    }
+    const url = `${STAFF_AREA_PATH}/admin-lokasi/${pesan.lokasiId}/tagihan-lewat-jatuh-tempo`;
+    for (const admin of await deps.identity.adminLokasiOf(pesan.lokasiId)) {
+      await deps.send({
+        to: { accountId: admin.accountId },
+        kind,
+        email: { subject: pesan.subject, text: pesan.body },
+        push: { title: PUSH_TITLE[kind], body: pesan.nomorTagihan ?? "", url },
+      });
+    }
+    await mark(deps.db, pesan.id, { status: "terkirim", sentAt: now, attempts: pesan.attempts + 1 });
+    terkirim += 1;
+  }
+  return terkirim;
+}
+
+/**
+ * The worker's Chasing tick: inside 08:00–20:00 WIB, every Tagihan still Lewat
+ * Jatuh Tempo gets its first call row at H+1 (the Admin Lokasi push queued in
+ * the same transaction) and its second around H+14; then every queued push that
+ * is due is sent. Idempotent, and nothing is lost between steps: the row and
+ * the queued push commit together, and the send is driven from the queue.
  */
 export async function chasingEskalasiTick(
   deps: {
@@ -146,38 +213,30 @@ export async function chasingEskalasiTick(
   },
   now: Date,
 ): Promise<{ dieskalasi: number }> {
-  const overdue = await deps.billing.tagihanLewatJatuhTempo();
   let dieskalasi = 0;
-  for (const t of overdue) {
-    if (t.status !== "lewat_jatuh_tempo") continue;
-    const h1 = new Date(t.lewatJatuhTempoAt.getTime() + CHASING_ESKALASI_HARI * HARI_MS);
-    if (now < h1) continue;
-    if (await teleponPemesanAdaUntukSebab(deps.db, "tagihan", t.id, "tagihan_lewat_jatuh_tempo")) continue;
-    await bukaTeleponPemesan(deps.db, now, {
-      subjectKind: "tagihan",
-      subjectId: t.id,
-      nomorTagihan: t.nomorTagihan,
-      nomorPemesanan: t.nomorPemesanan,
-      lokasiId: t.lokasiId,
-      sebab: "tagihan_lewat_jatuh_tempo",
-      perihal: `Tagihan ${t.nomorTagihan} lewat jatuh tempo, hubungi keluarga`,
-    });
-    if (t.lokasiId) await pushLokasi(deps, t, t.lokasiId, "h1");
-    dieskalasi += 1;
+  if (dalamJamKirim(now)) {
+    for (const t of await deps.billing.tagihanLewatJatuhTempo()) {
+      if (t.status !== "lewat_jatuh_tempo") continue;
+      const dibuka = await deps.db.transaction(async (tx) => {
+        const sudah = await teleponPemesanHitungUntukSebab(tx, "tagihan", t.id, "tagihan_lewat_jatuh_tempo");
+        const pertama = sudah === 0 && now.getTime() >= t.lewatJatuhTempoAt.getTime() + CHASING_ESKALASI_HARI * DAY_MS;
+        const kedua = sudah === 1 && now.getTime() >= t.lewatJatuhTempoAt.getTime() + CHASING_PANGGILAN_KEDUA_HARI * DAY_MS;
+        if (!pertama && !kedua) return false;
+        const { baru } = await bukaTeleponPemesan(tx, now, {
+          subjectKind: "tagihan",
+          subjectId: t.id,
+          nomorTagihan: t.nomorTagihan,
+          nomorPemesanan: t.nomorPemesanan,
+          lokasiId: t.lokasiId,
+          sebab: "tagihan_lewat_jatuh_tempo",
+          perihal: `Tagihan ${t.nomorTagihan} lewat jatuh tempo, hubungi keluarga`,
+        });
+        if (pertama && baru) await antrekanPeringatanLokasi(tx, now, "staf_tagihan_lewat_jatuh_tempo", t);
+        return baru;
+      });
+      if (dibuka) dieskalasi += 1;
+    }
   }
+  await kirimPeringatanLokasi(deps, now);
   return { dieskalasi };
-}
-
-/**
- * The Admin Lokasi push "on Tidak Tertagih" (spec, Notifications' reminder
- * table): called once, right after `billing.declareTidakTertagih` succeeds,
- * by whichever layer already holds both (the Server Action, like every other
- * call that crosses Billing and Notifications — ticket 29's Comments).
- */
-export async function pushTidakTertagih(
-  deps: { identity: Pick<Identity, "adminLokasiOf">; send: (alert: StaffAlert) => Promise<StaffAlertResult> },
-  tagihan: Pick<PayAfterAnchored, "nomorTagihan" | "total" | "lokasiId">,
-): Promise<void> {
-  if (!tagihan.lokasiId) return;
-  await pushLokasi(deps, tagihan, tagihan.lokasiId, "tidak_tertagih");
 }

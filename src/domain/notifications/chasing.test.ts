@@ -177,12 +177,98 @@ describe("chasingEskalasiTick: the overdue list from H+1", () => {
     const closed = await setup.notifications.catatPanggilan(admin, { teleponId: firstCall!.id, hasil: "janji_bayar" });
     expect(closed.ok).toBe(true);
 
-    // Around H+14, a staff member calls again on the same subject: a fresh open row.
-    const reopened = { subjectKind: "tagihan", subjectId: tagihan.id } as const;
-    expect(await setup.notifications.teleponPemesanTercatat(reopened.subjectKind, reopened.subjectId)).toBe(true);
+    expect(await setup.notifications.teleponPemesanTercatat("tagihan", tagihan.id)).toBe(true);
+    // Not yet H+14 (spec: "around H+1 and around H+14"): no second row.
+    setup.clock.set(wib("2026-10-14 08:00")); // H+13
+    expect((await setup.notifications.chasingEskalasiTick(setup.clock.now())).dieskalasi).toBe(0);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+
+    // H+14: the second call row opens, once, and does not push the Admin Lokasi again.
+    setup.clock.set(wib("2026-10-15 08:00"));
+    expect((await setup.notifications.chasingEskalasiTick(setup.clock.now())).dieskalasi).toBe(1);
+    expect((await setup.notifications.chasingEskalasiTick(setup.clock.now())).dieskalasi).toBe(0);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([expect.objectContaining({ sebab: "tagihan_lewat_jatuh_tempo" })]);
 
     const riwayat = await setup.notifications.teleponPemesanRiwayat("tagihan", tagihan.id);
-    expect(riwayat).toHaveLength(1);
+    expect(riwayat).toHaveLength(2);
     expect(riwayat[0]).toMatchObject({ hasil: "janji_bayar", ditutupPada: expect.any(Date) });
+  });
+
+  it("calls are asked for only inside 08:00–20:00 WIB: H+1 at 21:00 waits for the next 08:00", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    await siapkanOperator(setup);
+    const anchorAt = wib("2026-10-01 08:00");
+    setup.clock.set(anchorAt);
+    const tagihan = await issueSaatDuka(setup, wib("2026-09-28 08:00"));
+    await anchor(tagihan.id, anchorAt);
+
+    setup.clock.set(wib("2026-10-02 21:00"));
+    expect((await setup.notifications.chasingEskalasiTick(setup.clock.now())).dieskalasi).toBe(0);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+
+    setup.clock.set(wib("2026-10-03 08:00"));
+    expect((await setup.notifications.chasingEskalasiTick(setup.clock.now())).dieskalasi).toBe(1);
+  });
+
+  it("a tick that dies while pushing loses nothing: the row and the queued push committed together, and the next run sends", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { admin } = await siapkanOperator(setup);
+    const anchorAt = wib("2026-10-01 08:00");
+    setup.clock.set(anchorAt);
+    const tagihan = await issueSaatDuka(setup, wib("2026-09-28 08:00"));
+    await anchor(tagihan.id, anchorAt);
+    const lokasiAdmin = await invitedStaff(setup, admin, "admin_lokasi", "admin.lokasi@contoh.id");
+
+    const asli = setup.identity.adminLokasiOf;
+    setup.identity.adminLokasiOf = async () => {
+      throw new Error("identity down");
+    };
+    setup.clock.set(wib("2026-10-02 08:00"));
+    await expect(setup.notifications.chasingEskalasiTick(setup.clock.now())).rejects.toThrow("identity down");
+    setup.identity.adminLokasiOf = asli;
+
+    expect(await setup.notifications.teleponPemesanTerbuka()).toHaveLength(1);
+    expect(await setup.notifications.pesanStaf(lokasiAdmin.accountId)).toHaveLength(0);
+
+    // The lease the failed run took has to lapse, then the same tick sends it.
+    setup.clock.set(wib("2026-10-02 08:11"));
+    await setup.notifications.chasingEskalasiTick(setup.clock.now());
+    expect((await setup.notifications.pesanStaf(lokasiAdmin.accountId)).filter((m) => m.template === "staf_tagihan_lewat_jatuh_tempo")).toHaveLength(1);
+    expect(await setup.notifications.teleponPemesanRiwayat("tagihan", tagihan.id)).toHaveLength(1);
+  });
+});
+
+describe("tambahCatatanTagihan: a standalone note on the call log", () => {
+  it("the Lokasi's own Admin Lokasi adds one without any open call row, and it is never a call", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { admin } = await siapkanOperator(setup);
+    const anchorAt = wib("2026-10-01 08:00");
+    setup.clock.set(anchorAt);
+    const tagihan = await issueSaatDuka(setup, wib("2026-09-28 08:00"));
+    await anchor(tagihan.id, anchorAt);
+    const lokasiAdmin = await invitedStaff(setup, admin, "admin_lokasi", "admin.lokasi@contoh.id");
+
+    const hasil = await setup.notifications.tambahCatatanTagihan(lokasiAdmin, { tagihanId: tagihan.id, catatan: "Keluarga minta dihubungi sore hari." });
+    expect(hasil).toMatchObject({ ok: true, catatan: { catatan: "Keluarga minta dihubungi sore hari." } });
+    expect(await setup.notifications.catatanTagihan(tagihan.id)).toHaveLength(1);
+    // A note is not a call: no row was opened, none closed, and Tidak Tertagih's "a call was logged" stays false.
+    expect(await setup.notifications.teleponPemesanRiwayat("tagihan", tagihan.id)).toEqual([]);
+    expect(await setup.notifications.teleponPemesanTercatat("tagihan", tagihan.id)).toBe(false);
+    const entries = await setup.audit.entriesAbout({ kind: "tagihan", id: tagihan.id });
+    expect(entries).toEqual([expect.objectContaining({ action: "tagihan.catatan_ditambah" })]);
+  });
+
+  it("refuses another Lokasi's Admin Lokasi", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const { admin } = await siapkanOperator(setup);
+    const anchorAt = wib("2026-10-01 08:00");
+    setup.clock.set(anchorAt);
+    const tagihan = await issueSaatDuka(setup, wib("2026-09-28 08:00"));
+    await anchor(tagihan.id, anchorAt);
+    const lain = await invitedStaff(setup, admin, "admin_lokasi", "lain@contoh.id");
+    // The fixture's Admin Lokasi are all invited for one Lokasi; move this one to another.
+    const orang = { ...lain, lokasiIds: ["5d1f4c2e-0000-4000-8000-000000000099"] };
+    const hasil = await setup.notifications.tambahCatatanTagihan(orang, { tagihanId: tagihan.id, catatan: "x" });
+    expect(hasil).toMatchObject({ ok: false, reason: "tidak_berwenang" });
   });
 });

@@ -16,9 +16,54 @@
  * widen this by accident.
  */
 import { and, eq } from "drizzle-orm";
-import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { z } from "zod";
+import type { DeclareTidakTertagihResult } from "@/domain/billing";
+import { antreanResource, lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { PemesananDeps } from "./deps";
 import { pemesananMakam } from "./schema";
+
+export const nyatakanTidakTertagihSchema = z.object({
+  tagihanId: z.uuid(),
+  alasan: z.string().trim().max(500).optional(),
+});
+export type NyatakanTidakTertagihInput = z.infer<typeof nyatakanTidakTertagihSchema>;
+
+export type NyatakanTidakTertagihResult = DeclareTidakTertagihResult | WriteRefusal | { ok: false; reason: "input_tidak_valid" };
+
+/**
+ * Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing >
+ * Chasing; ticket 29's AC 4, 5). Billing has no actor and no Audit Log of its
+ * own, so the order-owning module carries the write, the same way it does for a
+ * cancellation: in **one transaction** the status change (Billing's guard —
+ * H+30 and a logged call — decides), the Entri Audit with before/after and the
+ * reason, and the queued Admin Lokasi push all commit or roll back together.
+ */
+export async function nyatakanTidakTertagih(
+  deps: PemesananDeps,
+  by: Actor,
+  rawInput: unknown,
+): Promise<NyatakanTidakTertagihResult> {
+  const parsed = nyatakanTidakTertagihSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const refusal = writeRefusal(by, "tagihan.nyatakan_tidak_tertagih", antreanResource());
+  if (refusal) return refusal;
+  const { tagihanId, alasan } = parsed.data;
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const declared = await deps.billing.within(tx).declareTidakTertagih(tagihanId);
+    if (!declared.ok) return declared;
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "tagihan.tidak_tertagih",
+      entity: { kind: "tagihan", id: tagihanId },
+      lokasiId: declared.tagihan.lokasiId,
+      before: { status: "lewat_jatuh_tempo" },
+      after: { status: "tidak_tertagih", nomorTagihan: declared.tagihan.nomorTagihan },
+      reason: alasan || null,
+    });
+    await deps.notifikasi.tidakTertagihDinyatakan(tx, declared.tagihan);
+    return declared;
+  });
+}
 
 /** The Saat Duka order that granted this Hak Pakai, if any (its own Tagihan is the one Chasing reads). */
 async function grantOrderOf(deps: Pick<PemesananDeps, "db">, hakPakaiId: string) {

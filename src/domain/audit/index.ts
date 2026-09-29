@@ -196,7 +196,11 @@ export type AuditAction =
   /** An Admin Lokasi records the burial of one of its orders, which makes that order Dimakamkan (ticket 25). */
   | "pemesanan.catat_pemakaman"
   /** The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
-  | "hak_pakai.akhiri_tidak_tertagih";
+  | "hak_pakai.akhiri_tidak_tertagih"
+  /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
+  | "tagihan.tidak_tertagih"
+  /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */
+  | "tagihan.catatan_ditambah";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

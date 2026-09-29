@@ -8,7 +8,7 @@ import { formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../scope";
 import { CatatPanggilanForm } from "../antrean/catat-panggilan-form";
-import { AkhiriHakPakaiForm } from "./forms";
+import { AkhiriHakPakaiForm, CatatanTagihanLokasiForm } from "./forms";
 
 export const metadata: Metadata = { title: "Tagihan lewat jatuh tempo · Area Staf" };
 
@@ -35,6 +35,7 @@ export default async function TagihanLewatJatuhTempoLokasiPage({
   const semua = await billing.tagihanLewatJatuhTempo();
   const milik = semua.filter((t) => t.lokasiId === current.id);
   const riwayat = await Promise.all(milik.map((t) => notifications.teleponPemesanRiwayat("tagihan", t.id)));
+  const catatan = await Promise.all(milik.map((t) => notifications.catatanTagihan(t.id)));
   const hakPakaiIds = await Promise.all(milik.map((t) => pemesanan.hakPakaiIdForTagihan(t.id)));
 
   return (
@@ -75,8 +76,18 @@ export default async function TagihanLewatJatuhTempoLokasiPage({
                       ))}
                     </ul>
                   )}
+                  {catatan[i]!.length > 0 ? (
+                    <ul className="flex flex-col gap-1 text-caption text-muted-foreground">
+                      {catatan[i]!.map((note) => (
+                        <li key={note.id}>
+                          {formatTanggalJam(note.dibuatPada)} — Catatan: {note.catatan}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-end gap-4">
+                  <CatatanTagihanLokasiForm lokasiId={current.id} tagihanId={t.id} />
                   {(() => {
                     const open = riwayat[i]!.find((call) => !call.ditutupPada);
                     return open ? <CatatPanggilanForm lokasiId={current.id} teleponId={open.id} /> : null;
