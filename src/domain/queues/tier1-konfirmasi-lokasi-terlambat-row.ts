@@ -8,13 +8,13 @@
  * It is Tier 1, so it alerts once built; its deadline is the order's own, which
  * is why it is already past by the time it appears.
  */
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { Tier1Row, Tier1RowDeps, Tier1RowType } from "./row-types";
 
-export const konfirmasiLokasiTerlambatRowType: AntreanRowType = {
+export const konfirmasiLokasiTerlambatRowType: Tier1RowType = {
   key: "konfirmasi_lokasi_terlambat",
   tier: 1,
   label: "Konfirmasi Lokasi terlambat",
-  async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     const lewat = await deps.pemesanan.konfirmasiLewatTenggat();
     return lewat.map((order) => ({
       subjectKind: "pemesanan_makam",
@@ -23,6 +23,8 @@ export const konfirmasiLokasiTerlambatRowType: AntreanRowType = {
       // No Admin Platform page opens an order yet (ticket 25's order page is the Lokasi's own), so the Antrean itself is where it is chased.
       href: "/staf/admin-platform/antrean",
       deadline: order.konfirmasiDueAt,
+      // The row appears the moment the Lokasi's promised confirmation time passes.
+      sejak: order.konfirmasiDueAt ?? order.diajukanAt,
     }));
   },
 };

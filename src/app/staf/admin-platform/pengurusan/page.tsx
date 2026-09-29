@@ -15,8 +15,8 @@ import { staffMenuActor } from "@/server/staff-area";
  * pengantar are entered.
  */
 export default async function PengurusanTpuListPage() {
-  const actor = await staffMenuActor("admin_platform");
-  const terbuka = await serverRuntime().pengurusan.konfirmasiTpuTerbuka(actor);
+  await staffMenuActor("admin_platform");
+  const terbuka = await serverRuntime().pengurusan.konfirmasiTpuTerbuka();
 
   return (
     <>

@@ -229,3 +229,27 @@ export const notificationsCatatanTagihan = pgTable(
   },
   (table) => [index("notifications_catatan_tagihan_idx").on(table.tagihanId, table.dibuatPada)],
 );
+
+/**
+ * Owned by the notifications module: a Peringatan Staf about a Tier 1 row of the
+ * Antrean, queued (ticket 28) in the transaction in which the Work Queues module
+ * claims the alert's stage, and sent by the worker's tick. One row per recipient.
+ * Kept after sending (`sent_at`), so a crash between the claim and the send loses
+ * nothing: the queued row is still there. Times come from the Clock.
+ */
+export const notificationsPeringatanAntrean = pgTable(
+  "notifications_peringatan_antrean",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The Akun Staf to alert. Not a foreign key: identity owns its tables. */
+    accountId: text("account_id").notNull(),
+    /** "baru", "eskalasi_30" or "eskalasi_90". */
+    tahap: text("tahap").notNull(),
+    label: text("label").notNull(),
+    subjectLabel: text("subject_label").notNull(),
+    href: text("href").notNull(),
+    createdAt: at("created_at").notNull(),
+    sentAt: at("sent_at"),
+  },
+  (table) => [index("notifications_peringatan_antrean_belum_dikirim_idx").on(table.createdAt).where(sql`${table.sentAt} is null`)],
+);

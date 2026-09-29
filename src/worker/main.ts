@@ -14,6 +14,8 @@ import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
 import { createInventory } from "@/domain/inventory";
 import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
+import { konfirmasiTpuTerbuka } from "@/domain/pengurusan";
+import { createQueuesTicks } from "@/domain/queues";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
@@ -158,6 +160,15 @@ async function main() {
       refunds,
       layanan,
       terencana: pemesanan,
+      // Tier 1 alerts and the Bertugas auto-off (ticket 28): the Tier 1 rows read Pemesanan, Notifications' call log and Pengurusan's open confirmations.
+      queues: createQueuesTicks({
+        db: database.db,
+        clock: adapters.clock,
+        identity,
+        notifications,
+        pemesanan,
+        pengurusan: { konfirmasiTpuTerbuka: () => konfirmasiTpuTerbuka({ db: database.db }) },
+      }),
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

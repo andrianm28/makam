@@ -17,6 +17,7 @@ Spec: Domain modules > 6. Pemesanan (burial under an existing Hak Pakai, consent
 - [ ] Confirming issues the pay-after Tagihan; recording the Pemakaman adds it to the Hak Pakai (tumpang doesn't reset the tenure clock) and starts the 3×24 h clock.
 - [ ] Cancelling cancels only the order and its Tagihan; no new Bukti Pemesanan is issued on payment.
 - [ ] Pencairan: the Biaya Pemakaman item is due when Lunas and the Pemakaman is recorded (trigger registered in Payouts).
+- [ ] (Moved from ticket 90, owner 2026-09-29) A burial recorded in a Pemesanan Terencana's plot tells Payouts through `payouts.pemakamanTercatat(tx, …)` in the burial's own transaction, so the Terencana Pencairan becomes due at the first Pemakaman if that is sooner than the end of the Masa Pembatalan (ticket 37's `tickPencairanTerencana`). Test it.
 - [ ] Tidak Tertagih on this Tagihan never allows ending the Hak Pakai.
 - [ ] Tests: each consent path and its order; Tolak → Ditolak; tumpang policy checks; released-plot rule; Tagihan and Pencairan trigger; no Bukti Pemesanan.
 

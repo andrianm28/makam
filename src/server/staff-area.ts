@@ -52,6 +52,11 @@ export interface StaffShell {
   palette: Partial<Record<StaffRole, PaletteGroup[]>>;
   /** The Peringatan Staf bell: how many are unread, and the latest. */
   alerts: { unread: number; latest: StaffAlertEntry[] };
+  /**
+   * How many Tier 1 Antrean rows nobody has taken (Ambil): the red banner in the header of every
+   * staff page of an Admin Platform (ADR 0004; ticket 28). Always 0 for an Akun that is not one.
+   */
+  tier1BelumDiambil: number;
 }
 
 /**
@@ -65,14 +70,15 @@ export async function staffShell(): Promise<StaffShell | null> {
   const held = heldStaffRoles(actor.roles);
   if (held.length === 0) return null;
 
-  const { lokasi, inventory, notifications } = serverRuntime();
-  const [lokasiMitra, alerts] = await Promise.all([
+  const { lokasi, inventory, notifications, queues } = serverRuntime();
+  const [lokasiMitra, alerts, tier1BelumDiambil] = await Promise.all([
     held.includes("admin_platform")
       ? lokasi.allLokasiMitra(actor)
       : held.includes("admin_lokasi")
         ? lokasi.lokasiMitraOfAdminLokasi(actor)
         : Promise.resolve([]),
     notifications.staffAlerts(actor),
+    held.includes("admin_platform") ? queues.tier1BelumDiambil(actor) : Promise.resolve(0),
   ]);
   // Each role sees only the Lokasi Mitra it may open: all for Admin Platform, its own for Admin Lokasi.
   const lokasiOf = (role: StaffRole) =>
@@ -94,5 +100,6 @@ export async function staffShell(): Promise<StaffShell | null> {
     adminLokasi: ownLokasi,
     palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role))])),
     alerts: alerts.ok ? { unread: alerts.unread, latest: alerts.latest } : { unread: 0, latest: [] },
+    tier1BelumDiambil,
   };
 }

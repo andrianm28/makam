@@ -42,6 +42,7 @@ export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export type { PengurusanOrder } from "./reads";
+export { konfirmasiTpuTerbuka } from "./konfirmasi-tpu-terbuka";
 export type { KonfirmasiTpu } from "./konfirmasi-tpu-terbuka";
 export type { KonfirmasiSaatDukaTpuResult } from "./konfirmasi-saat-duka-tpu";
 export type { JawabTpuLainResult, TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
@@ -89,9 +90,11 @@ export interface Pengurusan {
   pesananSaya(pemesan: { accountId: string }): Promise<PengurusanOrder[]>;
   /**
    * Every Saat Duka TPU order still waiting for a confirmation: what the Antrean's
-   * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. Admin Platform only.
+   * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. This read takes no actor (so the worker can read it too), which means
+   * the gate moved to the callers: a caller must check `antrean.lihat` (Admin Platform only) before
+   * showing the result to anyone. The Antrean checks it in `antrean()`, the staff page through `staffMenuActor`.
    */
-  konfirmasiTpuTerbuka(by: Actor): Promise<KonfirmasiTpu[]>;
+  konfirmasiTpuTerbuka(): Promise<KonfirmasiTpu[]>;
   /**
    * Confirms one Diajukan order: status Dikonfirmasi, the burial agreed with the
    * TPU, the pay-after Tagihan (due 3×24 h after the burial), the TPU office and

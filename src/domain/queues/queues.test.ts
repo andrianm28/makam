@@ -503,7 +503,7 @@ describe("Antrean: Tier 2 Pembayaran Perlu Ditinjau (spec-missing, ticket 19's r
     await pembayaranTidakDikenal(setup, admin, 500_000);
 
     const row = (await setup.queues.antrean(admin)).find((item) => item.type === "pembayaran_perlu_ditinjau");
-    expect(row).toMatchObject({ tier: 2, alerts: true, pastDeadline: false, deadline: null, ambil: null });
+    expect(row).toMatchObject({ tier: 2, alerts: false, pastDeadline: false, deadline: null, ambil: null });
     expect(row?.subjectLabel).toContain("Rp 500.000");
   });
 
