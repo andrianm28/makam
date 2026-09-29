@@ -318,3 +318,67 @@ describe("goodwill: Operator-funded, never netted", () => {
     expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_sebagian" });
   });
 });
+
+describe("a refund of some lines of a paid Tagihan (an order cancelled one item at a time)", () => {
+  /** The first refundable line of a paid order's Tagihan, as a caller (a Layanan job) names it. */
+  async function barisPertama(setup: RefundsSetup, tagihanId: string) {
+    const tagihan = await setup.billing.tagihan(tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+    const line = tagihan.lines.find((satu) => satu.kind !== "biaya_layanan_platform");
+    const fee = tagihan.lines.find((satu) => satu.kind === "biaya_layanan_platform");
+    if (!line || !fee) throw new Error("no item line or no fee line");
+    return { tagihan, fee, baris: { label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null } };
+  }
+
+  it("keeps the Biaya Layanan Platform when the Pemesan cancels, and is a partial request through the same approval, transfer and Bukti", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { baris } = await barisPertama(setup, fixture.tagihanId);
+
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [baris] });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    expect(diajukan).toMatchObject({ jumlah: baris.amount, biayaLayananPlatformDikembalikan: false });
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ tagihanId: fixture.tagihanId, penuh: false, goodwill: false, pihakBersalah: "pemesan", jumlah: baris.amount, status: "diajukan" });
+    expect(permintaan.lines).toEqual([baris]);
+
+    expect((await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id })).ok).toBe(true);
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(terbit.bukti.amount).toBe(baris.amount);
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_sebagian" });
+  });
+
+  it("returns the Biaya Layanan Platform too when the fault is the Lokasi's, and only once for the Tagihan", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { baris, fee } = await barisPertama(setup, fixture.tagihanId);
+
+    const pertama = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: [{ ...baris, amount: 1_000 }] });
+    if (!pertama.ok) throw new Error(`refused: ${pertama.reason}`);
+    expect(pertama).toMatchObject({ jumlah: 1_000 + fee.amount, biayaLayananPlatformDikembalikan: true });
+
+    // A second lateness on the same Tagihan joins the open request and does not return the fee again.
+    const kedua = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: [{ ...baris, amount: 2_000 }] });
+    if (!kedua.ok) throw new Error(`refused: ${kedua.reason}`);
+    expect(kedua).toMatchObject({ permintaanId: pertama.permintaanId, jumlah: 2_000, biayaLayananPlatformDikembalikan: false });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan.jumlah).toBe(3_000 + fee.amount);
+  });
+
+  it("refuses more than the Tagihan was paid, an unknown Tagihan, and a request once approved", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { tagihan, baris } = await barisPertama(setup, fixture.tagihanId);
+
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: tagihan.total + 1 }] })).toEqual({ ok: false, reason: "melebihi_tagihan" });
+    expect(await setup.refunds.ajukanBaris("00000000-0000-4000-8000-000000000000", { pihakBersalah: "pemesan", lines: [baris] })).toEqual({ ok: false, reason: "tagihan_tidak_ditemukan" });
+
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "sudah_ada_permintaan_terbuka" });
+  });
+});

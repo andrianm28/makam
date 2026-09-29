@@ -390,6 +390,12 @@ export interface Notifications {
   tambahCatatanTagihan(by: Actor, input: TambahCatatanTagihanInput): Promise<TambahCatatanTagihanResult>;
   /** Every standalone note on one Tagihan's call log, oldest first. */
   catatanTagihan(tagihanId: string): Promise<CatatanTagihan[]>;
+  /**
+   * The same module on another transaction, so a caller queues a family message
+   * in the very commit that writes the data it is about (a message that exists
+   * only if the order or the finished job does).
+   */
+  within(tx: Database): Notifications;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -737,6 +743,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async catatanTagihan(tagihanId) {
       return catatanTagihan(db, tagihanId);
+    },
+
+    within(tx) {
+      return createNotifications({ ...deps, db: tx });
     },
   };
   return notifications;

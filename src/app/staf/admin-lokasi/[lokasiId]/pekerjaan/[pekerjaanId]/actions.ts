@@ -98,12 +98,7 @@ export async function selesaikanVerifikasiHakPakaiLokasi(_previous: PekerjaanAct
     resource: () => lokasiMitraResource(lokasiId),
     schema: z.object({ petakId: z.uuid() }),
     input: { petakId },
-    run: async (actor, { petakId: unitId }) => {
-      const runtime = serverRuntime();
-      const hakPakai = await runtime.inventory.hakPakaiOfUnit({ petakId: unitId });
-      if (!hakPakai) return { ok: false as const, reason: "tidak_ditemukan" as const };
-      return runtime.inventory.selesaikanVerifikasiHakPakai(actor, lokasiId, hakPakai.id);
-    },
+    run: (actor, data) => serverRuntime().inventory.selesaikanVerifikasiHakPakai(actor, lokasiId, data),
   });
   if (!result.ok) return { status: "gagal", message: pesan(result.error) };
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);

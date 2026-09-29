@@ -17,7 +17,7 @@
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import { z } from "zod";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
-import { wibDateOf } from "@/lib/time/jakarta";
+import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import {
   buktiKurang,
   buktiUntukPekerjaan,
@@ -128,12 +128,30 @@ export async function mulaiPekerjaan(deps: LayananDeps, by: Actor, rawInput: unk
   const refusal = await tulisRefusal(deps, by, "layanan.kerjakan", pekerjaanId);
   if (refusal) return refusal;
   const now = deps.clock.now();
-  const moved = await deps.db
-    .update(pekerjaanLayanan)
-    .set({ status: "sedang_dikerjakan", mulaiAt: now })
-    .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_DIMULAI)))
-    .returning({ id: pekerjaanLayanan.id });
-  if (moved.length > 0) return { ok: true, status: "sedang_dikerjakan" };
+  const moved = await deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [sebelum] = await tx
+      .select({ status: pekerjaanLayanan.status, lokasiId: pekerjaanLayanan.lokasiId })
+      .from(pekerjaanLayanan)
+      .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_DIMULAI)));
+    if (!sebelum) return { ok: false as const };
+    const diubah = await tx
+      .update(pekerjaanLayanan)
+      .set({ status: "sedang_dikerjakan", mulaiAt: now })
+      .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_DIMULAI)))
+      .returning({ id: pekerjaanLayanan.id });
+    if (diubah.length === 0) return { ok: false as const };
+    await record({
+      actor: { accountId: by.accountId, role: "admin_lokasi" },
+      action: "layanan.mulai_pekerjaan",
+      entity: { kind: "pekerjaan_layanan", id: pekerjaanId },
+      lokasiId: sebelum.lokasiId,
+      before: { status: sebelum.status },
+      after: { status: "sedang_dikerjakan", mulaiAt: now.toISOString() },
+      reason: null,
+    });
+    return { ok: true as const };
+  });
+  if (moved.ok) return { ok: true, status: "sedang_dikerjakan" };
   const sekarang = await statusOf(deps, pekerjaanId);
   if (sekarang === null) return { ok: false, reason: "tidak_ditemukan" };
   if (sekarang === "sedang_dikerjakan" || sekarang === "selesai" || sekarang === "keluhan") return { ok: false, reason: "sudah_dikerjakan" };
@@ -160,7 +178,9 @@ export async function unggahBuktiPekerjaan(deps: LayananDeps, by: Actor, rawInpu
   const status = await statusOf(deps, pekerjaanId);
   if (status === null) return { ok: false, reason: "tidak_ditemukan" };
   if (status === "selesai" || status === "dibatalkan") return { ok: false, reason: "sudah_selesai" };
-  return simpanBukti(deps, pekerjaanId, by.accountId, rawInput);
+  const lokasiId = await lokasiOf(deps, pekerjaanId);
+  if (lokasiId === null) return { ok: false, reason: "tidak_ditemukan" };
+  return simpanBukti(deps, pekerjaanId, { accountId: by.accountId, lokasiId }, rawInput);
 }
 
 export type SelesaikanPekerjaanResult =
@@ -189,24 +209,41 @@ export async function selesaikanPekerjaan(deps: LayananDeps, by: Actor, rawInput
   if (kurang.length > 0) return { ok: false, reason: "bukti_belum_lengkap", kurang };
 
   const now = deps.clock.now();
-  await deps.db
-    .update(pekerjaanLayanan)
-    .set({ status: "selesai", selesaiAt: now, mulaiAt: pekerjaan.mulaiAt ?? now })
-    .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_SELESAI)));
-
-  // The proof link is what the family is sent, and the family is always the
-  // Pemesan: they paid, whoever put the order in.
-  await deps.notifikasi.pekerjaanSelesai({
-    pekerjaanId,
-    nomor: pekerjaan.pesanan.nomor,
-    email: pekerjaan.pemesan.email,
-    pemesanName: pekerjaan.pemesan.name,
-    lokasi: pekerjaan.lokasi,
-    petak: { nomor: pekerjaan.petak.nomor },
-    label: pekerjaan.pesanan.label,
-    selesaiAt: now,
-    bukti: pekerjaan.bukti.map((satu) => ({ kind: satu.kind, url: satu.url })),
+  // The status, the Entri Audit and the message to the family commit together: a job
+  // is never Selesai without its entry, and the family is never told of a job that
+  // did not finish. The proof link is what they are sent, and the family is always
+  // the Pemesan: they paid, whoever put the order in.
+  const selesai = await deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const diubah = await tx
+      .update(pekerjaanLayanan)
+      .set({ status: "selesai", selesaiAt: now, mulaiAt: pekerjaan.mulaiAt ?? now })
+      .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_SELESAI)))
+      .returning({ id: pekerjaanLayanan.id });
+    if (diubah.length === 0) return { ok: false as const };
+    await record({
+      actor: { accountId: by.accountId, role: "admin_lokasi" },
+      action: "layanan.selesaikan_pekerjaan",
+      entity: { kind: "pekerjaan_layanan", id: pekerjaanId },
+      lokasiId: pekerjaan.lokasi.id,
+      before: { status: pekerjaan.status },
+      after: { status: "selesai", selesaiAt: now.toISOString(), bukti: pekerjaan.bukti.map((satu) => satu.kind) },
+      reason: null,
+    });
+    await deps.notifikasi.pekerjaanSelesai(tx, {
+      pekerjaanId,
+      nomor: pekerjaan.pesanan.nomor,
+      email: pekerjaan.pemesan.email,
+      pemesanName: pekerjaan.pemesan.name,
+      lokasi: pekerjaan.lokasi,
+      petak: { nomor: pekerjaan.petak.nomor },
+      label: pekerjaan.pesanan.label,
+      selesaiAt: now,
+      bukti: pekerjaan.bukti.map((satu) => ({ kind: satu.kind, url: satu.url })),
+    });
+    return { ok: true as const };
   });
+  // A job another request finished first is not finished twice.
+  if (!selesai.ok) return { ok: false, reason: "belum_dijadwalkan" };
   return { ok: true, status: "selesai", bukti: pekerjaan.bukti };
 }
 
@@ -232,7 +269,7 @@ export interface TerlambatTerbaca {
  * (the platform fee kept).
  */
 export async function tandaiTerlambat(db: LayananDeps["db"], now: Date): Promise<number> {
-  const batas = geserWib(wibDateOf(now), -HARI_TERLAMBAT);
+  const batas = addWibDateDays(wibDateOf(now), -HARI_TERLAMBAT);
   const flagged = await db
     .update(pekerjaanLayanan)
     .set({ status: "terlambat", terlambatAt: now })
@@ -273,18 +310,15 @@ export async function pekerjaanTerlambat(deps: LayananDeps): Promise<TerlambatTe
   }));
 }
 
-/** A WIB calendar date `hari` days from `tanggal`, without depending on the host's time zone. */
-const geserWib = (tanggal: string, hari: number): string => wibDateOf(new Date(new Date(`${tanggal}T00:00:00+07:00`).getTime() + hari * 86_400_000));
-
 /** The last day a job may be finished without being late: its target date + 2. */
-export const batasTerlambat = (targetDate: string): string => geserWib(targetDate, HARI_TERLAMBAT);
+export const batasTerlambat = (targetDate: string): string => addWibDateDays(targetDate, HARI_TERLAMBAT);
 
 /** The ±2 days around a target date: the window the work may be done in. */
-export const jendelaKerja = (targetDate: string): { dari: string; sampai: string } => ({ dari: geserWib(targetDate, -HARI_TERLAMBAT), sampai: geserWib(targetDate, HARI_TERLAMBAT) });
+export const jendelaKerja = (targetDate: string): { dari: string; sampai: string } => ({ dari: addWibDateDays(targetDate, -HARI_TERLAMBAT), sampai: addWibDateDays(targetDate, HARI_TERLAMBAT) });
 
 /** Whether a job's target date is at least `HARI_TERLAMBAT` days past, at `now`. */
 export function sudahLewatBatas(targetDate: string, now: Date): boolean {
-  return targetDate <= geserWib(wibDateOf(now), -HARI_TERLAMBAT);
+  return targetDate <= addWibDateDays(wibDateOf(now), -HARI_TERLAMBAT);
 }
 
 /** The status of a job, or null when there is no such job. */
@@ -292,6 +326,12 @@ async function statusOf(deps: LayananDeps, pekerjaanId: string): Promise<Pekerja
   if (!z.uuid().safeParse(pekerjaanId).success) return null;
   const [row] = await deps.db.select({ status: pekerjaanLayanan.status }).from(pekerjaanLayanan).where(eq(pekerjaanLayanan.id, pekerjaanId));
   return row?.status ?? null;
+}
+
+/** The Lokasi Mitra a job is at, or null when there is no such job. */
+async function lokasiOf(deps: LayananDeps, pekerjaanId: string): Promise<string | null> {
+  const [row] = await deps.db.select({ lokasiId: pekerjaanLayanan.lokasiId }).from(pekerjaanLayanan).where(eq(pekerjaanLayanan.id, pekerjaanId));
+  return row?.lokasiId ?? null;
 }
 
 /** The write guard, made against the Lokasi Mitra the job is really at. */

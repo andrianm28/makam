@@ -323,6 +323,12 @@ describe("placing an order Layanan", () => {
     expect(pesanOrder.map((pesan) => pesan.template)).toContain("layanan_pesanan_terbit");
   });
 
+  // TODO(ticket 89): `bersamaKonfirmasi` is not on `main` yet, so an order still sends two emails (the order
+  // confirmation and "Tagihan terbit"). When 89 lands, pass `bersamaKonfirmasi: true` in
+  // src/composition/layanan.ts and turn this into a test that reads the family's messages and finds
+  // exactly one email carrying the Tagihan's link, with the H-1 and due-day reminders still queued.
+  it.todo("sends exactly one email for an order: the order email carries the Tagihan link (needs ticket 89's bersamaKonfirmasi)");
+
   it("announces nothing when it refuses", async () => {
     const { setup, lokasi, petak, pemesan } = await siap({ leadTimeDays: 5 });
     const gagal = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-02"));
@@ -408,14 +414,14 @@ describe("a Hak Pakai the Admin Lokasi must still complete", () => {
     // **The exit.** Only the Admin Lokasi of that plot's own Lokasi Mitra may complete
     // its Hak Pakai: the Operator chases a Lokasi by phone (story 117) and does not
     // stand at the grave, so it is refused here.
-    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.admin, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.admin, lokasi.lokasiMitra.id, { hakPakaiId: petak.hakPakaiId })).toEqual({
       ok: false,
       reason: "tidak_berwenang",
     });
-    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({ ok: true });
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, { hakPakaiId: petak.hakPakaiId })).toEqual({ ok: true });
     // Twice is refused rather than quietly accepted: the flag is off, so there is
     // nothing left to complete.
-    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, { hakPakaiId: petak.hakPakaiId })).toEqual({
       ok: false,
       reason: "tidak_perlu_verifikasi",
     });
@@ -435,7 +441,8 @@ describe("a Hak Pakai the Admin Lokasi must still complete", () => {
 
   it("is the tick the worker runs, so nothing has to be released by hand", async () => {
     const { setup, lokasi, petak } = await orderYangDiblokir();
-    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, petak.hakPakaiId)).toEqual({ ok: true });
+    // The staff screen knows only the grave, so it names the Petak and Inventory finds the Hak Pakai.
+    expect(await setup.inventory.selesaikanVerifikasiHakPakai(lokasi.adminLokasi, lokasi.lokasiMitra.id, { petakId: petak.petakId })).toEqual({ ok: true });
 
     const tick = scheduledTicks.find((scheduled) => scheduled.name === "layanan.jadwalkan_tertunda");
     if (!tick) throw new Error("the worker does not schedule the tick that releases a held job");

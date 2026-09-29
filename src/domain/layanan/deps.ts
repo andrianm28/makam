@@ -4,6 +4,7 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -35,10 +36,14 @@ export interface PemesanLayanan {
  * link, not the file.
  */
 export interface LayananNotifikasi {
-  /** A new order Layanan with its Tagihan: the Pemesan hears the price and the deadline. */
-  pesananLayananTerbit(hasil: PesananLayananTerbit): Promise<void>;
-  /** A job finished: the Pemesan gets the link to its photo proof. */
-  pekerjaanSelesai(hasil: PekerjaanSelesai): Promise<void>;
+  /**
+   * A new order Layanan with its Tagihan: the Pemesan hears the price and the
+   * deadline. Queued on `tx`, the transaction that writes the order, so the message
+   * exists only if the order does.
+   */
+  pesananLayananTerbit(tx: Database, hasil: PesananLayananTerbit): Promise<void>;
+  /** A job finished: the Pemesan gets the link to its photo proof. Queued on the transaction that finishes it. */
+  pekerjaanSelesai(tx: Database, hasil: PekerjaanSelesai): Promise<void>;
 }
 
 /** A new order Layanan as its Pemesan is told about it. */
@@ -101,5 +106,10 @@ export interface LayananDeps {
   billing: Pick<Billing, "within" | "tagihan">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
+  /**
+   * A cancelled job's refund is asked of the Refunds module on the cancellation's own
+   * transaction (`within`), so a job is never cancelled without its refund request.
+   */
+  refunds: Pick<Refunds, "within">;
   notifikasi: LayananNotifikasi;
 }

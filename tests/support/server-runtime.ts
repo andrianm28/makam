@@ -118,18 +118,6 @@ export function testServerRuntime() {
         buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
       }),
     });
-    const layanan = composeLayanan({
-      db: database.db,
-      clock: adapters.clock,
-      files: adapters.files,
-      audit,
-      lokasi,
-      tariffs,
-      inventory,
-      billing,
-      identity,
-      notifications,
-    });
     const payouts = composePayouts({
       env,
       db: database.db,
@@ -154,6 +142,19 @@ export function testServerRuntime() {
       notifications,
       operatorSettings,
       pemesanan,
+    });
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      refunds,
+      notifications,
     });
     holder.__makamRuntime = {
       env,

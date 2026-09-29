@@ -12,10 +12,11 @@
  *
  * What a cancellation *owes* is decided here too, because only this module knows
  * which line of the Tagihan is this job's and whether the job was the fulfiller's
- * fault. What it writes is a **refund request**: the Tagihan, the lines to return,
- * the total, and whether the Biaya Layanan Platform is in it. The money itself
- * leaves through Billing, where Admin Platform approves every refund and the Bukti
- * Pengembalian Dana is issued; nothing here moves a rupiah.
+ * fault. What it writes is a **refund request in the Refunds module**
+ * (`ajukanBaris`, in the cancellation's own transaction): the Tagihan, the job's
+ * line, and who is at fault, from which Refunds decides whether the Biaya Layanan
+ * Platform comes back. Approval, transfer and the Bukti Pengembalian Dana are
+ * Refunds' flow; nothing here moves a rupiah.
  *
  * The two cases, as that rule words them:
  *
@@ -31,18 +32,17 @@
  * for it.
  */
 import { and, eq } from "drizzle-orm";
+import type { Database } from "@/db/client";
+import { refusable } from "@/db/unit-of-work";
 import { normaliseEmail } from "@/domain/identity";
 import type { Rupiah } from "@/lib/rupiah";
-import { wibDateOf } from "@/lib/time/jakarta";
+import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { batalkanPekerjaanSchema } from "./pesanan-schema";
 import { pengembalianLayanan, pekerjaanLayanan, pesananLayanan, pesananLayananItem, type PekerjaanLayananStatus } from "./schema";
 
-/** A WIB calendar date `hari` days from `tanggal`, without depending on the host's time zone. */
-const geserWib = (tanggal: string, hari: number): string => wibDateOf(new Date(new Date(`${tanggal}T00:00:00+07:00`).getTime() + hari * 86_400_000));
-
 /** The last day a family may still cancel a job targeting this date: H-1, the day before. */
-export const batasBatal = (targetDate: string): string => geserWib(targetDate, -1);
+export const batasBatal = (targetDate: string): string => addWibDateDays(targetDate, -1);
 
 /** Whether a family may still cancel this job of its own accord at `now`. */
 export function bolehDibatalkan(status: PekerjaanLayananStatus, targetDate: string, now: Date): boolean {
@@ -70,6 +70,8 @@ export type BatalkanDitolak =
   /** The email is not an Akun's Email Terverifikasi, or the Akun is not that email's. */
   | "bukan_pemesan"
   | "sudah_dibatalkan"
+  /** Refunds cannot take the request now (an approved one is still open on the Tagihan): nothing was cancelled. */
+  | "pengembalian_tertunda"
   | "sudah_selesai"
   | "di_keluhan"
   /** It has started, or H-1 has passed. */
@@ -134,18 +136,29 @@ export async function batalkanPekerjaan(
   if (!karenaLateness && !bolehDibatalkan(row.job.status, row.job.targetDate, now)) return { ok: false, reason: "sudah_dikerjakan" };
   if (row.job.status !== "dijadwalkan" && row.job.status !== "terlambat") return { ok: false, reason: "sudah_dikerjakan" };
 
-  const moved = await deps.db
-    .update(pekerjaanLayanan)
-    .set({
-      status: "dibatalkan",
-      dibatalkanAt: now,
-      alasanPembatalan: karenaLateness ? "terlambat" : alasan.trim(),
-    })
-    .where(and(eq(pekerjaanLayanan.id, pekerjaanId), eq(pekerjaanLayanan.status, row.job.status)))
-    .returning({ id: pekerjaanLayanan.id });
-  if (moved.length === 0) return { ok: false, reason: "sudah_dibatalkan" };
-
-  return { ok: true, pekerjaan: { id: pekerjaanId, status: "dibatalkan" }, pengembalian: await tulisPengembalian(deps, row, karenaLateness, now) };
+  // The status, the refund request here and the refund request in Refunds commit together: a
+  // job is never cancelled while its money is left unasked for, and a refusal by Refunds
+  // (an approved request still open on the Tagihan) leaves the job exactly as it was.
+  const hasil = await refusable<
+    | { ok: true; pengembalian: PengembalianDiminta | null }
+    | { ok: false; reason: "sudah_dibatalkan" | "pengembalian_tertunda" }
+  >(deps.db, async (tx) => {
+    const moved = await tx
+      .update(pekerjaanLayanan)
+      .set({
+        status: "dibatalkan",
+        dibatalkanAt: now,
+        alasanPembatalan: karenaLateness ? "terlambat" : alasan.trim(),
+      })
+      .where(and(eq(pekerjaanLayanan.id, pekerjaanId), eq(pekerjaanLayanan.status, row.job.status)))
+      .returning({ id: pekerjaanLayanan.id });
+    if (moved.length === 0) return { ok: false as const, reason: "sudah_dibatalkan" as const };
+    const pengembalian = await tulisPengembalian(deps, tx, row, karenaLateness, now);
+    if (pengembalian === "tertunda") return { ok: false as const, reason: "pengembalian_tertunda" as const };
+    return { ok: true as const, pengembalian };
+  });
+  if (!hasil.ok) return hasil;
+  return { ok: true, pekerjaan: { id: pekerjaanId, status: "dibatalkan" }, pengembalian: hasil.pengembalian };
 }
 
 /**
@@ -159,6 +172,7 @@ export async function batalkanPekerjaan(
  */
 async function tulisPengembalian(
   deps: LayananDeps,
+  tx: Database,
   row: {
     job: typeof pekerjaanLayanan.$inferSelect;
     order: typeof pesananLayanan.$inferSelect;
@@ -166,32 +180,36 @@ async function tulisPengembalian(
   },
   karenaLateness: boolean,
   now: Date,
-): Promise<PengembalianDiminta | null> {
-  const tagihan = await deps.billing.tagihan(row.order.tagihanId);
+): Promise<PengembalianDiminta | null | "tertunda"> {
+  const tagihan = await deps.billing.within(tx).tagihan(row.order.tagihanId);
   if (!tagihan || tagihan.status !== "lunas") return null;
   const line = tagihan.lines[row.item.posisi];
   if (!line || line.kind !== "layanan" || line.label !== row.item.label) return null;
-  const platform = karenaLateness ? tagihan.lines.find((satu) => satu.kind === "biaya_layanan_platform") : undefined;
-  const baris = [
-    { label: line.label, amount: line.amount },
-    ...(platform === undefined ? [] : [{ label: platform.label, amount: platform.amount }]),
-  ];
-  const total = baris.reduce((jumlah, satu) => jumlah + satu.amount, 0);
+
+  // Refunds owns the rule and the request: the job's own line goes in, and whether the Biaya
+  // Layanan Platform comes back follows who is at fault (the Pemesan cancelling keeps it, the
+  // Lokasi's lateness returns it, once for the Tagihan).
+  const diajukan = await deps.refunds.within(tx).ajukanBaris(tagihan.id, {
+    pihakBersalah: karenaLateness ? "lokasi" : "pemesan",
+    lines: [{ label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
+  });
+  if (!diajukan.ok) return "tertunda";
+  const baris = diajukan.lines.map((satu) => ({ label: satu.label, amount: satu.amount }));
   const values = {
     pekerjaanId: row.job.id,
     pesananId: row.order.id,
     tagihanId: tagihan.id,
     alasan: karenaLateness ? ("terlambat_batal" as const) : ("pemesan_batal" as const),
     baris,
-    total: total as Rupiah,
-    platformDikembalikan: karenaLateness,
+    total: diajukan.jumlah as Rupiah,
+    platformDikembalikan: diajukan.biayaLayananPlatformDikembalikan,
     createdAt: now,
   };
   // One request per job: asking twice must not make the family a refund twice.
-  const [ditulis] = await deps.db.insert(pengembalianLayanan).values(values).onConflictDoNothing().returning({ id: pengembalianLayanan.id });
-  const id = ditulis?.id ?? (await deps.db.select({ id: pengembalianLayanan.id }).from(pengembalianLayanan).where(eq(pengembalianLayanan.pekerjaanId, row.job.id)))[0]?.id;
+  const [ditulis] = await tx.insert(pengembalianLayanan).values(values).onConflictDoNothing().returning({ id: pengembalianLayanan.id });
+  const id = ditulis?.id ?? (await tx.select({ id: pengembalianLayanan.id }).from(pengembalianLayanan).where(eq(pengembalianLayanan.pekerjaanId, row.job.id)))[0]?.id;
   if (!id) return null;
-  return { id, tagihanId: tagihan.id, baris, total, platformDikembalikan: karenaLateness };
+  return { id, tagihanId: tagihan.id, baris, total: diajukan.jumlah, platformDikembalikan: diajukan.biayaLayananPlatformDikembalikan };
 }
 
 /** One refund request, as the refund flow reads it. */

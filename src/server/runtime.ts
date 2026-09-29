@@ -165,20 +165,6 @@ export function serverRuntime(): ServerRuntime {
         }),
       }),
     });
-    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
-    // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
-    const layanan = composeLayanan({
-      db: database.db,
-      clock: adapters.clock,
-      files: adapters.files,
-      audit,
-      lokasi,
-      tariffs,
-      inventory,
-      billing,
-      identity,
-      notifications,
-    });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.
     const payouts = composePayouts({
       env,
@@ -209,6 +195,21 @@ export function serverRuntime(): ServerRuntime {
       operatorSettings,
       pemesanan,
       reportError,
+    });
+    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
+    // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      refunds,
+      notifications,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.

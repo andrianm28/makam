@@ -65,7 +65,7 @@ export type SimpanBuktiResult =
 export async function simpanBukti(
   deps: LayananDeps,
   pekerjaanId: string,
-  diunggahOleh: string,
+  oleh: { accountId: string; lokasiId: string },
   rawInput: unknown,
 ): Promise<SimpanBuktiResult> {
   const parsed = buktiPekerjaanSchema.safeParse(rawInput);
@@ -81,15 +81,28 @@ export async function simpanBukti(
   } catch {
     return { ok: false, reason: "penyimpanan_belum_tersedia" };
   }
-  const [row] = await deps.db
-    .insert(pekerjaanLayananBukti)
-    .values({ pekerjaanId, kind, fileKey: key, contentType: file.contentType, takenAt, diunggahOleh, createdAt: deps.clock.now() })
-    .onConflictDoUpdate({
-      target: [pekerjaanLayananBukti.pekerjaanId, pekerjaanLayananBukti.kind],
-      set: { fileKey: key, contentType: file.contentType, takenAt, diunggahOleh },
-    })
-    .returning({ kind: pekerjaanLayananBukti.kind });
-  return { ok: true, kind: row.kind };
+  const diunggahOleh = oleh.accountId;
+  // The proof row and its Entri Audit commit together; the file itself is already in the FileStore.
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [row] = await tx
+      .insert(pekerjaanLayananBukti)
+      .values({ pekerjaanId, kind, fileKey: key, contentType: file.contentType, takenAt, diunggahOleh, createdAt: deps.clock.now() })
+      .onConflictDoUpdate({
+        target: [pekerjaanLayananBukti.pekerjaanId, pekerjaanLayananBukti.kind],
+        set: { fileKey: key, contentType: file.contentType, takenAt, diunggahOleh },
+      })
+      .returning({ kind: pekerjaanLayananBukti.kind });
+    await record({
+      actor: { accountId: oleh.accountId, role: "admin_lokasi" },
+      action: "layanan.unggah_bukti",
+      entity: { kind: "pekerjaan_layanan", id: pekerjaanId },
+      lokasiId: oleh.lokasiId,
+      before: null,
+      after: { kind, takenAt: takenAt.toISOString(), contentType: file.contentType },
+      reason: null,
+    });
+    return { ok: true as const, kind: row.kind };
+  });
 }
 
 /** A short-lived signed URL for one proof, or null when the FileStore cannot serve it. */

@@ -27,7 +27,7 @@ import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./ce
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
 import type { InventoryDeps } from "./deps";
-import { selesaikanVerifikasiHakPakai, type SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
+import { selesaikanVerifikasiHakPakai, type HakPakaiTarget, type SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 import type { PetakByNomor } from "./lookup";
 import { makamKeluargaSaya, type MakamSaya } from "./makam-saya";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
@@ -59,7 +59,7 @@ export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
-export type { SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
+export type { HakPakaiTarget, SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
 export type { HakPakaiUntukUnit } from "./reads";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
@@ -155,7 +155,7 @@ export interface Inventory {
    * fills in — the contact and end date ticket 41's review carries — is that
    * ticket's, not this function's.
    */
-  selesaikanVerifikasiHakPakai(by: Actor, lokasiId: string, hakPakaiId: string): Promise<SelesaikanVerifikasiResult>;
+  selesaikanVerifikasiHakPakai(by: Actor, lokasiId: string, target: HakPakaiTarget): Promise<SelesaikanVerifikasiResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
   /** How many Petak Makam here still need clearing (Perlu Verifikasi), for the Antrean Lokasi's row (ticket 23). */
@@ -264,7 +264,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
-    selesaikanVerifikasiHakPakai: (by, lokasiId, hakPakaiId) => selesaikanVerifikasiHakPakai(deps, by, lokasiId, hakPakaiId),
+    selesaikanVerifikasiHakPakai: (by, lokasiId, target) => selesaikanVerifikasiHakPakai(deps, by, lokasiId, target),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),

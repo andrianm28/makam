@@ -251,3 +251,70 @@ async function adminPlatform(setup: LayananSetup) {
   return (await adminPlatformOf(setup)).actor;
 }
 
+
+describe("every staff write on a job leaves an Entri Audit", () => {
+  it("records Mulai, each captured proof and Selesai on the job, at its own Lokasi, by the Admin Lokasi who did it", async () => {
+    const { setup, lokasi, pemesan, order } = await siap();
+    const { kerja } = await pekerjaan(setup, lokasi, pemesan, order.pesanan.nomor);
+    await setup.layanan.mulaiPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id });
+    await setup.layanan.unggahBuktiPekerjaan(lokasi.adminLokasi, bukti(kerja.id, "foto_sebelum"));
+    await setup.layanan.unggahBuktiPekerjaan(lokasi.adminLokasi, bukti(kerja.id, "foto_sesudah"));
+    setup.clock.set(wib("2026-10-20 11:00"));
+    expect((await setup.layanan.selesaikanPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id })).ok).toBe(true);
+
+    const entri = await setup.audit.entriesAbout({ kind: "pekerjaan_layanan", id: kerja.id });
+    expect(entri.map((satu) => satu.action)).toEqual([
+      "layanan.mulai_pekerjaan",
+      "layanan.unggah_bukti",
+      "layanan.unggah_bukti",
+      "layanan.selesaikan_pekerjaan",
+    ]);
+    for (const satu of entri) {
+      expect(satu.actor).toEqual({ accountId: lokasi.adminLokasi.accountId, role: "admin_lokasi" });
+      expect(satu.lokasiId).toBe(lokasi.lokasiMitra.id);
+    }
+    expect(entri[0]).toMatchObject({ before: { status: "dijadwalkan" }, after: { status: "sedang_dikerjakan" } });
+    expect(entri[3]).toMatchObject({ before: { status: "sedang_dikerjakan" }, after: { status: "selesai", bukti: ["foto_sebelum", "foto_sesudah"] } });
+  });
+
+  it("records nothing for a write that was refused, or that changed nothing", async () => {
+    const { setup, lokasi, pemesan, order } = await siap();
+    const { kerja } = await pekerjaan(setup, lokasi, pemesan, order.pesanan.nomor);
+    const admin = (await adminPlatformOf(setup)).actor;
+    await setup.layanan.mulaiPekerjaan(admin, { pekerjaanId: kerja.id });
+    await setup.layanan.mulaiPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id });
+    await setup.layanan.mulaiPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id });
+    // Selesai refused for missing proof.
+    await setup.layanan.selesaikanPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id });
+
+    const entri = await setup.audit.entriesAbout({ kind: "pekerjaan_layanan", id: kerja.id });
+    expect(entri.map((satu) => satu.action)).toEqual(["layanan.mulai_pekerjaan"]);
+  });
+
+  it("queues the family's message with the finished job, in the same commit", async () => {
+    const setup = layananOnTestDatabase(db, { notifikasiNyata: true });
+    await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup);
+    const petak = await petakDenganHakPakai(setup, lokasi);
+    const { pemesan } = await pemesanLayanan(setup);
+    const order = await setup.layanan.placePesananLayanan(pemesan, {
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      lokasiId: lokasi.lokasiMitra.id,
+      petakId: petak.petakId,
+      item: [{ layananVariantId: lokasi.varian.id, targetDate: "2026-10-20", teks: null }],
+    });
+    if (!order.ok) throw new Error(`order refused: ${order.reason}`);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    await setup.billing.recordPayment(order.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: wib("2026-10-01 10:00") });
+    const { kerja } = await pekerjaan(setup, lokasi, pemesan, order.pesanan.nomor);
+    // Refused for missing proof: no message.
+    await setup.layanan.selesaikanPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id });
+    expect((await setup.notifications.pesanLayanan(order.pesanan.nomor)).map((pesan) => pesan.template)).not.toContain("layanan_pekerjaan_selesai");
+
+    await setup.layanan.unggahBuktiPekerjaan(lokasi.adminLokasi, bukti(kerja.id, "foto_sebelum"));
+    await setup.layanan.unggahBuktiPekerjaan(lokasi.adminLokasi, bukti(kerja.id, "foto_sesudah"));
+    expect((await setup.layanan.selesaikanPekerjaan(lokasi.adminLokasi, { pekerjaanId: kerja.id })).ok).toBe(true);
+    expect((await setup.notifications.pesanLayanan(order.pesanan.nomor)).map((pesan) => pesan.template)).toContain("layanan_pekerjaan_selesai");
+  });
+});

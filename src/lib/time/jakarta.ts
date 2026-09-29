@@ -72,6 +72,11 @@ export function addWibDays(instant: Date, days: number): Date {
   return new Date(instant.getTime() + days * DAY_MS);
 }
 
+/** A WIB calendar date ("YYYY-MM-DD") `days` days later, by way of `addWibDays` so no host time zone enters. */
+export function addWibDateDays(tanggal: string, days: number): string {
+  return wibDateOf(addWibDays(new Date(`${tanggal}T00:00:00+07:00`), days));
+}
+
 /** "2026-10-02T10:00": the WIB wall clock of `instant` as a `datetime-local` input holds it (never re-derived as an instant). */
 export function wibDateTimeLocal(instant: Date): string {
   return `${wibDateOf(instant)}T${wibTime(instant)}`;

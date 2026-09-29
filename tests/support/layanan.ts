@@ -6,6 +6,8 @@ import type { Actor } from "@/domain/identity";
 import { buktiOf, type LayananNotifikasi, type NewLayanan } from "@/domain/layanan";
 import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
 import { PENGATURAN_OPERATOR } from "./billing";
+import { payoutsFor } from "./payouts";
+import { refundsFor } from "./refunds";
 import { cellsOf } from "./inventory";
 import { adminPlatformOf } from "./identity";
 import { pemesanDenganEmail } from "./pemesanan";
@@ -40,10 +42,10 @@ export function collectLayananNotifikasi(): LayananNotifikasi & { pesananTerbit:
   return {
     pesananTerbit,
     selesai,
-    pesananLayananTerbit: async (hasil) => {
+    pesananLayananTerbit: async (_tx, hasil) => {
       pesananTerbit.push(hasil);
     },
-    pekerjaanSelesai: async (hasil) => {
+    pekerjaanSelesai: async (_tx, hasil) => {
       selesai.push(hasil);
     },
   };
@@ -63,6 +65,10 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
   const base = publishOnTestDatabase(db);
   const billing = billingDenganEfekLayanan(db, base);
   const notifikasi = collectLayananNotifikasi();
+  // The real Refunds, on this fixture's own Billing, so a cancelled job's refund request is one an
+  // Admin Platform can approve and transfer in a test.
+  const { payouts } = payoutsFor({ ...base, billing });
+  const { refunds } = refundsFor({ ...base, billing }, payouts);
   // A test of what the family is actually sent asks for the real Notifications module; every
   // other test reads the collected announcements instead.
   const layanan = composeLayanan({
@@ -75,9 +81,10 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
     inventory: base.inventory,
     billing,
     identity: base.identity,
+    refunds,
     ...(options.notifikasiNyata ? { notifications: base.notifications } : { notifikasi }),
   });
-  return { ...base, billing, layanan, notifikasi };
+  return { ...base, billing, layanan, notifikasi, payouts, refunds };
 }
 
 export type LayananSetup = ReturnType<typeof layananOnTestDatabase>;

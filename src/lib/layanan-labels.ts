@@ -145,6 +145,7 @@ export const layananBatalMessages = {
   sudah_selesai: "Pekerjaan ini sudah selesai, jadi tidak bisa dibatalkan.",
   di_keluhan: "Pekerjaan ini sedang dalam keluhan, jadi tidak bisa dibatalkan.",
   sudah_dikerjakan: "Pekerjaan ini sudah lewat batas pembatalan (H-1), sudah dikerjakan, atau pembayarannya belum masuk.",
+  pengembalian_tertunda: "Pembatalan belum bisa diproses karena pengembalian dana pesanan ini sedang berjalan. Coba lagi setelah selesai, atau hubungi kami.",
   belum_masuk: "Masuk dulu untuk membatalkan pekerjaan ini.",
   perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",

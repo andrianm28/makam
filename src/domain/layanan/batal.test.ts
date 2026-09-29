@@ -181,3 +181,97 @@ describe("a job whose Tagihan was never paid", () => {
   });
 });
 
+
+describe("the refund a cancellation asks of the Refunds module", () => {
+  const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" };
+
+  /** An order of two Layanan, paid, so each of its two jobs can be cancelled on its own. */
+  async function pesananDuaItem() {
+    const setup = layananOnTestDatabase(db);
+    await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000 });
+    const petak = await petakDenganHakPakai(setup, lokasi);
+    const { pemesan } = await pemesanLayanan(setup);
+    const order = await setup.layanan.placePesananLayanan(pemesan, {
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      lokasiId: lokasi.lokasiMitra.id,
+      petakId: petak.petakId,
+      item: [
+        { layananVariantId: lokasi.varian.id, targetDate: TARGET, teks: null },
+        { layananVariantId: lokasi.varian.id, targetDate: TARGET, teks: null },
+      ],
+    });
+    if (!order.ok) throw new Error(`order refused: ${order.reason}`);
+    setup.clock.set(HARI_INI);
+    await setup.billing.recordPayment(order.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
+    const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
+    const [satu, dua] = dibaca?.item.map((item) => item.pekerjaan?.id) ?? [];
+    if (!satu || !dua) throw new Error("no jobs");
+    return { setup, lokasi, pemesan, satu, dua };
+  }
+
+  it("becomes a request Admin Platform approves and transfers into a Bukti Pengembalian Dana, the platform fee kept", async () => {
+    const { setup, lokasi, pemesan, pekerjaanId, order } = await siap();
+    setup.clock.set(wib("2026-10-19 08:00"));
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Rencana berubah." });
+    if (!hasil.ok) throw new Error("refused");
+
+    // The request is in the Refunds module, naming the Tagihan and the one line refunded.
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({
+      tagihanId: order.tagihan.id,
+      penuh: false,
+      pihakBersalah: "pemesan",
+      biayaLayananPlatformDikembalikan: false,
+      jumlah: 750_000,
+      status: "diajukan",
+    });
+    expect(permintaan.lines).toEqual([{ label: "Layanan – Pembersihan Makam (Reguler)", amount: 750_000, lokasiId: lokasi.lokasiMitra.id }]);
+
+    expect((await setup.refunds.setujuiPengembalian(lokasi.admin, { permintaanId: permintaan.id })).ok).toBe(true);
+    await setup.refunds.isiRekeningAdmin(lokasi.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(lokasi.admin, {
+      permintaanId: permintaan.id,
+      ditransferPada: "2026-10-19",
+      bukti: { body: foto(), contentType: "image/jpeg" },
+    });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(terbit.bukti.amount).toBe(750_000);
+    expect(await setup.billing.tagihan(order.tagihan.id)).toMatchObject({ status: "dikembalikan_sebagian" });
+  });
+
+  it("returns the platform fee too when cancelled for lateness: the whole Tagihan", async () => {
+    const { setup, pemesan, pekerjaanId } = await siap();
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
+    if (!hasil.ok) throw new Error("refused");
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ pihakBersalah: "lokasi", biayaLayananPlatformDikembalikan: true, jumlah: 900_000 });
+  });
+
+  it("joins the open request when a second job of the same order is cancelled: one transfer for the order", async () => {
+    const { setup, pemesan, satu, dua } = await pesananDuaItem();
+
+    setup.clock.set(wib("2026-10-19 08:00"));
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Satu saja." })).ok).toBe(true);
+    // The second cancellation joins the same open request: one transfer for the order.
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Dua juga." })).ok).toBe(true);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan.jumlah).toBe(1_500_000);
+  });
+  it("is refused, and the job left as it was, while an approved refund is still open on the Tagihan", async () => {
+    const { setup, lokasi, pemesan, satu, dua } = await pesananDuaItem();
+    setup.clock.set(wib("2026-10-19 08:00"));
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Satu saja." })).ok).toBe(true);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    await setup.refunds.setujuiPengembalian(lokasi.admin, { permintaanId: permintaan.id });
+
+    expect(await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Dua juga." })).toEqual({ ok: false, reason: "pengembalian_tertunda" });
+    // Nothing was cancelled and nothing was asked: the family can cancel it again after the transfer.
+    expect(await setup.layanan.pengembalianTerbuka()).toHaveLength(1);
+    expect((await setup.refunds.permintaanTerbuka())[0].jumlah).toBe(750_000);
+  });
+});

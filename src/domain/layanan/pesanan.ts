@@ -32,7 +32,7 @@ import type { NewTagihanLine, Tagihan } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber, type PhoneNumberResult } from "@/domain/identity";
 import { refusable } from "@/db/unit-of-work";
 import { hargaLayananPartLabel } from "@/lib/layanan-labels";
-import { addWibDays, wibDateOf } from "@/lib/time/jakarta";
+import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import type { Rupiah } from "@/lib/rupiah";
 import type { QuotedLine } from "@/domain/tariffs";
 import type { LayananDeps, PemesanLayanan } from "./deps";
@@ -49,7 +49,7 @@ export const JENDELA_TARGET_HARI = 2;
 type PhoneRefusal = Extract<PhoneNumberResult, { ok: false }>["reason"];
 
 /** A WIB calendar date `hari` days from `tanggal`, without depending on the host's time zone. */
-const geser = (tanggal: string, hari: number): string => wibDateOf(addWibDays(new Date(`${tanggal}T00:00:00+07:00`), hari));
+const geser = addWibDateDays;
 
 /** The ±2 days around a target date, in WIB calendar dates: the window the work may be done in. */
 export function jendelaTarget(targetDate: string): { dari: string; sampai: string } {
@@ -227,6 +227,25 @@ export async function placePesananLayanan(
         });
       }
 
+      // The message is queued in this very commit, so a family is told of an order that exists and
+      // an order that exists is never left unannounced.
+      await deps.notifikasi.pesananLayananTerbit(tx, {
+        pesananId: order.id,
+        nomor,
+        email,
+        pemesanName,
+        lokasi: { id: input.lokasiId, name: tertulis.lokasi.name },
+        petak: { nomor: tertulis.petak.nomor },
+        item: item.map((satu, posisi) => ({ label: baris.perBaris[posisi].label, targetDate: satu.targetDate })),
+        tagihan: {
+          id: tagihan.tagihan.id,
+          nomorTagihan: tagihan.tagihan.nomorTagihan,
+          total: tagihan.tagihan.total,
+          dueAt: tagihan.tagihan.dueAt,
+          link: tagihan.tagihan.link,
+        },
+      });
+
       return {
         ok: true as const,
         pesanan: { id: order.id, nomor, status: "menunggu_pembayaran" as const, total: tagihan.tagihan.total },
@@ -241,27 +260,6 @@ export async function placePesananLayanan(
       };
     },
   );
-  if (!hasil.ok) return hasil;
-
-  // The order is already written when this cannot be sent: a family that never
-  // hears about it still has its Tagihan, and the Antrean Lokasi's row does not
-  // wait on a message.
-  await deps.notifikasi.pesananLayananTerbit({
-    pesananId: hasil.pesanan.id,
-    nomor: hasil.pesanan.nomor,
-    email,
-    pemesanName,
-    lokasi: { id: input.lokasiId, name: tertulis.lokasi.name },
-    petak: { nomor: tertulis.petak.nomor },
-    item: item.map((satu, posisi) => ({ label: baris.perBaris[posisi].label, targetDate: satu.targetDate })),
-    tagihan: {
-      id: hasil.tagihan.id,
-      nomorTagihan: hasil.tagihan.nomorTagihan,
-      total: hasil.tagihan.total,
-      dueAt: hasil.tagihan.dueAt,
-      link: hasil.tagihan.link,
-    },
-  });
   return hasil;
 }
 

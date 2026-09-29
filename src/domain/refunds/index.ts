@@ -24,7 +24,15 @@ import type { Payouts } from "@/domain/payouts";
 import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
-import { ajukanGoodwill, materialisasiDariPembatalan, type AjukanGoodwillInput, type AjukanGoodwillResult } from "./request";
+import {
+  ajukanBaris,
+  ajukanGoodwill,
+  materialisasiDariPembatalan,
+  type AjukanBarisInput,
+  type AjukanBarisResult,
+  type AjukanGoodwillInput,
+  type AjukanGoodwillResult,
+} from "./request";
 import { setujuiPengembalian, type SetujuiResult } from "./approve";
 import { isiRekeningAdmin, isiRekeningPemesan, type IsiRekeningResult, type RekeningInput } from "./rekening";
 import type { PihakBersalah } from "./schema";
@@ -44,7 +52,7 @@ export { biayaLayananPlatformDikembalikan } from "./aturan";
 export { TENGGAT_TRANSFER_HARI_KERJA } from "./approve";
 export { rekeningSchema, rekeningTersamar, type RekeningInput } from "./rekening";
 export { pihakBersalahKinds, permintaanPengembalianStatuses, permintaanSumberKinds, type PihakBersalah } from "./schema";
-export type { RefundLine } from "./request";
+export type { AjukanBarisInput, AjukanBarisResult, RefundLine } from "./request";
 export type { PermintaanPengembalian } from "./baca";
 
 export interface RefundsDeps {
@@ -103,6 +111,15 @@ export interface Refunds {
   pengembalianJatuhTempo(): Promise<PermintaanPengembalian[]>;
   /** The Bukti Pengembalian Dana behind an unguessable link, with its transfer proof as a short-lived signed URL, or null. */
   buktiPengembalianDana(link: string): Promise<DokumenBuktiPengembalianDana | null>;
+  /**
+   * A refund request for some lines of a paid Tagihan (an order cancelled one
+   * item at a time: a Layanan job). The caller names the lines and who is at
+   * fault; the Biaya Layanan Platform follows the fee rule, once per Tagihan.
+   * Approval, transfer and the Bukti are the same flow as any other request.
+   */
+  ajukanBaris(tagihanId: string, input: AjukanBarisInput): Promise<AjukanBarisResult>;
+  /** The same module on another transaction, so a caller records a cancellation and its refund request in one commit. */
+  within(tx: Database): Refunds;
 }
 
 export function createRefunds(deps: RefundsDeps): Refunds {
@@ -139,6 +156,8 @@ export function createRefunds(deps: RefundsDeps): Refunds {
     isiRekeningPemesan: (by, input) => isiRekeningPemesan(rekeningDeps, by, input),
     isiRekeningAdmin: (by, input) => isiRekeningAdmin(rekeningDeps, by, input),
     terbitkanBuktiPengembalianDana: (by, input) => terbitkanBuktiPengembalianDana(transferDeps, by, input),
+    ajukanBaris: (tagihanId, input) => ajukanBaris({ db: deps.db, clock: deps.clock, billing: deps.billing }, tagihanId, input),
+    within: (tx) => createRefunds({ ...deps, db: tx, billing: deps.billing.within(tx) }),
     permintaanTerbuka: () => permintaanTerbuka(deps.db),
     permintaan: (id) => permintaanById(deps.db, id),
     permintaanUntukPesanan: (nomor) => permintaanUntukPesanan(deps.db, nomor),

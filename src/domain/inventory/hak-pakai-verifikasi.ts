@@ -21,7 +21,11 @@
 import { and, eq } from "drizzle-orm";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
+import { hakPakaiOfUnit } from "./reads";
 import { inventoryHakPakai } from "./schema";
+
+/** The Hak Pakai to complete: by its own id, or as the current one of a Petak Makam. */
+export type HakPakaiTarget = { hakPakaiId: string } | { petakId: string };
 
 export type SelesaikanVerifikasiResult =
   | { ok: true }
@@ -42,10 +46,13 @@ export async function selesaikanVerifikasiHakPakai(
   deps: InventoryDeps,
   by: Actor,
   lokasiId: string,
-  hakPakaiId: string,
+  target: HakPakaiTarget,
 ): Promise<SelesaikanVerifikasiResult> {
   const refusal = writeRefusal(by, "hak_pakai.selesaikan_verifikasi", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
+  // A screen that knows only the grave names the Petak; which Hak Pakai that is now is this module's to say.
+  const hakPakaiId = "hakPakaiId" in target ? target.hakPakaiId : (await hakPakaiOfUnit(deps, { petakId: target.petakId }))?.id;
+  if (!hakPakaiId) return { ok: false, reason: "tidak_ditemukan" };
 
   const [hakPakai] = await deps.db
     .select({ id: inventoryHakPakai.id, perluVerifikasi: inventoryHakPakai.perluVerifikasi })
