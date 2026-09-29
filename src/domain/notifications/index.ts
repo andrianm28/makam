@@ -68,6 +68,7 @@ import {
   pengembalianTerbit,
   pesanTagihan,
   tagihanTerbit,
+  tagihanTerbitPengganti,
   type KirimJatuhTempo,
   type PengembalianTerbitInput,
   type PengembalianTerbitResult,
@@ -283,6 +284,16 @@ export interface Notifications {
    * without its address (and never announced without existing).
    */
   tagihanTerbit(input: TagihanTerbitInput, within?: Database): Promise<TagihanTerbitResult>;
+  /**
+   * Announces the Tagihan that replaces another (Harga Khusus): the address is
+   * the one recorded for `tagihanLamaId`, and the family gets the standalone
+   * "Tagihan terbit" email, since a reissue sends no confirmation of its own.
+   * Same transaction rule as `tagihanTerbit`.
+   */
+  tagihanTerbitPengganti(
+    input: Omit<TagihanTerbitInput, "email"> & { tagihanLamaId: string },
+    within?: Database,
+  ): Promise<TagihanTerbitResult>;
   /**
    * Announces a Bukti Pengembalian Dana to the Tagihan's own contact (the
    * address `tagihanTerbit` recorded); an order with no email opens a Telepon
@@ -609,6 +620,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async tagihanTerbit(input, within) {
       return tagihanTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async tagihanTerbitPengganti(input, within) {
+      return tagihanTerbitPengganti(within ? { ...deps, db: within } : deps, input);
     },
 
     async pengembalianTerbit(input) {

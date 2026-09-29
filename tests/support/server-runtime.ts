@@ -65,6 +65,7 @@ export function testServerRuntime() {
         if (!payoutsRef.current) throw new Error("Payouts is not composed yet");
         return payoutsRef.current.kurangiPencairanPesanan(tx, input);
       },
+      umumkanTagihanPengganti: (tx, input) => notifications.tagihanTerbitPengganti(input, tx),
     };
     const notifications = composeNotifications({
       env,

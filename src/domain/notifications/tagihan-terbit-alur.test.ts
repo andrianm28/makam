@@ -131,3 +131,62 @@ describe("a confirmation is never blocked by its Tagihan's announcement", () => 
     expect(JSON.stringify(setup.reportedErrors)).not.toContain("bukan-email");
   });
 });
+
+/** A Saat Duka order confirmed at a Lokasi Mitra, its Tagihan issued: what a Harga Khusus is then set on. */
+async function dikonfirmasi(setup: ReturnType<typeof pemesananOnTestDatabase>, emailKosong = false) {
+  const fixture = await saatDukaFixture(setup);
+  const admin = await siapkanOperatorPemesanan(setup);
+  setup.clock.set(wib("2026-10-01 10:00"));
+  const placed = await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), rencanaPemakamanAt: "2026-10-02T10:00" });
+  if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
+  if (emailKosong) await db.execute(sql`update pemesanan_makam set email = null where nomor = ${placed.pemesanan.nomor}`);
+  const [blok] = await setup.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
+  const petak = (await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
+  const hasil = await setup.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, {
+    nomor: placed.pemesanan.nomor,
+    petakId: petak[0]!.id,
+    pemakamanAt: "2026-10-02T10:00",
+  });
+  if (!hasil.ok) throw new Error(`confirmation refused: ${hasil.reason}`);
+  const order = await setup.pemesanan.orderOf(placed.pemesanan.nomor, fixture.pemesan);
+  return { fixture, admin, tagihan: { id: order!.tagihanId! } };
+}
+
+describe("a Harga Khusus reissue announces its new Tagihan", () => {
+  it("emails the Pemesan once with the NEW Tagihan's link, and records the new Tagihan's contact for what comes after", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const { fixture, admin, tagihan } = await dikonfirmasi(setup);
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    const sebelum = denganTautanTagihan(setup, fixture.pemesan.email).length;
+
+    const khusus = await setup.billing.tetapkanHargaKhusus(admin, { tagihanId: tagihan.id, amount: 100_000, alasan: "Keringanan" });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    const baru = denganTautanTagihan(setup, fixture.pemesan.email).slice(sebelum);
+    expect(baru).toHaveLength(1);
+    expect(baru[0]?.text).toContain(`/dokumen/${khusus.tagihan.link}`);
+    expect(baru[0]?.text).toContain(khusus.tagihan.nomorTagihan);
+    expect((await setup.notifications.pesanTagihan(khusus.tagihan.id)).map((pesan) => pesan.template)).toEqual(["tagihan_terbit"]);
+
+    // The new Tagihan's contact is recorded: paying it sends the receipt to the same address.
+    const bayar = await setup.billing.bayar(khusus.tagihan.link);
+    if (!bayar.ok) throw new Error("bayar refused");
+    await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(setup.payments.created.at(-1)!.providerPaymentId, "paid"));
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.subject.includes("Bukti Pembayaran"))).toHaveLength(1);
+  });
+
+  it("an order with no email opens the Telepon Pemesan row for the new Tagihan, and the Harga Khusus still lands", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const { admin, tagihan } = await dikonfirmasi(setup, true);
+
+    const khusus = await setup.billing.tetapkanHargaKhusus(admin, { tagihanId: tagihan.id, amount: 100_000, alasan: "Keringanan" });
+
+    expect(khusus.ok).toBe(true);
+    if (!khusus.ok) return;
+    const terbuka = await setup.notifications.teleponPemesanTerbuka();
+    expect(terbuka.some((row) => row.subjectKind === "tagihan" && row.subjectId === khusus.tagihan.id && row.sebab === "tanpa_email")).toBe(true);
+  });
+});

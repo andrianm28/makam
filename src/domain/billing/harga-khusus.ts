@@ -30,6 +30,7 @@
  *   names it) — tolerating its "tidak_ditemukan" (nothing to lower yet) as
  *   the ordinary case above, not a refusal.
  */
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -37,7 +38,10 @@ import { tagihanResource, writeRefusal, type Actor, type WriteRefusal } from "@/
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
+import type { PaymentMoment } from "./due-rules";
 import type { EffectDeps } from "./settlement";
+import { tagihan as tagihanTable } from "./schema";
+import { momentOf } from "./shared";
 import { readTagihan, reissueTagihan, type NewTagihanLine, type ReissueTagihanResult, type TagihanLine } from "./tagihan";
 
 export interface HargaKhususDeps extends EffectDeps {
@@ -57,6 +61,29 @@ export interface HargaKhususDeps extends EffectDeps {
     tx: Database,
     input: { nomorPemesanan: string; lokasiId: string; amount: number; alasan: "porsi_pemegang_saham"; catatan: string; oleh: string },
   ) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  /**
+   * Announces the reissued Tagihan to the family, in the same transaction as
+   * the reissue (Notifications' `tagihanTerbitPengganti`, ticket 89's pattern).
+   * A Harga Khusus reissue sends no confirmation email of its own, so this is
+   * the family's only notice and what records the new Tagihan's contact.
+   * Structurally typed, never imported from Notifications, which depends on
+   * Billing. A refusal never blocks the Harga Khusus. Left undefined where no
+   * Notifications is composed.
+   */
+  umumkanTagihanPengganti?: (
+    tx: Database,
+    input: {
+      tagihanLamaId: string;
+      tagihanId: string;
+      momentKind: PaymentMoment["kind"];
+      nomorTagihan: string;
+      nomorPemesanan: string | null;
+      perihal: string;
+      total: number;
+      dueAt: Date;
+      link: string;
+    },
+  ) => Promise<{ ok: boolean }>;
 }
 
 export interface TetapkanHargaKhususInput {
@@ -164,6 +191,24 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
       if (!kurangi.ok && kurangi.reason !== "tidak_ditemukan") {
         return { ok: false, reason: "porsi_tidak_dapat_dikurangi" } as const;
       }
+    }
+
+    // A Rp 0 Tagihan is Lunas at once: nothing to pay, so nothing to announce.
+    if (deps.umumkanTagihanPengganti && reissued.tagihan.status === "belum_dibayar") {
+      const [lama] = await tx.select({ moment: tagihanTable.moment }).from(tagihanTable).where(eq(tagihanTable.id, old.id));
+      const diumumkan = await deps.umumkanTagihanPengganti(tx, {
+        tagihanLamaId: old.id,
+        tagihanId: reissued.tagihan.id,
+        momentKind: momentOf(lama?.moment).kind,
+        nomorTagihan: reissued.tagihan.nomorTagihan,
+        nomorPemesanan: reissued.tagihan.nomorPemesanan,
+        perihal: reissued.tagihan.placeName ? `Pemesanan makam di ${reissued.tagihan.placeName}` : "Tagihan Makam.co.id",
+        total: reissued.tagihan.total,
+        dueAt: reissued.tagihan.dueAt,
+        link: reissued.tagihan.link,
+      });
+      // The Harga Khusus is never blocked by its own announcement.
+      if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });
     }
 
     await record({

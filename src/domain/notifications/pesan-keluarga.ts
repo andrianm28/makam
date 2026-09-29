@@ -192,6 +192,26 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
   });
 }
 
+/**
+ * Announces the Tagihan that replaces another one (a Harga Khusus reissue): the
+ * family's address is the one recorded for the Tagihan it replaces, so the new
+ * Tagihan gets the same contact, its "Tagihan terbit" email (a reissue has no
+ * confirmation email of its own) and, when pay-first, its reminders. An
+ * address-less predecessor opens the "Telepon Pemesan" row for the new Tagihan,
+ * exactly as `tagihanTerbit` does. Idempotent like `tagihanTerbit`.
+ */
+export async function tagihanTerbitPengganti(
+  deps: PesanKeluargaDeps,
+  input: Omit<TagihanTerbitInput, "email"> & { tagihanLamaId: string },
+): Promise<TagihanTerbitResult> {
+  const { tagihanLamaId, ...rest } = input;
+  const [kontak] = await deps.db
+    .select({ email: notificationsTagihanKontak.email })
+    .from(notificationsTagihanKontak)
+    .where(eq(notificationsTagihanKontak.tagihanId, tagihanLamaId));
+  return tagihanTerbit(deps, { ...rest, email: kontak?.email ?? null });
+}
+
 export const pengembalianTerbitSchema = z.object({
   tagihanId: z.uuid(),
   nomorTagihan: z.string().trim().min(1).max(50),
