@@ -11,7 +11,7 @@ import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { adminPlatformOf, logIn } from "../../../tests/support/identity";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
 import { buktiTransfer } from "../../../tests/support/refunds";
-import { gantiPemegangHakUntukUji, terencanaLokasi, type TerencanaOptions } from "../../../tests/support/terencana";
+import { terencanaLokasi, type TerencanaOptions } from "../../../tests/support/terencana";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -191,7 +191,12 @@ describe('"Ajukan Pembatalan" shows the refund under the order\'s own Syarat bef
     const dasar = await pesananAktif(setup, { pemegangHak: "lain" });
     // The new Pemegang Hak of A-02 is somebody else; the Pemegang Hak of A-01 is untouched.
     const ahliWaris = (await pemesanDenganEmail(setup, "ahli.waris@contoh.id")).pemesan;
-    await gantiPemegangHakUntukUji(setup, dasar.hakPakaiIds[1], { name: "Ahli Waris", phoneNumber: "+6281200000000", email: ahliWaris.email }, dasar.fixture.adminLokasi.accountId);
+    const diganti = await setup.inventory.gantiPemegangHak(dasar.fixture.adminLokasi, dasar.fixture.lokasiMitra.id, {
+      hakPakaiId: dasar.hakPakaiIds[1],
+      pemegangHak: { name: "Ahli Waris", phoneNumber: "081200000000", email: ahliWaris.email },
+      alasan: "Waris dari Ibu Sari",
+    });
+    if (!diganti.ok) throw new Error(`gantiPemegangHak refused: ${diganti.reason}`);
 
     // The earlier holder is no longer this Hak Pakai's Pemegang Hak, and the new one may not cancel a right that changed hands.
     expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1])).toEqual({ ok: false, reason: "tidak_ditemukan" });
@@ -472,6 +477,30 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     expect(await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "aktif" });
     expect((await barisPembatalan(setup, dasar))).toHaveLength(1);
     expect((await setup.audit.allEntries()).filter((entry) => entry.action === "pembatalan_terencana.setujui")).toEqual([]);
+  });
+
+  it("is refused with its own reason while an earlier refund of the Tagihan is approved and awaiting its transfer, and can be approved once it is transferred", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup);
+    const pertama = await ajukan(setup, dasar);
+    const kedua = await ajukan(setup, dasar, "", 1);
+    const a = await setujui(setup, dasar, pertama.id);
+    await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: a.pengembalian!.permintaanId });
+
+    const ditolak = await setup.pemesanan.setujuiPembatalanTerencana(dasar.fixture.adminLokasi, { id: kedua.id });
+
+    expect(ditolak).toEqual({ ok: false, reason: "pengembalian_sebelumnya_menunggu_transfer" });
+    expect(await setup.inventory.hakPakaiById(dasar.hakPakaiIds[1])).toMatchObject({ status: "aktif" });
+    expect((await setup.pemesanan.pembatalanUntukStaf(dasar.fixture.adminLokasi, dasar.nomor)).find((satu) => satu.id === kedua.id)?.status).toBe("diajukan");
+
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: a.pengembalian!.permintaanId,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    expect(terbit.ok).toBe(true);
+    expect(await setup.pemesanan.setujuiPembatalanTerencana(dasar.fixture.adminLokasi, { id: kedua.id })).toMatchObject({ ok: true });
   });
 
   it("is that Lokasi's own Admin Lokasi's to answer, and nobody else's, Admin Platform included", async () => {

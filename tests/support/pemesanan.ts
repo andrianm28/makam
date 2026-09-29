@@ -19,6 +19,7 @@ import type {
   TerencanaDiajukan,
 } from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan } from "@/domain/perpanjangan";
 import { createQueues } from "@/domain/queues";
 import { createRefunds } from "@/domain/refunds";
 import type {
@@ -228,6 +229,19 @@ export function pemesananOnTestDatabase(
     refunds,
     notifications: setup.notifications,
   });
+  const perpanjangan = createPerpanjangan({
+    db,
+    clock: setup.clock,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing,
+    pemesanan,
+    identity: setup.identity,
+    files: setup.files,
+    audit: setup.audit,
+    notifikasi: setup.notifications,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -242,6 +256,7 @@ export function pemesananOnTestDatabase(
     layanan,
     payouts,
     pengurusan,
+    perpanjangan,
     refunds,
   });
   return {

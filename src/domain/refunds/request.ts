@@ -238,7 +238,7 @@ export type AjukanBarisResult =
       jumlah: number;
       biayaLayananPlatformDikembalikan: boolean;
     }
-  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" };
+  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" | "menunggu_transfer" };
 
 /**
  * A refund request for some lines of a paid Tagihan: what an order cancelled one
@@ -293,6 +293,8 @@ async function ajukanBarisTerkunci(
 
   const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
   if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
+  // An earlier request already approved is waiting for its transfer: nothing may join it now, and the caller can say so plainly.
+  if (terbuka?.status === "disetujui") return { ok: false, reason: "menunggu_transfer" };
   if (terbuka) {
     if (terbuka.status !== "diajukan" || terbuka.goodwill || terbuka.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
     await deps.db

@@ -401,7 +401,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
     if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
-    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "sudah_ada_permintaan_terbuka" });
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "menunggu_transfer" });
   });
 
   it("is a full refund only when the lines really are everything the fault rule returns: the fee kept, nothing else left behind", async () => {

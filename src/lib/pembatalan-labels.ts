@@ -91,6 +91,8 @@ export function pembatalanStafMessage(reason: Refusal<SetujuiPembatalanResult>):
       return "Sudah ada Pemakaman di petak ini, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
     case "pernah_ganti_pemegang_hak":
       return "Pemegang Hak petak ini pernah diganti, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
+    case "pengembalian_sebelumnya_menunggu_transfer":
+      return "Ada pengembalian dana lain untuk Tagihan pesanan ini yang sudah disetujui dan menunggu transfer. Tunggu sampai pengembalian itu ditransfer Admin Platform, lalu setujui lagi; tidak ada yang berubah.";
     case "pengembalian_tidak_bisa_diajukan":
       return "Pengembalian dana belum bisa diajukan karena ada pengembalian lain untuk Tagihan ini yang sedang diproses. Hubungi Admin Platform; tidak ada yang berubah.";
   }

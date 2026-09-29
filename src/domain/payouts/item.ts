@@ -28,6 +28,7 @@ import { pencairanResource, writeRefusal, type Actor, type WriteRefusal } from "
 import { rupiahSchema } from "@/lib/rupiah";
 import { sumRupiah, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
+import { sisipPotongan } from "./potongan";
 import { jumlahOf, toBarisItem, type BarisItemPencairan } from "./baca";
 import { pencairanItem, pencairanPenguranganTertunda, pencairanTerencana, type PencairanItemBatalReason, type PencairanItemReason } from "./schema";
 
@@ -268,6 +269,22 @@ export async function terapkanPenguranganTertunda(tx: Database, nomorPemesanan: 
     const bisa = total.ok ? Math.min(satu.amount, total.amount) : 0;
     if (bisa > 0) {
       await kurangiPencairanPesanan(tx, { nomorPemesanan, lokasiId: satu.lokasiId, amount: bisa, alasan: "pengembalian_dana", catatan: satu.catatan, oleh: satu.oleh }, now);
+    }
+    // What the items just made cannot cover (a Harga Khusus share already took part of them) was never going to be paid to the
+    // Lokasi Mitra by these items, yet the family has been refunded it: it is a Potongan, not a rupiah lost.
+    const sisa = satu.amount - bisa;
+    if (sisa > 0) {
+      await sisipPotongan(
+        tx,
+        {
+          lokasiId: satu.lokasiId,
+          amount: sisa,
+          alasanKind: "pengembalian_dana",
+          alasan: `Pengembalian dana untuk pesanan ${nomorPemesanan} melebihi Pencairan yang tersedia untuk dikurangi.`,
+          sumberNomorPemesanan: nomorPemesanan,
+        },
+        now,
+      );
     }
     await tx.delete(pencairanPenguranganTertunda).where(eq(pencairanPenguranganTertunda.id, satu.id));
   }

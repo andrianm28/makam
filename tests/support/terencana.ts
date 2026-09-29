@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { inventoryHakPakai, inventoryPemegangHak } from "@/domain/inventory/schema";
+import { inventoryHakPakai } from "@/domain/inventory/schema";
 import type { Actor } from "@/domain/identity";
 import { DEFAULT_FLAGS, DEFAULT_POLICIES, type LokasiFlags, type LokasiPolicies } from "@/domain/lokasi";
 import { catatCekDenah } from "./fieldwork";
@@ -177,19 +177,4 @@ async function bersihkan(
 ) {
   const cleared = await setup.inventory.clearPetak(by, lokasiId, selAt(sel, nomor).id, input);
   if (!cleared.ok) throw new Error(`clearPetak ${nomor} refused: ${cleared.reason}`);
-}
-
-/**
- * Hands a Hak Pakai to a new Pemegang Hak the way Ganti Pemegang Hak will (the earlier holder's row closed, a new one opened,
- * the history kept). No public function does it yet (ticket 39), and a test of another module's rule about a Hak Pakai that
- * changed hands needs one that has, so the row is written here, in one place, rather than in the test.
- */
-export async function gantiPemegangHakUntukUji(
-  setup: Pick<PublishSetup, "db" | "clock">,
-  hakPakaiId: string,
-  pemegangHak: { name: string; phoneNumber: string; email: string },
-  oleh: string,
-): Promise<void> {
-  await setup.db.update(inventoryPemegangHak).set({ endAt: setup.clock.now() }).where(eq(inventoryPemegangHak.hakPakaiId, hakPakaiId));
-  await setup.db.insert(inventoryPemegangHak).values({ hakPakaiId, ...pemegangHak, startAt: setup.clock.now(), createdByAccountId: oleh });
 }
