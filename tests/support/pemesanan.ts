@@ -227,6 +227,7 @@ export function pemesananOnTestDatabase(
     billing,
     identity: setup.identity,
     refunds,
+    payouts,
     notifications: setup.notifications,
   });
   const perpanjangan = createPerpanjangan({
