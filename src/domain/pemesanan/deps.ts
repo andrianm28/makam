@@ -14,6 +14,7 @@ import type {
 } from "@/domain/notifications";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Rupiah } from "@/lib/rupiah";
+import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 
@@ -278,6 +279,8 @@ export interface PesananDibatalkan {
 export interface PemesananDeps {
   db: Database;
   clock: Clock;
+  /** Where a broken invariant a tick meets is reported (tags only, no personal data); optional for a process with none. */
+  reportError?: ReportError;
   /** The private FileStore for a family's own documents on an order. */
   files: FileStore;
   /** Every staff write on an order (a confirmation, a checklist tick) records an Entri Audit here. */

@@ -7,14 +7,14 @@
  * An Admin Lokasi sees an order only for its own Lokasi Mitra: another Lokasi's
  * order is nothing found, never another Lokasi's family.
  */
-import { and, asc, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, isNotNull, lt } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import { alasanBatalTerencana } from "./alasan-batal-terencana";
 import { alasanOrder } from "./alasan-tolak";
 import type { PemesananDeps } from "./deps";
+import { nomorUnit, unitsOfOrders } from "./terencana-unit";
 import {
   pemesananTerencana,
-  pemesananTerencanaUnit,
   type CalonPenghuniTerencana,
   type PemegangHak,
   type PemesananTerencanaStatus,
@@ -70,26 +70,20 @@ export interface OrderTerencanaAntrean {
 
 type Row = typeof pemesananTerencana.$inferSelect;
 
-/** The units of the given orders, keyed by order, each in the order the Pemesan picked them. */
+/** The units of the given orders in one query, as the staff and the family read them. */
 async function unitsOf(deps: Pick<PemesananDeps, "db">, rows: readonly Row[]): Promise<Map<string, UnitTerencanaBaca[]>> {
-  const perOrder = new Map<string, UnitTerencanaBaca[]>();
-  for (const row of rows) {
-    const units = await deps.db
-      .select()
-      .from(pemesananTerencanaUnit)
-      .where(eq(pemesananTerencanaUnit.pemesananId, row.id))
-      .orderBy(asc(pemesananTerencanaUnit.urutan));
-    perOrder.set(
-      row.id,
+  const perOrder = await unitsOfOrders(deps.db, rows.map((row) => row.id));
+  return new Map(
+    [...perOrder].map(([id, units]) => [
+      id,
       units.map((unit) => ({
         jenis: unit.petakId ? ("petak" as const) : ("kavling" as const),
-        nomor: unit.nomorMakam ?? unit.nomorKavling ?? "",
+        nomor: nomorUnit(unit),
         jenisMakamName: unit.jenisMakamName,
         hakPakaiId: unit.hakPakaiId,
       })),
-    );
-  }
-  return perOrder;
+    ]),
+  );
 }
 
 async function toAntrean(deps: Pick<PemesananDeps, "db">, rows: readonly Row[]): Promise<OrderTerencanaAntrean[]> {
@@ -132,7 +126,7 @@ export async function konfirmasiTerencanaLewatTenggat(deps: Pick<PemesananDeps, 
   const rows = await deps.db
     .select()
     .from(pemesananTerencana)
-    .where(and(eq(pemesananTerencana.status, "diajukan"), isNotNull(pemesananTerencana.konfirmasiDueAt), lte(pemesananTerencana.konfirmasiDueAt, now)))
+    .where(and(eq(pemesananTerencana.status, "diajukan"), isNotNull(pemesananTerencana.konfirmasiDueAt), lt(pemesananTerencana.konfirmasiDueAt, now)))
     .orderBy(pemesananTerencana.konfirmasiDueAt, pemesananTerencana.nomor);
   return toAntrean(deps, rows);
 }

@@ -26,10 +26,9 @@
  * a payment that settles first makes the withdrawal refuse, and one that arrives after
  * finds a Dibatalkan Tagihan.
  */
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import { z } from "zod";
 import { refusable } from "@/db/unit-of-work";
-import type { Database } from "@/db/client";
 import { withinPaymentCap } from "@/domain/billing";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { nextWorkingDayEnd } from "@/domain/lokasi";
@@ -37,6 +36,7 @@ import { ALASAN_TOLAK, alasanTolakTerencanaSchema, type AlasanTolakTerencana } f
 import type { Pemesan, PemesananDeps } from "./deps";
 import { linesOf } from "./konfirmasi-saat-duka";
 import { pemesananTerencana, pemesananTerencanaUnit } from "./schema";
+import { nomorUnit, unitsOfOrder } from "./terencana-unit";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -74,13 +74,6 @@ export type KonfirmasiTerencanaResult =
   /** A Tagihan could not be issued (no Pengaturan Operator, a total past a cap): nothing at all is written. */
   | { ok: false; reason: "tagihan_tidak_terbit" };
 
-/** The units of one order, in the order the Pemesan picked them. */
-async function unitsOf(db: Database, pemesananId: string) {
-  return db.select().from(pemesananTerencanaUnit).where(eq(pemesananTerencanaUnit.pemesananId, pemesananId)).orderBy(asc(pemesananTerencanaUnit.urutan));
-}
-
-const nomorUnit = (unit: { nomorMakam: string | null; nomorKavling: string | null }) => unit.nomorMakam ?? unit.nomorKavling ?? "";
-
 /**
  * When the Lokasi Mitra must answer a Terencana order placed at `now`: the end of its
  * next working day (spec, Pemesanan > Terencana), or null while its Jam Operasional is
@@ -111,7 +104,7 @@ export async function konfirmasiTerencana(deps: PemesananDeps, by: Actor, rawInp
   if (order.status === "dikonfirmasi" || order.status === "aktif") return { ok: false, reason: "pesanan_sudah_dikonfirmasi" };
   if (order.status !== "diajukan") return { ok: false, reason: "pesanan_sudah_ditutup" };
 
-  const units = await unitsOf(deps.db, order.id);
+  const units = await unitsOfOrder(deps.db, order.id);
   const now = deps.clock.now();
   const holdHours = await deps.lokasi.terencanaHoldHours(order.lokasiId);
   if (holdHours === null) return { ok: false, reason: "lokasi_tidak_terbuka" };
@@ -238,7 +231,7 @@ export async function tolakTerencana(deps: PemesananDeps, by: Actor, rawInput: u
   if (refusal) return refusal;
   if (order.status !== "diajukan") return { ok: false, reason: "pesanan_sudah_ditutup" };
 
-  const units = await unitsOf(deps.db, order.id);
+  const units = await unitsOfOrder(deps.db, order.id);
   const now = deps.clock.now();
   const ditolak = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const moved = await tx
@@ -351,17 +344,29 @@ export async function lewatBatasBayarTerencana(deps: PemesananDeps, now: Date): 
     .orderBy(pemesananTerencana.tahanSampai, pemesananTerencana.nomor);
   const hasil: LewatBatasBayarHasil = { dibatalkan: 0 };
   for (const order of lewat) {
-    if (!order.tagihanId) continue;
-    const units = await unitsOf(deps.db, order.id);
+    const tagihanId = order.tagihanId;
+    if (!tagihanId) {
+      // A confirmed order always has its Tagihan (the confirmation issues both in one transaction): one without is a
+      // broken invariant, reported by its number (no personal data) rather than skipped in silence.
+      deps.reportError?.(new Error("a Dikonfirmasi Pemesanan Terencana has no Tagihan"), {
+        tags: { module: "pemesanan", event: "terencana_tanpa_tagihan", nomor: order.nomor },
+      });
+      continue;
+    }
+    const units = await unitsOfOrder(deps.db, order.id);
     const ditutup = await refusable<{ ok: boolean }>(deps.db, async (tx) => {
-      const dibatalkan = await deps.billing.within(tx).batalkanTagihan(order.tagihanId!, { alasan: "batas_pembayaran_lewat", hanyaBelumDibayar: true });
+      const dibatalkan = await deps.billing.within(tx).batalkanTagihan(tagihanId, { alasan: "batas_pembayaran_lewat", hanyaBelumDibayar: true });
       let nomorTagihan = "";
       if (dibatalkan.ok) nomorTagihan = dibatalkan.tagihan.nomorTagihan;
       else if (dibatalkan.reason === "tagihan_sudah_dibayar") return { ok: false };
-      else if (dibatalkan.reason === "tidak_ditemukan") throw new Error("a Terencana order names a Tagihan that does not exist");
-      else {
+      else if (dibatalkan.reason === "tidak_ditemukan") {
+        deps.reportError?.(new Error("a Dikonfirmasi Pemesanan Terencana names a Tagihan that does not exist"), {
+          tags: { module: "pemesanan", event: "terencana_tagihan_hilang", nomor: order.nomor },
+        });
+        return { ok: false };
+      } else {
         // Billing's own lapse tick got there first: the Tagihan is already Dibatalkan, and it is its number the family reads.
-        const sudah = await deps.billing.within(tx).tagihan(order.tagihanId!);
+        const sudah = await deps.billing.within(tx).tagihan(tagihanId);
         nomorTagihan = sudah?.nomorTagihan ?? "";
       }
       const moved = await tx

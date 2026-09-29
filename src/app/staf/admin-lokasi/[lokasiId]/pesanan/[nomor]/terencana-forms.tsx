@@ -23,14 +23,14 @@ function Umpanbalik({ state }: { state: PesananActionState }) {
  * The confirmation (spec, story 46): one step, no plot to choose. It starts the payment
  * hold and issues the pay-first Tagihan, which is due when the hold ends.
  */
-export function KonfirmasiTerencanaForm({ lokasiId, nomor, jamTahan }: { lokasiId: string; nomor: string; jamTahan: number }) {
+export function KonfirmasiTerencanaForm({ lokasiId, nomor, jamTahan }: { lokasiId: string; nomor: string; jamTahan: number | null }) {
   const [state, action, pending] = useActionState(konfirmasiTerencanaAction, idle);
   return (
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="lokasiId" value={lokasiId} />
       <input type="hidden" name="nomor" value={nomor} />
       <p className="text-small text-muted-foreground">
-        Petak ditahan {jamTahan} jam sejak konfirmasi. Tagihan terbit sekarang dan jatuh tempo saat penahanan berakhir; kalau belum
+        {jamTahan === null ? "Petak ditahan sejak konfirmasi." : `Petak ditahan ${jamTahan} jam sejak konfirmasi.`} Tagihan terbit sekarang dan jatuh tempo saat penahanan berakhir; kalau belum
         dibayar, pesanan dibatalkan dan petaknya dilepas.
       </p>
       <div className="flex flex-col items-start gap-2">

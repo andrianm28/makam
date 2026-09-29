@@ -1,15 +1,24 @@
 /**
  * Bahasa Indonesia for every refusal the Pemesanan module can return to the Admin
  * Lokasi's screens for a Pemesanan Terencana (ticket 37), one function per action so
- * each says what to do next. The reason codes are the module's own; the wording is the
- * screen's.
+ * each says what to do next. The reason codes are the module's own, and each switch is
+ * exhaustive over them: a reason the module adds fails the typecheck here.
  */
+import type { KonfirmasiTerencanaResult, TolakTerencanaResult } from "@/domain/pemesanan";
 
+type Refusal<R extends { ok: boolean }> = Extract<R, { ok: false; reason: string }>["reason"];
+
+const TIDAK_BERWENANG = "Anda tidak berwenang untuk pesanan ini.";
 const PESANAN_TIDAK_DITEMUKAN = "Pesanan tidak ditemukan.";
 
 /** Why a confirmation was refused, saying what to do next. */
-export function konfirmasiTerencanaMessage(reason: string): string {
+export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaResult>): string {
   switch (reason) {
+    case "tidak_berwenang":
+    case "perlu_totp":
+      return TIDAK_BERWENANG;
+    case "input_tidak_valid":
+      return "Nomor pesanan tidak valid.";
     case "pesanan_tidak_ditemukan":
       return PESANAN_TIDAK_DITEMUKAN;
     case "pesanan_sudah_dikonfirmasi":
@@ -24,19 +33,20 @@ export function konfirmasiTerencanaMessage(reason: string): string {
       return "Lokasi Mitra ini tidak lagi tayang, jadi pesanan tidak bisa dikonfirmasi.";
     case "tagihan_tidak_terbit":
       return "Tagihan belum bisa terbit. Minta Admin Platform mengisi Pengaturan Operator, lalu coba lagi.";
-    default:
-      return "Pesanan belum bisa dikonfirmasi.";
   }
 }
 
 /** Why a Tolak was refused, saying what to do next. */
-export function tolakTerencanaMessage(reason: string): string {
+export function tolakTerencanaMessage(reason: Refusal<TolakTerencanaResult>): string {
   switch (reason) {
+    case "tidak_berwenang":
+    case "perlu_totp":
+      return TIDAK_BERWENANG;
+    case "input_tidak_valid":
+      return "Pilih salah satu alasan dari daftar.";
     case "pesanan_tidak_ditemukan":
       return PESANAN_TIDAK_DITEMUKAN;
     case "pesanan_sudah_ditutup":
       return "Pesanan ini sudah dijawab atau ditutup, jadi tidak bisa ditolak lagi.";
-    default:
-      return "Pilih salah satu alasan dari daftar.";
   }
 }

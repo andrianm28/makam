@@ -23,7 +23,7 @@ export async function TerencanaPesananView({ order, lokasiId }: { order: OrderTe
   const menunggu = order.status === "diajukan";
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
   const bukti = order.buktiPemesananId ? await billing.buktiPemesananById(order.buktiPemesananId) : null;
-  const jamTahan = menunggu ? ((await lokasi.terencanaHoldHours(lokasiId)) ?? 24) : 24;
+  const jamTahan = menunggu ? await lokasi.terencanaHoldHours(lokasiId) : null;
   const calon = order.calonPenghuni.name ?? order.pemesan.name;
 
   return (

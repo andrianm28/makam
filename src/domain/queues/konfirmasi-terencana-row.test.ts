@@ -89,10 +89,11 @@ describe('the Admin Platform Antrean\'s Tier 3 "Konfirmasi Terencana terlambat" 
     const setup = queuesOnTestDatabase(db);
     const { admin, fixture, nomor } = await pesananTerencana(setup);
 
-    setup.clock.set(wib("2026-10-02 14:59"));
+    setup.clock.set(wib("2026-10-02 15:00"));
     expect(await tier3(setup, admin)).toEqual([]);
 
-    setup.clock.set(wib("2026-10-02 15:00"));
+    // Strictly after the deadline, not at its instant.
+    setup.clock.set(new Date(wib("2026-10-02 15:00").getTime() + 1));
     expect(await tier3(setup, admin)).toEqual([
       expect.objectContaining({
         type: "konfirmasi_terencana_terlambat",
@@ -101,6 +102,7 @@ describe('the Admin Platform Antrean\'s Tier 3 "Konfirmasi Terencana terlambat" 
         subjectKind: "pemesanan_terencana",
         subjectLabel: `${nomor} · A-01 · ${fixture.lokasiMitra.name}`,
         deadline: wib("2026-10-02 15:00"),
+        pastDeadline: true,
       }),
     ]);
   });

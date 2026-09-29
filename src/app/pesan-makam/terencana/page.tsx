@@ -343,7 +343,7 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
   const denah = await pemesanan.denahTerencana(lokasiId);
   const blok = denah ? denahView(denah).blok : [];
   // The hold the Lokasi Mitra's own policy gives (24 h by default), which is how long the family has to pay once it confirms.
-  const jamTahan = (await serverRuntime().lokasi.terencanaHoldHours(lokasiId)) ?? 24;
+  const jamTahan = await serverRuntime().lokasi.terencanaHoldHours(lokasiId);
   const tampil = terkirimView(order, (nama) => blok.find((satu) => satu.cells.some((cell) => cell.nomor === nama))?.name ?? null);
 
   return (
@@ -358,7 +358,7 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
         </p>
         <p className="text-body text-foreground">
           {tampil.ringkasan} di {tampil.lokasiNama} kini ditahan untuk Anda. Lokasi Mitra akan mengonfirmasi pesanan ini pada hari kerja berikutnya; setelah itu Tagihan
-          terbit dan dikirim ke email Anda, dan Anda punya {jamTahan} jam untuk membayar.
+          terbit dan dikirim ke email Anda, dan Anda punya {jamTahan === null ? "waktu" : `${jamTahan} jam`} untuk membayar.
         </p>
         <ul className="flex flex-col gap-1 text-small text-muted-foreground">
           {tampil.unit.map((satu) => (

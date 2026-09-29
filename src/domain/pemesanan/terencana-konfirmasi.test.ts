@@ -106,10 +106,11 @@ describe("the Konfirmasi Terencana row and its deadline", () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesanan(setup);
 
-    setup.clock.set(wib("2026-10-02 14:59"));
+    setup.clock.set(wib("2026-10-02 15:00"));
     expect(await setup.pemesanan.konfirmasiTerencanaLewatTenggat()).toEqual([]);
 
-    setup.clock.set(wib("2026-10-02 15:00"));
+    // Strictly after the deadline, not at its instant.
+    setup.clock.set(new Date(wib("2026-10-02 15:00").getTime() + 1));
     expect(await setup.pemesanan.konfirmasiTerencanaLewatTenggat()).toEqual([expect.objectContaining({ nomor: dasar.nomor })]);
     // Still Diajukan, still held, and still on the Lokasi's own row: nothing is cancelled automatically.
     setup.clock.set(wib("2026-10-09 12:00"));

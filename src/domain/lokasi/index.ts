@@ -361,7 +361,7 @@ export interface Lokasi {
    */
   saatDukaPaymentWindowHours(lokasiId: string): Promise<number | null>;
   /**
-   * A Lokasi Mitra's Terencana hold in hours (its own policy, 24 by default): how
+   * A Lokasi Mitra's effective Terencana hold in hours (its own policy, which starts at the 24 h default, so callers never apply a default): how
    * long a confirmed Pemesanan Terencana holds its plots for the Pemesan to pay,
    * which is when its pay-first Tagihan is due (ticket 37). No actor; null for a
    * Lokasi Mitra that does not exist.
