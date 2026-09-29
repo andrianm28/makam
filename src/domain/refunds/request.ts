@@ -243,13 +243,25 @@ export async function ajukanBaris(
   tagihanId: string,
   input: AjukanBarisInput,
 ): Promise<AjukanBarisResult> {
+  // One transaction (a savepoint when the caller's is open) so the row lock below is held until the
+  // lines it read are written: two cancellations joining one open request take turns, never overwrite.
+  return deps.db.transaction((tx) => ajukanBarisTerkunci({ ...deps, db: tx }, tagihanId, input));
+}
+
+async function ajukanBarisTerkunci(
+  deps: { db: Database; clock: Clock; billing: Pick<Billing, "tagihan"> },
+  tagihanId: string,
+  input: AjukanBarisInput,
+): Promise<AjukanBarisResult> {
   const parsed = ajukanBarisSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const tagihan = await deps.billing.tagihan(tagihanId);
   if (!tagihan) return { ok: false, reason: "tagihan_tidak_ditemukan" };
   if (tagihan.status !== "lunas" && tagihan.status !== "dikembalikan_sebagian") return { ok: false, reason: "tagihan_belum_lunas" };
 
-  const sebelumnya = await deps.db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.tagihanId, tagihanId));
+  // FOR UPDATE: the Tagihan's requests are locked here, so a concurrent join waits for this one to commit
+  // and then reads the lines and the total this one wrote (no under-refund from a lost update).
+  const sebelumnya = await deps.db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.tagihanId, tagihanId)).for("update");
   const feeSudahDikembalikan = sebelumnya.some((row) => !row.goodwill && row.biayaLayananPlatformDikembalikan);
   const lines: RefundLine[] = [...parsed.data.lines];
   const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");

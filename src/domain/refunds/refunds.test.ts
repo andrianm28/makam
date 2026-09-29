@@ -372,6 +372,24 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     expect(permintaan.jumlah).toBe(3_000 + fee.amount);
   });
 
+  it("keeps every line when two cancellations join the open request at the same moment (concurrent, on the row lock)", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { baris } = await barisPertama(setup, fixture.tagihanId);
+    const pertama = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
+    if (!pertama.ok) throw new Error(`refused: ${pertama.reason}`);
+
+    const [a, b] = await Promise.all([
+      setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, label: "Baris A", amount: 2_000 }] }),
+      setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, label: "Baris B", amount: 4_000 }] }),
+    ]);
+    expect(a.ok && b.ok).toBe(true);
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan.jumlah).toBe(7_000);
+    expect(permintaan.lines.map((line) => line.label).sort()).toEqual(["Baris A", "Baris B", baris.label].sort());
+  });
+
   it("refuses more than the Tagihan was paid, an unknown Tagihan, and a request once approved", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananTerbayar(setup);
