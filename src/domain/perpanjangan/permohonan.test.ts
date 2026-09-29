@@ -230,6 +230,37 @@ describe("the claim path: a Hak Pakai with no Pemegang Hak on record", () => {
   });
 });
 
+describe("private files are kept only for a request that exists", () => {
+  it("leaves no file behind when a submission is refused after its documents were checked", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    const ahliWaris = await akunDenganEmail(setup, "ahli.waris@contoh.id");
+    const dulu = setup.files.stored.size;
+
+    // The death certificate is missing: the two documents that came in must not stay in the FileStore.
+    expect(await ajukan(setup, fixture.hakPakaiId, ahliWaris, "ahli_waris", { berkas: [berkas("ktp"), berkas("bukti_ahli_waris", 2)] })).toEqual({
+      ok: false,
+      reason: "berkas_kurang",
+      kunci: "akta_kematian",
+    });
+    expect(setup.files.stored.size).toBe(dulu);
+  });
+
+  it("drops the documents a correction replaces, and the new ones too when the correction is refused", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const { fixture, pemohon } = await tanpaEmail(setup);
+    const permohonanId = await diajukan(setup, fixture.hakPakaiId, pemohon, "ktp");
+    await setup.perpanjangan.mintaPerbaikanPermohonan(fixture.adminLokasi, { permohonanId, alasan: "Foto ulang" });
+    const sebelum = setup.files.stored.size;
+
+    // A refused correction (a bad number) stores nothing; an accepted one swaps the KTP for the new photo.
+    expect(await setup.perpanjangan.perbaikiPermohonan(pemohon, { permohonanId, nomorTelepon: "12", berkas: [berkas("ktp", 9)] })).toEqual({ ok: false, reason: "nomor_telepon_tidak_valid" });
+    expect(setup.files.stored.size).toBe(sebelum);
+    expect(await setup.perpanjangan.perbaikiPermohonan(pemohon, { permohonanId, berkas: [berkas("ktp", 9)] })).toEqual({ ok: true });
+    expect(setup.files.stored.size).toBe(sebelum);
+  });
+});
+
 describe("Antrean Lokasi row and who may read a request", () => {
   it("shows 'Periksa dokumen Perpanjangan' while Diajukan, due 2 working days on the Lokasi's calendar, and only for that Lokasi", async () => {
     const setup = perpanjanganOnTestDatabase(db);

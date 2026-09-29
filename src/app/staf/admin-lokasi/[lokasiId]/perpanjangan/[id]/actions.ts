@@ -4,16 +4,11 @@ import { revalidatePath } from "next/cache";
 import { lokasiMitraResource } from "@/domain/identity";
 import { putuskanPermohonanSchema, setujuiPermohonanSchema } from "@/domain/perpanjangan";
 import { keputusanPermohonanText } from "@/lib/permohonan-labels";
+import { isi } from "@/server/form-fields";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../../form-state";
 import { guardMessage } from "../../../../messages";
-
-/** A field left empty is not sent, so the Admin Lokasi's correction only applies where it typed one. */
-function isi(formData: FormData, name: string): Record<string, string> {
-  const value = String(formData.get(name) ?? "").trim();
-  return value === "" ? {} : { [name]: value };
-}
 
 function segarkan(lokasiId: string, permohonanId: string) {
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/perpanjangan/${permohonanId}`);

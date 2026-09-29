@@ -7,18 +7,13 @@ import { pemesananResource } from "@/domain/identity";
 import { batalkanPermohonanSchema, perbaikiPermohonanSchema, pesanDariPermohonanSchema } from "@/domain/perpanjangan";
 import { documentPagePath } from "@/lib/document-links";
 import { alasanPermohonanText } from "@/lib/permohonan-labels";
+import { isi } from "@/server/form-fields";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 
 export type PermohonanActionState = { status: "idle" } | { status: "gagal" | "berhasil"; message: string };
 
 const idSchema = z.object({ id: z.uuid() });
-
-/** A field that was left empty is not sent, so it keeps what is on record. */
-function isi(formData: FormData, name: string): Record<string, string> {
-  const value = String(formData.get(name) ?? "").trim();
-  return value === "" ? {} : { [name]: value };
-}
 
 /** The applicant corrects a request that the Admin Lokasi sent back: only the documents it picked again are replaced. */
 export async function perbaikiPermohonanAction(_previous: PermohonanActionState, formData: FormData): Promise<PermohonanActionState> {
