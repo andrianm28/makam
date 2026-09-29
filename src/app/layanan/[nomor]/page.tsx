@@ -11,6 +11,7 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { BatalkanPekerjaan } from "./batalkan";
+import { PekerjaanTpuDaftar } from "./pekerjaan-tpu";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -34,8 +35,10 @@ export async function generateMetadata({ params }: PageProps<"/layanan/[nomor]">
 export default async function OrderLayananPage({ params }: PageProps<"/layanan/[nomor]">) {
   const actor = await currentActor();
   if (!actor) notFound();
-  const order = await serverRuntime().layanan.pesananLayananOf((await params).nomor, { accountId: actor.accountId });
-  if (!order) notFound();
+  const nomor = (await params).nomor;
+  const order = await serverRuntime().layanan.pesananLayananOf(nomor, { accountId: actor.accountId });
+  // Not an order at a Lokasi Mitra: it may be an order at a DKI TPU, whose grave the family described (ticket 56).
+  if (!order) return <PesananTpuPage nomor={nomor} accountId={actor.accountId} />;
   const tagihan = await serverRuntime().billing.tagihan(order.tagihan?.id ?? "");
 
   return (
@@ -129,5 +132,43 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
 
       {bisaBatal ? <BatalkanPekerjaan pekerjaanId={kerja.id} nomor={nomor} /> : null}
     </div>
+  );
+}
+
+/** An order Layanan at a DKI TPU: the grave as described, each job with its status, and the Mitra Jasa's first name and photo once accepted. */
+async function PesananTpuPage({ nomor, accountId }: { nomor: string; accountId: string }) {
+  const order = await serverRuntime().layanan.pesananTpuOf(nomor, { accountId });
+  if (!order) notFound();
+  const tagihan = await serverRuntime().billing.tagihan(order.tagihanId);
+
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-(--page-gutter) py-10">
+      <header className="flex flex-col gap-2">
+        <h1 className="font-serif text-title-1 font-semibold tracking-tight text-balance">Layanan dipesan</h1>
+        <p className="text-body-lg text-muted-foreground">
+          Nomor Pesanan <span className="font-mono font-semibold text-foreground">{order.nomor}</span>
+        </p>
+        <p className="text-body text-muted-foreground">
+          {order.tpu.name} · Makam {order.makam.blokNomor} · Almarhum {order.makam.almarhumName}
+        </p>
+      </header>
+
+      {tagihan ? (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="text-body font-semibold">Tagihan</h2>
+          <p className="text-body text-muted-foreground">
+            {tagihan.nomorTagihan} · {formatRupiah(tagihan.total)}
+          </p>
+          <p className="text-body text-muted-foreground">
+            {tagihan.status === "lunas" ? "Sudah dibayar. Bukti pembayaran ada di halaman Tagihan." : `Jatuh tempo ${formatTanggalJam(tagihan.dueAt)}.`}
+          </p>
+          <a href={documentPagePath(tagihan.link)} className={buttonVariants({ variant: "outline" })}>
+            Buka Tagihan
+          </a>
+        </section>
+      ) : null}
+
+      <PekerjaanTpuDaftar order={order} />
+    </main>
   );
 }

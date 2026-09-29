@@ -79,6 +79,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               description: "Setiap baris kerja terbuka, per tier dan tenggat; Ambil dan Catatan Internal.",
             },
             {
+              label: "Pekerjaan TPU",
+              href: `${AP}/pekerjaan-tpu`,
+              icon: BriefcaseIcon,
+              description: "Layanan di TPU DKI: tugaskan tiap pekerjaan ke Mitra Jasa yang memenuhi syarat, lihat jawaban dan penugasan ulang.",
+            },
+            {
               label: "Tagihan",
               href: `${AP}/tagihan`,
               icon: FileSearchIcon,
@@ -226,7 +232,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
         {
           label: "Mitra Jasa",
           items: [
-            { label: "Pekerjaan", href: `${home}/pekerjaan`, icon: BriefcaseIcon, description: SEGERA },
+            {
+              label: "Pekerjaan",
+              href: `${home}/pekerjaan`,
+              icon: BriefcaseIcon,
+              description: "Pekerjaan yang ditugaskan ke Anda: terima atau tolak, lokasi makam dan tanggal target; tanggal tidak tersedia dan skor Anda.",
+            },
             { label: "Pencairan", href: `${home}/pencairan`, icon: BanknoteIcon, description: SEGERA },
             {
               label: "Peringatan",

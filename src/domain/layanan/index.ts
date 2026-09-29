@@ -7,7 +7,8 @@
  *
  * Owns tables: layanan_layanan, layanan_varian, layanan_penawaran, layanan_paket,
  * layanan_paket_item, pesanan_layanan, pesanan_layanan_item, pekerjaan_layanan,
- * pekerjaan_layanan_bukti, pengembalian_layanan.
+ * pekerjaan_layanan_bukti, pengembalian_layanan, and the two TPU tables of ticket 56
+ * (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan).
  *
  * Every price of a Layanan variant is a versioned tariff in the Tariffs module
  * (its price at a Lokasi Mitra, the DKI price, the Mitra Jasa rate), never a
@@ -37,6 +38,7 @@
  * checkout — a Saat Duka's hari-H items, a Terencana's empty-plot items, a
  * Perpanjangan's optional step (53).
  */
+import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { SetHargaLayananInput } from "@/domain/tariffs";
 import type { LayananDeps, PemesanLayanan } from "./deps";
@@ -146,6 +148,37 @@ import {
   type MulaiPekerjaanResult,
 } from "./pekerjaan";
 import { batalkanPekerjaan, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
+import {
+  barisHariHTpu,
+  hargaPesananTpu,
+  jadwalkanHariHTpu,
+  penawaranTpuUntukPesanan,
+  pesananTpuOf,
+  placePesananLayananTpu,
+  type BarisHariHTpuResult,
+  type FotoMakamTpu,
+  type JadwalkanHariHTpuInput,
+  type PesananTpuTerbaca,
+  type PlacePesananLayananTpuResult,
+} from "./tpu";
+import {
+  bacaPekerjaanTpu,
+  jawabPenugasan,
+  lepasPenugasan,
+  pekerjaanTpuHariIniTanpaMitra,
+  pekerjaanTpuPerluTindakan,
+  pekerjaanTpuSaya,
+  pekerjaanTpuUntukStaf,
+  tandaiTidakDirespons,
+  tugaskanMitraJasa,
+  type BacaPekerjaanTpuResult,
+  type JawabPenugasanResult,
+  type LepasPenugasanResult,
+  type PekerjaanTpuAntrean,
+  type PekerjaanTpuSaya,
+  type PekerjaanTpuStaf,
+  type TugaskanMitraJasaResult,
+} from "./penugasan-tpu";
 
 export type {
   LayananDeps,
@@ -155,6 +188,8 @@ export type {
   PekerjaanSelesai,
   PemesanLayanan,
   PesananLayananTerbit,
+  PekerjaanTpuDitugaskan,
+  PesananTpuTerbit,
 } from "./deps";
 export {
   buktiPerJenis,
@@ -231,6 +266,43 @@ export type { PekerjaanUntukStaf, TerlambatTerbaca } from "./pekerjaan";
 export { JENDELA_TARGET_HARI, jendelaTarget, targetPalingDini } from "./pesanan";
 export type { AlasanTolakPesanan, PesananLayananOrder, PesananLayananItemTerbaca, PlacePesananLayananResult } from "./pesanan";
 export { batasBatal, bolehDibatalkan } from "./batal";
+export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
+export type {
+  BacaPekerjaanTpuResult,
+  JawabPenugasanResult,
+  LepasPenugasanResult,
+  PekerjaanTpuAntrean,
+  PekerjaanTpuMitraJasa,
+  PekerjaanTpuSaya,
+  PekerjaanTpuStaf,
+  PenugasanTerbuka,
+  RiwayatPekerjaanMitraJasa,
+  RiwayatPenugasan,
+  TugaskanMitraJasaResult,
+} from "./penugasan-tpu";
+export { FOTO_MAKAM_TPU_MAX_BYTES, hariPemakaman, namaDepan } from "./tpu";
+export type {
+  AlasanTolakPesananTpu,
+  BarisHariHTpu,
+  BarisHariHTpuResult,
+  FotoMakamTpu,
+  JadwalkanHariHTpuInput,
+  PekerjaanTpuPemesan,
+  PesananTpuTerbaca,
+  PlacePesananLayananTpuResult,
+} from "./tpu";
+export { portPekerjaanTpu } from "./port-pekerjaan-tpu";
+export {
+  itemHariHTpuSchema,
+  jawabPenugasanSchema,
+  lepasPenugasanSchema,
+  makamTpuSchema,
+  placePesananLayananTpuSchema,
+  tugaskanMitraJasaSchema,
+  type DeskripsiMakamTpu,
+  type ItemHariHTpu,
+} from "./tpu-skema";
+export { pekerjaanTpuStatuses, penugasanHasilValues, type PekerjaanTpuStatus, type PenugasanHasil } from "./schema";
 export type { BatalkanPekerjaanResult, PengembalianDiminta, PengembalianTerbuka } from "./batal";
 export type { BuktiTerbaca } from "./bukti";
 export { BUKTI_MAX_BYTES, buktiKurang, buktiLengkap, jenisBuktiDibutuhkan } from "./bukti";
@@ -434,6 +506,55 @@ export interface Layanan {
   selesaikanPekerjaan(by: Actor, input: unknown): Promise<SelesaikanPekerjaanResult>;
   /** Every job currently Terlambat, oldest target date first (the Tier 2 row's list). */
   pekerjaanTerlambat(): Promise<TerlambatTerbaca[]>;
+
+  /* ── Layanan at a DKI TPU, fulfilled by a Mitra Jasa (ticket 56) ── */
+
+  /**
+   * The Layanan a DKI TPU offers for an order, each variant at its DKI price alone (a
+   * TPU Tagihan carries no platform fee); `hariH` narrows to what a Saat Duka checkout
+   * may add. No actor: it is the public price list.
+   */
+  penawaranTpuUntukPesanan(options?: { hariH?: boolean }): Promise<LayananUntukPesanan[]>;
+  /** What these variants cost at a TPU, all in; null where one is not offered or the total passes the QRIS cap. */
+  hargaPesananTpu(layananVariantIds: readonly string[]): Promise<{ total: number; parts: { label: string; amount: number }[] } | null>;
+  /**
+   * Places an order Layanan at a DKI TPU by describing the grave (TPU, blok/nomor,
+   * Almarhum, optional photo and pin), at DKI prices with a pay-first Tagihan. The
+   * jobs wait for the payment, which schedules them.
+   */
+  placePesananLayananTpu(pemesan: PemesanLayanan, input: unknown, foto?: FotoMakamTpu | null): Promise<PlacePesananLayananTpuResult>;
+  /**
+   * The TPU jobs of one Nomor Pemesanan for the Pemesan who placed it (a standalone TPU
+   * order, or the hari-H items of a Saat Duka TPU order), with the Mitra Jasa's first
+   * name and photo once they have accepted.
+   */
+  pesananTpuOf(nomor: string, pemesan: { accountId: string }): Promise<PesananTpuTerbaca | null>;
+  /** Prices hari-H items for a Saat Duka TPU order (or says why they cannot be offered): at submission and again at the confirmation. */
+  barisHariHTpu(items: unknown, at?: Date): Promise<BarisHariHTpuResult>;
+  /**
+   * Creates the Dijadwalkan jobs of a confirmed Saat Duka TPU order, target = the burial
+   * day. Pengurusan's confirmation calls it with its own transaction as `within`, so the
+   * jobs and the Tagihan they are billed on commit together.
+   */
+  jadwalkanHariHTpu(input: JadwalkanHariHTpuInput, within?: Database): Promise<number>;
+  /** Every Dijadwalkan TPU job with who holds it and what came before (Admin Platform). */
+  pekerjaanTpuUntukStaf(by: Actor): Promise<PekerjaanTpuStaf[]>;
+  /** One TPU job with the picker's candidates: Aktif Mitra Jasa covering the TPU and the Layanan and free on the date. */
+  bacaPekerjaanTpu(by: Actor, pekerjaanId: string): Promise<BacaPekerjaanTpuResult>;
+  /** Admin Platform hands a job to a Mitra Jasa the picker offers; the accept deadline is 12 h or H-1 18:00, whichever is sooner. Audited. */
+  tugaskanMitraJasa(by: Actor, input: unknown): Promise<TugaskanMitraJasaResult>;
+  /** Admin Platform takes a job off its Mitra Jasa to reassign it (counts as neither a decline nor a completion). Audited. */
+  lepasPenugasan(by: Actor, input: unknown): Promise<LepasPenugasanResult>;
+  /** The Mitra Jasa accepts or declines a job assigned to them, by the accept deadline. Audited. */
+  jawabPenugasan(by: Actor, input: unknown): Promise<JawabPenugasanResult>;
+  /** The signed-in Mitra Jasa's own jobs: the grave, the Layanan, the date and the photos, and never a family contact. */
+  pekerjaanTpuSaya(by: Actor): Promise<PekerjaanTpuSaya>;
+  /** The worker's tick: an assignment unanswered at its deadline becomes Tidak direspons and the job returns to the queue. Idempotent. */
+  tandaiTidakDirespons(now: Date): Promise<number>;
+  /** The Antrean's Tier 1 row: jobs due today with no Mitra Jasa who accepted. */
+  pekerjaanTpuHariIniTanpaMitra(): Promise<PekerjaanTpuAntrean[]>;
+  /** The Antrean's Tier 2 rows: jobs back in the queue after Tidak direspons, Ditolak or a release for reassignment. */
+  pekerjaanTpuPerluTindakan(): Promise<PekerjaanTpuAntrean[]>;
 }
 
 /** The staff reads: which Layanan a Lokasi Mitra offers, for a Lokasi they may see. */
@@ -505,6 +626,22 @@ export function createLayanan(deps: LayananDeps): Layanan {
     unggahBuktiPekerjaan: (by, input) => unggahBuktiPekerjaan(deps, by, input),
     selesaikanPekerjaan: (by, input) => selesaikanPekerjaan(deps, by, input),
     pekerjaanTerlambat: () => pekerjaanTerlambat(deps),
+
+    penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
+    hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),
+    placePesananLayananTpu: (pemesan, input, foto) => placePesananLayananTpu(deps, pemesan, input, foto ?? null),
+    pesananTpuOf: (nomor, pemesan) => pesananTpuOf(deps, nomor, pemesan),
+    barisHariHTpu: (items, at) => barisHariHTpu(deps, items, at ?? now()),
+    jadwalkanHariHTpu: (input, within) => jadwalkanHariHTpu(within ? { ...deps, db: within } : deps, input),
+    pekerjaanTpuUntukStaf: (by) => pekerjaanTpuUntukStaf(deps, by),
+    bacaPekerjaanTpu: (by, pekerjaanId) => bacaPekerjaanTpu(deps, by, pekerjaanId),
+    tugaskanMitraJasa: (by, input) => tugaskanMitraJasa(deps, by, input),
+    lepasPenugasan: (by, input) => lepasPenugasan(deps, by, input),
+    jawabPenugasan: (by, input) => jawabPenugasan(deps, by, input),
+    pekerjaanTpuSaya: (by) => pekerjaanTpuSaya(deps, by),
+    tandaiTidakDirespons: (at) => tandaiTidakDirespons(deps.db, at),
+    pekerjaanTpuHariIniTanpaMitra: () => pekerjaanTpuHariIniTanpaMitra(deps.db, now()),
+    pekerjaanTpuPerluTindakan: () => pekerjaanTpuPerluTindakan(deps.db),
   };
 }
 

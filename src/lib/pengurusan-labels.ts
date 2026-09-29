@@ -23,6 +23,8 @@ export type PengurusanRefusal =
   | "pemesan_kosong"
   | "almarhum_kosong"
   | "pemegang_hak_almarhum"
+  | "layanan_tidak_tersedia"
+  | "teks_kosong"
   | "tidak_berwenang"
   | "perlu_totp"
   | "input_tidak_valid";
@@ -56,6 +58,10 @@ export function pengurusanMessage(reason: PengurusanRefusal): string {
       return "Tulis nama almarhum / almarhumah.";
     case "pemegang_hak_almarhum":
       return "Pemegang Hak tidak boleh almarhum / almarhumah. Pilih Pemegang Hak lain.";
+    case "layanan_tidak_tersedia":
+      return "Layanan hari-H yang Anda pilih belum tersedia di TPU atau harganya sudah berubah. Pilih ulang layanannya.";
+    case "teks_kosong":
+      return "Layanan yang Anda pilih meminta tulisan. Isi tulisannya atau lepaskan layanan itu.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     case "perlu_totp":

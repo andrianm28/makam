@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { itemHariHTpuSchema } from "@/domain/layanan/tpu-skema";
 import { FOTO_IPTM_MAX_BYTES, jenisPenguburanSchema, kelayakanSchema, kuburanTpuSchema, pemegangHakSchema } from "@/domain/pengurusan/skema-pengurusan";
 import { fileBase64 } from "@/lib/files/base64";
 
@@ -70,6 +71,8 @@ export const draftTpuSchema = z
     kuburan: kuburanTpuSchema.nullable(),
     fotoIptm: fotoIptmSchema.nullable(),
     pemegangHak: pemegangHakSchema,
+    /** The hari-H Layanan the family added (story 23): a variant and its text each; priced onto the Tagihan at the confirmation. */
+    layananHariH: z.array(itemHariHTpuSchema).max(10).default([]),
   })
   .superRefine((draft, ctx) => {
     if (draft.jenis !== "tumpang") return;

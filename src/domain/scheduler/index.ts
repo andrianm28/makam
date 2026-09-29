@@ -52,7 +52,7 @@ export interface SchedulerContext {
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
   /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55). */
-  layanan: Pick<Layanan, "tinjauSkorTick">;
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons">;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
@@ -116,6 +116,9 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
   // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
   { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
+  // Layanan: a TPU job assigned to a Mitra Jasa who has not answered by the accept deadline (12 h, or H-1 18:00 when
+  // sooner) counts as Tidak direspons and returns to the queue (ticket 56). Every 5 minutes: the deadline is a clock time.
+  { name: "layanan.tandai_tidak_direspons", cron: "*/5 * * * *", tick: tidakDiresponsTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -163,6 +166,11 @@ async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promi
 /** The worker wrapper around the Refunds materialising tick (idempotent there, as every tick is). */
 async function refundsMaterialiseTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.refunds.tick(now);
+}
+
+/** The worker wrapper around the Layanan module's accept-deadline tick (idempotent there, as every tick is). */
+async function tidakDiresponsTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.layanan.tandaiTidakDirespons(now);
 }
 
 /** The worker wrapper around the Layanan module's monthly scorecard review tick (idempotent there, as every tick is). */

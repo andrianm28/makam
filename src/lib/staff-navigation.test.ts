@@ -31,7 +31,7 @@ const mitraJasaId = "6d2f0a1e-9c3b-4f7a-8b2d-1e4c5a6b7c8d";
 describe("the staff menu of each role", () => {
   it("Admin Platform works in four groups: Kerja harian, Lokasi dan harga, Orang, Operator, with Audit Log under Operator", () => {
     expect(outline(staffMenu("admin_platform"))).toEqual([
-      ["Kerja harian", ["Beranda", "Antrean", "Tagihan"]],
+      ["Kerja harian", ["Beranda", "Antrean", "Pekerjaan TPU", "Tagihan"]],
       ["Lokasi dan harga", ["Lokasi Mitra", "TPU DKI", "Tarif global", "Katalog Layanan", "Hari Libur Nasional"]],
       ["Orang", ["Staf", "Mitra Jasa", "Pemulihan Akun", "Tugas Lapangan"]],
       ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
@@ -63,6 +63,7 @@ describe("the staff menu of each role", () => {
     expect(linked(staffMenu("admin_platform"))).toEqual([
       "Beranda",
       "Antrean",
+      "Pekerjaan TPU",
       "Tagihan",
       "Lokasi Mitra",
       "TPU DKI",

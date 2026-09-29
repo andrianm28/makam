@@ -25,6 +25,7 @@ import {
   pesananDitolakEmail,
   layananPekerjaanSelesaiEmail,
   layananPesananTerbitEmail,
+  layananTpuPesananTerbitEmail,
 } from "./template";
 
 const lokasiSchema = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) });
@@ -462,6 +463,24 @@ export const layananPesananTerbitSchema = z.object({
 });
 export type LayananPesananTerbitInput = z.infer<typeof layananPesananTerbitSchema>;
 
+/** What the Layanan module announces when a family has just placed an order Layanan at a DKI TPU (ticket 56). */
+export const layananTpuPesananTerbitSchema = z.object({
+  nomor: z.string().trim().min(1).max(50),
+  /** The proven Email Terverifikasi, which is where the order's messages go. */
+  email: z.email().max(320),
+  pemesanName: z.string().trim().min(1).max(200),
+  tpu: z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) }),
+  makam: z.object({ blokNomor: z.string().trim().min(1).max(200) }),
+  item: z.array(z.object({ label: z.string().trim().min(1).max(300), targetDate: z.iso.date() })).min(1).max(10),
+  tagihan: z.object({
+    nomorTagihan: z.string().trim().min(1).max(50),
+    total: z.number().int().nonnegative(),
+    dueAt: z.date(),
+    link: z.string().trim().min(1).max(100),
+  }),
+});
+export type LayananTpuPesananTerbitInput = z.infer<typeof layananTpuPesananTerbitSchema>;
+
 /** What the Layanan module announces when a job is finished, with the proof links. */
 export const layananPekerjaanSelesaiSchema = z.object({
   pekerjaanId: z.uuid(),
@@ -505,6 +524,38 @@ export async function layananPesananTerbit(deps: PesanKeluargaDeps, input: Layan
     subject: email.subject,
     body: email.body,
     // Transactional: it asks nothing, and a family's proof of what they ordered goes at once.
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Announces an order Layanan at a DKI TPU to its Pemesan: the Layanan, the dates and
+ * the Tagihan (ticket 56). It is the same event and the same template key as a Lokasi
+ * Mitra's order, but it carries **no Lokasi Mitra**: a TPU is nobody's Lokasi, so the
+ * message names no `lokasiId` and a failed send never opens a row for an Admin Lokasi.
+ */
+export async function layananTpuPesananTerbit(deps: PesanKeluargaDeps, input: LayananTpuPesananTerbitInput): Promise<PesanLayananResult> {
+  const parsed = layananTpuPesananTerbitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = layananTpuPesananTerbitEmail({
+    nomor: data.nomor,
+    tpuName: data.tpu.name,
+    blokNomor: data.makam.blokNomor,
+    item: data.item,
+    tagihan: { ...data.tagihan, tautan: deps.dokumenUrl(data.tagihan.link) },
+    tautan: deps.layananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "layanan_pesanan_terbit",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: null,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
     sendAfter: now,
   });
   return { ok: true };

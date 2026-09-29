@@ -542,6 +542,40 @@ export function layananPesananTerbitEmail(input: LayananPesananTerbitEmailInput)
   };
 }
 
+export interface LayananTpuPesananTerbitEmailInput {
+  nomor: string;
+  tpuName: string;
+  blokNomor: string;
+  item: { label: string; targetDate: string }[];
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  tautan: string;
+}
+
+/**
+ * An order Layanan at a DKI TPU placed (transactional: any hour). Like the Lokasi
+ * Mitra one it names the price and the deadline, because a standalone order is paid
+ * **before** the work; it is worded for a grave the family described, not a Petak.
+ */
+export function layananTpuPesananTerbitEmail(input: LayananTpuPesananTerbitEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Layanan untuk makam di ${input.tpuName} menunggu pembayaran`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pesanan layanan Anda di ${input.tpuName} untuk makam ${input.blokNomor} sudah kami terima.`,
+      ...input.item.map((satu) => `- ${satu.label}, dikerjakan ${formatTanggal(satu.targetDate)}.`),
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Layanan dikerjakan setelah pembayaran masuk, jadi jangan lupa membayar sebelum tenggatnya.",
+      "",
+      `Bayar di: ${input.tagihan.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface LayananPekerjaanSelesaiEmailInput {
   nomor: string;
   lokasiName: string;

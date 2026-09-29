@@ -15,6 +15,7 @@
  * the plot, and Admin Platform confirms the burial with it (ticket 45).
  */
 import { randomUUID } from "node:crypto";
+import type { ItemHariHTpu } from "@/domain/layanan/tpu-skema";
 import { refusable } from "@/db/unit-of-work";
 import { withinPaymentCap } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
@@ -56,6 +57,11 @@ export interface PlaceSaatDukaTpuInput {
   fotoIptm?: FotoIptm | null;
   /** The Pemegang Hak for the IPTM: the Pemesan, or a relative named on the form. */
   pemegangHak: PemegangHakInput;
+  /**
+   * Hari-H Layanan for the burial day (story 23): only the variant and the text it asks
+   * for. They are priced onto the Tagihan at the confirmation, when the burial day is agreed.
+   */
+  layananHariH?: ItemHariHTpu[];
 }
 
 export type PlaceSaatDukaTpuResult =
@@ -85,7 +91,11 @@ export type PlaceSaatDukaTpuResult =
   /** The Almarhum's name is missing. */
   | { ok: false; reason: "almarhum_kosong" }
   /** The named Pemegang Hak is the Almarhum, who can never hold the right. */
-  | { ok: false; reason: "pemegang_hak_almarhum" };
+  | { ok: false; reason: "pemegang_hak_almarhum" }
+  /** A hari-H Layanan this TPU does not offer (not marked "boleh di TPU DKI", not "bisa hari-H", or with no DKI price). */
+  | { ok: false; reason: "layanan_tidak_tersedia" }
+  /** A hari-H Layanan that asks for a text, left empty. */
+  | { ok: false; reason: "teks_kosong" };
 
 /** The kinds of file an IPTM photo may be: a phone photo or a scan of the permit. */
 const FOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
@@ -135,6 +145,16 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
   );
   if (!quoted.ok || !withinPaymentCap(quoted.total)) return { ok: false, reason: "harga_tidak_tersedia" };
 
+  // The hari-H items, checked against what a TPU offers today so the family is refused now rather than at the
+  // confirmation. Their price is not stored: the Tagihan is priced on the day it is issued.
+  const hariH = (input.layananHariH ?? []).map((satu) => ({ layananVariantId: satu.layananVariantId, teks: satu.teks?.trim() || null }));
+  if (hariH.length > 0) {
+    if (!deps.layanan) return { ok: false, reason: "layanan_tidak_tersedia" };
+    const dihitung = await deps.layanan.barisHariHTpu(hariH, now);
+    if (!dihitung.ok) return { ok: false, reason: dihitung.reason === "teks_kosong" ? "teks_kosong" : "layanan_tidak_tersedia" };
+    if (!withinPaymentCap(quoted.total + dihitung.total)) return { ok: false, reason: "harga_tidak_tersedia" };
+  }
+
   // The photo goes in before the row that points at it, and comes out again if the
   // order cannot be written: a key nothing references is a dead file.
   let fotoIptmKey: string | null = null;
@@ -179,6 +199,7 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
         pemegangHak: pemegangHak.value,
         dokumenPemakaman: dokumen.pemakaman,
         dokumenPengajuan: dokumen.pengajuan,
+        layananHariH: hariH.length > 0 ? hariH : null,
         konfirmasiDueAt,
         diajukanAt: now,
       })

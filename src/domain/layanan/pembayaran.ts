@@ -31,6 +31,7 @@ import type { Database } from "@/db/client";
 import type { PaymentEffect, SettledPayment } from "@/domain/billing";
 import type { Inventory } from "@/domain/inventory";
 import { pesananLayanan, pekerjaanLayanan } from "./schema";
+import { jadwalkanTpuDariPembayaran } from "./tpu";
 
 /**
  * What scheduling actually needs, and no more: the database, and a grave's Hak
@@ -73,9 +74,13 @@ export type HasilJadwalkan =
 async function jadwalkanDariPembayaran(deps: JadwalkanDeps, db: Database, payment: SettledPayment): Promise<void> {
   if (payment.nomorPemesanan === null) return;
   const [order] = await db.select({ id: pesananLayanan.id }).from(pesananLayanan).where(eq(pesananLayanan.nomor, payment.nomorPemesanan));
-  // A Tagihan that is not one of ours (every other kind of payment): nothing to do.
-  if (!order) return;
-  await jadwalkan(db, deps, order.id, payment.paidAt);
+  if (order) {
+    await jadwalkan(db, deps, order.id, payment.paidAt);
+    return;
+  }
+  // Not a Lokasi Mitra order: it may be a standalone order at a DKI TPU (ticket 56), whose jobs the same payment
+  // schedules. Any other kind of payment matches nothing there either.
+  await jadwalkanTpuDariPembayaran(db, payment.nomorPemesanan, payment.paidAt);
 }
 
 /**

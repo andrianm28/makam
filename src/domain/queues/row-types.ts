@@ -69,7 +69,16 @@ export interface AntreanRowDeps {
    * row read the Layanan module's own public reads, never its tables: what is due
    * today, what is coming and what ran late, at one Lokasi Mitra or across all.
    */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
+  layanan: Pick<
+    Layanan,
+    | "mitraJasaBelumLengkap"
+    | "tinjauanTerbuka"
+    | "pekerjaanUntukStafTerbaru"
+    | "pekerjaanTerlambat"
+    // The TPU jobs' Tier 1 and Tier 2 rows (ticket 56).
+    | "pekerjaanTpuHariIniTanpaMitra"
+    | "pekerjaanTpuPerluTindakan"
+  >;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

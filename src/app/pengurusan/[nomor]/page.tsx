@@ -12,6 +12,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
+import { PekerjaanTpuDaftar } from "@/app/layanan/[nomor]/pekerjaan-tpu";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
@@ -36,8 +37,11 @@ export async function generateMetadata({ params }: PageProps<"/pengurusan/[nomor
 export default async function PengurusanPage({ params }: PageProps<"/pengurusan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
-  const { operatorSettings, queues } = serverRuntime();
+  const { operatorSettings, queues, layanan } = serverRuntime();
   const pengaturan = await operatorSettings.current();
+  // The hari-H Layanan of a confirmed order are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56).
+  const actor = await currentActor();
+  const layananHariH = actor && order.status === "dikonfirmasi" ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
   const cs = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
   // The TPU window as it stood when this order was submitted: outside it the
   // family is waiting for the morning, and that is the case story 72 is about.
@@ -166,6 +170,14 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
             Kalau keluarga memilih datang sendiri ke TPU, pemakaman tetap dapat dilaksanakan dan Anda tetap bisa mengajukan
             IPTM-nya lewat kami belakangan.
           </p>
+        </section>
+      ) : null}
+
+      {layananHariH ? (
+        <section className="flex flex-col gap-3" aria-label="Layanan hari-H">
+          <h2 className="text-title-3 text-foreground">Layanan hari-H</h2>
+          <p className="text-small text-muted-foreground">Dikerjakan Mitra Jasa pada hari pemakaman, dan ditagihkan pada Tagihan di atas.</p>
+          <PekerjaanTpuDaftar order={layananHariH} />
         </section>
       ) : null}
 
