@@ -177,6 +177,8 @@ export async function konfirmasiSaatDukaTpu(
     const diumumkan = await deps.notifikasi.tagihanTerbit(
       {
         tagihanId: tagihan.tagihan.id,
+        // The confirmation email carries this Tagihan's number and link: one email, not two.
+        bersamaKonfirmasi: true,
         momentKind: "saat_duka",
         nomorTagihan: tagihan.tagihan.nomorTagihan,
         nomorPemesanan: order.nomor,

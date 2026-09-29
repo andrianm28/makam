@@ -22,12 +22,12 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-/** The Tagihan-terbit emails the fake EmailSender holds for one address. */
-const tagihanTerbitUntuk = (setup: { email: { sent: { to: string; subject: string; text: string }[] } }, to: string) =>
-  setup.email.sent.filter((message) => message.to === to && message.subject.includes("Tagihan") && message.text.includes("/dokumen/"));
+/** The emails to one address that carry a Tagihan's link: the family gets one, the confirmation's. */
+const denganTautanTagihan = (setup: { email: { sent: { to: string; subject: string; text: string }[] } }, to: string) =>
+  setup.email.sent.filter((message) => message.to === to && message.text.includes("/dokumen/"));
 
 describe("a Saat Duka order confirmed by the Admin Lokasi announces its Tagihan", () => {
-  it("sends the Pemesan the Tagihan terbit email with the Tagihan's link, once, and records where its messages go", async () => {
+  it("sends the Pemesan one email with the order page link and the Tagihan's link, and records where the Tagihan's messages go", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const fixture = await saatDukaFixture(setup);
     await siapkanOperatorPemesanan(setup);
@@ -48,18 +48,26 @@ describe("a Saat Duka order confirmed by the Admin Lokasi announces its Tagihan"
     await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
     await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
 
-    const terbit = tagihanTerbitUntuk(setup, fixture.pemesan.email);
+    const terbit = denganTautanTagihan(setup, fixture.pemesan.email);
+    // One email on confirmation, carrying both the order page and the Tagihan.
     expect(terbit).toHaveLength(1);
     expect(terbit[0]?.text).toContain(hasil.tagihan.nomorTagihan);
     expect(terbit[0]?.text).toContain(`/dokumen/${tagihan!.link}`);
-    expect(await setup.notifications.pesanTagihan(tagihan!.id)).toEqual([
-      expect.objectContaining({ template: "tagihan_terbit", status: "terkirim" }),
-    ]);
+    expect(terbit[0]?.text).toContain(`/pesanan/${placed.pemesanan.nomor}`);
+    expect(await setup.notifications.pesanTagihan(tagihan!.id)).toEqual([]);
+
+    // The Tagihan's contact was still recorded: paying it sends the receipt to that address.
+    const bayar = await setup.billing.bayar(tagihan!.link);
+    if (!bayar.ok) throw new Error("bayar refused");
+    const payment = setup.payments.created.at(-1)!;
+    await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.subject.includes("Bukti Pembayaran"))).toHaveLength(1);
   });
 });
 
 describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Tagihan", () => {
-  it("sends the Pemesan the Tagihan terbit email with the Tagihan's link, once", async () => {
+  it("sends the Pemesan one email with the order page link and the Tagihan's link", async () => {
     const queues = queuesOnTestDatabase(db);
     const pengurusan = createPengurusan({
       db,
@@ -91,9 +99,11 @@ describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Ta
     await queues.notifications.kirimPesanJatuhTempo(queues.clock.now());
     await queues.notifications.kirimPesanJatuhTempo(queues.clock.now());
 
-    const terbit = tagihanTerbitUntuk(queues, fixture.pemesan.email);
+    const terbit = denganTautanTagihan(queues, fixture.pemesan.email);
     expect(terbit).toHaveLength(1);
     expect(terbit[0]?.text).toContain(`/dokumen/${hasil.tagihan.link}`);
+    expect(terbit[0]?.text).toContain("/pengurusan/MKM-2026-000001");
+    expect(await queues.notifications.pesanTagihan(hasil.tagihan.id)).toEqual([]);
   });
 });
 

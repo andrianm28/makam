@@ -71,6 +71,13 @@ export const tagihanTerbitSchema = z.object({
   dueAt: z.date(),
   /** The unguessable part of the Tagihan page's link. */
   link: z.string().trim().min(1).max(100),
+  /**
+   * The issuer's own confirmation email already carries this Tagihan's number
+   * and link (Saat Duka at a Lokasi Mitra, Saat Duka TPU), so the family gets
+   * one email, not two: the contact is still recorded and the no-email
+   * fallback still applies, but the separate "Tagihan terbit" email is not queued.
+   */
+  bersamaKonfirmasi: z.boolean().optional(),
 });
 export type TagihanTerbitInput = z.infer<typeof tagihanTerbitSchema>;
 
@@ -148,7 +155,7 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       tautan: deps.dokumenUrl(data.link),
     };
     const terbit = tagihanTerbitEmail(emailInput);
-    await queueFamilyEmail(tx, now, {
+    if (!data.bersamaKonfirmasi) await queueFamilyEmail(tx, now, {
       template: "tagihan_terbit",
       pemesananId: null,
       tagihanId: data.tagihanId,

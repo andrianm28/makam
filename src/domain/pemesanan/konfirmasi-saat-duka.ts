@@ -123,6 +123,8 @@ export async function konfirmasiSaatDuka(
     // all find an address (an order with no email opens a Telepon Pemesan row).
     const diumumkan = await deps.notifikasi.tagihanTerbit(tx, {
       tagihanId: tagihan.tagihan.id,
+      // The confirmation email carries this Tagihan's number and link: one email, not two.
+      bersamaKonfirmasi: true,
       momentKind: "saat_duka",
       nomorTagihan: tagihan.tagihan.nomorTagihan,
       nomorPemesanan: order.nomor,

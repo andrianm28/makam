@@ -123,8 +123,8 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const pemesanan = setupAntrean();
     const setup = pemesanan;
     const fixture = await pesananMenungguKonfirmasi(pemesanan);
-    // Every message keeps failing (the two Lokasi-work ones and the Tagihan's, four tries each, retried over two days): the family must be phoned.
-    pemesanan.email.failNextSend(12);
+    // Every message keeps failing (the order's two Lokasi-work messages, four tries each): the family must be phoned.
+    pemesanan.email.failNextSend(8);
     const [blok] = await pemesanan.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
     const [petak] = (await cellsOf(pemesanan, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
     await pemesanan.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, {
@@ -132,7 +132,7 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
       petakId: petak!.id,
       pemakamanAt: "2026-10-02T10:00",
     });
-    for (let tick = 0; tick < 12; tick++) {
+    for (let tick = 0; tick < 5; tick++) {
       pemesanan.clock.advance({ hours: 4 });
       await pemesanan.notifications.kirimPesanJatuhTempo(pemesanan.clock.now());
     }
@@ -141,11 +141,9 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toHaveLength(2);
     expect(lain.every((row) => row.type === "pesan_lokasi_gagal" && row.subjectKind === "telepon_pemesan" && row.deadline === null)).toBe(true);
-    // Admin Platform's Antrean keeps the money subjects only: the Lokasi's own rows are not there, and the
-    // one call it holds is the failed Tagihan terbit message (money, Tier 2), named by its Nomor Tagihan.
-    const uang = (await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan");
-    expect(uang).toHaveLength(1);
-    expect(uang[0]).toMatchObject({ tier: 2, subjectLabel: expect.stringMatching(/^TGH\/\d{4}\/\d{6}/) });
+    // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work, and
+    // the confirmation is one email (the Tagihan has none of its own), so no money call is opened.
+    expect((await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan")).toEqual([]);
 
     for (const row of lain) {
       const logged = await pemesanan.notifications.catatPanggilan(fixture.adminLokasi, {
