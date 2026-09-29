@@ -1,6 +1,6 @@
 # A Tagihan was never announced: `tagihanTerbit` had no caller
 
-Status: in-progress
+Status: resolved
 Blocked by: —
 Spec: spec.md, Notifications (the family's messages, keyed to the Tagihan) and Billing > Documents
 
@@ -33,3 +33,4 @@ An order with no email falls back exactly as `tagihanTerbit` already does (a Tel
 - 2026-09-29 — Reproduced first: `src/domain/notifications/tagihan-terbit-alur.test.ts` (Saat Duka at a Lokasi Mitra, Saat Duka TPU) failed on `main` with no Tagihan email for the Pemesan; both pass with the fix. Correction to ticket 36's Spec 8 claim written in its Comments. Review pending.
 - 2026-09-29 — **Two-axis review** (one reviewer, Standards and Spec sections): no hard finding. Two small fixes made. (1) A confirmation is never blocked by its Tagihan's announcement: when `tagihanTerbit`'s schema refuses the input (e.g. a malformed stored email), Notifications reports it through `reportError` (field names only, no values) and degrades to the address-less path, the same "Telepon Pemesan" row an email-less order gets, in the same transaction; it refuses (and the confirmation rolls back) only when the input is unusable even without the email. Test: an order whose stored email the schema rejects still confirms and opens the call row. (2) `antrean-lokasi.test.ts` now asserts the failed Tagihan message really appears as exactly one Tier 2 Telepon Pemesan row in Admin Platform's Antrean (its retries run over two days, so the test ticks 12 × 4 h). `tests/support/publish.ts` now records Notifications' reported errors in `reportedErrors`.
 - 2026-09-29 — **Owner decision, in chat: one email on confirmation.** A Saat Duka family receives one email when the order is confirmed, carrying both the order page link and the Tagihan link (the confirmation templates already did). `tagihanTerbit` gained the optional `bersamaKonfirmasi` flag; both confirmation paths set it. Tests now assert exactly one email with both links, that the Tagihan's contact is still recorded (the receipt on payment reaches the same address), and the Antrean retry test is back to two failing messages. Two-axis review of this change: pending.
+- 2026-09-29 — Merged to main after the review record above (one reviewer, Standards and Spec) and a haiku re-review of the one-email change. Left as a follow-up: Billing's `reissueTagihan` (a Harga Khusus, ticket 30) does not announce the reissued Tagihan; it must call `tagihanTerbit` (standalone email, not `bersamaKonfirmasi`).
