@@ -334,7 +334,7 @@ export interface Notifications {
    * Announces the Bukti Perpanjangan of a paid Perpanjangan by email (ticket 40),
    * logged against the Perpanjangan itself. With no email a call row opens.
    */
-  buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput): Promise<BuktiPerpanjanganTerbitResult>;
+  buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -385,12 +385,6 @@ export interface Notifications {
   tambahCatatanTagihan(by: Actor, input: TambahCatatanTagihanInput): Promise<TambahCatatanTagihanResult>;
   /** Every standalone note on one Tagihan's call log, oldest first. */
   catatanTagihan(tagihanId: string): Promise<CatatanTagihan[]>;
-  /**
-   * The same module on an open transaction (another module's), so a message is queued in the
-   * very transaction that writes what it announces and rolls back with it (AGENTS.md: enqueue
-   * in the same transaction as the data; ticket 40).
-   */
-  within(tx: Database): Notifications;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -669,8 +663,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pesananBuktiPemesanan(deps, input);
     },
 
-    async buktiPerpanjanganTerbit(input) {
-      return buktiPerpanjanganTerbit(deps, input);
+    async buktiPerpanjanganTerbit(input, within) {
+      return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
     },
 
     async pesanPemesanan(pemesananId) {
@@ -734,7 +728,6 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return catatanTagihan(db, tagihanId);
     },
 
-    within: (tx) => createNotifications({ ...deps, db: tx }),
   };
   return notifications;
 }

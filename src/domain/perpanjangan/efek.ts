@@ -35,7 +35,7 @@ export interface EfekPerpanjanganDeps {
   billingOn: (tx: Database) => Pick<Billing, "issueBuktiPerpanjangan" | "catatPembayaranPerluDitinjau">;
   inventory: Pick<PerpanjanganDeps["inventory"], "within">;
   lokasi: Pick<PerpanjanganDeps["lokasi"], "aturanPerpanjanganOf">;
-  notifikasi: Pick<PerpanjanganDeps["notifikasi"], "within">;
+  notifikasi: Pick<PerpanjanganDeps["notifikasi"], "buktiPerpanjanganTerbit">;
 }
 
 /** The "perpanjangan.hak_pakai_diperpanjang" effect. Ignores a payment that is not a Perpanjangan's, as every effect must. */
@@ -85,7 +85,8 @@ export function efekPerpanjangan(deps: EfekPerpanjanganDeps): PaymentEffect {
         .where(eq(perpanjangan.id, row.id));
 
       // Queued in this transaction: a rolled-back payment effect leaves no email behind.
-      const diumumkan = await deps.notifikasi.within(tx).buktiPerpanjanganTerbit({
+      const diumumkan = await deps.notifikasi.buktiPerpanjanganTerbit(
+        {
         perpanjanganId: row.id,
         email: row.email,
         lokasi: { id: row.lokasiId, name: row.lokasiName },
@@ -94,8 +95,10 @@ export function efekPerpanjangan(deps: EfekPerpanjanganDeps): PaymentEffect {
         pemegangHakName: row.pemegangHakName,
         endDateLama: diperpanjang.endDateLama,
         endDateBaru: diperpanjang.endDateBaru,
-        terms: row.terms,
-      });
+          terms: row.terms,
+        },
+        tx,
+      );
       if (!diumumkan.ok) throw new Error(`the Bukti Perpanjangan of ${row.id} could not be announced: ${diumumkan.reason}`);
     },
   };

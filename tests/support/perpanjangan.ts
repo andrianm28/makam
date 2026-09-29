@@ -24,22 +24,16 @@ export function perpanjanganOnTestDatabase(db: Database) {
    * write leaves no queued message: the module must queue it in the transaction of the write.
    */
   const gagalSetelahAntre = { tagihanTerbit: false, buktiPerpanjangan: false };
-  const notifikasi = {
-    within: (tx: Database): Notifications => {
-      const asli = ref.setup!.notifications.within(tx);
-      return {
-        ...asli,
-        tagihanTerbit: async (input) => {
-          const hasil = await asli.tagihanTerbit(input);
-          if (gagalSetelahAntre.tagihanTerbit) throw new Error("the announcement failed after it was queued");
-          return hasil;
-        },
-        buktiPerpanjanganTerbit: async (input) => {
-          const hasil = await asli.buktiPerpanjanganTerbit(input);
-          if (gagalSetelahAntre.buktiPerpanjangan) throw new Error("the announcement failed after it was queued");
-          return hasil;
-        },
-      };
+  const notifikasi: Pick<Notifications, "tagihanTerbit" | "buktiPerpanjanganTerbit"> = {
+    tagihanTerbit: async (input, within) => {
+      const hasil = await ref.setup!.notifications.tagihanTerbit(input, within);
+      if (gagalSetelahAntre.tagihanTerbit) throw new Error("the announcement failed after it was queued");
+      return hasil;
+    },
+    buktiPerpanjanganTerbit: async (input, within) => {
+      const hasil = await ref.setup!.notifications.buktiPerpanjanganTerbit(input, within);
+      if (gagalSetelahAntre.buktiPerpanjangan) throw new Error("the announcement failed after it was queued");
+      return hasil;
     },
   };
   const efek = efekPerpanjangan({

@@ -55,7 +55,11 @@ export type StatusPerpanjangan =
       jalur: JalurBukti;
       /** The recorded email, masked; null when none is recorded. */
       emailDisamarkan: string | null;
-      /** Set while an earlier Perpanjangan of this Hak Pakai still waits for its money. */
+      /**
+       * Set while an earlier Perpanjangan of this Hak Pakai still waits for its money, and only for
+       * the Akun signed in with the recorded Email Terverifikasi: its number, due date and link are
+       * the Pemegang Hak's business, and this status is reachable from an anonymous grave lookup.
+       */
       tagihanTerbuka: TagihanTerbuka | null;
     }
   | { boleh: false; catatan: CatatanPerpanjangan };
@@ -139,7 +143,7 @@ export async function statusPerpanjangan(deps: PerpanjanganDeps, hakPakaiId: str
     masaTenggangBerakhir: jendela.masaTenggangBerakhir,
     jalur,
     emailDisamarkan: tercatat ? samarkanEmail(tercatat) : null,
-    tagihanTerbuka: await terbukaOf(deps, hak.id, deps.clock.now()),
+    tagihanTerbuka: jalur === "sudah_masuk" ? await terbukaOf(deps, hak.id, deps.clock.now()) : null,
   };
 }
 
@@ -278,7 +282,8 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
       })
       .returning({ id: perpanjangan.id });
     // The email is queued in this very transaction: a rolled-back order leaves no message behind.
-    const diumumkan = await deps.notifikasi.within(tx).tagihanTerbit({
+    const diumumkan = await deps.notifikasi.tagihanTerbit(
+      {
       tagihanId: tagihan.tagihan.id,
       momentKind: "perpanjangan",
       nomorTagihan: tagihan.tagihan.nomorTagihan,
@@ -287,8 +292,10 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
       perihal: `Perpanjangan Makam di ${aturan.name}`,
       total: tagihan.tagihan.total,
       dueAt: tagihan.tagihan.dueAt,
-      link: tagihan.tagihan.link,
-    });
+        link: tagihan.tagihan.link,
+      },
+      tx,
+    );
     if (!diumumkan.ok) throw new Error(`the Tagihan of Perpanjangan ${row.id} could not be announced: ${diumumkan.reason}`);
     return { ok: true, id: row.id, tagihan: tagihan.tagihan };
   });

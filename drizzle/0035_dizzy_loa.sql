@@ -41,6 +41,7 @@ ALTER TABLE "pembayaran_perlu_ditinjau" DROP CONSTRAINT "pembayaran_perlu_ditinj
 ALTER TABLE "bukti_perpanjangan" ADD CONSTRAINT "bukti_perpanjangan_tagihan_id_tagihan_id_fk" FOREIGN KEY ("tagihan_id") REFERENCES "public"."tagihan"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "bukti_perpanjangan_perpanjangan_idx" ON "bukti_perpanjangan" USING btree ("perpanjangan_id");--> statement-breakpoint
 CREATE INDEX "perpanjangan_hak_pakai_idx" ON "perpanjangan" USING btree ("hak_pakai_id","dibuat_pada");--> statement-breakpoint
+-- contract: the widened check only adds one allowed value (tidak_dapat_diterapkan); every row the running release writes stays valid under it
 ALTER TABLE "pembayaran_perlu_ditinjau" ADD CONSTRAINT "pembayaran_perlu_ditinjau_reason_check" CHECK ("pembayaran_perlu_ditinjau"."reason" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi', 'tidak_dapat_diterapkan'));--> statement-breakpoint
 -- Append-only, like bukti_pemesanan (AGENTS.md, ticket 40): a family's proof that its
 -- Hak Pakai was extended must never be quietly rewritten or removed.

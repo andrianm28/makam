@@ -358,7 +358,7 @@ describe("the pay-first Tagihan addressed to the Pemegang Hak", () => {
     const kedua = await setup.perpanjangan.ajukan({ hakPakaiId: fixture.hakPakaiId, terms: 1, pemohon: await pemegang(setup) });
 
     expect(kedua).toMatchObject({ ok: false, reason: "tagihan_terbuka", tagihanTerbuka: { perpanjanganId: pertama.id, nomorTagihan: pertama.tagihan.nomorTagihan } });
-    expect(await setup.perpanjangan.status(fixture.hakPakaiId)).toMatchObject({ boleh: true, tagihanTerbuka: { perpanjanganId: pertama.id } });
+    expect(await setup.perpanjangan.status(fixture.hakPakaiId, await pemegang(setup))).toMatchObject({ boleh: true, tagihanTerbuka: { perpanjanganId: pertama.id } });
   });
 
   it("lapses to Dibatalkan at 3x24 h, and the holder may then order again", async () => {
@@ -678,5 +678,26 @@ describe("the Makam keluarga hub leads to the Perpanjangan", () => {
     if (!hasil.ok) throw new Error("lookup refused");
     expect(hasil.ditemukan[0]?.hakPakaiId).toBe(fixture.hakPakaiId);
     expect(await setup.perpanjangan.status(hasil.ditemukan[0]!.hakPakaiId)).toMatchObject({ boleh: true, endDate: "2026-10-15" });
+  });
+});
+
+describe("an open Tagihan is shown only to the holder, never to an anonymous grave lookup", () => {
+  it("hides the Tagihan's number, due date and link from anyone not signed in with the recorded email, and shows it once they are", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    const holder = await pemegang(setup);
+    const pertama = await pesan(setup, fixture.hakPakaiId);
+    const orang = await akunDenganEmail(setup, "orang.lain@contoh.id");
+
+    for (const dengan of [undefined, null, orang]) {
+      const status = await setup.perpanjangan.status(fixture.hakPakaiId, dengan);
+      expect(status).toMatchObject({ boleh: true, tagihanTerbuka: null, jalur: "kode_email" });
+      const json = JSON.stringify(status);
+      expect(json).not.toContain(pertama.tagihan.nomorTagihan);
+      expect(json).not.toContain(pertama.tagihan.link);
+    }
+    // After the code to the recorded email is verified the holder is signed in as that email, and sees it.
+    const setelahKode = await setup.perpanjangan.status(fixture.hakPakaiId, holder);
+    expect(setelahKode).toMatchObject({ boleh: true, tagihanTerbuka: { nomorTagihan: pertama.tagihan.nomorTagihan, link: pertama.tagihan.link } });
   });
 });
