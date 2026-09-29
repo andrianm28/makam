@@ -272,7 +272,12 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
         ...spec,
         kontakSiagaName: "",
         denahPrototipe: undefined,
-        jenisMakam: spec.jenisMakam.map((jm) => (jm.kosong ? jm : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3) })),
+        // Hijau Asri's "Makam Standar" was Rp 11.000.000 before the mock's price became 9.000.000 (under the QRIS cap).
+        jenisMakam: spec.jenisMakam.map((jm) =>
+          jm.kosong
+            ? jm
+            : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3), hargaHakPakai: spec.name === "Taman Peristirahatan Hijau Asri" && jm.name === "Makam Standar" ? 11_000_000 : jm.hargaHakPakai },
+        ),
       }));
       const first = await seedContohPublikCommand([], env(), lama);
       expect(first.exitCode).toBe(0);
@@ -281,6 +286,11 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const listed = await setup.lokasi.publicLokasiMitraList();
       const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
       expect((await setup.lokasi.kontakSiagaOf(wakaf.id))?.name).toBe("");
+      const hijauAsriLama = listed.find((one) => one.name === "Taman Peristirahatan Hijau Asri")!;
+      // The latest tariff version, read at an instant far past every effective date.
+      const hargaStandarHijau = async (lokasiId: string) =>
+        (await setup.tariffs.lokasiTariffs(lokasiId, new Date("2100-01-01T00:00:00Z"))).jenisMakam.find((one) => one.name === "Makam Standar")?.inForce?.hargaHakPakai;
+      expect(await hargaStandarHijau(hijauAsriLama.id)).toBe(11_000_000);
       const before = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
       const petakBefore = before.reduce((sum, one) => sum + one.count, 0);
       expect(petakBefore).toBe(3 + 1);
@@ -290,6 +300,8 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const second = await seedContohPublikCommand([], env());
       expect(second.exitCode, second.output).toBe(0);
       expect(second.output).toContain("disamakan dengan contoh");
+      // The price is brought to the mock's as a new tariff version effective today; the old version stays.
+      expect(await hargaStandarHijau(hijauAsriLama.id)).toBe(9_000_000);
       await expectSamaDenganMock(["Pemakaman Wakaf Al-Ikhlas", "Taman Peristirahatan Hijau Asri"]);
       // The Bloks the older run built are still there, untouched, and the prototype's "Blok Utama" was added beside them.
       const publicWakaf = await setup.inventory.publicDenah(wakaf.id);

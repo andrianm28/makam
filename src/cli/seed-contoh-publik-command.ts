@@ -11,8 +11,9 @@
  * (the mock's CS contact, `dev-seed-support.ts`) when that is empty, never
  * overwriting it. A Lokasi Mitra an older run already listed is reconciled
  * with the mock, only ever adding (the Tersedia Petak / Kavling units it is
- * short of, and the Kontak Siaga's name while empty); once nothing is short
- * it changes nothing. Development and test always; staging — the environment the
+ * short of, a Jenis Makam price that differs as a new tariff version effective
+ * today, and the Kontak Siaga's name while empty); once nothing is short it
+ * changes nothing. Development and test always; staging — the environment the
  * beta for UAT runs on — only with the named allowance `--izinkan-staging`,
  * refused by default and named in the reason of every write that carries one
  * (`alasanSeed`, the same pattern as `import-katalog-lama-command.ts`'s
@@ -366,7 +367,7 @@ export const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 3_000_000,
     biayaPemakamanTumpang: 2_000_000,
     jenisMakam: [
-      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 11_000_000, hargaPerpanjangan: 5_000_000, tersedia: 64 },
+      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 9_000_000, hargaPerpanjangan: 5_000_000, tersedia: 64 },
       { name: "Makam Taman", description: "Ukuran 2 × 3 m, dengan pagar rendah", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 22_500_000, hargaPerpanjangan: 9_000_000, tersedia: 0, kosong: true },
       { name: "Kavling Keluarga 4 Petak", description: "2 × 2 petak bersebelahan", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 40_000_000, hargaPerpanjangan: 18_000_000, tersedia: 1, kavlingPetak: 4 },
     ],
@@ -794,7 +795,9 @@ async function lengkapiDenah(
  * this command) up to the mock, only ever adding: the prototype Bloks it does
  * not have yet, the Tersedia Petak / Kavling units it is still short of (tidy
  * Bloks, cleared; nothing existing is touched, removed or re-cleared, and the
- * mock's one `tersedia: 0` entry is left alone), and its Kontak Siaga's name
+ * mock's one `tersedia: 0` entry is left alone), a Jenis Makam price that
+ * differs from the mock's (a new tariff version effective today, never an edit
+ * of the old one), and its Kontak Siaga's name
  * when the Akun still has none (a Kode Masuk login fills it, never replacing
  * one). Returns how many things it changed; 0 changes nothing, not even a login.
  */
@@ -813,17 +816,41 @@ async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string,
     const found = jenisMakam.find((one) => one.name === jm.name);
     if (found && jm.tersedia - (countById.get(found.id) ?? 0) > 0) kurang += 1;
   }
+  // A Jenis Makam whose price in force differs from the mock's (a stack seeded with an older price): a new
+  // tariff version effective today, through Tariffs' own versioning; the old version is never edited.
+  const hariIni = wibDateOf(adapters.clock.now());
+  const tarifBeda = spec.jenisMakam.flatMap((jm) => {
+    const found = jenisMakam.find((one) => one.name === jm.name);
+    return found?.inForce && found.inForce.hargaHakPakai !== jm.hargaHakPakai ? [{ jm, id: found.id }] : [];
+  });
   const bloksAda = new Set(bloks.map((blok) => blok.name.toLowerCase()));
   const prototipeBelum = (spec.denahPrototipe ?? []).filter((proto) => !bloksAda.has(proto.nama.toLowerCase())).length;
   const perluNama = kontak !== null && kontak.name === "";
-  if (kurang === 0 && prototipeBelum === 0 && !perluNama) return { ok: true, berubah: 0 };
+  if (kurang === 0 && prototipeBelum === 0 && !perluNama && tarifBeda.length === 0) return { ok: true, berubah: 0 };
+
+  for (const { jm, id } of tarifBeda) {
+    const diubah = await tariffs.setJenisMakamTariff(admin, id, {
+      hargaHakPakai: jm.hargaHakPakai,
+      tenure: jm.tenure,
+      hargaPerpanjangan: jm.hargaPerpanjangan,
+      effectiveOn: hariIni,
+      reason: alasan,
+    });
+    if (!diubah.ok) return { ok: false, reason: `tarif ${jm.name}: ${diubah.reason}` };
+  }
+  if (tarifBeda.length > 0) {
+    // The Lokasi is already published: enter the new price as checked again, as the seed did when it first published.
+    const diperiksa = await tariffs.markTariffsChecked(admin, lokasiId, { reason: alasan });
+    if (!diperiksa.ok) return { ok: false, reason: `tarif diperiksa: ${diperiksa.reason}` };
+  }
+  if (kurang === 0 && prototipeBelum === 0 && !perluNama) return { ok: true, berubah: tarifBeda.length };
 
   const adminLokasi = await masukDenganKodeMasuk(modul, spec.adminLokasiEmail, spec.kontakSiagaName);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
 
   const denah = await lengkapiDenah(modul, adminLokasi.value, lokasiId, spec, new Map(jenisMakam.map((one) => [one.name, one.id])), false, alasan);
   if (!denah.ok) return { ok: false, reason: `denah: ${denah.reason}` };
-  return { ok: true, berubah: kurang + prototipeBelum + (perluNama ? 1 : 0) };
+  return { ok: true, berubah: tarifBeda.length + kurang + prototipeBelum + (perluNama ? 1 : 0) };
 }
 
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */
