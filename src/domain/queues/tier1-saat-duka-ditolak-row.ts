@@ -19,7 +19,7 @@
  * to make the call.
  */
 import { daytimeHoursDeadline } from "@/domain/lokasi";
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { RawAntreanRow, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 /** The Spec's "call within 2 h" of a declined order, in daytime hours. */
 export const JAM_TELPON_SAAT_DUKA_DITOLAK = 2;
@@ -27,11 +27,11 @@ export const JAM_TELPON_SAAT_DUKA_DITOLAK = 2;
 /** The subject kind the Pemesanan module's declined order opens its call row under. */
 const SUBJECT = "pemesanan";
 
-export const saatDukaDitolakRowType: AntreanRowType = {
+export const saatDukaDitolakRowType: Tier1RowType = {
   key: "saat_duka_ditolak",
   tier: 1,
   label: "Saat Duka ditolak",
-  async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]> {
     const ditolak = await deps.pemesanan.saatDukaDitolak();
     const rows: RawAntreanRow[] = [];
     for (const order of ditolak) {

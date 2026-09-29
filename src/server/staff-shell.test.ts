@@ -147,6 +147,16 @@ describe("the staff shell", () => {
   });
 });
 
+describe("the red banner for untaken Tier 1 rows", () => {
+  it("counts nothing while the Antrean has no Tier 1 row, for an Admin Platform and for an Admin Lokasi alike", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    expect((await staffShell())?.tier1BelumDiambil).toBe(0);
+
+    await signInAsAdminLokasi(server, admin, lokasiId);
+    expect((await staffShell())?.tier1BelumDiambil).toBe(0);
+  });
+});
+
 /** Every page a palette opens. */
 function hrefs(palette: NonNullable<Awaited<ReturnType<typeof staffShell>>>["palette"]) {
   return Object.values(palette).flatMap((groups) => groups!.flatMap((group) => group.items.map((item) => item.href)));

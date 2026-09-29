@@ -22,6 +22,7 @@ export function schedulerContext(parts: {
   layanan?: SchedulerContext["layanan"];
   terencana?: SchedulerContext["terencana"];
   inventory?: SchedulerContext["inventory"];
+  queues?: SchedulerContext["queues"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -52,6 +53,8 @@ export function schedulerContext(parts: {
     // A grave no tick but the Layanan release one reads: a test of another module's
     // tick is undisturbed by it, and a test of the release one passes the real read.
     inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
+    // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
+    queues: parts.queues ?? { peringatanTick: async () => ({ dikirim: 0 }), bertugasTick: async () => ({ dimatikan: 0 }) },
   };
 }
 

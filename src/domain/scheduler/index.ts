@@ -20,6 +20,7 @@ import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { QueuesTicks } from "@/domain/queues";
 import type { Refunds } from "@/domain/refunds";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
@@ -53,6 +54,8 @@ export interface SchedulerContext {
   refunds: Pick<Refunds, "tick">;
   /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55). */
   layanan: Pick<Layanan, "tinjauSkorTick">;
+  /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
+  queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
@@ -116,6 +119,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
   // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
   { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
+  // Work Queues: a Tier 1 row alerts the Bertugas Admin Platform (all if none), everyone at 30 min untaken, and again at 90 min for a TPU confirmation; a night TPU row waits for 06:00 (ticket 28).
+  { name: "queues.peringatan_tier1", cron: "* * * * *", tick: peringatanTier1Tick },
+  // Work Queues: a Bertugas ends at 18:00 WIB or 12 h after it began, claims and notes untouched (ticket 28).
+  { name: "queues.bertugas_otomatis_mati", cron: "* * * * *", tick: bertugasOtomatisMatiTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -182,4 +189,14 @@ async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
  */
 async function jadwalkanTertundaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await jadwalkanTertunda({ db: ctx.db, inventory: ctx.inventory }, now);
+}
+
+/** The worker wrapper around the Antrean's Tier 1 alert tick (idempotent there, as every tick is). */
+async function peringatanTier1Tick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.peringatanTick(now);
+}
+
+/** The worker wrapper around the Bertugas auto-off tick (idempotent there, as every tick is). */
+async function bertugasOtomatisMatiTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.bertugasTick(now);
 }

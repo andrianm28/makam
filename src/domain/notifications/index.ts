@@ -52,6 +52,7 @@ import {
   type TeleponPemesan,
   type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
+import { peringatanAntreanTier1, type PeringatanAntreanInput, type PeringatanAntreanResult } from "./peringatan-antrean";
 import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
 import {
   catatanTagihan,
@@ -121,6 +122,7 @@ import {
 } from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
+export type { PeringatanAntreanInput, PeringatanAntreanResult, TahapPeringatanAntrean } from "./peringatan-antrean";
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
 export {
   catatPanggilanSchema,
@@ -300,6 +302,13 @@ export interface Notifications {
    * failed staff alert is never retried nor escalated to a call row.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
+  /**
+   * A Peringatan Staf about a Tier 1 row of the Antrean (ticket 28), to each
+   * Akun Staf in `to`: the first alert, the 30 min re-alert and the 90 min one.
+   * The Work Queues module names the recipients and the moment; each goes out
+   * as any Peringatan Staf does (push + email, logged, never retried).
+   */
+  peringatanAntreanTier1(input: PeringatanAntreanInput): Promise<PeringatanAntreanResult>;
   /**
    * The bell of the signed-in Akun Staf: how many of its Peringatan Staf are
    * unread, and the latest `limit` (newest first). Only its own.
@@ -628,6 +637,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         });
       }
       return { ok: true, email, push };
+    },
+
+    async peringatanAntreanTier1(input) {
+      return peringatanAntreanTier1((alert) => notifications.sendStaffAlert(alert), input);
     },
 
     async staffAlerts(by, options = {}) {

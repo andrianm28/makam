@@ -16,20 +16,23 @@
  * and a 06:00 alert for a night row) counts from a fact the order already
  * carries rather than from when the row was first read.
  */
-import type { Actor } from "@/domain/identity";
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { RawAntreanRow, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 export const KONFIRMASI_TPU_SAAT_DUKA_TYPE = "konfirmasi_tpu_saat_duka";
 
 /** Where an Admin Platform confirms the order; the page the row links to. */
 export const KONFIRMASI_TPU_HREF = "/staf/admin-platform/pengurusan";
 
-export const konfirmasiTpuSaatDukaRowType: AntreanRowType = {
+export const konfirmasiTpuSaatDukaRowType: Tier1RowType = {
   key: KONFIRMASI_TPU_SAAT_DUKA_TYPE,
   tier: 1,
   label: "Konfirmasi TPU Saat Duka",
-  async rows(deps: AntreanRowDeps, by: Actor): Promise<RawAntreanRow[]> {
-    const terbuka = await deps.pengurusan.konfirmasiTpuTerbuka(by);
+  // Ticket 28's hooks: a night row is alerted at 06:00, and everyone is alerted
+  // again 90 min after the first alert while it is still unconfirmed.
+  tundaMalam: true,
+  eskalasiLanjutMenit: 90,
+  async rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]> {
+    const terbuka = await deps.pengurusan.konfirmasiTpuTerbuka();
     return terbuka.map((order) => ({
       subjectKind: "pengurusan_tpu",
       subjectId: order.id,

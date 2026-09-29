@@ -32,6 +32,17 @@ import { ambilPengurus, ambilRow, type AmbilRowResult, type PengurusAmbil } from
 import { antrean, antreanCounters, type AntreanCounters, type AntreanRow } from "./antrean";
 import { antreanLokasi, type AntreanLokasiAntrean } from "./antrean-lokasi";
 import {
+  aktifkanBertugas,
+  bertugasOtomatisMatiTick,
+  bertugasStatus,
+  matikanBertugas,
+  type AktifkanBertugasResult,
+  type BertugasStatus,
+  type MatikanBertugasInput,
+  type MatikanBertugasResult,
+} from "./bertugas";
+import { peringatanTier1Tick, tier1BelumDiambil, type PeringatanDeps, type PeringatanTickResult } from "./peringatan";
+import {
   catatanInternalFor,
   tambahCatatanInternal,
   type CatatanInternal,
@@ -41,6 +52,19 @@ import {
 
 export { catatanInternalInputSchema, type CatatanInternal, type CatatanInternalInput, type TambahCatatanInternalResult } from "./catatan-internal";
 export type { AmbilRowResult, PengurusAmbil } from "./ambil";
+export {
+  BERTUGAS_BERAKHIR_JAM_WIB,
+  BERTUGAS_MAKSIMUM_JAM,
+  bertugasBerakhirAt,
+  matikanBertugasInputSchema,
+  type AktifkanBertugasResult,
+  type BarisPerluPenanganan,
+  type BertugasAkun,
+  type BertugasStatus,
+  type MatikanBertugasInput,
+  type MatikanBertugasResult,
+} from "./bertugas";
+export { ESKALASI_TIDAK_DIAMBIL_MENIT, type PeringatanTickResult } from "./peringatan";
 export { rowKeyOf, type AntreanCounters, type AntreanRow } from "./antrean";
 export { antreanLokasiRowTypes, type AntreanLokasiGrup, type AntreanLokasiRow, type AntreanLokasiRowType } from "./antrean-lokasi";
 export { antreanRowTypes } from "./registry";
@@ -60,7 +84,7 @@ export interface QueuesModuleDeps {
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
   billing: Pick<Billing, "pembayaranPerluDitinjau" | "tagihanLewatJatuhTempo">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
-  notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat">;
+  notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat" | "pushDevices">;
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi's confirmations and its "Catat Pemakaman" rows, plus the decline rows). */
   pemesanan: Pick<
     Pemesanan,
@@ -81,8 +105,8 @@ export interface QueuesModuleDeps {
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
-  /** The Ambil claim a family's own order page shows, as a name and a contact number. */
-  identity: Pick<Identity, "staffAccountById">;
+  /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */
+  identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
   /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
   layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
@@ -108,6 +132,17 @@ export interface Queues {
    * its own order (spec, story 73) without the Antrean page reading identity.
    */
   ambilPengurus(row: { type: string; subjectId: string }): Promise<PengurusAmbil | null>;
+  /** Who is Bertugas now and the signed-in Admin Platform's own state, for the Antrean's header; null for anyone but Admin Platform (ticket 28). */
+  bertugas(by: Actor): Promise<BertugasStatus | null>;
+  /** The signed-in Admin Platform goes on duty; refused without an active Perangkat Push (ADR 0004). Audited. */
+  aktifkanBertugas(by: Actor): Promise<AktifkanBertugasResult>;
+  /**
+   * The signed-in Admin Platform goes off duty by hand: each row they hold is released, or keeps
+   * its claim and gets a Catatan Internal; a row not dealt with refuses the switch-off and is named. Audited.
+   */
+  matikanBertugas(by: Actor, input: MatikanBertugasInput): Promise<MatikanBertugasResult>;
+  /** How many Tier 1 rows nobody has taken: the red banner in the header of every staff page of an Admin Platform (ticket 28). */
+  tier1BelumDiambil(by: Actor): Promise<number>;
   /** Admin Platform adds a Catatan Internal on any row or order; audited, never shown to the Pemesan, Mitra Jasa or Admin Lokasi. */
   tambahCatatanInternal(by: Actor, input: CatatanInternalInput): Promise<TambahCatatanInternalResult>;
   /** Every Catatan Internal on one subject, oldest first (Admin Platform only). */
@@ -121,7 +156,31 @@ export function createQueues(deps: QueuesModuleDeps): Queues {
     antreanLokasi: (by, lokasiId) => antreanLokasi(deps, by, lokasiId),
     ambilRow: (by, input) => ambilRow(deps, by, input),
     ambilPengurus: (row) => ambilPengurus(deps, row),
+    bertugas: (by) => bertugasStatus(deps, by),
+    aktifkanBertugas: (by) => aktifkanBertugas(deps, by),
+    matikanBertugas: (by, input) => matikanBertugas(deps, by, input),
+    tier1BelumDiambil: (by) => tier1BelumDiambil(deps, by),
     tambahCatatanInternal: (by, input) => tambahCatatanInternal(deps, by, input),
     catatanInternal: (by, subjectKind, subjectId) => catatanInternalFor(deps, by, subjectKind, subjectId),
+  };
+}
+
+/**
+ * The worker's side of the Antrean (ticket 28): the Tier 1 alert tick and the
+ * Bertugas switch-off tick. Built from the four things a Tier 1 row reads plus
+ * Identity and Notifications, so the worker needs no signed-in actor and none of
+ * the neighbours only the Antrean page reads.
+ */
+export interface QueuesTicks {
+  /** Alerts Tier 1 rows (Bertugas or all, the 06:00 night rule) and escalates them at 30 and 90 min. Idempotent. */
+  peringatanTick(now: Date): Promise<PeringatanTickResult>;
+  /** Switches off every Bertugas whose 18:00 WIB or 12 h has come, leaving claims and notes. Idempotent. */
+  bertugasTick(now: Date): Promise<{ dimatikan: number }>;
+}
+
+export function createQueuesTicks(deps: PeringatanDeps): QueuesTicks {
+  return {
+    peringatanTick: (now) => peringatanTier1Tick(deps, now),
+    bertugasTick: (now) => bertugasOtomatisMatiTick(deps, now),
   };
 }

@@ -8,13 +8,13 @@
  * It is Tier 1, so it alerts once built; its deadline is the order's own, which
  * is why it is already past by the time it appears.
  */
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { RawAntreanRow, Tier1RowDeps, Tier1RowType } from "./row-types";
 
-export const konfirmasiLokasiTerlambatRowType: AntreanRowType = {
+export const konfirmasiLokasiTerlambatRowType: Tier1RowType = {
   key: "konfirmasi_lokasi_terlambat",
   tier: 1,
   label: "Konfirmasi Lokasi terlambat",
-  async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]> {
     const lewat = await deps.pemesanan.konfirmasiLewatTenggat();
     return lewat.map((order) => ({
       subjectKind: "pemesanan_makam",

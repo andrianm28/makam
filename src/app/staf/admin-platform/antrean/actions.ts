@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { antreanResource, lokasiMitraResource } from "@/domain/identity";
-import { catatanInternalInputSchema } from "@/domain/queues";
+import { catatanInternalInputSchema, matikanBertugasInputSchema } from "@/domain/queues";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
@@ -79,4 +79,68 @@ export async function tambahCatatanInternalAntrean(_previous: FormState, formDat
   const written = result.value;
   if (!written.ok) return { status: "gagal", message: domainRefusalMessages[written.reason] ?? "Gagal menambah Catatan Internal." };
   return { status: "berhasil", message: "Catatan Internal ditambahkan." };
+}
+
+const kosong = z.object({});
+
+const bertugasRefusalMessages: Record<string, string> = {
+  tidak_berwenang: guardMessage("tidak_berwenang"),
+  perlu_totp: guardMessage("perlu_totp"),
+  perlu_perangkat_push:
+    "Bertugas hanya bisa dinyalakan dengan push aktif. Nyalakan push di perangkat ini lewat panel di atas halaman, lalu coba lagi.",
+  sudah_bertugas: "Anda sudah Bertugas.",
+  tidak_bertugas: "Anda tidak sedang Bertugas.",
+  input_tidak_valid: "Periksa lagi isian Anda.",
+};
+
+/** The signed-in Admin Platform goes on duty (spec, story 142); refused without an active Perangkat Push (ADR 0004). */
+export async function aktifkanBertugas(): Promise<FormState> {
+  const result = await guarded({
+    action: "bertugas.ubah",
+    resource: () => antreanResource(),
+    schema: kosong,
+    input: {},
+    run: (actor) => serverRuntime().queues.aktifkanBertugas(actor),
+  });
+
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(PATH);
+  if (!result.value.ok) return { status: "gagal", message: bertugasRefusalMessages[result.value.reason] ?? "Gagal menyalakan Bertugas." };
+  return { status: "berhasil", message: "Anda Bertugas sekarang." };
+}
+
+/** What the off-duty form sent: for each row the staff member holds, released or kept with a Catatan Internal. */
+function penangananDariForm(formData: FormData): unknown {
+  const type = formData.getAll("type");
+  const subjectId = formData.getAll("subjectId");
+  return {
+    penanganan: type.map((value, index) => ({
+      type: value,
+      subjectId: subjectId[index],
+      aksi: formData.get(`aksi-${index}`),
+      catatan: String(formData.get(`catatan-${index}`) ?? ""),
+    })),
+  };
+}
+
+/** The signed-in Admin Platform goes off duty; each row they hold is released or annotated first (spec, Work Queues). */
+export async function matikanBertugas(_previous: FormState, formData: FormData): Promise<FormState> {
+  const result = await guarded({
+    action: "bertugas.ubah",
+    resource: () => antreanResource(),
+    schema: matikanBertugasInputSchema,
+    input: penangananDariForm(formData),
+    run: (actor, data) => serverRuntime().queues.matikanBertugas(actor, data),
+  });
+
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(PATH);
+  const off = result.value;
+  if (!off.ok) {
+    if (off.reason === "perlu_penanganan") {
+      return { status: "gagal", message: `Lepas atau beri Catatan Internal untuk setiap baris yang Anda ambil (${off.baris.length} belum).` };
+    }
+    return { status: "gagal", message: bertugasRefusalMessages[off.reason] ?? "Gagal mematikan Bertugas." };
+  }
+  return { status: "berhasil", message: "Bertugas dimatikan." };
 }
