@@ -6,6 +6,7 @@ import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
@@ -49,7 +50,7 @@ export async function seedTagihanCommand(
       // composed whole rather than partly, so the read it needs is here.
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+      const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
       const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });
 
       if (!(await operatorSettings.current())) {

@@ -18,7 +18,7 @@ import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
-import type { Pemesanan } from "@/domain/pemesanan";
+import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
@@ -92,7 +92,7 @@ export function serverRuntime(): ServerRuntime {
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
     // Every Billing of this runtime (the read-only ones the other modules hold included, since Pemesanan declares Tidak Tertagih through its own) guards it with
     // Notifications' call log; the closure runs only after both are built (ticket 29).

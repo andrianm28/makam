@@ -161,7 +161,7 @@ export async function publicDenah(deps: InventoryDeps, lokasiId: string): Promis
   const bloks = await loadBloks(deps.db, lokasiId);
   if (bloks.length === 0) return { lokasiId, tersedia: 0, bloks: [] };
 
-  const [allCells, allKavling, { byPetak }, pemakaman, held] = await Promise.all([
+  const [allCells, allKavling, { byPetak, byKavling }, pemakaman, held] = await Promise.all([
     Promise.all(bloks.map((blok) => loadCells(deps.db, blok.id))),
     Promise.all(bloks.map((blok) => loadKavlingByBlok(deps.db, blok.id))),
     hakPakaiByTarget(deps.db, lokasiId),
@@ -194,7 +194,7 @@ export async function publicDenah(deps: InventoryDeps, lokasiId: string): Promis
         jenisMakamId: row.jenisMakamId,
         status: pilihanOf({
           perluVerifikasi: memberIds.some((id) => cells.find((cell) => cell.id === id)?.perluVerifikasi),
-          status: deriveKavlingStatus({ hakPakai: forStatus(byPetak.get(row.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman: withBurial }),
+          status: deriveKavlingStatus({ hakPakai: forStatus(byKavling.get(row.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman: withBurial }),
           held: held.has(row.id),
           layers: 0,
           terakhirPemakaman: null,

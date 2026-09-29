@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { isPortConfigured, notConfigured } from "@/adapters/live/not-configured";
 import { createInventory } from "@/domain/inventory";
 import type { FileStore } from "@/ports/file-store";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { denahFixture, inventoryOnTestDatabase, newBlok } from "../../../tests/support/inventory";
 
@@ -93,7 +94,7 @@ describe("a Blok's site-plan photo", () => {
     expect(isPortConfigured(setup.files)).toBe(true);
     expect(isPortConfigured(filesDown)).toBe(false);
 
-    const inventoryWithoutFiles = createInventory({ db, clock: setup.clock, audit: setup.audit, files: filesDown, tariffs: setup.tariffs, lokasi: setup.lokasi });
+    const inventoryWithoutFiles = createInventory({ db, clock: setup.clock, audit: setup.audit, files: filesDown, tariffs: setup.tariffs, lokasi: setup.lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     const refused = await inventoryWithoutFiles.uploadBlokPhoto(fixture.adminLokasi, fixture.lokasiMitra.id, blok.id, {
       body: jpegBytes,
       contentType: "image/jpeg",

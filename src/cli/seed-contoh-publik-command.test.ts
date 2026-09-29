@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
-import { publishOnTestDatabase } from "../../tests/support/publish";
+import { publishOnTestDatabase, signedInAdminLokasi, signedInAdminPlatform } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
 import { CONTOH_LOKASI, seedContohPublikCommand } from "./seed-contoh-publik-command";
@@ -157,7 +157,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
   };
 
   /** Every Lokasi Mitra's Tersedia counts, Kavling units and Kontak Siaga name read back equal to the mock's. */
-  async function expectSamaDenganMock() {
+  async function expectSamaDenganMock(minimal: readonly string[] = []) {
     const setup = publishOnTestDatabase(db);
     const listed = await setup.lokasi.publicLokasiMitraList();
 
@@ -175,7 +175,10 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
         const jenisMakam = tariffs.jenisMakam.find((one) => one.name === jenisMakamName);
         expect(jenisMakam, `${lokasiName} / ${jenisMakamName}`).toBeTruthy();
         const actual = countByJenisMakamId.get(jenisMakam!.id) ?? 0;
-        expect(actual, `${lokasiName} / ${jenisMakamName}`).toBe(expectedTersedia);
+        // A stack an older version seeded keeps its old single-row Bloks, so beside the prototype's Bloks it
+        // holds more than the mock's number (`minimal` names those Lokasi); every other count is exact.
+        if (minimal.includes(lokasiName)) expect(actual, `${lokasiName} / ${jenisMakamName}`).toBeGreaterThanOrEqual(expectedTersedia);
+        else expect(actual, `${lokasiName} / ${jenisMakamName}`).toBe(expectedTersedia);
       }
 
       const kontakSiaga = await setup.lokasi.kontakSiagaOf(lokasi!.id);
@@ -196,44 +199,150 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
   );
 
   it(
-    "reconciles Lokasi Mitra an older run listed with fewer Tersedia Petak, Kavling units and no Kontak Siaga name, only adding, and then changes nothing",
+    "draws the prototype's own Denah for Wakaf Al-Ikhlas and Hijau Asri, then tops each Jenis Makam up in tidy rectangular Bloks",
     async () => {
       await seedAdmin();
+      expect((await seedContohPublikCommand([], env())).exitCode).toBe(0);
+
+      const setup = publishOnTestDatabase(db);
+      const listed = await setup.lokasi.publicLokasiMitraList();
+      const denahOf = async (name: string) => {
+        const lokasi = listed.find((one) => one.name === name)!;
+        const denah = await setup.inventory.publicDenah(lokasi.id);
+        expect(denah, name).not.toBeNull();
+        return denah!;
+      };
+      const cellAt = (blok: NonNullable<Awaited<ReturnType<typeof denahOf>>>["bloks"][number], row: number, col: number) =>
+        blok.cells.find((cell) => cell.row === row && cell.col === col)!;
+
+      // Wakaf Al-Ikhlas: "Blok Utama" is 5 × 11 with a Jalan row and column, four Kavling Keluarga of two Petak.
+      const wakaf = await denahOf("Pemakaman Wakaf Al-Ikhlas");
+      const utama = wakaf.bloks.find((blok) => blok.name === "Blok Utama")!;
+      expect([utama.rows, utama.cols]).toEqual([5, 11]);
+      expect(cellAt(utama, 2, 4).kind).toBe("jalan");
+      expect(cellAt(utama, 0, 6).kind).toBe("jalan");
+      expect(cellAt(utama, 0, 0)).toMatchObject({ kind: "petak", nomorMakam: "U-01", status: "terisi" });
+      // The prototype numbers Petak only: (1, 7) is the 17th Petak in reading order.
+      expect(cellAt(utama, 1, 7).nomorMakam).toBe("U-17");
+      expect(cellAt(utama, 1, 8)).toMatchObject({ nomorMakam: "U-18", status: "bisa_dipilih" });
+      // Dipesan has no honest path (no real order): a Petak the mock marks Dipesan is not pickable either.
+      expect(cellAt(utama, 1, 2).status).toBe("tidak_tersedia");
+      // The four Kavling Keluarga are there with the mock's Nomor Kavling and two Petak each. (Their Terisi /
+      // Tersedia state is read through `tersediaPerJenisMakam` below, which counts the two Tersedia ones:
+      // the picker's own Kavling status currently ignores a Kavling's Hak Pakai, a bug outside this seed.)
+      expect(utama.kavling.map((kavling) => kavling.nomorKavling).sort()).toEqual(["KK-U1", "KK-U2", "KK-U3", "KK-U4"]);
+      expect(utama.cells.filter((cell) => cell.kavlingId).length).toBe(8);
+      expect(utama.kavling.find((kavling) => kavling.nomorKavling === "KK-U1")?.status).toBe("bisa_dipilih");
+      // 3 + 12 Tersedia Petak outside a Kavling.
+      expect(utama.cells.filter((cell) => cell.status === "bisa_dipilih").length).toBe(15);
+      // The rest of the mock's 118 Makam Umum: tidy rectangles, never one long row.
+      expect(wakaf.bloks.length).toBeGreaterThan(1);
+      for (const blok of wakaf.bloks) {
+        expect(blok.rows, blok.name).toBeGreaterThan(1);
+        expect(blok.cols, blok.name).toBeLessThanOrEqual(11);
+      }
+
+      // Hijau Asri: Blok A 8 × 13, Blok B 5 × 10, Blok Melati 4 × 8, with the mock's Nomor Makam.
+      const hijau = await denahOf("Taman Peristirahatan Hijau Asri");
+      const [blokA, blokB, melati] = ["Blok A", "Blok B", "Blok Melati"].map((name) => hijau.bloks.find((blok) => blok.name === name)!);
+      expect([blokA.rows, blokA.cols, blokB.rows, blokB.cols, melati.rows, melati.cols]).toEqual([8, 13, 5, 10, 4, 8]);
+      expect(cellAt(blokA, 0, 3)).toMatchObject({ nomorMakam: "A-04", status: "terisi" });
+      expect(cellAt(blokA, 3, 12).kind).toBe("bukan_petak");
+      expect(cellAt(blokA, 4, 12).kind).toBe("bukan_petak");
+      expect(cellAt(blokA, 0, 12).status).toBe("tidak_tersedia");
+      expect(blokA.kavling.map((kavling) => kavling.nomorKavling).sort()).toEqual(["KK-A1", "KK-A2"]);
+      expect(blokA.cells.filter((cell) => cell.status === "bisa_dipilih").length).toBe(35);
+      expect(blokB.cells.filter((cell) => cell.status === "bisa_dipilih").length).toBe(28);
+      expect(melati.cells.filter((cell) => cell.status === "bisa_dipilih").length).toBe(0);
+      expect(cellAt(melati, 2, 0).kind).toBe("bukan_petak");
+      expect(cellAt(melati, 0, 4).kind).toBe("jalan");
+
+      // The Tersedia total of every Jenis Makam is still the mock's number.
+      await expectSamaDenganMock();
+    },
+    120_000,
+  );
+
+  it(
+    "reconciles Lokasi Mitra an older run listed with fewer Tersedia Petak, Kavling units and no Kontak Siaga name, only adding, and then changes nothing",
+    async () => {
+      // The Admin Platform is signed in by the test itself, since this test also draws Bloks as an Admin Lokasi.
+      const setup = publishOnTestDatabase(db);
+      const platform = await signedInAdminPlatform(setup);
       // What an older version seeded: every count capped at 3 (Kavling at 1), no Kontak Siaga name.
       const lama = CONTOH_LOKASI.map((spec) => ({
         ...spec,
         kontakSiagaName: "",
-        jenisMakam: spec.jenisMakam.map((jm) => (jm.kosong ? jm : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3) })),
+        denahPrototipe: undefined,
+        // Hijau Asri's "Makam Standar" was Rp 11.000.000 before the mock's price became 9.000.000 (under the QRIS cap).
+        jenisMakam: spec.jenisMakam.map((jm) =>
+          jm.kosong
+            ? jm
+            : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3), hargaHakPakai: spec.name === "Taman Peristirahatan Hijau Asri" && jm.name === "Makam Standar" ? 11_000_000 : jm.hargaHakPakai },
+        ),
       }));
       const first = await seedContohPublikCommand([], env(), lama);
       expect(first.exitCode).toBe(0);
 
-      const setup = publishOnTestDatabase(db);
       const listed = await setup.lokasi.publicLokasiMitraList();
       const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
       expect((await setup.lokasi.kontakSiagaOf(wakaf.id))?.name).toBe("");
+      const hijauAsriLama = listed.find((one) => one.name === "Taman Peristirahatan Hijau Asri")!;
+      // The latest tariff version, read at an instant far past every effective date.
+      const hargaStandarHijau = async (lokasiId: string) =>
+        (await setup.tariffs.lokasiTariffs(lokasiId, new Date("2100-01-01T00:00:00Z"))).jenisMakam.find((one) => one.name === "Makam Standar")?.inForce?.hargaHakPakai;
+      expect(await hargaStandarHijau(hijauAsriLama.id)).toBe(11_000_000);
       const before = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
       const petakBefore = before.reduce((sum, one) => sum + one.count, 0);
       expect(petakBefore).toBe(3 + 1);
+
+      // What the older version also left on staging: single-row example Bloks "A" (only Tersedia Petak) and "B"
+      // (one Tersedia, one Terisi Petak), drawn the way an Admin Lokasi would.
+      const adminLokasi = await signedInAdminLokasi(setup, platform.actor, [wakaf.id]);
+      const umum = (await setup.tariffs.lokasiTariffs(wakaf.id, new Date("2100-01-01T00:00:00Z"))).jenisMakam.find((one) => one.name === "Makam Umum")!;
+      const gambarLama = async (name: string, cols: number, terisi: number) => {
+        const blok = await setup.inventory.createBlok(adminLokasi, wakaf.id, { name, rows: 1, cols, numberPattern: `L${name}-{nn}`, jenisMakamId: umum.id });
+        if (!blok.ok) throw new Error(blok.reason);
+        const cells = (await setup.inventory.asStaff(adminLokasi).blok(wakaf.id, blok.blok.id))!.cells;
+        for (const [index, cell] of cells.entries()) {
+          const cleared = await setup.inventory.clearPetak(adminLokasi, wakaf.id, cell.id, index < terisi ? { mode: "terisi", dataMenyusul: true } : { mode: "tersedia" });
+          if (!cleared.ok) throw new Error(cleared.reason);
+        }
+      };
+      await gambarLama("A", 5, 0);
+      await gambarLama("B", 2, 1);
 
       // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
       await new Promise((resolve) => setTimeout(resolve, 61_000));
       const second = await seedContohPublikCommand([], env());
       expect(second.exitCode, second.output).toBe(0);
       expect(second.output).toContain("disamakan dengan contoh");
-      await expectSamaDenganMock();
+      // The price is brought to the mock's as a new tariff version effective today; the old version stays.
+      expect(await hargaStandarHijau(hijauAsriLama.id)).toBe(9_000_000);
+      await expectSamaDenganMock(["Pemakaman Wakaf Al-Ikhlas", "Taman Peristirahatan Hijau Asri"]);
+      // The Bloks the older run built are still there, untouched, and the prototype's "Blok Utama" was added beside them.
+      const publicWakaf = await setup.inventory.publicDenah(wakaf.id);
+      expect(publicWakaf?.bloks.map((blok) => blok.name)).toEqual(expect.arrayContaining(["Blok A", "Blok Utama"]));
+      // The old empty single-row Blok "A" was removed (through Inventory's hapusBlok), so Makam Umum is exactly the
+      // mock's 118 again; "B" holds a Terisi Petak, so it stays.
+      expect(publicWakaf?.bloks.map((blok) => blok.name)).not.toContain("A");
+      expect(publicWakaf?.bloks.map((blok) => blok.name)).toContain("B");
+      const umumSesudah = (await setup.inventory.tersediaPerJenisMakam(wakaf.id)).find((row) => row.jenisMakamId === umum.id);
+      expect(umumSesudah?.count).toBe(118);
       // Pengaturan Operator holds the mock's CS contact, entered by the first run because it was empty.
       const operator = await setup.operatorSettings.current();
       expect(operator?.csReplyHours).toBe("setiap hari, 06.00–22.00 WIB");
       expect(operator?.csWhatsApp).toBe("+6281100000000");
 
       const afterSecond = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
+      const bloksAfterSecond = (await setup.inventory.publicDenah(wakaf.id))?.bloks.map((blok) => blok.name);
       const third = await seedContohPublikCommand([], env());
       expect(third.exitCode).toBe(0);
       expect(third.output).toContain("seed-contoh-publik tidak mengubah apa pun");
       expect(await setup.inventory.tersediaPerJenisMakam(wakaf.id)).toEqual(afterSecond);
+      expect((await setup.inventory.publicDenah(wakaf.id))?.bloks.map((blok) => blok.name)).toEqual(bloksAfterSecond);
     },
-    180_000,
+    240_000,
   );
 
   it(

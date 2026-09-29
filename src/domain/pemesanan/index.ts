@@ -190,6 +190,7 @@ export {
 export { ALASAN_BATAL_TERENCANA, alasanBatalTerencana, type AlasanBatalTerencana } from "./alasan-batal-terencana";
 export { alasanTolakTerencanaKeys, type AlasanTolakTerencana } from "./alasan-tolak";
 export type { OrderTerencanaAntrean, OrderTerencanaStaf, UnitTerencanaBaca } from "./reads-terencana-staf";
+export { pernahMenyebutPetakAtauKavling } from "./riwayat-petak";
 /**
  * The Terencana wizard's boundaries. A Client Component (the wizard's form) takes
  * these from this file rather than from this module's barrel, because a bundler keeps
