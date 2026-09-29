@@ -360,6 +360,44 @@ from.
 The old app's stack and its data are never modified by any of this: the only
 contact is that one read-only query its owner runs.
 
+## Seed the prototype's example data on staging (`seed-contoh-publik`)
+
+`dev.makam.co.id` (the beta for UAT) starts empty: no Lokasi Mitra of its own
+yet, real or example. `seed-contoh-publik` gives it the public-site
+prototype's five example Lokasi Mitra — the same ones a development stack
+gets — each taken through the real publish gate (Kunjungan Verifikasi with
+real JPEG photos, Jam Operasional, tarif diperiksa) so the public listing,
+filters and both booking wizards are walkable while there is nothing real to
+show yet. They are never marked `data_contoh` (that flag would hide them):
+the whole point is that they show up in the real public listing.
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec web node dist/seed-contoh-publik.mjs --izinkan-staging
+# [seed-contoh-publik] 5 Lokasi Mitra contoh terbit (Terverifikasi): Taman Makam Firdaus (/lokasi/…), ...
+```
+
+Needs an Admin Platform first (`seed:admin`, above): it acts as that stack's
+first Admin Platform, the same "act as the stack's first Admin Platform"
+pattern `import-katalog-lama` and the development-only seeds use (never copy
+that pattern into app code). Refused without `--izinkan-staging` (refused by
+default) and always refused on production; every write the command's own
+tariffs calls and its two kinds of staff invite (Petugas Lapangan, Admin
+Lokasi) make carries the reason `seed-contoh-publik (staging, --izinkan-staging)`,
+so the Audit Log says which environment and allowance created each row.
+Idempotent on the five Lokasi Mitra's own names: a second run reports "tidak
+mengubah apa pun" and writes nothing.
+
+The five invented Undangan Staf and Undangan Admin Lokasi email addresses are
+on the RFC 2606 reserved `.invalid` TLD (`…@contoh.makam.invalid`), so they can
+never reach a real inbox; the command also composes its own identity module on
+a fake EmailSender regardless of environment, so no real SMTP call is ever made
+for them at all — only the Kunjungan Verifikasi photos and the agreement scan
+go through the real live FileStore. See `src/cli/seed-contoh-publik-command.ts`'s
+header comment for exactly which of the prototype's fields this reproduces,
+approximates, or has no real counterpart for.
+
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
 When an Admin Platform loses their authenticator, ops resets it. Confirm who

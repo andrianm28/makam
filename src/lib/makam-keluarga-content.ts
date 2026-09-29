@@ -17,7 +17,26 @@
 
 // A type only, so it is erased: this module's values stay safe on a client
 // component's import graph, where a domain module's own code would not be.
-import type { MakamDitemukan } from "@/domain/inventory";
+import type { MakamDitemukan, MakamSaya } from "@/domain/inventory";
+
+/** A Hak Pakai status as a family is told: the word, and what it means for them. */
+export interface StatusHakPakaiTerbaca {
+  key: "aktif" | "kedaluwarsa" | "berakhir" | "dibatalkan";
+  label: string;
+  /** What the status means and what happens next (docs/design-system.md: explain every status). */
+  arti: string;
+}
+
+export const STATUS_HAK_PAKAI: Record<StatusHakPakaiTerbaca["key"], StatusHakPakaiTerbaca> = {
+  aktif: { key: "aktif", label: "Aktif", arti: "Hak Pakai masih berlaku di Lokasi Mitra ini." },
+  kedaluwarsa: {
+    key: "kedaluwarsa",
+    label: "Masa Berlaku Habis",
+    arti: "Masa Hak Pakai sudah habis, jadi perpanjangan perlu diminta ke Lokasi Mitra.",
+  },
+  berakhir: { key: "berakhir", label: "Berakhir", arti: "Hak Pakai sudah berakhir; hubungi pengelola Lokasi Mitra untuk urusannya." },
+  dibatalkan: { key: "dibatalkan", label: "Dibatalkan", arti: "Hak Pakai dibatalkan, sehingga petak ini sudah dikembalikan ke Lokasi Mitra." },
+};
 
 /** The hub's own address, and the two tiles that open it with an action preselected. */
 export const HUB_PATH = "/makam-keluarga";
@@ -158,5 +177,58 @@ export function barisMakamSaya(
     nomor,
     almarhum: satu.petak.flatMap((petak) => petak.almarhum),
     alamat: hubPath({ aksi: aksiTerpilih, lokasiId: satu.lokasiId, cari, nomor }),
+  };
+}
+
+/** One document on the Akun Saya Makam tab's own card: what it is, and where it opens (an unguessable link). */
+export interface DokumenMakamSaya {
+  nomor: string;
+  href: string;
+}
+
+/** One burial the Makam tab's card shows, oldest first (the same order `MakamSaya.pemakaman` carries it in). */
+export interface PemakamanMakamSaya {
+  almarhumName: string;
+  /** A whole date, "YYYY-MM-DD". */
+  date: string;
+}
+
+/** One grave of a signed-in Akun's own Makam tab (ticket 27), full detail rather than a shortcut. */
+export interface KartuMakamSaya {
+  hakPakaiId: string;
+  lokasiId: string;
+  namaLokasi: string;
+  /** The unit's own number: a Kavling Keluarga's, or the Petak's. */
+  nomor: string;
+  petak: { nomorMakam: string }[];
+  status: StatusHakPakaiTerbaca;
+  tanggalBerakhir: string | null;
+  pemakaman: PemakamanMakamSaya[];
+  dokumen: DokumenMakamSaya[];
+  /** The hub address that opens this grave, for a later ticket's actions (tumpang, Perpanjang, Layanan, Pengurusan IPTM). */
+  alamat: string;
+}
+
+/**
+ * One `MakamSaya` (the Inventory module's own read for this tab) as the Makam
+ * tab's card reads it: the Lokasi named, the status in words, and its documents
+ * as addresses rather than raw links (the caller reads those separately, since
+ * they are Pemesanan's own row, not Inventory's — AGENTS.md: only the owning
+ * module reads its own tables).
+ */
+export function kartuMakamSaya(satu: MakamSaya, namaLokasi: ReadonlyMap<string, string>, dokumen: readonly DokumenMakamSaya[]): KartuMakamSaya {
+  const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
+  const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
+  return {
+    hakPakaiId: satu.hakPakaiId,
+    lokasiId: satu.lokasiId,
+    namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
+    nomor,
+    petak: satu.petak.map((petak) => ({ nomorMakam: petak.nomorMakam })),
+    status: STATUS_HAK_PAKAI[satu.status],
+    tanggalBerakhir: satu.tanggalBerakhir,
+    pemakaman: satu.pemakaman.map((satuPemakaman) => ({ almarhumName: satuPemakaman.almarhumName, date: satuPemakaman.date })),
+    dokumen: [...dokumen],
+    alamat: hubPath({ lokasiId: satu.lokasiId, cari, nomor }),
   };
 }

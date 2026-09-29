@@ -1,9 +1,13 @@
 /**
  * The public-site prototype's example seed: the five Lokasi Mitra the public
- * listing can offer, and the refusals that keep it a development-only tool.
+ * listing can offer, and the refusals that keep it out of production while
+ * letting the beta for UAT on staging use it under its named allowance.
  * Driven only through the command and read back through the Lokasi module's
  * own public listing query, the way the public site itself reads it.
  */
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { publishOnTestDatabase } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
@@ -16,6 +20,41 @@ beforeEach(resetDatabase);
 
 const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl") });
 const seedAdmin = () => seedAdminCommand(["--email", "admin-contoh-publik@makam.co.id", "--phone", "081100000002"], env());
+
+/** A temporary directory for the "staging" tests' live FileStore; removed after the suite. */
+const sementara: string[] = [];
+afterAll(() => {
+  for (const path of sementara) rmSync(path, { recursive: true, force: true });
+});
+function filesRoot(): string {
+  const folder = mkdtempSync(join(tmpdir(), "makam-seed-contoh-publik-"));
+  sementara.push(folder);
+  return folder;
+}
+
+/**
+ * Everything `readRuntimeEnv` requires outside development and test, the same
+ * settings `import-katalog-lama-command.test.ts` uses for its own staging run,
+ * plus a real (temporary) `FILES_ROOT`: this command's agreement scan and
+ * Kunjungan Verifikasi photos go through the live FileStore on staging, unlike
+ * `import-katalog-lama`, which never touches one.
+ */
+const stagingEnv = () =>
+  ({
+    ...env("staging"),
+    AUTH_SECRET: "s".repeat(32),
+    APP_BASE_URL: "https://makam.co.id",
+    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+    SMTP_USER: "v1-user",
+    SMTP_PASSWORD: "v1-password",
+    EMAIL_FROM: "no-reply@makam.co.id",
+    SUMOPOD_API_KEY: "sumopod-key",
+    SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
+    VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+    VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+    VAPID_SUBJECT: "mailto:ops@makam.co.id",
+    FILES_ROOT: filesRoot(),
+  }) as Record<string, string>;
 
 describe("seed-contoh-publik (development and test stacks only)", () => {
   it("gives the public listing the prototype's five example Lokasi Mitra, Terverifikasi", async () => {
@@ -113,12 +152,57 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     });
   });
 
-  it("refuses to run on staging or production, and prints its usage for a positional", async () => {
+  it("refuses to run on staging without the named allowance, and always on production, and prints its usage for an unknown flag", async () => {
     expect(await seedContohPublikCommand([], env("staging"))).toEqual({
       exitCode: 1,
-      output: "Ditolak: seed-contoh-publik hanya untuk development dan test.",
+      output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).",
     });
-    expect(await seedContohPublikCommand([], env("production"))).toMatchObject({ exitCode: 1 });
-    expect(await seedContohPublikCommand(["--seed"], env())).toEqual({ exitCode: 2, output: "Pakai: seed-contoh-publik" });
+    expect(await seedContohPublikCommand(["--izinkan-staging"], env("production"))).toEqual({
+      exitCode: 1,
+      output: "Ditolak: seed-contoh-publik tidak pernah jalan di production.",
+    });
+    expect(await seedContohPublikCommand(["--seed"], env())).toEqual({
+      exitCode: 2,
+      output: "Pakai: seed-contoh-publik [--izinkan-staging]",
+    });
+  });
+
+  it("runs on staging with the named allowance, and every write it makes says so in its reason", async () => {
+    const staging = stagingEnv();
+    await seedAdminCommand(["--email", "admin-contoh-publik-staging@makam.co.id", "--phone", "081100000003"], staging);
+
+    const result = await seedContohPublikCommand(["--izinkan-staging"], staging);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("5 Lokasi Mitra contoh terbit");
+
+    const setup = publishOnTestDatabase(db);
+    const listed = await setup.lokasi.publicLokasiMitraList();
+    expect(listed).toHaveLength(5);
+
+    // Every reason this command's own writes carry (tariffs, and the Undangan Admin
+    // Lokasi for this Lokasi Mitra) names the staging allowance.
+    const firdaus = listed.find((one) => one.name === "Taman Makam Firdaus")!;
+    const reasons = (await setup.audit.allEntriesForLokasi(firdaus.id)).map((entry) => entry.reason).filter((reason) => reason !== null);
+    expect(reasons.length).toBeGreaterThan(0);
+    expect(reasons.every((reason) => String(reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
+
+    // The Petugas Lapangan invite (not Lokasi-scoped) says the same.
+    const undangan = (await setup.audit.allEntries()).filter((entry) => entry.action === "staf.undang");
+    expect(undangan.length).toBeGreaterThanOrEqual(6); // 1 Petugas Lapangan + 5 Admin Lokasi
+    expect(undangan.every((entry) => String(entry.reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
+  });
+
+  it("changes nothing on a second staging run, the same allowance", async () => {
+    const staging = stagingEnv();
+    await seedAdminCommand(["--email", "admin-contoh-publik-staging-2@makam.co.id", "--phone", "081100000004"], staging);
+    await seedContohPublikCommand(["--izinkan-staging"], staging);
+
+    const second = await seedContohPublikCommand(["--izinkan-staging"], staging);
+
+    expect(second.exitCode).toBe(0);
+    expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
+    const setup = publishOnTestDatabase(db);
+    expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
   });
 });

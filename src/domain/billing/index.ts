@@ -95,7 +95,9 @@ export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
   PENYESUAIAN_HARGA_KHUSUS,
+  TAGIHAN_PERLU_DIBAYAR,
   TARIFF_LINE_KINDS,
+  tagihanPerluDibayar,
   type IssueRefusal,
   type IssueTagihanInput,
   type IssueTagihanResult,
