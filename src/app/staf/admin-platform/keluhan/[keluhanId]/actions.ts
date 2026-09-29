@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { keluhanLayananResource } from "@/domain/identity";
 import { putuskanKeluhanSchema, sesuaikanPencairanKeluhanSchema } from "@/domain/layanan/pesanan-schema";
-import { putuskanKeluhanMessages } from "@/lib/layanan-labels";
+import { putuskanKeluhanMessages, sesuaikanPencairanMessages } from "@/lib/layanan-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../form-state";
@@ -46,6 +46,6 @@ export async function sesuaikanPencairanKeluhanAction(_previous: FormState, form
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   revalidate(keluhanId);
-  if (!result.value.ok) return { status: "gagal", message: putuskanKeluhanMessages[result.value.reason] ?? "Penyesuaian gagal disimpan." };
+  if (!result.value.ok) return { status: "gagal", message: sesuaikanPencairanMessages[result.value.reason] ?? "Penyesuaian gagal disimpan." };
   return { status: "berhasil", message: "Jumlah pencairan disesuaikan." };
 }

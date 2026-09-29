@@ -268,12 +268,27 @@ async function mintaPengembalian(
 export type SesuaikanPencairanResult =
   | { ok: true; jumlah: number; jumlahAwal: number }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "pencairan_belum_ada" | "melebihi_tarif" | "sudah_dicairkan" };
+  | {
+      ok: false;
+      reason:
+        | "input_tidak_valid"
+        | "tidak_ditemukan"
+        | "keluhan_belum_diputuskan"
+        | "keputusan_tidak_mengubah_pencairan"
+        | "pencairan_belum_ada"
+        | "melebihi_tarif"
+        | "sudah_dicairkan";
+    };
+
+/** The decisions after which the job still pays its fulfiller, so an override can change what it pays. */
+const KEPUTUSAN_DENGAN_PENCAIRAN: readonly KeluhanStatus[] = ["ditolak", "kerjakan_ulang", "selesai_ulang"];
 
 /**
  * Admin Platform overrides what the job pays its fulfiller after a Keluhan (e.g. half), with a
- * mandatory note. The write is Payouts' own and audited there; this only names the item the job
- * produced and refuses an amount above what the order issued.
+ * mandatory note. Only a Keluhan that was decided with an outcome that still pays (rejected, a redo,
+ * a finished redo) allows it: one waiting for a decision has nothing to correct, and a refund settles
+ * the item through Refunds. The state check, the item read and Payouts' own audited write are one
+ * transaction, and the ceiling (never above what the order issued) is Payouts' rule.
  */
 export async function sesuaikanPencairanKeluhan(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<SesuaikanPencairanResult> {
   const refusal = writeRefusal(by, "keluhan.kelola", keluhanLayananResource());
@@ -281,16 +296,20 @@ export async function sesuaikanPencairanKeluhan(deps: LayananDeps, by: Actor, ra
   const parsed = sesuaikanPencairanKeluhanSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const { keluhanId, amount, catatan } = parsed.data;
-  const [keluhan] = await deps.db.select().from(keluhanLayanan).where(eq(keluhanLayanan.id, keluhanId));
-  if (!keluhan) return { ok: false, reason: "tidak_ditemukan" };
-  const baris = await bacaBaris(deps.db, keluhan.pekerjaanId);
-  if (!baris) return { ok: false, reason: "tidak_ditemukan" };
-  const item = await deps.payouts.itemLayanan(baris.order.tagihanId, baris.item.posisi);
-  if (!item) return { ok: false, reason: "pencairan_belum_ada" };
-  if (amount > item.amountAwal) return { ok: false, reason: "melebihi_tarif" };
-  const hasil = await deps.payouts.turunkanJumlahPencairan(by, { itemId: item.id, amount, catatan });
-  if (hasil.ok) return { ok: true, jumlah: hasil.item.amount, jumlahAwal: hasil.item.amountAwal };
-  return hasil;
+  return refusable<SesuaikanPencairanResult>(deps.db, async (tx) => {
+    // The Keluhan is locked, so a decision and an override on it take turns.
+    const [keluhan] = await tx.select().from(keluhanLayanan).where(eq(keluhanLayanan.id, keluhanId)).for("update");
+    if (!keluhan) return { ok: false, reason: "tidak_ditemukan" } as const;
+    if (keluhan.status === "terbuka") return { ok: false, reason: "keluhan_belum_diputuskan" } as const;
+    if (!KEPUTUSAN_DENGAN_PENCAIRAN.includes(keluhan.status)) return { ok: false, reason: "keputusan_tidak_mengubah_pencairan" } as const;
+    const baris = await bacaBaris(tx, keluhan.pekerjaanId);
+    if (!baris) return { ok: false, reason: "tidak_ditemukan" } as const;
+    const item = await deps.payouts.itemLayanan(baris.order.tagihanId, baris.item.posisi, tx);
+    if (!item) return { ok: false, reason: "pencairan_belum_ada" } as const;
+    const hasil = await deps.payouts.turunkanJumlahPencairan(by, { itemId: item.id, amount, catatan }, tx);
+    if (hasil.ok) return { ok: true, jumlah: hasil.item.amount, jumlahAwal: hasil.item.amountAwal } as const;
+    return hasil;
+  });
 }
 
 /**
@@ -463,6 +482,10 @@ export type BeriPenilaianResult =
   | { ok: false; reason: "input_tidak_valid" | "bukan_pemesan" | "tidak_ditemukan" | "belum_selesai" | "sudah_dinilai" };
 
 /**
+ * A Penilaian is the family's own write, not a staff write, so it is intentionally not in the staff Audit Log
+ * (as a family's filing of a Keluhan or its cancellation of a job are not): the row itself, with the Akun and
+ * the moment, is the record.
+ *
  * The Pemesan rates one finished job, 1–5 stars with an optional comment. One per job, and only for a
  * job that was finished (a job under a Keluhan may still be rated: the family's view of the work is
  * exactly what the Operator wants to know).
@@ -567,9 +590,17 @@ export async function tutupJendelaKeluhan(deps: LayananDeps, now: Date): Promise
     hasil.ditutup += dipindah.length;
   }
 
+  // One query carries everything a due job needs (its order line too), so the tick reads once, not once per job.
   const menunggu = await deps.db
-    .select({ id: pekerjaanLayanan.id, keluhanStatus: keluhanLayanan.status })
+    .select({
+      job: pekerjaanLayanan,
+      order: pesananLayanan,
+      item: pesananLayananItem,
+      keluhanStatus: keluhanLayanan.status,
+    })
     .from(pekerjaanLayanan)
+    .innerJoin(pesananLayanan, eq(pesananLayanan.id, pekerjaanLayanan.pesananId))
+    .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
     .leftJoin(keluhanLayanan, eq(keluhanLayanan.pekerjaanId, pekerjaanLayanan.id))
     .where(
       and(
@@ -579,15 +610,13 @@ export async function tutupJendelaKeluhan(deps: LayananDeps, now: Date): Promise
       ),
     )
     .orderBy(asc(pekerjaanLayanan.selesaiAt));
-  for (const satu of menunggu) {
-    const baris = await bacaBaris(deps.db, satu.id);
-    if (!baris) continue;
+  for (const { job, order, item, keluhanStatus } of menunggu) {
     // With no Keluhan the trigger is the window closing; after a rejection or a redo it is the decision itself.
-    if (satu.keluhanStatus === null) {
-      const ditunjukkan = ditunjukkanPadaOf(baris.job);
+    if (keluhanStatus === null) {
+      const ditunjukkan = ditunjukkanPadaOf(job);
       if (!ditunjukkan || ditunjukkan.getTime() >= batas.getTime()) continue;
     }
-    const jatuhTempo = await deps.db.transaction(async (tx) => jadikanPencairanJatuhTempo(deps, tx, baris, now));
+    const jatuhTempo = await deps.db.transaction(async (tx) => jadikanPencairanJatuhTempo(deps, tx, { job, order, item }, now));
     if (jatuhTempo) hasil.pencairanJatuhTempo += 1;
   }
   return hasil;

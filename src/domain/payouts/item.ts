@@ -45,6 +45,8 @@ export type TurunkanJumlahResult =
   | WriteRefusal
   | { ok: false; reason: "tidak_ditemukan" }
   | { ok: false; reason: "sudah_dicairkan" }
+  /** The new amount is above what the item was issued for: an override lowers what is paid, never raises it. */
+  | { ok: false; reason: "melebihi_tarif" }
   /** The new amount was Rp 0, above the largest amount, or the note was missing. */
   | { ok: false; reason: "input_tidak_valid" };
 
@@ -61,6 +63,7 @@ export async function turunkanJumlahPencairan(
   deps: ItemDeps,
   by: Actor,
   input: { itemId: string; amount: number; catatan: string },
+  within?: Database,
 ): Promise<TurunkanJumlahResult> {
   const refusal = writeRefusal(by, "pencairan.kelola", pencairanResource());
   if (refusal) return refusal;
@@ -69,10 +72,13 @@ export async function turunkanJumlahPencairan(
     .safeParse(input);
   if (!parsed.success || parsed.data.amount === 0) return { ok: false, reason: "input_tidak_valid" };
   const now = deps.clock.now();
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+  // `within` is the caller's own transaction, so a decision that depends on this override commits with it.
+  return deps.audit.staffWrite(within ?? deps.db, async (tx, record) => {
     const [row] = await tx.select().from(pencairanItem).where(eq(pencairanItem.id, parsed.data.itemId)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     if (row.status === "dicairkan" || row.status === "dibatalkan") return { ok: false, reason: "sudah_dicairkan" } as const;
+    // Payouts' own rule, checked under the row lock: the issued amount is a ceiling.
+    if (parsed.data.amount > row.amount) return { ok: false, reason: "melebihi_tarif" } as const;
     await tx
       .update(pencairanItem)
       .set({

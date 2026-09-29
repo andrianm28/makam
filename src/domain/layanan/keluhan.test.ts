@@ -404,9 +404,27 @@ describe("Admin Platform's override of what the job pays", () => {
     expect(entri).toHaveLength(1);
   });
 
+  it("is refused while the Keluhan is undecided, and after a refund, which settles the item itself", async () => {
+    const siap = await pekerjaanSelesai();
+    const { setup, lokasi } = siap;
+    const keluhanId = await ajukan(siap);
+    const override = { keluhanId, amount: 375_000, catatan: "Setengah." };
+    expect(await setup.layanan.sesuaikanPencairanKeluhan(lokasi.admin, override)).toEqual({ ok: false, reason: "keluhan_belum_diputuskan" });
+    expect((await putuskan(siap, keluhanId, "kembalikan_dana")).ok).toBe(true);
+    expect(await setup.layanan.sesuaikanPencairanKeluhan(lokasi.admin, override)).toEqual({ ok: false, reason: "keputusan_tidak_mengubah_pencairan" });
+  });
+
+  it("is allowed after a redo was decided, before its new proof is shown", async () => {
+    const siap = await pekerjaanSelesai();
+    const keluhanId = await ajukan(siap);
+    expect((await putuskan(siap, keluhanId, "kerjakan_ulang")).ok).toBe(true);
+    expect(await siap.setup.layanan.sesuaikanPencairanKeluhan(siap.lokasi.admin, { keluhanId, amount: 375_000, catatan: "Setengah." })).toMatchObject({ ok: true, jumlah: 375_000 });
+  });
+
   it("waits until Payouts has written the item, when the Tagihan has not produced one yet", async () => {
     const siap = await pekerjaanSelesai({ payoutsSudahJalan: false });
     const keluhanId = await ajukan(siap);
+    expect((await putuskan(siap, keluhanId, "kerjakan_ulang")).ok).toBe(true);
     expect(await siap.setup.layanan.sesuaikanPencairanKeluhan(siap.lokasi.admin, { keluhanId, amount: 375_000, catatan: "Setengah." })).toEqual({
       ok: false,
       reason: "pencairan_belum_ada",

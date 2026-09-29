@@ -213,16 +213,27 @@ export const penilaianMessages = {
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
 
-/** Why Admin Platform's decision on a Keluhan, or its Pencairan override, is refused. */
+/** Why Admin Platform's override of what a job pays after a Keluhan is refused. */
+export const sesuaikanPencairanMessages = {
+  input_tidak_valid: "Tulis jumlah baru dalam rupiah dan catatan penyesuaian.",
+  tidak_ditemukan: "Keluhan ini tidak ditemukan.",
+  keluhan_belum_diputuskan: "Keluhan ini belum diputuskan. Putuskan dulu, baru pencairan bisa disesuaikan.",
+  keputusan_tidak_mengubah_pencairan: "Keluhan ini diputuskan dengan pengembalian dana, jadi pencairannya diselesaikan lewat pengembalian, bukan penyesuaian.",
+  pencairan_belum_ada: "Pencairan untuk pekerjaan ini belum tercatat, jadi belum bisa disesuaikan. Coba lagi setelah pembayaran tercatat.",
+  melebihi_tarif: "Jumlah tidak boleh melebihi tarif yang ditagihkan untuk pekerjaan ini.",
+  sudah_dicairkan: "Pencairan untuk pekerjaan ini sudah ditransfer atau dibatalkan, jadi tidak bisa disesuaikan.",
+  belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
+} as const satisfies Record<string, string>;
+
+/** Why Admin Platform's decision on a Keluhan is refused. */
 export const putuskanKeluhanMessages = {
   input_tidak_valid: "Pilih keputusan dan tulis catatannya.",
   tidak_ditemukan: "Keluhan ini tidak ditemukan.",
   sudah_diputuskan: "Keluhan ini sudah diputuskan.",
   pengembalian_tidak_bisa_diajukan: "Pengembalian dana untuk pekerjaan ini belum bisa diajukan. Periksa Tagihan dan permintaan pengembalian yang sedang berjalan.",
   pengembalian_tertunda: "Sudah ada permintaan pengembalian yang disetujui untuk Tagihan ini. Selesaikan itu dulu, lalu putuskan keluhan ini.",
-  pencairan_belum_ada: "Pencairan untuk pekerjaan ini belum tercatat, jadi belum bisa disesuaikan. Coba lagi setelah pembayaran tercatat.",
-  melebihi_tarif: "Jumlah tidak boleh melebihi tarif yang ditagihkan untuk pekerjaan ini.",
-  sudah_dicairkan: "Pencairan untuk pekerjaan ini sudah ditransfer, jadi tidak bisa disesuaikan.",
   belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
   perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",

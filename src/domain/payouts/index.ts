@@ -166,7 +166,7 @@ export interface Payouts {
   /** Admin Platform transfers by hand, uploads the proof and enters the date: one Bukti Pencairan covering those items and Potongan. */
   terbitkanBuktiPencairan(by: Actor, input: TerbitkanBuktiInput): Promise<TerbitkanBuktiResult>;
   /** Admin Platform overrides what one item pays after a Keluhan, with a note. */
-  turunkanJumlahPencairan(by: Actor, input: { itemId: string; amount: number; catatan: string }): Promise<TurunkanJumlahResult>;
+  turunkanJumlahPencairan(by: Actor, input: { itemId: string; amount: number; catatan: string }, within?: Database): Promise<TurunkanJumlahResult>;
   /**
    * Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra" record
    * (ticket 30's AC 2): the platform-fee Potongan it raised is cancelled (or,
@@ -281,7 +281,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),
     tahanPencairan: (by, input) => tahanPencairan(runDeps, by, input),
     terbitkanBuktiPencairan: (by, input) => terbitkanBuktiPencairan(transferDeps, by, input),
-    turunkanJumlahPencairan: (by, input) => turunkanJumlahPencairan(itemDeps, by, input),
+    turunkanJumlahPencairan: (by, input, within) => turunkanJumlahPencairan(itemDeps, by, input, within),
     batalkanPembayaranLangsung: (by, input) => batalkanPembayaranLangsung(potonganDeps, by, input),
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
