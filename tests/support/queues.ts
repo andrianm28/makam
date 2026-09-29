@@ -17,6 +17,7 @@ import { publishOnTestDatabase } from "./publish";
  */
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
+  const { payouts } = payoutsFor(setup);
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -26,10 +27,10 @@ export function queuesOnTestDatabase(db: Database) {
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing: setup.billing,
+    payouts,
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts } = payoutsFor(setup);
   const { refunds } = refundsFor(setup, payouts);
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
   // Pengurusan module, and ticket 45 gave the Antrean a Tier 1 row that reads it,

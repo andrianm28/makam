@@ -68,6 +68,8 @@ export function payoutsFor(setup: PublishSetup) {
  */
 export function payoutsOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db, { paymentEffects: [efekPencairanSaatLunas()] });
+  // Payouts first: the Pemesanan module tells it every Pemakaman it records (ticket 90).
+  const { payouts, dikirim } = payoutsFor(setup);
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -77,10 +79,10 @@ export function payoutsOnTestDatabase(db: Database) {
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing: setup.billing,
+    payouts,
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts, dikirim } = payoutsFor(setup);
   // Ticket 44 put the Pengurusan module on `PemesananSetup`, and every fixture
   // that composes the Pemesanan module itself owes one: `PemesananModul` is an
   // Omit of that setup, so a setup without it stops satisfying it. The wizard's
@@ -203,9 +205,11 @@ export async function bayarTagihan(
 }
 
 /**
- * Records one order's Pemakaman. Today this helper is the **only** writer of that
- * fact in the whole tree: the Pemakaman module (ticket 25) is the caller in
- * production and is not merged yet, so every trigger test stands in for it.
+ * Writes one order's Pemakaman fact directly, to reach either half of the
+ * trigger on its own (with a chosen instant). In production the only writer is
+ * the Pemesanan module's Catat Pemakaman, which tells Payouts in its own
+ * transaction (ticket 90; `src/domain/payouts/pemakaman-tercatat.test.ts` walks
+ * that real path).
  */
 export async function catatPemakaman(setup: PayoutsModul, nomorPemesanan: string, pemakamanAt: Date) {
   await setup.db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan, pemakamanAt }));

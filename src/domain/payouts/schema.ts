@@ -8,7 +8,7 @@
  * The two `pencairan_pem*` tables are the trigger's two halves, not a copy of
  * anything: the Lunas side is written by the payment effect inside the
  * transaction that settles the Tagihan, the burial side by `pemakamanTercatat`
- * (whose caller, the Pemakaman module, is ticket 25 and is not merged yet).
+ * (whose caller is the Pemesanan module's Catat Pemakaman, ticket 90).
  * Neither is ever read back from Billing or Pemesanan, which is what lets the two
  * arrive in either order and still be a single trigger.
  */
@@ -356,10 +356,9 @@ export const pencairanPembayaran = pgTable("pencairan_pembayaran", {
 
 /**
  * Owned by the Payouts module: the burial half of the Saat Duka Pencairan
- * trigger, meant to be written by the Pemakaman module (ticket 25) in the very
- * transaction that records the burial. That caller does not exist yet, so the
- * table stays empty in this release except in tests; the tick then finds no burial
- * and creates no items, which is the safe direction.
+ * trigger, written by the Pemesanan module's Catat Pemakaman (ticket 90) in the
+ * very transaction that records the burial. Until a burial is recorded the tick
+ * finds none and creates no items, which is the safe direction.
  *
  * Only the instant Payouts needs to know a Pemakaman is recorded: the burial
  * itself — the Almarhum, the Petak, the order's own status — stays the Pemesanan

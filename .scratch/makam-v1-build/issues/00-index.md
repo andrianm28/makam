@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 88 tickets (as of 2026-09-29): 56 resolved, 23 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 89 tickets (as of 2026-09-29): 56 resolved, 23 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 90).
 
 ## Tickets
 
@@ -391,3 +391,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 
 | [88](88-pilih-makam-setelah-tolak.md) | Pilih makam after a Tolak: banner, the refusing Lokasi, and rebooking (deferred from the 24 merge) | ready-for-agent | 24 |
 | [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |
+| [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | in-progress | 25, 32 |

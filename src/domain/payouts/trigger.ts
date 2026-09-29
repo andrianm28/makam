@@ -7,9 +7,8 @@
  * them, each in its own transaction and neither reading the other back:
  * - the Lunas half by the payment effect (`./efek.ts`), inside the transaction
  *   that settles the Tagihan — that half runs in this release;
- * - the burial half by `pemakamanTercatat`, whose caller is the Pemakaman module
- *   (ticket 25) and is **not merged yet**, so in this release the tests are the
- *   only thing that writes it.
+ * - the burial half by `pemakamanTercatat`, whose caller is the Pemesanan
+ *   module's Catat Pemakaman (ticket 90), inside the burial's own transaction.
  *
  * This tick is where the pair becomes money. Reading the facts rather than
  * being called from either side is what makes "in either order" true by
@@ -68,13 +67,11 @@ export interface TickPencairanResult {
 
 /**
  * Records that one order's Pemakaman is recorded, which is the second half of
- * the Saat Duka trigger. The caller is the Pemakaman module (ticket 25), calling
- * it inside its own transaction so the fact commits with the burial; the item it
- * makes due is written by the tick, whether the money arrived before or after.
- *
- * **No caller exists yet**: ticket 25 is not merged, so in this release only the
- * tests write the fact, and both orders (money first, burial first) are driven
- * directly in `./trigger.test.ts`.
+ * the Saat Duka trigger. The caller is the Pemesanan module's Catat Pemakaman
+ * (ticket 90), calling it inside its own transaction so the fact commits with
+ * the burial; the item it makes due is written by the tick, whether the money
+ * arrived before or after. Both orders are driven directly in `./trigger.test.ts`
+ * and through the real Catat Pemakaman in `./pemakaman-tercatat.test.ts`.
  *
  * Idempotent: recording the same burial again changes nothing.
  */

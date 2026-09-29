@@ -130,10 +130,10 @@ export interface Payouts {
    * Duka trigger, and what makes that order's items due whichever came first, the
    * money or the burial.
    *
-   * **It has no caller in this release.** The Pemakaman module (ticket 25) is the
-   * caller, and it is not merged yet, so today only the tests write this fact (see
-   * `./trigger.test.ts`, which drives both orders). Nothing else reads the table,
-   * so an unrecorded burial simply means no Pencairan items: the trigger waits.
+   * The caller is the Pemesanan module's Catat Pemakaman, inside the transaction
+   * that records the burial (ticket 90; `./pemakaman-tercatat.test.ts` walks that
+   * path, `./trigger.test.ts` writes the fact directly). An unrecorded burial
+   * simply means no Pencairan items: the trigger waits.
    */
   pemakamanTercatat(tx: Database, input: { nomorPemesanan: string; pemakamanAt: Date }): Promise<void>;
   /**

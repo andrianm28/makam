@@ -4,6 +4,7 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
+import type { Payouts } from "@/domain/payouts";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
@@ -295,6 +296,13 @@ export interface PemesananDeps {
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
   billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
+  /**
+   * Payouts' half of the Saat Duka trigger that only this module can write: a
+   * recorded Pemakaman, told to Payouts inside the burial's own transaction
+   * (ticket 90). Required, not optional: a fixture that omitted it would look
+   * like Payouts had never been told, which is the bug this dependency ends.
+   */
+  payouts: Pick<Payouts, "pemakamanTercatat">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

@@ -98,7 +98,7 @@ export function serverRuntime(): ServerRuntime {
     // own Harga Khusus path (ticket 30) only ever *calls*
     // `kurangiPencairanPesanan` once a write happens, well after this module
     // has finished loading, so the closure over a not-yet-filled box is safe.
-    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const payoutsRef: { current?: Pick<Payouts, "pemakamanTercatat"> & { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
     const billingComposition: BillingComposition = {
       env,
       db: database.db,
@@ -145,6 +145,14 @@ export function serverRuntime(): ServerRuntime {
       tariffs,
       inventory,
       billing: billingOn(billingComposition, database.db),
+      // A recorded Pemakaman is told to Payouts inside the burial's own transaction (ticket 90).
+      // Payouts is composed after Billing, which is after this module, so it is reached through the lazy box filled below.
+      payouts: {
+        pemakamanTercatat: (tx, input) => {
+          if (!payoutsRef.current) throw new Error("Payouts is not composed yet: pemakamanTercatat was called before startup finished");
+          return payoutsRef.current.pemakamanTercatat(tx, input);
+        },
+      },
       identity,
       notifikasi,
     });

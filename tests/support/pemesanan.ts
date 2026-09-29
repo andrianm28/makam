@@ -21,6 +21,7 @@ import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
+import { payoutsFor } from "./payouts";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -122,6 +123,8 @@ export function pemesananOnTestDatabase(
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing,
+    // The Pemakaman a recording tells Payouts (ticket 90): the real module on the same database.
+    payouts: payoutsFor(setup).payouts,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
