@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { refusable } from "@/db/unit-of-work";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf, denahFixture, inventoryOnTestDatabase, newBlok, signedInAdminLokasi } from "../../../tests/support/inventory";
+import { pemesananOnTestDatabase, pemesanDenganEmail } from "../../../tests/support/pemesanan";
 import { publishOnTestDatabase, signedInAdminPlatform } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
 
@@ -61,6 +62,31 @@ describe("an Admin Lokasi removes a Blok that is empty of history", () => {
 
     await setup.inventory.lepasTahan("MKM-2026-000009");
     expect(await setup.inventory.hapusBlok(fixture.adminLokasi, fixture.lokasiMitra.id, blok.blok.id, "Pesanan batal")).toEqual({ ok: true });
+  });
+
+  it("refuses a Blok an order once named a Petak of, even after that order's hold was released", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const { pemesan } = await pemesanDenganEmail(setup, "kelarga@contoh.id");
+    const blok = await setup.inventory.createBlok(fixture.adminLokasi, fixture.lokasiMitra.id, { name: "C", rows: 1, cols: 1, jenisMakamId: fixture.jenisMakam.id });
+    if (!blok.ok) throw new Error(blok.reason);
+    const [cell] = await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok.blok.id);
+    await setup.inventory.clearPetak(fixture.adminLokasi, fixture.lokasiMitra.id, cell.id, { mode: "tersedia" });
+    const placed = await setup.pemesanan.placeTerencana({
+      pemesanName: "Rina Wulandari",
+      phoneNumber: "081234567890",
+      pemegangHak: { mode: "pemesan" },
+      calonPenghuni: { mode: "saya" },
+      pemesan,
+      lokasiId: fixture.lokasiMitra.id,
+      units: [{ petakId: cell.id }],
+    });
+    if (!placed.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(placed)}`);
+    await setup.inventory.lepasTahan(placed.pemesanan.nomor);
+
+    expect(await setup.inventory.bolehHapusBlok(fixture.adminLokasi, fixture.lokasiMitra.id, blok.blok.id)).toEqual({ boleh: false, reason: "punya_riwayat" });
+    expect(await setup.inventory.hapusBlok(fixture.adminLokasi, fixture.lokasiMitra.id, blok.blok.id, "Coba")).toEqual({ ok: false, reason: "punya_riwayat" });
   });
 
   it("is refused for Admin Platform and for another Lokasi's Admin Lokasi, and needs a reason", async () => {

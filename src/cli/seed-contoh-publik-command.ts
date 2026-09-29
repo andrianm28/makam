@@ -125,6 +125,7 @@ import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import {
   createLokasi,
   DEFAULT_FLAGS,
@@ -419,12 +420,10 @@ export const CONTOH_LOKASI: ContohLokasiSpec[] = [
   },
 ];
 
-export async function seedContohPublikCommand(
-  argv: string[],
-  source: Record<string, string | undefined> = process.env,
-  /** The example Lokasi Mitra to seed; only a test passes another (a reduced copy, standing in for an older version's run). */
-  contoh: ContohLokasiSpec[] = CONTOH_LOKASI,
-): Promise<{ exitCode: number; output: string }> {
+type Hasil = { exitCode: number; output: string };
+
+/** What the command's arguments and `APP_ENV` allow: the alasan its Audit Log entries carry, or the refusal to print. */
+function bacaIzin(argv: string[], source: Record<string, string | undefined>): { alasan: string } | { tolak: Hasil } {
   let izinkanStaging: boolean;
   try {
     const args = parseArgs({
@@ -435,64 +434,112 @@ export async function seedContohPublikCommand(
     });
     izinkanStaging = args.values["izinkan-staging"] === true;
   } catch {
-    return { exitCode: 2, output: USAGE };
+    return { tolak: { exitCode: 2, output: USAGE } };
   }
 
   const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
   if (!appEnv.success) {
-    return { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` };
+    return { tolak: { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` } };
   }
   // The beta for UAT runs on staging, so this seed has to be able to run there too: the
   // allowance is named, refused by default, and every write it makes says so in the Audit
   // Log. Production is refused outright, allowance or not.
   if (appEnv.data === "production") {
-    return { exitCode: 1, output: "Ditolak: seed-contoh-publik tidak pernah jalan di production." };
+    return { tolak: { exitCode: 1, output: "Ditolak: seed-contoh-publik tidak pernah jalan di production." } };
   }
   if (appEnv.data === "staging" && !izinkanStaging) {
-    return { exitCode: 1, output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan)." };
+    return { tolak: { exitCode: 1, output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan)." } };
   }
   if (!usesInMemoryFakes(appEnv.data) && !izinkanStaging) {
-    return { exitCode: 1, output: "Ditolak: seed-contoh-publik hanya untuk development, test, atau staging dengan allowance." };
+    return { tolak: { exitCode: 1, output: "Ditolak: seed-contoh-publik hanya untuk development, test, atau staging dengan allowance." } };
   }
-  const staging = appEnv.data === "staging";
-  const alasan = alasanSeed(staging);
+  return { alasan: alasanSeed(appEnv.data === "staging") };
+}
+
+/** The modules this command drives, on one database connection, composed from the adapters of this stack. */
+function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>) {
+  const adapters = createAdapters({
+    appEnv: env.APP_ENV,
+    vapid: env.vapid,
+    smtp: env.smtp,
+    sumopod: env.sumopod,
+    chromiumPath: env.CHROMIUM_PATH,
+    authSecret: env.AUTH_SECRET,
+    filesRoot: env.FILES_ROOT,
+    appBaseUrl: env.APP_BASE_URL,
+    devFilesRoot: env.DEV_FILES_ROOT,
+    // See this file's header comment: every email this command sends goes to an
+    // address it invented itself, never a real person's, so it never needs the
+    // live SMTP relay, staging included.
+    overrides: usesInMemoryFakes(env.APP_ENV) ? undefined : { email: new FakeEmailSender() },
+  });
+  const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+  const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+  const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+  const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
+  const modul: Modul = {
+    db: database.db,
+    adapters,
+    identity,
+    lokasi,
+    tariffs,
+    inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling }),
+    fieldwork: createFieldwork({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity, notifications, lokasi, billing }),
+  };
+  return { modul, operatorSettings };
+}
+
+/** Brings each example Lokasi Mitra already listed up to the mock; what is left are the ones still to build. */
+async function samakanYangAda(
+  modul: Modul,
+  admin: Actor,
+  contoh: ContohLokasiSpec[],
+  alasan: string,
+): Promise<{ ok: true; berubah: number; belum: ContohLokasiSpec[] } | { ok: false; output: string }> {
+  const idTerdaftar = new Map((await modul.lokasi.publicLokasiMitraList()).map((one) => [one.name, one.id]));
+  let berubah = 0;
+  for (const spec of contoh) {
+    const id = idTerdaftar.get(spec.name);
+    if (!id) continue;
+    const disamakan = await samakanDenganContoh(modul, admin, id, spec, alasan);
+    if (!disamakan.ok) return { ok: false, output: `Ditolak: ${spec.name} tidak bisa disamakan (${disamakan.reason}).` };
+    berubah += disamakan.berubah;
+  }
+  return { ok: true, berubah, belum: contoh.filter((spec) => !idTerdaftar.has(spec.name)) };
+}
+
+/** Builds and publishes each example Lokasi Mitra that is not listed yet. */
+async function terbitkanYangBelum(modul: Modul, admin: Actor, belum: ContohLokasiSpec[], alasan: string): Promise<Hasil> {
+  const petugas = await undangPetugas(modul, admin, alasan);
+  if (!petugas.ok) return { exitCode: 1, output: `Ditolak: Petugas Lapangan contoh tidak siap (${petugas.reason}).` };
+  const hariIni = wibDateOf(modul.adapters.clock.now());
+  const diterbitkan: string[] = [];
+  for (const spec of belum) {
+    const hasil = await seedOneLokasi(modul, admin, petugas.value, hariIni, spec, alasan);
+    if (!hasil.ok) return { exitCode: 1, output: `Ditolak: ${spec.name} tidak siap (${hasil.reason}).` };
+    diterbitkan.push(`${spec.name} (/lokasi/${hasil.id})`);
+  }
+  return { exitCode: 0, output: `${diterbitkan.length} Lokasi Mitra contoh terbit (Terverifikasi): ${diterbitkan.join(", ")}.` };
+}
+
+export async function seedContohPublikCommand(
+  argv: string[],
+  source: Record<string, string | undefined> = process.env,
+  /** The example Lokasi Mitra to seed; only a test passes another (a reduced copy, standing in for an older version's run). */
+  contoh: ContohLokasiSpec[] = CONTOH_LOKASI,
+): Promise<Hasil> {
+  const izin = bacaIzin(argv, source);
+  if ("tolak" in izin) return izin.tolak;
+  const { alasan } = izin;
 
   try {
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-contoh-publik" });
     try {
-      const adapters = createAdapters({
-        appEnv: env.APP_ENV,
-        vapid: env.vapid,
-        smtp: env.smtp,
-        sumopod: env.sumopod,
-        chromiumPath: env.CHROMIUM_PATH,
-        authSecret: env.AUTH_SECRET,
-        filesRoot: env.FILES_ROOT,
-        appBaseUrl: env.APP_BASE_URL,
-        devFilesRoot: env.DEV_FILES_ROOT,
-        // See this file's header comment: every email this command sends goes to an
-        // address it invented itself, never a real person's, so it never needs the
-        // live SMTP relay — staging included.
-        overrides: usesInMemoryFakes(env.APP_ENV) ? undefined : { email: new FakeEmailSender() },
-      });
-      const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
-      const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
-      const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
-      const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
-      const modul: Modul = {
-        db: database.db,
-        adapters,
-        identity,
-        lokasi,
-        tariffs,
-        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi }),
-        fieldwork: createFieldwork({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity, notifications, lokasi, billing }),
-      };
-
-      const admin = await adminPlatform(identity);
+      const { modul, operatorSettings } = susunModul(env, database);
+      const admin = await adminPlatform(modul.identity);
       if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
 
       // Pengaturan Operator: the shared example (CS contact = the mock's), entered only when
@@ -501,20 +548,11 @@ export async function seedContohPublikCommand(
       const operator = await isiPengaturanOperatorBilaKosong(operatorSettings, admin, alasan);
       if (!operator.ok) return { exitCode: 1, output: `Ditolak: Pengaturan Operator contoh tidak tersimpan (${operator.reason}).` };
 
-      const terdaftar = await lokasi.publicLokasiMitraList();
-      const idTerdaftar = new Map(terdaftar.map((one) => [one.name, one.id]));
-      const belum = contoh.filter((spec) => !idTerdaftar.has(spec.name));
-
       // An example Lokasi Mitra an older run already listed is reconciled (see `samakanDenganContoh`).
-      let berubah = operatorKosong ? 1 : 0;
-      for (const spec of contoh) {
-        const id = idTerdaftar.get(spec.name);
-        if (!id) continue;
-        const disamakan = await samakanDenganContoh(modul, admin, id, spec, alasan);
-        if (!disamakan.ok) return { exitCode: 1, output: `Ditolak: ${spec.name} tidak bisa disamakan (${disamakan.reason}).` };
-        berubah += disamakan.berubah;
-      }
-      if (belum.length === 0) {
+      const disamakan = await samakanYangAda(modul, admin, contoh, alasan);
+      if (!disamakan.ok) return { exitCode: 1, output: disamakan.output };
+      const berubah = disamakan.berubah + (operatorKosong ? 1 : 0);
+      if (disamakan.belum.length === 0) {
         return {
           exitCode: 0,
           output:
@@ -523,21 +561,7 @@ export async function seedContohPublikCommand(
               : `Sudah ada ${contoh.length} Lokasi Mitra contoh di listing; ${berubah} hal disamakan dengan contoh (hanya menambah).`,
         };
       }
-
-      const petugas = await undangPetugas(modul, admin, alasan);
-      if (!petugas.ok) return { exitCode: 1, output: `Ditolak: Petugas Lapangan contoh tidak siap (${petugas.reason}).` };
-
-      const hariIni = wibDateOf(adapters.clock.now());
-      const diterbitkan: string[] = [];
-      for (const spec of belum) {
-        const hasil = await seedOneLokasi(modul, admin, petugas.value, hariIni, spec, alasan);
-        if (!hasil.ok) return { exitCode: 1, output: `Ditolak: ${spec.name} tidak siap (${hasil.reason}).` };
-        diterbitkan.push(`${spec.name} (/lokasi/${hasil.id})`);
-      }
-      return {
-        exitCode: 0,
-        output: `${diterbitkan.length} Lokasi Mitra contoh terbit (Terverifikasi): ${diterbitkan.join(", ")}.`,
-      };
+      return await terbitkanYangBelum(modul, admin, disamakan.belum, alasan);
     } finally {
       await database.close();
     }

@@ -77,6 +77,7 @@ export function DenahEditor({
   fileStoreConfigured,
   photoUrl,
   bolehHapus,
+  alasanHapusMax,
 }: {
   lokasiId: string;
   bloks: BlokTab[];
@@ -88,6 +89,8 @@ export function DenahEditor({
   photoUrl: string | null;
   /** Inventory says this Blok is empty of history, so "Hapus Blok" is offered. */
   bolehHapus: boolean;
+  /** The longest reason the Audit Log keeps for a removed Blok. */
+  alasanHapusMax: number;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -155,7 +158,7 @@ export function DenahEditor({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {bolehHapus ? <HapusBlokButton lokasiId={lokasiId} blokId={blok.id} blokName={blok.name} /> : null}
+              {bolehHapus ? <HapusBlokButton lokasiId={lokasiId} blokId={blok.id} blokName={blok.name} alasanMax={alasanHapusMax} /> : null}
               <ModeToggle mode={selectMode} onChange={setSelectMode} />
             </div>
           </div>

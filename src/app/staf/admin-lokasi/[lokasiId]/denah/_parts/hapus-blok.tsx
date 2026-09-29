@@ -14,12 +14,22 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, Field } from "./dialog";
 import { hapusBlokAction } from "../actions";
 
-export function HapusBlokButton({ lokasiId, blokId, blokName }: { lokasiId: string; blokId: string; blokName: string }) {
+export function HapusBlokButton({ lokasiId, blokId, blokName, alasanMax }: { lokasiId: string; blokId: string; blokName: string; alasanMax: number }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [alasan, setAlasan] = useState("Blok diganti denah baru");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  async function hapus() {
+    const result = await hapusBlokAction({ lokasiId, blokId, alasan });
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setOpen(false);
+    router.push(result.berikutnya);
+  }
 
   return (
     <>
@@ -39,15 +49,7 @@ export function HapusBlokButton({ lokasiId, blokId, blokName }: { lokasiId: stri
             onSubmit={(event) => {
               event.preventDefault();
               setMessage(null);
-              startTransition(async () => {
-                const result = await hapusBlokAction({ lokasiId, blokId, alasan });
-                if (!result.ok) {
-                  setMessage(result.message);
-                  return;
-                }
-                setOpen(false);
-                router.push(result.berikutnya);
-              });
+              startTransition(hapus);
             }}
           >
             {message ? (
@@ -56,7 +58,7 @@ export function HapusBlokButton({ lokasiId, blokId, blokName }: { lokasiId: stri
               </p>
             ) : null}
             <Field id="hapus-blok-alasan" label="Alasan" hint="Tersimpan di Log Audit Lokasi ini.">
-              <Input id="hapus-blok-alasan" value={alasan} onChange={(event) => setAlasan(event.target.value)} required maxLength={300} />
+              <Input id="hapus-blok-alasan" value={alasan} onChange={(event) => setAlasan(event.target.value)} required maxLength={alasanMax} />
             </Field>
             <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="ghost" size="lg" onClick={() => setOpen(false)}>

@@ -45,7 +45,7 @@ import {
   type HakPakaiDetail,
   type StaffInventoryReads,
 } from "./reads";
-import { bolehHapusBlok, hapusBlok, type BolehHapusBlok, type HapusBlokResult } from "./hapus-blok";
+import { ALASAN_HAPUS_BLOK_MAX, bolehHapusBlok, hapusBlok, type BolehHapusBlok, type HapusBlokResult } from "./hapus-blok";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
@@ -56,6 +56,7 @@ export type { InventoryDeps } from "./deps";
 export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BolehHapusBlok, HapusBlokResult };
+export { ALASAN_HAPUS_BLOK_MAX };
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";

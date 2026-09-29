@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { inventoryKavling, inventoryPetak } from "@/domain/inventory/schema";
 import type { Actor } from "@/domain/identity";
 import { newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform, tariffsOnTestDatabase } from "./tariffs";
@@ -8,7 +9,7 @@ import { newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform, tariffsOnTe
 /** The Inventory module on the test Postgres, next to Tariffs and Lokasi, sharing their fake Clock and Audit Log. */
 export function inventoryOnTestDatabase(db: Database) {
   const setup = tariffsOnTestDatabase(db);
-  const inventory = createInventory({ db, clock: setup.clock, audit: setup.audit, files: setup.files, tariffs: setup.tariffs, lokasi: setup.lokasi });
+  const inventory = createInventory({ db, clock: setup.clock, audit: setup.audit, files: setup.files, tariffs: setup.tariffs, lokasi: setup.lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
   return { ...setup, inventory };
 }
 

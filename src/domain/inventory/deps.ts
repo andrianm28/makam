@@ -16,4 +16,10 @@ export interface InventoryDeps {
   tariffs: Pick<Tariffs, "asStaff">;
   /** Whether a Lokasi Mitra is listed with Pemesanan Terencana on, and its own tumpang rules: the public Denah read needs both. */
   lokasi: Pick<Lokasi, "publicLokasiMitra">;
+  /**
+   * Whether any Pemesanan ever named one of these plots. Pemesanan owns those
+   * tables and refers to a Petak with no foreign key, so removing a Blok asks it
+   * (composed with `pernahMenyebutPetakAtauKavling` from the Pemesanan module).
+   */
+  pemesananPernahMenyebut: (db: Database, ids: { petakIds: string[]; kavlingIds: string[] }) => Promise<boolean>;
 }

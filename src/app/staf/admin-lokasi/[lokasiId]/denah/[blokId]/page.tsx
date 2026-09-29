@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { isPortConfigured } from "@/adapters/live/not-configured";
+import { ALASAN_HAPUS_BLOK_MAX } from "@/domain/inventory";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
 import { DenahEditor } from "./denah-editor";
@@ -32,6 +33,7 @@ export default async function BlokDenahPage({ params }: PageProps<"/staf/admin-l
       fileStoreConfigured={fileStoreConfigured}
       photoUrl={photoUrl}
       bolehHapus={bolehHapus.boleh}
+      alasanHapusMax={ALASAN_HAPUS_BLOK_MAX}
     />
   );
 }

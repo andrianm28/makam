@@ -20,6 +20,7 @@ import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
@@ -93,7 +94,7 @@ export async function seedSaatDukaCommand(
         identity,
         lokasi,
         tariffs,
-        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi }),
+        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling }),
         fieldwork: createFieldwork({
           db: database.db,
           clock: adapters.clock,

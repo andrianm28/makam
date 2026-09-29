@@ -156,6 +156,7 @@ export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDok
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
 export { HARGA_BANDS } from "./terencana";
+export { pernahMenyebutPetakAtauKavling } from "./riwayat-petak";
 /**
  * The Terencana wizard's boundaries. A Client Component (the wizard's form) takes
  * these from this file rather than from this module's barrel, because a bundler keeps
