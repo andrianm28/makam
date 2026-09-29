@@ -288,6 +288,13 @@
       "when": 1790656785818,
       "tag": "0040_familiar_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790659560561,
+      "tag": "0041_puzzling_human_cannonball",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@
  * Perpanjangan of a Hak Pakai at a Lokasi Mitra (spec, domain module 7; ticket
  * 40 builds the direct path: a code to the email recorded on the Hak Pakai).
  *
- * Owns table: perpanjangan.
+ * Owns tables: perpanjangan, and perpanjangan_permohonan (the manual paths, ticket 41).
  *
  * A Perpanjangan is open from 3 months before the end date to the end of the
  * Masa Tenggang. The family chooses 1..K terms, gets a pay-first Tagihan
@@ -11,13 +11,12 @@
  * its own term from the end date on record, issues the Bukti Perpanjangan and
  * makes the Pencairan due (`./efek.ts`).
  *
- * Built for the tickets that follow: the manual paths (ticket 41: KTP, heir,
- * claim) end in the same `ajukanPerpanjangan` once an Admin Lokasi has approved
- * a request, so they add their own entry beside it (approval-backed, valid 30
- * days) and reuse `statusPerpanjangan`, `tawaranPerpanjangan` and the payment
- * effect unchanged. The Hak Pakai's expiry reminders and Kedaluwarsa transition
- * (ticket 42) read `perpanjanganUntukHakPakai` to stop reminding once one is
- * ordered. Neither is built here.
+ * The manual paths (ticket 41: KTP, heir, claim; `./permohonan.ts`) end in the
+ * same order step (`pesanTagihan`) once an Admin Lokasi has approved a request,
+ * approval-backed and valid 30 days, and reuse `statusPerpanjangan`,
+ * `tawaranPerpanjangan` and the payment effect unchanged. The Hak Pakai's expiry
+ * reminders and Kedaluwarsa transition (ticket 42) read
+ * `perpanjanganUntukHakPakai` to stop reminding once one is ordered.
  *
  * Reaches its neighbours only through their public functions: the Hak Pakai from
  * Inventory, the price from Tariffs, the Tagihan and the Bukti from Billing, the
@@ -26,6 +25,7 @@
  */
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import type { Actor } from "@/domain/identity";
 import type { PerpanjanganDeps } from "./deps";
 import {
   ajukanPerpanjangan,
@@ -42,11 +42,52 @@ import {
   type TawaranResult,
 } from "./ajukan";
 import { kirimKode, verifikasiKode, type KirimKodeResult, type VerifikasiKodeResult } from "./kode";
+import {
+  ajukanPermohonan,
+  antreanPeriksaDokumen,
+  batalkanPermohonan,
+  mintaPerbaikanPermohonan,
+  perbaikiPermohonan,
+  permohonanOf,
+  permohonanSaya,
+  permohonanUntukStaf,
+  pesanDariPermohonan,
+  setujuiPermohonan,
+  statusManual,
+  tolakPermohonan,
+  type AjukanPermohonanResult,
+  type KeputusanResult,
+  type PermohonanTercatat,
+  type PermohonanUntukStaf,
+  type PesanDariPermohonanResult,
+  type PeriksaDokumenRow,
+  type StatusManual,
+  type UbahPermohonanResult,
+} from "./permohonan";
 import { perpanjangan } from "./schema";
 
 export { efekPerpanjangan, type EfekPerpanjanganDeps } from "./efek";
 export { bolehDiperpanjang, samarkanEmail, tambahBulan, BULAN_SEBELUM_BERAKHIR, type CatatanPerpanjangan, type FaktaHakPakai } from "./aturan";
 export { ajukanPerpanjanganSchema };
+export {
+  ajukanPermohonanSchema,
+  batalkanPermohonanSchema,
+  berkasUntukJalur,
+  BERKAS_PERMOHONAN_MAX_BYTES,
+  JALUR_LABEL,
+  jalurManual,
+  MASA_BERLAKU_PERSETUJUAN_HARI,
+  perbaikiPermohonanSchema,
+  pesanDariPermohonanSchema,
+  putuskanPermohonanSchema,
+  setujuiPermohonanSchema,
+  TENGGAT_PERIKSA_HARI_KERJA,
+  type JalurManual,
+  type JenisBerkas,
+  type PermohonanRefusal,
+  type StatusPermohonan,
+} from "./permohonan";
+export type { AjukanPermohonanResult, KeputusanResult, PermohonanTercatat, PermohonanUntukStaf, PesanDariPermohonanResult, PeriksaDokumenRow, StatusManual, UbahPermohonanResult };
 export type { AjukanPerpanjanganInput, AjukanResult, JalurBukti, KirimKodeResult, OpsiMasa, Pemohon, StatusPerpanjangan, TagihanTerbuka, TawaranResult, VerifikasiKodeResult };
 export type { PerpanjanganDeps } from "./deps";
 
@@ -81,6 +122,30 @@ export interface Perpanjangan {
   verifikasiKode(input: { hakPakaiId: string; code: string }): Promise<VerifikasiKodeResult>;
   /** Orders a Perpanjangan: the pay-first Tagihan addressed to the Pemegang Hak, announced by email. The asker must hold the recorded Email Terverifikasi. */
   ajukan(input: AjukanPerpanjanganInput): Promise<AjukanResult>;
+  /** Whether a manual request can be filed for this Hak Pakai now and by which paths (a claim needs no holder on record; a KTP or an heir needs one), or the note that replaces the form. */
+  statusManual(hakPakaiId: string): Promise<StatusManual>;
+  /** Files a manual request (KTP, heir, claim) with its documents in the private FileStore: Diajukan, due in 2 working days (ticket 41). */
+  ajukanPermohonan(pemohon: Pemohon, input: unknown): Promise<AjukanPermohonanResult>;
+  /** The applicant corrects a request that Perlu Perbaikan: it is Diajukan again. */
+  perbaikiPermohonan(pemohon: Pemohon, input: unknown): Promise<UbahPermohonanResult>;
+  /** The applicant withdraws a request before a decision. */
+  batalkanPermohonan(pemohon: Pemohon, input: unknown): Promise<UbahPermohonanResult>;
+  /** The applicant's own requests, newest first. */
+  permohonanSaya(pemohon: Pick<Pemohon, "accountId">): Promise<PermohonanTercatat[]>;
+  /** One request of the applicant's own, or null. */
+  permohonanOf(pemohon: Pemohon, permohonanId: string): Promise<PermohonanTercatat | null>;
+  /** Orders the Perpanjangan on an approved request (valid 30 days from the approval): the same order step as `ajukan`. */
+  pesanDariPermohonan(pemohon: Pemohon, input: unknown): Promise<PesanDariPermohonanResult>;
+  /** The "Periksa dokumen Perpanjangan" rows of one Lokasi Mitra: requests still Diajukan, soonest due first. */
+  antreanPeriksaDokumen(lokasiId: string): Promise<PeriksaDokumenRow[]>;
+  /** One request with short-lived links to its documents, for that Lokasi's own Admin Lokasi only (null for anyone else). */
+  permohonanUntukStaf(by: Actor, permohonanId: string): Promise<PermohonanUntukStaf | null>;
+  /** The Admin Lokasi approves a request: records the holder or contact, completes a Perlu Verifikasi Hak Pakai, starts the 30 days. Audited. */
+  setujuiPermohonan(by: Actor, input: unknown): Promise<KeputusanResult>;
+  /** The Admin Lokasi rejects a request with a reason. Audited. */
+  tolakPermohonan(by: Actor, input: unknown): Promise<KeputusanResult>;
+  /** The Admin Lokasi sends a request back with what to fix. Audited. */
+  mintaPerbaikanPermohonan(by: Actor, input: unknown): Promise<KeputusanResult>;
   /** One Perpanjangan by its id, or null. */
   perpanjanganOf(id: string): Promise<PerpanjanganTercatat | null>;
   /** Every Perpanjangan of a Hak Pakai, newest first: what ticket 42's reminders read to stop once one is ordered. */
@@ -114,6 +179,18 @@ export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
     kirimKode: (input) => kirimKode(deps, input),
     verifikasiKode: (input) => verifikasiKode(deps, input),
     ajukan: (input) => ajukanPerpanjangan(deps, input),
+    statusManual: (hakPakaiId) => statusManual(deps, hakPakaiId),
+    ajukanPermohonan: (pemohon, input) => ajukanPermohonan(deps, pemohon, input),
+    perbaikiPermohonan: (pemohon, input) => perbaikiPermohonan(deps, pemohon, input),
+    batalkanPermohonan: (pemohon, input) => batalkanPermohonan(deps, pemohon, input),
+    permohonanSaya: (pemohon) => permohonanSaya(deps, pemohon),
+    permohonanOf: (pemohon, permohonanId) => permohonanOf(deps, pemohon, permohonanId),
+    pesanDariPermohonan: (pemohon, input) => pesanDariPermohonan(deps, pemohon, input),
+    antreanPeriksaDokumen: (lokasiId) => antreanPeriksaDokumen(deps, lokasiId),
+    permohonanUntukStaf: (by, permohonanId) => permohonanUntukStaf(deps, by, permohonanId),
+    setujuiPermohonan: (by, input) => setujuiPermohonan(deps, by, input),
+    tolakPermohonan: (by, input) => tolakPermohonan(deps, by, input),
+    mintaPerbaikanPermohonan: (by, input) => mintaPerbaikanPermohonan(deps, by, input),
     perpanjanganOf: async (id) => {
       if (!z.uuid().safeParse(id).success) return null;
       const [row] = await deps.db.select().from(perpanjangan).where(eq(perpanjangan.id, id));

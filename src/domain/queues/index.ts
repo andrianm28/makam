@@ -25,6 +25,7 @@ import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
@@ -103,6 +104,8 @@ export interface QueuesModuleDeps {
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
+  perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */

@@ -222,6 +222,23 @@ describe("who may complete a Hak Pakai flagged Perlu Verifikasi (hak_pakai.seles
   });
 });
 
+describe("who may review a manual Perpanjangan request and record a holder (perpanjangan.periksa, hak_pakai.ubah_pemegang)", () => {
+  it("only that Lokasi's own Admin Lokasi: not Admin Platform, another Lokasi's Admin Lokasi, other staff or a family", () => {
+    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
+    const otherLokasiId = "5d1f4c2e-0000-4000-8000-000000000002";
+    const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
+    const adminLokasiElsewhere = { ...staff(["admin_lokasi"]), lokasiIds: [otherLokasiId] };
+
+    for (const action of ["perpanjangan.periksa", "hak_pakai.ubah_pemegang"] as const) {
+      expect(authorize(adminLokasi, action, lokasiMitraResource(lokasiId))).toEqual({ allowed: true });
+      for (const who of [adminPlatform, adminLokasiElsewhere, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
+        expect(authorize(who, action, lokasiMitraResource(lokasiId))).toEqual({ allowed: false, reason: "tidak_berwenang" });
+      }
+      expect(authorize(adminLokasi, action, semuaLokasiMitraResource())).toEqual({ allowed: false, reason: "tidak_berwenang" });
+    }
+  });
+});
+
 describe("who may see a Lokasi Mitra's Denah (denah.lihat)", () => {
   it("Admin Platform sees every Lokasi Mitra's Denah; an Admin Lokasi only its own", () => {
     const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";

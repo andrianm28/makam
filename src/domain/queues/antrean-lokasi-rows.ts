@@ -184,6 +184,31 @@ export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
 };
 
 /**
+ * "Periksa dokumen Perpanjangan" (Lainnya): every manual Perpanjangan request (KTP, heir,
+ * claim) of that Lokasi Mitra still Diajukan, due 2 working days after it was filed on the
+ * Lokasi's Jam Operasional calendar (spec, Work Queues; ticket 41). A request the Admin Lokasi
+ * sent back (Perlu Perbaikan) leaves the list until the applicant files it again, and one that
+ * is decided or withdrawn closes its own row.
+ */
+export const periksaDokumenPerpanjanganRowType: AntreanLokasiRowType = {
+  key: "periksa_dokumen_perpanjangan",
+  grup: "lainnya",
+  label: "Periksa dokumen Perpanjangan",
+  async rows(deps, _by, lokasiId) {
+    const terbuka = await deps.perpanjangan.antreanPeriksaDokumen(lokasiId);
+    return terbuka.map((satu) => ({
+      type: "periksa_dokumen_perpanjangan",
+      label: "Periksa dokumen Perpanjangan",
+      subjectKind: "perpanjangan_permohonan",
+      subjectId: satu.id,
+      subjectLabel: `Petak ${satu.petakNomor} · ${satu.nama}`,
+      href: `/staf/admin-lokasi/${lokasiId}/perpanjangan/${satu.id}`,
+      deadline: satu.tenggatPada,
+    }));
+  },
+};
+
+/**
  * "Layanan hari ini" (Mendesak): the jobs of that Lokasi Mitra whose target date
  * is today, so a job that can be done today is at the top of the list. No
  * deadline of its own — the day the family asked for is the deadline, and the
@@ -269,6 +294,7 @@ export const layananTerlambatRowType: AntreanLokasiRowType = {
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
   konfirmasiTerencanaRowType,
+  periksaDokumenPerpanjanganRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
   catatPemakamanRowType,

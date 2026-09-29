@@ -71,7 +71,7 @@ export interface Pemohon {
 }
 
 /** The facts of one Hak Pakai every step reads, or the note that stops it. */
-async function fakta(deps: PerpanjanganDeps, hakPakaiId: string) {
+export async function fakta(deps: PerpanjanganDeps, hakPakaiId: string) {
   const hak = await deps.inventory.hakPakaiUntukPerpanjangan(hakPakaiId);
   if (!hak) return { ok: false as const, catatan: { kind: "hubungi_admin_lokasi", sebab: "tidak_ditemukan" } satisfies CatatanPerpanjangan };
   const aturan = await deps.lokasi.aturanPerpanjanganOf(hak.lokasiId);
@@ -88,18 +88,18 @@ async function fakta(deps: PerpanjanganDeps, hakPakaiId: string) {
 }
 
 /** Whether a note says the Hak Pakai has nothing to extend at all (perpetual, Berakhir or Dibatalkan): it wins over every other note. */
-function tidakAdaYangDiperpanjang(catatan: CatatanPerpanjangan): boolean {
+export function tidakAdaYangDiperpanjang(catatan: CatatanPerpanjangan): boolean {
   if (catatan.kind === "selamanya") return true;
   return catatan.kind === "hubungi_admin_lokasi" && (catatan.sebab === "berakhir" || catatan.sebab === "dibatalkan");
 }
 
 /** The Petak Makam, or the Kavling Keluarga with its Petak, as the family knows it. */
-function labelPetak(hak: { petakNomor: string[]; nomorKavling: string | null }): string {
+export function labelPetak(hak: { petakNomor: string[]; nomorKavling: string | null }): string {
   return hak.nomorKavling ? `Kavling ${hak.nomorKavling} (${hak.petakNomor.join(", ")})` : hak.petakNomor.join(", ");
 }
 
 /** The Perpanjangan of this Hak Pakai that still waits for its money, if there is one. */
-async function terbukaOf(deps: PerpanjanganDeps, hakPakaiId: string, now: Date): Promise<TagihanTerbuka | null> {
+export async function terbukaOf(deps: PerpanjanganDeps, hakPakaiId: string, now: Date): Promise<TagihanTerbuka | null> {
   const rows = await deps.db
     .select()
     .from(perpanjangan)
@@ -233,6 +233,23 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
   const akun = await deps.identity.accountByEmail(email);
   if (!akun || akun.id !== input.pemohon.accountId) return { ok: false, reason: "bukan_pemegang_hak" };
 
+  return pesanTagihan(deps, { hak, aturan, akun, terms: input.terms, now, permohonanId: null });
+}
+
+/** The Hak Pakai and the Lokasi's rules a Perpanjangan is ordered on (what `fakta` returned). */
+type DasarPesanan = Extract<Awaited<ReturnType<typeof fakta>>, { ok: true }>;
+
+/**
+ * The order step every path ends in (ticket 40's direct path, and ticket 41's approved manual
+ * paths): terms within the Lokasi's K, the price from Tariffs, and the pay-first Tagihan addressed
+ * to the Pemegang Hak on record, announced in the same transaction. The caller has already proven
+ * who is asking; `permohonanId` names the approved request the order rests on, when there is one.
+ */
+export async function pesanTagihan(
+  deps: PerpanjanganDeps,
+  input: { hak: DasarPesanan["hak"]; aturan: DasarPesanan["aturan"]; akun: { id: string; email: string }; terms: number; now: Date; permohonanId: string | null },
+): Promise<AjukanResult> {
+  const { hak, aturan, akun, now } = input;
   if (input.terms > aturan.maxPerpanjanganTerms) return { ok: false, reason: "terms_melebihi_batas", maxTerms: aturan.maxPerpanjanganTerms };
   const nama = hak.pemegangHak?.name;
   const telepon = hak.pemegangHak?.phoneNumber;
@@ -278,6 +295,7 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
         nomorTagihan: tagihan.tagihan.nomorTagihan,
         pemohonAccountId: akun.id,
         email: akun.email,
+        permohonanId: input.permohonanId,
         dibuatPada: now,
       })
       .returning({ id: perpanjangan.id });
