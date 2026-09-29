@@ -62,7 +62,7 @@ export interface RefundsDeps {
   files: FileStore;
   lokasi: Pick<Lokasi, "adminPlatformCalendar">;
   billing: Pick<Billing, "within" | "tagihan" | "tagihanMenungguPengembalian">;
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   operatorSettings: Pick<OperatorSettings, "current">;
   /** The Bukti Pengembalian Dana page's absolute URL: what the Pemesan is sent and a Potongan links to. */

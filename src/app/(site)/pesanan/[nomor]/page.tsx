@@ -45,7 +45,10 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
     // tables; an order that is neither, or is another Akun's, is nothing found.
     const terencana = await terencanaFor(params);
     if (!terencana) notFound();
-    return <TerencanaPesanan order={terencana} />;
+    // `terencanaFor` sent a visitor with no session to Masuk, so there is an Akun here.
+    const pemesan = await currentActor();
+    if (!pemesan) redirect("/masuk");
+    return <TerencanaPesanan order={terencana} accountId={pemesan.accountId} />;
   }
   const { billing, lokasi, pemesanan, refunds } = serverRuntime();
   const actor = await currentActor();

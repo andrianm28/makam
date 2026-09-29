@@ -401,6 +401,32 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
     if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
-    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "sudah_ada_permintaan_terbuka" });
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "menunggu_transfer" });
+  });
+
+  it("is a full refund only when the lines really are everything the fault rule returns: the fee kept, nothing else left behind", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { tagihan, baris } = await barisPertama(setup, fixture.tagihanId);
+    const semuaBaris = tagihan.lines
+      .filter((satu) => satu.kind !== "biaya_layanan_platform")
+      .map((satu) => ({ label: satu.label, amount: satu.amount, lokasiId: satu.provider.kind === "lokasi_mitra" ? satu.provider.lokasiId : null }));
+
+    // A part of the tariff is not "penuh", and neither is the whole tariff less one rupiah.
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", penuh: true, lines: [baris] })).toEqual({ ok: false, reason: "input_tidak_valid" });
+    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", penuh: true, lines: [{ ...semuaBaris[0], amount: semuaBaris[0].amount - 1 }, ...semuaBaris.slice(1)] })).toEqual({
+      ok: false,
+      reason: "input_tidak_valid",
+    });
+
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", penuh: true, lines: semuaBaris });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ penuh: true, biayaLayananPlatformDikembalikan: false, jumlah: tagihan.total - 150_000 });
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer });
+    expect(terbit.ok).toBe(true);
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
   });
 });

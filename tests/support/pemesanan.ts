@@ -1,5 +1,7 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
+import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
 import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
@@ -17,7 +19,11 @@ import type {
   TerencanaDiajukan,
 } from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan } from "@/domain/perpanjangan";
+import { createQueues } from "@/domain/queues";
+import { createRefunds } from "@/domain/refunds";
 import type {
+  PembatalanTerencanaInput,
   PengurusanDikonfirmasiInput,
   TerencanaBatasBayarLewatInput,
   TerencanaBuktiInput,
@@ -26,7 +32,7 @@ import type {
 } from "@/domain/notifications";
 import { masaPembatalanDimulai } from "@/domain/payouts";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
-import { PENGATURAN_OPERATOR } from "./billing";
+import { PENGATURAN_OPERATOR, TEST_PUBLIC_ORIGIN } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { payoutsFor } from "./payouts";
@@ -60,6 +66,8 @@ export function pemesananOnTestDatabase(
   const terencanaDitolak: TerencanaDitolakInput[] = [];
   const terencanaBatasBayarLewat: TerencanaBatasBayarLewatInput[] = [];
   const terencanaBukti: TerencanaBuktiInput[] = [];
+  /** What a Pembatalan's answers announced (ticket 38), for a test that reads the family message. */
+  const pembatalanTerencana: PembatalanTerencanaInput[] = [];
   /** Every decline, alternative and cancellation the module announced, for a test that reads the family message. */
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
@@ -106,6 +114,9 @@ export function pemesananOnTestDatabase(
     terencanaBukti: async (_tx, input) => {
       terencanaBukti.push(input);
     },
+    pembatalanTerencana: async (_tx, input) => {
+      pembatalanTerencana.push(input);
+    },
     tidakTertagihDinyatakan: async () => {},
     chasingDijadwalkan: async (input) => {
       chasingDijadwalkan.push(input);
@@ -151,6 +162,10 @@ export function pemesananOnTestDatabase(
       }),
     ],
   });
+  // The Pemakaman a recording tells Payouts (ticket 90): the real module on the same database.
+  const { payouts } = payoutsFor(setup);
+  // Refunds asks Pemesanan who placed an order, and Pemesanan asks Refunds for the refund of a Pembatalan (ticket 38).
+  const refundsMenunggu = refundsTertunda();
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -160,8 +175,8 @@ export function pemesananOnTestDatabase(
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing,
-    // The Pemakaman a recording tells Payouts (ticket 90): the real module on the same database.
-    payouts: payoutsFor(setup).payouts,
+    payouts,
+    refunds: refundsMenunggu.refunds,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
@@ -188,11 +203,73 @@ export function pemesananOnTestDatabase(
       },
     },
   });
+  const refunds = createRefunds({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    billing,
+    payouts,
+    notifications: setup.notifications,
+    operatorSettings: setup.operatorSettings,
+    buktiUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
+    pemilikPesanan: pemilikPesananDari(pemesanan),
+  });
+  refundsMenunggu.sambungkan(refunds);
+  // The Antrean beside them, for a test of the Pembatalan rows (ticket 38): the Antrean Lokasi's own and Admin Platform's Tier 3.
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing,
+    identity: setup.identity,
+    refunds,
+    payouts,
+    notifications: setup.notifications,
+  });
+  const perpanjangan = createPerpanjangan({
+    db,
+    clock: setup.clock,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing,
+    pemesanan,
+    identity: setup.identity,
+    files: setup.files,
+    audit: setup.audit,
+    notifikasi: setup.notifications,
+  });
+  const queues = createQueues({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    identity: setup.identity,
+    lokasi: setup.lokasi,
+    fieldwork: setup.fieldwork,
+    billing,
+    notifications: setup.notifications,
+    inventory: setup.inventory,
+    pemesanan,
+    layanan,
+    payouts,
+    pengurusan,
+    perpanjangan,
+    refunds,
+  });
   return {
     ...setup,
     billing,
     pemesanan,
     pengurusan,
+    payouts,
+    refunds,
+    queues,
     diumumkan,
     dikonfirmasi,
     buktiPemesanan,
@@ -204,6 +281,7 @@ export function pemesananOnTestDatabase(
     terencanaDitolak,
     terencanaBatasBayarLewat,
     terencanaBukti,
+    pembatalanTerencana,
     notifikasi: terkumpul,
     pengurusanDikonfirmasi,
     chasingDijadwalkan,
@@ -230,9 +308,13 @@ export type PemesananModul = Omit<
   | "terencanaDitolak"
   | "terencanaBatasBayarLewat"
   | "terencanaBukti"
+  | "pembatalanTerencana"
   | "notifikasi"
   | "pengurusanDikonfirmasi"
   | "chasingDijadwalkan"
+  | "payouts"
+  | "refunds"
+  | "queues"
 >;
 
 /**

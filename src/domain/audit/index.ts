@@ -181,6 +181,12 @@ export type AuditAction =
   | "pemesanan.tolak_terencana"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
   | "pemesanan.centang_dokumen"
+  /** An Admin Lokasi confirms there is no Pemakaman and approves a Pembatalan of a paid Terencana order: the Hak Pakai is Dibatalkan and the refund asked (ticket 38). */
+  | "pembatalan_terencana.setujui"
+  /** An Admin Lokasi declines a Pembatalan of a paid Terencana order, with a reason (ticket 38). */
+  | "pembatalan_terencana.tolak"
+  /** An Admin Lokasi sends a Pembatalan request back for a fix (ticket 38). */
+  | "pembatalan_terencana.minta_perbaikan"
   /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */
   | "pencairan.tahan"
   /** Admin Platform overrides what a Pencairan item pays after a Keluhan, with a note (ticket 32). */

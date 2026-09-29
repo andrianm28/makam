@@ -184,6 +184,30 @@ export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
 };
 
 /**
+ * "Pembatalan" (Lainnya): every Pembatalan request of a paid Terencana order at that Lokasi Mitra still Diajukan,
+ * due 2 Hari Kerja after it was filed on the Lokasi's own calendar (spec, Work Queues: requests from the Pemegang
+ * Hak; ticket 38). It closes itself when the Admin Lokasi answers, when the request is sent back for a fix (it is
+ * back when filed again) and when the family withdraws it. Lainnya, not Mendesak: nobody waits on a burial.
+ */
+export const pembatalanTerencanaRowType: AntreanLokasiRowType = {
+  key: "pembatalan_terencana",
+  grup: "lainnya",
+  label: "Pembatalan",
+  async rows(deps, _by, lokasiId) {
+    const permintaan = await deps.pemesanan.antreanPembatalan(lokasiId);
+    return permintaan.map((satu) => ({
+      type: "pembatalan_terencana",
+      label: "Pembatalan",
+      subjectKind: "permintaan_pembatalan_terencana",
+      subjectId: satu.id,
+      subjectLabel: `${satu.nomor} · ${satu.unit.join(", ")}`,
+      href: pemakamanHref(lokasiId, satu.nomor),
+      deadline: satu.tenggatPada,
+    }));
+  },
+};
+
+/**
  * "Periksa dokumen Perpanjangan" (Lainnya): every manual Perpanjangan request (KTP, heir,
  * claim) of that Lokasi Mitra still Diajukan, due 2 working days after it was filed on the
  * Lokasi's Jam Operasional calendar (spec, Work Queues; ticket 41). A request the Admin Lokasi
@@ -320,6 +344,7 @@ export const kerjakanUlangRowType: AntreanLokasiRowType = {
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
   konfirmasiTerencanaRowType,
+  pembatalanTerencanaRowType,
   periksaDokumenPerpanjanganRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,

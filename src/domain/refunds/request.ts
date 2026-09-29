@@ -197,6 +197,8 @@ const RUPIAH_MAX_LINE = 10_000_000_000;
 
 const ajukanBarisSchema = z.object({
   pihakBersalah: z.enum(pihakBersalahKinds),
+  penuh: z.boolean().optional(),
+  penuhBilaLengkap: z.boolean().optional(),
   lines: z
     .array(
       z.object({
@@ -211,6 +213,18 @@ const ajukanBarisSchema = z.object({
 
 export interface AjukanBarisInput {
   pihakBersalah: PihakBersalah;
+  /**
+   * True when the lines return everything the fault rule lets this Tagihan return (a Pembatalan within its Masa
+   * Pembatalan: the whole tariff, the Biaya Layanan Platform kept). Only then is the Tagihan Dikembalikan penuh, the
+   * Lokasi Mitra's Pencairan cancelled and never made later. Refused unless it really is everything; default false.
+   */
+  penuh?: boolean;
+  /**
+   * The request is "penuh" exactly when, with this one, everything the fee rule returns has been asked (a Pembatalan of the
+   * last Hak Pakai of an order, every earlier one refunded in full); otherwise it is an ordinary partial request. Never refused
+   * for not being complete, unlike `penuh`.
+   */
+  penuhBilaLengkap?: boolean;
   /** The lines of the Tagihan to return, the Biaya Layanan Platform excluded: whether that fee comes back is Refunds' rule. */
   lines: RefundLine[];
 }
@@ -224,7 +238,7 @@ export type AjukanBarisResult =
       jumlah: number;
       biayaLayananPlatformDikembalikan: boolean;
     }
-  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" };
+  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" | "menunggu_transfer" };
 
 /**
  * A refund request for some lines of a paid Tagihan: what an order cancelled one
@@ -271,7 +285,16 @@ async function ajukanBarisTerkunci(
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);
   if (jumlah === 0 || sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };
 
+  // A "penuh" request is everything the Tagihan can return: nothing may stay behind but the fee the fault rule keeps.
+  const feeDitahan = feeLine !== undefined && !denganFee && !feeSudahDikembalikan ? feeLine.amount : 0;
+  const lengkap = sudah + jumlah + feeDitahan === tagihan.total;
+  if (parsed.data.penuh && !lengkap) return { ok: false, reason: "input_tidak_valid" };
+  const penuh = lengkap && (parsed.data.penuh === true || parsed.data.penuhBilaLengkap === true);
+
   const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
+  if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
+  // An earlier request already approved is waiting for its transfer: nothing may join it now, and the caller can say so plainly.
+  if (terbuka?.status === "disetujui") return { ok: false, reason: "menunggu_transfer" };
   if (terbuka) {
     if (terbuka.status !== "diajukan" || terbuka.goodwill || terbuka.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
     await deps.db
@@ -280,6 +303,8 @@ async function ajukanBarisTerkunci(
         lines: [...(terbuka.lines as RefundLine[]), ...lines],
         jumlah: rupiahSchema.parse(terbuka.jumlah + jumlah),
         biayaLayananPlatformDikembalikan: terbuka.biayaLayananPlatformDikembalikan || denganFee,
+        // Joining may complete the Tagihan: everything the fee rule returns is then asked, and the request is "penuh".
+        penuh,
       })
       .where(and(eq(permintaanPengembalian.id, terbuka.id), eq(permintaanPengembalian.status, "diajukan")));
     return { ok: true, permintaanId: terbuka.id, lines, jumlah, biayaLayananPlatformDikembalikan: denganFee };
@@ -293,7 +318,7 @@ async function ajukanBarisTerkunci(
     pihakBersalah: parsed.data.pihakBersalah,
     biayaLayananPlatformDikembalikan: denganFee,
     goodwill: false,
-    penuh: false,
+    penuh,
     lines,
     jumlah: rupiahSchema.parse(jumlah),
     catatan: null,

@@ -4,11 +4,13 @@ import { StatusBadge } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import type { PemesananTerencanaOrder } from "@/domain/pemesanan";
 import { tagihanStatusText } from "@/lib/billing-labels";
+import { artiStatusPermintaan, statusPermintaanBadge } from "@/lib/pembatalan-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
+import { RekeningPengembalianForm } from "./rekening-pengembalian-form";
 import { TarikTerencanaForm } from "./tarik-terencana-form";
 
 /** The Terencana wizard's first step: where a declined, withdrawn or lapsed order sends the family to choose again. */
@@ -20,12 +22,19 @@ const LANGKAH_LOKASI = "/pesan-makam/terencana";
  * what the family can do now. Diajukan waits for the Lokasi Mitra; Dikonfirmasi is the
  * payment hold, with the Tagihan to pay and the free withdrawal; Aktif holds the Bukti
  * Pemesanan; Ditolak, and Dibatalkan by a lapse or a withdrawal, send the family back to
- * the Lokasi step.
+ * the Lokasi step. A Pembatalan the Pemegang Hak asked for (ticket 38) shows where it stands, and
+ * once the Lokasi Mitra approved it, the refund waits here for the bank account of the Pemesan
+ * who paid: the Pemesan may be somebody other than the Pemegang Hak who asked.
  */
-export async function TerencanaPesanan({ order }: { order: PemesananTerencanaOrder }) {
-  const { billing } = serverRuntime();
+export async function TerencanaPesanan({ order, accountId }: { order: PemesananTerencanaOrder; accountId: string }) {
+  const { billing, pemesanan, refunds } = serverRuntime();
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
   const bukti = order.buktiPemesananId ? await billing.buktiPemesananById(order.buktiPemesananId) : null;
+  const pembatalan = await pemesanan.pembatalanUntukPesanan({ accountId }, order.nomor);
+  // A refund on this order waiting for a bank account: the page is the Pemesan's own, so only they see it.
+  const pengembalian = await refunds.permintaanUntukPesanan(order.nomor);
+  // An order that was ever Aktif was paid, so its end is a Pembatalan and not a withdrawal: it must never say that nothing was charged.
+  const pernahDibayar = order.aktifPada !== null;
   const langkah = [
     { status: "diajukan" as const, tercapai: true },
     { status: "dikonfirmasi" as const, tercapai: order.dikonfirmasiPada !== null },
@@ -108,6 +117,40 @@ export async function TerencanaPesanan({ order }: { order: PemesananTerencanaOrd
         </section>
       ) : null}
 
+      {pembatalan.map((satu) => (
+        <section key={satu.id} className="flex flex-col gap-3" data-testid="pembatalan-terencana">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-title-3 text-foreground">Pembatalan petak {satu.unitNomor}</h2>
+            <StatusBadge status={statusPermintaanBadge[satu.status]} />
+          </div>
+          <p className="text-body text-muted-foreground">
+            Pemegang Hak mengajukan Pembatalan petak {satu.unitNomor} pada {formatTanggalJam(satu.diajukanPada)}. {artiStatusPermintaan(satu.status)} Petak lain pada pesanan ini
+            tidak terpengaruh.
+          </p>
+          {satu.status === "disetujui" ? (
+            <p className="text-body text-muted-foreground">
+              {satu.jumlahRefund > 0
+                ? `Pengembalian dana ${formatRupiah(satu.jumlahRefund)} (${satu.dalamMasaPembatalan ? "seluruh tarif Hak Pakai petak ini, masih dalam Masa Pembatalan" : `${satu.persenRefund}% dari tarif Hak Pakai petak ini, sesuai Syarat`}) dikirim kepada Pemesan yang membayar. Biaya Layanan Platform tidak dikembalikan.`
+                : "Menurut Syarat pesanan ini, tidak ada pengembalian dana untuk Pembatalan setelah Masa Pembatalan berakhir."}
+            </p>
+          ) : null}
+        </section>
+      ))}
+
+      {pengembalian ? (
+        pengembalian.status === "diajukan" ? (
+          <RekeningPengembalianForm
+            nomor={order.nomor}
+            jumlahLabel={formatRupiah(pengembalian.jumlah)}
+            rekeningTercatat={pengembalian.rekening ? `${pengembalian.rekening.bank} ****${pengembalian.rekening.nomor.slice(-4)}` : null}
+          />
+        ) : (
+          <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="rekening-pengembalian-terkunci">
+            Pengembalian dana {formatRupiah(pengembalian.jumlah)} sudah disetujui dan menunggu transfer. Untuk mengubah rekening, hubungi CS.
+          </p>
+        )
+      ) : null}
+
       {berakhir ? (
         <section className="flex flex-col gap-3" data-testid="terencana-berakhir">
           <h2 className="text-title-3 text-foreground">{order.status === "ditolak" ? "Pesanan belum bisa dilayani" : "Pesanan dibatalkan"}</h2>
@@ -115,7 +158,7 @@ export async function TerencanaPesanan({ order }: { order: PemesananTerencanaOrd
             {order.status === "ditolak"
               ? `${order.lokasi.name} belum bisa melayani pesanan ini.`
               : "Pesanan ini dibatalkan dan petaknya sudah dilepas."}
-            {order.alasan ? ` Alasannya: ${order.alasan}.` : ""} Tidak ada yang ditagih.
+            {order.alasan ? ` Alasannya: ${order.alasan}.` : ""} {pernahDibayar ? "Hak Pakai atas petak ini sudah dibatalkan." : "Tidak ada yang ditagih."}
           </p>
           <Link href={LANGKAH_LOKASI} className={cn(buttonVariants({ variant: "default" }), "self-start")} data-testid="pilih-lokasi-lain">
             Pilih Lokasi Mitra lain

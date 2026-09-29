@@ -1,6 +1,7 @@
 import { FakePdfRenderer } from "@/adapters/memory";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
+import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
 import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
 import { createRefunds } from "@/domain/refunds";
@@ -73,6 +74,8 @@ export function payoutsOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db, { paymentEffects: [efekPencairanSaatLunas()] });
   // Payouts first: the Pemesanan module tells it every Pemakaman it records (ticket 90).
   const { payouts, dikirim } = payoutsFor(setup);
+  // Refunds asks Pemesanan who placed an order and Pemesanan asks Refunds for a Pembatalan's refund: one is reached through a lazy box.
+  const refundsMenunggu = refundsTertunda();
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -85,6 +88,7 @@ export function payoutsOnTestDatabase(db: Database) {
     payouts,
     identity: setup.identity,
     notifications: setup.notifications,
+    refunds: refundsMenunggu.refunds,
   });
   // Ticket 44 put the Pengurusan module on `PemesananSetup`, and every fixture
   // that composes the Pemesanan module itself owes one: `PemesananModul` is an
@@ -121,8 +125,9 @@ export function payoutsOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     operatorSettings: setup.operatorSettings,
     buktiUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
-    pemilikPesanan: async (nomor, accountId) => (await pemesanan.orderOf(nomor, { accountId })) !== null,
+    pemilikPesanan: pemilikPesananDari(pemesanan),
   });
+  refundsMenunggu.sambungkan(refunds);
   // The Antrean beside it: the Tier 3 "Pencairan" and "refund transfer" rows are
   // the Payouts and Refunds queries the Work Queues module projects, and a test
   // of one wants the others.

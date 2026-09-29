@@ -8,7 +8,7 @@ import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
-import { composeRefunds } from "@/composition/refunds";
+import { composeRefunds, refundsTertunda } from "@/composition/refunds";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
@@ -128,6 +128,8 @@ export function serverRuntime(): ServerRuntime {
       reportError,
     });
     const notifikasi = pemesananNotifikasiDari(notifications);
+    // Refunds is composed after Pemesanan (it asks who placed an order), and an approved Pembatalan asks it for a refund: the lazy box filled below.
+    const refundsMenunggu = refundsTertunda();
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -161,6 +163,7 @@ export function serverRuntime(): ServerRuntime {
       },
       identity,
       notifikasi,
+      refunds: refundsMenunggu.refunds,
     });
     const billing = composeBilling({
       ...billingComposition,
@@ -214,6 +217,7 @@ export function serverRuntime(): ServerRuntime {
     });
     // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
     // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
+    refundsMenunggu.sambungkan(refunds);
     const layanan = composeLayanan({
       db: database.db,
       clock: adapters.clock,

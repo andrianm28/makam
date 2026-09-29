@@ -2,6 +2,7 @@ import type { Database } from "@/db/client";
 import { createQueues } from "@/domain/queues";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
+import { refundsTertunda } from "@/composition/refunds";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createPerpanjangan } from "@/domain/perpanjangan";
 import { payoutsFor } from "./payouts";
@@ -19,6 +20,7 @@ import { publishOnTestDatabase } from "./publish";
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
   const { payouts } = payoutsFor(setup);
+  const refundsMenunggu = refundsTertunda();
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -31,8 +33,10 @@ export function queuesOnTestDatabase(db: Database) {
     payouts,
     identity: setup.identity,
     notifications: setup.notifications,
+    refunds: refundsMenunggu.refunds,
   });
   const { refunds } = refundsFor(setup, payouts);
+  refundsMenunggu.sambungkan(refunds);
   // The Antrean's Layanan rows (ticket 50) read the Layanan module's own public reads, so it is
   // composed here beside the rest: it needs Inventory, Billing and Identity, all of which this
   // fixture already has.

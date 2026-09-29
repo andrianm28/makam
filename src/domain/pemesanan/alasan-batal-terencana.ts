@@ -11,6 +11,8 @@ export const ALASAN_BATAL_TERENCANA = {
   batas_pembayaran_lewat: "Batas pembayaran lewat",
   /** The Pemesan withdrew before paying, and nothing was charged. */
   ditarik_pemesan: "Ditarik oleh Pemesan sebelum membayar",
+  /** A paid order cancelled at the Pemegang Hak's request, once the Admin Lokasi confirmed there was no Pemakaman (ticket 38). */
+  pembatalan: "Pembatalan disetujui Lokasi Mitra",
 } as const;
 export type AlasanBatalTerencana = keyof typeof ALASAN_BATAL_TERENCANA;
 

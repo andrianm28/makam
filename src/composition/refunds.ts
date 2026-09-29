@@ -18,10 +18,40 @@ export function buktiPengembalianDanaUrl(env: Pick<RuntimeEnv, "APP_BASE_URL">) 
   return (link: string) => `${publicOrigin}${documentPagePath(link)}`;
 }
 
-/** Whether an Akun placed an order, asked of Pemesanan's own read; none where nobody signs in (the worker). */
-function pemilikPesananDari(pemesanan: Pick<Pemesanan, "orderOf"> | undefined) {
+/**
+ * Whether an Akun placed an order, asked of Pemesanan's own reads (a Saat Duka order, or a Terencana one, which is
+ * where a Pembatalan's refund waits for its bank account); none where nobody signs in (the worker).
+ */
+export function pemilikPesananDari(pemesanan: Pick<Pemesanan, "orderOf" | "terencanaOf"> | undefined) {
   if (!pemesanan) return undefined;
-  return async (nomorPemesanan: string, accountId: string) => (await pemesanan.orderOf(nomorPemesanan, { accountId })) !== null;
+  return async (nomorPemesanan: string, accountId: string) =>
+    (await pemesanan.orderOf(nomorPemesanan, { accountId })) !== null || (await pemesanan.terencanaOf(nomorPemesanan, { accountId })) !== null;
+}
+
+/**
+ * What the Pemesanan module asks of Refunds (the refund an approved Pembatalan raises, ticket 38), reached through a
+ * reference filled once Refunds exists. Refunds is composed after Billing and Payouts, and asks Pemesanan who placed an
+ * order, so Pemesanan cannot hold it directly: it holds this, exactly as Billing holds Payouts' `kurangiPencairanPesanan`
+ * (`src/server/runtime.ts`). It is only ever *called* once a request is being decided, long after startup finished.
+ */
+export function refundsTertunda(): {
+  refunds: Pick<Refunds, "ajukanBaris" | "permintaan">;
+  sambungkan(refunds: Pick<Refunds, "ajukanBaris" | "permintaan">): void;
+} {
+  const isi: { current?: Pick<Refunds, "ajukanBaris" | "permintaan"> } = {};
+  const siap = () => {
+    if (!isi.current) throw new Error("Refunds is not composed yet: it was called before startup finished");
+    return isi.current;
+  };
+  return {
+    refunds: {
+      ajukanBaris: (tagihanId, input, within) => siap().ajukanBaris(tagihanId, input, within),
+      permintaan: (id) => siap().permintaan(id),
+    },
+    sambungkan: (refunds) => {
+      isi.current = refunds;
+    },
+  };
 }
 
 /** Refunds on one database, next to the Billing and Payouts it reads and nets through (ticket 31: composed after both). */
@@ -33,8 +63,8 @@ export function composeRefunds(deps: {
   lokasi: Pick<Lokasi, "adminPlatformCalendar">;
   billing: Pick<Billing, "within" | "tagihan" | "tagihanMenungguPengembalian">;
   /** Who placed an order; the worker, which never handles a Pemesan's write, composes without it. */
-  pemesanan?: Pick<Pemesanan, "orderOf">;
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
+  pemesanan?: Pick<Pemesanan, "orderOf" | "terencanaOf">;
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   operatorSettings: Pick<OperatorSettings, "current">;
   reportError?: ReportError;

@@ -2,13 +2,15 @@ import Link from "next/link";
 import { PageHeader } from "@/components/makam/page-header";
 import { StatusBadge } from "@/components/makam/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ALASAN_TOLAK, alasanTolakTerencanaKeys, type OrderTerencanaStaf } from "@/domain/pemesanan";
+import { ALASAN_TOLAK, alasanTolakTerencanaKeys, type OrderTerencanaStaf, type PermintaanPembatalanStaf } from "@/domain/pemesanan";
+import { statusPermintaanBadge } from "@/lib/pembatalan-labels";
+import { formatRupiah } from "@/lib/rupiah";
 import { tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { PembayaranLangsungForm } from "./pesanan-forms";
-import { KonfirmasiTerencanaForm, TolakTerencanaForm } from "./terencana-forms";
+import { KonfirmasiTerencanaForm, MintaPerbaikanPembatalanForm, SetujuiPembatalanForm, TolakPembatalanForm, TolakTerencanaForm } from "./terencana-forms";
 
 /**
  * One Pemesanan Terencana at the Admin Lokasi's own Lokasi Mitra (spec, Pemesanan >
@@ -18,7 +20,16 @@ import { KonfirmasiTerencanaForm, TolakTerencanaForm } from "./terencana-forms";
  * page shows where the order stands: the hold and its deadline, the Tagihan, and the
  * Hak Pakai and Bukti Pemesanan once it is paid.
  */
-export async function TerencanaPesananView({ order, lokasiId }: { order: OrderTerencanaStaf; lokasiId: string }) {
+export async function TerencanaPesananView({
+  order,
+  lokasiId,
+  pembatalan,
+}: {
+  order: OrderTerencanaStaf;
+  lokasiId: string;
+  /** Every Pembatalan request on this order, newest first (ticket 38). */
+  pembatalan: PermintaanPembatalanStaf[];
+}) {
   const { billing, lokasi } = serverRuntime();
   const menunggu = order.status === "diajukan";
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
@@ -126,6 +137,42 @@ export async function TerencanaPesananView({ order, lokasiId }: { order: OrderTe
         </Card>
       ) : null}
 
+      {pembatalan.map((permintaan, urutan) => (
+        <Card key={permintaan.id} data-testid="permintaan-pembatalan">
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              Permintaan Pembatalan petak {permintaan.unitNomor} <StatusBadge status={statusPermintaanBadge[permintaan.status]} />
+            </CardTitle>
+            <CardDescription>
+              {urutan === 0
+                ? "Diajukan oleh Pemegang Hak lewat Makam Keluarga. Menyetujui berarti Anda memastikan belum ada Pemakaman di petak ini."
+                : "Permintaan sebelumnya pada pesanan ini."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <p className="text-small text-muted-foreground">{artiStatusPermintaanStaf(permintaan.status)}</p>
+            <dl className="flex flex-col gap-2 text-body">
+              <Baris label="Diajukan" value={formatTanggalJam(permintaan.diajukanPada)} />
+              <Baris label="Email pemohon" value={permintaan.pemohonEmail} />
+              {permintaan.catatanPemohon ? <Baris label="Alasan dari keluarga" value={permintaan.catatanPemohon} /> : null}
+              {permintaan.status === "diajukan" && permintaan.tenggatPada ? <Baris label="Dijawab paling lambat" value={formatTanggalJam(permintaan.tenggatPada)} /> : null}
+              <Baris
+                label={permintaan.dalamMasaPembatalan ? "Pengembalian (seluruh tarif, dalam Masa Pembatalan)" : `Pengembalian (${permintaan.persenRefund}% dari tarif sesuai Syarat)`}
+                value={formatRupiah(permintaan.jumlahRefund)}
+              />
+              {permintaan.alasanKeputusan ? <Baris label={permintaan.status === "perlu_perbaikan" ? "Yang diminta" : "Alasan"} value={permintaan.alasanKeputusan} /> : null}
+            </dl>
+            {permintaan.status === "diajukan" ? (
+              <div className="flex flex-col gap-6">
+                <SetujuiPembatalanForm lokasiId={lokasiId} nomor={order.nomor} permintaanId={permintaan.id} />
+                <MintaPerbaikanPembatalanForm lokasiId={lokasiId} nomor={order.nomor} permintaanId={permintaan.id} />
+                <TolakPembatalanForm lokasiId={lokasiId} nomor={order.nomor} permintaanId={permintaan.id} />
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ))}
+
       {tagihan && (tagihan.status === "belum_dibayar" || tagihan.status === "lewat_jatuh_tempo") ? (
         <Card>
           <CardHeader>
@@ -163,4 +210,20 @@ function Baris({ label, value, href }: { label: string; value: string; href?: st
       </dd>
     </div>
   );
+}
+
+/** What each status means to the Lokasi's staff: their own next step, where the family's page says the family's. */
+function artiStatusPermintaanStaf(status: PermintaanPembatalanStaf["status"]): string {
+  switch (status) {
+    case "diajukan":
+      return "Menunggu jawaban Anda, paling lambat pada batas di bawah. Baris ini ada di Antrean Lokasi sampai dijawab.";
+    case "perlu_perbaikan":
+      return "Sudah Anda kembalikan ke keluarga. Barisnya kembali ke Antrean Lokasi setelah keluarga mengajukannya lagi.";
+    case "disetujui":
+      return "Sudah Anda setujui: Hak Pakai petak ini dibatalkan, petaknya kembali Tersedia, dan pengembalian dana ada di Admin Platform.";
+    case "ditolak":
+      return "Sudah Anda tolak. Hak Pakai tidak berubah.";
+    case "dibatalkan":
+      return "Ditarik keluarga sebelum Anda menjawab.";
+  }
 }

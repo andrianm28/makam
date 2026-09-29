@@ -47,7 +47,7 @@ export interface TransferDeps {
   files: FileStore;
   operatorSettings: Pick<OperatorSettings, "current">;
   billing: Pick<Billing, "within">;
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   /** The Bukti Pengembalian Dana page's absolute URL, sent to the Pemesan and given to a Potongan raised on it. */
   buktiUrl: (link: string) => string;
@@ -95,23 +95,38 @@ export async function terbitkanBuktiPengembalianDana(deps: TransferDeps, by: Act
     return { ok: false, reason: "berkas_tidak_didukung" };
   }
 
-  const hasil = await refusable<TerbitkanBuktiResult>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
+  const hasil = await refusable<Penerbitan>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
   if (!hasil.ok) {
     await deps.files.delete(key).catch(() => undefined);
     return hasil;
   }
+  const { bukti, tidakTertutup } = hasil;
 
   // After the transfer really happened: whatever was already paid out to a
   // Lokasi Mitra becomes a Potongan, and the family hears about its money.
   // Neither may undo the transfer, so neither runs inside its transaction; a
   // failure here is reported, not lost and not silently swallowed.
-  await afterTransfer(deps, by, hasil.bukti).catch((error) => {
+  await afterTransfer(deps, by, bukti, tidakTertutup).catch((error) => {
     deps.reportError?.(error instanceof Error ? error : new Error(String(error)), {
-      tags: { module: "refunds", event: "setelah_transfer_gagal", nomorBukti: hasil.bukti.nomor },
+      tags: { module: "refunds", event: "setelah_transfer_gagal", nomorBukti: bukti.nomor },
     });
   });
-  return hasil;
+  return { ok: true, bukti };
 }
+
+/**
+ * A transfer that was issued. `tidakTertutup` is what a "sebagian" refund could not take off the Lokasi Mitra's
+ * unpaid Pencairan, by Lokasi: exactly what an already paid item must give back as a Potongan (never more than the
+ * refund itself). Null for a "penuh" refund, whose already paid items are all given back.
+ */
+interface Diterbitkan {
+  ok: true;
+  bukti: BuktiPengembalianDana;
+  tidakTertutup: Map<string, number> | null;
+}
+
+/** Either a refusal (nothing was written) or the transfer that was issued: the two never share a shape, so no cast is needed to tell them apart. */
+type Penerbitan = Exclude<TerbitkanBuktiResult, { ok: true }> | Diterbitkan;
 
 interface IssueIn {
   permintaanId: string;
@@ -120,7 +135,7 @@ interface IssueIn {
   header: DocumentHeader;
 }
 
-async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: IssueIn, now: Date): Promise<TerbitkanBuktiResult> {
+async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: IssueIn, now: Date): Promise<Penerbitan> {
   const [row] = await tx.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, input.permintaanId)).for("update");
   if (!row) return { ok: false, reason: "tidak_ditemukan" };
   if (row.status !== "disetujui") return { ok: false, reason: "belum_disetujui" };
@@ -157,20 +172,24 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
 
   await deps.billing.within(tx).tandaiPengembalian(row.tagihanId, { kind: row.penuh ? "penuh" : "sebagian" });
 
+  let tidakTertutup: Map<string, number> | null = null;
   if (!row.goodwill) {
     if (row.penuh) {
       await deps.payouts.batalkanPencairanTagihan(tx, { tagihanId: row.tagihanId });
     } else {
+      tidakTertutup = new Map();
       const perLokasi = groupByLokasi(row.lines as { label: string; amount: number; lokasiId: string | null }[]);
       for (const [lokasiId, amount] of perLokasi) {
-        await deps.payouts.kurangiPencairanPesanan(tx, {
+        const dikurangi = await deps.payouts.kurangiPencairanSebisanya(tx, {
           nomorPemesanan: row.nomorPemesanan ?? "",
           lokasiId,
           amount,
-          alasan: "pengembalian_dana",
           catatan: `Pengembalian dana ${nomor}`,
           oleh: by.accountId,
         });
+        // The unpaid items were lowered by what they could cover; what is left was paid to the Lokasi Mitra before the refund:
+        // it is a Potongan, and only that much (a refund that could not be applied at all is all of it).
+        tidakTertutup.set(lokasiId, dikurangi.ok ? dikurangi.sisa : amount);
       }
     }
   }
@@ -190,15 +209,16 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
 
   const dibaca = await buktiById(tx, bukti.id);
   if (!dibaca) throw new Error("the Bukti Pengembalian Dana just issued was not found");
-  return { ok: true, bukti: dibaca };
+  return { ok: true, bukti: dibaca, tidakTertutup };
 }
 
 /** What a Tagihan's items already paid to a Lokasi Mitra become: a Potongan, and the family's own message. */
-async function afterTransfer(deps: TransferDeps, by: Actor, bukti: BuktiPengembalianDana): Promise<void> {
+async function afterTransfer(deps: TransferDeps, by: Actor, bukti: BuktiPengembalianDana, tidakTertutup: Map<string, number> | null): Promise<void> {
   const permintaan = await permintaanForBukti(deps.db, bukti.id);
   if (permintaan && !permintaan.goodwill) {
     const sudahDicairkan = await deps.payouts.sudahDicairkanUntukTagihan(bukti.tagihanId);
-    for (const { lokasiId, amount } of sudahDicairkan) {
+    for (const { lokasiId, amount: dicairkan } of sudahDicairkan) {
+      const amount = tidakTertutup === null ? dicairkan : Math.min(dicairkan, tidakTertutup.get(lokasiId) ?? 0);
       if (amount <= 0) continue;
       await deps.payouts.catatPotongan(by, {
         lokasiId,

@@ -40,8 +40,10 @@ import {
   catatItemLayananMitraJasa,
   itemJatuhTempo,
   kurangiPencairanPesanan,
+  kurangiPencairanSebisanya,
   turunkanJumlahPencairan,
   type BatalkanTagihanResult,
+  type KurangiSebisanyaResult,
   type CatatLayananMitraJasaResult,
   type KurangiPesananResult,
   type TurunkanJumlahResult,
@@ -185,6 +187,15 @@ export interface Payouts {
     input: { nomorPemesanan: string; lokasiId: string; amount: number; alasan: "porsi_pemegang_saham" | "pengembalian_dana"; catatan: string; oleh: string },
   ): Promise<KurangiPesananResult>;
   /**
+   * A refund netted from the partner as far as the unpaid items reach (ticket 38): they are lowered by what they can
+   * cover, the rest is kept for items still to be made (a Terencana order inside its Masa Pembatalan) or returned as
+   * `sisa`, already paid out, for the caller to claim back as a Potongan. Never refused whole for being too large.
+   */
+  kurangiPencairanSebisanya(
+    tx: Database,
+    input: { nomorPemesanan: string; lokasiId: string; amount: number; catatan: string; oleh: string },
+  ): Promise<KurangiSebisanyaResult>;
+  /**
    * A Tagihan refunded in full to the Pelanggan cancels its items: the work is
    * not paid for and nothing is clawed back afterwards. The Refunds module
    * (ticket 31) calls this in the same transaction that records the refund.
@@ -284,6 +295,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     turunkanJumlahPencairan: (by, input, within) => turunkanJumlahPencairan(itemDeps, by, input, within),
     batalkanPembayaranLangsung: (by, input) => batalkanPembayaranLangsung(potonganDeps, by, input),
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
+    kurangiPencairanSebisanya: (tx, input) => kurangiPencairanSebisanya(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
     sudahDicairkanUntukTagihan: (tagihanId) => sudahDicairkanUntukTagihan(deps.db, tagihanId),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),

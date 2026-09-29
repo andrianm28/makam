@@ -207,6 +207,8 @@ describe("an issued Tagihan is immutable", () => {
       // column of the Tagihan, never a line, and never the due date it was issued with.
       "setOverdueAnchor",
       "tagihan",
+      // A read that follows a reissue to the Tagihan in force (a Harga Khusus replaced the first): never a way to change a line (ticket 38).
+      "tagihanBerlaku",
       "tagihanLewatJatuhTempo",
       // A read of every Tagihan a cancellation flagged for a refund: the
       // Refunds module's (ticket 31) own source, never a way to change a line.

@@ -123,6 +123,12 @@ export async function currentPemegangHak(db: Database, hakPakaiId: string): Prom
   return current ?? null;
 }
 
+/** Whether an earlier holder's row was closed on this Hak Pakai (a Ganti Pemegang Hak happened at some point). */
+export async function pernahGantiPemegangHak(db: Database, hakPakaiId: string): Promise<boolean> {
+  const rows = await db.select({ endAt: inventoryPemegangHak.endAt }).from(inventoryPemegangHak).where(eq(inventoryPemegangHak.hakPakaiId, hakPakaiId));
+  return rows.some((row) => row.endAt !== null);
+}
+
 export interface PemakamanRow {
   id: string;
   lokasiId: string;

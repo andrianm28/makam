@@ -277,6 +277,8 @@ One mapping in `StatusBadge` (`statusVocabulary`, checked by `src/components/mak
 | `selesai` | Selesai | success | Nothing left to do |
 | `ditolak` | Ditolak | warning | The Lokasi Mitra declined; another is needed |
 | `dibatalkan` | Dibatalkan | neutral | Ended before it happened, by the family or CS |
+| `disetujui` | Disetujui | success | A Pembatalan request the Lokasi Mitra approved |
+| `perlu_perbaikan` | Perlu Perbaikan | warning | A request the Lokasi Mitra sent back for a fix; the family acts |
 
 New statuses join this table (and the component) before they appear on a screen. Danger is kept for "past a deadline"; don't use red for ordinary negative states.
 

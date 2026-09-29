@@ -89,6 +89,7 @@ import {
   listTagihanMenungguPengembalian,
   listTagihanRetribusiLunas,
   readTagihan,
+  readTagihanBerlaku,
   reissueTagihan,
   tandaiPengembalian,
   type IssueTagihanInput,
@@ -212,6 +213,8 @@ export interface Billing {
   reissueTagihan(tagihanId: string, input: { lines: NewTagihanLine[] }): Promise<ReissueTagihanResult>;
   /** One Tagihan as issued, or null. */
   tagihan(tagihanId: string): Promise<Tagihan | null>;
+  /** The Tagihan in force for an order first issued `tagihanId`: that one, or the last reissue that replaced it (a Harga Khusus). Null when none is found. */
+  tagihanBerlaku(tagihanId: string): Promise<Tagihan | null>;
   /**
    * Cancels one Tagihan because the order it was for will not happen, and in the
    * same transaction records the refund of any payment it had, less the Biaya
@@ -405,6 +408,7 @@ export function createBilling(deps: BillingDeps): Billing {
     issueTagihan: (input) => issueTagihan(deps, input, deps.clock.now()),
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
+    tagihanBerlaku: (tagihanId) => readTagihanBerlaku(deps.db, tagihanId),
     batalkanTagihan: (tagihanId, input) => batalkanTagihan(deps, tagihanId, input, deps.clock.now()),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),

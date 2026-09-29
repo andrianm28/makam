@@ -28,8 +28,9 @@ import { pencairanResource, writeRefusal, type Actor, type WriteRefusal } from "
 import { rupiahSchema } from "@/lib/rupiah";
 import { sumRupiah, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
+import { sisipPotongan } from "./potongan";
 import { jumlahOf, toBarisItem, type BarisItemPencairan } from "./baca";
-import { pencairanItem, type PencairanItemBatalReason, type PencairanItemReason } from "./schema";
+import { pencairanItem, pencairanPenguranganTertunda, pencairanTerencana, type PencairanItemBatalReason, type PencairanItemReason } from "./schema";
 
 const CATATAN_MAX = 500;
 const nomorPemesananSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
@@ -199,6 +200,100 @@ export async function kurangiPencairanPesanan(
     diubah.push({ id: item.id, dari, jadi });
   }
   return { ok: true, items: diubah, total: parsed.data.amount as Rupiah };
+}
+
+export type KurangiSebisanyaResult =
+  | { ok: true; /** Taken off items that exist now. */ dikurangi: number; /** Kept to lower the items when they are made (a Terencana order still inside its Masa Pembatalan). */ ditunda: number; /** What no unpaid item could cover: money already paid out, for the caller to claim back. */ sisa: number }
+  | { ok: false; reason: "input_tidak_valid" };
+
+/**
+ * A refund netted from the partner, **as far as the unpaid items reach** (ticket 38): `kurangiPencairanPesanan` refuses a
+ * sum larger than what is still unpaid, and a refund that only partly fits must not be refused whole, or the Lokasi Mitra
+ * is paid for the part that fits and charged for it again. So the unpaid items are lowered by as much as they can cover
+ * (oldest first, an emptied one cancelled), and whatever is left over is either
+ * - **kept for the items still to come**, when the order has none at all yet but a Terencana Masa Pembatalan is running
+ *   (the tick lowers them as it makes them), or
+ * - **returned as `sisa`**: it was already paid out, and the caller turns it into a Potongan.
+ * The caller runs this inside its own transaction, like `kurangiPencairanPesanan`.
+ */
+export async function kurangiPencairanSebisanya(
+  tx: Database,
+  input: { nomorPemesanan: string; lokasiId: string; amount: number; catatan: string; oleh: string },
+  now: Date,
+): Promise<KurangiSebisanyaResult> {
+  const parsed = z
+    .object({
+      nomorPemesanan: nomorPemesananSchema,
+      lokasiId: z.string().trim().min(1).max(64),
+      amount: rupiahSchema,
+      catatan: z.string().trim().min(1).max(CATATAN_MAX),
+      oleh: z.string().trim().min(1).max(64),
+    })
+    .safeParse(input);
+  if (!parsed.success || parsed.data.amount === 0) return { ok: false, reason: "input_tidak_valid" };
+  const data = parsed.data;
+  const semua = await tx
+    .select()
+    .from(pencairanItem)
+    .where(and(eq(pencairanItem.nomorPemesanan, data.nomorPemesanan), eq(pencairanItem.lokasiId, data.lokasiId)))
+    .for("update");
+  const belumDibayar = semua.filter((item) => item.status === "belum_jatuh_tempo" || item.status === "jatuh_tempo");
+  const total = sumRupiah(belumDibayar.map((item) => jumlahOf(item)));
+  if (!total.ok) return { ok: false, reason: "input_tidak_valid" };
+  const bisa = Math.min(data.amount, total.amount);
+  if (bisa > 0) {
+    const dikurangi = await kurangiPencairanPesanan(tx, { ...data, amount: bisa, alasan: "pengembalian_dana" }, now);
+    if (!dikurangi.ok) return { ok: false, reason: "input_tidak_valid" };
+  }
+  const sisa = data.amount - bisa;
+  if (sisa === 0) return { ok: true, dikurangi: bisa, ditunda: 0, sisa: 0 };
+  const menunggu = semua.length === 0 && (await tx.select({ n: pencairanTerencana.nomorPemesanan }).from(pencairanTerencana).where(eq(pencairanTerencana.nomorPemesanan, data.nomorPemesanan))).length > 0;
+  if (!menunggu) return { ok: true, dikurangi: bisa, ditunda: 0, sisa };
+  await tx.insert(pencairanPenguranganTertunda).values({
+    nomorPemesanan: data.nomorPemesanan,
+    lokasiId: data.lokasiId,
+    amount: sisa as Rupiah,
+    catatan: data.catatan,
+    oleh: data.oleh,
+    dibuatPada: now,
+  });
+  return { ok: true, dikurangi: bisa, ditunda: sisa, sisa: 0 };
+}
+
+/**
+ * Lowers an order's freshly made items by the refunds that were netted before they existed, then forgets them. Called by
+ * the trigger inside the transaction that makes the items, so the two are never seen apart.
+ */
+export async function terapkanPenguranganTertunda(tx: Database, nomorPemesanan: string, now: Date): Promise<void> {
+  const menunggu = await tx.select().from(pencairanPenguranganTertunda).where(eq(pencairanPenguranganTertunda.nomorPemesanan, nomorPemesanan)).for("update");
+  for (const satu of menunggu) {
+    const unpaid = await tx
+      .select()
+      .from(pencairanItem)
+      .where(and(eq(pencairanItem.nomorPemesanan, nomorPemesanan), eq(pencairanItem.lokasiId, satu.lokasiId), inArray(pencairanItem.status, ["belum_jatuh_tempo", "jatuh_tempo"])));
+    const total = sumRupiah(unpaid.map((item) => jumlahOf(item)));
+    const bisa = total.ok ? Math.min(satu.amount, total.amount) : 0;
+    if (bisa > 0) {
+      await kurangiPencairanPesanan(tx, { nomorPemesanan, lokasiId: satu.lokasiId, amount: bisa, alasan: "pengembalian_dana", catatan: satu.catatan, oleh: satu.oleh }, now);
+    }
+    // What the items just made cannot cover (a Harga Khusus share already took part of them) was never going to be paid to the
+    // Lokasi Mitra by these items, yet the family has been refunded it: it is a Potongan, not a rupiah lost.
+    const sisa = satu.amount - bisa;
+    if (sisa > 0) {
+      await sisipPotongan(
+        tx,
+        {
+          lokasiId: satu.lokasiId,
+          amount: sisa,
+          alasanKind: "pengembalian_dana",
+          alasan: `Pengembalian dana untuk pesanan ${nomorPemesanan} melebihi Pencairan yang tersedia untuk dikurangi.`,
+          sumberNomorPemesanan: nomorPemesanan,
+        },
+        now,
+      );
+    }
+    await tx.delete(pencairanPenguranganTertunda).where(eq(pencairanPenguranganTertunda.id, satu.id));
+  }
 }
 
 export type BatalkanTagihanResult = { ok: true; dibatalkan: string[] } | { ok: false; reason: "input_tidak_valid" };

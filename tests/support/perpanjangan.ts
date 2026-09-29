@@ -1,5 +1,6 @@
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
+import { refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import type { Notifications } from "@/domain/notifications";
@@ -64,6 +65,8 @@ export function perpanjanganOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     // A recorded Pemakaman is told to Payouts (ticket 90): the real module on the same database.
     payouts,
+    // A Perpanjangan decides no Pembatalan, so nothing here ever asks Refunds for one.
+    refunds: refundsTertunda().refunds,
   });
   const pengurusan = createPengurusan({
     db,

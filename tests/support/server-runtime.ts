@@ -7,7 +7,7 @@ import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
-import { composeRefunds } from "@/composition/refunds";
+import { composeRefunds, refundsTertunda } from "@/composition/refunds";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
@@ -80,6 +80,8 @@ export function testServerRuntime() {
       reportError: () => {},
     });
     const notifikasi = pemesananNotifikasiDari(notifications);
+    // Refunds is composed after Pemesanan (it asks who placed an order), and an approved Pembatalan asks it for a refund: the lazy box filled below.
+    const refundsMenunggu = refundsTertunda();
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -122,6 +124,7 @@ export function testServerRuntime() {
       },
       identity,
       notifikasi,
+      refunds: refundsMenunggu.refunds,
     });
     const billing = composeBilling({
       ...billingComposition,
@@ -158,6 +161,7 @@ export function testServerRuntime() {
       operatorSettings,
       pemesanan,
     });
+    refundsMenunggu.sambungkan(refunds);
     const layanan = composeLayanan({
       db: database.db,
       clock: adapters.clock,
