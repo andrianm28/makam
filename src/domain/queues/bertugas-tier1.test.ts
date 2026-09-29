@@ -25,15 +25,26 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-function ticksOf(setup: QueuesSetup) {
-  return createQueuesTicks({
+function ticksOf(setup: QueuesSetup, notifications: Parameters<typeof createQueuesTicks>[0]["notifications"] = setup.notifications) {
+  const ticks = createQueuesTicks({
     db,
     clock: setup.clock,
     identity: setup.identity,
-    notifications: setup.notifications,
+    notifications,
     pemesanan: setup.pemesanan,
     pengurusan: setup.pengurusan,
   });
+  return {
+    bertugasTick: ticks.bertugasTick,
+    /** The Antrean's alert tick, then Notifications' send tick, as the worker runs them a minute apart. */
+    async peringatanTick(now: Date) {
+      const hasil = await ticks.peringatanTick(now);
+      await setup.notifications.kirimPeringatanAntreanTick();
+      return hasil;
+    },
+    /** The Antrean's alert tick alone: what is queued and not yet sent. */
+    antrekanSaja: ticks.peringatanTick,
+  };
 }
 
 /** The first Admin Platform, with one active Perangkat Push. */
@@ -61,8 +72,10 @@ async function adminLain(setup: QueuesSetup, email: string, options: { push: boo
 }
 
 /** A declined Saat Duka order: a Tier 1 row that is not about a TPU. */
-async function pesananDitolak(setup: QueuesSetup) {
+async function pesananDitolak(setup: QueuesSetup, pada?: string) {
   const fixture = await saatDukaFixture(setup);
+  // The fixtures' logins moved the Clock; the row appears (and its alert clocks start) when the order is declined.
+  if (pada) setup.clock.set(wib(pada));
   const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
   if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
   const ditolak = await setup.pemesanan.tolakSaatDuka(fixture.adminLokasi, { nomor: placed.pemesanan.nomor, alasan: "kapasitas_penuh" });
@@ -71,8 +84,10 @@ async function pesananDitolak(setup: QueuesSetup) {
 }
 
 /** A Saat Duka TPU order awaiting confirmation: the Tier 1 "Konfirmasi TPU Saat Duka" row. */
-async function pesananTpu(setup: QueuesSetup) {
+async function pesananTpu(setup: QueuesSetup, pada?: string) {
   const fixture = await saatDukaTpuFixture(setup);
+  // The row appears (and its alert clocks start) when the family submits the order.
+  if (pada) setup.clock.set(wib(pada));
   const placed = await setup.pengurusan.placeSaatDukaTpu(orderSaatDukaTpu(fixture));
   if (!placed.ok) throw new Error(`TPU order refused: ${placed.reason}`);
   return placed.pengurusan.nomor;
@@ -221,11 +236,11 @@ describe("Tier 1 alerts", () => {
     const lain = await adminLain(setup, "admin.dua@makam.co.id", { push: true });
     setup.clock.set(wib("2026-10-01 09:00"));
     await setup.queues.aktifkanBertugas(bertugas);
-    await pesananDitolak(setup);
+    await pesananDitolak(setup, "2026-10-01 09:00");
 
     const result = await ticksOf(setup).peringatanTick(setup.clock.now());
 
-    expect(result).toEqual({ dikirim: 1 });
+    expect(result).toEqual({ diantrekan: 1 });
     expect(await jumlahPeringatan(setup, bertugas, "staf_antrean_mendesak")).toBe(1);
     expect(await jumlahPeringatan(setup, lain, "staf_antrean_mendesak")).toBe(0);
     // By web push as well as email, and the push names the kind of row, never who it is about.
@@ -238,9 +253,8 @@ describe("Tier 1 alerts", () => {
   it("with nobody Bertugas a new Tier 1 row alerts every Admin Platform", async () => {
     const setup = queuesOnTestDatabase(db);
     const satu = await adminDenganPush(setup);
+    await pesananDitolak(setup, "2026-10-01 09:00");
     const dua = await adminLain(setup, "admin.dua@makam.co.id", { push: true });
-    setup.clock.set(wib("2026-10-01 09:00"));
-    await pesananDitolak(setup);
 
     await ticksOf(setup).peringatanTick(setup.clock.now());
 
@@ -254,10 +268,8 @@ describe("Tier 1 alerts", () => {
     const lain = await adminLain(setup, "admin.dua@makam.co.id", { push: true });
     setup.clock.set(wib("2026-10-01 09:00"));
     await setup.queues.aktifkanBertugas(bertugas);
-    await pesananDitolak(setup);
-    await pesananTpu(setup);
-    // The fixtures' logins moved the Clock a few minutes; the alert clocks run from the first tick.
-    setup.clock.set(wib("2026-10-01 09:00"));
+    await pesananDitolak(setup, "2026-10-01 09:00");
+    await pesananTpu(setup, "2026-10-01 09:00");
     const ticks = ticksOf(setup);
     await ticks.peringatanTick(setup.clock.now());
     const [rowDitolak] = (await setup.queues.antrean(bertugas)).filter((row) => row.type === "saat_duka_ditolak");
@@ -277,9 +289,8 @@ describe("Tier 1 alerts", () => {
   it("a Konfirmasi TPU Saat Duka still unconfirmed at 90 min alerts everyone again, even once taken", async () => {
     const setup = queuesOnTestDatabase(db);
     const satu = await adminDenganPush(setup);
+    await pesananTpu(setup, "2026-10-01 09:00");
     const dua = await adminLain(setup, "admin.dua@makam.co.id", { push: true });
-    setup.clock.set(wib("2026-10-01 09:00"));
-    await pesananTpu(setup);
     const ticks = ticksOf(setup);
     await ticks.peringatanTick(setup.clock.now());
     const [row] = await setup.queues.antrean(satu);
@@ -303,8 +314,7 @@ describe("Tier 1 alerts", () => {
   it("a declined order has no 90 min alert: only a Konfirmasi TPU Saat Duka does", async () => {
     const setup = queuesOnTestDatabase(db);
     const satu = await adminDenganPush(setup);
-    setup.clock.set(wib("2026-10-01 09:00"));
-    await pesananDitolak(setup);
+    await pesananDitolak(setup, "2026-10-01 09:00");
     const ticks = ticksOf(setup);
     await ticks.peringatanTick(setup.clock.now());
 
@@ -361,22 +371,81 @@ describe("Tier 1 alerts", () => {
   it("running the alert tick twice for the same moment alerts once; the row closing forgets it", async () => {
     const setup = queuesOnTestDatabase(db);
     const satu = await adminDenganPush(setup);
-    setup.clock.set(wib("2026-10-01 09:00"));
-    const nomor = await pesananTpu(setup);
+    const nomor = await pesananTpu(setup, "2026-10-01 09:00");
     const ticks = ticksOf(setup);
 
     await ticks.peringatanTick(setup.clock.now());
-    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ dikirim: 0 });
+    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ diantrekan: 0 });
     setup.clock.set(wib("2026-10-01 09:30"));
     await ticks.peringatanTick(setup.clock.now());
-    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ dikirim: 0 });
+    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ diantrekan: 0 });
     setup.clock.set(wib("2026-10-01 10:30"));
     await ticks.peringatanTick(setup.clock.now());
-    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ dikirim: 0 });
+    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ diantrekan: 0 });
 
     expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(1);
     expect(await jumlahPeringatan(setup, satu, "staf_antrean_eskalasi")).toBe(2);
     expect(nomor).toBeTruthy();
+  });
+
+  it("a late first tick still escalates on time: the clocks count from when the order was submitted, not from the tick's first sight", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const satu = await adminDenganPush(setup);
+    await pesananTpu(setup, "2026-10-01 09:00");
+    const ticks = ticksOf(setup);
+
+    // The worker was down: the first tick comes 40 min after the submission. The first alert and the
+    // 30 min escalation are queued together (first alert first); the 90 min one is not due yet.
+    setup.clock.set(wib("2026-10-01 09:40"));
+    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ diantrekan: 2 });
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(1);
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_eskalasi")).toBe(1);
+
+    setup.clock.set(wib("2026-10-01 10:29"));
+    await ticks.peringatanTick(setup.clock.now());
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_eskalasi")).toBe(1);
+    setup.clock.set(wib("2026-10-01 10:30"));
+    await ticks.peringatanTick(setup.clock.now());
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_eskalasi")).toBe(2);
+  });
+
+  it("a declined order's clocks count from the decline", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const satu = await adminDenganPush(setup);
+    await pesananDitolak(setup, "2026-10-01 09:00");
+
+    setup.clock.set(wib("2026-10-01 09:31"));
+    await ticksOf(setup).peringatanTick(setup.clock.now());
+
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(1);
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_eskalasi")).toBe(1);
+  });
+
+  it("an alert is queued together with its claim: a failure while queuing loses no stage, and a crash before the send loses no alert", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const satu = await adminDenganPush(setup);
+    await pesananTpu(setup, "2026-10-01 09:00");
+
+    // Queuing fails: the stage claim rolls back with it, so the next tick still alerts.
+    const rusak = ticksOf(setup, {
+      ...setup.notifications,
+      peringatanAntreanTier1: async () => {
+        throw new Error("antrean gagal");
+      },
+    });
+    await expect(rusak.peringatanTick(setup.clock.now())).rejects.toThrow("antrean gagal");
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(0);
+
+    // Queued, then the process dies before Notifications' tick sends: nothing is delivered yet ...
+    const ticks = ticksOf(setup);
+    expect(await ticks.antrekanSaja(setup.clock.now())).toEqual({ diantrekan: 1 });
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(0);
+    // ... and a tick run again does not queue it twice ...
+    expect(await ticks.antrekanSaja(setup.clock.now())).toEqual({ diantrekan: 0 });
+    // ... and the send tick that comes later delivers it, once.
+    expect(await setup.notifications.kirimPeringatanAntreanTick()).toEqual({ dikirim: 1 });
+    expect(await setup.notifications.kirimPeringatanAntreanTick()).toEqual({ dikirim: 0 });
+    expect(await jumlahPeringatan(setup, satu, "staf_antrean_mendesak")).toBe(1);
   });
 
   it("Tier 2 rows show in the Antrean without an alert, and Tier 3 and 4 never alert", async () => {
@@ -395,7 +464,7 @@ describe("Tier 1 alerts", () => {
     const ticks = ticksOf(setup);
     await ticks.peringatanTick(setup.clock.now());
     setup.clock.advance({ hours: 3 });
-    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ dikirim: 0 });
+    expect(await ticks.peringatanTick(setup.clock.now())).toEqual({ diantrekan: 0 });
     expect(await jumlahPeringatan(setup, admin, "staf_antrean_mendesak")).toBe(0);
     expect(await jumlahPeringatan(setup, admin, "staf_antrean_eskalasi")).toBe(0);
   });

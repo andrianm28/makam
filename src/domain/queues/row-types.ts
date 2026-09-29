@@ -101,13 +101,24 @@ export interface AntreanRowType {
 export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan" | "pengurusan">;
 
 /**
+ * An open Tier 1 row with its anchor: `sejak` is when the row appeared, a fact the
+ * row's own subject already carries (the order's submission, the decline, the
+ * confirmation deadline that passed), so every alert clock (30 min, 90 min, the
+ * night hold) counts from it and not from when a tick first happened to see the
+ * row (owner decision 2026-09-29, ticket 28).
+ */
+export interface Tier1Row extends RawAntreanRow {
+  sejak: Date;
+}
+
+/**
  * A Tier 1 row type: the only kind that alerts (spec, Work Queues), so its query
  * takes no actor. `tundaMalam` and `eskalasiLanjutMenit` are the hooks the alerts read
  * (ticket 28; ticket 45's Konfirmasi TPU Saat Duka sets both).
  */
 export interface Tier1RowType extends Omit<AntreanRowType, "tier" | "rows"> {
   tier: 1;
-  rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]>;
+  rows(deps: Tier1RowDeps): Promise<Tier1Row[]>;
   /** A row of a TPU subject opened outside 06:00–18:00 WIB is alerted at 06:00, not in the night. */
   tundaMalam?: true;
   /** A further all-hands alert this many minutes after the first alert, while the row is still open. */

@@ -19,7 +19,7 @@
  * to make the call.
  */
 import { daytimeHoursDeadline } from "@/domain/lokasi";
-import type { RawAntreanRow, Tier1RowDeps, Tier1RowType } from "./row-types";
+import type { Tier1Row, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 /** The Spec's "call within 2 h" of a declined order, in daytime hours. */
 export const JAM_TELPON_SAAT_DUKA_DITOLAK = 2;
@@ -31,9 +31,9 @@ export const saatDukaDitolakRowType: Tier1RowType = {
   key: "saat_duka_ditolak",
   tier: 1,
   label: "Saat Duka ditolak",
-  async rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     const ditolak = await deps.pemesanan.saatDukaDitolak();
-    const rows: RawAntreanRow[] = [];
+    const rows: Tier1Row[] = [];
     for (const order of ditolak) {
       // A family already reached on the phone is not a row any more: the call is
       // logged, and only the log is the truth of that.
@@ -46,6 +46,8 @@ export const saatDukaDitolakRowType: Tier1RowType = {
         // Lokasi's own), so the Antrean itself is where the call is placed from.
         href: "/staf/admin-platform/antrean",
         deadline: daytimeHoursDeadline(order.ditolakPada, JAM_TELPON_SAAT_DUKA_DITOLAK),
+        // The row appears when the Lokasi declines the order.
+        sejak: order.ditolakPada,
       });
     }
     return rows;

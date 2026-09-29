@@ -15,7 +15,7 @@ export function schedulerContext(parts: {
   db: Database;
   paymentEffects?: readonly PaymentEffect[];
   reportError?: ReportError;
-  notifications?: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
+  notifications?: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
   pemesanan?: SchedulerContext["pemesanan"];
   payouts?: SchedulerContext["payouts"];
   refunds?: SchedulerContext["refunds"];
@@ -31,6 +31,7 @@ export function schedulerContext(parts: {
     notifications: parts.notifications ?? {
       kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }),
       chasingEskalasiTick: async () => ({ dieskalasi: 0 }),
+      kirimPeringatanAntreanTick: async () => ({ dikirim: 0 }),
     },
     pemesanan:
       parts.pemesanan ??
@@ -54,7 +55,7 @@ export function schedulerContext(parts: {
     // tick is undisturbed by it, and a test of the release one passes the real read.
     inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
     // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
-    queues: parts.queues ?? { peringatanTick: async () => ({ dikirim: 0 }), bertugasTick: async () => ({ dimatikan: 0 }) },
+    queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), bertugasTick: async () => ({ dimatikan: 0 }) },
   };
 }
 

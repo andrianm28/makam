@@ -155,6 +155,61 @@ describe("the red banner for untaken Tier 1 rows", () => {
     await signInAsAdminLokasi(server, admin, lokasiId);
     expect((await staffShell())?.tier1BelumDiambil).toBe(0);
   });
+
+  /** A family submits a Saat Duka TPU order: the Tier 1 "Konfirmasi TPU Saat Duka" row. */
+  async function pesananTpuMasuk(admin: Awaited<ReturnType<typeof signInAsAdminPlatform>>) {
+    const runtime = server.runtime();
+    for (const key of ["biaya_pengurusan_pemakaman", "biaya_pengurusan_berkas", "retribusi_pemda_iptm", "biaya_layanan_platform"] as const) {
+      const set = await runtime.tariffs.setGlobalTariff(admin, { key, amount: key === "retribusi_pemda_iptm" ? 0 : 1_000_000, effectiveOn: "2026-10-01", reason: null });
+      if (!set.ok) throw new Error(`tariff refused: ${set.reason}`);
+    }
+    const tpu = await runtime.lokasi.createTpuDki(admin, {
+      name: "TPU Kober",
+      address: "Jl. TPU Kober No. 1, Jakarta Timur",
+      city: "Kota Jakarta Timur",
+      pin: { lat: -6.2, lng: 106.9 },
+      dataSource: "Dinas Pengguna Umum dan Prasarana",
+      menerimaMakamBaru: true,
+    });
+    if (!tpu.ok) throw new Error(`TPU refused: ${tpu.reason}`);
+    const login = await server.logIn("pemesan@contoh.id");
+    const placed = await runtime.pengurusan.placeSaatDukaTpu({
+      pemesan: { accountId: login.account.id, email: login.account.email },
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      tpuId: tpu.tpuDki.id,
+      almarhumName: "Siti Aminah",
+      tanggalWafat: "2026-09-30",
+      jenis: "baru",
+      kelayakan: { ktpDki: true, wafatDiJakarta: true },
+      pemegangHak: { mode: "pemesan" },
+    });
+    if (!placed.ok) throw new Error(`TPU order refused: ${placed.reason}`);
+
+  }
+
+  it("shows the untaken Tier 1 count to an Admin Platform and clears it once the row is taken", async () => {
+    const { admin } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    await pesananTpuMasuk(admin);
+
+    expect((await staffShell())?.tier1BelumDiambil).toBe(1);
+
+    const runtime = server.runtime();
+    const [row] = await runtime.queues.antrean(admin);
+    const taken = await runtime.queues.ambilRow(admin, { type: row.type, subjectId: row.subjectId });
+    expect(taken.ok).toBe(true);
+    expect((await staffShell())?.tier1BelumDiambil).toBe(0);
+  });
+
+  it("never shows the count to an Admin Lokasi, even while a Tier 1 row is untaken", async () => {
+    const { admin, lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
+    await pesananTpuMasuk(admin);
+    expect(await server.runtime().queues.tier1BelumDiambil(admin)).toBe(1);
+
+    await signInAsAdminLokasi(server, admin, lokasiId);
+
+    expect((await staffShell())?.tier1BelumDiambil).toBe(0);
+  });
 });
 
 /** Every page a palette opens. */

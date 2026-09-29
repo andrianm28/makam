@@ -16,7 +16,7 @@
  * and a 06:00 alert for a night row) counts from a fact the order already
  * carries rather than from when the row was first read.
  */
-import type { RawAntreanRow, Tier1RowDeps, Tier1RowType } from "./row-types";
+import type { Tier1Row, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 export const KONFIRMASI_TPU_SAAT_DUKA_TYPE = "konfirmasi_tpu_saat_duka";
 
@@ -31,7 +31,7 @@ export const konfirmasiTpuSaatDukaRowType: Tier1RowType = {
   // again 90 min after the first alert while it is still unconfirmed.
   tundaMalam: true,
   eskalasiLanjutMenit: 90,
-  async rows(deps: Tier1RowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     const terbuka = await deps.pengurusan.konfirmasiTpuTerbuka();
     return terbuka.map((order) => ({
       subjectKind: "pengurusan_tpu",
@@ -39,6 +39,8 @@ export const konfirmasiTpuSaatDukaRowType: Tier1RowType = {
       subjectLabel: `${order.nomor} · ${order.almarhumName} · ${order.tpuName}`,
       href: `${KONFIRMASI_TPU_HREF}/${order.nomor}`,
       deadline: order.konfirmasiDueAt,
+      // The row appears when the family submits the order.
+      sejak: order.diajukanAt,
     }));
   },
 };

@@ -19,7 +19,7 @@
  *
  * Owns tables: notifications_push_device, notifications_staff_alert,
  * notifications_message, notifications_tagihan_kontak,
- * notifications_telepon_pemesan.
+ * notifications_telepon_pemesan, notifications_peringatan_antrean.
  */
 import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { z } from "zod";
@@ -52,7 +52,12 @@ import {
   type TeleponPemesan,
   type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
-import { peringatanAntreanTier1, type PeringatanAntreanInput, type PeringatanAntreanResult } from "./peringatan-antrean";
+import {
+  antrekanPeringatanAntrean,
+  kirimPeringatanAntreanTick,
+  type PeringatanAntreanInput,
+  type PeringatanAntreanResult,
+} from "./peringatan-antrean";
 import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
 import {
   catatanTagihan,
@@ -304,12 +309,15 @@ export interface Notifications {
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
   /**
-   * A Peringatan Staf about a Tier 1 row of the Antrean (ticket 28), to each
-   * Akun Staf in `to`: the first alert, the 30 min re-alert and the 90 min one.
-   * The Work Queues module names the recipients and the moment; each goes out
-   * as any Peringatan Staf does (push + email, logged, never retried).
+   * Queues a Peringatan Staf about a Tier 1 row of the Antrean (ticket 28), one per
+   * Akun Staf in `to`: the first alert, the 30 min re-alert or the 90 min one. The
+   * Work Queues module names the recipients and the moment. `within` is its open
+   * transaction, in which it claims the alert's stage: the alert is queued only if
+   * that commits. The worker's `kirimPeringatanAntreanTick` sends it.
    */
-  peringatanAntreanTier1(input: PeringatanAntreanInput): Promise<PeringatanAntreanResult>;
+  peringatanAntreanTier1(input: PeringatanAntreanInput, within?: Database): Promise<PeringatanAntreanResult>;
+  /** The worker's tick: sends every queued Tier 1 alert not yet sent (push + email, logged). Idempotent. */
+  kirimPeringatanAntreanTick(): Promise<{ dikirim: number }>;
   /**
    * The bell of the signed-in Akun Staf: how many of its Peringatan Staf are
    * unread, and the latest `limit` (newest first). Only its own.
@@ -650,8 +658,12 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return { ok: true, email, push };
     },
 
-    async peringatanAntreanTier1(input) {
-      return peringatanAntreanTier1((alert) => notifications.sendStaffAlert(alert), input);
+    async peringatanAntreanTier1(input, within) {
+      return antrekanPeringatanAntrean(within ?? db, deps.clock, input);
+    },
+
+    async kirimPeringatanAntreanTick() {
+      return kirimPeringatanAntreanTick(db, deps.clock, (alert) => notifications.sendStaffAlert(alert));
     },
 
     async staffAlerts(by, options = {}) {

@@ -37,7 +37,7 @@ export interface SchedulerContext {
   paymentEffects: readonly PaymentEffect[];
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20), and the Chasing escalation tick (ticket 29). */
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
   /**
@@ -119,6 +119,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
   // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
   { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
+  // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
+  { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
   // Work Queues: a Tier 1 row alerts the Bertugas Admin Platform (all if none), everyone at 30 min untaken, and again at 90 min for a TPU confirmation; a night TPU row waits for 06:00 (ticket 28).
   { name: "queues.peringatan_tier1", cron: "* * * * *", tick: peringatanTier1Tick },
   // Work Queues: a Bertugas ends at 18:00 WIB or 12 h after it began, claims and notes untouched (ticket 28).
@@ -199,4 +201,9 @@ async function peringatanTier1Tick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Bertugas auto-off tick (idempotent there, as every tick is). */
 async function bertugasOtomatisMatiTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.queues.bertugasTick(now);
+}
+
+/** The worker wrapper around Notifications' send tick for queued Tier 1 alerts (idempotent there, as every tick is). */
+async function kirimPeringatanAntreanTick(ctx: SchedulerContext): Promise<void> {
+  await ctx.notifications.kirimPeringatanAntreanTick();
 }

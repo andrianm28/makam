@@ -90,7 +90,9 @@ export interface Pengurusan {
   pesananSaya(pemesan: { accountId: string }): Promise<PengurusanOrder[]>;
   /**
    * Every Saat Duka TPU order still waiting for a confirmation: what the Antrean's
-   * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. The caller checks who may see it; this read takes no actor, so the worker can read it too.
+   * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. This read takes no actor (so the worker can read it too), which means
+   * the gate moved to the callers: a caller must check `antrean.lihat` (Admin Platform only) before
+   * showing the result to anyone. The Antrean checks it in `antrean()`, the staff page through `staffMenuActor`.
    */
   konfirmasiTpuTerbuka(): Promise<KonfirmasiTpu[]>;
   /**
