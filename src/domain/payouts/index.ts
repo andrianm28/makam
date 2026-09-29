@@ -112,7 +112,7 @@ export interface PayoutsDeps {
   /** Whether an id is a Lokasi Mitra's at all, so a Potongan is never charged to nothing. */
   lokasiAda: (lokasiId: string) => Promise<boolean>;
   /** The issued Tagihan (never its tables) and the `BKP/YYYY/NNNNNN` series, `within` the issuing transaction. */
-  billing: Pick<Billing, "tagihan" | "within">;
+  billing: Pick<Billing, "tagihan" | "within" | "pembayaranPerluDitinjau">;
   operatorSettings: Pick<OperatorSettings, "current">;
   /** The Bukti Pencairan page's absolute URL: what the recipient is sent and the PDF rendered from. */
   buktiUrl: (link: string) => string;

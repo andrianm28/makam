@@ -1,6 +1,7 @@
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
+import type { Notifications } from "@/domain/notifications";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createPerpanjangan, efekPerpanjangan } from "@/domain/perpanjangan";
 import { cellsOf } from "./inventory";
@@ -18,12 +19,37 @@ import { publishOnTestDatabase, type PublishSetup } from "./publish";
  */
 export function perpanjanganOnTestDatabase(db: Database) {
   const ref: { setup?: PublishSetup } = {};
+  /**
+   * Makes the announcement fail right after it was queued, so a test can see that a rolled-back
+   * write leaves no queued message: the module must queue it in the transaction of the write.
+   */
+  const gagalSetelahAntre = { tagihanTerbit: false, buktiPerpanjangan: false };
+  const notifikasi = {
+    within: (tx: Database): Notifications => {
+      const asli = ref.setup!.notifications.within(tx);
+      return {
+        ...asli,
+        tagihanTerbit: async (input) => {
+          const hasil = await asli.tagihanTerbit(input);
+          if (gagalSetelahAntre.tagihanTerbit) throw new Error("the announcement failed after it was queued");
+          return hasil;
+        },
+        buktiPerpanjanganTerbit: async (input) => {
+          const hasil = await asli.buktiPerpanjanganTerbit(input);
+          if (gagalSetelahAntre.buktiPerpanjangan) throw new Error("the announcement failed after it was queued");
+          return hasil;
+        },
+      };
+    },
+  };
   const efek = efekPerpanjangan({
     billingOn: (tx) => ref.setup!.billing.within(tx),
     inventory: { within: (tx) => ref.setup!.inventory.within(tx) },
-    notifikasi: { buktiPerpanjanganTerbit: (input) => ref.setup!.notifications.buktiPerpanjanganTerbit(input) },
+    lokasi: { aturanPerpanjanganOf: (lokasiId) => ref.setup!.lokasi.aturanPerpanjanganOf(lokasiId) },
+    notifikasi,
   });
-  const setup = publishOnTestDatabase(db, { paymentEffects: [efekPencairanSaatLunas(), efek] });
+  const paymentEffects = [efekPencairanSaatLunas(), efek];
+  const setup = publishOnTestDatabase(db, { paymentEffects });
   ref.setup = setup;
   const pemesanan = composePemesanan({
     db,
@@ -59,9 +85,9 @@ export function perpanjanganOnTestDatabase(db: Database) {
     billing: setup.billing,
     pemesanan,
     identity: setup.identity,
-    notifikasi: setup.notifications,
+    notifikasi,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, dikirim, perpanjangan };
+  return { ...setup, pemesanan, pengurusan, payouts, dikirim, perpanjangan, gagalSetelahAntre, paymentEffects };
 }
 
 export type PerpanjanganSetup = ReturnType<typeof perpanjanganOnTestDatabase>;

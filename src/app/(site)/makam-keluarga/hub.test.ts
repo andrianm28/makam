@@ -76,6 +76,7 @@ describe("the Makam keluarga hub page, read the way it reads for a family", () =
     expect(hub.status).toBe("ditemukan");
     expect(hub.ditemukan).toEqual([
       {
+        hakPakaiId: expect.any(String),
         lokasiId: lokasiMitra.id,
         namaLokasi: "Makam Keluarga Sawah",
         kavlingId: null,

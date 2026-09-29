@@ -75,6 +75,7 @@ describe("a family looking for where a grave is (spec, Inventory > lookup)", () 
       ok: true,
       ditemukan: [
         {
+          hakPakaiId: expect.any(String),
           lokasiId: lokasiMitra.id,
           kavlingId: null,
           nomorKavling: null,
@@ -136,6 +137,7 @@ describe("a family looking for where a grave is (spec, Inventory > lookup)", () 
       ok: true,
       ditemukan: [
         {
+          hakPakaiId: expect.any(String),
           lokasiId: lokasiMitra.id,
           kavlingId,
           nomorKavling,

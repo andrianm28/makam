@@ -10,7 +10,7 @@
  * opened on 2026-07-15 and closes with the Masa Tenggang on 2027-01-15).
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { lapsePayFirstTagihanTick } from "@/domain/billing";
+import { lapsePayFirstTagihanTick, retryFailedPaymentEffectsTick } from "@/domain/billing";
 import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { setTagihanStatusForTest } from "../../../tests/support/billing";
@@ -560,5 +560,123 @@ describe("Pencairan: the Perpanjangan item is due on payment", () => {
     expect(due[0]).toMatchObject({ recipient: { kind: "lokasi_mitra", nama: "Makam Wakaf Al-Ikhlas" }, itemCount: 1, amount: 3_000_000 });
     expect(await setup.payouts.tick()).toEqual({ items: 0, potongan: 0, dilewati: 0 });
     expect(await setup.payouts.pencairanJatuhTempo()).toHaveLength(1);
+  });
+});
+
+describe("messages are queued in the transaction of the write they announce", () => {
+  it("leaves no Perpanjangan, no Tagihan and no queued email when the order rolls back", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    const holder = await pemegang(setup);
+    const terkirimSebelum = setup.email.sent.length;
+
+    setup.gagalSetelahAntre.tagihanTerbit = true;
+    await expect(setup.perpanjangan.ajukan({ hakPakaiId: fixture.hakPakaiId, terms: 1, pemohon: holder })).rejects.toThrow();
+
+    expect(await setup.perpanjangan.perpanjanganUntukHakPakai(fixture.hakPakaiId)).toEqual([]);
+    expect(await setup.billing.cariTagihan("TGH")).toEqual([]);
+    setup.clock.set(wib("2026-10-03 09:00"));
+    expect(await setup.notifications.kirimPesanJatuhTempo(setup.clock.now())).toMatchObject({ terkirim: 0, ditunda: 0 });
+    expect(setup.email.sent).toHaveLength(terkirimSebelum);
+  });
+
+  it("leaves the Hak Pakai, the Bukti and the email untouched when the payment's effect rolls back, and completes them once on the retry", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    const perpanjangan = await pesan(setup, fixture.hakPakaiId);
+    const tagihanId = await tagihanIdOf(setup, perpanjangan.id);
+
+    setup.gagalSetelahAntre.buktiPerpanjangan = true;
+    await bayar(setup, tagihanId);
+
+    // The payment stands; what the effect did was rolled back with it, the queued email included.
+    expect(await setup.billing.tagihan(tagihanId)).toMatchObject({ status: "lunas" });
+    expect(await endDateOf(setup, fixture.hakPakaiId)).toBe("2026-10-15");
+    expect(await setup.perpanjangan.perpanjanganOf(perpanjangan.id)).toMatchObject({ buktiId: null, dibayarPada: null });
+    expect(await setup.notifications.pesanPemesanan(perpanjangan.id)).toEqual([]);
+
+    setup.gagalSetelahAntre.buktiPerpanjangan = false;
+    await retryFailedPaymentEffectsTick({ db, paymentEffects: setup.paymentEffects, reportError: () => {} }, setup.clock.now());
+    await retryFailedPaymentEffectsTick({ db, paymentEffects: setup.paymentEffects, reportError: () => {} }, setup.clock.now());
+
+    expect(await endDateOf(setup, fixture.hakPakaiId)).toBe("2031-10-15");
+    expect((await setup.notifications.pesanPemesanan(perpanjangan.id)).map((one) => one.template)).toEqual(["bukti_perpanjangan_terbit"]);
+  });
+});
+
+describe("a payment that arrives after the Hak Pakai has ended is not applied by itself", () => {
+  it("records the money and opens a Pembayaran Perlu Ditinjau instead of extending an ended Hak Pakai", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    const perpanjangan = await pesan(setup, fixture.hakPakaiId);
+    const tagihanId = await tagihanIdOf(setup, perpanjangan.id);
+    const berakhir = await setup.inventory.akhiriHakPakai({ hakPakaiId: fixture.hakPakaiId, alasan: "Diakhiri Admin Lokasi" });
+    expect(berakhir.ok).toBe(true);
+
+    const bukti = await bayar(setup, tagihanId);
+    await bayar(setup, tagihanId);
+
+    // The money is recorded: the Tagihan is Lunas with its Bukti Pembayaran, and nothing failed or retries.
+    expect(await setup.billing.tagihan(tagihanId)).toMatchObject({ status: "lunas" });
+    expect(setup.reportedErrors).toEqual([]);
+    // The Hak Pakai is not extended and no Bukti Perpanjangan exists.
+    expect(await endDateOf(setup, fixture.hakPakaiId)).toBe("2026-10-15");
+    expect(await setup.perpanjangan.perpanjanganOf(perpanjangan.id)).toMatchObject({ status: "perlu_ditinjau", buktiId: null, endDateBaru: null });
+    expect(await setup.notifications.pesanPemesanan(perpanjangan.id)).toEqual([]);
+    // Admin Platform's Antrean row: one Pembayaran Perlu Ditinjau for that Tagihan, however often the payment is reported.
+    const ditinjau = await setup.billing.pembayaranPerluDitinjau();
+    expect(ditinjau).toEqual([
+      expect.objectContaining({
+        reason: "tidak_dapat_diterapkan",
+        amount: 3_150_000,
+        providerPaymentId: bukti.nomorBukti,
+        tagihan: { id: tagihanId, nomorTagihan: perpanjangan.tagihan.nomorTagihan },
+      }),
+    ]);
+    // The Lokasi is owed nothing while it is under review.
+    expect(await setup.payouts.tick()).toEqual({ items: 0, potongan: 0, dilewati: 0 });
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
+  });
+
+  it("does the same for a payment made after the Masa Tenggang closed, though the Hak Pakai was never ended", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    setup.clock.set(wib("2027-01-14 10:00"));
+    const perpanjangan = await pesan(setup, fixture.hakPakaiId);
+    const tagihanId = await tagihanIdOf(setup, perpanjangan.id);
+
+    // Due on 2027-01-17, but the Masa Tenggang (to 2027-01-15) is over when the money comes.
+    setup.clock.set(wib("2027-01-16 09:00"));
+    await bayar(setup, tagihanId);
+
+    expect(await endDateOf(setup, fixture.hakPakaiId)).toBe("2026-10-15");
+    expect(await setup.perpanjangan.perpanjanganOf(perpanjangan.id)).toMatchObject({ status: "perlu_ditinjau" });
+    expect((await setup.billing.pembayaranPerluDitinjau()).map((one) => one.reason)).toEqual(["tidak_dapat_diterapkan"]);
+  });
+
+  it("still applies a payment made on the last day of the Masa Tenggang", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    setup.clock.set(wib("2027-01-14 10:00"));
+    const perpanjangan = await pesan(setup, fixture.hakPakaiId);
+
+    setup.clock.set(wib("2027-01-15 20:00"));
+    await bayar(setup, await tagihanIdOf(setup, perpanjangan.id));
+
+    expect(await endDateOf(setup, fixture.hakPakaiId)).toBe("2031-10-15");
+    expect(await setup.billing.pembayaranPerluDitinjau()).toEqual([]);
+  });
+});
+
+describe("the Makam keluarga hub leads to the Perpanjangan", () => {
+  it("answers a lookup with the Hak Pakai's id, which opens that grave's Perpanjangan", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+
+    const hasil = await setup.inventory.cariMakam({ ip: "203.0.113.20", bentuk: "nomor_makam", lokasiId: fixture.lokasiMitra.id, nomor: fixture.nomorMakam });
+
+    if (!hasil.ok) throw new Error("lookup refused");
+    expect(hasil.ditemukan[0]?.hakPakaiId).toBe(fixture.hakPakaiId);
+    expect(await setup.perpanjangan.status(hasil.ditemukan[0]!.hakPakaiId)).toMatchObject({ boleh: true, endDate: "2026-10-15" });
   });
 });

@@ -1,5 +1,5 @@
 {
-  "id": "002e04d5-67a6-4255-a393-717c95ba20fd",
+  "id": "d5acc4cf-77a8-436f-8182-f90e5396953e",
   "prevId": "1ab51512-7ba4-4adb-9f38-a8b3eeebcd25",
   "version": "7",
   "dialect": "postgresql",
@@ -796,7 +796,7 @@
       "checkConstraints": {
         "pembayaran_perlu_ditinjau_reason_check": {
           "name": "pembayaran_perlu_ditinjau_reason_check",
-          "value": "\"pembayaran_perlu_ditinjau\".\"reason\" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi')"
+          "value": "\"pembayaran_perlu_ditinjau\".\"reason\" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi', 'tidak_dapat_diterapkan')"
         },
         "pembayaran_perlu_ditinjau_amount_check": {
           "name": "pembayaran_perlu_ditinjau_amount_check",
@@ -1170,14 +1170,6 @@
         "tagihan_pengembalian_check": {
           "name": "tagihan_pengembalian_check",
           "value": "(\"tagihan\".\"pengembalian_diminta_at\" is null) = (\"tagihan\".\"pengembalian_jumlah\" is null)"
-        },
-        "tagihan_harga_khusus_porsi_mitra_check": {
-          "name": "tagihan_harga_khusus_porsi_mitra_check",
-          "value": "\"tagihan\".\"harga_khusus_porsi_mitra\" is null or \"tagihan\".\"harga_khusus_porsi_mitra\" between 0 and 100000000000"
-        },
-        "tagihan_harga_khusus_porsi_mitra_catatan_check": {
-          "name": "tagihan_harga_khusus_porsi_mitra_catatan_check",
-          "value": "\"tagihan\".\"harga_khusus_porsi_mitra\" is null or \"tagihan\".\"harga_khusus_porsi_mitra\" = 0 or \"tagihan\".\"harga_khusus_porsi_mitra_catatan\" is not null"
         }
       },
       "isRLSEnabled": false

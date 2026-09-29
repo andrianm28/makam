@@ -66,7 +66,7 @@ async function main() {
     dokumenUrl: urls.publicDocumentUrl,
     buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
     // A paid Perpanjangan extends its Hak Pakai (ticket 40); a failed one is retried here too.
-    perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, notifikasi: notifications }),
+    perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
   });
   const billing = composeBilling({
     ...billingComposition,

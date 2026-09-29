@@ -56,6 +56,11 @@ import {
   type IssueBuktiPerpanjanganInput,
   type IssueBuktiPerpanjanganResult,
 } from "./bukti-perpanjangan";
+import {
+  catatPembayaranPerluDitinjau,
+  type CatatPembayaranPerluDitinjauInput,
+  type CatatPembayaranPerluDitinjauResult,
+} from "./perlu-ditinjau";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
 import { batalkanTagihan, type BatalkanTagihanAlasan, type BatalkanTagihanResult } from "./batalkan-tagihan";
 import {
@@ -123,6 +128,7 @@ export type {
 } from "./pembayaran-staf";
 export type { HargaKhususDeps, TetapkanHargaKhususInput, TetapkanHargaKhususResult } from "./harga-khusus";
 export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
+export type { CatatPembayaranPerluDitinjauInput, CatatPembayaranPerluDitinjauResult } from "./perlu-ditinjau";
 export type { BuktiPerpanjangan, IssueBuktiPerpanjanganInput, IssueBuktiPerpanjanganResult } from "./bukti-perpanjangan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
@@ -318,6 +324,12 @@ export interface Billing {
   /** One Bukti Perpanjangan by its id, or null. */
   buktiPerpanjanganById(id: string): Promise<BuktiPerpanjangan | null>;
   /**
+   * Records that a settled payment could not be applied automatically, as a Pembayaran Perlu
+   * Ditinjau for Admin Platform (apply by hand, or refund). Taken `within` the payment's own
+   * transaction; idempotent by its key (ticket 40).
+   */
+  catatPembayaranPerluDitinjau(input: CatatPembayaranPerluDitinjauInput): Promise<CatatPembayaranPerluDitinjauResult>;
+  /**
    * Admin Platform marks a Tagihan paid by hand (Transfer manual / Tunai),
    * with a required proof file. Settles exactly as a PaymentProvider webhook
    * does and records one Entri Audit (ticket 30's AC 1). Requires `audit` and
@@ -409,6 +421,7 @@ export function createBilling(deps: BillingDeps): Billing {
     allBuktiPemesanan: () => allBuktiPemesanan(deps.db),
     issueBuktiPerpanjangan: (input) => issueBuktiPerpanjangan(deps, input, deps.clock.now()),
     buktiPerpanjanganById: (id) => buktiPerpanjanganById(deps.db, id),
+    catatPembayaranPerluDitinjau: (input) => catatPembayaranPerluDitinjau(deps.db, input, deps.clock.now()),
     catatPembayaranManual: (by, input) => {
       if (!deps.audit) throw new MissingBillingDep("audit");
       if (!deps.files) throw new MissingBillingDep("files");

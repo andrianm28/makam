@@ -56,8 +56,12 @@ export interface PerpanjanganTercatat {
   hakPakaiId: string;
   terms: number;
   nomorTagihan: string;
-  /** Lunas once paid; Menunggu Pembayaran while its Tagihan can still be paid; Dibatalkan once that Tagihan lapsed. */
-  status: "menunggu_pembayaran" | "lunas" | "dibatalkan";
+  /**
+   * Lunas once paid and applied; Menunggu Pembayaran while its Tagihan can still be paid; Dibatalkan
+   * once that Tagihan lapsed; Perlu Ditinjau when the money arrived but could not be applied (the Hak
+   * Pakai had ended or its Masa Tenggang was over), which Admin Platform applies by hand or refunds.
+   */
+  status: "menunggu_pembayaran" | "lunas" | "dibatalkan" | "perlu_ditinjau";
   dibuatPada: Date;
   dibayarPada: Date | null;
   /** The end dates it moved between; null until paid. */
@@ -88,7 +92,8 @@ export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
     let status: PerpanjanganTercatat["status"] = "lunas";
     if (!row.dibayarPada) {
       const tagihan = await deps.billing.tagihan(row.tagihanId);
-      status = tagihan && tagihan.status !== "dibatalkan" ? "menunggu_pembayaran" : "dibatalkan";
+      if (!tagihan || tagihan.status === "dibatalkan") status = "dibatalkan";
+      else status = tagihan.status === "lunas" || tagihan.status === "dikembalikan_penuh" || tagihan.status === "dikembalikan_sebagian" ? "perlu_ditinjau" : "menunggu_pembayaran";
     }
     return {
       id: row.id,

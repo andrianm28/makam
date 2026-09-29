@@ -26,5 +26,6 @@ export interface PerpanjanganDeps {
   billing: Pick<Billing, "within" | "tagihan">;
   pemesanan: Pick<Pemesanan, "tagihanPenghalangOf">;
   identity: Pick<Identity, "requestKodeMasuk" | "verifyKodeMasuk" | "accountByEmail">;
-  notifikasi: Pick<Notifications, "tagihanTerbit" | "buktiPerpanjanganTerbit">;
+  /** Only `within`: every message is queued in the transaction of the write it announces. */
+  notifikasi: Pick<Notifications, "within">;
 }

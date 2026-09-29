@@ -381,6 +381,12 @@ export interface Notifications {
   tambahCatatanTagihan(by: Actor, input: TambahCatatanTagihanInput): Promise<TambahCatatanTagihanResult>;
   /** Every standalone note on one Tagihan's call log, oldest first. */
   catatanTagihan(tagihanId: string): Promise<CatatanTagihan[]>;
+  /**
+   * The same module on an open transaction (another module's), so a message is queued in the
+   * very transaction that writes what it announces and rolls back with it (AGENTS.md: enqueue
+   * in the same transaction as the data; ticket 40).
+   */
+  within(tx: Database): Notifications;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -723,6 +729,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async catatanTagihan(tagihanId) {
       return catatanTagihan(db, tagihanId);
     },
+
+    within: (tx) => createNotifications({ ...deps, db: tx }),
   };
   return notifications;
 }

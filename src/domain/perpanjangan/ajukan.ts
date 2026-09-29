@@ -75,14 +75,18 @@ async function fakta(deps: PerpanjanganDeps, hakPakaiId: string) {
   const hariIni = wibDateOf(deps.clock.now());
   const boleh = bolehDiperpanjang(hak, hariIni, aturan.masaTenggangMonths);
   // A Hak Pakai that has ended or is perpetual has nothing to extend, whatever else is true of it.
-  if (!boleh.boleh && (boleh.catatan.kind === "selamanya" || (boleh.catatan.kind === "hubungi_admin_lokasi" && (boleh.catatan.sebab === "berakhir" || boleh.catatan.sebab === "dibatalkan")))) {
-    return { ok: false as const, catatan: boleh.catatan };
-  }
+  if (!boleh.boleh && tidakAdaYangDiperpanjang(boleh.catatan)) return { ok: false as const, catatan: boleh.catatan };
   // An overdue pay-after Tagihan on the Hak Pakai blocks until it is paid.
   const penghalang = await deps.pemesanan.tagihanPenghalangOf(hak.id);
   if (penghalang) return { ok: false as const, catatan: { kind: "lunasi_tagihan", nomorTagihan: penghalang.nomorTagihan, link: penghalang.link } satisfies CatatanPerpanjangan };
   if (!boleh.boleh) return { ok: false as const, catatan: boleh.catatan };
   return { ok: true as const, hak, aturan, jendela: boleh, hariIni };
+}
+
+/** Whether a note says the Hak Pakai has nothing to extend at all (perpetual, Berakhir or Dibatalkan): it wins over every other note. */
+function tidakAdaYangDiperpanjang(catatan: CatatanPerpanjangan): boolean {
+  if (catatan.kind === "selamanya") return true;
+  return catatan.kind === "hubungi_admin_lokasi" && (catatan.sebab === "berakhir" || catatan.sebab === "dibatalkan");
 }
 
 /** The Petak Makam, or the Kavling Keluarga with its Petak, as the family knows it. */
@@ -273,21 +277,23 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
         dibuatPada: now,
       })
       .returning({ id: perpanjangan.id });
+    // The email is queued in this very transaction: a rolled-back order leaves no message behind.
+    const diumumkan = await deps.notifikasi.within(tx).tagihanTerbit({
+      tagihanId: tagihan.tagihan.id,
+      momentKind: "perpanjangan",
+      nomorTagihan: tagihan.tagihan.nomorTagihan,
+      nomorPemesanan: null,
+      email: akun.email,
+      perihal: `Perpanjangan Makam di ${aturan.name}`,
+      total: tagihan.tagihan.total,
+      dueAt: tagihan.tagihan.dueAt,
+      link: tagihan.tagihan.link,
+    });
+    if (!diumumkan.ok) throw new Error(`the Tagihan of Perpanjangan ${row.id} could not be announced: ${diumumkan.reason}`);
     return { ok: true, id: row.id, tagihan: tagihan.tagihan };
   });
   if (!hasil.ok) return hasil;
 
-  await deps.notifikasi.tagihanTerbit({
-    tagihanId: hasil.tagihan.id,
-    momentKind: "perpanjangan",
-    nomorTagihan: hasil.tagihan.nomorTagihan,
-    nomorPemesanan: null,
-    email: akun.email,
-    perihal: `Perpanjangan Makam di ${aturan.name}`,
-    total: hasil.tagihan.total,
-    dueAt: hasil.tagihan.dueAt,
-    link: hasil.tagihan.link,
-  });
   return {
     ok: true,
     perpanjangan: {

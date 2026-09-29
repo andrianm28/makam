@@ -42,6 +42,17 @@ export const BIAYA_LAYANAN_PLATFORM = "biaya_layanan_platform";
 
 const nomorPemesananSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
+/** What both candidate queries read of a settled payment. */
+const KOLOM_PEMBAYARAN = {
+  tagihanId: pencairanPembayaran.tagihanId,
+  nomorPemesanan: pencairanPembayaran.nomorPemesanan,
+  dibayarPada: pencairanPembayaran.dibayarPada,
+  metode: pencairanPembayaran.metode,
+  // Ticket 30's AC 2 reversal: once set, the row is treated as an ordinary partner-paid
+  // order below, whatever `metode` still says.
+  dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
+};
+
 /** A line a Lokasi Mitra provides, narrowed to what an item copies from it. */
 type PartnerLine = TagihanLine & { provider: { kind: "lokasi_mitra"; lokasiId: string; name: string } };
 
@@ -49,7 +60,7 @@ export interface PemicuDeps {
   db: Database;
   clock: Clock;
   /** The issued Tagihan, read through Billing's own public read: never its tables. */
-  billing: Pick<Billing, "tagihan">;
+  billing: Pick<Billing, "tagihan" | "pembayaranPerluDitinjau">;
   /** The Admin Platform Hari Kerja calendar the "2 Hari Kerja" deadline counts on (AC 6). */
   lokasi: Pick<Lokasi, "adminPlatformCalendar">;
   /** Where a trigger that cannot be applied is reported (an unexpected line kind); tags only, no money in them. */
@@ -163,16 +174,7 @@ function tenggat(dueAt: Date, calendar: Awaited<ReturnType<Lokasi["adminPlatform
  */
 export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPencairanResult> {
   const saatDuka = await deps.db
-    .select({
-      tagihanId: pencairanPembayaran.tagihanId,
-      nomorPemesanan: pencairanPembayaran.nomorPemesanan,
-      dibayarPada: pencairanPembayaran.dibayarPada,
-      metode: pencairanPembayaran.metode,
-      // Ticket 30's AC 2 reversal: once set, this row is treated as an
-      // ordinary partner-paid order below, whatever `metode` still says.
-      dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
-      pemakamanPada: pencairanPemakaman.pemakamanPada,
-    })
+    .select({ ...KOLOM_PEMBAYARAN, pemakamanPada: pencairanPemakaman.pemakamanPada })
     .from(pencairanPembayaran)
     .innerJoin(pencairanPemakaman, eq(pencairanPemakaman.nomorPemesanan, pencairanPembayaran.nomorPemesanan))
     .where(isNotNull(pencairanPembayaran.nomorPemesanan))
@@ -182,13 +184,7 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
   // candidate, and only one carrying a Perpanjangan line of a Lokasi Mitra
   // becomes items, due at the instant of payment.
   const perpanjangan = await deps.db
-    .select({
-      tagihanId: pencairanPembayaran.tagihanId,
-      nomorPemesanan: pencairanPembayaran.nomorPemesanan,
-      dibayarPada: pencairanPembayaran.dibayarPada,
-      metode: pencairanPembayaran.metode,
-      dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
-    })
+    .select(KOLOM_PEMBAYARAN)
     .from(pencairanPembayaran)
     .where(
       and(
@@ -197,16 +193,20 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
       ),
     )
     .orderBy(pencairanPembayaran.dibayarPada);
+  // A payment under review (money that could not be applied, ticket 40) owes the Lokasi nothing until
+  // Admin Platform decides, so it is not a candidate: a refund settles it, and applying it is by hand.
+  const dalamTinjauan = new Set((await deps.billing.pembayaranPerluDitinjau()).flatMap((entry) => (entry.tagihan ? [entry.tagihan.id] : [])));
   const menunggu = [
     ...saatDuka.map((row) => ({ ...row, jalur: "saat_duka" as const })),
-    ...perpanjangan.map((row) => ({ ...row, pemakamanPada: row.dibayarPada, jalur: "perpanjangan" as const })),
+    ...perpanjangan
+      .filter((row) => !dalamTinjauan.has(row.tagihanId))
+      .map((row) => ({ ...row, pemakamanPada: row.dibayarPada, jalur: "perpanjangan" as const })),
   ];
   if (menunggu.length === 0) return { items: 0, potongan: 0, dilewati: 0 };
 
   const calendar = await deps.lokasi.adminPlatformCalendar();
   const hasil: TickPencairanResult = { items: 0, potongan: 0, dilewati: 0 };
   for (const row of menunggu) {
-    if (row.jalur === "saat_duka" && row.nomorPemesanan === null) continue;
     // A payment method that does not read is not a trigger this module acts on:
     // a row it cannot understand is left alone rather than guessed at.
     const metode = paymentMethodSchema.safeParse(row.metode);

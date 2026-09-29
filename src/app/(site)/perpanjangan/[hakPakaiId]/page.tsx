@@ -12,7 +12,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { currentActor } from "@/server/session";
 import { serverRuntime } from "@/server/runtime";
-import { kirimKodePerpanjangan, masukDanPesanPerpanjangan, pesanPerpanjangan } from "./actions";
+import { kirimKodePerpanjangan, pesanPerpanjangan, verifikasiKodePerpanjangan } from "./actions";
 
 export const metadata: Metadata = {
   title: "Perpanjang Makam · Makam.co.id",
@@ -181,16 +181,15 @@ function Buka({
     );
   }
   return (
-    <form action={masukDanPesanPerpanjangan} className="flex flex-col gap-4">
+    <form action={verifikasiKodePerpanjangan} className="flex flex-col gap-4">
       <input type="hidden" name="hakPakaiId" value={status.hakPakaiId} />
-      <p className="text-body">Kode sudah dikirim ke {status.emailDisamarkan}. Masukkan kode itu, pilih jumlah masa, lalu lanjut ke Tagihan.</p>
+      <p className="text-body">Kode sudah dikirim ke {status.emailDisamarkan}. Masukkan kode itu; setelah itu Anda memilih jumlah masa dan melanjutkan ke Tagihan.</p>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Kode 6 angka
         <Input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required className="h-11 px-3" />
       </label>
-      {pilihan}
       <Button type="submit" size="lg">
-        Lanjut ke Tagihan
+        Masukkan kode
       </Button>
     </form>
   );

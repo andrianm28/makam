@@ -220,6 +220,12 @@ function MakamDitemukan({ satu, aksiTerpilih, contact }: { satu: MakamTerbaca; a
           tidak ditampilkan di sini.
         </p>
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam ini" />
+        <Link
+          href={`/perpanjangan/${satu.hakPakaiId}`}
+          className={aksiTerpilih === "perpanjang" ? "font-medium text-brand underline underline-offset-4" : "text-body text-brand underline underline-offset-4"}
+        >
+          Perpanjang Makam ini
+        </Link>
         {aksiTerpilih === null ? (
           <p className="text-small text-muted-foreground">Pilih salah satu langkah di bawah untuk melanjutkan dari makam ini.</p>
         ) : null}
@@ -253,6 +259,8 @@ function KartuAksi({ kartu, dipilih, contact }: { kartu: TampilanHub["kartuAksi"
           <Link href={kartu.href} className="font-medium text-brand underline underline-offset-4">
             Mulai {kartu.label.toLowerCase()}
           </Link>
+        ) : kartu.langkah ? (
+          <p className="text-body text-muted-foreground">{kartu.langkah}</p>
         ) : (
           <>
             <p className="text-body text-muted-foreground">Segera hadir.</p>

@@ -65,6 +65,12 @@ export interface PetakDitemukan {
 }
 
 export interface MakamDitemukan {
+  /**
+   * The Hak Pakai that covers this unit: the address a Perpanjangan is started from. An
+   * unguessable uuid that says nothing about its holder; the Perpanjangan page shows only a
+   * masked email, and the code goes to the recorded one.
+   */
+  hakPakaiId: string;
   lokasiId: string;
   /** The Kavling Keluarga, when the match is one of its Petak; the whole kavling is returned then. */
   kavlingId: string | null;
@@ -89,6 +95,7 @@ export const KUNCI_HASIL_CARI_MAKAM = [
   "retryAt",
   "ditemukan",
   "petak",
+  "hakPakaiId",
   "lokasiId",
   "kavlingId",
   "nomorKavling",
@@ -255,7 +262,7 @@ async function hasilPetak(deps: InventoryDeps, lokasiId: string, petakId: string
   if (!hakPakai) return null;
   const petak = await petakOf(deps, lokasiId, petakId);
   if (!petak) return null;
-  return { lokasiId, kavlingId: null, nomorKavling: null, petak: [await baris(deps, petak, hakPakai)] };
+  return { hakPakaiId: hakPakai.id, lokasiId, kavlingId: null, nomorKavling: null, petak: [await baris(deps, petak, hakPakai)] };
 }
 
 /** A whole Kavling Keluarga: every Petak in it, under the one Hak Pakai that covers it. */
@@ -265,7 +272,7 @@ async function hasilKavling(deps: InventoryDeps, lokasiId: string, kavlingId: st
   const kavling = await kavlingOf(deps, lokasiId, kavlingId);
   if (!kavling) return null;
   const anggota = await anggotaKavling(deps, kavlingId);
-  return { lokasiId, kavlingId, nomorKavling: kavling.nomorKavling, petak: await Promise.all(anggota.map((satu) => baris(deps, satu, hakPakai))) };
+  return { hakPakaiId: hakPakai.id, lokasiId, kavlingId, nomorKavling: kavling.nomorKavling, petak: await Promise.all(anggota.map((satu) => baris(deps, satu, hakPakai))) };
 }
 
 /** One Petak Makam as a family is told it: its current number, who lies in it, and the Hak Pakai that covers it. */

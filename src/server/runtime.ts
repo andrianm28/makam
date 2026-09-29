@@ -165,7 +165,7 @@ export function serverRuntime(): ServerRuntime {
           notifikasi,
         }),
         // A paid Perpanjangan extends its Hak Pakai and issues its Bukti Perpanjangan (ticket 40).
-        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, notifikasi: notifications }),
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.

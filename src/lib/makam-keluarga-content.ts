@@ -54,6 +54,11 @@ export interface KartuAksi {
   ringkas: string;
   /** Absent while the flow itself is not built: the card says so and offers the CS instead. */
   href?: string;
+  /**
+   * What the card says instead of "Segera hadir" when its flow is built but starts from a grave, so
+   * the card itself has no address: the step to take on the result of the lookup.
+   */
+  langkah?: string;
 }
 
 /** What a service that is in a later release says about itself. */
@@ -69,6 +74,7 @@ export const kartuAksi: readonly KartuAksi[] = [
     aksi: "perpanjang",
     label: "Perpanjang Makam",
     ringkas: "Memperpanjang Hak Pakai Petak Makam atau Kavling Keluarga beserta masa tenggangnya.",
+    langkah: "Cari makamnya di atas, lalu pilih Perpanjang Makam pada hasil pencarian.",
   },
   {
     aksi: "layanan",

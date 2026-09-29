@@ -19,17 +19,17 @@ import { setSessionCookies } from "@/server/session";
  * - `pesanPerpanjangan` is a signed-in action: the guard resolves the actor from
  *   the session cookie itself, and the module checks that the Akun's Email
  *   Terverifikasi is the one recorded on the Hak Pakai.
- * - `kirimKodePerpanjangan` and `masukDanPesanPerpanjangan` are the code step, so
- *   like Masuk and Kirim in the booking wizards they skip the guard's first two
- *   steps: the code proves the recorded email, creates or finds its Akun and
- *   logs it in. The recorded email is never asked for and never shown; only the
- *   module knows it.
+ * - `kirimKodePerpanjangan` and `verifikasiKodePerpanjangan` are the code step: the
+ *   login itself, so like Masuk they skip the guard's first two steps, validate with
+ *   Zod and call the module (which calls identity). The recorded email is never asked
+ *   for and never shown; only the module knows it. Neither orders anything: the order
+ *   is `pesanPerpanjangan`, guarded like every other signed-in action.
  */
 
 const hakPakaiSchema = z.object({ hakPakaiId: z.uuid() });
 const termsSchema = z.coerce.number().int().min(1).max(100);
 const pesanSchema = hakPakaiSchema.extend({ terms: termsSchema });
-const masukSchema = pesanSchema.extend({ code: codeInput });
+const masukSchema = hakPakaiSchema.extend({ code: codeInput });
 
 /** The page of one Hak Pakai's Perpanjangan, optionally with a message the last step ended with. */
 function halaman(hakPakaiId: string, query: Record<string, string> = {}): string {
@@ -49,15 +49,19 @@ export async function kirimKodePerpanjangan(formData: FormData): Promise<void> {
   redirect(halaman(hakPakaiId, { galat: identityMessage(hasil.reason, "retryAt" in hasil ? hasil.retryAt : undefined, adapters.clock.now()) }));
 }
 
-/** The code step: a correct code logs the holder in and orders the Perpanjangan in the same request, landing on its Tagihan. */
-export async function masukDanPesanPerpanjangan(formData: FormData): Promise<void> {
-  const parsed = masukSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId"), terms: formData.get("terms"), code: formData.get("code") });
+/**
+ * The code step: a correct code is the login itself (identity finds or creates the Akun of the
+ * recorded email and starts its session), and lands back on the page, where the signed-in holder
+ * chooses the terms and orders through `pesanPerpanjangan`. Nothing is ordered here.
+ */
+export async function verifikasiKodePerpanjangan(formData: FormData): Promise<void> {
+  const parsed = masukSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId"), code: formData.get("code") });
   if (!parsed.success) {
     const id = hakPakaiSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId") });
     if (!id.success) redirect("/makam-keluarga");
-    redirect(halaman(id.data.hakPakaiId, { kode: "terkirim", galat: "Masukkan 6 angka kode dari email Anda dan pilih jumlah masa." }));
+    redirect(halaman(id.data.hakPakaiId, { kode: "terkirim", galat: "Masukkan 6 angka kode dari email Anda." }));
   }
-  const { hakPakaiId, terms, code } = parsed.data;
+  const { hakPakaiId, code } = parsed.data;
   const { perpanjangan, adapters } = serverRuntime();
   const masuk = await perpanjangan.verifikasiKode({ hakPakaiId, code });
   if (!masuk.ok) {
@@ -68,10 +72,7 @@ export async function masukDanPesanPerpanjangan(formData: FormData): Promise<voi
     redirect(halaman(hakPakaiId, { kode: "terkirim", galat: pesan }));
   }
   await setSessionCookies(masuk.session.cookies);
-  const hasil = await perpanjangan.ajukan({ hakPakaiId, terms, pemohon: { accountId: masuk.account.id, email: masuk.account.email } });
-  if (hasil.ok) redirect(documentPagePath(hasil.perpanjangan.tagihan.link));
-  if (hasil.reason === "tagihan_terbuka") redirect(documentPagePath(hasil.tagihanTerbuka.link));
-  redirect(halaman(hakPakaiId, { galat: alasanPerpanjanganText(hasil.reason) }));
+  redirect(halaman(hakPakaiId));
 }
 
 /** Orders the Perpanjangan for the signed-in Akun, landing on its Tagihan. */

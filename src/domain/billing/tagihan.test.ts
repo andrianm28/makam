@@ -184,6 +184,8 @@ describe("an issued Tagihan is immutable", () => {
       // `recordPayment` and record their own Entri Audit, never a line change.
       "catatPembayaranLangsung",
       "catatPembayaranManual",
+      // A settled payment that cannot be applied opens a Pembayaran Perlu Ditinjau: a review row, never a line change (ticket 40).
+      "catatPembayaranPerluDitinjau",
       // Chasing's own status write: guarded on H+30 of the overdue anchor and a
       // logged call, never a line change (ticket 29).
       "declareTidakTertagih",

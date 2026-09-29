@@ -117,7 +117,7 @@ export function testServerRuntime() {
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
         buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
-        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, notifikasi: notifications }),
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     const payouts = composePayouts({

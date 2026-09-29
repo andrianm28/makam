@@ -43,6 +43,8 @@ export const reviewReasons = [
   "batas_pembayaran_lewat",
   /** The Tagihan was already Lunas through another payment: paid twice. */
   "sudah_lunas_dibayar_lagi",
+  /** The Tagihan is Lunas and its money recorded, but what it paid for can no longer be applied automatically (a Perpanjangan of a Hak Pakai whose Masa Tenggang is over, ticket 40). */
+  "tidak_dapat_diterapkan",
 ] as const;
 
 const quoted = (values: readonly string[]) => values.map((value) => `'${value}'`).join(", ");

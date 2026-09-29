@@ -36,9 +36,12 @@ CREATE TABLE "perpanjangan" (
 	CONSTRAINT "perpanjangan_tagihan_id_unique" UNIQUE("tagihan_id")
 );
 --> statement-breakpoint
+-- contract: the reason check is only widened by one value (tidak_dapat_diterapkan), re-added below in this same migration; every row the running release writes still satisfies it, so the two statements only add a case
+ALTER TABLE "pembayaran_perlu_ditinjau" DROP CONSTRAINT "pembayaran_perlu_ditinjau_reason_check";--> statement-breakpoint
 ALTER TABLE "bukti_perpanjangan" ADD CONSTRAINT "bukti_perpanjangan_tagihan_id_tagihan_id_fk" FOREIGN KEY ("tagihan_id") REFERENCES "public"."tagihan"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "bukti_perpanjangan_perpanjangan_idx" ON "bukti_perpanjangan" USING btree ("perpanjangan_id");--> statement-breakpoint
 CREATE INDEX "perpanjangan_hak_pakai_idx" ON "perpanjangan" USING btree ("hak_pakai_id","dibuat_pada");--> statement-breakpoint
+ALTER TABLE "pembayaran_perlu_ditinjau" ADD CONSTRAINT "pembayaran_perlu_ditinjau_reason_check" CHECK ("pembayaran_perlu_ditinjau"."reason" in ('pembayaran_tidak_dikenal', 'jumlah_tidak_cocok', 'tagihan_dibatalkan', 'batas_pembayaran_lewat', 'sudah_lunas_dibayar_lagi', 'tidak_dapat_diterapkan'));--> statement-breakpoint
 -- Append-only, like bukti_pemesanan (AGENTS.md, ticket 40): a family's proof that its
 -- Hak Pakai was extended must never be quietly rewritten or removed.
 CREATE FUNCTION "bukti_perpanjangan_append_only"() RETURNS trigger LANGUAGE plpgsql AS $$
