@@ -36,7 +36,7 @@ export async function setujuiPengembalianAction(_previous: FormState, formData: 
   return { status: "berhasil", message: "Permintaan pengembalian disetujui." };
 }
 
-const isiRekeningSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema });
+const isiRekeningSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema, alasan: z.string().trim().min(1) });
 
 /** Admin Platform records the bank account on the Pemesan's behalf (e.g. taken by phone). */
 export async function isiRekeningAdminAction(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -47,6 +47,7 @@ export async function isiRekeningAdminAction(_previous: FormState, formData: For
     input: {
       permintaanId: formData.get("permintaanId"),
       rekening: { bank: formData.get("bank"), nomor: formData.get("nomor"), nama: formData.get("nama") },
+      alasan: formData.get("alasan"),
     },
     run: (actor, data) => serverRuntime().refunds.isiRekeningAdmin(actor, data),
   });

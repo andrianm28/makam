@@ -1,5 +1,5 @@
 {
-  "id": "7e22834e-2213-4b66-a88c-73b1fe1c1261",
+  "id": "ef73e36b-1e76-4f3c-830e-e9561e80513a",
   "prevId": "87bf0f3c-2e6c-46b8-b76a-331300885aa0",
   "version": "7",
   "dialect": "postgresql",
@@ -7079,7 +7079,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"permintaan_pengembalian\".\"sumber\" = 'pembatalan_pemesan'",
+          "where": "\"permintaan_pengembalian\".\"sumber\" = 'pembatalan'",
           "concurrently": false,
           "method": "btree",
           "with": {}

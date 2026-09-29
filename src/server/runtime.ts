@@ -167,6 +167,7 @@ export function serverRuntime(): ServerRuntime {
       payouts,
       notifications,
       operatorSettings,
+      pemesanan,
       reportError,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan

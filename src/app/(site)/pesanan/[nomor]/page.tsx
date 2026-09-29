@@ -13,6 +13,8 @@ import { tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
+import { RekeningPengembalianForm } from "./rekening-pengembalian-form";
+import { formatRupiah } from "@/lib/rupiah";
 import { AlternatifForm, BatalkanForm } from "./keluar-pesanan";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
@@ -38,7 +40,7 @@ export async function generateMetadata({ params }: PageProps<"/pesanan/[nomor]">
 export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
-  const { billing, lokasi, pemesanan } = serverRuntime();
+  const { billing, lokasi, pemesanan, refunds } = serverRuntime();
   const actor = await currentActor();
   // The CS a family is pointed at when the alternative on the table can no longer
   // be priced, so that screen has a person to go to rather than a figure it
@@ -48,6 +50,8 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
   // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
   const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
+  // A refund on this order waiting for a bank account: the page is the Pemesan's own, so only they see it.
+  const pengembalian = await refunds.permintaanUntukPesanan(order.nomor);
   const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;
   const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(order.lokasi.id);
   // A declined order is the one place a family is sent back to Pilih makam, so
@@ -109,6 +113,20 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
             </Link>
           </div>
         </section>
+      ) : null}
+
+      {pengembalian ? (
+        pengembalian.status === "diajukan" ? (
+          <RekeningPengembalianForm
+            nomor={order.nomor}
+            jumlahLabel={formatRupiah(pengembalian.jumlah)}
+            rekeningTercatat={pengembalian.rekening ? `${pengembalian.rekening.bank} ****${pengembalian.rekening.nomor.slice(-4)}` : null}
+          />
+        ) : (
+          <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="rekening-pengembalian-terkunci">
+            Pengembalian dana {formatRupiah(pengembalian.jumlah)} sudah disetujui dan menunggu transfer. Untuk mengubah rekening, hubungi CS.
+          </p>
+        )
       ) : null}
 
       {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (

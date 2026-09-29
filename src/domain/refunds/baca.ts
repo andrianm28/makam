@@ -3,7 +3,7 @@
  * Dana take outside the database. Nothing here authorises anybody or writes
  * anything.
  */
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { DocumentHeader } from "@/domain/billing";
 import type { Rupiah } from "@/lib/rupiah";
@@ -86,16 +86,15 @@ export async function permintaanDisetujui(db: Database): Promise<PermintaanPenge
 }
 
 /**
- * The open request (diajukan or disetujui) for one Tagihan, or null: what the
- * Tagihan's own document page reads to offer the bank-account form. At most
- * one can exist (the partial unique index on `tagihan_id` where status is not
- * `ditransfer`), so this is never ambiguous.
+ * The open request (diajukan or disetujui) on one order, newest first, or null:
+ * what the Pemesan's own order page reads to offer the bank-account form.
  */
-export async function permintaanUntukTagihan(db: Database, tagihanId: string): Promise<PermintaanPengembalian | null> {
+export async function permintaanUntukPesanan(db: Database, nomorPemesanan: string): Promise<PermintaanPengembalian | null> {
   const [row] = await db
     .select()
     .from(permintaanPengembalian)
-    .where(and(eq(permintaanPengembalian.tagihanId, tagihanId), inArray(permintaanPengembalian.status, ["diajukan", "disetujui"])));
+    .where(and(eq(permintaanPengembalian.nomorPemesanan, nomorPemesanan), inArray(permintaanPengembalian.status, ["diajukan", "disetujui"])))
+    .orderBy(desc(permintaanPengembalian.diajukanPada));
   return row ? toPermintaan(row) : null;
 }
 
@@ -118,6 +117,8 @@ export interface BuktiPengembalianDana {
   ditransferPada: string;
   header: DocumentHeader;
   dibuatPada: Date;
+  /** The FileStore key of the transfer proof; only `Refunds.buktiPengembalianDana` turns it into a short-lived URL. */
+  buktiTransferKey: string;
 }
 
 export async function buktiById(db: Database, id: string): Promise<BuktiPengembalianDana | null> {
@@ -145,5 +146,6 @@ function toBukti(row: typeof buktiPengembalianDana.$inferSelect): BuktiPengembal
     ditransferPada: row.ditransferPada,
     header: row.header as DocumentHeader,
     dibuatPada: row.dibuatPada,
+    buktiTransferKey: row.buktiTransferKey,
   };
 }

@@ -1,23 +1,21 @@
 /**
- * Entering the refund's destination bank account (spec, Billing > Refunds: "The
- * refund's destination bank account is entered by the Pemesan (or recorded by
- * Admin Platform) before transfer"; ticket 31's AC 5).
+ * The refund's destination bank account (spec, Billing > Refunds; ticket 31's
+ * AC 5): entered by the Pemesan whose order it is, or recorded by Admin
+ * Platform, before the transfer.
  *
- * The Pemesan side is reached through the Tagihan's own unguessable link — the
- * same permission model as Bayar (AGENTS.md's exception): anyone holding that
- * link may enter the refund's own bank account, because the link is already
- * the family's proof that this refund is theirs. It skips `guarded()`'s
- * authenticate and role steps for the same reason Bayar does, and still
- * validates every field with Zod. The Admin Platform side goes through
- * `guarded()` as usual, so a family who cannot reach their email still gets a
- * refund once Admin Platform records the account by phone.
+ * Where a refund's money goes is the one fact here worth stealing, so:
+ * - the Pemesan side is an authenticated write on the family's own order, never
+ *   a bearer link (a Tagihan's link is shared with payers and relatives);
+ * - it is locked once Admin Platform approves; after that only Admin Platform
+ *   may change it, and only with a reason;
+ * - every write is audited with the account number masked (bank and last four
+ *   digits), so the Audit Log never holds a full account number.
  */
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
-import { refusable } from "@/db/unit-of-work";
 import type { AuditLog } from "@/domain/audit";
-import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { pemesananResource, pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { toPermintaan, type PermintaanPengembalian } from "./baca";
 import { permintaanPengembalian } from "./schema";
@@ -33,81 +31,105 @@ export interface RekeningDeps {
   db: Database;
   clock: Clock;
   audit: AuditLog;
+  /** Whether this Akun placed the order (Pemesanan's own `orderOf`); Refunds never reads an order itself. */
+  pemilikPesanan: (nomorPemesanan: string, accountId: string) => Promise<boolean>;
 }
 
 export type IsiRekeningResult =
   | { ok: true; permintaan: PermintaanPengembalian }
+  | WriteRefusal
   | { ok: false; reason: "tidak_ditemukan" }
+  /** The Pemesan's side closes at approval; only Admin Platform changes it after. */
+  | { ok: false; reason: "terkunci" }
   | { ok: false; reason: "sudah_ditransfer" }
   | { ok: false; reason: "input_tidak_valid" };
 
-/**
- * The Pemesan enters the bank account on their own refund, by the Tagihan's
- * link (no actor, no role — the link is the permission, exactly like Bayar).
- * Not audited: this is the family acting on its own request, not a staff write.
- */
-export async function isiRekeningPemesan(
-  deps: Pick<RekeningDeps, "db" | "clock">,
-  input: { tagihanId: string; rekening: RekeningInput },
-): Promise<IsiRekeningResult> {
-  const parsed = z.object({ tagihanId: z.string().trim().min(1).max(64), rekening: rekeningSchema }).safeParse(input);
-  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
-  const now = deps.clock.now();
-  return refusable<IsiRekeningResult>(deps.db, (tx) =>
-    tulisRekening(tx, now, { tagihanId: parsed.data.tagihanId, rekening: parsed.data.rekening, oleh: "pemesan" }),
-  );
+/** What an Entri Audit may say about an account: the bank and the last four digits. */
+export function rekeningTersamar(rekening: RekeningInput | null): Record<string, unknown> | null {
+  return rekening ? { bank: rekening.bank, nomor: `****${rekening.nomor.slice(-4)}` } : null;
 }
 
-export type IsiRekeningAdminResult = IsiRekeningResult | WriteRefusal;
+const pemesanSchema = z.object({ nomorPemesanan: z.string().trim().regex(/^MKM-\d{4}-\d{6}$/), rekening: rekeningSchema });
+const adminSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema, alasan: z.string().trim().min(1).max(500) });
 
-/** Admin Platform records the bank account on a Pemesan's behalf (e.g. taken by phone). Audited. */
-export async function isiRekeningAdmin(
+type Row = typeof permintaanPengembalian.$inferSelect;
+
+function rekeningOf(row: Row): RekeningInput | null {
+  return row.rekeningBank && row.rekeningNomor && row.rekeningNama
+    ? { bank: row.rekeningBank, nomor: row.rekeningNomor, nama: row.rekeningNama }
+    : null;
+}
+
+async function tulis(tx: Database, row: Row, rekening: RekeningInput, oleh: "pemesan" | "admin_platform", now: Date): Promise<PermintaanPengembalian> {
+  await tx
+    .update(permintaanPengembalian)
+    .set({ rekeningBank: rekening.bank, rekeningNomor: rekening.nomor, rekeningNama: rekening.nama, rekeningDiisiOleh: oleh, rekeningDiisiPada: now })
+    .where(eq(permintaanPengembalian.id, row.id));
+  const [setelah] = await tx.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, row.id));
+  return toPermintaan(setelah);
+}
+
+/** The Pemesan enters the account on the refund of their own order, until it is approved. Audited. */
+export async function isiRekeningPemesan(
   deps: RekeningDeps,
   by: Actor,
-  input: { permintaanId: string; rekening: RekeningInput },
-): Promise<IsiRekeningAdminResult> {
-  const refusal = writeRefusal(by, "pengembalian.kelola", pengembalianResource());
+  input: { nomorPemesanan: string; rekening: RekeningInput },
+): Promise<IsiRekeningResult> {
+  const refusal = writeRefusal(by, "pengembalian.isi_rekening", pemesananResource(by.accountId));
   if (refusal) return refusal;
-  const parsed = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema }).safeParse(input);
+  const parsed = pemesanSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const { nomorPemesanan, rekening } = parsed.data;
+  if (!(await deps.pemilikPesanan(nomorPemesanan, by.accountId))) return { ok: false, reason: "tidak_ditemukan" };
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const result = await tulisRekening(tx, now, { permintaanId: parsed.data.permintaanId, rekening: parsed.data.rekening, oleh: "admin_platform" });
-    if (!result.ok) return result;
+    const [row] = await tx
+      .select()
+      .from(permintaanPengembalian)
+      .where(and(eq(permintaanPengembalian.nomorPemesanan, nomorPemesanan), inArray(permintaanPengembalian.status, ["diajukan", "disetujui"])))
+      .orderBy(desc(permintaanPengembalian.diajukanPada))
+      .for("update");
+    if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
+    if (row.status !== "diajukan") return { ok: false, reason: "terkunci" } as const;
+    const permintaan = await tulis(tx, row, rekening, "pemesan", now);
     await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "pengembalian.isi_rekening",
-      entity: { kind: "permintaan_pengembalian", id: result.permintaan.id },
+      actor: { accountId: by.accountId, role: "pemesan" },
+      action: "pengembalian.isi_rekening_pemesan",
+      entity: { kind: "permintaan_pengembalian", id: row.id },
       lokasiId: null,
-      before: null,
-      after: { bank: parsed.data.rekening.bank, nomor: parsed.data.rekening.nomor, nama: parsed.data.rekening.nama },
+      before: rekeningTersamar(rekeningOf(row)),
+      after: rekeningTersamar(rekening),
       reason: null,
     });
-    return result;
+    return { ok: true, permintaan } as const;
   });
 }
 
-async function tulisRekening(
-  db: Database,
-  now: Date,
-  input: { tagihanId?: string; permintaanId?: string; rekening: RekeningInput; oleh: "pemesan" | "admin_platform" },
+/** Admin Platform records or changes the account, before or after approval, always with a reason. Audited. */
+export async function isiRekeningAdmin(
+  deps: RekeningDeps,
+  by: Actor,
+  input: { permintaanId: string; rekening: RekeningInput; alasan: string },
 ): Promise<IsiRekeningResult> {
-  const where = input.permintaanId
-    ? eq(permintaanPengembalian.id, input.permintaanId)
-    : eq(permintaanPengembalian.tagihanId, input.tagihanId!);
-  const [row] = await db.select().from(permintaanPengembalian).where(where).for("update");
-  if (!row) return { ok: false, reason: "tidak_ditemukan" };
-  if (row.status === "ditransfer") return { ok: false, reason: "sudah_ditransfer" };
-  await db
-    .update(permintaanPengembalian)
-    .set({
-      rekeningBank: input.rekening.bank,
-      rekeningNomor: input.rekening.nomor,
-      rekeningNama: input.rekening.nama,
-      rekeningDiisiOleh: input.oleh,
-      rekeningDiisiPada: now,
-    })
-    .where(eq(permintaanPengembalian.id, row.id));
-  const [setelah] = await db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, row.id));
-  return { ok: true, permintaan: toPermintaan(setelah) };
+  const refusal = writeRefusal(by, "pengembalian.kelola", pengembalianResource());
+  if (refusal) return refusal;
+  const parsed = adminSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const now = deps.clock.now();
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [row] = await tx.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, parsed.data.permintaanId)).for("update");
+    if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
+    if (row.status === "ditransfer") return { ok: false, reason: "sudah_ditransfer" } as const;
+    const permintaan = await tulis(tx, row, parsed.data.rekening, "admin_platform", now);
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "pengembalian.isi_rekening",
+      entity: { kind: "permintaan_pengembalian", id: row.id },
+      lokasiId: null,
+      before: rekeningTersamar(rekeningOf(row)),
+      after: rekeningTersamar(parsed.data.rekening),
+      reason: parsed.data.alasan,
+    });
+    return { ok: true, permintaan } as const;
+  });
 }

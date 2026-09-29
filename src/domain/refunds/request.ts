@@ -1,22 +1,8 @@
 /**
- * Raising a refund request (spec, Billing > Refunds; ticket 31's "one refund
- * flow for the whole platform"). Two sources are wired to a real caller today:
- *
- * - **`materialisasiDariPembatalan`** turns every Tagihan Billing already
- *   flagged (`pengembalianDimintaAt` / `pengembalianJumlah`, set by
- *   `batalkanTagihan`, ticket 24's Saat Duka cancellation) into a request here.
- *   It always refunds every line but the Biaya Layanan Platform, which is why
- *   `pihakBersalah` is always "pemesan" here: a Pemesan-initiated cancellation
- *   is exactly the fee-kept row of the spec's own table.
- * - **`ajukanGoodwill`** is Admin Platform raising a refund from its own funds
- *   as a courtesy (spec: "Goodwill refunds ... come from its own funds and are
- *   never netted as a Potongan"). It is the one manual path this ticket wires:
- *   a netted, fault-based manual refund (a Keluhan, a Pembatalan, a PTSP
- *   rejection) is a real caller's own request, arriving with its own ticket
- *   (38, 51, ...), and will call the same table through its own function.
- *
- * Both write through `raiseRequest`, the one place a row is inserted, so the
- * partial-unique-open index and the fee rule are never bypassed.
+ * Raising a refund request (spec, Billing > Refunds): from a cancelled, paid
+ * Tagihan (`materialisasiDariPembatalan`), or Admin Platform's goodwill refund
+ * from the Operator's own funds (`ajukanGoodwill`). Both write through
+ * `raiseRequest`, so the open-request index is never bypassed.
  */
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -60,7 +46,7 @@ async function raiseRequest(
     tagihanId: string;
     nomorTagihan: string;
     nomorPemesanan: string | null;
-    sumber: "pembatalan_pemesan" | "manual";
+    sumber: "pembatalan" | "manual";
     pihakBersalah: PihakBersalah;
     biayaLayananPlatformDikembalikan: boolean;
     goodwill: boolean;
@@ -95,33 +81,43 @@ async function raiseRequest(
 }
 
 /**
- * Materialises one Tagihan Billing flagged into a refund request here, unless
- * one already exists for it (the `sumber = 'pembatalan_pemesan'` unique index
- * makes a second call a no-op, so the tick that drives this is idempotent).
- * Always "pemesan" at fault (the fee stays kept) and always "penuh" (a Saat
- * Duka cancellation refunds the whole order, never one line of it) — exactly
- * what `batalkanTagihan` already computed.
+ * Materialises a cancelled, paid Tagihan (one Billing flagged with
+ * `pengembalianDiminta`) into a refund request, unless one already exists (the
+ * `sumber = 'pembatalan'` unique index makes a second call a no-op, so the tick
+ * driving it is idempotent). The **caller names who is at fault**, and the
+ * amount comes from the spec's fee rule (`aturan.ts`), not from the figure
+ * Billing stored at cancellation: Billing's own figure always keeps the fee,
+ * which is right only when the Pemesan cancels. It is always "penuh": every line
+ * that may be refunded is refunded.
  */
-export async function materialisasiDariPembatalan(db: Database, now: Date, tagihan: Tagihan): Promise<{ id: string } | null> {
+export async function materialisasiDariPembatalan(
+  db: Database,
+  now: Date,
+  tagihan: Tagihan,
+  pihakBersalah: PihakBersalah,
+): Promise<{ id: string } | null> {
   if (!tagihan.pengembalianDiminta) return null;
+  const denganFee = biayaLayananPlatformDikembalikan(pihakBersalah);
   const lines: RefundLine[] = tagihan.lines
-    .filter((line) => line.kind !== "biaya_layanan_platform")
+    .filter((line) => denganFee || line.kind !== "biaya_layanan_platform")
     .map((line) => ({
       label: line.label,
       amount: line.amount,
       lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null,
     }));
+  const jumlah = rupiahSchema.safeParse(lines.reduce((sum, line) => sum + line.amount, 0));
+  if (!jumlah.success || jumlah.data === 0) return null;
   return raiseRequest(db, now, {
     tagihanId: tagihan.id,
     nomorTagihan: tagihan.nomorTagihan,
     nomorPemesanan: tagihan.nomorPemesanan,
-    sumber: "pembatalan_pemesan",
-    pihakBersalah: "pemesan",
-    biayaLayananPlatformDikembalikan: biayaLayananPlatformDikembalikan("pemesan"),
+    sumber: "pembatalan",
+    pihakBersalah,
+    biayaLayananPlatformDikembalikan: denganFee,
     goodwill: false,
     penuh: true,
     lines,
-    jumlah: tagihan.pengembalianDiminta.jumlah,
+    jumlah: jumlah.data,
     catatan: null,
     diajukanOleh: null,
   });

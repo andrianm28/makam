@@ -15,7 +15,7 @@ import {
   type TagihanLine,
 } from "@/domain/billing";
 import type { DokumenBuktiPencairan } from "@/domain/payouts";
-import type { BuktiPengembalianDana, PermintaanPengembalian } from "@/domain/refunds";
+import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
 import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
@@ -23,14 +23,13 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 import { bayarTagihan } from "./actions";
-import { RekeningPengembalianForm } from "./rekening-form";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
 
 type Document =
   | BillingDocument
   | { type: "bukti_pencairan"; pencairan: DokumenBuktiPencairan }
-  | { type: "bukti_pengembalian_dana"; bukti: BuktiPengembalianDana };
+  | { type: "bukti_pengembalian_dana"; bukti: DokumenBuktiPengembalianDana };
 
 async function documentOf(params: Promise<{ link: string }>): Promise<{ link: string; document: Document } | null> {
   const parsed = paramsSchema.safeParse(await params);
@@ -78,10 +77,6 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
   const found = await documentOf(params);
   if (!found) notFound();
   const { link, document } = found;
-  // A refund open on this Tagihan, so the bank-account form shows only while
-  // one is actually waiting for it (ticket 31, AC 5).
-  const permintaan =
-    document.type === "tagihan" ? await serverRuntime().refunds.permintaanUntukTagihan(document.tagihan.id) : null;
 
   return (
     // The brand sans (Plus Jakarta Sans, loaded by the root layout), so the page and its PDF read the same everywhere.
@@ -99,7 +94,6 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
             tagihan={document.tagihan}
             notPayableBecause={document.notPayableBecause}
             buktiLink={document.buktiLink}
-            permintaan={permintaan}
           />
         ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
@@ -122,13 +116,11 @@ function TagihanView({
   tagihan,
   notPayableBecause,
   buktiLink,
-  permintaan,
 }: {
   link: string;
   tagihan: Tagihan;
   notPayableBecause: NotPayable | null;
   buktiLink: string | null;
-  permintaan: PermintaanPengembalian | null;
 }) {
   return (
     <>
@@ -145,7 +137,15 @@ function TagihanView({
           Batas pembayaran Tagihan ini sudah lewat, sehingga tidak bisa dibayar lagi.
         </p>
       ) : null}
-      {permintaan ? <PengembalianNotice link={link} permintaan={permintaan} /> : null}
+      {tagihan.pengembalianDiminta && tagihan.nomorPemesanan ? (
+        <p className="rounded-lg border border-dashed px-4 py-3 print:hidden">
+          Dana sebesar {formatRupiah(tagihan.pengembalianDiminta.jumlah)} akan dikembalikan. Pemesan mengisi rekening tujuan{" "}
+          <a href={`/pesanan/${tagihan.nomorPemesanan}`} className="text-brand underline">
+            di halaman pesanan setelah masuk ke akun
+          </a>
+          .
+        </p>
+      ) : null}
       <Facts
         facts={[
           [addresseeText("tagihan", tagihan.addressee.role), tagihan.addressee.name],
@@ -175,32 +175,8 @@ function TagihanView({
   );
 }
 
-/**
- * A refund is on its way (spec, Billing > Refunds; ticket 31, AC 5): the
- * amount, and, while there is no bank account on file yet, the form to enter
- * one. Once it is filled the family only sees that it is on file — the form
- * itself is print:hidden either way, since a bank account has no place on a
- * printed Tagihan.
- */
-function PengembalianNotice({ link, permintaan }: { link: string; permintaan: PermintaanPengembalian }) {
-  return (
-    <div className="rounded-lg border border-dashed px-4 py-3 print:hidden">
-      <p>
-        Kami akan mengembalikan dana sebesar <strong>{formatRupiah(permintaan.jumlah)}</strong> untuk Tagihan ini.
-      </p>
-      {permintaan.rekening ? (
-        <p className="mt-1 text-muted-foreground">
-          Rekening tujuan sudah kami catat: {permintaan.rekening.bank} a.n. {permintaan.rekening.nama}.
-        </p>
-      ) : (
-        <RekeningPengembalianForm link={link} />
-      )}
-    </div>
-  );
-}
-
 /** The Bukti Pengembalian Dana (CONTEXT.md): the Operator's record of a refund transfer, referencing the Tagihan it partly or fully reverses. */
-function BuktiPengembalianDanaView({ bukti }: { bukti: BuktiPengembalianDana }) {
+function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianDana }) {
   return (
     <>
       <DocumentTop header={bukti.header} title="Bukti Pengembalian Dana" number={bukti.nomor} status="Ditransfer" />
@@ -209,7 +185,7 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: BuktiPengembalianDana }) 
           ["Untuk Tagihan", bukti.nomorTagihan],
           ["Nomor Pemesanan", bukti.nomorPemesanan],
           ["Tanggal transfer", formatTanggal(`${bukti.ditransferPada}T00:00`)],
-          ["Rekening tujuan", `${bukti.rekening.bank} · ${bukti.rekening.nomor} a.n. ${bukti.rekening.nama}`],
+          ["Rekening tujuan", `${bukti.rekening.bank} · ****${bukti.rekening.nomor.slice(-4)} a.n. ${bukti.rekening.nama}`],
         ]}
       />
       <BuktiTable
@@ -223,6 +199,13 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: BuktiPengembalianDana }) 
           ? "Biaya Layanan Platform pada Tagihan ini termasuk dalam pengembalian."
           : "Biaya Layanan Platform pada Tagihan ini tidak termasuk dalam pengembalian."}
       </p>
+      {bukti.buktiTransferUrl ? (
+        <div className="print:hidden">
+          <a href={bukti.buktiTransferUrl} target="_blank" rel="noreferrer noopener" className={buttonVariants({ variant: "outline" })}>
+            Lihat bukti transfer
+          </a>
+        </div>
+      ) : null}
       <DocumentFoot header={bukti.header} />
     </>
   );

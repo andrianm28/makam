@@ -98,6 +98,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "pengembalian.ajukan_goodwill": "Pengembalian dana goodwill diajukan",
   "pengembalian.setujui": "Pengembalian dana disetujui",
   "pengembalian.isi_rekening": "Rekening pengembalian dana dicatat",
+  "pengembalian.isi_rekening_pemesan": "Rekening pengembalian dana diisi Pemesan",
   "pengembalian.terbitkan_bukti": "Bukti Pengembalian Dana diterbitkan",
 };
 

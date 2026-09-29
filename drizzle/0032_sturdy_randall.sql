@@ -52,7 +52,7 @@ CREATE TABLE "permintaan_pengembalian" (
 --> statement-breakpoint
 CREATE INDEX "permintaan_pengembalian_tagihan_idx" ON "permintaan_pengembalian" USING btree ("tagihan_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "permintaan_pengembalian_tagihan_open_idx" ON "permintaan_pengembalian" USING btree ("tagihan_id") WHERE "permintaan_pengembalian"."status" <> 'ditransfer';--> statement-breakpoint
-CREATE UNIQUE INDEX "permintaan_pengembalian_tagihan_sumber_idx" ON "permintaan_pengembalian" USING btree ("tagihan_id","sumber") WHERE "permintaan_pengembalian"."sumber" = 'pembatalan_pemesan';--> statement-breakpoint
+CREATE UNIQUE INDEX "permintaan_pengembalian_tagihan_sumber_idx" ON "permintaan_pengembalian" USING btree ("tagihan_id","sumber") WHERE "permintaan_pengembalian"."sumber" = 'pembatalan';--> statement-breakpoint
 -- Append-only, like bukti_pembayaran and bukti_pemesanan (AGENTS.md, ticket 31):
 -- a family's proof that its money came back must never be quietly rewritten or removed.
 CREATE FUNCTION "bukti_pengembalian_dana_append_only"() RETURNS trigger LANGUAGE plpgsql AS $$

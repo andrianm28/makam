@@ -36,7 +36,7 @@ export const permintaanPengembalianStatuses = ["diajukan", "disetujui", "ditrans
 export type PermintaanPengembalianStatus = (typeof permintaanPengembalianStatuses)[number];
 
 /** How a request reached Refunds: the one automatic source today, or a manual one Admin Platform raises. */
-export const permintaanSumberKinds = ["pembatalan_pemesan", "manual"] as const;
+export const permintaanSumberKinds = ["pembatalan", "manual"] as const;
 export type PermintaanSumberKind = (typeof permintaanSumberKinds)[number];
 
 /**
@@ -95,7 +95,7 @@ export const permintaanPengembalian = pgTable(
     // materialised at most once, ever (running the tick twice never doubles it).
     uniqueIndex("permintaan_pengembalian_tagihan_sumber_idx")
       .on(table.tagihanId, table.sumber)
-      .where(sql`${table.sumber} = 'pembatalan_pemesan'`),
+      .where(sql`${table.sumber} = 'pembatalan'`),
     check("permintaan_pengembalian_jumlah_check", sql`${table.jumlah} between 1 and ${sql.raw(String(RUPIAH_MAX))}`),
     check(
       "permintaan_pengembalian_rekening_check",

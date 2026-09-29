@@ -115,6 +115,7 @@ export function payoutsOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     operatorSettings: setup.operatorSettings,
     buktiUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
+    pemilikPesanan: async (nomor, accountId) => (await pemesanan.orderOf(nomor, { accountId })) !== null,
   });
   // The Antrean beside it: the Tier 3 "Pencairan" and "refund transfer" rows are
   // the Payouts and Refunds queries the Work Queues module projects, and a test

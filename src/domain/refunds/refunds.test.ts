@@ -4,6 +4,7 @@
  * Refunds, Billing, Payouts and Pemesanan.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { Actor } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
@@ -18,6 +19,11 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
+/** The signed-in Pemesan of a fixture's order, as the guard would hand it to the module. */
+function pemesanActor(pemesan: { accountId: string; email: string }): Actor {
+  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-uji" };
+}
+
 const pemakaman = wib("2026-10-02 10:00");
 const hariTransfer = "2026-10-01";
 const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" };
@@ -30,7 +36,7 @@ async function pesananTerbayar(setup: RefundsSetup) {
   return { ...fixture, ...konfirmasi };
 }
 
-/** That same order cancelled by the family, the way ticket 24 built it: money back less the Biaya Layanan Platform. */
+/** That same order cancelled by the family, the way ticket 24 built it. */
 async function pesananDibatalkan(setup: RefundsSetup) {
   const fixture = await pesananTerbayar(setup);
   const dibatalkan = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga berubah pikiran" });
@@ -56,20 +62,25 @@ async function pesananSudahDicairkan(setup: RefundsSetup) {
   return fixture;
 }
 
-describe("materialising ticket 24's Saat Duka cancellation refund", () => {
-  it("turns the Tagihan Billing flagged into an open request, fee kept, nothing to refund the Lokasi for", async () => {
+/** The one open request of a cancelled order, after the tick has materialised it. */
+async function permintaanTerbuka(setup: RefundsSetup) {
+  await setup.refunds.tick();
+  const [permintaan] = await setup.refunds.permintaanTerbuka();
+  if (!permintaan) throw new Error("no open request");
+  return permintaan;
+}
+
+describe("materialising a cancelled, paid Tagihan", () => {
+  it("turns a Pemesan's own cancellation into an open request that keeps the Biaya Layanan Platform", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananDibatalkan(setup);
-
-    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
-    expect(tagihan).toMatchObject({ status: "dibatalkan", pengembalianDiminta: { jumlah: 9_500_000 } });
 
     expect(await setup.refunds.tick()).toEqual({ materialised: 1 });
     const terbuka = await setup.refunds.permintaanTerbuka();
     expect(terbuka).toHaveLength(1);
     expect(terbuka[0]).toMatchObject({
       tagihanId: fixture.tagihanId,
-      sumber: "pembatalan_pemesan",
+      sumber: "pembatalan",
       pihakBersalah: "pemesan",
       biayaLayananPlatformDikembalikan: false,
       goodwill: false,
@@ -77,6 +88,24 @@ describe("materialising ticket 24's Saat Duka cancellation refund", () => {
       jumlah: 9_500_000,
       status: "diajukan",
     });
+  });
+
+  it("returns the Biaya Layanan Platform too when the fault is the Lokasi's, the Mitra Jasa's or the Operator's", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    // A cancellation that is not the Pemesan's: Billing cancels the bill, and the
+    // caller (Terlambat, Berhenti) names whose fault it was.
+    const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+    // Billing's own figure keeps the fee; the spec's rule, not that figure, decides here.
+    expect(dibatalkan.pengembalian?.jumlah).toBe(9_500_000);
+
+    expect(await setup.refunds.ajukanDariPembatalan(fixture.tagihanId, { pihakBersalah: "lokasi" })).toEqual({ ok: true });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ pihakBersalah: "lokasi", biayaLayananPlatformDikembalikan: true, jumlah: 9_650_000 });
+    expect(permintaan?.lines.map((line) => line.label).length).toBeGreaterThan(2);
+    // The tick never adds a second request for the same cancellation.
+    expect(await setup.refunds.tick()).toEqual({ materialised: 0 });
   });
 
   it("is idempotent: ticking twice never doubles the request", async () => {
@@ -100,36 +129,24 @@ describe("materialising ticket 24's Saat Duka cancellation refund", () => {
   });
 });
 
-describe("approval and the Tier 3 refund transfer row", () => {
-  it("appears on approval with a 2 Hari Kerja deadline, and needs a bank account before it can be transferred", async () => {
+describe("approval, the Tier 3 refund transfer row and the transfer", () => {
+  it("appears on approval with a 2 Hari Kerja deadline, closes when the proof is uploaded, and shows that proof on the Bukti's own link", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananDibatalkan(setup);
-    await setup.refunds.tick();
-    const [permintaan] = await setup.refunds.permintaanTerbuka();
-    if (!permintaan) throw new Error("no open request");
+    const permintaan = await permintaanTerbuka(setup);
+    const pemesan = pemesanActor(fixture.pemesan);
 
     expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);
+    // The Pemesan of the order enters the account before approval.
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
 
     const setuju = await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
     if (!setuju.ok) throw new Error(`approval refused: ${setuju.reason}`);
     expect(setuju.permintaan.status).toBe("disetujui");
     // 2026-10-01 (Thursday) + 2 Hari Kerja on the Admin Platform calendar
-    // (Monday–Friday) = the close of Monday 2026-10-05, the same calendar
-    // Payouts' own Pencairan deadline uses (ticket 11).
+    // (Monday–Friday) = the close of Monday 2026-10-05 (ticket 11).
     expect(setuju.permintaan.tenggatTransferPada).toEqual(wib("2026-10-05 23:59"));
-
-    const jatuhTempo = await setup.refunds.pengembalianJatuhTempo();
-    expect(jatuhTempo.map((row) => row.id)).toEqual([permintaan.id]);
-
-    const ditolakTanpaRekening = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
-      permintaanId: permintaan.id,
-      ditransferPada: hariTransfer,
-      bukti: buktiTransfer,
-    });
-    expect(ditolakTanpaRekening).toEqual({ ok: false, reason: "rekening_belum_diisi" });
-
-    const diisi = await setup.refunds.isiRekeningPemesan({ tagihanId: fixture.tagihanId, rekening });
-    expect(diisi).toMatchObject({ ok: true, permintaan: { rekening } });
+    expect((await setup.refunds.pengembalianJatuhTempo()).map((row) => row.id)).toEqual([permintaan.id]);
 
     const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
       permintaanId: permintaan.id,
@@ -149,24 +166,35 @@ describe("approval and the Tier 3 refund transfer row", () => {
     expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);
     // A refunded Tagihan already Dibatalkan moves on to Dikembalikan penuh (AC 7).
     expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
-    // A Saat Duka Tagihan's family contact is never recorded in
-    // notifications_tagihan_kontak (only a Tagihan kind that calls
-    // Billing/Notifications' own `tagihanTerbit` gets one, which a Saat Duka
-    // order's confirmation does not — its own family messages go through the
-    // Pemesanan-keyed announcements instead). Its refund still reaches the
-    // family: exactly ADR 0004's designed fallback, a Telepon Pemesan row.
-    const telepon = await setup.notifications.teleponPemesanTerbuka();
-    expect(telepon).toContainEqual(
+    // A Saat Duka Tagihan has no family contact in notifications_tagihan_kontak
+    // (only a Tagihan kind that calls `tagihanTerbit` gets one), so its refund
+    // reaches the family by ADR 0004's fallback, a Telepon Pemesan row.
+    expect(await setup.notifications.teleponPemesanTerbuka()).toContainEqual(
       expect.objectContaining({ subjectKind: "tagihan", subjectId: fixture.tagihanId, sebab: "tanpa_email" }),
     );
+
+    // The document's own link carries the proof, as a short-lived signed URL.
+    const dokumen = await setup.refunds.buktiPengembalianDana(terbit.bukti.link);
+    expect(dokumen?.buktiTransferUrl).toEqual(expect.stringContaining("pengembalian/"));
+    expect(dokumen).not.toHaveProperty("buktiTransferKey");
+    expect(await setup.refunds.buktiPengembalianDana("bukan-tautan")).toBeNull();
+  });
+
+  it("cannot be transferred before a bank account is on file", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+
+    expect(
+      await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer }),
+    ).toEqual({ ok: false, reason: "rekening_belum_diisi" });
   });
 
   it("only Admin Platform may approve or transfer", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananDibatalkan(setup);
-    await setup.refunds.tick();
-    const [permintaan] = await setup.refunds.permintaanTerbuka();
-    if (!permintaan) throw new Error("no open request");
+    const permintaan = await permintaanTerbuka(setup);
 
     expect(await setup.refunds.setujuiPengembalian(fixture.adminLokasi, { permintaanId: permintaan.id })).toMatchObject({
       ok: false,
@@ -175,25 +203,72 @@ describe("approval and the Tier 3 refund transfer row", () => {
   });
 });
 
+describe("the refund's bank account", () => {
+  it("is the Pemesan's to enter only on their own order, locked once approved, and changed after that only by Admin Platform with a reason", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+    const pemesan = pemesanActor(fixture.pemesan);
+    const orangLain = pemesanActor({ accountId: "akun-lain", email: "lain@contoh.id" });
+
+    // Someone whose order it is not finds nothing to write to.
+    expect(await setup.refunds.isiRekeningPemesan(orangLain, { nomorPemesanan: fixture.nomor, rekening })).toEqual({
+      ok: false,
+      reason: "tidak_ditemukan",
+    });
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
+    // The Pemesan may still correct it until the refund is approved.
+    const diperbaiki = { ...rekening, nomor: "7123450000" };
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening: diperbaiki })).toMatchObject({
+      ok: true,
+      permintaan: { rekening: diperbaiki },
+    });
+
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toEqual({ ok: false, reason: "terkunci" });
+
+    // Admin Platform changes it, and only with a reason.
+    expect(await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "  " })).toEqual({
+      ok: false,
+      reason: "input_tidak_valid",
+    });
+    expect(await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Salah ketik, dikonfirmasi lewat telepon" })).toMatchObject({
+      ok: true,
+      permintaan: { rekening },
+    });
+
+    // Every write is in the Audit Log, and no entry holds a whole account number.
+    const entri = await setup.audit.entriesAbout({ kind: "permintaan_pengembalian", id: permintaan.id });
+    expect(entri.map((entry) => entry.action)).toEqual([
+      "pengembalian.isi_rekening_pemesan",
+      "pengembalian.isi_rekening_pemesan",
+      "pengembalian.setujui",
+      "pengembalian.isi_rekening",
+    ]);
+    const teks = JSON.stringify(entri);
+    expect(teks).toContain("****6789");
+    expect(teks).not.toContain("7123456789");
+    expect(teks).not.toContain("7123450000");
+    expect(entri.at(-1)?.reason).toBe("Salah ketik, dikonfirmasi lewat telepon");
+  });
+});
+
 describe("netted from the partner: money already paid out becomes a Potongan", () => {
   it("records a Potongan for the Lokasi Mitra that had already been paid, never on a fresh transfer", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananSudahDicairkan(setup);
 
-    // The fault-based, netted refund a future Keluhan or Pembatalan would raise
-    // is not wired to a real caller yet (ticket 31's own honest scope, see the
-    // ticket's Comments); this exercises Refunds' own reaction to money that
-    // already left through Billing's own cancellation flag, on a Tagihan whose
-    // Lokasi Mitra was already paid before the refund was ever asked for.
+    // The netted, fault-based refund of a Keluhan or Pembatalan has no caller
+    // yet (see the ticket's Comments); this exercises Refunds' own reaction to
+    // money that already left, on a Tagihan whose Lokasi Mitra was paid before
+    // the refund was ever asked for.
     const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
     if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
     expect(dibatalkan.pengembalian?.jumlah).toBe(9_500_000);
 
-    expect(await setup.refunds.tick()).toEqual({ materialised: 1 });
-    const [permintaan] = await setup.refunds.permintaanTerbuka();
-    if (!permintaan) throw new Error("no open request");
+    const permintaan = await permintaanTerbuka(setup);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
-    await setup.refunds.isiRekeningPemesan({ tagihanId: fixture.tagihanId, rekening });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
 
     expect(await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id)).toEqual([]);
 
@@ -214,10 +289,12 @@ describe("goodwill: Operator-funded, never netted", () => {
   it("refunds from the Operator's own funds without touching the Lokasi Mitra's Pencairan or Potongan", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananSudahDicairkan(setup);
+    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
 
     const diajukan = await setup.refunds.ajukanGoodwill(fixture.admin, {
       tagihanId: fixture.tagihanId,
-      nomorTagihan: (await setup.billing.tagihan(fixture.tagihanId))!.nomorTagihan,
+      nomorTagihan: tagihan.nomorTagihan,
       nomorPemesanan: fixture.nomor,
       jumlah: 500_000,
       catatan: "Permintaan maaf atas keterlambatan",
@@ -226,7 +303,7 @@ describe("goodwill: Operator-funded, never netted", () => {
     expect(diajukan.permintaan).toMatchObject({ goodwill: true, penuh: false, jumlah: 500_000 });
 
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaan.id });
-    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: diajukan.permintaan.id, rekening });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: diajukan.permintaan.id, rekening, alasan: "Diminta lewat telepon" });
     const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
       permintaanId: diajukan.permintaan.id,
       ditransferPada: hariTransfer,

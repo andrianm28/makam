@@ -81,35 +81,38 @@ export function PermintaanForms({ permintaan }: { permintaan: PermintaanPengemba
 
   return (
     <div className="flex flex-col gap-4">
-      {!permintaan.rekening ? (
-        <form action={rekeningAction} className="grid gap-3 sm:grid-cols-3">
-          <input type="hidden" name="permintaanId" value={permintaan.id} />
-          <label className={labelClass}>
-            Nama bank
-            <input name="bank" required maxLength={100} className={inputClass} />
-          </label>
-          <label className={labelClass}>
-            Nomor rekening
-            <input name="nomor" required maxLength={50} className={inputClass} />
-          </label>
-          <label className={labelClass}>
-            Nama pemilik rekening
-            <input name="nama" required maxLength={200} className={inputClass} />
-          </label>
-          <div className="sm:col-span-3">
-            <Button type="submit" variant="secondary" disabled={mengisi}>
-              {mengisi ? "Menyimpan…" : "Simpan rekening"}
-            </Button>
-          </div>
-          <div className="sm:col-span-3">
-            <Feedback state={rekeningState} />
-          </div>
-        </form>
-      ) : (
+      {permintaan.rekening ? (
         <p className="text-sm text-muted-foreground">
           Rekening tujuan: {permintaan.rekening.bank} · {permintaan.rekening.nomor} a.n. {permintaan.rekening.nama}
         </p>
-      )}
+      ) : null}
+      <form action={rekeningAction} className="grid gap-3 sm:grid-cols-3">
+        <input type="hidden" name="permintaanId" value={permintaan.id} />
+        <label className={labelClass}>
+          Nama bank
+          <input name="bank" required maxLength={100} className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Nomor rekening
+          <input name="nomor" required maxLength={50} className={inputClass} />
+        </label>
+        <label className={labelClass}>
+          Nama pemilik rekening
+          <input name="nama" required maxLength={200} className={inputClass} />
+        </label>
+        <label className={`${labelClass} sm:col-span-3`}>
+          Alasan {permintaan.rekening ? "mengubah" : "mencatat"} rekening
+          <input name="alasan" required maxLength={500} className={inputClass} />
+        </label>
+        <div className="sm:col-span-3">
+          <Button type="submit" variant="secondary" disabled={mengisi}>
+            {mengisi ? "Menyimpan…" : permintaan.rekening ? "Ubah rekening" : "Simpan rekening"}
+          </Button>
+        </div>
+        <div className="sm:col-span-3">
+          <Feedback state={rekeningState} />
+        </div>
+      </form>
 
       <form action={transferAction} className="grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="permintaanId" value={permintaan.id} />

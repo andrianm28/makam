@@ -201,6 +201,8 @@ export type AuditAction =
   | "pengembalian.setujui"
   /** The refund's destination bank account is recorded by Admin Platform on the Pemesan's behalf (ticket 31). */
   | "pengembalian.isi_rekening"
+  /** The Pemesan enters the refund's destination bank account on their own order; the number is masked in the entry (ticket 31). */
+  | "pengembalian.isi_rekening_pemesan"
   /** Admin Platform transfers a refund by hand, uploads the proof and enters the date: one Bukti Pengembalian Dana (ticket 31). */
   | "pengembalian.terbitkan_bukti";
 

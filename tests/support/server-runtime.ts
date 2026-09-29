@@ -124,6 +124,7 @@ export function testServerRuntime() {
       payouts,
       notifications,
       operatorSettings,
+      pemesanan,
     });
     holder.__makamRuntime = {
       env,
