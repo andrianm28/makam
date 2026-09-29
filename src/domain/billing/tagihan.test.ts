@@ -202,20 +202,20 @@ describe("an issued Tagihan is immutable", () => {
       // column of the Tagihan, never a line, and never the due date it was issued with.
       "setOverdueAnchor",
       "tagihan",
+      "tagihanLewatJatuhTempo",
       // A read of every Tagihan a cancellation flagged for a refund: the
       // Refunds module's (ticket 31) own source, never a way to change a line.
       "tagihanMenungguPengembalian",
-      "tagihanLewatJatuhTempo",
       // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
       // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).
       "tagihanRetribusiLunas",
-      // A Harga Khusus (ticket 30) is `reissueTagihan` plus a negative line: a
-      // cancel-and-reissue, never a line change on the Tagihan it replaces.
-      "tetapkanHargaKhusus",
       // Moves the status to Dikembalikan sebagian / penuh once a refund's Bukti
       // is issued (ticket 31): a status move, exactly like `batalkanTagihan`'s,
       // never a line.
       "tandaiPengembalian",
+      // A Harga Khusus (ticket 30) is `reissueTagihan` plus a negative line: a
+      // cancel-and-reissue, never a line change on the Tagihan it replaces.
+      "tetapkanHargaKhusus",
       "within",
     ]);
   });

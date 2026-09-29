@@ -386,8 +386,10 @@ default) and always refused on production; every write the command's own
 tariffs calls and its two kinds of staff invite (Petugas Lapangan, Admin
 Lokasi) make carries the reason `seed-contoh-publik (staging, --izinkan-staging)`,
 so the Audit Log says which environment and allowance created each row.
-Idempotent on the five Lokasi Mitra's own names: a second run reports "tidak
-mengubah apa pun" and writes nothing.
+Idempotent: a run that finds all five Lokasi Mitra already matching the
+prototype reports "tidak mengubah apa pun" and writes nothing; one that finds
+an example Lokasi short of Petak, Kavling units or its Kontak Siaga name (a
+stack seeded by an older version) completes it and changes nothing else.
 
 The five invented Undangan Staf and Undangan Admin Lokasi email addresses are
 on the RFC 2606 reserved `.invalid` TLD (`…@contoh.makam.invalid`), so they can
