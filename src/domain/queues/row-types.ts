@@ -6,6 +6,7 @@
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
@@ -54,6 +55,8 @@ export interface AntreanRowDeps {
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
+  /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

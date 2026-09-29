@@ -15,6 +15,7 @@ import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts } from "@/domain/inventory";
+import type { Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
@@ -44,6 +45,8 @@ export interface SchedulerContext {
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
+  /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55). */
+  layanan: Pick<Layanan, "tinjauSkorTick">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -96,6 +99,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "pemesanan.catat_pemakaman", cron: "* * * * *", tick: catatPemakamanPromptTick },
   // Refunds: every Tagihan Billing flagged for a refund becomes a request here (ticket 31).
   { name: "refunds.materialise", cron: "* * * * *", tick: refundsMaterialiseTick },
+  // Layanan: the first of each WIB month opens one scorecard review row per Mitra Jasa (ticket 55).
+  { name: "layanan.tinjau_skor_mitra_jasa", cron: "13 5 1 * *", tick: tinjauSkorTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -138,4 +143,9 @@ async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promi
 /** The worker wrapper around the Refunds materialising tick (idempotent there, as every tick is). */
 async function refundsMaterialiseTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.refunds.tick(now);
+}
+
+/** The worker wrapper around the Layanan module's monthly scorecard review tick (idempotent there, as every tick is). */
+async function tinjauSkorTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.layanan.tinjauSkorTick(now);
 }

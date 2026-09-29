@@ -209,6 +209,7 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Orang",
         items: [
           { label: "Staf", href: "/staf/admin-platform/staf" },
+          { label: "Mitra Jasa", href: "/staf/admin-platform/mitra-jasa" },
           { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
           { label: "Tugas Lapangan", href: "/staf/admin-platform/tugas-lapangan" },
         ],

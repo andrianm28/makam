@@ -8,6 +8,7 @@ import { saatDukaDitolakRowType } from "./tier1-saat-duka-ditolak-row";
 import { konfirmasiTpuSaatDukaRowType } from "./tier1-konfirmasi-tpu-saat-duka-row";
 import { ambilSuratPengantarRowType } from "./tier2-ambil-surat-pengantar-row";
 import { setorRetribusiRowType } from "./tier3-setor-retribusi-row";
+import { mitraJasaOnboardingRowType, skorMitraJasaReviewRowType } from "./tier4-mitra-jasa-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
 import { pencairanRowType } from "./tier3-pencairan-row";
 import { pengembalianRowType } from "./tier3-pengembalian-row";
@@ -24,6 +25,9 @@ import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo
  * (ticket 32 — the first Tier 3 row type, and the foundation the rest of Tier 3
  * builds on); plus ticket 45's three: Tier 1's Konfirmasi TPU Saat Duka, Tier
  * 2's Ambil surat pengantar and Tier 3's Setor Retribusi.
+ * ticket 43 and the two Mitra Jasa rows of ticket 55), Tier 2's Pembayaran Perlu
+ * Ditinjau (spec-missing; ticket 19's review) and Telepon Pemesan (ticket 20), and
+ * Tier 1's Konfirmasi Lokasi terlambat (ticket 23).
  */
 export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiLokasiTerlambatRowType,
@@ -40,4 +44,6 @@ export const antreanRowTypes: AntreanRowType[] = [
   publishGateCheckRowType,
   otherTugasLapanganRowType,
   tpuFlagStaleRowType,
+  mitraJasaOnboardingRowType,
+  skorMitraJasaReviewRowType,
 ];

@@ -4,6 +4,7 @@ import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
 import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
@@ -13,7 +14,7 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createLayanan, type Layanan } from "@/domain/layanan";
+import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -87,7 +88,7 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
+    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
@@ -238,6 +239,7 @@ export function serverRuntime(): ServerRuntime {
         notifications,
         inventory,
         pemesanan,
+        layanan,
         payouts,
         pengurusan,
         refunds,

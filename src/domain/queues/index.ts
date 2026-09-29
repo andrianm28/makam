@@ -19,6 +19,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor, Identity } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
@@ -75,6 +76,8 @@ export interface QueuesModuleDeps {
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number. */
   identity: Pick<Identity, "staffAccountById">;
+  /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka">;
 }
 
 export interface Queues {

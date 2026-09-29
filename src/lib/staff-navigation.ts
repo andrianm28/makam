@@ -127,6 +127,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
           items: [
             { label: "Staf", href: `${AP}/staf`, icon: UsersIcon, description: "Undang staf dan nonaktifkan Akun Staf." },
             {
+              label: "Mitra Jasa",
+              href: `${AP}/mitra-jasa`,
+              icon: BriefcaseIcon,
+              description: "Onboarding Mitra Jasa, rekening, cakupan TPU dan Layanan, status, serta tinjauan skor bulanan.",
+            },
+            {
               label: "Pemulihan Akun",
               href: `${AP}/pemulihan-akun`,
               icon: UserRoundCheckIcon,

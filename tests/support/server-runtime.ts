@@ -3,6 +3,7 @@ import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
@@ -11,7 +12,6 @@ import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
-import { createLayanan } from "@/domain/layanan";
 import { createPengurusan } from "@/domain/pengurusan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -47,7 +47,7 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
+    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Filled in once Payouts is composed below (ticket 30: Billing's own Harga
     // Khusus path only ever *calls* this once a write happens, well after this
@@ -171,6 +171,7 @@ export function testServerRuntime() {
         notifications,
         inventory,
         pemesanan,
+        layanan,
         payouts,
         pengurusan: pengursModule,
         refunds,

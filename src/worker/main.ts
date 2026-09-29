@@ -5,6 +5,7 @@
 import { createAdapters } from "@/composition/adapters";
 import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
+import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
 import { composeRefunds } from "@/composition/refunds";
@@ -57,6 +58,8 @@ async function main() {
   // The worker re-runs a payment's failed effects, so it holds the same registry the
   // web runtime does: a Bukti Pemesanan that failed once must be issuable here too.
   const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  // The Layanan module, for the monthly Mitra Jasa scorecard review row (ticket 55).
+  const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
   const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
   const notifikasi = pemesananNotifikasiDari(notifications);
   // One registry, handed to both the scheduler's retry tick and Billing below: a
@@ -113,6 +116,7 @@ async function main() {
       notifikasi,
       payouts,
       refunds,
+      layanan,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

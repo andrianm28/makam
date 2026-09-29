@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 89 tickets (as of 2026-09-29): 57 resolved, 23 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 89 tickets (as of 2026-09-29): 58 resolved, 22 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -58,7 +58,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 89 tickets (as of 2026-0
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |
 | [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan | ready-for-agent | 37, 40, 50 |
 | [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | ready-for-agent | 50 |
-| [55](55-mitra-jasa-onboarding-and-status.md) | Mitra Jasa onboarding, availability, status and scorecard | ready-for-agent | 43, 49 |
+| [55](55-mitra-jasa-onboarding-and-status.md) | Mitra Jasa onboarding, availability, status and scorecard | resolved | 43, 49 |
 | [56](56-tpu-layanan-order-and-mitra-jasa-assignment.md) | TPU Layanan order and Mitra Jasa assignment | ready-for-agent | 45, 50, 55 |
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
 | [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |

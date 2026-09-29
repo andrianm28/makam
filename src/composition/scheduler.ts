@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import type { PaymentEffect } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { PemesananNotifikasi } from "@/domain/pemesanan";
@@ -25,6 +26,7 @@ export function composeSchedulerContext(deps: {
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   refunds: Pick<Refunds, "tick">;
+  layanan: Pick<Layanan, "tinjauSkorTick">;
 }): SchedulerContext {
   return {
     db: deps.db,
@@ -34,5 +36,6 @@ export function composeSchedulerContext(deps: {
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
     payouts: deps.payouts,
     refunds: deps.refunds,
+    layanan: deps.layanan,
   };
 }

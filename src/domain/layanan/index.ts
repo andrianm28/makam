@@ -26,6 +26,7 @@
 import type { Actor } from "@/domain/identity";
 import type { SetHargaLayananInput } from "@/domain/tariffs";
 import type { LayananDeps } from "./deps";
+import type { MitraJasaStatus } from "./schema";
 import {
   createLayanan as createLayananEntry,
   hapusLayanan,
@@ -69,10 +70,49 @@ import {
   type LayananDiTempat,
   type Tempat,
 } from "./harga";
+import {
+  bacaMitraJasa,
+  buatMitraJasa,
+  hapusTidakTersedia,
+  mitraJasaBelumLengkap,
+  mitraJasaCountByStatus,
+  rentangTidakTersedia,
+  semuaMitraJasa,
+  tambahTidakTersedia,
+  ubahCoverage,
+  ubahProfil,
+  ubahRekening,
+  ubahStatus,
+  unggahBerkas,
+  type BacaMitraJasaResult,
+  type BerkasResult,
+  type BuatMitraJasaResult,
+  type CoverageResult,
+  type MitraJasa,
+  type MitraJasaBelumLengkap,
+  type TidakTersediaResult,
+  type UbahProfilResult,
+  type UbahStatusResult,
+  type RekeningResult,
+  type RentangTidakTersedia,
+} from "./mitra-jasa";
+import { mitraJasaTersedia, type MitraJasaTersedia } from "./penugasan";
+import type { KebutuhanPenugasan } from "./mitra-jasa-skema";
+import {
+  catatTinjauan,
+  skorMitraJasa,
+  skorSaya,
+  tinjauSkorTick,
+  tinjauanMitraJasa,
+  tinjauanTerbuka,
+  type CatatTinjauanResult,
+  type ScorecardResult,
+  type TinjauanMitraJasa,
+} from "./skor";
 
-export type { LayananDeps } from "./deps";
-export { buktiPerJenis, buktiValues, frekuensiValues, jenisLayananValues } from "./schema";
-export type { Bukti, Frekuensi, JenisLayanan } from "./schema";
+export type { LayananDeps, PekerjaanMitraJasa, PekerjaanMitraJasaPort } from "./deps";
+export { buktiPerJenis, buktiValues, frekuensiValues, jenisLayananValues, mitraJasaStatuses } from "./schema";
+export type { Bukti, Frekuensi, JenisLayanan, MitraJasaStatus } from "./schema";
 export { buktiOf, proofOf } from "./katalog";
 export type {
   CreateLayananResult,
@@ -88,6 +128,34 @@ export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLaya
 export type { StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
 export type { HargaLayanan, LayananDiLokasi, LayananDiTempat, Tempat, VarianDitawarkan } from "./harga";
+export {
+  BARU_SAMPAI_SELESAI,
+  LANGKAH_ONBOARDING,
+  langkahBelumLengkap as langkahOnboardingBelumLengkap,
+} from "./mitra-jasa";
+/** The input schemas a form may take from this module's own schema file, never from here (a client component must not reach the database). */
+export {
+  berkasMitraJasaSchema,
+  coverageMitraJasaSchema,
+  kebutuhanPenugasanSchema,
+  profilMitraJasaSchema,
+  rekeningMitraJasaSchema,
+  statusMitraJasaSchema,
+  tidakTersediaSchema,
+} from "./mitra-jasa-skema";
+export type { BuatMitraJasaResult, MitraJasa, MitraJasaBelumLengkap, ReleasedJob, LangkahOnboarding } from "./mitra-jasa";
+export type {
+  BerkasMitraJasaInput,
+  CoverageMitraJasaInput,
+  KebutuhanPenugasan,
+  ProfilMitraJasaInput,
+  RekeningMitraJasaInput,
+  StatusMitraJasaInput,
+  TidakTersediaInput,
+} from "./mitra-jasa-skema";
+export { SKOR_WINDOW_HARI } from "./skor";
+export type { SkorMitraJasa, TinjauanMitraJasa } from "./skor";
+export type { MitraJasaTersedia } from "./penugasan";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -147,6 +215,60 @@ export interface Layanan {
    * its items is not.
    */
   hargaPaket(paketId: string, di: Tempat, at: Date): Promise<HargaLayanan | null>;
+
+  /* The Mitra Jasa: onboarding, availability, status and the 90-day scorecard
+   * (spec, Layanan > Mitra Jasa; ticket 55). Every write here is audited, and the
+   * two that decide money or work (the bank account, the status) refuse on their
+   * own rule rather than on the caller's. */
+
+  /** Admin Platform starts a Mitra Jasa's onboarding record, addressed to the email the Undangan Staf goes to. */
+  buatMitraJasa(by: Actor, email: string, input: unknown): Promise<BuatMitraJasaResult>;
+  /** Admin Platform records or changes the profile: name, NIK, home area, optional emergency contact. No NPWP field exists. */
+  ubahProfil(by: Actor, mitraJasaId: string, input: unknown): Promise<UbahProfilResult>;
+  /** Admin Platform sets the bank account: the name must be the KTP's, or carry an override note. */
+  ubahRekening(by: Actor, mitraJasaId: string, input: unknown): Promise<RekeningResult>;
+  /** Admin Platform uploads the KTP photo, the Mitra Jasa's photo or the signed arrangement scan. */
+  unggahBerkas(by: Actor, mitraJasaId: string, input: unknown): Promise<BerkasResult>;
+  /** Admin Platform sets the coverage lists: which DKI TPUs and which Layanan variants. */
+  ubahCoverage(by: Actor, mitraJasaId: string, input: unknown): Promise<CoverageResult>;
+  /**
+   * Admin Platform sets Aktif / Ditangguhan / Berhenti with a reason. A suspension
+   * or an ending releases every `dijadwalkan` job in the same transaction and
+   * returns the in-progress ones for Admin Platform to reassign.
+   */
+  ubahStatus(by: Actor, mitraJasaId: string, input: unknown): Promise<UbahStatusResult>;
+  /** Every Mitra Jasa, by name, with the "Baru" badge and their finished count; empty for anyone else. */
+  semuaMitraJasa(by: Actor): Promise<MitraJasa[]>;
+  /** One Mitra Jasa, with its bank account, NIK, coverage and status; Admin Platform only. */
+  bacaMitraJasa(by: Actor, mitraJasaId: string): Promise<BacaMitraJasaResult>;
+  /** How many Mitra Jasa are in each status (the list's filter strip). */
+  mitraJasaCountByStatus(by: Actor): Promise<Record<MitraJasaStatus, number>>;
+  /** Every Mitra Jasa whose onboarding is not complete, and which of the nine steps are missing (the Tier 4 row's query). */
+  mitraJasaBelumLengkap(by: Actor): Promise<MitraJasaBelumLengkap[]>;
+  /**
+   * Which Mitra Jasa may take one TPU job: `aktif`, covering that TPU and that
+   * Layanan variant, and not away on that date. The filter ticket 56's picker
+   * reads, so the picker's rules live in one place.
+   */
+  mitraJasaTersedia(by: Actor, input: KebutuhanPenugasan | unknown): Promise<MitraJasaTersedia[]>;
+  /** A Mitra Jasa sets one of their own "Tidak tersedia" ranges; the picker leaves them out for those dates. */
+  tambahTidakTersedia(by: Actor, input: unknown): Promise<TidakTersediaResult>;
+  /** A Mitra Jasa takes one of their own ranges off. */
+  hapusTidakTersedia(by: Actor, rangeId: string): Promise<TidakTersediaResult>;
+  /** The signed-in Mitra Jasa's own ranges, soonest first; empty for anyone who is not one. */
+  rentangTidakTersedia(by: Actor): Promise<RentangTidakTersedia[]>;
+  /** One Mitra Jasa's 90-day scorecard from the Clock, for Admin Platform and for that Mitra Jasa themselves. */
+  skorMitraJasa(by: Actor, mitraJasaId: string): Promise<ScorecardResult>;
+  /** The signed-in Mitra Jasa's own 90-day scorecard; a suspended or ended one still reads it. */
+  skorSaya(by: Actor): Promise<ScorecardResult>;
+  /** The monthly scorecard review rows still open (the Tier 4 row's own query). */
+  tinjauanTerbuka(by: Actor): Promise<TinjauanMitraJasa[]>;
+  /** One Mitra Jasa's review rows, oldest month first. */
+  tinjauanMitraJasa(by: Actor, mitraJasaId: string): Promise<TinjauanMitraJasa[]>;
+  /** Admin Platform records the monthly scorecard review, which closes that month's row. */
+  catatTinjauan(by: Actor, input: { mitraJasaId: string; tinjauanId: string; catatan: string | null }): Promise<CatatTinjauanResult>;
+  /** The monthly tick: opens one review row per Mitra Jasa with the 90-day numbers as they stand. Idempotent. */
+  tinjauSkorTick(now: Date): Promise<void>;
 }
 
 export function createLayanan(deps: LayananDeps): Layanan {
@@ -168,6 +290,27 @@ export function createLayanan(deps: LayananDeps): Layanan {
     penawaranTpu: (at) => penawaranTpu(deps, at),
     hargaPaket: (paketId, di, at) => hargaPaketOf(deps, paketId, di, at),
     asStaff: (by) => staffLayananReads(deps, by),
+
+    buatMitraJasa: (by, email, input) => buatMitraJasa(deps, by, email, input),
+    ubahProfil: (by, mitraJasaId, input) => ubahProfil(deps, by, mitraJasaId, input),
+    ubahRekening: (by, mitraJasaId, input) => ubahRekening(deps, by, mitraJasaId, input),
+    unggahBerkas: (by, mitraJasaId, input) => unggahBerkas(deps, by, mitraJasaId, input),
+    ubahCoverage: (by, mitraJasaId, input) => ubahCoverage(deps, by, mitraJasaId, input),
+    ubahStatus: (by, mitraJasaId, input) => ubahStatus(deps, by, mitraJasaId, input),
+    semuaMitraJasa: (by) => semuaMitraJasa(deps, by),
+    bacaMitraJasa: (by, mitraJasaId) => bacaMitraJasa(deps, by, mitraJasaId),
+    mitraJasaCountByStatus: (by) => mitraJasaCountByStatus(deps, by),
+    mitraJasaBelumLengkap: (by) => mitraJasaBelumLengkap(deps, by),
+    mitraJasaTersedia: (by, input) => mitraJasaTersedia(deps, by, input),
+    tambahTidakTersedia: (by, input) => tambahTidakTersedia(deps, by, input),
+    hapusTidakTersedia: (by, rangeId) => hapusTidakTersedia(deps, by, rangeId),
+    rentangTidakTersedia: (by) => rentangTidakTersedia(deps, by),
+    skorMitraJasa: (by, mitraJasaId) => skorMitraJasa(deps, by, mitraJasaId),
+    skorSaya: (by) => skorSaya(deps, by),
+    tinjauanTerbuka: (by) => tinjauanTerbuka(deps, by),
+    tinjauanMitraJasa: (by, mitraJasaId) => tinjauanMitraJasa(deps, by, mitraJasaId),
+    catatTinjauan: (by, input) => catatTinjauan(deps, by, input),
+    tinjauSkorTick: (now) => tinjauSkorTick(deps, now),
   };
 }
 
