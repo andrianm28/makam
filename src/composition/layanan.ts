@@ -76,28 +76,21 @@ export function layananNotifikasiDari(notifications: Notifications | undefined, 
         tx,
       );
     },
-    pekerjaanTpuDitugaskan: async (hasil) => {
+    pekerjaanTpuDitugaskan: async (tx, hasil) => {
       // The Mitra Jasa is the Akun whose Email Terverifikasi is the address their Undangan Staf went to (ADR 0004).
       const akun = identity ? await identity.accountByEmail(hasil.mitraJasaEmail) : null;
       if (!akun) return;
-      await notifications.sendStaffAlert({
-        to: { accountId: akun.id },
-        kind: "staf_pekerjaan_tpu_ditugaskan",
-        // The email may carry what the lock screen may not, but never the family: not a name, not a number.
-        email: {
-          subject: "Pekerjaan baru ditugaskan ke Anda",
-          text: [
-            `${hasil.label} di ${hasil.tpuName}, dikerjakan ${formatTanggal(hasil.targetDate)}.`,
-            `Terima atau tolak di aplikasi paling lambat ${formatTanggalJam(hasil.batasJawab)}. Tanpa jawaban, pekerjaan dianggap ditolak.`,
-          ].join("\n"),
-        },
-        push: {
-          title: "Pekerjaan baru ditugaskan",
-          body: `${hasil.label}, ${hasil.tpuName}`,
+      // Queued on the assignment's own transaction; the email may carry what the lock screen may not, but never the family.
+      await notifications.peringatanPenugasanTpu(
+        {
+          to: { accountId: akun.id },
+          label: hasil.label,
+          subjectLabel: `${hasil.tpuName}, dikerjakan ${formatTanggal(hasil.targetDate)}; jawab paling lambat ${formatTanggalJam(hasil.batasJawab)}`,
           // Their list of jobs is where they answer it: Terima and Tolak are on the job itself.
-          url: "/staf/mitra-jasa/pekerjaan",
+          href: "/staf/mitra-jasa/pekerjaan",
         },
-      });
+        tx,
+      );
     },
     pesananLayananTerbit: async (tx, hasil) => {
       // Both messages are queued on the order's own transaction (Notifications' `within` parameter).

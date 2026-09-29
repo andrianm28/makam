@@ -8,14 +8,15 @@
  * cancelled), a Tier 2 row the moment Admin Platform assigns the job again. Nobody
  * creates them by hand.
  *
- * **Their deadline is the end of the day the work is due (23:59 WIB)**, the same as
- * the Terlambat row: the spec gives these rows no window of their own, so the one
- * moment the job's own date provides is used and the row reads as past its deadline
- * only once that day is over. A shorter window is the owner's call (recorded in ticket
- * 56's Comments), and the Tier 1 alert and escalation clock is ticket 28's.
+ * The Tier 1 row is a ticket 28 `Tier1RowType`: it alerts, and its clocks count from
+ * `sejak`, when the row appeared (the job's own day starting, its being scheduled or its
+ * last assignment ending, whichever is latest). It has no deadline of its own, and it is
+ * open only while **no Mitra Jasa is assigned**: a job whose Mitra Jasa is still inside
+ * the accept deadline is not Tier 1. The Tier 2 rows are due at the end of the day the
+ * work is due (23:59 WIB), as the Terlambat row is.
  */
 import { wib } from "@/lib/time/jakarta";
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { AntreanRowDeps, AntreanRowType, RawAntreanRow, Tier1Row, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 /** Where Admin Platform assigns one TPU job: the picker and the assignment history. */
 export const pekerjaanTpuHref = (pekerjaanId: string) => `/staf/admin-platform/pekerjaan-tpu/${pekerjaanId}`;
@@ -23,19 +24,20 @@ export const pekerjaanTpuHref = (pekerjaanId: string) => `/staf/admin-platform/p
 const label = (satu: { nomor: string; label: string; tpuName: string }) => `${satu.nomor} · ${satu.label} · ${satu.tpuName}`;
 const batas = (targetDate: string) => wib(`${targetDate} 23:59`);
 
-/** Tier 1: a job due today (or already past its date) with no Mitra Jasa who has accepted it. */
-export const pekerjaanTpuTanpaMitraRowType: AntreanRowType = {
+/** Tier 1: a job due today (or already past its date) with no Mitra Jasa assigned. */
+export const pekerjaanTpuTanpaMitraRowType: Tier1RowType = {
   key: "pekerjaan_tpu_tanpa_mitra",
   tier: 1,
   label: "Pekerjaan hari ini tanpa Mitra Jasa",
-  async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     const jobs = await deps.layanan.pekerjaanTpuHariIniTanpaMitra();
     return jobs.map((satu) => ({
       subjectKind: "pekerjaan_layanan_tpu",
       subjectId: satu.id,
       subjectLabel: label(satu),
       href: pekerjaanTpuHref(satu.id),
-      deadline: batas(satu.targetDate),
+      deadline: null,
+      sejak: satu.sejak,
     }));
   },
 };

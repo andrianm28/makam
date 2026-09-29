@@ -32,6 +32,7 @@ import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { payoutsFor } from "./payouts";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /** The publish fixture's Kunjungan Verifikasi photo, as a real upload is. */
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
@@ -122,6 +123,12 @@ export function pemesananOnTestDatabase(
     documentPageUrl: (link: string) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link: string) => `https://makam.test/dokumen/${link}`,
     reportError: (error: unknown, context: Record<string, unknown>) => setup.reportedErrors.push({ error, context }),
+    // Harga Khusus (ticket 30) is an audited staff write, and its reissued Tagihan is announced in its own transaction.
+    audit: setup.audit,
+    files: setup.files,
+    umumkanTagihanPengganti: options.notifications
+      ? (tx: Database, input: Parameters<typeof setup.notifications.tagihanTerbitPengganti>[0]) => setup.notifications.tagihanTerbitPengganti(input, tx)
+      : undefined,
     // The runtime wires Billing's "a call was logged" guard to Notifications' own call log (ticket 29).
     hasLoggedCall: options.notifications
       ? (tagihanId: string) => setup.notifications.teleponPemesanTercatat("tagihan", tagihanId)
@@ -172,6 +179,7 @@ export function pemesananOnTestDatabase(
     billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
+    layanan: layananHariHKosong,
     notifikasi: {
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {

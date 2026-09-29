@@ -164,7 +164,6 @@ export async function konfirmasiSaatDukaTpu(
   const hariH = order.layananHariH ?? [];
   let hariHBaris: readonly BarisHariHTpu[] = [];
   if (hariH.length > 0) {
-    if (!deps.layanan) return { ok: false, reason: "harga_tidak_tersedia" };
     const dihitung = await deps.layanan.barisHariHTpu(hariH, now);
     if (!dihitung.ok) return { ok: false, reason: "harga_tidak_tersedia" };
     hariHBaris = dihitung.baris;
@@ -262,7 +261,7 @@ export async function konfirmasiSaatDukaTpu(
 
     // Each hari-H item becomes a Pekerjaan Layanan, Dijadwalkan now and targeted at the burial day, on this transaction:
     // the jobs exist exactly when the Tagihan does, and a Mitra Jasa is assigned to each by hand from the picker.
-    if (hariHBaris.length > 0 && deps.layanan) {
+    if (hariHBaris.length > 0) {
       await deps.layanan.jadwalkanHariHTpu(
         {
           nomor: order.nomor,

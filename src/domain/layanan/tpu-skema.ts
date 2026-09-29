@@ -9,6 +9,9 @@
 import { z } from "zod";
 import { itemPesananLayananSchema } from "./pesanan-schema";
 
+/** The largest reference photo of a grave, in bytes. Lives in this zod-only file so a client component can share it. */
+export const FOTO_MAKAM_TPU_MAX_BYTES = 8 * 1024 * 1024;
+
 /** A pin the family dropped on the map. */
 export const pinMakamSchema = z.object({
   lat: z.number().min(-90).max(90),

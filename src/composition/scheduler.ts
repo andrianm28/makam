@@ -7,6 +7,7 @@ import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan, PemesananNotifikasi } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { QueuesTicks } from "@/domain/queues";
 import type { Refunds } from "@/domain/refunds";
 import type { SchedulerContext } from "@/domain/scheduler";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -21,7 +22,7 @@ export function composeSchedulerContext(deps: {
   dokumenUrl: (link: string) => string;
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
   identity: Pick<Identity, "adminLokasiOf">;
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
@@ -31,6 +32,8 @@ export function composeSchedulerContext(deps: {
   layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons">;
   /** The Pemesanan module, for the Terencana payment-hold lapse (ticket 37). */
   terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
+  /** The Antrean's Tier 1 alert tick and the Bertugas auto-off (ticket 28), from `createQueuesTicks`. */
+  queues: QueuesTicks;
 }): SchedulerContext {
   return {
     db: deps.db,
@@ -42,6 +45,7 @@ export function composeSchedulerContext(deps: {
     refunds: deps.refunds,
     layanan: deps.layanan,
     terencana: deps.terencana,
+    queues: deps.queues,
     inventory: deps.inventory,
   };
 }

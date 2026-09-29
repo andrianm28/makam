@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import type { CsContact, KodeMasukRequestState } from "@/components/kode-masuk/state";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { toBase64 } from "@/lib/files/base64";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
-import { FOTO_MAKAM_MAKS_BYTE, type DraftTpu } from "./draft";
-import { hargaPilihanTpu, kirimPesananLayananTpu, verifikasiKodeMasukDanKirimLayananTpu } from "./actions";
+import { FOTO_MAKAM_TPU_MAX_BYTES } from "@/domain/layanan/tpu-skema";
+import type { DraftTpu } from "./draft";
+import { kirimPesananLayananTpu, verifikasiKodeMasukDanKirimLayananTpu } from "./actions";
 import type { LayananTpuTawarkan, TampilanPesananTpu } from "./tampilan";
 
 /**
@@ -36,9 +37,9 @@ export function FormPesananTpu({
   csContact: CsContact | null;
 }) {
   const router = useRouter();
-  const [tpuId, setTpuId] = useState(tampilan.awal.tpuId);
-  const [blokNomor, setBlokNomor] = useState(tampilan.awal.blokNomor);
-  const [almarhum, setAlmarhum] = useState(tampilan.awal.almarhumName);
+  const [tpuId, setTpuId] = useState("");
+  const [blokNomor, setBlokNomor] = useState("");
+  const [almarhum, setAlmarhum] = useState("");
   const [keterangan, setKeterangan] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
@@ -50,30 +51,24 @@ export function FormPesananTpu({
   const [nama, setNama] = useState(tampilan.pemesan?.nama ?? "");
   const [telepon, setTelepon] = useState(tampilan.pemesan?.telepon ?? "");
   const [email, setEmail] = useState(tampilan.pemesan?.email ?? "");
-  const [harga, setHarga] = useState<{ total: number; parts: { label: string; amount: number }[] } | null>(null);
   const [gagal, setGagal] = useState<string | null>(null);
   const [perluKode, setPerluKode] = useState(false);
   const [mengirim, mulaiKirim] = useTransition();
 
   const variantIds = Object.values(dipilih);
-  const kunciHarga = variantIds.slice().sort().join(",");
-
-  useEffect(() => {
-    let dibatalkan = false;
-    void hargaPilihanTpu({ layananVariantIds: variantIds }).then((hasil) => {
-      if (!dibatalkan) setHarga(hasil);
-    });
-    return () => {
-      dibatalkan = true;
-    };
-    // The set of chosen variants, in a stable order, is the only thing that changes the price.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kunciHarga]);
+  // The price is the sum of the chosen variants' DKI prices, which the server-rendered page handed down
+  // (a TPU Tagihan carries no platform fee); Kirim prices the order again on the server.
+  const parts = variantIds.flatMap((id) => {
+    const grup = tampilan.layanan.find((satu) => satu.varian.some((varian) => varian.id === id));
+    const varian = grup?.varian.find((satu) => satu.id === id);
+    return grup && varian ? [{ label: `${grup.name} (${varian.name})`, amount: varian.harga }] : [];
+  });
+  const harga = parts.length > 0 ? { total: parts.reduce((jumlah, baris) => jumlah + baris.amount, 0), parts } : null;
 
   async function pilihFoto(file: File | undefined) {
     setFotoGagal(null);
     if (!file) return setFoto(null);
-    if (file.size > FOTO_MAKAM_MAKS_BYTE) {
+    if (file.size > FOTO_MAKAM_TPU_MAX_BYTES) {
       setFoto(null);
       return setFotoGagal("Foto terlalu besar. Ambil ulang foto yang lebih kecil.");
     }

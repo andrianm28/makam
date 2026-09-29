@@ -42,6 +42,7 @@ import {
   type PekerjaanTpuSumber,
 } from "./schema";
 import {
+  FOTO_MAKAM_TPU_MAX_BYTES,
   itemHariHTpuListSchema,
   placePesananLayananTpuSchema,
   type DeskripsiMakamTpu,
@@ -57,8 +58,7 @@ export interface FotoMakamTpu {
   contentType: string;
 }
 
-/** The largest reference photo, 8 MB (a phone photo of a grave). */
-export const FOTO_MAKAM_TPU_MAX_BYTES = 8 * 1024 * 1024;
+/** The image types a reference photo of a grave may be. */
 const FOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 /** One variant a TPU offers, with the facts that belong to its Layanan (lead time, text, hari-H). */

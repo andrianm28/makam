@@ -1,5 +1,4 @@
 import "server-only";
-import { z } from "zod";
 import { targetPalingDini } from "@/domain/layanan";
 import { proofLabels } from "@/lib/layanan-labels";
 import { serverRuntime } from "@/server/runtime";
@@ -9,10 +8,8 @@ import { serverRuntime } from "@/server/runtime";
  * shows, composed from the Layanan and Lokasi modules' public reads, so the payload a
  * family is handed is exactly what the page has in hand.
  *
- * The grave is **described** here, not looked up: a DKI TPU has no Denah. Ordering from
- * a Makam TPU (ticket 46's record) opens this page with the grave's own words in the
- * query (`tpu`, `blok`, `almarhum`), which prefill the form; nothing in the query is
- * trusted, since the module checks every field again at Kirim.
+ * The grave is **described** here, not looked up: a DKI TPU has no Denah. (Ordering from a
+ * Makam TPU record, which would prefill it, is ticket 46's.)
  */
 
 export interface VarianTpuTawarkan {
@@ -37,26 +34,15 @@ export interface LayananTpuTawarkan {
 export interface TampilanPesananTpu {
   tpu: { id: string; name: string; address: string }[];
   layanan: LayananTpuTawarkan[];
-  /** What the query prefilled: a TPU and the grave's words, or nothing. */
-  awal: { tpuId: string; blokNomor: string; almarhumName: string };
   /** The signed-in Akun, whose email is prefilled and whose Kode Masuk is skipped. */
   pemesan: { nama: string; email: string; telepon: string } | null;
 }
 
-const querySchema = z.object({
-  tpu: z.string().optional(),
-  blok: z.string().max(200).optional(),
-  almarhum: z.string().max(200).optional(),
-});
-
 /** One offer screen for a described grave at a DKI TPU. */
-export async function tampilanPesananTpu(params: unknown, pemesan: TampilanPesananTpu["pemesan"]): Promise<TampilanPesananTpu> {
-  const parsed = querySchema.safeParse(params);
-  const query = parsed.success ? parsed.data : {};
+export async function tampilanPesananTpu(pemesan: TampilanPesananTpu["pemesan"]): Promise<TampilanPesananTpu> {
   const runtime = serverRuntime();
   const now = runtime.adapters.clock.now();
   const [daftarTpu, penawaran] = await Promise.all([runtime.lokasi.publicTpuDkiList(), runtime.layanan.penawaranTpuUntukPesanan()]);
-  const tpuId = daftarTpu.some((satu) => satu.id === query.tpu) ? (query.tpu ?? "") : "";
   return {
     tpu: daftarTpu.map((satu) => ({ id: satu.id, name: satu.name, address: satu.address })),
     layanan: penawaran.map((grup) => ({
@@ -69,7 +55,6 @@ export async function tampilanPesananTpu(params: unknown, pemesan: TampilanPesan
       targetPalingDini: targetPalingDini(grup.layanan.leadTimeDays, now),
       varian: grup.varian.map((varian) => ({ id: varian.id, name: varian.name, harga: varian.harga })),
     })),
-    awal: { tpuId, blokNomor: query.blok ?? "", almarhumName: query.almarhum ?? "" },
     pemesan,
   };
 }

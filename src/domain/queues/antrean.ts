@@ -24,7 +24,7 @@ export interface AntreanRow {
   deadline: Date | null;
   /** True once `deadline` has passed (the Clock's now); always false for a row with no deadline. */
   pastDeadline: boolean;
-  /** Tier 1 and 2 rows alert once built (tickets 20, 28); Tier 3 and 4 never do (spec, Work Queues). */
+  /** Only a Tier 1 row alerts (ticket 28); Tier 2 shows without one and Tier 3 and 4 never alert (spec, Work Queues). */
   alerts: boolean;
   ambil: { accountId: string; claimedAt: Date } | null;
 }
@@ -57,7 +57,7 @@ export async function antrean(deps: QueuesAntreanDeps, by: Actor): Promise<Antre
     return {
       ...row,
       pastDeadline: row.deadline !== null && row.deadline.getTime() < now.getTime(),
-      alerts: row.tier === 1 || row.tier === 2,
+      alerts: row.tier === 1,
       ambil: claim ? { accountId: claim.claimedByAccountId, claimedAt: claim.claimedAt } : null,
     };
   });

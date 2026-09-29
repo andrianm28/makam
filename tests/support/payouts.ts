@@ -15,6 +15,7 @@ import { cellsOf } from "./inventory";
 import { orderSaatDuka, saatDukaFixture, siapkanOperatorPemesanan, type LokasiOptions } from "./pemesanan";
 import { TEST_PUBLIC_ORIGIN } from "./billing";
 import { publishOnTestDatabase, type PublishSetup } from "./publish";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /**
  * Lokasi, Tariffs, Inventory, Field Work, Billing, Notifications, the Pemesanan
@@ -102,6 +103,7 @@ export function payoutsOnTestDatabase(db: Database) {
     // creates inside its own transaction, and the family message it announces.
     // Both are the real modules, as src/server/runtime.ts wires them.
     fieldwork: setup.fieldwork,
+    layanan: layananHariHKosong,
     notifikasi: setup.notifications,
   });
   // Refunds (ticket 31) reads a Tagihan and numbers a Bukti through Billing and

@@ -278,8 +278,22 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1790655522469,
-      "tag": "0039_broken_whiplash",
+      "when": 1790655327550,
+      "tag": "0039_wide_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790656785818,
+      "tag": "0040_familiar_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790659884183,
+      "tag": "0041_absent_namorita",
       "breakpoints": true
     }
   ]

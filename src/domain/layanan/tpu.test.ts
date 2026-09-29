@@ -271,8 +271,16 @@ describe("the accept deadline", () => {
     expect(batasJawabPenugasan(wib("2026-10-04 10:00"), "2026-10-05")).toEqual(wib("2026-10-04 18:00"));
   });
 
-  it("falls back to 12 h when H-1 18:00 has already passed at the assignment, so it is never a deadline in the past", () => {
-    expect(batasJawabPenugasan(wib("2026-10-04 20:00"), "2026-10-05")).toEqual(wib("2026-10-05 08:00"));
+  it("is the start of the job's day when H-1 18:00 has already passed and that start comes before 12 h are up", () => {
+    // Assigned Sunday 20:00 for Monday: H-1 18:00 is gone; 12 h would be Monday 08:00, but the job starts Monday 00:00.
+    expect(batasJawabPenugasan(wib("2026-10-04 20:00"), "2026-10-05")).toEqual(wib("2026-10-05 00:00"));
+  });
+
+  it("is 12 h after the assignment, never past the end of the day, when the job's own day has already started", () => {
+    // Assigned Monday 09:00 for Monday: no H-1 or start left to meet, so 12 h (21:00) it is.
+    expect(batasJawabPenugasan(wib("2026-10-05 09:00"), "2026-10-05")).toEqual(wib("2026-10-05 21:00"));
+    // Assigned Monday 20:00: 12 h would be Tuesday 08:00, but the day ends at midnight.
+    expect(batasJawabPenugasan(wib("2026-10-05 20:00"), "2026-10-05")).toEqual(wib("2026-10-06 00:00"));
   });
 
   it("is what a Mitra Jasa is given, in both branches, when Admin Platform assigns", async () => {
@@ -305,6 +313,29 @@ describe("the accept deadline", () => {
     // An answer that comes too late is refused: the job is already back with Admin Platform.
     s.setup.clock.set(wib("2026-10-01 22:00"));
     expect(await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId: job.id, jawaban: "terima" })).toMatchObject({ ok: false, reason: "tidak_ditemukan" });
+  });
+
+  it("counts no answer as a decline the moment the deadline passes, even before the tick has written it", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { job } = await pekerjaanBunga(s, "2026-10-05");
+    const ditugaskan = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id });
+    if (!ditugaskan.ok) throw new Error(ditugaskan.reason);
+
+    // Two minutes past the deadline, the tick (every 5 minutes) has not run yet.
+    s.setup.clock.set(new Date(ditugaskan.batasJawab.getTime() + 2 * 60_000));
+    // The late answer is refused, and the Mitra Jasa's own list no longer offers the job to answer.
+    expect(await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId: job.id, jawaban: "terima" })).toEqual({ ok: false, reason: "lewat_batas" });
+    const saya = await s.setup.layanan.pekerjaanTpuSaya(mitra.actor);
+    expect(saya.aktif).toEqual([]);
+    expect(saya.riwayat).toMatchObject([{ hasil: "tidak_direspons" }]);
+    // Admin Platform can hand the job to someone else at once, without waiting for the tick.
+    const lain = await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "lain@contoh.id" });
+    expect(await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: lain.id })).toMatchObject({ ok: true });
+    // And the first Mitra Jasa's scorecard counts the Tidak direspons.
+    const skor = await s.setup.layanan.skorMitraJasa(s.admin, mitra.id);
+    if (!skor.ok) throw new Error(skor.reason);
+    expect(skor.skor.declines).toBe(1);
   });
 });
 
@@ -371,11 +402,29 @@ describe("a Mitra Jasa's answer", () => {
 
     await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id });
 
-    const surat = s.setup.email.sent.filter((pesan) => pesan.to === "penerima@contoh.id" && pesan.subject === "Pekerjaan baru ditugaskan ke Anda");
+    // Queued with the assignment (Notifications' worker tick sends it), not sent by the assignment itself.
+    const untukMitra = () => s.setup.email.sent.filter((pesan) => pesan.to === "penerima@contoh.id" && pesan.subject.startsWith("Pekerjaan baru ditugaskan"));
+    expect(untukMitra()).toHaveLength(0);
+    await s.setup.notifications.kirimPeringatanAntreanTick();
+    const surat = untukMitra();
     expect(surat).toHaveLength(1);
     expect(surat[0].text).toContain("TPU Kober");
     expect(surat[0].text).toContain("Layanan – Bunga Tabur (Reguler)");
     expect(surat[0].text).not.toMatch(/Budi Santoso|Hasan Basri|081234567890|pemesan\.tpu@contoh\.id/);
+    // A second tick sends nothing more.
+    await s.setup.notifications.kirimPeringatanAntreanTick();
+    expect(untukMitra()).toHaveLength(1);
+  });
+
+  it("is not told at all when the assignment is refused, so no alert outlives a rolled-back assignment", async () => {
+    const s = await siap({ notifikasiNyata: true });
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "penerima@contoh.id" });
+    const { job } = await pekerjaanBunga(s);
+    expect(await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id })).toMatchObject({ ok: true });
+    // A second assignment of a job that is already held is refused and queues nothing.
+    expect(await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id })).toMatchObject({ ok: false, reason: "sudah_ditugaskan" });
+    await s.setup.notifications.kirimPeringatanAntreanTick();
+    expect(s.setup.email.sent.filter((pesan) => pesan.to === "penerima@contoh.id" && pesan.subject.startsWith("Pekerjaan baru ditugaskan"))).toHaveLength(1);
   });
 });
 
@@ -510,7 +559,7 @@ describe("the Antrean's rows for TPU jobs", () => {
     return (type: string) => rows.filter((satu) => satu.type === type);
   }
 
-  it("Tier 1 lists a job due today with no Mitra Jasa who accepted it, and closes when one does", async () => {
+  it("Tier 1 lists a job due today with no Mitra Jasa assigned, and closes once one is assigned", async () => {
     const s = await siap();
     const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
     const { job, nomor } = await pekerjaanBunga(s, "2026-10-05");
@@ -522,10 +571,17 @@ describe("the Antrean's rows for TPU jobs", () => {
     expect(hariH[0].subjectLabel).toContain(nomor);
     expect(hariH[0].href).toBe(`/staf/admin-platform/pekerjaan-tpu/${job.id}`);
 
-    // Assigned but not yet accepted still counts as without a Mitra Jasa: only an acceptance closes it.
+    // Tier 1 has no deadline of its own: it alerts from when it appeared, which is the start of the job's day.
+    expect(hariH[0].deadline).toBeNull();
+
+    // Assigned, the job is not Tier 1 while its Mitra Jasa is inside the accept deadline (12 h, here).
     s.setup.clock.set(wib("2026-10-05 07:00"));
-    await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id });
-    expect((await antrean(s, wib("2026-10-05 07:30")))("pekerjaan_tpu_tanpa_mitra")).toHaveLength(1);
+    const ditugaskan = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId: job.id, mitraJasaId: mitra.id });
+    if (!ditugaskan.ok) throw new Error(ditugaskan.reason);
+    expect((await antrean(s, wib("2026-10-05 07:30")))("pekerjaan_tpu_tanpa_mitra")).toEqual([]);
+    // An assignment nobody answered is no assignment once its deadline has passed: the row is back.
+    expect((await antrean(s, new Date(ditugaskan.batasJawab.getTime() + 60_000)))("pekerjaan_tpu_tanpa_mitra")).toHaveLength(1);
+    // Accepted, it stays closed.
     await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId: job.id, jawaban: "terima" });
     expect((await antrean(s, wib("2026-10-05 07:31")))("pekerjaan_tpu_tanpa_mitra")).toEqual([]);
   });

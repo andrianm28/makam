@@ -30,17 +30,6 @@ export type KirimLayananTpuState =
   | { status: "selesai"; nomor: string }
   | { status: "gagal"; message: string };
 
-/**
- * The running price of the chosen set, recomputed on every change so the screen and
- * the Tagihan are one number. No auth and no role: it changes nothing, and the price
- * it shows is the public one.
- */
-export async function hargaPilihanTpu(input: unknown): Promise<{ total: number; parts: { label: string; amount: number }[] } | null> {
-  const parsed = z.object({ layananVariantIds: z.array(z.uuid()).max(10) }).safeParse(input);
-  if (!parsed.success || parsed.data.layananVariantIds.length === 0) return null;
-  return serverRuntime().layanan.hargaPesananTpu(parsed.data.layananVariantIds);
-}
-
 /** Kirim for a Pemesan already signed in; a visitor with no session is answered with "perlu_kode_masuk". */
 export async function kirimPesananLayananTpu(draft: unknown): Promise<KirimLayananTpuState> {
   const hasil = await guarded({

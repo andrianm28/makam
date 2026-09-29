@@ -70,7 +70,7 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
     pesananTpuTerbit: async (_tx, hasil) => {
       pesananTpuDicatat.push(hasil);
     },
-    pekerjaanTpuDitugaskan: async (hasil) => {
+    pekerjaanTpuDitugaskan: async (_tx, hasil) => {
       ditugaskan.push(hasil);
     },
   };

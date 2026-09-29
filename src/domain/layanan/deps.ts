@@ -103,10 +103,11 @@ export interface LayananNotifikasi {
   pesananTpuTerbit(tx: Database, hasil: PesananTpuTerbit): Promise<void>;
   /**
    * A TPU job was handed to a Mitra Jasa: a Peringatan Staf by web push and email with
-   * the accept deadline. Sent once the assignment has committed, like every staff alert
-   * in this repo (a push must never go out for a write that was rolled back).
+   * the accept deadline. Queued through Notifications on `tx`, the assignment's own
+   * transaction, so it exists only if the assignment does and is not lost by a crash
+   * after the commit; the worker sends it and logs it.
    */
-  pekerjaanTpuDitugaskan(hasil: PekerjaanTpuDitugaskan): Promise<void>;
+  pekerjaanTpuDitugaskan(tx: Database, hasil: PekerjaanTpuDitugaskan): Promise<void>;
 }
 
 /** A new order Layanan at a DKI TPU as its Pemesan is told about it. */

@@ -280,7 +280,7 @@ export type {
   RiwayatPenugasan,
   TugaskanMitraJasaResult,
 } from "./penugasan-tpu";
-export { FOTO_MAKAM_TPU_MAX_BYTES, hariPemakaman, namaDepan } from "./tpu";
+export { hariPemakaman, namaDepan } from "./tpu";
 export type {
   AlasanTolakPesananTpu,
   BarisHariHTpu,
@@ -293,6 +293,7 @@ export type {
 } from "./tpu";
 export { portPekerjaanTpu } from "./port-pekerjaan-tpu";
 export {
+  FOTO_MAKAM_TPU_MAX_BYTES,
   itemHariHTpuSchema,
   jawabPenugasanSchema,
   lepasPenugasanSchema,

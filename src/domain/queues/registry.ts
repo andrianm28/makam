@@ -1,4 +1,4 @@
-import type { AntreanRowType } from "./row-types";
+import type { AntreanRowType, Tier1RowType } from "./row-types";
 import { layananTerlambatRowType } from "./tier2-layanan-terlambat-row";
 import {
   pekerjaanTpuDitolakRowType,
@@ -40,10 +40,15 @@ import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencan
  * Ticket 56's four: Tier 1's TPU jobs due today without a Mitra Jasa, and Tier 2's
  * Tidak direspons, Ditolak and reassignment rows.
  */
+/**
+ * The Tier 1 row types, the only ones that alert (ticket 28): a new Tier 1 type
+ * is added here and nowhere else, and a test holds this list to the registry's own
+ * Tier 1 types below.
+ */
+export const tier1RowTypes: Tier1RowType[] = [konfirmasiLokasiTerlambatRowType, saatDukaDitolakRowType, konfirmasiTpuSaatDukaRowType, pekerjaanTpuTanpaMitraRowType];
+
 export const antreanRowTypes: AntreanRowType[] = [
-  konfirmasiLokasiTerlambatRowType,
-  saatDukaDitolakRowType,
-  konfirmasiTpuSaatDukaRowType,
+  ...tier1RowTypes,
   ambilSuratPengantarRowType,
   setorRetribusiRowType,
   pembayaranPerluDitinjauRowType,
@@ -53,7 +58,6 @@ export const antreanRowTypes: AntreanRowType[] = [
   tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   layananTerlambatRowType,
-  pekerjaanTpuTanpaMitraRowType,
   pekerjaanTpuTidakDiresponsRowType,
   pekerjaanTpuDitolakRowType,
   pekerjaanTpuPenugasanUlangRowType,

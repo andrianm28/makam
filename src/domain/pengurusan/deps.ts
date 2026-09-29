@@ -52,9 +52,8 @@ export interface PengurusanDeps {
   /**
    * The hari-H Layanan a Saat Duka TPU order may add (story 23, ticket 56): priced at
    * the DKI price for the Tagihan the confirmation issues, and scheduled as Pekerjaan
-   * Layanan inside that same transaction. Optional so an order with no such items, and
-   * every fixture that never adds one, needs no Layanan module beside it; an order that
-   * names items with none composed is refused, never silently dropped.
+   * Layanan inside that same transaction. Required: a missing wiring is a compile error,
+   * never a runtime refusal of an order that named such items.
    */
-  layanan?: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu">;
+  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu">;
 }

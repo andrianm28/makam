@@ -115,6 +115,8 @@ export function serverRuntime(): ServerRuntime {
         return payoutsRef.current.kurangiPencairanPesanan(tx, input);
       },
       hasLoggedCall: (tagihanId: string): Promise<boolean> => notifications.teleponPemesanTercatat("tagihan", tagihanId),
+      // A Harga Khusus reissue is announced to the family in its own transaction (Notifications is composed after this, hence the lazy read).
+      umumkanTagihanPengganti: (tx, input) => notifications.tagihanTerbitPengganti(input, tx),
     };
     const notifications = composeNotifications({
       env,
@@ -239,6 +241,7 @@ export function serverRuntime(): ServerRuntime {
       // The "Ambil surat pengantar" Tugas a confirmation creates, inside the
       // confirmation's own transaction.
       fieldwork,
+      layanan,
       notifikasi: notifications,
     });
     globalForRuntime.__makamRuntime = {

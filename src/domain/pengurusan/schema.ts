@@ -1,5 +1,5 @@
 import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import type { ItemHariHTpu } from "@/domain/layanan/tpu-skema";
+import type { ItemHariHTpu } from "@/domain/layanan";
 import {
   jenisPenguburanValues,
   type DokumenPemakamanDanPengajuan,

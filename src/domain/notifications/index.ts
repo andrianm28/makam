@@ -19,7 +19,7 @@
  *
  * Owns tables: notifications_push_device, notifications_staff_alert,
  * notifications_message, notifications_tagihan_kontak,
- * notifications_telepon_pemesan.
+ * notifications_telepon_pemesan, notifications_peringatan_antrean.
  */
 import { and, asc, count, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { z } from "zod";
@@ -52,6 +52,13 @@ import {
   type TeleponPemesan,
   type TeleponPemesanRiwayat,
 } from "./telepon-pemesan";
+import {
+  antrekanPeringatanAntrean,
+  kirimPeringatanAntreanTick,
+  type PeringatanAntreanInput,
+  type PeringatanAntreanResult,
+  type PeringatanPenugasanTpuInput,
+} from "./peringatan-antrean";
 import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
 import {
   catatanTagihan,
@@ -68,6 +75,7 @@ import {
   pengembalianTerbit,
   pesanTagihan,
   tagihanTerbit,
+  tagihanTerbitPengganti,
   type KirimJatuhTempo,
   type PengembalianTerbitInput,
   type PengembalianTerbitResult,
@@ -123,6 +131,7 @@ import {
 } from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
+export type { PeringatanAntreanInput, PeringatanAntreanResult, PeringatanPenugasanTpuInput, TahapPeringatanAntrean } from "./peringatan-antrean";
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
 export {
   catatPanggilanSchema,
@@ -307,6 +316,23 @@ export interface Notifications {
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
   /**
+   * Queues a Peringatan Staf about a Tier 1 row of the Antrean (ticket 28), one per
+   * Akun Staf in `to`: the first alert, the 30 min re-alert or the 90 min one. The
+   * Work Queues module names the recipients and the moment. `within` is its open
+   * transaction, in which it claims the alert's stage: the alert is queued only if
+   * that commits. The worker's `kirimPeringatanAntreanTick` sends it.
+   */
+  peringatanAntreanTier1(input: PeringatanAntreanInput, within?: Database): Promise<PeringatanAntreanResult>;
+  /**
+   * Queues the Peringatan Staf that tells a Mitra Jasa a TPU job was handed to them
+   * (ticket 56), on `within`, the assignment's open transaction: it exists only if the
+   * assignment commits. The same worker tick as the Tier 1 alerts sends it (push + email,
+   * logged); the words never name the family.
+   */
+  peringatanPenugasanTpu(input: PeringatanPenugasanTpuInput, within?: Database): Promise<PeringatanAntreanResult>;
+  /** The worker's tick: sends every queued Tier 1 alert not yet sent (push + email, logged). Idempotent. */
+  kirimPeringatanAntreanTick(): Promise<{ dikirim: number }>;
+  /**
    * The bell of the signed-in Akun Staf: how many of its Peringatan Staf are
    * unread, and the latest `limit` (newest first). Only its own.
    */
@@ -329,6 +355,16 @@ export interface Notifications {
    * without its address (and never announced without existing).
    */
   tagihanTerbit(input: TagihanTerbitInput, within?: Database): Promise<TagihanTerbitResult>;
+  /**
+   * Announces the Tagihan that replaces another (Harga Khusus): the address is
+   * the one recorded for `tagihanLamaId`, and the family gets the standalone
+   * "Tagihan terbit" email, since a reissue sends no confirmation of its own.
+   * Same transaction rule as `tagihanTerbit`.
+   */
+  tagihanTerbitPengganti(
+    input: Omit<TagihanTerbitInput, "email"> & { tagihanLamaId: string },
+    within?: Database,
+  ): Promise<TagihanTerbitResult>;
   /**
    * Announces a Bukti Pengembalian Dana to the Tagihan's own contact (the
    * address `tagihanTerbit` recorded); an order with no email opens a Telepon
@@ -638,6 +674,22 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return { ok: true, email, push };
     },
 
+    async peringatanAntreanTier1(input, within) {
+      return antrekanPeringatanAntrean(within ?? db, deps.clock, input);
+    },
+
+    async peringatanPenugasanTpu(input, within) {
+      return antrekanPeringatanAntrean(within ?? db, deps.clock, {
+        to: [input.to],
+        tahap: "penugasan_tpu",
+        row: { label: input.label, subjectLabel: input.subjectLabel, href: input.href },
+      });
+    },
+
+    async kirimPeringatanAntreanTick() {
+      return kirimPeringatanAntreanTick(db, deps.clock, (alert) => notifications.sendStaffAlert(alert));
+    },
+
     async staffAlerts(by, options = {}) {
       const refusal = writeRefusal(by, "akun.peringatan", akunResource(by.accountId));
       if (refusal) return refusal;
@@ -680,6 +732,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async tagihanTerbit(input, within) {
       return tagihanTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async tagihanTerbitPengganti(input, within) {
+      return tagihanTerbitPengganti(within ? { ...deps, db: within } : deps, input);
     },
 
     async pengembalianTerbit(input) {

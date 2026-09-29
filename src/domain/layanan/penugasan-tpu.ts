@@ -20,7 +20,7 @@
  * by adding a column to the job row. Once an assignment has ended (declined, unanswered,
  * released) the grave is no longer shown to that Mitra Jasa at all.
  */
-import { and, asc, desc, eq, inArray, lte, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lte, notExists, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { writeRefusal, akunResource, pekerjaanTpuSemuaResource } from "@/domain/identity";
@@ -45,21 +45,25 @@ import {
 
 /** How long a Mitra Jasa has to answer an assignment, unless H-1 18:00 comes first: 12 hours. */
 export const BATAS_JAWAB_JAM = 12;
+const HOUR_MS = 3_600_000;
 
 /**
  * The accept deadline of an assignment made at `ditugaskanAt` for a job due on
- * `targetDate`: **12 hours later, or H-1 18:00 WIB, whichever is sooner** (spec).
- *
- * When H-1 18:00 has already passed at the moment of assignment (a burial tomorrow,
- * assigned this evening; or the very day), "whichever is sooner" would be a deadline
- * in the past that nobody could ever meet, so it falls back to the 12-hour rule alone.
- * That is the one reading the spec leaves open, recorded in the ticket's Comments for
- * the owner to confirm.
+ * `targetDate` (spec; owner decision 2026-09-29): **the sooner of 12 hours after the
+ * assignment and H-1 18:00 WIB**. When H-1 18:00 has already passed at the assignment
+ * (a burial tomorrow, assigned this evening), it is 12 hours after the assignment
+ * but never later than the job's start, the first instant of the target day. When
+ * even that start has passed (assigned on the day itself) no earlier limit can be met,
+ * so it is 12 hours, but never past the end of the target day.
  */
 export function batasJawabPenugasan(ditugaskanAt: Date, targetDate: string): Date {
-  const duaBelasJam = new Date(ditugaskanAt.getTime() + BATAS_JAWAB_JAM * 3_600_000);
+  const duaBelasJam = new Date(ditugaskanAt.getTime() + BATAS_JAWAB_JAM * HOUR_MS);
   const hMinSatu = wib(`${addWibDateDays(targetDate, -1)} 18:00`);
-  return hMinSatu.getTime() > ditugaskanAt.getTime() && hMinSatu.getTime() < duaBelasJam.getTime() ? hMinSatu : duaBelasJam;
+  if (hMinSatu.getTime() > ditugaskanAt.getTime()) return hMinSatu.getTime() < duaBelasJam.getTime() ? hMinSatu : duaBelasJam;
+  const mulai = wib(`${targetDate} 00:00`);
+  if (mulai.getTime() > ditugaskanAt.getTime()) return mulai.getTime() < duaBelasJam.getTime() ? mulai : duaBelasJam;
+  const akhirHari = wib(`${addWibDateDays(targetDate, 1)} 00:00`);
+  return akhirHari.getTime() < duaBelasJam.getTime() && akhirHari.getTime() > ditugaskanAt.getTime() ? akhirHari : duaBelasJam;
 }
 
 /** The assignment that holds a job right now, if any. */
@@ -202,8 +206,8 @@ export type TugaskanMitraJasaResult =
  * Admin Platform hands one job to one Mitra Jasa, who then has until the accept
  * deadline to answer. The candidate must be one the picker offers **now**: checked
  * again here, against the same filter, so a Mitra Jasa suspended or marked away since
- * the page was drawn is refused. Audited in the same transaction; the Peringatan Staf
- * (web push + email, ADR 0004) goes out once it has committed.
+ * the page was drawn is refused. Audited in the same transaction, which also queues the
+ * Peringatan Staf (web push + email, ADR 0004) through Notifications; the worker sends it.
  */
 export async function tugaskanMitraJasa(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<TugaskanMitraJasaResult> {
   const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
@@ -217,6 +221,9 @@ export async function tugaskanMitraJasa(deps: LayananDeps, by: Actor, rawInput: 
     const [job] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
     if (!job) return { ok: false as const, reason: "tidak_ditemukan" as const };
     if (job.status !== "dijadwalkan") return { ok: false as const, reason: "bukan_dijadwalkan" as const };
+    // An assignment past its deadline holds nothing: no answer counts as a decline, so it is settled
+    // here instead of making Admin Platform wait for the next tick before choosing someone else.
+    await tandaiTidakDirespons(tx, now, pekerjaanId);
     const [terbuka] = await tx
       .select({ id: pekerjaanLayananTpuPenugasan.id })
       .from(pekerjaanLayananTpuPenugasan)
@@ -254,18 +261,18 @@ export async function tugaskanMitraJasa(deps: LayananDeps, by: Actor, rawInput: 
       after: { mitraJasaId, penugasanId: dibuat.id, targetDate: job.targetDate, batasJawab: batasJawab.toISOString() },
       reason: null,
     });
-    return { ok: true as const, penugasanId: dibuat.id, batasJawab, email: dipilih.email, label: job.label, tpuName: job.tpuName, targetDate: job.targetDate };
+    // Queued on this transaction: the alert exists exactly when the assignment does.
+    await deps.notifikasi.pekerjaanTpuDitugaskan(tx, {
+      pekerjaanId,
+      mitraJasaEmail: dipilih.email,
+      label: job.label,
+      tpuName: job.tpuName,
+      targetDate: job.targetDate,
+      batasJawab,
+    });
+    return { ok: true as const, penugasanId: dibuat.id, batasJawab };
   });
   if (!hasil.ok) return hasil;
-
-  await deps.notifikasi.pekerjaanTpuDitugaskan({
-    pekerjaanId,
-    mitraJasaEmail: hasil.email,
-    label: hasil.label,
-    tpuName: hasil.tpuName,
-    targetDate: hasil.targetDate,
-    batasJawab: hasil.batasJawab,
-  });
   return { ok: true, penugasanId: hasil.penugasanId, batasJawab: hasil.batasJawab };
 }
 
@@ -375,11 +382,17 @@ export async function jawabPenugasan(deps: LayananDeps, by: Actor, rawInput: unk
  * deadline itself, not the tick's, so the scorecard window is measured from when the
  * Mitra Jasa ran out of time. Returns how many it marked.
  */
-export async function tandaiTidakDirespons(db: Database, now: Date): Promise<number> {
+export async function tandaiTidakDirespons(db: Database, now: Date, pekerjaanId?: string): Promise<number> {
   const ditandai = await db
     .update(pekerjaanLayananTpuPenugasan)
     .set({ hasil: "tidak_direspons", dijawabAt: sql`${pekerjaanLayananTpuPenugasan.batasJawab}` })
-    .where(and(eq(pekerjaanLayananTpuPenugasan.hasil, "menunggu"), lte(pekerjaanLayananTpuPenugasan.batasJawab, now)))
+    .where(
+      and(
+        eq(pekerjaanLayananTpuPenugasan.hasil, "menunggu"),
+        lte(pekerjaanLayananTpuPenugasan.batasJawab, now),
+        pekerjaanId ? eq(pekerjaanLayananTpuPenugasan.pekerjaanId, pekerjaanId) : undefined,
+      ),
+    )
     .returning({ id: pekerjaanLayananTpuPenugasan.id });
   return ditandai.length;
 }
@@ -423,6 +436,7 @@ export async function pekerjaanTpuSaya(deps: LayananDeps, by: Actor): Promise<Pe
   if (writeRefusal(by, "pekerjaan_tpu.jawab", akunResource(by.accountId))) return kosong;
   const profile = await profileOfActor(deps, by);
   if (!profile) return kosong;
+  const now = deps.clock.now();
   const rows = await deps.db
     .select({ penugasan: pekerjaanLayananTpuPenugasan, job: pekerjaanLayananTpu })
     .from(pekerjaanLayananTpuPenugasan)
@@ -432,7 +446,11 @@ export async function pekerjaanTpuSaya(deps: LayananDeps, by: Actor): Promise<Pe
 
   const aktif: PekerjaanTpuMitraJasa[] = [];
   const riwayat: RiwayatPekerjaanMitraJasa[] = [];
-  for (const { penugasan, job } of rows) {
+  for (const { penugasan: tercatat, job } of rows) {
+    // A "menunggu" past its deadline is already a decline (no answer counts as one): the tick only has not written it yet,
+    // so it reads as Tidak direspons here, in step with the answer being refused after the deadline.
+    const lewat = tercatat.hasil === "menunggu" && tercatat.batasJawab.getTime() <= now.getTime();
+    const penugasan = lewat ? { ...tercatat, hasil: "tidak_direspons" as const, dijawabAt: tercatat.batasJawab } : tercatat;
     if (penugasan.hasil === "menunggu" || penugasan.hasil === "diterima") {
       aktif.push({
         id: job.id,
@@ -466,14 +484,18 @@ export interface PekerjaanTpuAntrean {
   label: string;
   tpuName: string;
   targetDate: string;
+  /** When the row appeared (a Tier 1 alert clock counts from it): the latest of the job's own start (the first instant of its day), its being scheduled, and its last assignment ending. */
+  sejak: Date;
   /** Why a Tier 2 row exists; a Tier 1 row is always "belum_diterima". */
   alasan: "belum_diterima" | "ditolak" | "tidak_direspons" | "dilepas";
 }
 
 /**
- * Tier 1: jobs due today (or already past their date) with no Mitra Jasa who has
- * **accepted** them: nobody, or one who has not answered yet. It closes by state the
- * moment a Mitra Jasa accepts, or the job is done or cancelled.
+ * Tier 1: jobs due today (or already past their date) **with no Mitra Jasa assigned**.
+ * A job whose Mitra Jasa is still inside the accept deadline, or has accepted, is not
+ * here: only a job nobody holds is. An assignment past its deadline holds nothing (no
+ * answer counts as a decline; the tick just has not written it yet). It closes by state
+ * the moment a Mitra Jasa is assigned, or the job is done or cancelled.
  */
 export async function pekerjaanTpuHariIniTanpaMitra(db: Database, now: Date): Promise<PekerjaanTpuAntrean[]> {
   const rows = await db
@@ -487,12 +509,42 @@ export async function pekerjaanTpuHariIniTanpaMitra(db: Database, now: Date): Pr
           db
             .select({ satu: pekerjaanLayananTpuPenugasan.id })
             .from(pekerjaanLayananTpuPenugasan)
-            .where(and(eq(pekerjaanLayananTpuPenugasan.pekerjaanId, pekerjaanLayananTpu.id), eq(pekerjaanLayananTpuPenugasan.hasil, "diterima"))),
+            .where(
+              and(
+                eq(pekerjaanLayananTpuPenugasan.pekerjaanId, pekerjaanLayananTpu.id),
+                or(
+                  eq(pekerjaanLayananTpuPenugasan.hasil, "diterima"),
+                  and(eq(pekerjaanLayananTpuPenugasan.hasil, "menunggu"), gt(pekerjaanLayananTpuPenugasan.batasJawab, now)),
+                ),
+              ),
+            ),
         ),
       ),
     )
     .orderBy(asc(pekerjaanLayananTpu.targetDate), asc(pekerjaanLayananTpu.createdAt));
-  return rows.map((job) => ({ id: job.id, nomor: job.nomor, label: job.label, tpuName: job.tpuName, targetDate: job.targetDate, alasan: "belum_diterima" as const }));
+  if (rows.length === 0) return [];
+  const riwayat = await db
+    .select({
+      pekerjaanId: pekerjaanLayananTpuPenugasan.pekerjaanId,
+      dijawabAt: pekerjaanLayananTpuPenugasan.dijawabAt,
+      batasJawab: pekerjaanLayananTpuPenugasan.batasJawab,
+    })
+    .from(pekerjaanLayananTpuPenugasan)
+    .where(inArray(pekerjaanLayananTpuPenugasan.pekerjaanId, rows.map((row) => row.id)));
+  const berakhirAt = new Map<string, number>();
+  for (const satu of riwayat) {
+    const at = (satu.dijawabAt ?? satu.batasJawab).getTime();
+    berakhirAt.set(satu.pekerjaanId, Math.max(berakhirAt.get(satu.pekerjaanId) ?? 0, at));
+  }
+  return rows.map((job) => ({
+    id: job.id,
+    nomor: job.nomor,
+    label: job.label,
+    tpuName: job.tpuName,
+    targetDate: job.targetDate,
+    sejak: new Date(Math.max(wib(`${job.targetDate} 00:00`).getTime(), (job.dijadwalkanAt ?? job.createdAt).getTime(), berakhirAt.get(job.id) ?? 0)),
+    alasan: "belum_diterima" as const,
+  }));
 }
 
 /**
@@ -533,6 +585,7 @@ export async function pekerjaanTpuPerluTindakan(db: Database): Promise<Pekerjaan
       label: job.label,
       tpuName: job.tpuName,
       targetDate: job.targetDate,
+      sejak: job.dijadwalkanAt ?? job.createdAt,
       alasan: terakhir.hasil as "ditolak" | "tidak_direspons" | "dilepas",
     });
   }

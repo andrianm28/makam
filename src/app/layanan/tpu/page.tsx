@@ -21,15 +21,11 @@ export const metadata: Metadata = {
  * grave at a DKI TPU — which block and number, whose it is, an optional photo and pin —
  * and orders Layanan for it at the DKI prices, pay first. A Mitra Jasa does the work.
  * Anyone may order for a grave somebody else holds, so nothing here asks whose it is.
- *
- * Coming from a Makam TPU record (ticket 46), the same page opens with the grave's own
- * words in the query, which prefill the form.
  */
-export default async function PesanLayananTpuPage({ searchParams }: PageProps<"/layanan/tpu">) {
-  const params = await searchParams;
+export default async function PesanLayananTpuPage() {
   const actor = await currentActor();
   const pengaturan = await serverRuntime().operatorSettings.current();
-  const tampilan = await tampilanPesananTpu(params, actor ? { nama: "", email: actor.email, telepon: actor.phoneNumber ?? "" } : null);
+  const tampilan = await tampilanPesananTpu(actor ? { nama: "", email: actor.email, telepon: actor.phoneNumber ?? "" } : null);
   const contact = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
 
   return (
