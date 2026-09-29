@@ -5,6 +5,7 @@ import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
 import type { Tariffs } from "@/domain/tariffs";
+import type { Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 
@@ -75,6 +76,41 @@ export interface PemesananNotifikasi {
    * are held outright at submission, and the Tagihan follows the confirmation).
    */
   terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+  /**
+   * A pay-after Tagihan's overdue anchor just became known (`catatPemakaman`,
+   * right after `billing.setOverdueAnchor` sets it): Chasing's four H+3/7/14/30
+   * reminders are queued from here (spec, Billing > Chasing; ticket 29). Never
+   * called for a Tagihan with no anchor (a pay-first moment).
+   */
+  chasingDijadwalkan(input: ChasingDijadwalkan): Promise<void>;
+  /**
+   * Admin Platform just declared a Tagihan Tidak Tertagih: the Admin Lokasi push
+   * is queued **inside `tx`**, the declaration's own transaction, so it commits
+   * or rolls back with it (AGENTS.md: enqueue in the same transaction as the
+   * data; ticket 29).
+   */
+  tidakTertagihDinyatakan(tx: Database, tagihan: TidakTertagihDinyatakan): Promise<void>;
+}
+
+/** The Tagihan just declared Tidak Tertagih, as far as the Admin Lokasi push needs it. */
+export interface TidakTertagihDinyatakan {
+  id: string;
+  nomorTagihan: string;
+  total: Rupiah;
+  lokasiId: string | null;
+}
+
+/** What Chasing needs to schedule a pay-after Tagihan's reminders, the moment its overdue anchor becomes known. */
+export interface ChasingDijadwalkan {
+  tagihanId: string;
+  nomorTagihan: string;
+  nomorPemesanan: string | null;
+  /** The Email Terverifikasi every family message goes to; null for an order CS placed with no email. */
+  email: string | null;
+  perihal: string;
+  total: number;
+  lewatJatuhTempoAt: Date;
+  link: string;
 }
 
 /** A new Pemesanan Terencana as the staff who must see it are told about it. */
@@ -242,6 +278,8 @@ export interface PemesananDeps {
     | "batalkanHakPakai"
     // Recording the burial, which starts that Hak Pakai's tenure clock (ticket 25).
     | "catatPemakaman"
+    // The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (ticket 29).
+    | "akhiriHakPakai"
     // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
     | "hakPakaiById"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
@@ -256,7 +294,7 @@ export interface PemesananDeps {
    * cancellation cancels, the Bukti Pemesanan it earned, and the pay-after
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
-  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor">;
+  billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

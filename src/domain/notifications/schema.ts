@@ -130,13 +130,22 @@ export const notificationsMessage = pgTable(
 
 /**
  * Why a "Telepon Pemesan" row was opened: every send failed, the order never had
- * an email, or the family has to be called rather than emailed (a declined Saat
- * Duka order, spec Work Queues Tier 1 "Saat Duka ditolak (call within 2 h)").
+ * an email, the family has to be called rather than emailed (a declined Saat
+ * Duka order, spec Work Queues Tier 1 "Saat Duka ditolak (call within 2 h)"),
+ * or a pay-after Tagihan is overdue and must be chased (ticket 29's Chasing;
+ * the row reopens for each call the overdue list still expects, around H+1
+ * and H+14).
  */
-export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak"] as const;
+export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak", "tagihan_lewat_jatuh_tempo"] as const;
 
-/** What the staff member found when they called, logged to close the row. */
-export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah"] as const;
+/**
+ * What the staff member found when they called, logged to close the row.
+ * `janji_bayar` and `menolak` are Chasing's own outcomes (spec, Billing >
+ * Chasing: "outcome janji bayar / tidak diangkat / menolak / nomor salah"),
+ * offered on every call log all the same: the row is one mechanism, whatever
+ * it is open for.
+ */
+export const teleponHasil = ["sudah_dihubungi", "tidak_diangkat", "nomor_salah", "janji_bayar", "menolak"] as const;
 
 /**
  * Owned by the notifications module: one "Telepon Pemesan" call request
@@ -199,3 +208,24 @@ export const notificationsTagihanKontak = pgTable("notifications_tagihan_kontak"
   /** The email on the order; null when CS submitted it with no email. */
   email: text("email"),
 });
+
+/**
+ * Owned by the notifications module: a standalone note on a chased Tagihan's
+ * call log (ticket 29's AC 3: "the Admin Lokasi adds its notes on the same call
+ * log"). It is **not a call**: a note never opens, closes or counts as a
+ * "Telepon Pemesan" row, so it can never satisfy `declareTidakTertagih`'s "at
+ * least one logged call". `tagihan_id` is Billing's, not a foreign key.
+ */
+export const notificationsCatatanTagihan = pgTable(
+  "notifications_catatan_tagihan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tagihanId: text("tagihan_id").notNull(),
+    /** The Lokasi Mitra the Tagihan is against, so its Admin Lokasi's write is checked against it. */
+    lokasiId: text("lokasi_id"),
+    catatan: text("catatan").notNull(),
+    ditulisOleh: text("ditulis_oleh").notNull(),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [index("notifications_catatan_tagihan_idx").on(table.tagihanId, table.dibuatPada)],
+);

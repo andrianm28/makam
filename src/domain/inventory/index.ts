@@ -32,6 +32,7 @@ import { makamKeluargaSaya, type MakamSaya } from "./makam-saya";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
+import { akhiriHakPakai, type AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
@@ -58,6 +59,7 @@ export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
+export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -164,6 +166,14 @@ export interface Inventory {
    * `lepasTahan` is: a grave that has been dug is refused, and ending is final.
    */
   batalkanHakPakai(input: { hakPakaiId: string; alasan: string }): Promise<BatalkanHakPakaiResult>;
+  /**
+   * One Aktif Hak Pakai becomes Berakhir, once the Saat Duka Tagihan against
+   * it is Tidak Tertagih (spec, Billing > Chasing; ticket 29). Driven by the
+   * order that owns the right, with no actor: the caller has already checked
+   * it is that Lokasi's own Admin Lokasi and that the Tagihan really is Tidak
+   * Tertagih. Ending is final, the same as `batalkanHakPakai`.
+   */
+  akhiriHakPakai(input: { hakPakaiId: string; alasan: string }): Promise<AkhiriHakPakaiResult>;
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
@@ -237,6 +247,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
     beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
     batalkanHakPakai: (input) => batalkanHakPakai(deps, input),
+    akhiriHakPakai: (input) => akhiriHakPakai(deps, input),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),

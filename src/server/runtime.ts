@@ -91,6 +91,8 @@ export function serverRuntime(): ServerRuntime {
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
+    // Every Billing of this runtime (the read-only ones the other modules hold included, since Pemesanan declares Tidak Tertagih through its own) guards it with
+    // Notifications' call log; the closure runs only after both are built (ticket 29).
     // `payoutsRef.current` is filled in once Payouts is composed below (it is
     // composed *after* Billing, since it reads a Tagihan through it): Billing's
     // own Harga Khusus path (ticket 30) only ever *calls*
@@ -109,6 +111,7 @@ export function serverRuntime(): ServerRuntime {
         if (!payoutsRef.current) throw new Error("Payouts is not composed yet: kurangiPencairanPesanan was called before startup finished");
         return payoutsRef.current.kurangiPencairanPesanan(tx, input);
       },
+      hasLoggedCall: (tagihanId: string): Promise<boolean> => notifications.teleponPemesanTercatat("tagihan", tagihanId),
     };
     const notifications = composeNotifications({
       env,

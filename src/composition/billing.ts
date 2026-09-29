@@ -34,6 +34,14 @@ export interface BillingComposition {
    * lazy call into the Payouts it builds afterwards — see `src/server/runtime.ts`.
    */
   kurangiPencairanPesanan?: BillingDeps["kurangiPencairanPesanan"];
+  /**
+   * Whether a call has been logged for a Tagihan's chasing (ticket 29's
+   * `declareTidakTertagih` guard), composed from Notifications'
+   * `teleponPemesanTercatat`. Left out for a read-only Billing (`billingOn`)
+   * or one composed before Notifications exists: unwired means nothing can be
+   * declared Tidak Tertagih, the safe default.
+   */
+  hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
 }
 
 /**
@@ -95,6 +103,7 @@ function billingDeps(deps: BillingComposition, paymentEffects: readonly PaymentE
     audit: deps.audit,
     files: deps.files ?? deps.adapters.files,
     kurangiPencairanPesanan: deps.kurangiPencairanPesanan,
+    hasLoggedCall: deps.hasLoggedCall,
   };
 }
 

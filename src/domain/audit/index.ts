@@ -212,7 +212,13 @@ export type AuditAction =
   /** The Pemesan enters the refund's destination bank account on their own order; the number is masked in the entry (ticket 31). */
   | "pengembalian.isi_rekening_pemesan"
   /** Admin Platform transfers a refund by hand, uploads the proof and enters the date: one Bukti Pengembalian Dana (ticket 31). */
-  | "pengembalian.terbitkan_bukti";
+  | "pengembalian.terbitkan_bukti"
+  /** The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
+  | "hak_pakai.akhiri_tidak_tertagih"
+  /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
+  | "tagihan.tidak_tertagih"
+  /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */
+  | "tagihan.catatan_ditambah";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

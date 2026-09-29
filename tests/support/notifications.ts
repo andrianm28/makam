@@ -41,12 +41,17 @@ export function notificationsOnTestDatabase(
 }
 
 /**
- * The one Billing read Notifications needs (a Tagihan's status, to stop a
- * reminder once the money is in) for a setup that composes no Billing of its
- * own: no Tagihan is ever found. Tests that issue Tagihan messages use
- * `notificationsOnTestDatabase`, which has the real module.
+ * The Billing reads Notifications needs (a Tagihan's status, to stop a
+ * reminder once the money is in, plus Chasing's own two queries, ticket 29)
+ * for a setup that composes no Billing of its own: nothing is ever found.
+ * Tests that issue Tagihan messages use `notificationsOnTestDatabase`, which
+ * has the real module.
  */
-export const TAGIHAN_TIDAK_ADA: Pick<Billing, "tagihan"> = { tagihan: async () => null };
+export const TAGIHAN_TIDAK_ADA: Pick<Billing, "tagihan" | "payAfterAnchored" | "tagihanLewatJatuhTempo"> = {
+  tagihan: async () => null,
+  payAfterAnchored: async () => [],
+  tagihanLewatJatuhTempo: async () => [],
+};
 
 /** Billing's Retribusi read for a setup that has no Tagihan at all: nothing to setor. */
 export const TAGIHAN_RETRIBUSI_KOSONG: Pick<Billing, "tagihanRetribusiLunas"> = {

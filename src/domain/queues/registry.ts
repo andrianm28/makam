@@ -11,6 +11,7 @@ import { setorRetribusiRowType } from "./tier3-setor-retribusi-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
 import { pencairanRowType } from "./tier3-pencairan-row";
 import { pengembalianRowType } from "./tier3-pengembalian-row";
+import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo-row";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -33,6 +34,7 @@ export const antreanRowTypes: AntreanRowType[] = [
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
   pengembalianRowType,
+  tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,

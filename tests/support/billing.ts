@@ -28,6 +28,8 @@ export interface BillingTestOptions {
   paymentEffects?: PaymentEffect[];
   /** Lowers an order's Pencairan by a Harga Khusus partner share (ticket 30); a test wires Payouts' own in through this. */
   kurangiPencairanPesanan?: BillingDeps["kurangiPencairanPesanan"];
+  /** Whether a call has been logged for a Tagihan's chasing (ticket 29's `declareTidakTertagih` guard); defaults to "never". */
+  hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
 }
 
 /**
@@ -51,6 +53,7 @@ export function billingOnTestDatabase(db: Database, options: BillingTestOptions 
     documentPageUrl: (link) => `${TEST_DOCUMENT_ORIGIN}/dokumen/${link}`,
     publicDocumentUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     paymentEffects: options.paymentEffects,
+    hasLoggedCall: options.hasLoggedCall,
     reportError: (error, context) => reportedErrors.push({ error, context }),
     // Ticket 30: the manual and direct payment paths, and Harga Khusus, need these.
     audit: setup.audit,

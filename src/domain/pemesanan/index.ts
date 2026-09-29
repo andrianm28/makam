@@ -68,6 +68,16 @@ import {
   type UnggahDokumenInput,
 } from "./berkas";
 import { realertKonfirmasiSaatDukaTick } from "./realert";
+import {
+  akhiriHakPakaiTidakTertagih,
+  hakPakaiIdForTagihan,
+  isBlockedByOverdueTagihan,
+  nyatakanTidakTertagih,
+  nyatakanTidakTertagihSchema,
+  type NyatakanTidakTertagihInput,
+  type NyatakanTidakTertagihResult,
+  type AkhiriHakPakaiTidakTertagihResult,
+} from "./chasing";
 
 import {
   denahTerencana,
@@ -86,6 +96,8 @@ import {
 } from "./terencana";
 
 export type {
+  ChasingDijadwalkan,
+  TidakTertagihDinyatakan,
   PemesananBuktiPemesanan,
   PemesananDeps,
   Pemesan,
@@ -137,6 +149,8 @@ export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./b
 export type { LangkahOrder, PemesananOrder } from "./reads";
 export { timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
+export type { AkhiriHakPakaiTidakTertagihResult } from "./chasing";
+export { nyatakanTidakTertagihSchema, type NyatakanTidakTertagihInput, type NyatakanTidakTertagihResult };
 export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } from "./prompt-catat-pemakaman";
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
@@ -291,6 +305,25 @@ export interface Pemesanan {
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
+  /**
+   * True while a Lokasi Mitra Saat Duka Tagihan on this Hak Pakai is Lewat
+   * Jatuh Tempo (spec, Billing > Chasing; ticket 29): blocks Perpanjangan and
+   * Ganti Pemegang Hak.
+   */
+  isBlockedByOverdueTagihan(hakPakaiId: string): Promise<boolean>;
+  /**
+   * Admin Platform declares a chased Tagihan Tidak Tertagih (ticket 29): the
+   * status change (guarded on H+30 and a logged call), its Entri Audit and the
+   * queued Admin Lokasi push, in one transaction.
+   */
+  nyatakanTidakTertagih(by: Actor, input: NyatakanTidakTertagihInput): Promise<NyatakanTidakTertagihResult>;
+  /**
+   * The Admin Lokasi ends a Hak Pakai once its own Saat Duka Tagihan is Tidak
+   * Tertagih (spec, Billing > Chasing; ticket 29).
+   */
+  akhiriHakPakaiTidakTertagih(by: Actor, input: { hakPakaiId: string; alasan?: string }): Promise<AkhiriHakPakaiTidakTertagihResult>;
+  /** The Hak Pakai a Tagihan's own Saat Duka order granted, or null (ticket 29): what the overdue list offers "Akhiri Hak Pakai" against. */
+  hakPakaiIdForTagihan(tagihanId: string): Promise<string | null>;
 }
 
 export function createPemesanan(deps: PemesananDeps): Pemesanan {
@@ -327,6 +360,10 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
+    nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),
+    akhiriHakPakaiTidakTertagih: (by, input) => akhiriHakPakaiTidakTertagih(deps, by, input),
+    hakPakaiIdForTagihan: (tagihanId) => hakPakaiIdForTagihan(deps, tagihanId),
   };
 }
 

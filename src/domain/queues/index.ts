@@ -57,7 +57,7 @@ export interface QueuesModuleDeps {
   /** The Antrean's Tier 4 rows read every Tugas; its Tier 2 "Ambil surat pengantar" and Tier 3 "Setor Retribusi" rows read this module's own two reads. */
   fieldwork: Pick<Fieldwork, "allTugasLapangan" | "ambilSuratPengantarTerbuka" | "setorRetribusiTerbuka">;
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
-  billing: Pick<Billing, "pembayaranPerluDitinjau">;
+  billing: Pick<Billing, "pembayaranPerluDitinjau" | "tagihanLewatJatuhTempo">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
   notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat">;
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi's confirmations and its "Catat Pemakaman" rows, plus the decline rows). */

@@ -189,7 +189,20 @@ export type Action =
    */
   | "tagihan.catat_pembayaran_langsung"
   /** Admin Platform sets a Harga Khusus on an order: a reason, and a reissued Tagihan with a negative line (ticket 30). */
-  | "tagihan.tetapkan_harga_khusus";
+  | "tagihan.tetapkan_harga_khusus"
+  /**
+   * Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing >
+   * Chasing; ticket 29): never the Admin Lokasi it is against, which only
+   * reads and adds notes on the same call log.
+   */
+  | "tagihan.nyatakan_tidak_tertagih"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra ends a Hak Pakai once its Saat Duka
+   * Tagihan is Tidak Tertagih (spec, Billing > Chasing: "the Admin Lokasi may
+   * end the Hak Pakai", never for a burial under an existing Hak Pakai;
+   * ticket 29).
+   */
+  | "hak_pakai.akhiri_tidak_tertagih";
 
 /** What the action is done to. */
 export type Resource =
@@ -538,10 +551,18 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // Both are Admin Platform's own money work on a Tagihan directly (spec,
       // Billing > Payment): a manual transfer/tunai mark, or a Harga Khusus.
       return resource.kind === "tagihan" && holds("admin_platform") ? allowed : denied;
+    case "tagihan.nyatakan_tidak_tertagih":
+      // Chasing's own money decision: Admin Platform alone (spec, Billing >
+      // Chasing), whatever Lokasi Mitra it is against.
+      return resource.kind === "antrean" && holds("admin_platform") ? allowed : denied;
     case "tagihan.catat_pembayaran_langsung":
       // Only the Tagihan's own Lokasi Mitra's Admin Lokasi records that the
       // family paid it directly; Admin Platform never records this one on a
       // partner's behalf (only reverses it, through pencairan.kelola).
+    case "hak_pakai.akhiri_tidak_tertagih":
+      // The Lokasi Mitra's own Admin Lokasi ends its Hak Pakai once Admin
+      // Platform gave the Tagihan up; Admin Platform never does it for it
+      // (spec, Billing > Chasing).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

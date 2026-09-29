@@ -7,6 +7,7 @@ import { efekBuktiPembayaran } from "@/domain/notifications";
 import { efekBuktiPemesanan } from "@/domain/pemesanan";
 import type {
   PesananAlternatifDitawarkan,
+  ChasingDijadwalkan,
   PemesananBuktiPemesanan,
   PemesananDiajukan,
   PesananDibatalkan,
@@ -33,7 +34,10 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
  * `diumumkan`, standing in for the Notifications module the wizard hands it in
  * production.
  */
-export function pemesananOnTestDatabase(db: Database, options: { notifications?: boolean } = {}) {
+export function pemesananOnTestDatabase(
+  db: Database,
+  options: { notifications?: boolean; hasLoggedCall?: (tagihanId: string) => Promise<boolean> } = {},
+) {
   const setup = publishOnTestDatabase(db);
   const diumumkan: PemesananDiajukan[] = [];
   /** Every confirmation the Pemesanan module announced, for a test that reads the family message. */
@@ -47,6 +51,8 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   const dibatalkan: PesananDibatalkan[] = [];
   /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
   const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
+  /** Every Chasing schedule the Pemesanan module announced, once a pay-after Tagihan's overdue anchor is known (ticket 29). */
+  const chasingDijadwalkan: ChasingDijadwalkan[] = [];
   const terkumpul: PemesananNotifikasi = {
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
@@ -72,6 +78,10 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     terencanaDiajukan: async (order) => {
       terencana.push(order);
     },
+    tidakTertagihDinyatakan: async () => {},
+    chasingDijadwalkan: async (input) => {
+      chasingDijadwalkan.push(input);
+    },
   };
   // Billing composed the way the runtime composes it (src/server/runtime.ts): with its
   // payment effects registered, so a payment that settles an order issues its Bukti
@@ -85,6 +95,10 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     documentPageUrl: (link: string) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link: string) => `https://makam.test/dokumen/${link}`,
     reportError: (error: unknown, context: Record<string, unknown>) => setup.reportedErrors.push({ error, context }),
+    // The runtime wires Billing's "a call was logged" guard to Notifications' own call log (ticket 29).
+    hasLoggedCall: options.notifications
+      ? (tagihanId: string) => setup.notifications.teleponPemesanTercatat("tagihan", tagihanId)
+      : options.hasLoggedCall,
   };
   const billing = createBilling({
     ...deps,
@@ -146,6 +160,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     terencana,
     notifikasi: terkumpul,
     pengurusanDikonfirmasi,
+    chasingDijadwalkan,
   };
 }
 
@@ -167,6 +182,7 @@ export type PemesananModul = Omit<
   | "terencana"
   | "notifikasi"
   | "pengurusanDikonfirmasi"
+  | "chasingDijadwalkan"
 >;
 
 /**

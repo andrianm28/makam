@@ -22,7 +22,7 @@ export function composeNotifications(deps: {
   adapters: Adapters;
   audit: AuditLog;
   identity: Identity;
-  billing: Pick<Billing, "tagihan">;
+  billing: Pick<Billing, "tagihan" | "payAfterAnchored" | "tagihanLewatJatuhTempo">;
   reportError: ReportError;
 }): Notifications {
   const urls = documentUrls(deps.env);

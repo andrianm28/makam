@@ -182,12 +182,18 @@ describe("an issued Tagihan is immutable", () => {
       // `recordPayment` and record their own Entri Audit, never a line change.
       "catatPembayaranLangsung",
       "catatPembayaranManual",
+      // Chasing's own status write: guarded on H+30 of the overdue anchor and a
+      // logged call, never a line change (ticket 29).
+      "declareTidakTertagih",
       "documentByLink",
       "documentPdf",
       "issueBuktiPemesanan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
+      // Chasing's own reads: every pay-after Tagihan with a known anchor, and
+      // those currently Lewat Jatuh Tempo or Tidak Tertagih (ticket 29).
+      "payAfterAnchored",
       "pembayaranPerluDitinjau",
       "receivePaymentWebhook",
       "recordPayment",
@@ -199,6 +205,7 @@ describe("an issued Tagihan is immutable", () => {
       // A read of every Tagihan a cancellation flagged for a refund: the
       // Refunds module's (ticket 31) own source, never a way to change a line.
       "tagihanMenungguPengembalian",
+      "tagihanLewatJatuhTempo",
       // A read of every Lunas Tagihan carrying a non-zero Retribusi Pemda line:
       // the Tier 3 "Setor Retribusi" row is a projection of it (ticket 45).
       "tagihanRetribusiLunas",

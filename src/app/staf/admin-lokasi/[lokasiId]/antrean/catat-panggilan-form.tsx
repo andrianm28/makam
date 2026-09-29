@@ -28,6 +28,9 @@ export function CatatPanggilanForm({ lokasiId, teleponId }: { lokasiId: string; 
               <SelectItem value="sudah_dihubungi">Sudah dihubungi</SelectItem>
               <SelectItem value="tidak_diangkat">Tidak diangkat</SelectItem>
               <SelectItem value="nomor_salah">Nomor salah</SelectItem>
+              {/* Chasing's own outcomes (spec, Billing > Chasing; ticket 29), offered here too since this is the same call log. */}
+              <SelectItem value="janji_bayar">Janji bayar</SelectItem>
+              <SelectItem value="menolak">Menolak</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -36,7 +36,10 @@ describe("pg-boss wiring (smoke)", () => {
         reportError: () => {},
         clock,
         dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
-        notifications: { kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }) },
+        notifications: {
+          kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }),
+          chasingEskalasiTick: async () => ({ dieskalasi: 0 }),
+        },
         lokasi: { serviceHoursDeadline: async () => ({ ok: false, reason: "jam_operasional_belum_diisi" as const }), kontakSiagaOf: async () => null },
         identity: { adminLokasiOf: async () => [] },
         notifikasi: {
@@ -48,6 +51,8 @@ describe("pg-boss wiring (smoke)", () => {
           pesananDibatalkan: async () => {},
           pesananBuktiPemesanan: async () => {},
           terencanaDiajukan: async () => {},
+          chasingDijadwalkan: async () => {},
+          tidakTertagihDinyatakan: async () => {},
         },
         payouts: { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
         refunds: { tick: async () => ({ materialised: 0 }) },

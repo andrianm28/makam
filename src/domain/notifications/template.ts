@@ -409,6 +409,31 @@ export function tagihanPengingatEmail(
   };
 }
 
+/**
+ * A pay-after Chasing reminder: H+3, H+7, H+14 or H+30 after the burial that
+ * has already happened (spec, Billing > Chasing). It never repeats "jatuh
+ * tempo besok"/"hari ini" (a pay-first reminder's words): the money is already
+ * overdue, and the family is told how many days it has been.
+ */
+export function tagihanPengingatLewatJatuhTempoEmail(
+  hari: 3 | 7 | 14 | 30,
+  input: TagihanEmailInput,
+): { subject: string; body: string } {
+  return {
+    subject: `Pengingat: Tagihan ${input.nomorTagihan} sudah lewat jatuh tempo ${hari} hari`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Tagihan ${input.nomorTagihan} sebesar ${formatRupiah(input.total)} untuk ${orderRef(input)} sudah lewat jatuh tempo ${hari} hari.`,
+      "",
+      `Lihat dan bayar Tagihan di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface BuktiEmailInput {
   nomorBukti: string;
   nomorTagihan: string;
