@@ -13,6 +13,7 @@ import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor, Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi } from "@/domain/lokasi";
+import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Adapters } from "@/ports";
 
@@ -95,4 +96,37 @@ export async function masukSebagai(
   const invited = await invite();
   if (!invited.ok) return { ok: false, reason: invited.reason };
   return masukDenganKodeMasuk(modul, email, name);
+}
+
+/**
+ * The one example Pengaturan Operator every dev seed shares (`seed-tagihan`,
+ * `seed-contoh-publik`): its CS contact is the public-site prototype's own
+ * `CS` constant (`_mock/data.ts`: wa.me/6281100000000, 0811-0000-0000, "setiap
+ * hari, 06.00–22.00 WIB"), so whichever seed runs first enters the same values.
+ */
+export const CONTOH_PENGATURAN_OPERATOR = {
+  legalName: "PT Jaya Korpora Prima",
+  address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
+  phone: "0811-0000-0000",
+  email: "halo@makam.co.id",
+  csWhatsApp: "0811-0000-0000",
+  csReplyHours: "setiap hari, 06.00–22.00 WIB",
+};
+
+/** The Operator's flat platform fee (spec: Biaya Layanan Platform), as the prototype's mock has it. */
+export const BIAYA_LAYANAN_PLATFORM_CONTOH = 250_000;
+
+/**
+ * Enters the example Pengaturan Operator only when there is none yet, never
+ * overwriting what an Operator (or the other seed) entered, through its public
+ * functions. `reason` carries the caller's staging allowance where it has one.
+ */
+export async function isiPengaturanOperatorBilaKosong(
+  operatorSettings: OperatorSettings,
+  admin: Actor,
+  reason: string,
+): Promise<{ ok: true } | Gagal> {
+  if (await operatorSettings.current()) return { ok: true };
+  const entered = await operatorSettings.change(admin, { ...CONTOH_PENGATURAN_OPERATOR, reason });
+  return entered.ok ? { ok: true } : { ok: false, reason: entered.reason };
 }

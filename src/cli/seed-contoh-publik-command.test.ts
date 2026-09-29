@@ -12,7 +12,7 @@ import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { publishOnTestDatabase } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
-import { seedContohPublikCommand } from "./seed-contoh-publik-command";
+import { CONTOH_LOKASI, seedContohPublikCommand } from "./seed-contoh-publik-command";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -156,6 +156,33 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     "Pemakaman Bukit Sejuk": "Bapak Yusuf",
   };
 
+  /** Every Lokasi Mitra's Tersedia counts, Kavling units and Kontak Siaga name read back equal to the mock's. */
+  async function expectSamaDenganMock() {
+    const setup = publishOnTestDatabase(db);
+    const listed = await setup.lokasi.publicLokasiMitraList();
+
+    for (const [lokasiName, perJenis] of Object.entries(mockTersedia)) {
+      const lokasi = listed.find((one) => one.name === lokasiName);
+      expect(lokasi, lokasiName).toBeTruthy();
+
+      // Jenis Makam id ↔ name, read the way a staff price list does (unfiltered by the public QRIS cap,
+      // unlike `lokasiPricing` — Firdaus's "Makam Taman" and "Makam Selamanya" are both over it).
+      const tariffs = await setup.tariffs.lokasiTariffs(lokasi!.id, setup.clock.now());
+      const tersedia = await setup.inventory.tersediaPerJenisMakam(lokasi!.id);
+      const countByJenisMakamId = new Map(tersedia.map((row) => [row.jenisMakamId, row.count]));
+
+      for (const [jenisMakamName, expectedTersedia] of Object.entries(perJenis)) {
+        const jenisMakam = tariffs.jenisMakam.find((one) => one.name === jenisMakamName);
+        expect(jenisMakam, `${lokasiName} / ${jenisMakamName}`).toBeTruthy();
+        const actual = countByJenisMakamId.get(jenisMakam!.id) ?? 0;
+        expect(actual, `${lokasiName} / ${jenisMakamName}`).toBe(expectedTersedia);
+      }
+
+      const kontakSiaga = await setup.lokasi.kontakSiagaOf(lokasi!.id);
+      expect(kontakSiaga?.name, lokasiName).toBe(mockKontakSiagaName[lokasiName]);
+    }
+  }
+
   it(
     "reproduces the mock's real Tersedia counts (9-118), its Kavling Keluarga unit counts and its Kontak Siaga name 1:1, per Lokasi Mitra",
     async () => {
@@ -163,31 +190,50 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const result = await seedContohPublikCommand([], env());
       expect(result.exitCode).toBe(0);
 
-      const setup = publishOnTestDatabase(db);
-      const listed = await setup.lokasi.publicLokasiMitraList();
-
-      for (const [lokasiName, perJenis] of Object.entries(mockTersedia)) {
-        const lokasi = listed.find((one) => one.name === lokasiName);
-        expect(lokasi, lokasiName).toBeTruthy();
-
-        // Jenis Makam id ↔ name, read the way a staff price list does (unfiltered by the public QRIS cap,
-        // unlike `lokasiPricing` — Firdaus's "Makam Taman" and "Makam Selamanya" are both over it).
-        const tariffs = await setup.tariffs.lokasiTariffs(lokasi!.id, setup.clock.now());
-        const tersedia = await setup.inventory.tersediaPerJenisMakam(lokasi!.id);
-        const countByJenisMakamId = new Map(tersedia.map((row) => [row.jenisMakamId, row.count]));
-
-        for (const [jenisMakamName, expectedTersedia] of Object.entries(perJenis)) {
-          const jenisMakam = tariffs.jenisMakam.find((one) => one.name === jenisMakamName);
-          expect(jenisMakam, `${lokasiName} / ${jenisMakamName}`).toBeTruthy();
-          const actual = countByJenisMakamId.get(jenisMakam!.id) ?? 0;
-          expect(actual, `${lokasiName} / ${jenisMakamName}`).toBe(expectedTersedia);
-        }
-
-        const kontakSiaga = await setup.lokasi.kontakSiagaOf(lokasi!.id);
-        expect(kontakSiaga?.name, lokasiName).toBe(mockKontakSiagaName[lokasiName]);
-      }
+      await expectSamaDenganMock();
     },
     120_000,
+  );
+
+  it(
+    "reconciles Lokasi Mitra an older run listed with fewer Tersedia Petak, Kavling units and no Kontak Siaga name, only adding, and then changes nothing",
+    async () => {
+      await seedAdmin();
+      // What an older version seeded: every count capped at 3 (Kavling at 1), no Kontak Siaga name.
+      const lama = CONTOH_LOKASI.map((spec) => ({
+        ...spec,
+        kontakSiagaName: "",
+        jenisMakam: spec.jenisMakam.map((jm) => (jm.kosong ? jm : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3) })),
+      }));
+      const first = await seedContohPublikCommand([], env(), lama);
+      expect(first.exitCode).toBe(0);
+
+      const setup = publishOnTestDatabase(db);
+      const listed = await setup.lokasi.publicLokasiMitraList();
+      const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
+      expect((await setup.lokasi.kontakSiagaOf(wakaf.id))?.name).toBe("");
+      const before = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
+      const petakBefore = before.reduce((sum, one) => sum + one.count, 0);
+      expect(petakBefore).toBe(3 + 1);
+
+      // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
+      await new Promise((resolve) => setTimeout(resolve, 61_000));
+      const second = await seedContohPublikCommand([], env());
+      expect(second.exitCode, second.output).toBe(0);
+      expect(second.output).toContain("disamakan dengan contoh");
+      await expectSamaDenganMock();
+      // Pengaturan Operator holds the mock's CS contact, entered by the first run because it was empty.
+      const operator = await setup.operatorSettings.current();
+      expect(operator?.csReplyHours).toBe("setiap hari, 06.00–22.00 WIB");
+      expect(operator?.csWhatsApp).toBe("+6281100000000");
+
+      const afterSecond = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
+      const third = await seedContohPublikCommand([], env());
+      expect(third.exitCode).toBe(0);
+      expect(third.output).toContain("seed-contoh-publik tidak mengubah apa pun");
+      expect(await setup.inventory.tersediaPerJenisMakam(wakaf.id)).toEqual(afterSecond);
+    },
+    180_000,
   );
 
   it(

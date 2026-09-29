@@ -7,8 +7,12 @@
  * mock entry, cleared Tersedia Petak, Jam Operasional, a Kontak Siaga, real
  * JPEG Kunjungan Verifikasi photos and, where the mock has `terencanaAktif`,
  * "Pemesanan Terencana aktif" switched on through its own gate (Cek Denah,
- * every Petak cleared). It changes nothing once every one of the five is
- * already listed. Development and test always; staging — the environment the
+ * every Petak cleared). It also enters the shared example Pengaturan Operator
+ * (the mock's CS contact, `dev-seed-support.ts`) when that is empty, never
+ * overwriting it. A Lokasi Mitra an older run already listed is reconciled
+ * with the mock, only ever adding (the Tersedia Petak / Kavling units it is
+ * short of, and the Kontak Siaga's name while empty); once nothing is short
+ * it changes nothing. Development and test always; staging — the environment the
  * beta for UAT runs on — only with the named allowance `--izinkan-staging`,
  * refused by default and named in the reason of every write that carries one
  * (`alasanSeed`, the same pattern as `import-katalog-lama-command.ts`'s
@@ -106,7 +110,16 @@ import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { cliFailure } from "./cli-failure";
-import { adminPlatform, masukSebagai, scanPerjanjian, type Gagal, type Modul } from "./dev-seed-support";
+import {
+  adminPlatform,
+  BIAYA_LAYANAN_PLATFORM_CONTOH,
+  isiPengaturanOperatorBilaKosong,
+  masukDenganKodeMasuk,
+  masukSebagai,
+  scanPerjanjian,
+  type Gagal,
+  type Modul,
+} from "./dev-seed-support";
 
 const USAGE = "Pakai: seed-contoh-publik [--izinkan-staging]";
 
@@ -123,8 +136,8 @@ function alasanSeed(staging: boolean): string {
   return staging ? `${SEED_CONTOH_PUBLIK} (staging, --izinkan-staging)` : SEED_CONTOH_PUBLIK;
 }
 
-/** The Operator's flat platform fee (spec: Biaya Layanan Platform), as the prototype's mock has it. */
-const BIAYA_LAYANAN_PLATFORM = 250_000;
+/** The Operator's flat platform fee, shared with `seed-tagihan` (`dev-seed-support.ts`) and equal to the prototype's mock. */
+const BIAYA_LAYANAN_PLATFORM = BIAYA_LAYANAN_PLATFORM_CONTOH;
 
 /** The prototype's DOKUMEN list (spec, document checklist), the same four for every example Lokasi Mitra. */
 const DOKUMEN = [
@@ -158,7 +171,7 @@ function mondayToSaturday(opens: string, closes: string): JamOperasional["weekly
 type Tenure = { kind: "tahun"; years: number } | { kind: "selamanya" };
 
 /** One mock `jenisMakam` entry, mapped onto a real Jenis Makam and the small Denah that backs its Tersedia Petak count. */
-interface JenisMakamSpec {
+export interface JenisMakamSpec {
   name: string;
   /** Carries the mock's `ukuran`, since the real Jenis Makam has no separate size field. */
   description: string;
@@ -175,7 +188,7 @@ interface JenisMakamSpec {
   hargaBaru?: { effectiveOn: string; hargaHakPakai: number };
 }
 
-interface ContohLokasiSpec {
+export interface ContohLokasiSpec {
   name: string;
   pengelolaName: string;
   address: string;
@@ -197,7 +210,7 @@ interface ContohLokasiSpec {
 }
 
 /** The prototype's five example Lokasi Mitra (`_mock/data.ts` on `origin/prototype-public-site`), as close to the mock as the real domain allows. */
-const CONTOH_LOKASI: ContohLokasiSpec[] = [
+export const CONTOH_LOKASI: ContohLokasiSpec[] = [
   {
     name: "Taman Makam Firdaus",
     pengelolaName: "PT Firdaus Lestari Abadi",
@@ -325,6 +338,8 @@ const CONTOH_LOKASI: ContohLokasiSpec[] = [
 export async function seedContohPublikCommand(
   argv: string[],
   source: Record<string, string | undefined> = process.env,
+  /** The example Lokasi Mitra to seed; only a test passes another (a reduced copy, standing in for an older version's run). */
+  contoh: ContohLokasiSpec[] = CONTOH_LOKASI,
 ): Promise<{ exitCode: number; output: string }> {
   let izinkanStaging: boolean;
   try {
@@ -396,13 +411,32 @@ export async function seedContohPublikCommand(
       const admin = await adminPlatform(identity);
       if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
 
+      // Pengaturan Operator: the shared example (CS contact = the mock's), entered only when
+      // empty and never overwritten, so a stack the Operator already filled in keeps its own.
+      const operatorKosong = (await operatorSettings.current()) === null;
+      const operator = await isiPengaturanOperatorBilaKosong(operatorSettings, admin, alasan);
+      if (!operator.ok) return { exitCode: 1, output: `Ditolak: Pengaturan Operator contoh tidak tersimpan (${operator.reason}).` };
+
       const terdaftar = await lokasi.publicLokasiMitraList();
-      const namaTerdaftar = new Set(terdaftar.map((one) => one.name));
-      const belum = CONTOH_LOKASI.filter((spec) => !namaTerdaftar.has(spec.name));
+      const idTerdaftar = new Map(terdaftar.map((one) => [one.name, one.id]));
+      const belum = contoh.filter((spec) => !idTerdaftar.has(spec.name));
+
+      // An example Lokasi Mitra an older run already listed is reconciled, only ever adding.
+      let berubah = operatorKosong ? 1 : 0;
+      for (const spec of contoh) {
+        const id = idTerdaftar.get(spec.name);
+        if (!id) continue;
+        const disamakan = await samakanDenganContoh(modul, admin, id, spec, alasan);
+        if (!disamakan.ok) return { exitCode: 1, output: `Ditolak: ${spec.name} tidak bisa disamakan (${disamakan.reason}).` };
+        berubah += disamakan.berubah;
+      }
       if (belum.length === 0) {
         return {
           exitCode: 0,
-          output: `Sudah ada ${CONTOH_LOKASI.length} Lokasi Mitra contoh di listing; seed-contoh-publik tidak mengubah apa pun.`,
+          output:
+            berubah === 0
+              ? `Sudah ada ${contoh.length} Lokasi Mitra contoh di listing; seed-contoh-publik tidak mengubah apa pun.`
+              : `Sudah ada ${contoh.length} Lokasi Mitra contoh di listing; ${berubah} hal disamakan dengan contoh (hanya menambah).`,
         };
       }
 
@@ -460,28 +494,37 @@ function denahChunksFor(count: number): number[] {
   return chunks;
 }
 
+/** A supplier of Blok names: `base` first, then `base-2`, `base-3`, ... */
+function namaBerurutan(base: string): () => string {
+  let n = 0;
+  return () => {
+    n += 1;
+    return n === 1 ? base : `${base}-${n}`;
+  };
+}
+
 /**
- * The Denah behind one Jenis Makam's Tersedia Petak count: one or more Bloks
- * (`denahChunksFor`'s chunks, every cell cleared Tersedia), or, for a mock
- * "Kavling Keluarga N Petak" entry, grouped into real Kavling Keluarga units
+ * The Denah behind `jumlah` Tersedia units of one Jenis Makam: one or more
+ * Bloks (`denahChunksFor`'s chunks, every cell cleared Tersedia), or, for a
+ * mock "Kavling Keluarga N Petak" entry, `jumlah` real Kavling Keluarga units
  * instead of standalone Petak; or, for the mock's one `tersedia: 0` entry, its
- * single Petak cleared Tidak Tersedia.
+ * single Petak cleared Tidak Tersedia. `nextName` gives each new Blok its name.
  */
 async function bangunDenahJenisMakam(
   modul: Modul,
   adminLokasi: Actor,
   lokasiId: string,
-  blokIndex: number,
   jenisMakamId: string,
   spec: JenisMakamSpec,
+  jumlah: number,
+  nextName: () => string,
   alasan: string,
 ): Promise<{ ok: true } | Gagal> {
   const { inventory } = modul;
-  const blokName = String.fromCharCode(65 + blokIndex);
 
   if (spec.kavlingPetak) {
-    const units = Math.max(spec.tersedia, 1);
-    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: blokName, rows: 1, cols: spec.kavlingPetak * units, jenisMakamId });
+    const units = Math.max(jumlah, 1);
+    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: nextName(), rows: 1, cols: spec.kavlingPetak * units, jenisMakamId });
     if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
     const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
     const cells = denah?.cells ?? [];
@@ -495,10 +538,9 @@ async function bangunDenahJenisMakam(
     return { ok: true };
   }
 
-  const count = spec.kosong ? 1 : Math.max(spec.tersedia, 1);
-  for (const [chunkIndex, chunkSize] of denahChunksFor(count).entries()) {
-    const chunkName = chunkIndex === 0 ? blokName : `${blokName}-${chunkIndex + 1}`;
-    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: chunkName, rows: 1, cols: chunkSize, jenisMakamId });
+  const count = spec.kosong ? 1 : Math.max(jumlah, 1);
+  for (const chunkSize of denahChunksFor(count)) {
+    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: nextName(), rows: 1, cols: chunkSize, jenisMakamId });
     if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
     const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
     for (const cell of denah?.cells ?? []) {
@@ -509,6 +551,52 @@ async function bangunDenahJenisMakam(
     }
   }
   return { ok: true };
+}
+
+/**
+ * Brings an already-listed example Lokasi Mitra (seeded by an older version of
+ * this command) up to the mock, only ever adding: the Tersedia Petak / Kavling
+ * units it is short of (new Bloks, cleared Tersedia; nothing existing is
+ * touched, removed or re-cleared, and the mock's one `tersedia: 0` entry is
+ * left alone), and its Kontak Siaga's name when the Akun still has none (a
+ * Kode Masuk login fills it, never replacing one). Returns how many things it
+ * changed; 0 changes nothing, not even a login.
+ */
+async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; berubah: number } | Gagal> {
+  const { tariffs, inventory, lokasi, adapters } = modul;
+  const [{ jenisMakam }, tersedia, kontak] = await Promise.all([
+    tariffs.asStaff(admin).lokasiTariffs(lokasiId, adapters.clock.now()),
+    inventory.tersediaPerJenisMakam(lokasiId),
+    lokasi.kontakSiagaOf(lokasiId),
+  ]);
+  const countById = new Map(tersedia.map((row) => [row.jenisMakamId, row.count]));
+  const kurang: { jm: JenisMakamSpec; id: string; jumlah: number }[] = [];
+  for (const jm of spec.jenisMakam) {
+    if (jm.kosong) continue;
+    const found = jenisMakam.find((one) => one.name === jm.name);
+    if (!found) continue;
+    const jumlah = jm.tersedia - (countById.get(found.id) ?? 0);
+    if (jumlah > 0) kurang.push({ jm, id: found.id, jumlah });
+  }
+  const perluNama = kontak !== null && kontak.name === "";
+  if (kurang.length === 0 && !perluNama) return { ok: true, berubah: 0 };
+
+  const adminLokasi = await masukDenganKodeMasuk(modul, spec.adminLokasiEmail, spec.kontakSiagaName);
+  if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
+
+  const dipakai = new Set((await inventory.asStaff(admin).bloks(lokasiId)).map((blok) => blok.name));
+  let k = 0;
+  const nextName = () => {
+    do k += 1;
+    while (dipakai.has(`Tambahan-${k}`));
+    dipakai.add(`Tambahan-${k}`);
+    return `Tambahan-${k}`;
+  };
+  for (const { jm, id, jumlah } of kurang) {
+    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, id, jm, jumlah, nextName, alasan);
+    if (!built.ok) return { ok: false, reason: `denah ${jm.name}: ${built.reason}` };
+  }
+  return { ok: true, berubah: kurang.length + (perluNama ? 1 : 0) };
 }
 
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */
@@ -602,7 +690,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
   if (!kebijakan.ok) return { ok: false, reason: `kebijakan: ${kebijakan.reason}` };
 
   for (const [index, jm] of spec.jenisMakam.entries()) {
-    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, index, jenisMakamIds[index], jm, alasan);
+    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, jenisMakamIds[index], jm, jm.kosong ? 1 : jm.tersedia, namaBerurutan(String.fromCharCode(65 + index)), alasan);
     if (!built.ok) return { ok: false, reason: `denah ${jm.name}: ${built.reason}` };
   }
 
