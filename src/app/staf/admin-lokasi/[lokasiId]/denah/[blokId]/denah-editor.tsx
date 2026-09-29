@@ -17,6 +17,7 @@ import type { DenahCell, DenahKavling } from "@/domain/inventory/reads";
 import { cn } from "@/lib/utils";
 import { AturJenisMakamDialog, KavlingDialog, UbahNomorDialog } from "../_parts/blok-dialogs";
 import { BlokTabs } from "../_parts/blok-tabs";
+import { HapusBlokButton } from "../_parts/hapus-blok";
 import {
   addEdgeAction,
   clearKavlingAction,
@@ -75,6 +76,7 @@ export function DenahEditor({
   jenisMakam,
   fileStoreConfigured,
   photoUrl,
+  bolehHapus,
 }: {
   lokasiId: string;
   bloks: BlokTab[];
@@ -84,6 +86,8 @@ export function DenahEditor({
   jenisMakam: JenisMakamOption[];
   fileStoreConfigured: boolean;
   photoUrl: string | null;
+  /** Inventory says this Blok is empty of history, so "Hapus Blok" is offered. */
+  bolehHapus: boolean;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -150,7 +154,10 @@ export function DenahEditor({
                 <PencilLine className="size-3.5" aria-hidden />
               </span>
             </div>
-            <ModeToggle mode={selectMode} onChange={setSelectMode} />
+            <div className="flex items-center gap-2">
+              {bolehHapus ? <HapusBlokButton lokasiId={lokasiId} blokId={blok.id} blokName={blok.name} /> : null}
+              <ModeToggle mode={selectMode} onChange={setSelectMode} />
+            </div>
           </div>
 
           {pesan ? (

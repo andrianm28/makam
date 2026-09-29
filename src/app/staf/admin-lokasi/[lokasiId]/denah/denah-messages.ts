@@ -71,6 +71,12 @@ export function denahRefusalMessage(reason: string, extra?: Record<string, unkno
       return "Pemegang Hak tidak boleh sama dengan Almarhum.";
     case "petak_bukan_anggota_kavling":
       return "Petak itu bukan anggota Kavling Keluarga ini.";
+    case "punya_riwayat":
+      return "Blok ini tidak bisa dihapus: ada Petak yang pernah dipakai (Hak Pakai, Pemakaman, atau nomor lama). Hanya Blok yang bersih dari riwayat yang bisa dihapus.";
+    case "sedang_dipesan":
+      return "Blok ini tidak bisa dihapus: ada Petak atau Kavling Keluarga yang sedang dipesan. Tunggu pesanan itu selesai atau tidak jadi.";
+    case "alasan_wajib":
+      return "Isi alasan menghapus Blok.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     case "perlu_totp":

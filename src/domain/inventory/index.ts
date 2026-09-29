@@ -45,6 +45,7 @@ import {
   type HakPakaiDetail,
   type StaffInventoryReads,
 } from "./reads";
+import { bolehHapusBlok, hapusBlok, type BolehHapusBlok, type HapusBlokResult } from "./hapus-blok";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
@@ -54,6 +55,7 @@ import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 export type { InventoryDeps } from "./deps";
 export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
+export type { BolehHapusBlok, HapusBlokResult };
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
@@ -120,6 +122,10 @@ export interface Inventory {
   addEdge(by: Actor, lokasiId: string, blokId: string, edge: Edge): Promise<AddEdgeResult>;
   /** Removes rows or columns, only when none of their Petak was ever used and none is part of a Kavling Keluarga. */
   removeRowsOrCols(by: Actor, lokasiId: string, blokId: string, input: RemoveRowsOrColsInput): Promise<RemoveRowsOrColsResult>;
+  /** Removes a Blok that is empty of history (every Petak only ever Tersedia or Tidak Tersedia, none held), audited with the reason; refused otherwise. */
+  hapusBlok(by: Actor, lokasiId: string, blokId: string, alasan: string): Promise<HapusBlokResult>;
+  /** Whether that Blok may be removed right now, and if not why not; what the Denah editor shows "Hapus Blok" on. */
+  bolehHapusBlok(by: Actor, lokasiId: string, blokId: string): Promise<BolehHapusBlok>;
   /** Uploads (or replaces) a Blok's site-plan photo; refused with `penyimpanan_belum_tersedia` while no FileStore is configured. */
   uploadBlokPhoto(by: Actor, lokasiId: string, blokId: string, file: { body: Uint8Array; contentType: string }): Promise<UploadBlokPhotoResult>;
   /** Clears one Petak Makam: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai). */
@@ -235,6 +241,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     createKavling: (by, lokasiId, blokId, input) => createKavling(deps, by, lokasiId, blokId, input),
     splitKavling: (by, lokasiId, kavlingId) => splitKavling(deps, by, lokasiId, kavlingId),
     addEdge: (by, lokasiId, blokId, edge) => addEdge(deps, by, lokasiId, blokId, edge),
+    hapusBlok: (by, lokasiId, blokId, alasan) => hapusBlok(deps, by, lokasiId, blokId, alasan),
+    bolehHapusBlok: (by, lokasiId, blokId) => bolehHapusBlok(deps, by, lokasiId, blokId),
     removeRowsOrCols: (by, lokasiId, blokId, input) => removeRowsOrCols(deps, by, lokasiId, blokId, input),
     uploadBlokPhoto: (by, lokasiId, blokId, file) => uploadBlokPhoto(deps, by, lokasiId, blokId, file),
     clearPetak: (by, lokasiId, petakId, input) => clearPetak(deps, by, lokasiId, petakId, input),

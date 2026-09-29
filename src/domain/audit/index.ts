@@ -143,6 +143,8 @@ export type AuditAction =
   | "denah.pisahkan_kavling"
   /** An Admin Lokasi adds or removes a row or column of a Blok's grid. */
   | "denah.ubah_baris_kolom"
+  /** An Admin Lokasi removes a Blok that is empty of history (never used, never held), with a reason. */
+  | "denah.hapus_blok"
   /** An Admin Lokasi uploads or replaces a Blok's site-plan photo. */
   | "denah.unggah_foto_blok"
   /** An Admin Lokasi clears a newly drawn Petak or Kavling Keluarga: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai, its Pemegang Hak and, when known, its first Pemakaman). */

@@ -10,10 +10,11 @@ export default async function BlokDenahPage({ params }: PageProps<"/staf/admin-l
   const { actor, current } = await adminLokasiScope(lokasiId);
   const runtime = serverRuntime();
   const reads = runtime.inventory.asStaff(actor);
-  const [bloks, denah, tariffs] = await Promise.all([
+  const [bloks, denah, tariffs, bolehHapus] = await Promise.all([
     reads.bloks(current.id),
     reads.blok(current.id, blokId),
     runtime.tariffs.asStaff(actor).lokasiTariffs(current.id, runtime.adapters.clock.now()),
+    runtime.inventory.bolehHapusBlok(actor, current.id, blokId),
   ]);
   if (!denah) notFound();
 
@@ -30,6 +31,7 @@ export default async function BlokDenahPage({ params }: PageProps<"/staf/admin-l
       jenisMakam={tariffs.jenisMakam.map((jenis) => ({ id: jenis.id, name: jenis.name }))}
       fileStoreConfigured={fileStoreConfigured}
       photoUrl={photoUrl}
+      bolehHapus={bolehHapus.boleh}
     />
   );
 }
