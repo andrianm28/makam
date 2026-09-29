@@ -64,7 +64,14 @@ export interface QueuesModuleDeps {
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi's confirmations and its "Catat Pemakaman" rows, plus the decline rows). */
   pemesanan: Pick<
     Pemesanan,
-    "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak" | "antreanCatatPemakaman"
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    | "ditolak"
+    | "saatDukaDitolak"
+    | "antreanCatatPemakaman"
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaLewatTenggat"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;

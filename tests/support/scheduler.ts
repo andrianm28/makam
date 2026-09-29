@@ -20,6 +20,7 @@ export function schedulerContext(parts: {
   payouts?: SchedulerContext["payouts"];
   refunds?: SchedulerContext["refunds"];
   layanan?: SchedulerContext["layanan"];
+  terencana?: SchedulerContext["terencana"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -45,6 +46,8 @@ export function schedulerContext(parts: {
     // empty Billing list is what the materialising tick finds anyway.
     refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
     layanan: parts.layanan ?? { tinjauSkorTick: async () => {} },
+    // No confirmed Terencana order is waiting until a test gives the tick a real Pemesanan.
+    terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
   };
 }
 
@@ -63,6 +66,10 @@ const DIAMDIAM: PemesananNotifikasi = {
   pesananDibatalkan: async () => {},
   pesananBuktiPemesanan: async () => {},
   terencanaDiajukan: async () => {},
+  terencanaDikonfirmasi: async () => {},
+  terencanaDitolak: async () => {},
+  terencanaBatasBayarLewat: async () => {},
+  terencanaBukti: async () => {},
   chasingDijadwalkan: async () => {},
   tidakTertagihDinyatakan: async () => {},
 };

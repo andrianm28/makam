@@ -1,6 +1,6 @@
 {
-  "id": "7cdea0b6-b9a1-49d2-822f-261deb4049f4",
-  "prevId": "1ab51512-7ba4-4adb-9f38-a8b3eeebcd25",
+  "id": "5144530e-526b-4331-bafc-8690d2622ac3",
+  "prevId": "7cdea0b6-b9a1-49d2-822f-261deb4049f4",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -317,11 +317,17 @@
           "name": "masa_mulai",
           "type": "date",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "masa_selesai": {
           "name": "masa_selesai",
           "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "masa_tahun": {
+          "name": "masa_tahun",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -2475,6 +2481,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "syarat": {
+          "name": "syarat",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calon_penghuni": {
+          "name": "calon_penghuni",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -6131,6 +6149,31 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.pencairan_terencana": {
+      "name": "pencairan_terencana",
+      "schema": "",
+      "columns": {
+        "nomor_pemesanan": {
+          "name": "nomor_pemesanan",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "masa_pembatalan_berakhir_pada": {
+          "name": "masa_pembatalan_berakhir_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.potongan": {
       "name": "potongan",
       "schema": "",
@@ -6802,6 +6845,54 @@
           "primaryKey": false,
           "notNull": false
         },
+        "dikonfirmasi_pada": {
+          "name": "dikonfirmasi_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tahan_sampai": {
+          "name": "tahan_sampai",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ditolak_pada": {
+          "name": "ditolak_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alasan_tolak": {
+          "name": "alasan_tolak",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibatalkan_pada": {
+          "name": "dibatalkan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aktif_pada": {
+          "name": "aktif_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "masa_pembatalan_berakhir_pada": {
+          "name": "masa_pembatalan_berakhir_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bukti_pemesanan_id": {
+          "name": "bukti_pemesanan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "diajukan_at": {
           "name": "diajukan_at",
           "type": "timestamp with time zone",
@@ -6921,6 +7012,18 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "tenure_years": {
+          "name": "tenure_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hak_pakai_id": {
+          "name": "hak_pakai_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "urutan": {
           "name": "urutan",

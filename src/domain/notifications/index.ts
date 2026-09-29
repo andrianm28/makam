@@ -97,6 +97,17 @@ import {
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+import {
+  terencanaBatasBayarLewat,
+  terencanaBukti,
+  terencanaDikonfirmasi,
+  terencanaDitolak,
+  type PesanTerencanaResult,
+  type TerencanaBatasBayarLewatInput,
+  type TerencanaBuktiInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
+} from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
@@ -121,6 +132,17 @@ export {
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+export {
+  terencanaBatasBayarLewatSchema,
+  terencanaBuktiSchema,
+  terencanaDikonfirmasiSchema,
+  terencanaDitolakSchema,
+  type PesanTerencanaResult,
+  type TerencanaBatasBayarLewatInput,
+  type TerencanaBuktiInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
+} from "./pesan-terencana";
 export {
   tagihanTerbitSchema,
   type KirimJatuhTempo,
@@ -325,6 +347,18 @@ export interface Notifications {
    * opens a call row, and CS hands the link over by hand.
    */
   pesananBuktiPemesanan(input: PesananBuktiPemesananInput): Promise<PesanPemesananResult>;
+  /**
+   * The family messages of a Pemesanan Terencana (ticket 37): its confirmation with
+   * the payment hold and the Tagihan (one email, the Tagihan's own "terbit" email is
+   * not sent beside it), a decline, a payment hold that ran out, and the Bukti
+   * Pemesanan. `within` is the caller's open transaction: the message then commits or
+   * rolls back with the change it announces. A Terencana order always has an Email
+   * Terverifikasi, so none of these opens a call row.
+   */
+  terencanaDikonfirmasi(input: TerencanaDikonfirmasiInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaDitolak(input: TerencanaDitolakInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaBatasBayarLewat(input: TerencanaBatasBayarLewatInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaBukti(input: TerencanaBuktiInput, within?: Database): Promise<PesanTerencanaResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -651,6 +685,22 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananBuktiPemesanan(input) {
       return pesananBuktiPemesanan(deps, input);
+    },
+
+    async terencanaDikonfirmasi(input, within) {
+      return terencanaDikonfirmasi(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaDitolak(input, within) {
+      return terencanaDitolak(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaBatasBayarLewat(input, within) {
+      return terencanaBatasBayarLewat(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaBukti(input, within) {
+      return terencanaBukti(within ? { ...deps, db: within } : deps, input);
     },
 
     async pesanPemesanan(pemesananId) {

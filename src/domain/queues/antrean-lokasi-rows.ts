@@ -153,9 +153,36 @@ export const catatPemakamanRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Konfirmasi Terencana" (Lainnya): every Pemesanan Terencana of that Lokasi Mitra still
+ * waiting for its answer, due by the end of the Lokasi's next working day (spec, Work
+ * Queues; ticket 37). It sits in Lainnya, not Mendesak: a plot booked in advance has no
+ * burial waiting on it. The deadline never cancels the order; past it the row stays and
+ * Admin Platform's Tier 3 row appears. It closes itself when the order is confirmed,
+ * declined or withdrawn.
+ */
+export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
+  key: "konfirmasi_terencana",
+  grup: "lainnya",
+  label: "Konfirmasi Terencana",
+  async rows(deps, _by, lokasiId) {
+    const order = await deps.pemesanan.antreanKonfirmasiTerencana(lokasiId);
+    return order.map((satu) => ({
+      type: "konfirmasi_terencana",
+      label: "Konfirmasi Terencana",
+      subjectKind: "pemesanan_terencana",
+      subjectId: satu.id,
+      subjectLabel: `${satu.nomor} · ${satu.unit.map((unit) => unit.nomor).join(", ")}`,
+      href: pemakamanHref(lokasiId, satu.nomor),
+      deadline: satu.konfirmasiDueAt,
+    }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
+  konfirmasiTerencanaRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
   catatPemakamanRowType,

@@ -49,6 +49,12 @@ import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type R
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
 import { lepasTahan, tahan, type LepasTahanResult, type TahanInput, type TahanResult } from "./hold";
+import {
+  beriHakPakaiDariTahan,
+  mulaiTahanBayar,
+  type BeriHakPakaiDariTahanInput,
+  type BeriHakPakaiDariTahanResult,
+} from "./tahan-bayar";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -57,6 +63,8 @@ export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
+export type { BeriHakPakaiDariTahanInput, BeriHakPakaiDariTahanResult, UnitDariTahan } from "./tahan-bayar";
+export type { SyaratHakPakai } from "./schema";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
@@ -194,6 +202,19 @@ export interface Inventory {
   /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
   lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
   /**
+   * Starts the payment hold of a confirmed Terencana order: every plot it holds is
+   * held until `sampai`, the instant its pay-first Tagihan is due (ticket 37). No
+   * actor: the order that owns the hold drives it, as `lepasTahan`.
+   */
+  mulaiTahanBayar(input: { nomorPemesanan: string; sampai: Date }): Promise<{ ok: true; ditahan: number }>;
+  /**
+   * A paid Terencana order's hold becomes the right it held: one Aktif Hak Pakai per
+   * Petak Makam or Kavling Keluarga, one Pemegang Hak, each with the Syarat it was
+   * bought under and the Calon Penghuni label, and the hold is released (ticket 37).
+   * Take it `within` the payment's own transaction.
+   */
+  beriHakPakaiDariTahan(input: BeriHakPakaiDariTahanInput): Promise<BeriHakPakaiDariTahanResult>;
+  /**
    * Where a grave is, for a family with no session: by Lokasi + Nomor Makam (the
    * current one or one it was renumbered from, which is never shown), by Lokasi
    * + Nomor Kavling, or by Lokasi + Almarhum name + year of death. Answers with
@@ -252,6 +273,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
+    mulaiTahanBayar: (input) => mulaiTahanBayar(deps, input),
+    beriHakPakaiDariTahan: (input) => beriHakPakaiDariTahan(deps, input),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
     makamKeluargaSaya: (input) => makamKeluargaSaya(deps, input),

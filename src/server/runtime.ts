@@ -140,6 +140,7 @@ export function serverRuntime(): ServerRuntime {
     const pemesanan = composePemesanan({
       db: database.db,
       clock: adapters.clock,
+      reportError,
       files: adapters.files,
       audit,
       lokasi,

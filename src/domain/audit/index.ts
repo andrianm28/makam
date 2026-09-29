@@ -167,6 +167,10 @@ export type AuditAction =
   | "lokasi.konfirmasi_syarat_tayang"
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
+  /** An Admin Lokasi confirms a Pemesanan Terencana: the payment hold that starts and the pay-first Tagihan issued with it (ticket 37). */
+  | "pemesanan.konfirmasi_terencana"
+  /** An Admin Lokasi declines a Pemesanan Terencana with a reason from the fixed list, and its plots are released (ticket 37). */
+  | "pemesanan.tolak_terencana"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
   | "pemesanan.centang_dokumen"
   /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */

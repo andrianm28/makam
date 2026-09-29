@@ -2,6 +2,7 @@ import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { createBilling, type Billing, type BillingDeps, type PaymentEffect } from "@/domain/billing";
 import { efekBuktiPembayaran } from "@/domain/notifications";
+import { masaPembatalanDimulai } from "@/domain/payouts";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { efekBuktiPemesanan, type BuktiPemesananEffectDeps } from "@/domain/pemesanan";
 import type { OperatorSettings } from "@/domain/operator-settings";
@@ -121,10 +122,11 @@ export function billingOn(deps: BillingComposition, tx: Database): Billing {
 
 /** The Pemesanan module's Bukti Pemesanan effect, on a given payment transaction. */
 export function buktiPemesananEffect(
-  deps: Omit<BuktiPemesananEffectDeps, "billingOn"> & { compose: BillingComposition },
+  deps: Omit<BuktiPemesananEffectDeps, "billingOn" | "pencairan"> & { compose: BillingComposition },
 ): PaymentEffect {
   const { compose, ...rest } = deps;
-  return efekBuktiPemesanan({ ...rest, billingOn: (tx) => billingOn(compose, tx) });
+  // A paid Pemesanan Terencana tells Payouts when its Masa Pembatalan ends, in the payment's own transaction (ticket 37).
+  return efekBuktiPemesanan({ ...rest, billingOn: (tx) => billingOn(compose, tx), pencairan: { masaPembatalanDimulai } });
 }
 
 /** Billing wired on one database: shared by the `web` runtime, its test twin, the CLIs and the worker's retry tick. */

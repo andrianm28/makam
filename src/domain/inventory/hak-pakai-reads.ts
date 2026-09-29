@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { ActiveHakPakaiForStatus, HakPakaiStatus } from "./status";
-import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak } from "./schema";
+import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
 
 /** One Hak Pakai, as loaded (before the Pemegang Hak / Pemakaman rows it covers). */
 export interface HakPakaiRow {
@@ -16,6 +16,9 @@ export interface HakPakaiRow {
   tenureStartAt: Date | null;
   endDate: Date | null;
   perluVerifikasi: boolean;
+  /** The Syarat Pemesanan Terencana in force at payment, and the Calon Penghuni label; null for any other Hak Pakai. */
+  syarat: SyaratHakPakai | null;
+  calonPenghuni: string | null;
 }
 
 function toRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
@@ -31,6 +34,8 @@ function toRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
     tenureStartAt: row.tenureStartAt,
     endDate: row.endDate,
     perluVerifikasi: row.perluVerifikasi,
+    syarat: row.syarat ?? null,
+    calonPenghuni: row.calonPenghuni,
   };
 }
 

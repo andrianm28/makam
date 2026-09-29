@@ -34,8 +34,8 @@ export interface BuktiPemesanan {
   lokasiName: string;
   petakNomor: string;
   pemegangHakName: string;
-  /** The Hak Pakai's term: the first Pemakaman's date, and the end of a fixed term (null for a Selamanya one). */
-  masa: { mulai: string; selesai: string | null };
+  /** The Hak Pakai's term: the first Pemakaman's date (null while none is recorded), the end of a fixed term (null for a Selamanya one), and the term's length while it has not started. */
+  masa: { mulai: string | null; selesai: string | null; tahun?: number | null };
   /** The Lokasi's "Petunjuk arah" link, or null when it has nothing to map. */
   petunjukArah: string | null;
   /** The Operator's header values in force when the Bukti was issued. */
@@ -52,7 +52,12 @@ export const issueBuktiPemesananSchema = z.object({
   lokasiName: z.string().trim().min(1).max(200),
   petakNomor: z.string().trim().min(1).max(60),
   pemegangHakName: z.string().trim().min(1).max(200),
-  masa: z.object({ mulai: z.iso.date(), selesai: z.iso.date().nullable() }),
+  masa: z.object({
+    mulai: z.iso.date().nullable(),
+    selesai: z.iso.date().nullable(),
+    /** The fixed term in whole years; only for a term that has not started (`mulai` null). */
+    tahun: z.number().int().min(1).max(200).nullable().optional(),
+  }),
   petunjukArah: z.url().max(500).nullable().optional(),
 });
 export type IssueBuktiPemesananInput = z.infer<typeof issueBuktiPemesananSchema>;
@@ -100,6 +105,7 @@ export async function issueBuktiPemesanan(
         pemegangHakName: input.pemegangHakName,
         masaMulai: input.masa.mulai,
         masaSelesai: input.masa.selesai,
+        masaTahun: input.masa.mulai === null ? (input.masa.tahun ?? null) : null,
         petunjukArah: input.petunjukArah ?? null,
         header,
         issuedAt: now,
@@ -138,7 +144,8 @@ function toBukti(row: typeof buktiPemesanan.$inferSelect): BuktiPemesanan {
     lokasiName: row.lokasiName,
     petakNomor: row.petakNomor,
     pemegangHakName: row.pemegangHakName,
-    masa: { mulai: row.masaMulai, selesai: row.masaSelesai },
+    // A term that has started is its two dates; one that has not says only how long it will run.
+    masa: row.masaMulai === null ? { mulai: null, selesai: null, tahun: row.masaTahun } : { mulai: row.masaMulai, selesai: row.masaSelesai },
     petunjukArah: row.petunjukArah,
     header: headerSchema.parse(row.header),
     issuedAt: row.issuedAt,

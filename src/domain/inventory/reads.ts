@@ -64,6 +64,8 @@ function toHakPakaiRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow 
     tenureStartAt: row.tenureStartAt,
     endDate: row.endDate,
     perluVerifikasi: row.perluVerifikasi,
+    syarat: row.syarat ?? null,
+    calonPenghuni: row.calonPenghuni,
   };
 }
 

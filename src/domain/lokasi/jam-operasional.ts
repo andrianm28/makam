@@ -94,6 +94,21 @@ export async function saatDukaPaymentWindowHours(
   return row ? row.jam.saatDukaPaymentWindowHours : null;
 }
 
+/**
+ * A Lokasi Mitra's Terencana hold in hours (its policy, 24 by default): how long a
+ * confirmed Pemesanan Terencana holds its plots for the Pemesan to pay, and so when
+ * its pay-first Tagihan is due (spec, Pemesanan > Terencana; ticket 37). No actor:
+ * the hold's own input. Null for a Lokasi Mitra that does not exist.
+ */
+export async function terencanaHoldHours(deps: Pick<LokasiDeps, "db">, lokasiId: string): Promise<number | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db
+    .select({ policies: lokasiMitra.policies })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row ? row.policies.terencanaHoldHours : null;
+}
+
 export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };
 
 /**

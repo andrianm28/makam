@@ -15,7 +15,8 @@
  * on the Bukti's item lines. See `./transfer.ts`.
  *
  * Owns tables: pencairan_item, potongan, bukti_pencairan, bukti_pencairan_item,
- * bukti_pencairan_potongan, pencairan_pembayaran, pencairan_pemakaman.
+ * bukti_pencairan_potongan, pencairan_pembayaran, pencairan_pemakaman,
+ * pencairan_terencana.
  *
  * Every other module's data is reached through that module's own public
  * interface, never its tables: Billing for the issued Tagihan and the document
@@ -73,7 +74,7 @@ import {
   type TerbitkanBuktiInput,
   type TerbitkanBuktiResult,
 } from "./transfer";
-import { pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
+import { masaPembatalanDimulai, pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
 
 export { NAMA_EFEK_PENCAIRAN, efekPencairanSaatLunas } from "./efek";
 export { BIAYA_LAYANAN_PLATFORM, TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
@@ -123,6 +124,9 @@ export interface PayoutsDeps {
   reportError?: ReportError;
 }
 
+/** The Masa Pembatalan half of the Terencana trigger, for the payment effect that cannot hold the module (Payouts is composed after Billing). */
+export { masaPembatalanDimulai } from "./trigger";
+
 export interface Payouts {
   // ---- the Saat Duka trigger (AC 9) ----
   /**
@@ -137,9 +141,16 @@ export interface Payouts {
    */
   pemakamanTercatat(tx: Database, input: { nomorPemesanan: string; pemakamanAt: Date }): Promise<void>;
   /**
+   * Records that a paid Pemesanan Terencana's Masa Pembatalan ends at `berakhirPada`:
+   * the trigger of its Hak Pakai item (ticket 37). The Pemesanan module calls it in
+   * the transaction that makes the order Aktif; the item itself is the tick's.
+   */
+  masaPembatalanDimulai(tx: Database, input: { nomorPemesanan: string; berakhirPada: Date }): Promise<void>;
+  /**
    * Worker tick: every order whose Tagihan is Lunas **and** whose Pemakaman is
-   * recorded gets its Pencairan items, due from the later of the two instants.
-   * Idempotent.
+   * recorded gets its Pencairan items, due from the later of the two instants; a
+   * paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa
+   * Pembatalan, or at the first Pemakaman if that came sooner. Idempotent.
    */
   tick(now?: Date): Promise<TickPencairanResult>;
   /** The "2 Hari Kerja" deadline on the Admin Platform calendar, for a trigger of another module. */
@@ -249,6 +260,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
   const runDeps = { db: deps.db, clock: deps.clock, audit: deps.audit, lokasi: deps.lokasi };
   return {
     pemakamanTercatat: (tx, input) => pemakamanTercatat(tx, input),
+    masaPembatalanDimulai: (tx, input) => masaPembatalanDimulai(tx, input),
     tick: (now) => tickPencairan(pemicu, now ?? deps.clock.now()),
     tenggat: async (dueAt) => tenggat(deps.lokasi, dueAt),
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),

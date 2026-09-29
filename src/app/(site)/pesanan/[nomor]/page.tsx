@@ -7,7 +7,8 @@ import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
-import type { PemesananOrder, RebookPesanan } from "@/domain/pemesanan";
+import type { PemesananOrder, PemesananTerencanaOrder, RebookPesanan } from "@/domain/pemesanan";
+import { TerencanaPesanan } from "./terencana-pesanan";
 import type { CsContact } from "@/components/kode-masuk/state";
 import { tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath } from "@/lib/document-links";
@@ -39,7 +40,13 @@ export async function generateMetadata({ params }: PageProps<"/pesanan/[nomor]">
 
 export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor]">) {
   const order = await orderFor(params);
-  if (!order) notFound();
+  if (!order) {
+    // A Pemesanan Terencana shares the Nomor Pemesanan series and this address (ticket 37), and is read from its own
+    // tables; an order that is neither, or is another Akun's, is nothing found.
+    const terencana = await terencanaFor(params);
+    if (!terencana) notFound();
+    return <TerencanaPesanan order={terencana} />;
+  }
   const { billing, lokasi, pemesanan, refunds } = serverRuntime();
   const actor = await currentActor();
   // The CS a family is pointed at when the alternative on the table can no longer
@@ -219,6 +226,16 @@ async function orderFor(params: Promise<{ nomor: string }>): Promise<PemesananOr
   if (!actor) redirect("/masuk");
   if (!authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed) return null;
   return serverRuntime().pemesanan.orderOf(parsed.data, { accountId: actor.accountId });
+}
+
+/** The Pemesanan Terencana on this address, for its own Pemesan only, read as `orderFor` reads a Saat Duka order. */
+async function terencanaFor(params: Promise<{ nomor: string }>): Promise<PemesananTerencanaOrder | null> {
+  const parsed = nomorSchema.safeParse((await params).nomor);
+  if (!parsed.success) return null;
+  const actor = await currentActor();
+  if (!actor) redirect("/masuk");
+  if (!authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed) return null;
+  return serverRuntime().pemesanan.terencanaOf(parsed.data, { accountId: actor.accountId });
 }
 
 /**

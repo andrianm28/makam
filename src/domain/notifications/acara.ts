@@ -25,6 +25,8 @@ export const TEMPLATE_EMAIL = [
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
+  // A Pemesanan Terencana's payment hold: one reminder about 4 h before it ends (ticket 37).
+  "tagihan_pengingat_tahan",
   // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 after the Tagihan's
   // own Lewat Jatuh Tempo anchor (the recorded burial plus its payment
   // window), stopping the moment it is Lunas or Tidak Tertagih.
@@ -61,6 +63,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
+  tagihan_pengingat_tahan: "pengingat",
   tagihan_pengingat_h3: "pengingat",
   tagihan_pengingat_h7: "pengingat",
   tagihan_pengingat_h14: "pengingat",
@@ -226,6 +229,31 @@ export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, string> = {
   saat_duka: "H+3, H+7, H+14, H+30",
   pemakaman_hak_pakai_ada: "H+3, H+7, H+14, H+30",
 };
+
+/** How long before a Pemesanan Terencana's payment hold ends its one reminder goes out (spec, Notifications' reminder table: "about 4 h before"). */
+export const JAM_PENGINGAT_TAHAN = 4;
+
+/**
+ * When a Pemesanan Terencana's one reminder goes out: 4 hours before the hold ends
+ * when that falls inside the 08:00–20:00 WIB window, else the last moment of the
+ * window before it — earlier, never later, because a reminder that waits for the
+ * next morning can arrive after the plots are already released. Null when no such
+ * moment is still ahead (a hold shorter than the reminder's lead), and then the
+ * confirmation email is the only message the family gets.
+ */
+export function jadwalPengingatTahan(dueAt: Date, now: Date): Date | null {
+  const target = new Date(dueAt.getTime() - JAM_PENGINGAT_TAHAN * HOUR_MS);
+  let saat = target;
+  if (!dalamJamKirim(target)) {
+    const hariItu = wibDayStart(target);
+    // After 20:00 the window's last minute that day; before 08:00 the one of the day before.
+    saat =
+      minutesOfWibDay(target) >= JAM_KIRIM_AKHIR * 60
+        ? new Date(hariItu.getTime() + JAM_KIRIM_AKHIR * HOUR_MS - 60_000)
+        : new Date(hariItu.getTime() - (24 - JAM_KIRIM_AKHIR) * HOUR_MS - 60_000);
+  }
+  return saat > now ? saat : null;
+}
 
 /** The pay-first moments, whose reminders this ticket schedules. */
 export const MOMEN_PAY_FIRST: ReadonlySet<MacamMomenTagihan> = new Set(["perpanjangan", "pengurusan_berkas", "layanan"]);

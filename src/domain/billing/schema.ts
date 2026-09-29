@@ -249,10 +249,12 @@ export const buktiPemesanan = pgTable(
     lokasiName: text("lokasi_name").notNull(),
     petakNomor: text("petak_nomor").notNull(),
     pemegangHakName: text("pemegang_hak_name").notNull(),
-    /** The first Pemakaman's date, the day the term counts from. */
-    masaMulai: date("masa_mulai", { mode: "string" }).notNull(),
-    /** The end of a fixed term; null for a Selamanya Jenis Makam. */
+    /** The first Pemakaman's date, the day the term counts from; null for a Terencana right whose term has not started (no burial yet). */
+    masaMulai: date("masa_mulai", { mode: "string" }),
+    /** The end of a fixed term; null for a Selamanya Jenis Makam and for a term that has not started. */
     masaSelesai: date("masa_selesai", { mode: "string" }),
+    /** The fixed term's length in years while `masa_mulai` is null (null there = perpetual); null once the term has started. */
+    masaTahun: integer("masa_tahun"),
     /** The Lokasi's "Petunjuk arah" link, so a family can find the gate again (spec, Maps on public pages). */
     petunjukArah: text("petunjuk_arah"),
     /** Pengaturan Operator's header values in force when the Bukti was issued. */

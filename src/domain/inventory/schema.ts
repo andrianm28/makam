@@ -1,7 +1,20 @@
-import { boolean, check, date, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+/**
+ * The terms a Pemesanan Terencana was bought under, kept on each Hak Pakai its
+ * payment granted (spec, Inventory > Hak Pakai: "the terms in force at payment
+ * (Syarat Pemesanan Terencana snapshot)"). Copied from the order's own snapshot,
+ * never read again from the Lokasi Mitra's current policy.
+ */
+export interface SyaratHakPakai {
+  masaPembatalanDays: number;
+  refundAfterMasaPembatalanPercent: number;
+  hakDengan: "lokasi_mitra";
+  lokasiNama: string;
+}
 
 /**
  * Owned by the Inventory module: one Blok of a Lokasi Mitra's Denah, a grid of
@@ -151,6 +164,14 @@ export const inventoryHakPakai = pgTable(
     tenureStartAt: at("tenure_start_at"),
     endDate: at("end_date"),
     perluVerifikasi: boolean("perlu_verifikasi").notNull().default(false),
+    /**
+     * The Syarat Pemesanan Terencana in force when a Terencana order's payment
+     * granted this right (spec, Inventory > Hak Pakai: "the terms in force at
+     * payment"), and the Calon Penghuni label the order named for the plot; both
+     * null for any other Hak Pakai (ticket 37).
+     */
+    syarat: jsonb("syarat").$type<SyaratHakPakai>(),
+    calonPenghuni: text("calon_penghuni"),
     createdAt: at("created_at").notNull(),
     createdByAccountId: text("created_by_account_id").notNull(),
   },

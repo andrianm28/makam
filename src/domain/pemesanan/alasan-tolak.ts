@@ -86,6 +86,16 @@ export const ALASAN_TOLAK: Readonly<Record<AlasanTolak, string>> = {
  */
 export const alasanTolakLokasiSchema = z.enum(alasanTolakLokasiKeys);
 
+/**
+ * The Lokasi's reasons that can apply to a Pemesanan Terencana: a subset of the same
+ * closed list, never a reason of its own (ticket 37). A burial day and a service area
+ * are about a death that has happened, and a plot booked in advance has neither, so
+ * `tanggal_tidak_bisa` and `di_luar_wilayah` are not offered for it.
+ */
+export const alasanTolakTerencanaKeys = ["petak_tidak_tersedia", "kapasitas_penuh", "dokumen_belum_lengkap", "harga_belum_disepakati"] as const satisfies readonly AlasanTolakLokasi[];
+export type AlasanTolakTerencana = (typeof alasanTolakTerencanaKeys)[number];
+export const alasanTolakTerencanaSchema = z.enum(alasanTolakTerencanaKeys);
+
 /** Whether a stored value is still a reason of the list (a key of an older release is not silently shown). */
 export function alasanTolakOf(value: string | null | undefined): AlasanTolak | null {
   return (alasanTolakKeys as readonly string[]).includes(value ?? "") ? (value as AlasanTolak) : null;

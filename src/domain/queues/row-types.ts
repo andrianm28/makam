@@ -41,7 +41,15 @@ export interface AntreanRowDeps {
    */
   pemesanan: Pick<
     Pemesanan,
-    "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak" | "antreanCatatPemakaman"
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    | "ditolak"
+    | "saatDukaDitolak"
+    | "antreanCatatPemakaman"
+    // The Terencana rows: the Antrean Lokasi's "Konfirmasi Terencana" and Admin Platform's Tier 3 late row (ticket 37).
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaLewatTenggat"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;

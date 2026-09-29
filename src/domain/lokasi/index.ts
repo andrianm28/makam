@@ -58,6 +58,7 @@ import {
   bukaSekarang,
   documentChecklistOf,
   saatDukaPaymentWindowHours,
+  terencanaHoldHours,
   serviceHoursDeadline,
   setJamOperasional,
   type JamOperasionalResult,
@@ -360,6 +361,13 @@ export interface Lokasi {
    */
   saatDukaPaymentWindowHours(lokasiId: string): Promise<number | null>;
   /**
+   * A Lokasi Mitra's effective Terencana hold in hours (its own policy, which starts at the 24 h default, so callers never apply a default): how
+   * long a confirmed Pemesanan Terencana holds its plots for the Pemesan to pay,
+   * which is when its pay-first Tagihan is due (ticket 37). No actor; null for a
+   * Lokasi Mitra that does not exist.
+   */
+  terencanaHoldHours(lokasiId: string): Promise<number | null>;
+  /**
    * A Lokasi Mitra's document checklist, whatever its status (ticket 23): what
    * a family is asked to bring and what an Admin Lokasi ticks off. No actor.
    */
@@ -468,6 +476,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
     saatDukaPaymentWindowHours: (lokasiId) => saatDukaPaymentWindowHours(deps, lokasiId),
+    terencanaHoldHours: (lokasiId) => terencanaHoldHours(deps, lokasiId),
     documentChecklistOf: (lokasiId) => documentChecklistOf(deps, lokasiId),
     bukaSekarang: (lokasiId) => bukaSekarang(deps, lokasiId),
     recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
