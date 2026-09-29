@@ -155,14 +155,6 @@ export const tagihan = pgTable(
       "tagihan_pengembalian_check",
       sql`(${table.pengembalianDimintaAt} is null) = (${table.pengembalianJumlah} is null)`,
     ),
-    check(
-      "tagihan_harga_khusus_porsi_mitra_check",
-      sql`${table.hargaKhususPorsiMitra} is null or ${table.hargaKhususPorsiMitra} between 0 and ${sql.raw(String(RUPIAH_MAX))}`,
-    ),
-    check(
-      "tagihan_harga_khusus_porsi_mitra_catatan_check",
-      sql`${table.hargaKhususPorsiMitra} is null or ${table.hargaKhususPorsiMitra} = 0 or ${table.hargaKhususPorsiMitraCatatan} is not null`,
-    ),
   ],
 );
 
