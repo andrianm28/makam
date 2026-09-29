@@ -52,20 +52,46 @@
  *   way a wizard's Kirim would, filling the Akun's name at its first Kode
  *   Masuk login (`identity.verifyKodeMasuk`'s existing optional `name`). Its
  *   phone number is real (the invited Admin Lokasi's own).
- * - Every Jenis Makam's Tersedia Petak count IS reproduced 1:1 with the
- *   mock's own `tersedia` (9–118 for most, down to the mock's small
- *   Kavling Keluarga counts): its Denah is one or more one-row Bloks, each at
- *   most Inventory's own `MAX_BLOK_DIMENSION` (40) wide (`denahChunksFor`),
- *   every cell of every one cleared Tersedia through `clearPetak`,
- *   sequentially — never a leftover Perlu Verifikasi cell anywhere at the
- *   Lokasi, which the two mock entries with `terencanaAktif: true` (Wakaf
- *   Al-Ikhlas, Hijau Asri) need to switch it on at all. A "Kavling Keluarga N
- *   Petak" mock entry becomes that many real Kavling Keluarga units instead
- *   (`createKavling` + `clearKavling`, one call per unit), the mock's own
- *   `tersedia` count of units (1–2). The one Jenis Makam the mock lists with
- *   `tersedia: 0` (Hijau Asri's "Makam Taman") is reproduced with its one
- *   Petak cleared Tidak Tersedia, which is what a real zero-availability
- *   Jenis Makam looks like.
+ * - Every Jenis Makam's Tersedia count IS reproduced 1:1 with the mock's own
+ *   `tersedia` (9-118 for most, down to the mock's small Kavling Keluarga
+ *   counts), and the Denah now reads like the prototype's. For the two Lokasi
+ *   with a prototype Denah (`_mock/denah.ts`: Wakaf Al-Ikhlas, Hijau Asri) its
+ *   Bloks are built FIRST and EXACTLY: same names ("Blok Utama", "Blok A",
+ *   "Blok B", "Blok Melati"), grid sizes, Jalan and Bukan Petak cells, Kavling
+ *   Keluarga rectangles (with the mock's Nomor Kavling), per-cell statuses and
+ *   Petak numbering (`A-01` ..., Petak only, in reading order). Further tidy
+ *   rectangular Bloks ("Blok C", ...: 10 columns, a Jalan row after every 4
+ *   Petak rows, the last row padded with Bukan Petak, at most 100 Petak each,
+ *   never a single 40-cell row) then top each Jenis Makam up to the mock's
+ *   count; the three Lokasi with no prototype Denah get only those. All of it
+ *   goes through Inventory's public functions (createBlok, setCellKind,
+ *   renumberCells, createKavling, clearPetak, clearKavling), and no Perlu
+ *   Verifikasi cell is left anywhere, which "Pemesanan Terencana aktif" needs.
+ *   A "Kavling Keluarga N Petak" entry is real Kavling Keluarga units. The one
+ *   Jenis Makam listed with `tersedia: 0` (Hijau Asri's "Makam Taman") is the
+ *   prototype's "Blok Melati" (its `premium`), which holds only non-Tersedia
+ *   cells; with no prototype Blok using it, it would be one Tidak Tersedia Petak.
+ * - Prototype cell statuses that come from real facts have no honest path
+ *   here, so they are approximated, never faked with a backdoor order or burial:
+ *   T (Tersedia) and X (Tidak Tersedia) are reproduced exactly. I (Terisi) and
+ *   U (Terisi, tumpang only) become Terisi through Inventory's own "already
+ *   occupied" clearing (Hak Pakai with "data menyusul", no Pemegang Hak, no
+ *   Pemakaman); U and I cannot differ, because whether a Terisi plot may take a
+ *   tumpang is derived from its burials, so every Terisi Petak here is offered
+ *   as tumpang-only where the Lokasi allows tumpang. D (Dipesan) needs a held
+ *   order and a Kavling Dipesan has no manual state at all: a D Petak becomes
+ *   Tidak Tersedia with a reason saying it is an example, and a Dipesan Kavling
+ *   becomes Terisi ("data menyusul"); both are simply not pickable, as Dipesan is
+ *   (until the picker reads a Kavling's own Hak Pakai, `picker.ts` shows an
+ *   occupied Kavling as pickable although Inventory's availability counts do not count it.)
+ * - Re-run on a stack an older version seeded (Bloks of single-row chunks "A",
+ *   "A-2", ..., which Inventory cannot delete: a Blok keeps at least one row and
+ *   one column): those Bloks are left untouched, the prototype Bloks are added
+ *   beside them (matched by name, so once) and only a Jenis Makam still short
+ *   of its count gets tidy Bloks. So on such a stack the Tersedia count is the
+ *   old chunks' plus the prototype's Tersedia cells, above the mock's number.
+ *   A Petak number the old chunks already use (`A-01`) makes the prototype Blok
+ *   take the next free prefix (`A2-01`), since Nomor Makam is unique per Lokasi.
  * - The mock's facilities are mapped onto the Kunjungan Verifikasi checklist
  *   1:1 (mushola→musala, akses-mobil→akses_ambulans, keamanan→pos_jaga,
  *   pendopo→tempat_duduk, air→air_bersih, parkir and toilet unchanged); every
@@ -95,7 +121,7 @@ import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import type { Actor } from "@/domain/identity";
-import { createInventory, MAX_BLOK_DIMENSION } from "@/domain/inventory";
+import { createInventory } from "@/domain/inventory";
 import {
   createLokasi,
   DEFAULT_FLAGS,
@@ -188,6 +214,30 @@ export interface JenisMakamSpec {
   hargaBaru?: { effectiveOn: string; hargaHakPakai: number };
 }
 
+/**
+ * One Blok of the prototype's Denah (`_mock/denah.ts`), a grid of characters:
+ * T Tersedia, D Dipesan, I Terisi, U Terisi (tumpang only), X Tidak Tersedia,
+ * K part of a Kavling Keluarga, . Jalan, # Bukan Petak.
+ */
+export interface BlokPrototipe {
+  nama: string;
+  /** The Nomor Makam prefix: `A` gives `A-01`, `A-02`, ... over the Petak, in reading order. */
+  prefix: string;
+  /** The name of the Jenis Makam of this Blok's Petak (one of the Lokasi's `jenisMakam`). */
+  jenisMakam: string;
+  rows: string[];
+  kavling?: KavlingPrototipe[];
+}
+
+export interface KavlingPrototipe {
+  nomor: string;
+  r: number;
+  c: number;
+  h: number;
+  w: number;
+  status: "Tersedia" | "Dipesan";
+}
+
 export interface ContohLokasiSpec {
   name: string;
   pengelolaName: string;
@@ -207,6 +257,8 @@ export interface ContohLokasiSpec {
   adminLokasiPhone: string;
   /** The mock's `kontakSiaga.nama`, given to `verifyKodeMasuk` at this Admin Lokasi's first Kode Masuk login. */
   kontakSiagaName: string;
+  /** The prototype's own Denah for this Lokasi (only the two with Terencana on have one), built exactly before any tidy top-up Blok. */
+  denahPrototipe?: BlokPrototipe[];
 }
 
 /** The prototype's five example Lokasi Mitra (`_mock/data.ts` on `origin/prototype-public-site`), as close to the mock as the real domain allows. */
@@ -265,6 +317,20 @@ export const CONTOH_LOKASI: ContohLokasiSpec[] = [
     adminLokasiEmail: "lokasi.wakaf-al-ikhlas@contoh.makam.invalid",
     adminLokasiPhone: "085100000002",
     kontakSiagaName: "Ustaz Farid",
+    denahPrototipe: [
+      {
+        nama: "Blok Utama",
+        prefix: "U",
+        jenisMakam: "Makam Umum",
+        rows: ["IIIIII.IIII", "IIDIII.ITTT", "...........", "TTTTTT.KKKK", "TTTTTT.KKKK"],
+        kavling: [
+          { nomor: "KK-U1", r: 3, c: 7, h: 1, w: 2, status: "Tersedia" },
+          { nomor: "KK-U2", r: 3, c: 9, h: 1, w: 2, status: "Dipesan" },
+          { nomor: "KK-U3", r: 4, c: 7, h: 1, w: 2, status: "Tersedia" },
+          { nomor: "KK-U4", r: 4, c: 9, h: 1, w: 2, status: "Dipesan" },
+        ],
+      },
+    ],
   },
   {
     name: "Makam Masjid Nurul Huda",
@@ -311,6 +377,21 @@ export const CONTOH_LOKASI: ContohLokasiSpec[] = [
     adminLokasiEmail: "lokasi.hijau-asri@contoh.makam.invalid",
     adminLokasiPhone: "085100000004",
     kontakSiagaName: "Ibu Ratna",
+    denahPrototipe: [
+      {
+        nama: "Blok A",
+        prefix: "A",
+        jenisMakam: "Makam Standar",
+        rows: ["IIIU.IIDTTTTX", "IIII.ITTTTTTT", ".............", "TTDD.TTTTTT##", "TTTT.TTTTIID#", ".............", "KKKK.TTTT####", "KKKK.TTTT####"],
+        kavling: [
+          { nomor: "KK-A1", r: 6, c: 0, h: 2, w: 2, status: "Tersedia" },
+          { nomor: "KK-A2", r: 6, c: 2, h: 2, w: 2, status: "Dipesan" },
+        ],
+      },
+      { nama: "Blok B", prefix: "B", jenisMakam: "Makam Standar", rows: ["TTTT.##TTT", "TTIT.##TIT", "..........", "TTTTTT.TTT", "TDTTTT.TTX"] },
+      // The prototype's `premium` Blok: no Tersedia cell, so it sits on the mock's `tersedia: 0` Jenis Makam.
+      { nama: "Blok Melati", prefix: "M", jenisMakam: "Makam Taman", rows: ["IIDI.IID", "IXII.DII", "####.III", "####.IIX"] },
+    ],
   },
   {
     name: "Pemakaman Bukit Sejuk",
@@ -479,75 +560,230 @@ async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, s
   );
 }
 
+/** A tidy top-up Blok holds at most this many Petak (10 columns, so at most 10 Petak rows and the Jalan rows between them). */
+const MAKS_PETAK_PER_BLOK_RAPI = 100;
+const KOLOM_BLOK_RAPI = 10;
+/** A Jalan row after every this many Petak rows. */
+const BARIS_PETAK_SEBELUM_JALAN = 4;
+
 /**
- * `count` split into chunks of at most `MAX_BLOK_DIMENSION`, the size of the
- * one-row Bloks a Jenis Makam's Tersedia Petak count is built from: every
- * cell of every one of them is cleared (never a leftover Perlu Verifikasi
- * cell anywhere in the Lokasi), which "Pemesanan Terencana aktif" needs
- * globally, not just for the Jenis Makam being built.
+ * The grid of a tidy top-up Blok for `jumlah` Petak, every one `sel` ("T"
+ * Tersedia, or "X" Tidak Tersedia): 10 columns (fewer when there are fewer
+ * Petak), a Jalan row after every 4 Petak rows, and the unfilled tail of the
+ * last row Bukan Petak, so it is always a full rectangle.
  */
-function denahChunksFor(count: number): number[] {
-  const chunks: number[] = [];
-  for (let remaining = count; remaining > 0; remaining -= MAX_BLOK_DIMENSION) {
-    chunks.push(Math.min(remaining, MAX_BLOK_DIMENSION));
+export function gridRapi(jumlah: number, sel: "T" | "X"): string[] {
+  const kolom = Math.min(KOLOM_BLOK_RAPI, jumlah);
+  const barisPetak = Math.ceil(jumlah / kolom);
+  const rows: string[] = [];
+  let sisa = jumlah;
+  for (let baris = 0; baris < barisPetak; baris += 1) {
+    if (baris > 0 && baris % BARIS_PETAK_SEBELUM_JALAN === 0) rows.push(".".repeat(kolom));
+    const isi = Math.min(kolom, sisa);
+    rows.push(sel.repeat(isi) + "#".repeat(kolom - isi));
+    sisa -= isi;
   }
-  return chunks;
+  return rows;
 }
 
-/** A supplier of Blok names: `base` first, then `base-2`, `base-3`, ... */
-function namaBerurutan(base: string): () => string {
-  let n = 0;
-  return () => {
-    n += 1;
-    return n === 1 ? base : `${base}-${n}`;
-  };
+/** Blok letters: A, B, ..., Z, AA, AB, ... */
+function hurufKe(index: number): string {
+  const huruf = String.fromCharCode(65 + (index % 26));
+  return index < 26 ? huruf : `${hurufKe(Math.floor(index / 26) - 1)}${huruf}`;
+}
+
+interface KavlingGrid {
+  /** Unset: Inventory picks the next free Nomor Kavling from the Blok's pattern. */
+  nomor?: string;
+  r: number;
+  c: number;
+  h: number;
+  w: number;
+  status: "Tersedia" | "Dipesan";
+}
+
+interface BlokGrid {
+  nama: string;
+  /** Nomor Makam prefixes to try in turn (`A`, then `A2`, ...): a number already used elsewhere in the Lokasi is refused. */
+  awalan: string[];
+  jenisMakamId: string;
+  rows: string[];
+  kavling: KavlingGrid[];
+  kavlingJenisMakamId: string | null;
 }
 
 /**
- * The Denah behind `jumlah` Tersedia units of one Jenis Makam: one or more
- * Bloks (`denahChunksFor`'s chunks, every cell cleared Tersedia), or, for a
- * mock "Kavling Keluarga N Petak" entry, `jumlah` real Kavling Keluarga units
- * instead of standalone Petak; or, for the mock's one `tersedia: 0` entry, its
- * single Petak cleared Tidak Tersedia. `nextName` gives each new Blok its name.
+ * One Blok from its grid (`BlokPrototipe`'s characters), only through
+ * Inventory's public functions: createBlok, setCellKind (Jalan, Bukan Petak),
+ * renumberCells (Petak only, in reading order), createKavling, then clearPetak
+ * / clearKavling for every cell's status. Returns reason `nomor_bentrok` when
+ * every prefix in `awalan` clashes with a Nomor Makam already in the Lokasi.
  */
-async function bangunDenahJenisMakam(
+async function bangunBlokDariGrid(modul: Modul, adminLokasi: Actor, lokasiId: string, blok: BlokGrid, alasan: string): Promise<{ ok: true } | Gagal> {
+  const { inventory } = modul;
+
+  let blokId: string | null = null;
+  let pola = "";
+  for (const awalan of blok.awalan) {
+    pola = `${awalan}-{nn}`;
+    const dibuat = await inventory.createBlok(adminLokasi, lokasiId, {
+      name: blok.nama,
+      rows: blok.rows.length,
+      cols: blok.rows[0].length,
+      numberPattern: pola,
+      jenisMakamId: blok.jenisMakamId,
+    });
+    if (dibuat.ok) {
+      blokId = dibuat.blok.id;
+      break;
+    }
+    if (dibuat.reason !== "nomor_sudah_dipakai") return { ok: false, reason: `blok ${blok.nama}: ${dibuat.reason}` };
+  }
+  if (!blokId) return { ok: false, reason: "nomor_bentrok" };
+
+  const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blokId);
+  const idPerSel = new Map((denah?.cells ?? []).map((cell) => [`${cell.row},${cell.col}`, cell.id]));
+  const kavlingDi = (r: number, c: number) => blok.kavling.find((k) => r >= k.r && r < k.r + k.h && c >= k.c && c < k.c + k.w);
+
+  const jalan: string[] = [];
+  const bukanPetak: string[] = [];
+  const petak: { id: string; status: string }[] = [];
+  for (const [r, baris] of blok.rows.entries()) {
+    for (const [c, karakter] of [...baris].entries()) {
+      const id = idPerSel.get(`${r},${c}`);
+      if (!id) return { ok: false, reason: `blok ${blok.nama}: sel ${r},${c} tidak ada` };
+      if (karakter === ".") jalan.push(id);
+      else if (karakter === "#") bukanPetak.push(id);
+      // A K cell outside every Kavling rectangle is a plot that cannot be sold: Tidak Tersedia.
+      else petak.push({ id, status: karakter === "K" && !kavlingDi(r, c) ? "X" : karakter });
+    }
+  }
+
+  for (const [kind, cellIds] of [["jalan", jalan], ["bukan_petak", bukanPetak]] as const) {
+    if (cellIds.length === 0) continue;
+    const diubah = await inventory.setCellKind(adminLokasi, lokasiId, blokId, { cellIds, kind });
+    if (!diubah.ok) return { ok: false, reason: `blok ${blok.nama} ${kind}: ${diubah.reason}` };
+  }
+  if (petak.length > 0) {
+    const diberiNomor = await inventory.renumberCells(adminLokasi, lokasiId, blokId, { cellIds: petak.map((one) => one.id), pattern: pola });
+    if (!diberiNomor.ok) return { ok: false, reason: `blok ${blok.nama} nomor: ${diberiNomor.reason}` };
+  }
+
+  for (const { id, status } of petak) {
+    if (status === "K") continue; // cleared with its Kavling Keluarga below
+    const cleared =
+      status === "T"
+        ? await inventory.clearPetak(adminLokasi, lokasiId, id, { mode: "tersedia" })
+        : status === "I" || status === "U"
+          ? await inventory.clearPetak(adminLokasi, lokasiId, id, { mode: "terisi", dataMenyusul: true })
+          : await inventory.clearPetak(adminLokasi, lokasiId, id, {
+              mode: "tidak_tersedia",
+              reason: `${alasan}: ${status === "D" ? "Dipesan (contoh data, tanpa pesanan)" : "Tidak tersedia (contoh data)"}`,
+            });
+    if (!cleared.ok) return { ok: false, reason: `blok ${blok.nama} petak: ${cleared.reason}` };
+  }
+
+  for (const k of blok.kavling) {
+    if (!blok.kavlingJenisMakamId) return { ok: false, reason: `blok ${blok.nama}: Kavling tanpa Jenis Makam` };
+    const cellIds: string[] = [];
+    for (let r = k.r; r < k.r + k.h; r += 1) for (let c = k.c; c < k.c + k.w; c += 1) cellIds.push(idPerSel.get(`${r},${c}`)!);
+    const kavling = await inventory.createKavling(adminLokasi, lokasiId, blokId, { cellIds, jenisMakamId: blok.kavlingJenisMakamId, nomorKavling: k.nomor });
+    if (!kavling.ok) return { ok: false, reason: `kavling ${k.nomor ?? ""}: ${kavling.reason}` };
+    const cleared = await inventory.clearKavling(adminLokasi, lokasiId, kavling.kavlingId, k.status === "Tersedia" ? { mode: "tersedia" } : { mode: "terisi", dataMenyusul: true });
+    if (!cleared.ok) return { ok: false, reason: `kavling ${kavling.nomorKavling}: ${cleared.reason}` };
+  }
+  return { ok: true };
+}
+
+/**
+ * The Denah of one example Lokasi Mitra, completed only by adding: first the
+ * prototype's own Bloks it does not have yet (matched by name), built exactly;
+ * then, for each Jenis Makam still short of the mock's Tersedia count, tidy
+ * top-up Bloks ("Blok C", ...; Kavling Keluarga units for a Kavling entry). With
+ * `denganKosong`, the mock's `tersedia: 0` Jenis Makam gets one Tidak Tersedia
+ * Petak when no prototype Blok already sits on it. A second call adds nothing.
+ */
+async function lengkapiDenah(
   modul: Modul,
   adminLokasi: Actor,
   lokasiId: string,
-  jenisMakamId: string,
-  spec: JenisMakamSpec,
-  jumlah: number,
-  nextName: () => string,
+  spec: ContohLokasiSpec,
+  idPerNama: Map<string, string>,
+  denganKosong: boolean,
   alasan: string,
 ): Promise<{ ok: true } | Gagal> {
   const { inventory } = modul;
+  const kavlingJenisMakamId = idPerNama.get(spec.jenisMakam.find((jm) => jm.kavlingPetak)?.name ?? "") ?? null;
+  const dipakai = new Set((await inventory.asStaff(adminLokasi).bloks(lokasiId)).map((blok) => blok.name.toLowerCase()));
 
-  if (spec.kavlingPetak) {
-    const units = Math.max(jumlah, 1);
-    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: nextName(), rows: 1, cols: spec.kavlingPetak * units, jenisMakamId });
-    if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
-    const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
-    const cells = denah?.cells ?? [];
-    for (let unit = 0; unit < units; unit += 1) {
-      const members = cells.slice(unit * spec.kavlingPetak, (unit + 1) * spec.kavlingPetak).map((cell) => cell.id);
-      const kavling = await inventory.createKavling(adminLokasi, lokasiId, blok.blok.id, { cellIds: members, jenisMakamId });
-      if (!kavling.ok) return { ok: false, reason: `kavling: ${kavling.reason}` };
-      const cleared = await inventory.clearKavling(adminLokasi, lokasiId, kavling.kavlingId, { mode: "tersedia" });
-      if (!cleared.ok) return { ok: false, reason: `kavling tersedia: ${cleared.reason}` };
-    }
-    return { ok: true };
+  for (const proto of spec.denahPrototipe ?? []) {
+    if (dipakai.has(proto.nama.toLowerCase())) continue;
+    const jenisMakamId = idPerNama.get(proto.jenisMakam);
+    if (!jenisMakamId) return { ok: false, reason: `blok ${proto.nama}: Jenis Makam ${proto.jenisMakam} tidak ada` };
+    const dibangun = await bangunBlokDariGrid(
+      modul,
+      adminLokasi,
+      lokasiId,
+      {
+        nama: proto.nama,
+        awalan: [proto.prefix, ...Array.from({ length: 8 }, (_, n) => `${proto.prefix}${n + 2}`)],
+        jenisMakamId,
+        rows: proto.rows,
+        kavling: proto.kavling ?? [],
+        kavlingJenisMakamId,
+      },
+      alasan,
+    );
+    if (!dibangun.ok) return dibangun;
+    dipakai.add(proto.nama.toLowerCase());
   }
 
-  const count = spec.kosong ? 1 : Math.max(jumlah, 1);
-  for (const chunkSize of denahChunksFor(count)) {
-    const blok = await inventory.createBlok(adminLokasi, lokasiId, { name: nextName(), rows: 1, cols: chunkSize, jenisMakamId });
-    if (!blok.ok) return { ok: false, reason: `blok: ${blok.reason}` };
-    const denah = await inventory.asStaff(adminLokasi).blok(lokasiId, blok.blok.id);
-    for (const cell of denah?.cells ?? []) {
-      const cleared = spec.kosong
-        ? await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tidak_tersedia", reason: `${alasan}: Dipesan lebih dulu (contoh data)` })
-        : await inventory.clearPetak(adminLokasi, lokasiId, cell.id, { mode: "tersedia" });
-      if (!cleared.ok) return { ok: false, reason: `petak: ${cleared.reason}` };
+  let huruf = 0;
+  /** The next free "Blok <huruf>": skips a name taken and a letter whose Nomor Makam a Blok here already uses. */
+  const bangunRapi = async (jenisMakamId: string, rows: string[], kavling: KavlingGrid[]): Promise<{ ok: true } | Gagal> => {
+    for (; huruf < 26 * 27; huruf += 1) {
+      const nama = `Blok ${hurufKe(huruf)}`;
+      if (dipakai.has(nama.toLowerCase())) continue;
+      const dibangun = await bangunBlokDariGrid(modul, adminLokasi, lokasiId, { nama, awalan: [hurufKe(huruf)], jenisMakamId, rows, kavling, kavlingJenisMakamId: kavling.length ? jenisMakamId : null }, alasan);
+      if (dibangun.ok) {
+        dipakai.add(nama.toLowerCase());
+        return dibangun;
+      }
+      if (dibangun.reason !== "nomor_bentrok") return dibangun;
+    }
+    return { ok: false, reason: "tidak ada nama Blok yang bebas" };
+  };
+
+  const tersedia = new Map((await inventory.tersediaPerJenisMakam(lokasiId)).map((row) => [row.jenisMakamId, row.count]));
+  for (const jm of spec.jenisMakam) {
+    const id = idPerNama.get(jm.name);
+    if (!id) continue;
+    if (jm.kosong) {
+      const dipakaiPrototipe = (spec.denahPrototipe ?? []).some((proto) => proto.jenisMakam === jm.name);
+      if (denganKosong && !dipakaiPrototipe) {
+        const dibangun = await bangunRapi(id, gridRapi(1, "X"), []);
+        if (!dibangun.ok) return { ok: false, reason: `${jm.name}: ${dibangun.reason}` };
+      }
+      continue;
+    }
+    const kurang = jm.tersedia - (tersedia.get(id) ?? 0);
+    if (kurang <= 0) continue;
+
+    if (jm.kavlingPetak) {
+      // Each unit a rectangle of `kavlingPetak` Petak (1 × 2, 2 × 2, ...), side by side in one row of units.
+      const h = jm.kavlingPetak >= 4 ? 2 : 1;
+      const w = jm.kavlingPetak / h;
+      const kavling = Array.from({ length: kurang }, (_, u): KavlingGrid => ({ r: 0, c: u * w, h, w, status: "Tersedia" }));
+      const dibangun = await bangunRapi(id, Array.from({ length: h }, () => "K".repeat(w * kurang)), kavling);
+      if (!dibangun.ok) return { ok: false, reason: `${jm.name}: ${dibangun.reason}` };
+      continue;
+    }
+    // Split evenly (103 becomes 52 + 51, never 100 + 3), so no top-up Blok is a stub.
+    const jumlahBlok = Math.ceil(kurang / MAKS_PETAK_PER_BLOK_RAPI);
+    for (let ke = 0; ke < jumlahBlok; ke += 1) {
+      const ukuran = Math.floor(kurang / jumlahBlok) + (ke < kurang % jumlahBlok ? 1 : 0);
+      const dibangun = await bangunRapi(id, gridRapi(ukuran, "T"), []);
+      if (!dibangun.ok) return { ok: false, reason: `${jm.name}: ${dibangun.reason}` };
     }
   }
   return { ok: true };
@@ -555,48 +791,39 @@ async function bangunDenahJenisMakam(
 
 /**
  * Brings an already-listed example Lokasi Mitra (seeded by an older version of
- * this command) up to the mock, only ever adding: the Tersedia Petak / Kavling
- * units it is short of (new Bloks, cleared Tersedia; nothing existing is
- * touched, removed or re-cleared, and the mock's one `tersedia: 0` entry is
- * left alone), and its Kontak Siaga's name when the Akun still has none (a
- * Kode Masuk login fills it, never replacing one). Returns how many things it
- * changed; 0 changes nothing, not even a login.
+ * this command) up to the mock, only ever adding: the prototype Bloks it does
+ * not have yet, the Tersedia Petak / Kavling units it is still short of (tidy
+ * Bloks, cleared; nothing existing is touched, removed or re-cleared, and the
+ * mock's one `tersedia: 0` entry is left alone), and its Kontak Siaga's name
+ * when the Akun still has none (a Kode Masuk login fills it, never replacing
+ * one). Returns how many things it changed; 0 changes nothing, not even a login.
  */
 async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; berubah: number } | Gagal> {
   const { tariffs, inventory, lokasi, adapters } = modul;
-  const [{ jenisMakam }, tersedia, kontak] = await Promise.all([
+  const [{ jenisMakam }, tersedia, kontak, bloks] = await Promise.all([
     tariffs.asStaff(admin).lokasiTariffs(lokasiId, adapters.clock.now()),
     inventory.tersediaPerJenisMakam(lokasiId),
     lokasi.kontakSiagaOf(lokasiId),
+    inventory.asStaff(admin).bloks(lokasiId),
   ]);
   const countById = new Map(tersedia.map((row) => [row.jenisMakamId, row.count]));
-  const kurang: { jm: JenisMakamSpec; id: string; jumlah: number }[] = [];
+  let kurang = 0;
   for (const jm of spec.jenisMakam) {
     if (jm.kosong) continue;
     const found = jenisMakam.find((one) => one.name === jm.name);
-    if (!found) continue;
-    const jumlah = jm.tersedia - (countById.get(found.id) ?? 0);
-    if (jumlah > 0) kurang.push({ jm, id: found.id, jumlah });
+    if (found && jm.tersedia - (countById.get(found.id) ?? 0) > 0) kurang += 1;
   }
+  const bloksAda = new Set(bloks.map((blok) => blok.name.toLowerCase()));
+  const prototipeBelum = (spec.denahPrototipe ?? []).filter((proto) => !bloksAda.has(proto.nama.toLowerCase())).length;
   const perluNama = kontak !== null && kontak.name === "";
-  if (kurang.length === 0 && !perluNama) return { ok: true, berubah: 0 };
+  if (kurang === 0 && prototipeBelum === 0 && !perluNama) return { ok: true, berubah: 0 };
 
   const adminLokasi = await masukDenganKodeMasuk(modul, spec.adminLokasiEmail, spec.kontakSiagaName);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
 
-  const dipakai = new Set((await inventory.asStaff(admin).bloks(lokasiId)).map((blok) => blok.name));
-  let k = 0;
-  const nextName = () => {
-    do k += 1;
-    while (dipakai.has(`Tambahan-${k}`));
-    dipakai.add(`Tambahan-${k}`);
-    return `Tambahan-${k}`;
-  };
-  for (const { jm, id, jumlah } of kurang) {
-    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, id, jm, jumlah, nextName, alasan);
-    if (!built.ok) return { ok: false, reason: `denah ${jm.name}: ${built.reason}` };
-  }
-  return { ok: true, berubah: kurang.length + (perluNama ? 1 : 0) };
+  const denah = await lengkapiDenah(modul, adminLokasi.value, lokasiId, spec, new Map(jenisMakam.map((one) => [one.name, one.id])), false, alasan);
+  if (!denah.ok) return { ok: false, reason: `denah: ${denah.reason}` };
+  return { ok: true, berubah: kurang + prototipeBelum + (perluNama ? 1 : 0) };
 }
 
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */
@@ -689,10 +916,8 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
   const kebijakan = await lokasi.setPoliciesAndFlags(admin, lokasiId, { policies, flags });
   if (!kebijakan.ok) return { ok: false, reason: `kebijakan: ${kebijakan.reason}` };
 
-  for (const [index, jm] of spec.jenisMakam.entries()) {
-    const built = await bangunDenahJenisMakam(modul, adminLokasi.value, lokasiId, jenisMakamIds[index], jm, jm.kosong ? 1 : jm.tersedia, namaBerurutan(String.fromCharCode(65 + index)), alasan);
-    if (!built.ok) return { ok: false, reason: `denah ${jm.name}: ${built.reason}` };
-  }
+  const denah = await lengkapiDenah(modul, adminLokasi.value, lokasiId, spec, new Map(spec.jenisMakam.map((jm, index) => [jm.name, jenisMakamIds[index]])), true, alasan);
+  if (!denah.ok) return { ok: false, reason: `denah: ${denah.reason}` };
 
   if (spec.terencanaAktif) {
     const tugasCekDenah = await fieldwork.createTugasLapangan(admin, {
