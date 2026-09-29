@@ -1033,14 +1033,6 @@
         "tagihan_pengembalian_check": {
           "name": "tagihan_pengembalian_check",
           "value": "(\"tagihan\".\"pengembalian_diminta_at\" is null) = (\"tagihan\".\"pengembalian_jumlah\" is null)"
-        },
-        "tagihan_harga_khusus_porsi_mitra_check": {
-          "name": "tagihan_harga_khusus_porsi_mitra_check",
-          "value": "\"tagihan\".\"harga_khusus_porsi_mitra\" is null or \"tagihan\".\"harga_khusus_porsi_mitra\" between 0 and 100000000000"
-        },
-        "tagihan_harga_khusus_porsi_mitra_catatan_check": {
-          "name": "tagihan_harga_khusus_porsi_mitra_catatan_check",
-          "value": "\"tagihan\".\"harga_khusus_porsi_mitra\" is null or \"tagihan\".\"harga_khusus_porsi_mitra\" = 0 or \"tagihan\".\"harga_khusus_porsi_mitra_catatan\" is not null"
         }
       },
       "isRLSEnabled": false
