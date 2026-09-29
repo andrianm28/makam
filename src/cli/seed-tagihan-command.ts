@@ -10,19 +10,10 @@ import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { documentPagePath } from "@/lib/document-links";
 import type { Rupiah } from "@/lib/rupiah";
 import { cliFailure } from "./cli-failure";
+import { isiPengaturanOperatorBilaKosong } from "./dev-seed-support";
 
 const USAGE = "Pakai: seed-tagihan";
 
-/** The example Pengaturan Operator a fresh local stack gets (never on staging or production). */
-const CONTOH_PENGATURAN_OPERATOR = {
-  legalName: "PT Jaya Korpora Prima",
-  address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
-  phone: "(021) 555-0101",
-  email: "halo@makam.co.id",
-  csWhatsApp: "0811-2222-3333",
-  csReplyHours: "dibalas mulai pukul 06:00",
-  reason: "Contoh untuk stack lokal (seed-tagihan)",
-};
 
 /**
  * `node dist/seed-tagihan.mjs` inside a development or test stack: issues an
@@ -67,7 +58,7 @@ export async function seedTagihanCommand(
           totp: "lolos",
           sessionId: `seed-tagihan-${randomUUID()}`,
         };
-        const entered = await operatorSettings.change(asAdmin, CONTOH_PENGATURAN_OPERATOR);
+        const entered = await isiPengaturanOperatorBilaKosong(operatorSettings, asAdmin, "Contoh untuk stack lokal (seed-tagihan)");
         if (!entered.ok) return { exitCode: 1, output: `Ditolak: Pengaturan Operator contoh tidak tersimpan (${entered.reason}).` };
       }
 
