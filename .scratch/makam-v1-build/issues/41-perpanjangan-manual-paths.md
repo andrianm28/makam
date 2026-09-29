@@ -1,6 +1,6 @@
 # Perpanjangan manual paths: KTP, heir and claim
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 40
 Spec: Domain modules > 7. Perpanjangan (paths, 30-day approval); 5. Inventory (Perlu Verifikasi completion); 14. Work Queues (Periksa dokumen Perpanjangan); stories 59, 60, 61, 67, 124
 
@@ -28,3 +28,4 @@ The three document-reviewed paths into Perpanjangan: a Pemegang Hak whose Hak Pa
   - The order step is shared: `pesanTagihan` (extracted from `ajukanPerpanjangan`, ticket 40's direct path unchanged) is what `pesanDariPermohonan` calls after checking approval, owner, 30 days and "not yet paid", so status, `tawaran`, the K limit, the overdue-Tagihan block and the payment effect are the direct path's own. A lapsed first Tagihan is replaced without uploading again; day 31 needs a new request.
   - Documents: private FileStore only, at most 3 MB each (three of them must fit a Server Action body, which `next.config.ts` caps at 11 MB); staff read them through 5-minute signed URLs, only for the request's own Lokasi.
   - Deliberately not built, for the reviewers to weigh: no family message on approve / reject / Perlu Perbaikan (the spec's Notifications list names none and the ACs ask for none; the family sees it on the request page and in Akun Saya's Perlu tindakan strip). Ticket 42 is expected to touch `queues` deps, `tests/support/perpanjangan.ts` and the runtime the same way, so a merge conflict there is additive.
+- 2026-09-29 — Merged to `main` (branch at 448a02f; its migration renumbered 0039 → 0041, byte-identical, second `db:generate` empty, snapshot chain unchanged). Two-axis review: the first review found orphan private files when a submission or correction was refused, the Berkas read-back schema repeated, `isi()` copied between actions files and `permohonan.ts` too large; the fix pass cleans up stored files on refusal and on replacement (tested), keeps one `berkasPermohonanSchema`, one `src/server/form-fields.ts` helper and splits the module; the KTP-path finding was left unchanged because the spec (story 59: "no email recorded, or whose recorded email I can no longer use") lets the Pemegang Hak choose the path, which the re-review confirmed. Re-review: every item OK, no hard violation. Follow-ups: none.
