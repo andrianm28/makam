@@ -341,18 +341,18 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
  * A message about a Tagihan is dropped rather than sent once it no longer has
  * to go out: its Tagihan settled (Lunas, Dibatalkan, Tidak Tertagih, or gone
  * — its reminders stop, spec Notifications), or it is a reminder that reached
- * the family a day late and would name the wrong day. A Bukti Pembayaran is
- * the exception: its Tagihan is Lunas by definition, and the receipt is the
- * message the family is waiting for.
+ * the family a day late and would name the wrong day. A Bukti Pembayaran and
+ * a Bukti Pengembalian Dana are the exceptions: their Tagihan is Lunas or
+ * Dikembalikan by definition, and each is the message the family is waiting for.
  */
 function perluDibatalkan(template: string, tagihan: Tagihan | null, now: Date): boolean {
   if (!tagihan || !TAGIHAN_MENUNGGU_UANG.includes(tagihan.status)) return true;
   return pengingatKetinggalan(template, tagihan.dueAt, now);
 }
 
-/** Whether this module's stop rule applies to the template at all (never to the receipt). */
+/** Whether this module's stop rule applies to the template at all (never to a receipt or a refund's Bukti). */
 function berlakuUntukTagihan(template: string): boolean {
-  return adalahTemplateEmail(template) && template !== "bukti_pembayaran_terbit";
+  return adalahTemplateEmail(template) && template !== "bukti_pembayaran_terbit" && template !== "pengembalian_terbit";
 }
 
 /** Every logged message about one Tagihan, oldest first: what its order page shows. */
