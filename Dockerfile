@@ -49,6 +49,11 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/drizzle ./drizzle
+# The FileStore volume's mount point (FILES_ROOT, ticket 60). It must exist in
+# the image and belong to `node`: a named volume created on first mount copies
+# this directory's ownership, and without it Docker creates the mount point as
+# root, so every upload fails with berkas_gagal_disimpan.
+RUN mkdir -p /data/files && chown node:node /data/files
 USER node
 EXPOSE 3000
 CMD ["node", "server.js"]
