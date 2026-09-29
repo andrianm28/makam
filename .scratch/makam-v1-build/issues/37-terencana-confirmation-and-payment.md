@@ -1,6 +1,6 @@
 # Terencana confirmation, payment hold and Aktif
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 23, 32, 36
 Spec: Domain modules > 6. Pemesanan (Terencana statuses); 10. Billing (Terencana pay-first); 11. Payouts (Terencana Hak Pakai); 14. Work Queues (Konfirmasi Terencana, Tier 3 terlambat); 15. Notifications (hold reminder); 16. Scheduler (expire holds, Masa Pembatalan ends); stories 46, 47, 49, 121
 
@@ -26,3 +26,4 @@ The Admin Lokasi confirms or declines a Terencana order from a Konfirmasi Terenc
   - **Migration `0035_quiet_marvel_zombies`** (expand only; `DROP NOT NULL` on `bukti_pemesanan.masa_mulai` passes the destructive-DDL check): Terencana order columns, unit `tenure_years`/`hak_pakai_id`, Hak Pakai `syarat`/`calon_penghuni`, `bukti_pemesanan.masa_tahun`, table `pencairan_terencana`.
   - **Readings for the owner** (decisions I made where the spec is silent, please confirm): (1) Masa Pembatalan end = payment + N x 24 h exactly, from the order's own Syarat. (2) The Bukti of a Terencana right nobody is buried in yet states the term as "N tahun sejak pemakaman pertama" (or perpetual), no dates; with several plots of different terms the shortest is stated and each plot's own term is named beside its number. (3) The Tier 3 row appears strictly after `konfirmasiDueAt` (fixed in the review pass). (4) The hold reminder goes 4 h before expiry, or at 19:59 WIB the evening before when that would fall at night; none when the hold is shorter than 4 h. (5) One Bukti and one Tagihan per order, one Biaya Layanan Platform, Harga Hak Pakai lines suffixed with the plot number.
   - **Found, not fixed (out of scope)**: `payouts.pemakamanTercatat` still has no production caller (ticket 25 never wired it), so the Saat Duka Pencairan trigger's burial half is only written by tests; my Terencana "first Pemakaman if sooner" reads the same fact and is exactly as reachable. A burial at a Terencana Hak Pakai has no order path yet either.
+- 2026-09-29 — Merged to `main`. Two-axis review: no hard violation on either axis. Standards smells fixed: the hold default moved to Lokasi, the Tier 3 row strictly after the deadline, `reportError` on a missing Tagihan, and the duplicated reads and senders deduped. Migration renumbered at merge from `0035_quiet_marvel_zombies` to `0036_ordinary_may_parker` (byte-identical SQL). Unblocks 38 (with 31) and 53 (with others).

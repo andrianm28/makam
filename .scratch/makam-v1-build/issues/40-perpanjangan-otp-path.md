@@ -1,6 +1,6 @@
 # Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 29, 32, 34, 82
 Spec: Domain modules > 7. Perpanjangan; 10. Billing (Perpanjangan pay-first, Bukti Perpanjangan); 11. Payouts (Perpanjangan on payment); stories 58, 62, 63, 64, 65, 66
 
@@ -47,3 +47,4 @@ For a Kavling Keluarga the Perpanjangan covers the whole kavling. The optional "
   - **Hub (spec narrowing built).** The lookup answer now carries `hakPakaiId` (an unguessable uuid, in `KUNCI_HASIL_CARI_MAKAM`; the page shows only a masked email and the code goes to the recorded one). Each found grave links to `/perpanjangan/<id>`, and the Perpanjang card no longer says "Segera hadir": it says to pick Perpanjang Makam on the result.
   - **Smells.** Payouts' two candidate queries share their columns; `fakta()`'s long conditional is `tidakAdaYangDiperpanjang`.
 - 2026-09-29 — Re-review fixes (builder). One mechanism for a transaction: `Notifications.within` is gone; `tagihanTerbit(input, within?)` (ticket 89) and `buktiPerpanjanganTerbit(input, within?)` take it the same way, rollback tests unchanged and green. Privacy (story 51): `status()` returns the open Tagihan (number, due date, link) only to the Akun signed in with the recorded email, so an anonymous hub search reaching `/perpanjangan/<id>` sees Lokasi, Petak, end date, prices and the masked email only; tested for no viewer, an unrelated Akun and the holder. The Tagihan page itself names the Pemegang Hak (addressee) and the total, but is reachable only through its unguessable link, which an anonymous visitor never receives. Migration 0035: `-- contract:` above the re-added CHECK too; `check-destructive-ddl` exit 0, second `db:generate` no changes.
+- 2026-09-29 — Merged to `main`. Two-axis review: a hard violation was found and fixed (the builder's AGENTS.md exception was reverted; the Kode Masuk steps were split from the guarded order; the messages now go in the transaction), the hub entry was built, and privacy was settled (an open Tagihan is shown only to the holder). Owner decision: a payment made after the Hak Pakai has ended lands in Pembayaran Perlu Ditinjau. Recorded for ticket 59, not fixed here: the `tariffs.quote` / Ditangguhkan defect. Migration renumbered at merge from `0035_dizzy_loa` to `0037_calm_microbe` (the hand-written `-- contract:` statements, the CHECK widening and the append-only trigger kept exactly; file byte-identical to the branch's). Unblocks 41 and 42.
