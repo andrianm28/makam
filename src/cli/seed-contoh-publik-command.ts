@@ -10,10 +10,11 @@
  * every Petak cleared). It also enters the shared example Pengaturan Operator
  * (the mock's CS contact, `dev-seed-support.ts`) when that is empty, never
  * overwriting it. A Lokasi Mitra an older run already listed is reconciled
- * with the mock, only ever adding (the Tersedia Petak / Kavling units it is
- * short of, a Jenis Makam price that differs as a new tariff version effective
- * today, and the Kontak Siaga's name while empty); once nothing is short it
- * changes nothing. Development and test always; staging — the environment the
+ * with the mock: its older single-row Bloks that are empty of history are
+ * removed, then it only adds (the prototype Bloks, the Tersedia Petak / Kavling
+ * units it is short of, a Jenis Makam price that differs as a new tariff
+ * version effective today, and the Kontak Siaga's name while empty); once
+ * nothing is short it changes nothing. Development and test always; staging — the environment the
  * beta for UAT runs on — only with the named allowance `--izinkan-staging`,
  * refused by default and named in the reason of every write that carries one
  * (`alasanSeed`, the same pattern as `import-katalog-lama-command.ts`'s
@@ -85,14 +86,15 @@
  *   becomes Terisi ("data menyusul"); both are simply not pickable, as Dipesan is
  *   (until the picker reads a Kavling's own Hak Pakai, `picker.ts` shows an
  *   occupied Kavling as pickable although Inventory's availability counts do not count it.)
- * - Re-run on a stack an older version seeded (Bloks of single-row chunks "A",
- *   "A-2", ..., which Inventory cannot delete: a Blok keeps at least one row and
- *   one column): those Bloks are left untouched, the prototype Bloks are added
- *   beside them (matched by name, so once) and only a Jenis Makam still short
- *   of its count gets tidy Bloks. So on such a stack the Tersedia count is the
- *   old chunks' plus the prototype's Tersedia cells, above the mock's number.
- *   A Petak number the old chunks already use (`A-01`) makes the prototype Blok
- *   take the next free prefix (`A2-01`), since Nomor Makam is unique per Lokasi.
+ * - Re-run on a stack an older version seeded (Bloks of single-row chunks named
+ *   "A", "A-2", ..., "Tambahan-1", ...): each such Blok is removed through
+ *   Inventory's `hapusBlok`, but only one that is empty of history (every Petak
+ *   only ever Tersedia or Tidak Tersedia, none held); one that has a Terisi Petak,
+ *   a Hak Pakai or a hold is left as it is. The prototype Bloks (matched by
+ *   name, so once) and the tidy top-up Bloks are then built, so the stack ends
+ *   with the prototype layout and the mock's counts. A Petak number an
+ *   untouched old Blok still uses (`A-01`) makes the prototype Blok take the
+ *   next free prefix (`A2-01`), since Nomor Makam is unique per Lokasi.
  * - The mock's facilities are mapped onto the Kunjungan Verifikasi checklist
  *   1:1 (mushola→musala, akses-mobil→akses_ambulans, keamanan→pos_jaga,
  *   pendopo→tempat_duduk, air→air_bersih, parkir and toilet unchanged); every
@@ -503,7 +505,7 @@ export async function seedContohPublikCommand(
       const idTerdaftar = new Map(terdaftar.map((one) => [one.name, one.id]));
       const belum = contoh.filter((spec) => !idTerdaftar.has(spec.name));
 
-      // An example Lokasi Mitra an older run already listed is reconciled, only ever adding.
+      // An example Lokasi Mitra an older run already listed is reconciled (see `samakanDenganContoh`).
       let berubah = operatorKosong ? 1 : 0;
       for (const spec of contoh) {
         const id = idTerdaftar.get(spec.name);
@@ -790,10 +792,25 @@ async function lengkapiDenah(
   return { ok: true };
 }
 
+/** The names an older version gave its single-row example Bloks: "A", "A-2", ..., "Tambahan-3". A current Blok is "Blok <huruf>" or a prototype name, never one of these. */
+const NAMA_BLOK_LAMA = /^(?:[A-Z](?:-\d+)?|Tambahan-\d+)$/;
+
+/** The older version's single-row Blok of this Lokasi that are empty of history (so Inventory would let them go). */
+async function bloksLama(modul: Modul, admin: Actor, lokasiId: string, bloks: { id: string; name: string; rows: number }[]): Promise<{ id: string }[]> {
+  const kandidat = bloks.filter((blok) => blok.rows === 1 && NAMA_BLOK_LAMA.test(blok.name));
+  const bersih: { id: string }[] = [];
+  for (const blok of kandidat) {
+    const denah = await modul.inventory.asStaff(admin).blok(lokasiId, blok.id);
+    if (denah && denah.cells.every((cell) => !cell.usedForever) && denah.kavling.every((kavling) => !kavling.firstUsedAt)) bersih.push({ id: blok.id });
+  }
+  return bersih;
+}
+
 /**
  * Brings an already-listed example Lokasi Mitra (seeded by an older version of
- * this command) up to the mock, only ever adding: the prototype Bloks it does
- * not have yet, the Tersedia Petak / Kavling units it is still short of (tidy
+ * this command) up to the mock: its older single-row Bloks that are empty of
+ * history are removed (`hapusBlok`), then only adding: the prototype Bloks it
+ * does not have yet, the Tersedia Petak / Kavling units it is still short of (tidy
  * Bloks, cleared; nothing existing is touched, removed or re-cleared, and the
  * mock's one `tersedia: 0` entry is left alone), a Jenis Makam price that
  * differs from the mock's (a new tariff version effective today, never an edit
@@ -823,10 +840,11 @@ async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string,
     const found = jenisMakam.find((one) => one.name === jm.name);
     return found?.inForce && found.inForce.hargaHakPakai !== jm.hargaHakPakai ? [{ jm, id: found.id }] : [];
   });
+  const lama = await bloksLama(modul, admin, lokasiId, bloks);
   const bloksAda = new Set(bloks.map((blok) => blok.name.toLowerCase()));
   const prototipeBelum = (spec.denahPrototipe ?? []).filter((proto) => !bloksAda.has(proto.nama.toLowerCase())).length;
   const perluNama = kontak !== null && kontak.name === "";
-  if (kurang === 0 && prototipeBelum === 0 && !perluNama && tarifBeda.length === 0) return { ok: true, berubah: 0 };
+  if (kurang === 0 && prototipeBelum === 0 && !perluNama && tarifBeda.length === 0 && lama.length === 0) return { ok: true, berubah: 0 };
 
   for (const { jm, id } of tarifBeda) {
     const diubah = await tariffs.setJenisMakamTariff(admin, id, {
@@ -843,14 +861,22 @@ async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string,
     const diperiksa = await tariffs.markTariffsChecked(admin, lokasiId, { reason: alasan });
     if (!diperiksa.ok) return { ok: false, reason: `tarif diperiksa: ${diperiksa.reason}` };
   }
-  if (kurang === 0 && prototipeBelum === 0 && !perluNama) return { ok: true, berubah: tarifBeda.length };
+  if (kurang === 0 && prototipeBelum === 0 && !perluNama && lama.length === 0) return { ok: true, berubah: tarifBeda.length };
 
   const adminLokasi = await masukDenganKodeMasuk(modul, spec.adminLokasiEmail, spec.kontakSiagaName);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
 
+  // The older version's single-row Bloks go first, so the counts below are read without them.
+  let dihapus = 0;
+  for (const blok of lama) {
+    const hasil = await inventory.hapusBlok(adminLokasi.value, lokasiId, blok.id, `${alasan}: Blok contoh lama diganti denah prototipe`);
+    if (hasil.ok) dihapus += 1;
+    // A Blok that turned out to have history or a hold stays, as it is.
+  }
+
   const denah = await lengkapiDenah(modul, adminLokasi.value, lokasiId, spec, new Map(jenisMakam.map((one) => [one.name, one.id])), false, alasan);
   if (!denah.ok) return { ok: false, reason: `denah: ${denah.reason}` };
-  return { ok: true, berubah: tarifBeda.length + kurang + prototipeBelum + (perluNama ? 1 : 0) };
+  return { ok: true, berubah: tarifBeda.length + kurang + prototipeBelum + dihapus + (perluNama ? 1 : 0) };
 }
 
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */

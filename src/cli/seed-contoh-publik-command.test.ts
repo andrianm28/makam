@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
-import { publishOnTestDatabase } from "../../tests/support/publish";
+import { publishOnTestDatabase, signedInAdminLokasi, signedInAdminPlatform } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
 import { CONTOH_LOKASI, seedContohPublikCommand } from "./seed-contoh-publik-command";
@@ -266,7 +266,9 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
   it(
     "reconciles Lokasi Mitra an older run listed with fewer Tersedia Petak, Kavling units and no Kontak Siaga name, only adding, and then changes nothing",
     async () => {
-      await seedAdmin();
+      // The Admin Platform is signed in by the test itself, since this test also draws Bloks as an Admin Lokasi.
+      const setup = publishOnTestDatabase(db);
+      const platform = await signedInAdminPlatform(setup);
       // What an older version seeded: every count capped at 3 (Kavling at 1), no Kontak Siaga name.
       const lama = CONTOH_LOKASI.map((spec) => ({
         ...spec,
@@ -282,7 +284,6 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const first = await seedContohPublikCommand([], env(), lama);
       expect(first.exitCode).toBe(0);
 
-      const setup = publishOnTestDatabase(db);
       const listed = await setup.lokasi.publicLokasiMitraList();
       const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
       expect((await setup.lokasi.kontakSiagaOf(wakaf.id))?.name).toBe("");
@@ -295,6 +296,22 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const petakBefore = before.reduce((sum, one) => sum + one.count, 0);
       expect(petakBefore).toBe(3 + 1);
 
+      // What the older version also left on staging: single-row example Bloks "A" (only Tersedia Petak) and "B"
+      // (one Tersedia, one Terisi Petak), drawn the way an Admin Lokasi would.
+      const adminLokasi = await signedInAdminLokasi(setup, platform.actor, [wakaf.id]);
+      const umum = (await setup.tariffs.lokasiTariffs(wakaf.id, new Date("2100-01-01T00:00:00Z"))).jenisMakam.find((one) => one.name === "Makam Umum")!;
+      const gambarLama = async (name: string, cols: number, terisi: number) => {
+        const blok = await setup.inventory.createBlok(adminLokasi, wakaf.id, { name, rows: 1, cols, numberPattern: `L${name}-{nn}`, jenisMakamId: umum.id });
+        if (!blok.ok) throw new Error(blok.reason);
+        const cells = (await setup.inventory.asStaff(adminLokasi).blok(wakaf.id, blok.blok.id))!.cells;
+        for (const [index, cell] of cells.entries()) {
+          const cleared = await setup.inventory.clearPetak(adminLokasi, wakaf.id, cell.id, index < terisi ? { mode: "terisi", dataMenyusul: true } : { mode: "tersedia" });
+          if (!cleared.ok) throw new Error(cleared.reason);
+        }
+      };
+      await gambarLama("A", 5, 0);
+      await gambarLama("B", 2, 1);
+
       // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
       await new Promise((resolve) => setTimeout(resolve, 61_000));
       const second = await seedContohPublikCommand([], env());
@@ -306,6 +323,12 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       // The Bloks the older run built are still there, untouched, and the prototype's "Blok Utama" was added beside them.
       const publicWakaf = await setup.inventory.publicDenah(wakaf.id);
       expect(publicWakaf?.bloks.map((blok) => blok.name)).toEqual(expect.arrayContaining(["Blok A", "Blok Utama"]));
+      // The old empty single-row Blok "A" was removed (through Inventory's hapusBlok), so Makam Umum is exactly the
+      // mock's 118 again; "B" holds a Terisi Petak, so it stays.
+      expect(publicWakaf?.bloks.map((blok) => blok.name)).not.toContain("A");
+      expect(publicWakaf?.bloks.map((blok) => blok.name)).toContain("B");
+      const umumSesudah = (await setup.inventory.tersediaPerJenisMakam(wakaf.id)).find((row) => row.jenisMakamId === umum.id);
+      expect(umumSesudah?.count).toBe(118);
       // Pengaturan Operator holds the mock's CS contact, entered by the first run because it was empty.
       const operator = await setup.operatorSettings.current();
       expect(operator?.csReplyHours).toBe("setiap hari, 06.00–22.00 WIB");
