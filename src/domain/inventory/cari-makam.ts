@@ -291,7 +291,7 @@ async function kavlingIdOfPetak(deps: InventoryDeps, lokasiId: string, petakId: 
 }
 
 /** The Petak Makam itself, with its current Nomor Makam; null when the id names no Petak of that Lokasi Mitra. */
-async function petakOf(deps: InventoryDeps, lokasiId: string, petakId: string): Promise<{ id: string; nomorMakam: string } | null> {
+export async function petakOf(deps: InventoryDeps, lokasiId: string, petakId: string): Promise<{ id: string; nomorMakam: string } | null> {
   const [row] = await deps.db
     .select({ id: inventoryPetak.id, nomorMakam: inventoryPetak.nomorMakam })
     .from(inventoryPetak)
@@ -302,7 +302,7 @@ async function petakOf(deps: InventoryDeps, lokasiId: string, petakId: string): 
 }
 
 /** The Kavling Keluarga itself, with its own Nomor Kavling; null when the id names none at that Lokasi Mitra. */
-async function kavlingOf(deps: InventoryDeps, lokasiId: string, kavlingId: string) {
+export async function kavlingOf(deps: InventoryDeps, lokasiId: string, kavlingId: string) {
   const [row] = await deps.db
     .select({ id: inventoryKavling.id, nomorKavling: inventoryKavling.nomorKavling })
     .from(inventoryKavling)
@@ -312,7 +312,7 @@ async function kavlingOf(deps: InventoryDeps, lokasiId: string, kavlingId: strin
 }
 
 /** Every Petak of a Kavling Keluarga, in reading order: the whole kavling is what the family is shown. */
-async function anggotaKavling(deps: InventoryDeps, kavlingId: string): Promise<{ id: string; nomorMakam: string }[]> {
+export async function anggotaKavling(deps: InventoryDeps, kavlingId: string): Promise<{ id: string; nomorMakam: string }[]> {
   const rows = await deps.db
     .select({ id: inventoryPetak.id, nomorMakam: inventoryPetak.nomorMakam })
     .from(inventoryPetak)
