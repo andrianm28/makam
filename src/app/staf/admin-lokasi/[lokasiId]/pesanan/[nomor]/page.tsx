@@ -47,7 +47,7 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
     // its own tables; another Lokasi Mitra's order is nothing found, as it is for a Saat Duka order.
     const terencana = await pemesanan.terencanaUntukStaf(actor, parsed.data);
     if (!terencana || terencana.lokasi.id !== current.id) notFound();
-    return <TerencanaPesananView order={terencana} lokasiId={current.id} />;
+    return <TerencanaPesananView order={terencana} lokasiId={current.id} pembatalan={await pemesanan.pembatalanUntukStaf(actor, terencana.nomor)} />;
   }
   // Another Lokasi Mitra's order is nothing found here, exactly as it is nowhere else in this area.
   if (order.lokasi.id !== current.id) notFound();
