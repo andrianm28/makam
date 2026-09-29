@@ -19,7 +19,6 @@ describe("the status vocabulary", () => {
       "Keluhan",
       "Diajukan",
       "Dikonfirmasi",
-      "Aktif",
       "Dimakamkan",
       "Selesai",
       "Ditolak",
