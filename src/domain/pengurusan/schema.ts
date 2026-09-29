@@ -1,4 +1,5 @@
 import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import type { ItemHariHTpu } from "@/domain/layanan";
 import {
   jenisPenguburanValues,
   type DokumenPemakamanDanPengajuan,
@@ -135,6 +136,12 @@ export const pengurusanTpu = pgTable(
     dokumenPemakaman: jsonb("dokumen_pemakaman").$type<DokumenPemakamanDanPengajuan["pemakaman"]>().notNull(),
     /** The documents to upload for the filing, as this order was placed. */
     dokumenPengajuan: jsonb("dokumen_pengajuan").$type<DokumenPemakamanDanPengajuan["pengajuan"]>().notNull(),
+    /**
+     * The hari-H Layanan the family added at submission (story 23): variant and text only,
+     * because their target date is the burial day, agreed at the confirmation, which is where
+     * they are priced onto the Tagihan and become Pekerjaan Layanan. Null when none.
+     */
+    layananHariH: jsonb("layanan_hari_h").$type<ItemHariHTpu[]>(),
     /** The instant the TPU window promised a confirmation by: two service hours. */
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /** The Tagihan issued at the confirmation; null until then. */

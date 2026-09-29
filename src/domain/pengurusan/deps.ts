@@ -3,6 +3,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { Tariffs } from "@/domain/tariffs";
@@ -48,4 +49,11 @@ export interface PengurusanDeps {
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;
   notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit">;
+  /**
+   * The hari-H Layanan a Saat Duka TPU order may add (story 23, ticket 56): priced at
+   * the DKI price for the Tagihan the confirmation issues, and scheduled as Pekerjaan
+   * Layanan inside that same transaction. Required: a missing wiring is a compile error,
+   * never a runtime refusal of an order that named such items.
+   */
+  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu">;
 }

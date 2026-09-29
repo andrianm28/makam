@@ -103,6 +103,7 @@ export {
   layananKatalogResource,
   lokasiMitraResource,
   mitraJasaResource,
+  pekerjaanTpuSemuaResource,
   pemesananResource,
   pencairanResource,
   pengembalianResource,

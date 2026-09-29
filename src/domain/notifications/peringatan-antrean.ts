@@ -19,7 +19,7 @@ import type { Clock } from "@/ports/clock";
 import type { StaffAlert, StaffAlertKind, StaffAlertResult } from "./index";
 import { notificationsPeringatanAntrean } from "./schema";
 
-export const tahapPeringatanAntrean = ["baru", "eskalasi_30", "eskalasi_90"] as const;
+export const tahapPeringatanAntrean = ["baru", "eskalasi_30", "eskalasi_90", "penugasan_tpu"] as const;
 export type TahapPeringatanAntrean = (typeof tahapPeringatanAntrean)[number];
 
 export interface PeringatanAntreanInput {
@@ -30,29 +30,51 @@ export interface PeringatanAntreanInput {
   row: { label: string; subjectLabel: string; href: string };
 }
 
+/** A TPU job handed to a Mitra Jasa (ticket 56): the alert names the job and its deadline, never the family. */
+export interface PeringatanPenugasanTpuInput {
+  to: { accountId: string };
+  /** The Layanan and its variant, e.g. "Bersih makam (Standar)". */
+  label: string;
+  /** Where and when, and the accept deadline: email only. */
+  subjectLabel: string;
+  /** The staff page where the Mitra Jasa answers. */
+  href: string;
+}
+
 export interface PeringatanAntreanResult {
   /** Peringatan Staf queued (one per recipient). */
   diantrekan: number;
 }
 
-const isi: Record<TahapPeringatanAntrean, { kind: StaffAlertKind; awalan: string; badan: string; email: string }> = {
+const isi: Record<TahapPeringatanAntrean, { kind: StaffAlertKind; awalan: string; badan: string; email: string; penutup: string }> = {
   baru: {
     kind: "staf_antrean_mendesak",
     awalan: "Antrean mendesak",
     badan: "Baris Tier 1 menunggu diambil.",
     email: "Ada baris Tier 1 di Antrean yang menunggu untuk diambil (Ambil).",
+    penutup: "Buka Antrean di aplikasi staf untuk mengambil atau menanganinya.",
   },
   eskalasi_30: {
     kind: "staf_antrean_eskalasi",
     awalan: "Belum diambil, 30 menit",
     badan: "Baris Tier 1 belum diambil siapa pun. Semua Admin Platform diberi tahu.",
     email: "Baris Tier 1 ini belum diambil (Ambil) sampai 30 menit setelah peringatan pertama, jadi semua Admin Platform diberi tahu.",
+    penutup: "Buka Antrean di aplikasi staf untuk mengambil atau menanganinya.",
   },
   eskalasi_90: {
     kind: "staf_antrean_eskalasi",
     awalan: "Belum dikonfirmasi, 90 menit",
     badan: "Konfirmasi TPU Saat Duka belum selesai. Semua Admin Platform diberi tahu lagi.",
     email: "Konfirmasi TPU Saat Duka ini masih belum dikonfirmasi 90 menit setelah peringatan pertama, jadi semua Admin Platform diberi tahu lagi.",
+    penutup: "Buka Antrean di aplikasi staf untuk mengambil atau menanganinya.",
+  },
+  // A TPU job handed to a Mitra Jasa (ticket 56): the words never name the family.
+  penugasan_tpu: {
+    kind: "staf_pekerjaan_tpu_ditugaskan",
+    awalan: "Pekerjaan baru ditugaskan",
+    badan: "Terima atau tolak di aplikasi sebelum tenggat.",
+    email: "Sebuah pekerjaan ditugaskan ke Anda. Tanpa jawaban sampai tenggat, pekerjaan dianggap ditolak.",
+    penutup: "Terima atau tolak di aplikasi staf, pada daftar pekerjaan Anda.",
   },
 };
 
@@ -99,7 +121,7 @@ export async function kirimPeringatanAntreanTick(
         kind: text.kind,
         email: {
           subject: `${text.awalan}: ${item.label}`,
-          text: [text.email, `${item.label}: ${item.subjectLabel}.`, "Buka Antrean di aplikasi staf untuk mengambil atau menanganinya."].join("\n"),
+          text: [text.email, `${item.label}: ${item.subjectLabel}.`, text.penutup].join("\n"),
         },
         // A push shows on the lock screen: the row's kind only, never who it is about.
         push: { title: `${text.awalan}: ${item.label}`, body: text.badan, url: item.href },

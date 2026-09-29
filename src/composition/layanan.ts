@@ -3,9 +3,11 @@
  * there: it reaches its neighbours only through their public functions, never
  * their tables.
  */
+import type { Identity } from "@/domain/identity";
 import type { Notifications } from "@/domain/notifications";
 import {
   createLayanan,
+  portPekerjaanTpu,
   type Layanan,
   type LayananDeps,
   type LayananNotifikasi,
@@ -13,6 +15,7 @@ import {
   type PekerjaanSelesai,
   type PesananLayananTerbit,
 } from "@/domain/layanan";
+import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
 
 /**
@@ -29,9 +32,10 @@ import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
  * `pekerjaan` is the port the Mitra Jasa scorecard and a suspension reach for
  * (ticket 55): the jobs one Mitra Jasa holds. A Lokasi Mitra's job (ticket 50) is
  * done by the Admin Lokasi, never by a Mitra Jasa, so those rows are not what the
- * port is for; the rows a Mitra Jasa holds belong to the TPU ticket (56). Until it
- * lands the stand-in below is what that state actually looks like: no job, so no
- * scorecard number and nothing to release on a suspension.
+ * port is for; the rows a Mitra Jasa holds are the **TPU jobs** (ticket 56), which
+ * this module owns, so the port defaults to one over those tables: the scorecard, the
+ * picker's "Baru" badge and a suspension's release are live. A caller may still pass
+ * its own (a test that wants to seed job facts).
  */
 export function composeLayanan(
   deps: Omit<LayananDeps, "notifikasi" | "pekerjaan"> & {
@@ -42,33 +46,52 @@ export function composeLayanan(
 ): Layanan {
   return createLayanan({
     ...deps,
-    pekerjaan: deps.pekerjaan ?? belumAdaPekerjaan(),
-    notifikasi: deps.notifikasi ?? layananNotifikasiDari(deps.notifications),
+    pekerjaan: deps.pekerjaan ?? portPekerjaanTpu(deps.db, deps.clock),
+    notifikasi: deps.notifikasi ?? layananNotifikasiDari(deps.notifications, deps.identity),
   });
 }
 
-/** The job port as it stands before a Mitra Jasa holds any job: nothing to list, nothing to release. */
-function belumAdaPekerjaan(): PekerjaanMitraJasaPort {
-  const port: PekerjaanMitraJasaPort = {
-    async daftarPekerjaan() {
-      return [];
-    },
-    async jumlahSelesai(ids) {
-      return Object.fromEntries(ids.map((id) => [id, 0]));
-    },
-    async lepasPekerjaan() {
-      return { ok: false, reason: "tidak_ditemukan" };
-    },
-    within() {
-      return port;
-    },
-  };
-  return port;
-}
-
-export function layananNotifikasiDari(notifications: Notifications | undefined): LayananNotifikasi {
-  if (!notifications) return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {} };
+export function layananNotifikasiDari(notifications: Notifications | undefined, identity?: Pick<Identity, "accountByEmail">): LayananNotifikasi {
+  if (!notifications) {
+    return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {}, pesananTpuTerbit: async () => {}, pekerjaanTpuDitugaskan: async () => {} };
+  }
   return {
+    pesananTpuTerbit: async (tx, hasil) => {
+      await notifications.layananTpuPesananTerbit(hasil, tx);
+      // As for a Lokasi Mitra's order: the Tagihan is announced with it (H-1 and due-day reminders, the family's contact),
+      // `bersamaKonfirmasi` because the order email above already carries its number and link: one email, not two.
+      await notifications.tagihanTerbit(
+        {
+          tagihanId: hasil.tagihan.id,
+          momentKind: "layanan",
+          nomorTagihan: hasil.tagihan.nomorTagihan,
+          nomorPemesanan: hasil.nomor,
+          email: hasil.email,
+          perihal: `Layanan makam di ${hasil.tpu.name}`,
+          total: hasil.tagihan.total,
+          dueAt: hasil.tagihan.dueAt,
+          link: hasil.tagihan.link,
+          bersamaKonfirmasi: true,
+        },
+        tx,
+      );
+    },
+    pekerjaanTpuDitugaskan: async (tx, hasil) => {
+      // The Mitra Jasa is the Akun whose Email Terverifikasi is the address their Undangan Staf went to (ADR 0004).
+      const akun = identity ? await identity.accountByEmail(hasil.mitraJasaEmail) : null;
+      if (!akun) return;
+      // Queued on the assignment's own transaction; the email may carry what the lock screen may not, but never the family.
+      await notifications.peringatanPenugasanTpu(
+        {
+          to: { accountId: akun.id },
+          label: hasil.label,
+          subjectLabel: `${hasil.tpuName}, dikerjakan ${formatTanggal(hasil.targetDate)}; jawab paling lambat ${formatTanggalJam(hasil.batasJawab)}`,
+          // Their list of jobs is where they answer it: Terima and Tolak are on the job itself.
+          href: "/staf/mitra-jasa/pekerjaan",
+        },
+        tx,
+      );
+    },
     pesananLayananTerbit: async (tx, hasil) => {
       // Both messages are queued on the order's own transaction (Notifications' `within` parameter).
       await notifications.layananPesananTerbit(hasil, tx);

@@ -38,8 +38,18 @@ export interface OpsiDokumen {
   pengajuan: Dokumen[];
 }
 
+/** One Layanan a Saat Duka checkout may add for the burial day, with its variants at the DKI price. */
+export interface OpsiHariH {
+  id: string;
+  name: string;
+  teksLabel: string | null;
+  varian: { id: string; name: string; harga: number }[];
+}
+
 export interface DataTpuProps {
   draft: Pick<DraftTpu, "tpuId" | "email" | "pemesanName" | "phoneNumber">;
+  /** The Layanan "bisa hari-H" a TPU offers, so a family can add them to the burial (story 23). */
+  hariH: OpsiHariH[];
   /** The TPU the list offered, with the price its order would carry. */
   tpu: TpuKartuView;
   /** Every document set the answers can produce, so the checklist never differs from the order's. */
@@ -67,6 +77,7 @@ type Jawaban = { jenis: JenisPenguburan; wafatDiJakarta: boolean };
 export function DataTpu({
   draft,
   tpu,
+  hariH,
   opsiDokumen,
   sudahMasuk,
   mintaKodeMasuk,
@@ -91,6 +102,9 @@ export function DataTpu({
   });
   /** "KTP DKI?", held apart from where the death happened: only the two together decide eligibility. */
   const [ktpDkiTidak, setKtpDkiTidak] = useState(false);
+  /** The hari-H variants the family ticked, by Layanan, with the text the Layanan asks for. */
+  const [hariHDipilih, setHariHDipilih] = useState<Record<string, string>>({});
+  const [hariHTeks, setHariHTeks] = useState<Record<string, string>>({});
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
@@ -161,6 +175,10 @@ export function DataTpu({
           }
         : null,
       pemegangHak,
+      layananHariH: hariH.flatMap((grup) => {
+        const varianId = hariHDipilih[grup.id];
+        return varianId ? [{ layananVariantId: varianId, teks: grup.teksLabel ? hariHTeks[grup.id]?.trim() || null : null }] : [];
+      }),
     };
   }
 
@@ -529,6 +547,45 @@ export function DataTpu({
             </div>
           ) : null}
         </Fieldset>
+
+        {hariH.length > 0 ? (
+          <Fieldset
+            legend="Layanan hari-H (boleh dikosongkan)"
+            note="Dikerjakan Mitra Jasa kami pada hari pemakaman, dengan harga TPU DKI. Ditagihkan pada Tagihan yang sama, jatuh tempo 3×24 jam setelah pemakaman."
+          >
+            {hariH.map((grup) => (
+              <div key={grup.id} className="flex flex-col gap-2">
+                <label className="flex flex-col gap-1 text-body font-medium text-foreground" htmlFor={`hari-h-${grup.id}`}>
+                  {grup.name}
+                  <select
+                    id={`hari-h-${grup.id}`}
+                    value={hariHDipilih[grup.id] ?? ""}
+                    onChange={(event) => setHariHDipilih({ ...hariHDipilih, [grup.id]: event.target.value })}
+                    className="h-11 rounded-lg border border-input bg-background px-3"
+                  >
+                    <option value="">Tidak dipesan</option>
+                    {grup.varian.map((varian) => (
+                      <option key={varian.id} value={varian.id}>
+                        {varian.name} — {formatRupiah(varian.harga)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {grup.teksLabel && hariHDipilih[grup.id] ? (
+                  <label className="flex flex-col gap-1 text-body font-medium text-foreground" htmlFor={`hari-h-teks-${grup.id}`}>
+                    {grup.teksLabel}
+                    <Input
+                      id={`hari-h-teks-${grup.id}`}
+                      value={hariHTeks[grup.id] ?? ""}
+                      onChange={(event) => setHariHTeks({ ...hariHTeks, [grup.id]: event.target.value })}
+                      className="h-11"
+                    />
+                  </label>
+                ) : null}
+              </div>
+            ))}
+          </Fieldset>
+        ) : null}
 
         <DuaDaftarDokumen view={dokumen} />
 

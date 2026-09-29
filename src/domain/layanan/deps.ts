@@ -96,6 +96,41 @@ export interface LayananNotifikasi {
   pesananLayananTerbit(tx: Database, hasil: PesananLayananTerbit): Promise<void>;
   /** A job finished: the Pemesan gets the link to its photo proof. Queued on the transaction that finishes it. */
   pekerjaanSelesai(tx: Database, hasil: PekerjaanSelesai): Promise<void>;
+  /**
+   * A new order Layanan at a DKI TPU with its pay-first Tagihan (ticket 56): the same
+   * message as `pesananLayananTerbit`, queued on the order's own transaction, and the
+   * Tagihan announced with it so the family gets one email.
+   */
+  pesananTpuTerbit(tx: Database, hasil: PesananTpuTerbit): Promise<void>;
+  /**
+   * A TPU job was handed to a Mitra Jasa: a Peringatan Staf by web push and email with
+   * the accept deadline. Queued through Notifications on `tx`, the assignment's own
+   * transaction, so it exists only if the assignment does and is not lost by a crash
+   * after the commit; the worker sends it and logs it.
+   */
+  pekerjaanTpuDitugaskan(tx: Database, hasil: PekerjaanTpuDitugaskan): Promise<void>;
+}
+
+/** A new order Layanan at a DKI TPU as its Pemesan is told about it. */
+export interface PesananTpuTerbit {
+  nomor: string;
+  email: string;
+  pemesanName: string;
+  tpu: { id: string; name: string };
+  makam: { blokNomor: string };
+  item: { label: string; targetDate: string }[];
+  tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string };
+}
+
+/** What a Mitra Jasa is told when a job is handed to them: never the family's name or contact. */
+export interface PekerjaanTpuDitugaskan {
+  pekerjaanId: string;
+  /** The Undangan Staf's address, the key to the Akun the alert goes to. */
+  mitraJasaEmail: string;
+  label: string;
+  tpuName: string;
+  targetDate: string;
+  batasJawab: Date;
 }
 
 /** A new order Layanan as its Pemesan is told about it. */
@@ -145,7 +180,7 @@ export interface LayananDeps {
   /** Every catalog, offering, Paket and staff write records an Entri Audit here. */
   audit: AuditLog;
   /** A Lokasi Mitra is looked up through the Lokasi module, never its table: by a staff actor, or whether it is listed. */
-  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "publicLokasiMitra">;
+  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "publicLokasiMitra" | "publicTpuDki">;
   /**
    * Every price of a Layanan variant is a versioned tariff: quoted here, read for
    * the screens, and written through the Tariffs module — `within(tx)` so an

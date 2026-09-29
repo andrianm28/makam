@@ -32,6 +32,7 @@ import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
 import { payoutsFor } from "./payouts";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /** The publish fixture's Kunjungan Verifikasi photo, as a real upload is. */
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
@@ -178,6 +179,7 @@ export function pemesananOnTestDatabase(
     billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
+    layanan: layananHariHKosong,
     notifikasi: {
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {

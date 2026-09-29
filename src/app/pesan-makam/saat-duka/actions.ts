@@ -275,6 +275,7 @@ async function kirimTpu(
         }
       : null,
     pemegangHak: draft.pemegangHak,
+    layananHariH: draft.layananHariH,
   });
   if (!hasil.ok)
     return { status: "gagal", message: pengurusanMessage(hasil.reason) };

@@ -2,8 +2,18 @@ import { FakePdfRenderer } from "@/adapters/memory";
 import { composeLayanan } from "@/composition/layanan";
 import type { Database } from "@/db/client";
 import { createBilling, type Billing } from "@/domain/billing";
+import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
+import { createPengurusan } from "@/domain/pengurusan";
 import type { Actor } from "@/domain/identity";
-import { buktiOf, type LayananNotifikasi, type NewLayanan, type PekerjaanMitraJasa, type PekerjaanMitraJasaPort } from "@/domain/layanan";
+import {
+  buktiOf,
+  type LayananNotifikasi,
+  type NewLayanan,
+  type PekerjaanMitraJasa,
+  type PekerjaanMitraJasaPort,
+  type PekerjaanTpuDitugaskan,
+  type PesananTpuTerbit,
+} from "@/domain/layanan";
 import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { PENGATURAN_OPERATOR } from "./billing";
@@ -37,17 +47,32 @@ export interface PekerjaanLayananSelesaiTerb {
 }
 
 /** The announcements the Layanan module makes, collected in place of the Notifications module. */
-export function collectLayananNotifikasi(): LayananNotifikasi & { pesananTerbit: PesananLayananTerb[]; selesai: PekerjaanLayananSelesaiTerb[] } {
+export function collectLayananNotifikasi(): LayananNotifikasi & {
+  pesananTerbit: PesananLayananTerb[];
+  selesai: PekerjaanLayananSelesaiTerb[];
+  pesananTpuDicatat: PesananTpuTerbit[];
+  ditugaskan: PekerjaanTpuDitugaskan[];
+} {
   const pesananTerbit: PesananLayananTerb[] = [];
   const selesai: PekerjaanLayananSelesaiTerb[] = [];
+  const pesananTpuDicatat: PesananTpuTerbit[] = [];
+  const ditugaskan: PekerjaanTpuDitugaskan[] = [];
   return {
     pesananTerbit,
     selesai,
+    pesananTpuDicatat,
+    ditugaskan,
     pesananLayananTerbit: async (_tx, hasil) => {
       pesananTerbit.push(hasil);
     },
     pekerjaanSelesai: async (_tx, hasil) => {
       selesai.push(hasil);
+    },
+    pesananTpuTerbit: async (_tx, hasil) => {
+      pesananTpuDicatat.push(hasil);
+    },
+    pekerjaanTpuDitugaskan: async (_tx, hasil) => {
+      ditugaskan.push(hasil);
     },
   };
 }
@@ -62,11 +87,12 @@ export function collectLayananNotifikasi(): LayananNotifikasi & { pesananTerbit:
  * that pays for an order sees the order's jobs scheduled by the payment itself —
  * the same seam production uses — rather than by calling the effect by hand.
  */
-export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?: boolean } = {}) {
+export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?: boolean; pekerjaanNyata?: boolean } = {}) {
   const base = publishOnTestDatabase(db);
   const billing = billingDenganEfekLayanan(db, base);
   const notifikasi = collectLayananNotifikasi();
-  // The Mitra Jasa job port (ticket 55) is a seam a test seeds with job facts: the jobs a Mitra Jasa holds belong to the TPU ticket.
+  // The Mitra Jasa job port (ticket 55) is a seam a test seeds with job facts. A test of the TPU jobs themselves (ticket 56)
+  // asks for the real one instead, so the scorecard, the picker's "Baru" badge and a suspension's release read the real jobs.
   const pekerjaan = newPekerjaanMitraJasaPort();
   // The real Refunds, on this fixture's own Billing, so a cancelled job's refund request is one an
   // Admin Platform can approve and transfer in a test.
@@ -86,10 +112,33 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
     identity: base.identity,
     refunds,
     payouts,
-    pekerjaan,
+    ...(options.pekerjaanNyata ? {} : { pekerjaan }),
     ...(options.notifikasiNyata ? { notifications: base.notifications } : { notifikasi }),
   });
-  return { ...base, billing, layanan, notifikasi, payouts, refunds, pekerjaan };
+  // The Pengurusan module beside it (ticket 56): a Saat Duka TPU confirmation puts the hari-H Layanan on its Tagihan and
+  // schedules their jobs through this Layanan module, on this Billing (with the Layanan payment effect). Its own family
+  // messages are recorded, not sent, as the Pengurusan fixture does.
+  const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
+  const pengurusan = createPengurusan({
+    db,
+    clock: base.clock,
+    files: base.files,
+    audit: base.audit,
+    lokasi: base.lokasi,
+    tariffs: base.tariffs,
+    billing,
+    identity: base.identity,
+    fieldwork: base.fieldwork,
+    notifikasi: {
+      tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
+      pengurusanDikonfirmasi: async (hasil) => {
+        pengurusanDikonfirmasi.push(hasil);
+        return { ok: true };
+      },
+    },
+    layanan,
+  });
+  return { ...base, billing, layanan, notifikasi, payouts, refunds, pekerjaan, pengurusan, pengurusanDikonfirmasi };
 }
 
 export type LayananSetup = ReturnType<typeof layananOnTestDatabase>;

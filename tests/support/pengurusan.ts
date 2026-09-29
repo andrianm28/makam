@@ -4,6 +4,7 @@ import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
 import { pemesanDenganEmail } from "./pemesanan";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /**
  * The Pengurusan module on the test Postgres: Lokasi (which owns the TPU list
@@ -25,6 +26,7 @@ export function pengurusanOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
+    layanan: layananHariHKosong,
     notifikasi: {
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {

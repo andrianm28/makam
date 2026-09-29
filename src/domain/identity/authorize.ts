@@ -239,6 +239,10 @@ export type Action =
    * (spec, Inventory).
    */
   | "hak_pakai.selesaikan_verifikasi"
+  /** Read every TPU job and the picker for it, hand one to a Mitra Jasa or take it back (Admin Platform only; ticket 56). */
+  | "pekerjaan_tpu.kelola"
+  /** A Mitra Jasa reads the TPU jobs handed to them, and accepts or declines one (their own Akun only). */
+  | "pekerjaan_tpu.jawab"
   /**
    * The Admin Lokasi of a Lokasi Mitra reads and decides the manual Perpanjangan requests
    * (KTP, heir, claim) of its own Lokasi, documents included (ticket 41).
@@ -284,7 +288,9 @@ export type Resource =
   /** A Tagihan acted on directly by staff (manual payment, Harga Khusus): Admin Platform's own money work, not a Lokasi Mitra's. */
   | { kind: "tagihan" }
   /** The signed-in Akun's own order Layanan, whichever row of it is meant (the module checks the row). */
-  | { kind: "pesanan_layanan"; accountId: string };
+  | { kind: "pesanan_layanan"; accountId: string }
+  /** Every TPU job (Admin Platform's hand assignment through the hard-filtered picker). */
+  | { kind: "pekerjaan_tpu_semua" };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -417,6 +423,11 @@ export function tagihanResource(): Resource {
 /** The signed-in Akun's own order Layanan: the checkout's Kirim, its order page and its cancellation. */
 export function pesananLayananResource(accountId: string): Resource {
   return { kind: "pesanan_layanan", accountId };
+}
+
+/** Every Pekerjaan Layanan at a DKI TPU, as Admin Platform assigns them. */
+export function pekerjaanTpuSemuaResource(): Resource {
+  return { kind: "pekerjaan_tpu_semua" };
 }
 
 export type Authorization =
@@ -677,6 +688,14 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // Admin Platform chases a Lokasi by phone rather than completing its records
       // (story 117, and the same rule as `denah.ubah`).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "pekerjaan_tpu.kelola":
+      // A TPU is the Operator's own work, fulfilled by a Mitra Jasa Admin Platform picks by hand:
+      // there is no Admin Lokasi of a TPU, so no one else assigns or reassigns it (spec, Layanan > Mitra Jasa).
+      return resource.kind === "pekerjaan_tpu_semua" && holds("admin_platform") ? allowed : denied;
+    case "pekerjaan_tpu.jawab":
+      // A Mitra Jasa answers for themselves and nobody else: the resource is their own Akun, so a caller cannot hand in
+      // another's. Any status holds it: a suspended one still sees the jobs they hold (a status change releases them).
+      return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
     case "perpanjangan.periksa":
     case "hak_pakai.ubah_pemegang":
       // The documents of a family and the record of who holds a grave belong to that Lokasi's own

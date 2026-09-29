@@ -11,6 +11,7 @@ import { payoutsFor } from "./payouts";
 import { refundsFor } from "./refunds";
 import { pemesanDenganEmail, siapkanOperatorPemesanan, terverifikasiLokasi, type PemesananModul } from "./pemesanan";
 import { publishOnTestDatabase, type PublishSetup } from "./publish";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /**
  * Lokasi, Tariffs, Inventory, Billing, Notifications, Pemesanan, Payouts and
@@ -74,6 +75,7 @@ export function perpanjanganOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
+    layanan: layananHariHKosong,
     notifikasi: setup.notifications,
   });
   const perpanjangan = createPerpanjangan({

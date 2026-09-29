@@ -112,7 +112,17 @@ export interface QueuesModuleDeps {
   identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
   /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat" | "keluhanTerbuka" | "kerjakanUlangUntukLokasi">;
+  layanan: Pick<
+    Layanan,
+    | "mitraJasaBelumLengkap"
+    | "tinjauanTerbuka"
+    | "pekerjaanUntukStafTerbaru"
+    | "pekerjaanTerlambat"
+    | "keluhanTerbuka"
+    | "kerjakanUlangUntukLokasi"
+    | "pekerjaanTpuHariIniTanpaMitra"
+    | "pekerjaanTpuPerluTindakan"
+  >;
 }
 
 export interface Queues {

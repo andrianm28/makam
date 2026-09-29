@@ -1,0 +1,144 @@
+import type { Actor } from "@/domain/identity";
+import { adminPlatformOf } from "./identity";
+import { mitraJasaLengkap, newLayananFor, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "./layanan";
+import { pemesanDenganEmail } from "./pemesanan";
+import { newTpuDki } from "./lokasi";
+import { signedInPetugasLapangan } from "./publish";
+
+/*
+ * The Layanan module's TPU half is `layananOnTestDatabase(db, { pekerjaanNyata: true })`: the module with its
+ * **real** Mitra Jasa job port (so the scorecard, the picker's "Baru" badge and a suspension's release read the
+ * real jobs), beside Pengurusan and Billing with the Layanan payment effect. These are the fixtures around it.
+ */
+
+/** The DKI prices the fixtures use, odd enough that a wrong sum cannot hide behind round numbers. */
+export const HARGA_BUNGA_TABUR = 250_001;
+export const HARGA_PEMBERSIHAN = 400_003;
+
+/**
+ * A DKI TPU that takes new plots, the Operator's Pengurusan tariffs, and two
+ * Layanan marked "boleh di TPU DKI" at DKI prices: **Bunga Tabur**, bisa hari-H with a
+ * one-day lead time, and **Pembersihan Makam**, which is not hari-H (a standalone
+ * order with a three-day lead time). A Biaya Layanan Platform is entered too: a TPU
+ * order must never carry it, and a test can only prove that if one exists.
+ */
+export async function siapTpu(setup: LayananSetup) {
+  const admin = await siapkanOperatorLayanan(setup);
+  for (const [key, amount] of [
+    ["biaya_pengurusan_pemakaman", 1_750_000],
+    ["biaya_pengurusan_berkas", 750_000],
+    ["retribusi_pemda_iptm", 0],
+    ["biaya_layanan_platform", 150_001],
+  ] as const) {
+    const masuk = await setup.tariffs.setGlobalTariff(admin, { key, amount, effectiveOn: "2026-10-01", reason: null });
+    if (!masuk.ok) throw new Error(`tariff ${key} refused: ${masuk.reason}`);
+  }
+  const tpu = await newTpuDki(setup, admin);
+
+  const bunga = await newLayananFor(setup, admin, {
+    name: "Bunga Tabur",
+    jenis: "bunga",
+    bukti: "foto_sesudah",
+    leadTimeDays: 1,
+    bisaHariH: true,
+    adaDiPetakKosong: false,
+    varian: ["Reguler"],
+  });
+  const pembersihan = await newLayananFor(setup, admin, {
+    name: "Pembersihan Makam",
+    jenis: "pembersihan",
+    bukti: "foto_sebelum_dan_sesudah",
+    leadTimeDays: 3,
+    bisaHariH: false,
+    varian: ["Reguler"],
+  });
+  for (const [varian, amount] of [
+    [bunga.varian, HARGA_BUNGA_TABUR],
+    [pembersihan.varian, HARGA_PEMBERSIHAN],
+  ] as const) {
+    const tanda = await setup.layanan.tandaiBolehDiTpu(admin, varian.id, { boleh: true, reason: null });
+    if (!tanda.ok) throw new Error(`tandai refused: ${tanda.reason}`);
+    const harga = await setup.tariffs.setHargaLayananDki(admin, varian.id, { amount, effectiveOn: "2026-10-01", reason: null });
+    if (!harga.ok) throw new Error(`harga DKI refused: ${harga.reason}`);
+  }
+  const { pemesan } = await pemesanDenganEmail(setup, "pemesan.tpu@contoh.id");
+  return { admin, tpu, bunga: bunga.varian, pembersihan: pembersihan.varian, pemesan };
+}
+
+export type SiapTpu = Awaited<ReturnType<typeof siapTpu>>;
+
+/** A Mitra Jasa onboarded to cover this TPU and this Layanan variant, with their own signed-in Akun. */
+export async function mitraJasaUntuk(
+  setup: LayananSetup,
+  siap: Pick<SiapTpu, "admin" | "tpu">,
+  varianId: string,
+  options: { email?: string; namaLengkap?: string } = {},
+) {
+  const email = options.email ?? "mitra.jasa@contoh.id";
+  const mitra = await mitraJasaLengkap(setup, siap.admin, {
+    email,
+    tpuDkiId: siap.tpu.id,
+    layananVariantId: varianId,
+    ...(options.namaLengkap === undefined ? {} : { namaLengkap: options.namaLengkap }),
+  });
+  const actor = await signedInMitraJasa(setup, siap.admin, email);
+  return { ...mitra, actor };
+}
+
+/** What the TPU order form sends: a described grave with no Makam TPU, one Layanan on it. */
+export function orderTpu(
+  siap: Pick<SiapTpu, "tpu">,
+  item: { layananVariantId: string; targetDate: string; teks?: string | null }[],
+  over: Record<string, unknown> = {},
+) {
+  return {
+    tpuDkiId: siap.tpu.id,
+    makam: { blokNomor: "Blok C-7 No. 21", almarhumName: "Hasan Basri", keterangan: "Dekat pohon kamboja", pin: { lat: -6.2001, lng: 106.9001 } },
+    pemesanName: "Budi Santoso",
+    phoneNumber: "081234567890",
+    item: item.map((satu) => ({ teks: null, ...satu })),
+    ...over,
+  };
+}
+
+/** The confirm form as Admin Platform fills it in: a burial inside the TPU window, a TPU contact and a Petugas. */
+export function konfirmasiTpu(petugasAccountId: string, over: { nomor?: string; pemakamanAt?: string } = {}) {
+  return {
+    nomor: over.nomor ?? "MKM-2026-000001",
+    pemakamanAt: over.pemakamanAt ?? "2026-10-02 09:00",
+    kontakTpu: { name: "Petugas TPU Kober", phoneNumber: "0218501234" },
+    petugasAccountId,
+    catatan: "",
+  };
+}
+
+/** Places a Saat Duka TPU order with hari-H items and confirms it, returning what the job tests need. */
+export async function saatDukaTpuDikonfirmasi(
+  setup: LayananSetup,
+  siap: SiapTpu,
+  hariH: { layananVariantId: string; teks?: string | null }[],
+) {
+  const petugas = await signedInPetugasLapangan(setup, siap.admin, "petugas.pengantar@contoh.id");
+  const dipesan = await setup.pengurusan.placeSaatDukaTpu({
+    pemesan: siap.pemesan,
+    pemesanName: "Budi Santoso",
+    phoneNumber: "081234567890",
+    tpuId: siap.tpu.id,
+    almarhumName: "Siti Aminah",
+    tanggalWafat: "2026-09-30",
+    jenis: "baru",
+    kelayakan: { ktpDki: true, wafatDiJakarta: true },
+    pemegangHak: { mode: "pemesan" },
+    layananHariH: hariH.map((satu) => ({ teks: null, ...satu })),
+  });
+  if (!dipesan.ok) throw new Error(`Saat Duka TPU refused: ${dipesan.reason}`);
+  const nomor = dipesan.pengurusan.nomor;
+  const hasil = await setup.pengurusan.konfirmasiSaatDukaTpu(siap.admin, konfirmasiTpu(petugas.accountId, { nomor }));
+  if (!hasil.ok) throw new Error(`konfirmasi refused: ${hasil.reason}`);
+  return { nomor, hasil, petugas };
+}
+
+/** A staff actor for a role, used where a test needs "somebody else". */
+export async function adminPlatformTpu(setup: LayananSetup): Promise<Actor> {
+  return (await adminPlatformOf(setup)).actor;
+}

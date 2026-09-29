@@ -1,5 +1,11 @@
 import type { AntreanRowType, Tier1RowType } from "./row-types";
 import { layananTerlambatRowType } from "./tier2-layanan-terlambat-row";
+import {
+  pekerjaanTpuDitolakRowType,
+  pekerjaanTpuPenugasanUlangRowType,
+  pekerjaanTpuTanpaMitraRowType,
+  pekerjaanTpuTidakDiresponsRowType,
+} from "./tier1-pekerjaan-tpu-row";
 import { pembayaranPerluDitinjauRowType } from "./tier2-pembayaran-perlu-ditinjau-row";
 import { teleponPemesanRowType } from "./telepon-pemesan-row";
 import { lokasiRevisitRowType, publishGateCheckRowType } from "./tier4-lokasi-rows";
@@ -32,13 +38,21 @@ import { keluhanRowType } from "./tier1-keluhan-row";
  * Ditinjau (spec-missing; ticket 19's review) and Telepon Pemesan (ticket 20), and
  * Tier 1's Konfirmasi Lokasi terlambat (ticket 23).
  * Tier 2's Layanan Terlambat (ticket 50), and Tier 1's Keluhan (ticket 51).
+ * Ticket 56's four: Tier 1's TPU jobs due today without a Mitra Jasa, and Tier 2's
+ * Tidak direspons, Ditolak and reassignment rows.
  */
 /**
  * The Tier 1 row types, the only ones that alert (ticket 28): a new Tier 1 type
  * is added here and nowhere else, and a test holds this list to the registry's own
  * Tier 1 types below.
  */
-export const tier1RowTypes: Tier1RowType[] = [konfirmasiLokasiTerlambatRowType, saatDukaDitolakRowType, konfirmasiTpuSaatDukaRowType, keluhanRowType];
+export const tier1RowTypes: Tier1RowType[] = [
+  konfirmasiLokasiTerlambatRowType,
+  saatDukaDitolakRowType,
+  konfirmasiTpuSaatDukaRowType,
+  keluhanRowType,
+  pekerjaanTpuTanpaMitraRowType,
+];
 
 export const antreanRowTypes: AntreanRowType[] = [
   ...tier1RowTypes,
@@ -51,6 +65,9 @@ export const antreanRowTypes: AntreanRowType[] = [
   tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   layananTerlambatRowType,
+  pekerjaanTpuTidakDiresponsRowType,
+  pekerjaanTpuDitolakRowType,
+  pekerjaanTpuPenugasanUlangRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,
   otherTugasLapanganRowType,

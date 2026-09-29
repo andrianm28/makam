@@ -48,7 +48,7 @@ export function schedulerContext(parts: {
     // Refunds' own tick changes nothing until a test gives it a real module: an
     // empty Billing list is what the materialising tick finds anyway.
     refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
-    layanan: parts.layanan ?? { tinjauSkorTick: async () => {}, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }) },
+    layanan: parts.layanan ?? { tinjauSkorTick: async () => {}, tandaiTidakDirespons: async () => 0, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }) },
     // No confirmed Terencana order is waiting until a test gives the tick a real Pemesanan.
     terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
     // A grave no tick but the Layanan release one reads: a test of another module's

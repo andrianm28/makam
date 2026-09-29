@@ -57,6 +57,7 @@ import {
   kirimPeringatanAntreanTick,
   type PeringatanAntreanInput,
   type PeringatanAntreanResult,
+  type PeringatanPenugasanTpuInput,
 } from "./peringatan-antrean";
 import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
 import {
@@ -92,9 +93,11 @@ import {
   pesanPemesanan,
   layananPekerjaanSelesai,
   layananPesananTerbit,
+  layananTpuPesananTerbit,
   pesanLayanan,
   type LayananPekerjaanSelesaiInput,
   type LayananPesananTerbitInput,
+  type LayananTpuPesananTerbitInput,
   type PesanLayananResult,
   type PesanPemesananResult,
   type PesananAlternatifDitawarkanInput,
@@ -128,7 +131,7 @@ import {
 } from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
-export type { PeringatanAntreanInput, PeringatanAntreanResult, TahapPeringatanAntrean } from "./peringatan-antrean";
+export type { PeringatanAntreanInput, PeringatanAntreanResult, PeringatanPenugasanTpuInput, TahapPeringatanAntrean } from "./peringatan-antrean";
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
 export {
   catatPanggilanSchema,
@@ -141,10 +144,12 @@ export {
   pesananBuktiPemesananSchema,
   layananPekerjaanSelesaiSchema,
   layananPesananTerbitSchema,
+  layananTpuPesananTerbitSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
   type LayananPekerjaanSelesaiInput,
   type LayananPesananTerbitInput,
+  type LayananTpuPesananTerbitInput,
   type PesanLayananResult,
   type PesanPemesananResult,
   type PesananBuktiPemesananInput,
@@ -247,6 +252,8 @@ export const staffAlertKinds = [
   "staf_tagihan_lewat_jatuh_tempo",
   /** Admin Platform declared a Lokasi Mitra Saat Duka Tagihan Tidak Tertagih (ticket 29). */
   "staf_tagihan_tidak_tertagih",
+  /** A Mitra Jasa was handed a TPU job to accept or decline by its deadline (ticket 56). */
+  "staf_pekerjaan_tpu_ditugaskan",
 ] as const;
 export type StaffAlertKind = (typeof staffAlertKinds)[number];
 
@@ -316,6 +323,13 @@ export interface Notifications {
    * that commits. The worker's `kirimPeringatanAntreanTick` sends it.
    */
   peringatanAntreanTier1(input: PeringatanAntreanInput, within?: Database): Promise<PeringatanAntreanResult>;
+  /**
+   * Queues the Peringatan Staf that tells a Mitra Jasa a TPU job was handed to them
+   * (ticket 56), on `within`, the assignment's open transaction: it exists only if the
+   * assignment commits. The same worker tick as the Tier 1 alerts sends it (push + email,
+   * logged); the words never name the family.
+   */
+  peringatanPenugasanTpu(input: PeringatanPenugasanTpuInput, within?: Database): Promise<PeringatanAntreanResult>;
   /** The worker's tick: sends every queued Tier 1 alert not yet sent (push + email, logged). Idempotent. */
   kirimPeringatanAntreanTick(): Promise<{ dikirim: number }>;
   /**
@@ -420,6 +434,8 @@ export interface Notifications {
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
   layananPesananTerbit(input: LayananPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
+  /** The same for an order Layanan at a DKI TPU, which names no Lokasi Mitra (ticket 56). */
+  layananTpuPesananTerbit(input: LayananTpuPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
   layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
   /** Every logged message about one order Layanan, oldest first. */
@@ -662,6 +678,14 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return antrekanPeringatanAntrean(within ?? db, deps.clock, input);
     },
 
+    async peringatanPenugasanTpu(input, within) {
+      return antrekanPeringatanAntrean(within ?? db, deps.clock, {
+        to: [input.to],
+        tahap: "penugasan_tpu",
+        row: { label: input.label, subjectLabel: input.subjectLabel, href: input.href },
+      });
+    },
+
     async kirimPeringatanAntreanTick() {
       return kirimPeringatanAntreanTick(db, deps.clock, (alert) => notifications.sendStaffAlert(alert));
     },
@@ -778,6 +802,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async layananPesananTerbit(input, within) {
       return layananPesananTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+    async layananTpuPesananTerbit(input, within) {
+      return layananTpuPesananTerbit(within ? { ...deps, db: within } : deps, input);
     },
     async layananPekerjaanSelesai(input, within) {
       return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);

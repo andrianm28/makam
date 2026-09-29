@@ -66,6 +66,7 @@ export function queuesOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     fieldwork: setup.fieldwork,
+    layanan,
     notifikasi: {
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {

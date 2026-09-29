@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, customType, date, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { RUPIAH_MAX, rupiahFromDatabase, type Rupiah } from "@/lib/rupiah";
+import type { DeskripsiMakamTpu } from "./tpu-skema";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -657,5 +658,130 @@ export const penilaianLayanan = pgTable(
   (table) => [
     uniqueIndex("penilaian_layanan_pekerjaan_idx").on(table.pekerjaanId),
     check("penilaian_layanan_bintang_check", sql`${table.bintang} between 1 and 5`),
+  ],
+);
+
+/**
+ * Where a TPU job came from (ticket 56): a standalone order at a DKI TPU (pay-first),
+ * or a hari-H item of a Saat Duka TPU order (pay-after on that order's Tagihan).
+ */
+export const pekerjaanTpuSumberValues = ["pesanan_tpu", "saat_duka_tpu"] as const;
+export type PekerjaanTpuSumber = (typeof pekerjaanTpuSumberValues)[number];
+
+/**
+ * A TPU job's statuses (spec, Layanan > Pekerjaan Layanan): Menunggu Pembayaran →
+ * Dijadwalkan → Sedang Dikerjakan → Menunggu Verifikasi (TPU only) → Selesai, plus
+ * Terlambat, Dibatalkan and Keluhan. This ticket writes the first two and Dibatalkan;
+ * the proof steps are ticket 57's, so the closed list is here once and needs no migration then.
+ */
+export const pekerjaanTpuStatuses = [
+  "menunggu_pembayaran",
+  "dijadwalkan",
+  "sedang_dikerjakan",
+  "menunggu_verifikasi",
+  "selesai",
+  "terlambat",
+  "dibatalkan",
+  "keluhan",
+] as const;
+export type PekerjaanTpuStatus = (typeof pekerjaanTpuStatuses)[number];
+
+/** How one assignment ended, or has not yet: `menunggu` and `diterima` are the two that hold the job. */
+export const penugasanHasilValues = ["menunggu", "diterima", "ditolak", "tidak_direspons", "dilepas"] as const;
+export type PenugasanHasil = (typeof penugasanHasilValues)[number];
+
+/**
+ * Owned by the Layanan module: one Pekerjaan Layanan at a DKI TPU, fulfilled by a
+ * Mitra Jasa (spec, Layanan; ticket 56). It is not a `pekerjaan_layanan` row: that
+ * table is a Lokasi Mitra's job at a Petak Makam with an Admin Lokasi who does it,
+ * and a TPU has neither a Denah nor an Admin Lokasi. A TPU job carries the grave as
+ * the family **described** it (`makam`), the price it was billed at, and the family's
+ * own contact, which no Mitra Jasa read may ever return.
+ *
+ * `nomor` and `tagihan_id` name the order the job belongs to: a `pesanan_tpu` job's
+ * order is a Nomor Pemesanan of its own, a `saat_duka_tpu` job's is the Pengurusan
+ * order's (no foreign key crosses a module).
+ *
+ * Who holds the job is not a column: it is the one open row of
+ * `pekerjaan_layanan_tpu_penugasan`, so a decline, a "Tidak direspons" and a release
+ * stay on record for the scorecard instead of being overwritten by the next assignment.
+ */
+export const pekerjaanLayananTpu = pgTable(
+  "pekerjaan_layanan_tpu",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sumber: text("sumber", { enum: pekerjaanTpuSumberValues }).notNull(),
+    /** The Nomor Pemesanan of the order this job is one Layanan of. */
+    nomor: text("nomor").notNull(),
+    posisi: integer("posisi").notNull(),
+    tagihanId: text("tagihan_id").notNull(),
+    tpuId: text("tpu_id").notNull(),
+    tpuName: text("tpu_name").notNull(),
+    tpuAddress: text("tpu_address").notNull(),
+    /** The grave as the family described it: block and number, whose it is, photos and pin. */
+    makam: jsonb("makam").$type<DeskripsiMakamTpu>().notNull(),
+    layananId: uuid("layanan_id")
+      .notNull()
+      .references(() => layananLayanan.id),
+    layananVariantId: uuid("layanan_variant_id")
+      .notNull()
+      .references(() => layananVarian.id),
+    /** "Layanan – Bunga Tabur (Reguler)", as the Tagihan words it. */
+    label: text("label").notNull(),
+    teks: text("teks"),
+    amount: rupiah("amount").notNull(),
+    /** The WIB date the work is due: the burial day for a hari-H item, the family's choice otherwise. */
+    targetDate: date("target_date", { mode: "string" }).notNull(),
+    status: text("status", { enum: pekerjaanTpuStatuses }).notNull(),
+    /** The family. Never returned by a Mitra Jasa's read. Null for a Saat Duka order CS placed with no Akun to attach. */
+    pemesanAccountId: text("pemesan_account_id"),
+    pemesanName: text("pemesan_name").notNull(),
+    pemesanEmail: text("pemesan_email"),
+    pemesanPhone: text("pemesan_phone"),
+    dijadwalkanAt: at("dijadwalkan_at"),
+    dibatalkanAt: at("dibatalkan_at"),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("pekerjaan_layanan_tpu_posisi_idx").on(table.nomor, table.posisi),
+    index("pekerjaan_layanan_tpu_status_idx").on(table.status, table.targetDate),
+    index("pekerjaan_layanan_tpu_tagihan_idx").on(table.tagihanId),
+    index("pekerjaan_layanan_tpu_pemesan_idx").on(table.pemesanAccountId),
+  ],
+);
+
+/**
+ * Owned by the Layanan module: one assignment of a TPU job to one Mitra Jasa, and
+ * how it ended (ticket 56). At most one is open (`menunggu` or `diterima`) per job,
+ * enforced by the partial unique index, so a job is never held by two people.
+ *
+ * The rows are the scorecard's raw material: a `ditolak` or `tidak_direspons` row is
+ * one decline of that Mitra Jasa whoever the job goes to next, and `batas_jawab` is
+ * the accept deadline the assignment was given (12 h, or H-1 18:00 when sooner).
+ */
+export const pekerjaanLayananTpuPenugasan = pgTable(
+  "pekerjaan_layanan_tpu_penugasan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayananTpu.id),
+    mitraJasaId: uuid("mitra_jasa_id")
+      .notNull()
+      .references(() => layananMitraJasa.id),
+    ditugaskanAt: at("ditugaskan_at").notNull(),
+    batasJawab: at("batas_jawab").notNull(),
+    /** When the outcome was recorded: the answer, the deadline passing, or the release. */
+    dijawabAt: at("dijawab_at"),
+    hasil: text("hasil", { enum: penugasanHasilValues }).notNull(),
+    alasan: text("alasan"),
+    ditugaskanOlehAccountId: text("ditugaskan_oleh_account_id").notNull(),
+  },
+  (table) => [
+    uniqueIndex("pekerjaan_layanan_tpu_penugasan_terbuka_idx")
+      .on(table.pekerjaanId)
+      .where(sql`${table.hasil} in ('menunggu', 'diterima')`),
+    index("pekerjaan_layanan_tpu_penugasan_mitra_idx").on(table.mitraJasaId, table.ditugaskanAt),
+    index("pekerjaan_layanan_tpu_penugasan_batas_idx").on(table.hasil, table.batasJawab),
   ],
 );

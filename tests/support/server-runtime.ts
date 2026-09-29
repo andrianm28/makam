@@ -24,6 +24,7 @@ import { nextTestIp } from "./identity";
 import type { Payouts } from "@/domain/payouts";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
+import { layananHariHKosong } from "./layanan-hari-h-kosong";
 
 /**
  * The `web` process's runtime (what `serverRuntime()` returns) on the run's
@@ -99,6 +100,7 @@ export function testServerRuntime() {
       billing: billingOn(billingComposition, database.db),
       identity,
       fieldwork,
+      layanan: layananHariHKosong,
       notifikasi: notifications,
     });
     const pemesanan = composePemesanan({

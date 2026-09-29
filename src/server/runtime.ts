@@ -242,6 +242,7 @@ export function serverRuntime(): ServerRuntime {
       // The "Ambil surat pengantar" Tugas a confirmation creates, inside the
       // confirmation's own transaction.
       fieldwork,
+      layanan,
       notifikasi: notifications,
     });
     // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),

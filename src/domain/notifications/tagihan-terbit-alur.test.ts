@@ -79,6 +79,7 @@ describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Ta
       billing: queues.billing,
       identity: queues.identity,
       fieldwork: queues.fieldwork,
+      layanan: queues.layanan,
       notifikasi: queues.notifications,
     });
     const admin = await siapkanOperatorPemesanan(queues);

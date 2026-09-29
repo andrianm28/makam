@@ -24,9 +24,11 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { withinPaymentCap, type LineProvider, type NewTagihanLine } from "@/domain/billing";
+import type { BarisHariHTpu } from "@/domain/layanan";
 import { daytimeHoursDeadline, isOpenAt, TPU_SCHEDULE } from "@/domain/lokasi";
 import type { Actor } from "@/domain/identity";
 import { quoteLineLabel } from "@/lib/quote-line-label";
+import type { Rupiah } from "@/lib/rupiah";
 import type { QuotedLine } from "@/domain/tariffs";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
@@ -155,7 +157,34 @@ export async function konfirmasiSaatDukaTpu(
   if (!quoted.ok) return { ok: false, reason: "harga_tidak_tersedia" };
   const lines = barisTagihan(quoted.lines);
   if (!lines.ok) return { ok: false, reason: "harga_tidak_tersedia" };
-  if (!withinPaymentCap(lines.total)) return { ok: false, reason: "harga_tidak_tersedia" };
+
+  // The hari-H Layanan the family added (story 23), priced now at the DKI price and put on this same pay-after Tagihan:
+  // they take its due date (3×24 h after the burial), so it stays pay-after, and their jobs are scheduled below in the
+  // same transaction. The target of every one of them is the burial day just agreed.
+  const hariH = order.layananHariH ?? [];
+  let hariHBaris: readonly BarisHariHTpu[] = [];
+  if (hariH.length > 0) {
+    const dihitung = await deps.layanan.barisHariHTpu(hariH, now);
+    if (!dihitung.ok) return { ok: false, reason: "harga_tidak_tersedia" };
+    hariHBaris = dihitung.baris;
+  }
+  const hariPemakaman = wibDateOf(pemakamanAt);
+  const semuaBaris: NewTagihanLine[] = [
+    ...lines.lines,
+    ...hariHBaris.map(
+      (satu): NewTagihanLine => ({
+        kind: "layanan",
+        label: satu.label,
+        amount: satu.amount as Rupiah,
+        provider: { kind: "operator" },
+        targetDate: hariPemakaman,
+        leadTimeDays: satu.leadTimeDays,
+      }),
+    ),
+  ];
+  const harga: HargaBaris[] = [...lines.harga, ...hariHBaris.map((satu) => ({ kind: "layanan", label: satu.label, amount: satu.amount }))];
+  const total = lines.total + hariHBaris.reduce((jumlah, satu) => jumlah + satu.amount, 0);
+  if (!withinPaymentCap(total)) return { ok: false, reason: "harga_tidak_tersedia" };
 
   const konfirmasiDueAt = order.konfirmasiDueAt;
   const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -167,7 +196,7 @@ export async function konfirmasiSaatDukaTpu(
       addressee: { name: order.pemesanName, phoneNumber, accountId: order.pemesanAccountId },
       nomorPemesanan: order.nomor,
       placeName: order.tpuName,
-      lines: lines.lines,
+      lines: semuaBaris,
     });
     if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
 
@@ -203,7 +232,7 @@ export async function konfirmasiSaatDukaTpu(
         dikonfirmasiPada: now,
         tagihanId: tagihan.tagihan.id,
         tagihanNomor: tagihan.tagihan.nomorTagihan,
-        harga: lines.harga,
+        harga,
         adminPlatformAccountId: by.accountId,
         adminPlatformName: by.email,
         adminPlatformPhoneNumber: by.phoneNumber,
@@ -229,6 +258,30 @@ export async function konfirmasiSaatDukaTpu(
       },
       reason: null,
     });
+
+    // Each hari-H item becomes a Pekerjaan Layanan, Dijadwalkan now and targeted at the burial day, on this transaction:
+    // the jobs exist exactly when the Tagihan does, and a Mitra Jasa is assigned to each by hand from the picker.
+    if (hariHBaris.length > 0) {
+      await deps.layanan.jadwalkanHariHTpu(
+        {
+          nomor: order.nomor,
+          tagihanId: tagihan.tagihan.id,
+          tpu: { id: tpu.id, name: tpu.name, address: tpu.address },
+          makam: {
+            blokNomor: order.kuburan?.blokNomor ?? "Makam baru: petak ditentukan TPU pada hari pemakaman",
+            almarhumName: order.almarhumName,
+            keterangan: order.kuburan ? `Tumpang di makam ${order.kuburan.nama}` : null,
+            // The IPTM photo is a permit, never a grave photo, and is not shown to a Mitra Jasa.
+            fotoKeys: [],
+            pin: tpu.pin,
+          },
+          pemesan: { accountId: order.pemesanAccountId, name: order.pemesanName, email: order.email, phoneNumber },
+          targetDate: hariPemakaman,
+          baris: hariHBaris,
+        },
+        tx,
+      );
+    }
 
     // The surat pengantar is fetched by a Petugas from the TPU, on the burial
     // day: it is the letter the filing needs and the family never carries it.
@@ -277,7 +330,7 @@ export async function konfirmasiSaatDukaTpu(
     kontakTpu: input.kontakTpu,
     catatan: input.catatan === "" ? null : input.catatan,
     dokumen: { pemakaman: order.dokumenPemakaman, pengajuan: order.dokumenPengajuan },
-    harga: lines.harga,
+    harga,
     tagihan: {
       nomorTagihan: hasil.tagihan.nomorTagihan,
       total: hasil.tagihan.total,
