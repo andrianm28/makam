@@ -360,6 +360,23 @@ from.
 The old app's stack and its data are never modified by any of this: the only
 contact is that one read-only query its owner runs.
 
+## FileStore volume owned by root (`berkas_gagal_disimpan`)
+
+Every upload (a Kunjungan Verifikasi photo, an agreement scan, a family's
+document) failing with `berkas_gagal_disimpan` means the app cannot write to
+`/data/files`. Images built before 2026-09-29 did not create that directory,
+so Docker created the `files` volume's mount point as root while the app runs
+as `node`. Current images create it owned by `node`, but a volume that already
+exists keeps its old owner, so fix it once per host (staging shown; production
+uses its own project and env files):
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+$S exec -u root web chown node:node /data/files
+$S exec web sh -c 'touch /data/files/.tulis-uji && rm /data/files/.tulis-uji && echo bisa-tulis'
+```
+
 ## Seed the prototype's example data on staging (`seed-contoh-publik`)
 
 `dev.makam.co.id` (the beta for UAT) starts empty: no Lokasi Mitra of its own
