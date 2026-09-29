@@ -4,6 +4,8 @@ import { pageExists } from "../../tests/support/page-exists";
 import {
   AKSI_MAKAM_KELUARGA,
   HUB_PATH,
+  LAYANAN_PATH,
+  layananPath,
   TPU_DAFTAR_PATH,
   TPU_GUIDE_PATH,
   aksiDari,
@@ -27,15 +29,35 @@ describe("the Makam keluarga hub's branches", () => {
     expect(kartuAksi.map((kartu) => kartu.aksi)).toEqual([...AKSI_MAKAM_KELUARGA]);
   });
 
-  it("links no action whose flow a later ticket has not built, and promises no date", () => {
-    // Each flow is its own ticket (35, 40/41, 50/53/54, 47/48), so every card is a branch
-    // that is here and a page that is not: no href, no date, the CS instead.
+  it("links exactly the actions whose flow is built, to a page that exists, and promises no date", () => {
+    // Each flow is its own ticket. The Layanan branch is here (50), so its card links
+    // to the checkout; the other three are still a branch that is here and a page
+    // that is not — no href, no date, the CS instead. A card that grows an `href`
+    // is only allowed to do so where `pageExists` agrees, which is what stops a link
+    // to a page nobody wrote.
+    const dibangun = new Set(["layanan"]);
     for (const kartu of kartuAksi) {
-      expect(kartu.href, `${kartu.label} links a flow that is not built`).toBeUndefined();
+      // Perpanjang is built: its flow starts from a grave, so its card says what to do with the lookup result.
+      expect(kartu.langkah !== undefined, `${kartu.label} langkah`).toBe(kartu.aksi === "perpanjang");
+      if (dibangun.has(kartu.aksi)) {
+        expect(kartu.href, `${kartu.label} should link its built flow`).toEqual(LAYANAN_PATH);
+        expect(pageExists(kartu.href as string), `${kartu.href} has no page`).toBe(true);
+      } else {
+        expect(kartu.href, `${kartu.label} links a flow that is not built`).toBeUndefined();
+      }
       expect(kartu.label.length, kartu.aksi).toBeGreaterThan(3);
       expect(kartu.ringkas).toMatch(/[.!?]$/);
     }
     expect(kartuAksi.map((kartu) => `${kartu.label} ${kartu.ringkas}`).join(" ")).not.toMatch(/\d{4}/);
+  });
+
+  it("addresses the Layanan checkout with the grave the lookup named", () => {
+    // The Petak is addressed by its id, not its number: the number is what the
+    // family reads, and the page re-reads the grave's own state from the Inventory
+    // module, so a stale address cannot order for a plot that has moved on.
+    expect(layananPath({ lokasiId: "11111111-1111-4111-8111-111111111111", petakId: "22222222-2222-4222-8222-222222222222" })).toBe(
+      "/layanan?lokasi=11111111-1111-4111-8111-111111111111&petak=22222222-2222-4222-8222-222222222222",
+    );
   });
 
   it("is opened by the Beranda's two tiles with that action preselected, and the hub page exists", () => {
@@ -84,7 +106,7 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
   const nama = new Map([["lokasi-1", "Makam Keluarga Sawah"]]);
 
   it("names a Petak by its Nomor Makam and opens the hub on that number", () => {
-    const baris = barisMakamSaya({ lokasiId: "lokasi-1", kavlingId: null, nomorKavling: null, petak: [petak("A-01", ["Hasan"])] }, nama);
+    const baris = barisMakamSaya({ hakPakaiId: "hak-1", lokasiId: "lokasi-1", kavlingId: null, nomorKavling: null, petak: [petak("A-01", ["Hasan"])] }, nama);
 
     expect(baris).toEqual({
       lokasiId: "lokasi-1",
@@ -97,7 +119,7 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
 
   it("names a Kavling Keluarga by its own Nomor Kavling and looks it up as one whole", () => {
     const baris = barisMakamSaya(
-      { lokasiId: "lokasi-1", kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [petak("A-01", ["Hasan"]), petak("A-02")] },
+      { hakPakaiId: "hak-1", lokasiId: "lokasi-1", kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [petak("A-01", ["Hasan"]), petak("A-02")] },
       nama,
       "perpanjang",
     );
@@ -112,7 +134,7 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
   });
 
   it("says 'Lokasi Mitra' for a Lokasi the public list does not name, rather than guessing one", () => {
-    const baris = barisMakamSaya({ lokasiId: "lokasi-9", kavlingId: null, nomorKavling: null, petak: [petak("B-04")] }, nama);
+    const baris = barisMakamSaya({ hakPakaiId: "hak-9", lokasiId: "lokasi-9", kavlingId: null, nomorKavling: null, petak: [petak("B-04")] }, nama);
 
     expect(baris.namaLokasi).toBe("Lokasi Mitra");
   });

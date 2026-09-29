@@ -15,13 +15,23 @@ export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
 export const statusVocabulary = {
   belum_tayang: { label: lokasiStatusLabels.belum_tayang, tone: "neutral" },
   terverifikasi: { label: lokasiStatusLabels.terverifikasi, tone: "success" },
-  // A Mitra Jasa taking work, and a Hak Pakai that is: same word, same tone.
+  // A Mitra Jasa taking work, a Hak Pakai that is, and a paid Pemesanan Terencana (ticket 37): same word, same tone.
   aktif: { label: "Aktif", tone: "success" },
   ditangguhkan: { label: lokasiStatusLabels.ditangguhkan, tone: "warning" },
   berhenti: { label: lokasiStatusLabels.berhenti, tone: "neutral" },
   terlambat: { label: "Terlambat", tone: "danger" },
   lunas: { label: "Lunas", tone: "success" },
   belum_dibayar: { label: "Belum Dibayar", tone: "warning" },
+  /**
+   * The Layanan order's own statuses: a job waiting for the money that pays for
+   * it, one the Lokasi has promised, one being worked on now, and one a Pemesan
+   * has complained about. `terlambat`, `selesai` and `dibatalkan` are shared with
+   * the other kinds of work, so they are worded once.
+   */
+  menunggu_pembayaran: { label: "Menunggu Pembayaran", tone: "info" },
+  dijadwalkan: { label: "Dijadwalkan", tone: "info" },
+  sedang_dikerjakan: { label: "Sedang Dikerjakan", tone: "info" },
+  keluhan: { label: "Keluhan", tone: "warning" },
   diajukan: { label: "Diajukan", tone: "info" },
   dikonfirmasi: { label: "Dikonfirmasi", tone: "success" },
   dimakamkan: { label: "Dimakamkan", tone: "success" },

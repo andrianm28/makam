@@ -94,6 +94,21 @@ export async function saatDukaPaymentWindowHours(
   return row ? row.jam.saatDukaPaymentWindowHours : null;
 }
 
+/**
+ * A Lokasi Mitra's Terencana hold in hours (its policy, 24 by default): how long a
+ * confirmed Pemesanan Terencana holds its plots for the Pemesan to pay, and so when
+ * its pay-first Tagihan is due (spec, Pemesanan > Terencana; ticket 37). No actor:
+ * the hold's own input. Null for a Lokasi Mitra that does not exist.
+ */
+export async function terencanaHoldHours(deps: Pick<LokasiDeps, "db">, lokasiId: string): Promise<number | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db
+    .select({ policies: lokasiMitra.policies })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row ? row.policies.terencanaHoldHours : null;
+}
+
 export type SetJamOperasionalResult = WriteResult | { ok: false; reason: "jam_operasional_tidak_valid" };
 
 /**
@@ -120,4 +135,28 @@ export async function setJamOperasional(
     },
     "lokasi.atur_operasional",
   );
+}
+
+/** What a Perpanjangan needs of a Lokasi Mitra: its name and its two policies (Masa Tenggang, K). */
+export interface AturanPerpanjangan {
+  name: string;
+  masaTenggangMonths: number;
+  maxPerpanjanganTerms: number;
+}
+
+/**
+ * A Lokasi Mitra's Perpanjangan rules (spec, Perpanjangan: "open ... to the end
+ * of the Masa Tenggang", "Terms 1-K"). No actor, and not gated on the listing:
+ * a Perpanjangan carries on for a Lokasi that is no longer Terverifikasi. Null
+ * for a Lokasi Mitra that does not exist.
+ */
+export async function aturanPerpanjanganOf(deps: Pick<LokasiDeps, "db">, lokasiId: string): Promise<AturanPerpanjangan | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db
+    .select({ name: lokasiMitra.name, policies: lokasiMitra.policies })
+    .from(lokasiMitra)
+    .where(eq(lokasiMitra.id, lokasiId));
+  return row
+    ? { name: row.name, masaTenggangMonths: row.policies.masaTenggangMonths, maxPerpanjanganTerms: row.policies.maxPerpanjanganTerms }
+    : null;
 }

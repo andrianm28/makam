@@ -17,10 +17,19 @@ import type {
   TerencanaDiajukan,
 } from "@/domain/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
-import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
+import type {
+  PengurusanDikonfirmasiInput,
+  TerencanaBatasBayarLewatInput,
+  TerencanaBuktiInput,
+  TerencanaDikonfirmasiInput,
+  TerencanaDitolakInput,
+} from "@/domain/notifications";
+import { masaPembatalanDimulai } from "@/domain/payouts";
+import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { cellsOf } from "./inventory";
 import { actorOf, adminPlatformOf, logIn, nextTestIp } from "./identity";
+import { payoutsFor } from "./payouts";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 
@@ -45,6 +54,11 @@ export function pemesananOnTestDatabase(
   /** Every Bukti Pemesanan the Pemesanan module announced (ticket 25). */
   const buktiPemesanan: PemesananBuktiPemesanan[] = [];
   const terencana: TerencanaDiajukan[] = [];
+  /** What the Terencana order's own messages announced (ticket 37), for a test that reads the family message. */
+  const terencanaDikonfirmasi: TerencanaDikonfirmasiInput[] = [];
+  const terencanaDitolak: TerencanaDitolakInput[] = [];
+  const terencanaBatasBayarLewat: TerencanaBatasBayarLewatInput[] = [];
+  const terencanaBukti: TerencanaBuktiInput[] = [];
   /** Every decline, alternative and cancellation the module announced, for a test that reads the family message. */
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
@@ -79,6 +93,18 @@ export function pemesananOnTestDatabase(
     terencanaDiajukan: async (order) => {
       terencana.push(order);
     },
+    terencanaDikonfirmasi: async (_tx, input) => {
+      terencanaDikonfirmasi.push(input);
+    },
+    terencanaDitolak: async (_tx, input) => {
+      terencanaDitolak.push(input);
+    },
+    terencanaBatasBayarLewat: async (_tx, input) => {
+      terencanaBatasBayarLewat.push(input);
+    },
+    terencanaBukti: async (_tx, input) => {
+      terencanaBukti.push(input);
+    },
     tidakTertagihDinyatakan: async () => {},
     chasingDijadwalkan: async (input) => {
       chasingDijadwalkan.push(input);
@@ -111,12 +137,16 @@ export function pemesananOnTestDatabase(
     ...deps,
     paymentEffects: [
       efekBuktiPembayaran({ clock: setup.clock, dokumenUrl: deps.publicDocumentUrl }),
+      // The Lunas half of the Pencairan trigger, as the runtime registers it (ticket 32), so a test of a paid
+      // Pemesanan Terencana's Pencairan (ticket 37) pays through the real module.
+      efekPencairanSaatLunas(),
       efekBuktiPemesanan({
         clock: setup.clock,
         billingOn: (tx) => createBilling({ ...deps, db: tx }),
         inventory: setup.inventory,
         lokasi: setup.lokasi,
         notifikasi: terkumpul,
+        pencairan: { masaPembatalanDimulai },
       }),
     ],
   });
@@ -129,6 +159,8 @@ export function pemesananOnTestDatabase(
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing,
+    // The Pemakaman a recording tells Payouts (ticket 90): the real module on the same database.
+    payouts: payoutsFor(setup).payouts,
     identity: setup.identity,
     notifikasi: options.notifications ? undefined : terkumpul,
     notifications: options.notifications ? setup.notifications : undefined,
@@ -166,6 +198,10 @@ export function pemesananOnTestDatabase(
     alternatif,
     dibatalkan,
     terencana,
+    terencanaDikonfirmasi,
+    terencanaDitolak,
+    terencanaBatasBayarLewat,
+    terencanaBukti,
     notifikasi: terkumpul,
     pengurusanDikonfirmasi,
     chasingDijadwalkan,
@@ -188,6 +224,10 @@ export type PemesananModul = Omit<
   | "alternatif"
   | "dibatalkan"
   | "terencana"
+  | "terencanaDikonfirmasi"
+  | "terencanaDitolak"
+  | "terencanaBatasBayarLewat"
+  | "terencanaBukti"
   | "notifikasi"
   | "pengurusanDikonfirmasi"
   | "chasingDijadwalkan"

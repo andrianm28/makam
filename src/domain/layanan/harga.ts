@@ -1,7 +1,7 @@
 import { withinPaymentCap } from "@/domain/billing";
 import type { HargaLayananVersion, QuoteLine, QuoteResult } from "@/domain/tariffs";
 import type { LayananDeps } from "./deps";
-import { katalog, type LayananTerbaca } from "./katalog";
+import { katalog, type LayananTerbaca, type ProofRequirement } from "./katalog";
 import { findPaketById } from "./paket";
 import { penawaranOfLokasi, varianDenganLayanan, type VarianDenganLayanan } from "./varian";
 import { hargaLayananPartLabel, type HargaLayananPart } from "@/lib/layanan-labels";
@@ -180,4 +180,127 @@ function allInOf(quoted: Extract<QuoteResult, { ok: true }>, item: readonly Vari
       };
     }),
   };
+}
+
+/**
+ * The Layanan a Lokasi Mitra offers, as the standalone order's checkout lists
+ * them: the whole catalog entry (so the family sees the lead time, the text it
+ * asks for and the proof the work must carry) and each variant with **that
+ * variant's own price only**.
+ *
+ * The price here is deliberately not an all-in total. One order may hold several
+ * Layanan, and a Tagihan carries exactly one Biaya Layanan Platform however many
+ * items it has, so the only honest total is the one `hargaPesananLayanan` prices
+ * for the set actually chosen. A per-variant all-in total would add that fee once
+ * per item, and the bill would not match the screen.
+ */
+export interface VarianUntukPesanan {
+  id: string;
+  layananId: string;
+  name: string;
+  /** That place's price for this variant alone, in whole rupiah. */
+  harga: number;
+  /** "Harga berlaku sejak". */
+  inForceSince: string;
+}
+
+export interface LayananUntukPesanan {
+  /** The whole catalog entry: its name, its kind's proof, its lead time and its text field. */
+  layanan: LayananTerbaca;
+  varian: VarianUntukPesanan[];
+}
+
+/** The Layanan a Lokasi Mitra offers at `at`, in catalog order, with each variant's own price. */
+export async function penawaranUntukPesanan(deps: LayananDeps, lokasiId: string, at: Date): Promise<LayananUntukPesanan[]> {
+  if (!(await deps.lokasi.isTerverifikasi(lokasiId))) return [];
+  const [semua, prices] = await Promise.all([katalog(deps.db), deps.tariffs.hargaLayananLokasiSemua(lokasiId, at)]);
+  const ditawarkan = new Set((await penawaranOfLokasi(deps.db, lokasiId)).map((offer) => offer.layananVariantId));
+  return semua
+    .map((entry) => ({
+      layanan: entry,
+      // A variant with no price in force is not offered, never a free one.
+      varian: entry.varian.flatMap((varian) => {
+        const version = prices.get(varian.id);
+        return version && ditawarkan.has(varian.id)
+          ? [{ id: varian.id, layananId: entry.id, name: varian.name, harga: version.amount, inForceSince: version.effectiveOn }]
+          : [];
+      }),
+    }))
+    .filter((grup) => grup.varian.length > 0);
+}
+
+/** One line of a set's price, in the words a Tagihan and a checkout both show. */
+export interface BarisHargaPesanan {
+  /** The Layanan variant this line is for, or null for the Operator's own fee. */
+  layananVariantId: string | null;
+  label: string;
+  amount: number;
+}
+
+/** The all-in price of exactly the variants one order holds, from `quote()`. */
+export interface HargaPesananLayanan {
+  total: number;
+  inForceSince: string;
+  parts: BarisHargaPesanan[];
+  /** The Operator's own fee, named apart, because it is charged once per Tagihan. */
+  platformFee: number;
+}
+
+/**
+ * One offered variant with everything an order of it needs: its price, and the
+ * facts that belong to the **Layanan** rather than the variant — the minimum lead
+ * time, the text field it asks for, and the proof the work must carry.
+ *
+ * Those three are what make a date or a form checkable, and they live on the
+ * catalog entry, so a variant on its own is not enough to place an order with.
+ */
+export interface VarianUntukOrder extends VarianDenganLayanan {
+  harga: HargaLayanan;
+  leadTimeDays: number;
+  teksLabel: string | null;
+  /** What the work has to show, derived from the Layanan's own kind. */
+  proof: ProofRequirement;
+}
+
+/**
+ * Every Layanan variant this Lokasi Mitra offers at `at`, each with its price and
+ * its Layanan's own lead time, text field and proof. Empty for a Lokasi Mitra that
+ * is not listed, so a checkout is only ever offered a place that takes orders.
+ */
+export async function offeringsUntukOrder(deps: LayananDeps, lokasiId: string, at: Date): Promise<VarianUntukOrder[]> {
+  const [ditawarkan, semua] = await Promise.all([offerings(deps, { kind: "lokasi_mitra", lokasiId }, at), katalog(deps.db)]);
+  const entryOf = new Map(semua.map((entry) => [entry.id, entry] as const));
+  return ditawarkan.flatMap((varian) => {
+    const entry = entryOf.get(varian.layananId);
+    return entry ? [{ ...varian, leadTimeDays: entry.leadTimeDays, teksLabel: entry.teksLabel, proof: entry.proof }] : [];
+  });
+}
+
+/**
+ * What one order of these variants costs, all in: the items at that place's price
+ * plus the one Biaya Layanan Platform a Tagihan at a Lokasi Mitra carries. Null
+ * when a variant is not offered there, has no price in force, or the total is
+ * past the QRIS cap — a price that cannot be quoted is not a price.
+ */
+export async function hargaPesananLayanan(
+  deps: LayananDeps,
+  lokasiId: string,
+  layananVariantIds: readonly string[],
+  at: Date,
+): Promise<HargaPesananLayanan | null> {
+  if (layananVariantIds.length === 0) return null;
+  const tersedia = new Set((await offerings(deps, { kind: "lokasi_mitra", lokasiId }, at)).map((one) => one.id));
+  if (layananVariantIds.some((id) => !tersedia.has(id))) return null;
+  const quoted = await deps.tariffs.quote(
+    layananVariantIds.map((id) => ({ kind: "layanan_lokasi" as const, lokasiId, layananVariantId: id })),
+    at,
+  );
+  if (!quoted.ok || !withinPaymentCap(quoted.total)) return null;
+  const catalog = new Map((await katalog(deps.db)).flatMap((entry) => entry.varian.map((varian) => [varian.id, { namaLayanan: entry.name, name: varian.name }] as const)));
+  const parts: BarisHargaPesanan[] = quoted.lines.map((line) => ({
+    layananVariantId: line.kind === "layanan_lokasi" ? line.layananVariantId : null,
+    label: hargaLayananPartLabel(line, line.kind === "layanan_lokasi" ? catalog.get(line.layananVariantId) : undefined),
+    amount: line.amount,
+  }));
+  return { total: quoted.total, inForceSince: quoted.inForceSince, parts, platformFee: parts.find((part) => part.layananVariantId === null)?.amount ?? 0 };
 }

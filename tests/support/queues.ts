@@ -1,5 +1,4 @@
 import type { Database } from "@/db/client";
-
 import { createQueues } from "@/domain/queues";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
@@ -18,6 +17,7 @@ import { publishOnTestDatabase } from "./publish";
  */
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
+  const { payouts } = payoutsFor(setup);
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -27,19 +27,27 @@ export function queuesOnTestDatabase(db: Database) {
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing: setup.billing,
+    payouts,
     identity: setup.identity,
     notifications: setup.notifications,
   });
+  const { refunds } = refundsFor(setup, payouts);
+  // The Antrean's Layanan rows (ticket 50) read the Layanan module's own public reads, so it is
+  // composed here beside the rest: it needs Inventory, Billing and Identity, all of which this
+  // fixture already has.
   const layanan = composeLayanan({
     db,
     clock: setup.clock,
-    audit: setup.audit,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    identity: setup.identity,
+    refunds,
+    notifications: setup.notifications,
   });
-  const { payouts } = payoutsFor(setup);
-  const { refunds } = refundsFor(setup, payouts);
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
   // Pengurusan module, and ticket 45 gave the Antrean a Tier 1 row that reads it,
   // so the queue is composed after it and holds it. Its family message is
@@ -80,7 +88,7 @@ export function queuesOnTestDatabase(db: Database) {
     pengurusan,
     refunds,
   });
-  return { ...setup, pemesanan, layanan, pengurusan, payouts, refunds, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, pengurusan, payouts, refunds, layanan, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

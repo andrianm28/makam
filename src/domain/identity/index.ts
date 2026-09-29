@@ -106,6 +106,7 @@ export {
   pencairanResource,
   pengembalianResource,
   pengurusanTpuResource,
+  pesananLayananResource,
   semuaLokasiMitraResource,
   setorRetribusiResource,
   tagihanResource,

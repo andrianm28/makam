@@ -4,9 +4,18 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
-import type { TagihanTerbitInput, TagihanTerbitResult } from "@/domain/notifications";
+import type {
+  TagihanTerbitInput,
+  TagihanTerbitResult,
+  TerencanaBatasBayarLewatInput,
+  TerencanaBuktiInput,
+  TerencanaDikonfirmasiInput,
+  TerencanaDitolakInput,
+} from "@/domain/notifications";
+import type { Payouts } from "@/domain/payouts";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Rupiah } from "@/lib/rupiah";
+import type { ReportError } from "@/lib/observability/report-error";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 
@@ -84,6 +93,17 @@ export interface PemesananNotifikasi {
    * are held outright at submission, and the Tagihan follows the confirmation).
    */
   terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+  /**
+   * The Terencana order's own messages (ticket 37), each announced inside the
+   * transaction `tx` of the change it is about, so it commits or rolls back with
+   * it: the Lokasi Mitra's confirmation (one email carrying both the order and the
+   * Tagihan), its decline, a payment hold that ran out, and the Bukti Pemesanan of
+   * the paid order.
+   */
+  terencanaDikonfirmasi(tx: Database, input: TerencanaDikonfirmasiInput): Promise<void>;
+  terencanaDitolak(tx: Database, input: TerencanaDitolakInput): Promise<void>;
+  terencanaBatasBayarLewat(tx: Database, input: TerencanaBatasBayarLewatInput): Promise<void>;
+  terencanaBukti(tx: Database, input: TerencanaBuktiInput): Promise<void>;
   /**
    * A pay-after Tagihan's overdue anchor just became known (`catatPemakaman`,
    * right after `billing.setOverdueAnchor` sets it): Chasing's four H+3/7/14/30
@@ -188,7 +208,7 @@ export interface PemesananBuktiPemesanan {
   /** The right it proves, so the email can name it before the family opens the link. */
   petakNomor: string;
   pemegangHakName: string;
-  masa: { mulai: string; selesai: string | null };
+  masa: { mulai: string | null; selesai: string | null; tahun?: number | null };
 }
 
 /**
@@ -260,6 +280,8 @@ export interface PesananDibatalkan {
 export interface PemesananDeps {
   db: Database;
   clock: Clock;
+  /** Where a broken invariant a tick meets is reported (tags only, no personal data); optional for a process with none. */
+  reportError?: ReportError;
   /** The private FileStore for a family's own documents on an order. */
   files: FileStore;
   /** Every staff write on an order (a confirmation, a checklist tick) records an Entri Audit here. */
@@ -273,6 +295,9 @@ export interface PemesananDeps {
     | "bukaSekarang"
     | "serviceHoursDeadline"
     | "saatDukaPaymentWindowHours"
+    // A Terencana order's hold (Lokasi policy) and the working calendar its confirmation deadline counts on (ticket 37).
+    | "terencanaHoldHours"
+    | "jamOperasionalOf"
     | "documentChecklistOf"
     | "kontakSiagaOf"
   >;
@@ -295,6 +320,9 @@ export interface PemesananDeps {
     | "tersediaUntukTerencana"
     | "tahan"
     | "lepasTahan"
+    // The Terencana confirmation starts the payment hold; the payment turns the hold into Hak Pakai (ticket 37).
+    | "mulaiTahanBayar"
+    | "beriHakPakaiDariTahan"
     | "within"
   >;
   /**
@@ -303,6 +331,13 @@ export interface PemesananDeps {
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
   billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
+  /**
+   * Payouts' half of the Saat Duka trigger that only this module can write: a
+   * recorded Pemakaman, told to Payouts inside the burial's own transaction
+   * (ticket 90). Required, not optional: a fixture that omitted it would look
+   * like Payouts had never been told, which is the bug this dependency ends.
+   */
+  payouts: Pick<Payouts, "pemakamanTercatat">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

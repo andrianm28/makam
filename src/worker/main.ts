@@ -3,16 +3,17 @@
  * Built to dist/worker.mjs; run locally with `npm run worker`.
  */
 import { createAdapters } from "@/composition/adapters";
-import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
 import { composeRefunds } from "@/composition/refunds";
-import { pemesananNotifikasiDari } from "@/composition/pemesanan";
+import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composeSchedulerContext } from "@/composition/scheduler";
 import { createDatabase } from "@/db/client";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
@@ -58,16 +59,18 @@ async function main() {
   // The worker re-runs a payment's failed effects, so it holds the same registry the
   // web runtime does: a Bukti Pemesanan that failed once must be issuable here too.
   const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-  // The Layanan module, for the monthly Mitra Jasa scorecard review row (ticket 55).
-  const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
-  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+  const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
   const notifikasi = pemesananNotifikasiDari(notifications);
   // One registry, handed to both the scheduler's retry tick and Billing below: a
   // payment's failed effect is run again here, exactly as the web runtime would.
   const efek = paymentEffects({
     clock: adapters.clock,
     dokumenUrl: urls.publicDocumentUrl,
+    // A paid order Layanan's jobs are scheduled here too when the first attempt failed (ticket 50).
+    layanan: { db: database.db, inventory },
     buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+    // A paid Perpanjangan extends its Hak Pakai (ticket 40); a failed one is retried here too.
+    perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
   });
   const billing = composeBilling({
     ...billingComposition,
@@ -101,6 +104,40 @@ async function main() {
     reportError,
   });
 
+  // The Layanan module, for the monthly Mitra Jasa scorecard review row (ticket 55). It is composed with every
+  // neighbour it reaches for an order (ticket 50), though the worker only calls its scorecard tick.
+  const layanan = composeLayanan({
+    db: database.db,
+    clock: adapters.clock,
+    audit,
+    files: adapters.files,
+    lokasi,
+    tariffs,
+    inventory,
+    billing: billingOn(billingComposition, database.db),
+    identity,
+    refunds,
+    notifications,
+  });
+
+  // The Pemesanan module, for the tick that lets a Terencana order's payment hold lapse (ticket 37): it reaches
+  // Billing on the database (the Tagihan it cancels is Billing's own write) and Inventory (the plots it releases).
+  const pemesanan = composePemesanan({
+    db: database.db,
+    clock: adapters.clock,
+    reportError,
+    files: adapters.files,
+    audit,
+    lokasi,
+    tariffs,
+    inventory,
+    billing: billingOn(billingComposition, database.db),
+    identity,
+    notifikasi,
+    // Recording a Pemakaman tells Payouts (ticket 90); the worker records none, but the module needs the dependency.
+    payouts,
+  });
+
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
     context: composeSchedulerContext({
@@ -113,10 +150,12 @@ async function main() {
       notifications,
       lokasi,
       identity,
+      inventory,
       notifikasi,
       payouts,
       refunds,
       layanan,
+      terencana: pemesanan,
     }),
     clock: adapters.clock,
     ticks: scheduledTicks,

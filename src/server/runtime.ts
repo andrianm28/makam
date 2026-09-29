@@ -2,7 +2,7 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
+import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
@@ -18,8 +18,9 @@ import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
-import type { Pemesanan } from "@/domain/pemesanan";
+import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
 import { createQueues, type Queues } from "@/domain/queues";
@@ -54,6 +55,8 @@ export interface ServerRuntime {
   pemesanan: Pemesanan;
   /** Pengurusan at a DKI TPU: the Saat Duka TPU list, its submission and its order page. */
   pengurusan: Pengurusan;
+  /** Perpanjangan of a Hak Pakai at a Lokasi Mitra: the direct path, a code to the recorded email (ticket 40). */
+  perpanjangan: Perpanjangan;
   /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
   payouts: Payouts;
   /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
@@ -88,9 +91,8 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
     // Every Billing of this runtime (the read-only ones the other modules hold included, since Pemesanan declares Tidak Tertagih through its own) guards it with
     // Notifications' call log; the closure runs only after both are built (ticket 29).
@@ -99,7 +101,7 @@ export function serverRuntime(): ServerRuntime {
     // own Harga Khusus path (ticket 30) only ever *calls*
     // `kurangiPencairanPesanan` once a write happens, well after this module
     // has finished loading, so the closure over a not-yet-filled box is safe.
-    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const payoutsRef: { current?: Pick<Payouts, "pemakamanTercatat"> & { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
     const billingComposition: BillingComposition = {
       env,
       db: database.db,
@@ -142,12 +144,21 @@ export function serverRuntime(): ServerRuntime {
     const pemesanan = composePemesanan({
       db: database.db,
       clock: adapters.clock,
+      reportError,
       files: adapters.files,
       audit,
       lokasi,
       tariffs,
       inventory,
       billing: billingOn(billingComposition, database.db),
+      // A recorded Pemakaman is told to Payouts inside the burial's own transaction (ticket 90).
+      // Payouts is composed after Billing, which is after this module, so it is reached through the lazy box filled below.
+      payouts: {
+        pemakamanTercatat: (tx, input) => {
+          if (!payoutsRef.current) throw new Error("Payouts is not composed yet: pemakamanTercatat was called before startup finished");
+          return payoutsRef.current.pemakamanTercatat(tx, input);
+        },
+      },
       identity,
       notifikasi,
     });
@@ -156,6 +167,8 @@ export function serverRuntime(): ServerRuntime {
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
+        // A paid order Layanan schedules its jobs, unless the grave's Hak Pakai is still Perlu Verifikasi (ticket 50).
+        layanan: { db: database.db, inventory },
         // A paid order earns its Bukti Pemesanan and becomes Selesai, in the payment's own transaction (ticket 25).
         buktiPemesanan: buktiPemesananEffect({
           clock: adapters.clock,
@@ -164,6 +177,8 @@ export function serverRuntime(): ServerRuntime {
           lokasi,
           notifikasi,
         }),
+        // A paid Perpanjangan extends its Hak Pakai and issues its Bukti Perpanjangan (ticket 40).
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.
@@ -196,6 +211,21 @@ export function serverRuntime(): ServerRuntime {
       operatorSettings,
       pemesanan,
       reportError,
+    });
+    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
+    // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      refunds,
+      notifications,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.
@@ -247,6 +277,17 @@ export function serverRuntime(): ServerRuntime {
         refunds,
       }),
       pengurusan,
+      perpanjangan: createPerpanjangan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        pemesanan,
+        identity,
+        notifikasi: notifications,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;

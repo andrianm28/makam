@@ -41,7 +41,15 @@ export interface AntreanRowDeps {
    */
   pemesanan: Pick<
     Pemesanan,
-    "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak" | "antreanCatatPemakaman"
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    | "ditolak"
+    | "saatDukaDitolak"
+    | "antreanCatatPemakaman"
+    // The Terencana rows: the Antrean Lokasi's "Konfirmasi Terencana" and Admin Platform's Tier 3 late row (ticket 37).
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaLewatTenggat"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
@@ -56,7 +64,12 @@ export interface AntreanRowDeps {
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka">;
+  /**
+   * The Antrean Lokasi's three Layanan rows and the Tier 2 "Layanan terlambat"
+   * row read the Layanan module's own public reads, never its tables: what is due
+   * today, what is coming and what ran late, at one Lokasi Mitra or across all.
+   */
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

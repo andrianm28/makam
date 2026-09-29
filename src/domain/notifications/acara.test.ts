@@ -13,6 +13,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
     ["pesanan_diajukan", "pesanan_diajukan", "transaksional"],
     ["pesanan_dikonfirmasi", "pesanan_dikonfirmasi", "transaksional"],
     ["bukti_pemesanan_terbit", "bukti_pemesanan_terbit", "transaksional"],
+    ["bukti_perpanjangan_terbit", "bukti_perpanjangan_terbit", "transaksional"],
     ["tagihan_terbit", "tagihan_terbit", "pengingat"],
     ["tagihan_pengingat", "tagihan_pengingat_h_1", "pengingat"],
     ["bukti_pembayaran_terbit", "bukti_pembayaran_terbit", "transaksional"],
@@ -37,9 +38,12 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "pesanan_alternatif_ditawarkan",
       "pesanan_dibatalkan",
       "bukti_pemesanan_terbit",
+      "bukti_perpanjangan_terbit",
       "tagihan_terbit",
       "tagihan_pengingat_h_1",
       "tagihan_pengingat_hari_h",
+      // A Pemesanan Terencana's payment hold (ticket 37): once, about 4 h before it ends.
+      "tagihan_pengingat_tahan",
       // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 of the overdue anchor.
       "tagihan_pengingat_h3",
       "tagihan_pengingat_h7",
@@ -52,6 +56,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       // A Bukti Pengembalian Dana issued (ticket 31): transactional, like a
       // Bukti Pembayaran — the money already moved, so it asks nothing.
       "pengembalian_terbit",
+      "layanan_pesanan_terbit",
+      "layanan_pekerjaan_selesai",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
   });
@@ -64,6 +70,20 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       template: "pengurusan_dikonfirmasi",
       waktu: "transaksional",
     });
+  });
+
+  it("times an order Layanan and a finished job as transactional: neither asks anything", () => {
+    // A family's order and its proof are both things they asked for and are waiting
+    // on, so neither waits for the 08:00–20:00 window a money reminder does.
+    expect(WAKTU_TEMPLATE.layanan_pesanan_terbit).toBe("transaksional");
+    expect(WAKTU_TEMPLATE.layanan_pekerjaan_selesai).toBe("transaksional");
+    expect(TABEL_ACARA.layanan_pesanan_terbit).toEqual({
+      penerima: "email_pemesan",
+      kanal: "email",
+      template: "layanan_pesanan_terbit",
+      waktu: "transaksional",
+    });
+    expect(TABEL_ACARA.layanan_pekerjaan_selesai.waktu).toBe("transaksional");
   });
 
   it("times the Tagihan on issue as a reminder, inside 08:00–20:00 WIB", () => {

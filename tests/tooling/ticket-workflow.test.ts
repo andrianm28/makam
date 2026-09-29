@@ -207,11 +207,11 @@ describe("the ticket workflow discipline", () => {
     // having been written in the marker's wording from the start, ticket 32
     // took it from 10 to 11 the same day, ticket 24 from 11 to 12 at its
     // merge, ticket 25 from 12 to 13 at its own merge, and ticket 27 from 13 to 14,
-    // all 2026-09-28, and tickets 29, 30 and 31 from 14 to 17 in one stacked merge
-    // on 2026-09-29. The
+    // all 2026-09-28, tickets 29, 30 and 31 from 14 to 17 in one stacked merge
+    // on 2026-09-29, and tickets 37 and 40 from 17 to 19 in the next one. The
     // half that has no record at all never moves downwards on its own — only a
     // real merge can.
-    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(17);
+    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(19);
     expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
   });
 

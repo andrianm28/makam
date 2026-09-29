@@ -39,6 +39,10 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       pesananDibatalkan: async () => {},
       pesananBuktiPemesanan: async () => {},
       terencanaDiajukan: async () => {},
+      terencanaDikonfirmasi: async () => {},
+      terencanaDitolak: async () => {},
+      terencanaBatasBayarLewat: async () => {},
+      terencanaBukti: async () => {},
       chasingDijadwalkan: async () => {},
       tidakTertagihDinyatakan: async () => {},
     };
@@ -77,14 +81,26 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     pesananBuktiPemesanan: async (hasil) => {
       await notifications.pesananBuktiPemesanan(hasil);
     },
-    // A Pemesanan Terencana needs a Peringatan Staf of its own, and Notifications has
-    // no kind for it yet: adding one belongs to the Lokasi Mitra's confirmation
-    // (ticket 37), which is also where the Antrean row showing the order lands. Until
-    // then this announcement is dropped, and nothing is lost but the message: the
-    // order is already written, its plots are held, and a placement never waits on a
-    // send. The Pemesanan module's own test records the call, so the seam is not a
-    // mechanism nothing can reach.
+    // A new Pemesanan Terencana's Peringatan Staf is still dropped here: Notifications
+    // has no staff kind for it, and the Lokasi's confirmation (ticket 37) does not need
+    // one — the order shows in its Antrean Lokasi as a "Konfirmasi Terencana" row, due by
+    // the end of the Lokasi's next working day. Nothing is lost but the push: the order is
+    // already written, its plots are held, and a placement never waits on a send. The
+    // Pemesanan module's own test records the call, so the seam is not a mechanism
+    // nothing can reach.
     terencanaDiajukan: async () => {},
+    terencanaDikonfirmasi: async (tx, input) => {
+      await notifications.terencanaDikonfirmasi(input, tx);
+    },
+    terencanaDitolak: async (tx, input) => {
+      await notifications.terencanaDitolak(input, tx);
+    },
+    terencanaBatasBayarLewat: async (tx, input) => {
+      await notifications.terencanaBatasBayarLewat(input, tx);
+    },
+    terencanaBukti: async (tx, input) => {
+      await notifications.terencanaBukti(input, tx);
+    },
     tidakTertagihDinyatakan: async (tx, tagihan) => {
       await notifications.antrekanPeringatanTidakTertagih(tx, tagihan);
     },

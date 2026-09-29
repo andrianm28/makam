@@ -76,6 +76,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "denah.buat_kavling": "Kavling Keluarga dibuat",
   "denah.pisahkan_kavling": "Kavling Keluarga dipisahkan",
   "denah.ubah_baris_kolom": "Baris/kolom Blok diubah",
+  "denah.hapus_blok": "Blok dihapus",
   "denah.unggah_foto_blok": "Foto denah Blok diunggah",
   "denah.bersihkan_petak": "Petak dibersihkan",
   "petak.nomor_ulang": "Nomor Petak diubah (renumbering)",
@@ -87,6 +88,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "lokasi.aktifkan_terencana": "Pemesanan Terencana diaktifkan",
   "denah.pakai_petak": "Petak dipakai untuk pesanan",
   "pemesanan.konfirmasi_saat_duka": "Pesanan Saat Duka dikonfirmasi",
+  "pemesanan.konfirmasi_terencana": "Pesanan Terencana dikonfirmasi, petak ditahan untuk dibayar",
+  "pemesanan.tolak_terencana": "Pesanan Terencana ditolak, petak dilepas",
   "pemesanan.centang_dokumen": "Dokumen ditandai sudah ada",
   "pencairan.tahan": "Pencairan ditahan",
   "pencairan.override_jumlah": "Jumlah Pencairan diubah",
@@ -112,8 +115,13 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "pengembalian.isi_rekening_pemesan": "Rekening pengembalian dana diisi Pemesan",
   "pengembalian.terbitkan_bukti": "Bukti Pengembalian Dana diterbitkan",
   "hak_pakai.akhiri_tidak_tertagih": "Hak Pakai diakhiri (Tagihan Tidak Tertagih)",
+  "hak_pakai.lengkapi": "Data Hak Pakai dilengkapi",
   "tagihan.tidak_tertagih": "Tagihan dinyatakan Tidak Tertagih",
   "tagihan.catatan_ditambah": "Catatan ditambahkan pada Tagihan",
+  "hak_pakai.selesaikan_verifikasi": "Hak Pakai dilengkapi (Perlu Verifikasi selesai)",
+  "layanan.mulai_pekerjaan": "Pekerjaan Layanan dimulai",
+  "layanan.unggah_bukti": "Bukti Pekerjaan Layanan diambil",
+  "layanan.selesaikan_pekerjaan": "Pekerjaan Layanan diselesaikan",
 };
 
 /** The role an Entri Audit's actor wrote under. */

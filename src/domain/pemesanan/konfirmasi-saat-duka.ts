@@ -233,7 +233,7 @@ const KINDS_YANG_BISA_DITAGIH = [
   "biaya_layanan_platform",
 ] as const;
 
-function linesOf(
+export function linesOf(
   quoted: readonly QuotedLine[],
   order: { lokasiId: string; lokasiName: string },
 ): { ok: true; lines: NewTagihanLine[] } | { ok: false; reason: "baris_tidak_bisa_ditagih" } {

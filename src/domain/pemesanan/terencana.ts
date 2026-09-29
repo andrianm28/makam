@@ -15,6 +15,8 @@ import type { PublicDenah, PublicDenahBlok } from "@/domain/inventory";
 import type { LokasiPublicPricing, QuotedLine } from "@/domain/tariffs";
 import type { PemesananDeps, Pemesan, TerencanaQuery } from "./deps";
 import { placeTerencanaSchema } from "./skema-terencana";
+import { alasanTerencana } from "./reads-terencana-staf";
+import { tenggatKonfirmasiTerencana } from "./terencana-konfirmasi";
 import { bolehDitahan, type TahanUnit } from "@/domain/inventory";
 import { pemesananTerencana, pemesananTerencanaUnit, type CalonPenghuniTerencana, type PemegangHak, type PemesananTerencanaStatus, type SyaratTerencana } from "./schema";
 
@@ -393,11 +395,15 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
     if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_qris", total: harga.total };
 
     const pemesan: Pemesan = { accountId: akun.id, email };
+    // The Lokasi Mitra answers by the end of its next working day (spec, Pemesanan > Terencana). The order carries the
+    // deadline so the Antrean rows and the family's page all state the same instant; nothing cancels the order when it passes.
+    const konfirmasiDueAt = await tenggatKonfirmasiTerencana(deps, draft.lokasiId, now);
     const [order] = await tx
       .insert(pemesananTerencana)
       .values({
         nomor,
         status: "diajukan",
+        konfirmasiDueAt,
         lokasiId: draft.lokasiId,
         lokasiName: profile.name,
         pemesanAccountId: pemesan.accountId,
@@ -435,8 +441,13 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
         calonPenghuni,
         syarat: syaratOf(profile),
         unit: units.map((unit) => ({ jenis: unit.jenis, nomor: unit.nomor, jenisMakamName: unit.jenisMakamName })),
-        konfirmasiDueAt: null,
+        konfirmasiDueAt,
+        dikonfirmasiPada: null,
+        tahanSampai: null,
         tagihanId: null,
+        buktiPemesananId: null,
+        aktifPada: null,
+        masaPembatalanBerakhirPada: null,
         alasan: null,
         diajukanAt: now,
       },
@@ -507,8 +518,17 @@ export interface PemesananTerencanaOrder {
   syarat: SyaratTerencana;
   /** Every chosen unit, in the order the Pemesan picked them. */
   unit: { jenis: "petak" | "kavling"; nomor: string; jenisMakamName: string }[];
+  /** The end of the Lokasi Mitra's next working day after submission, by which it answers; null while its Jam Operasional is belum diisi. */
   konfirmasiDueAt: Date | null;
+  /** When the Lokasi Mitra confirmed, and when the payment hold ends (the Tagihan's due date); null until then. */
+  dikonfirmasiPada: Date | null;
+  tahanSampai: Date | null;
   tagihanId: string | null;
+  /** The Bukti Pemesanan a paid order earned, and when it became Aktif and its Masa Pembatalan ends; null until paid. */
+  buktiPemesananId: string | null;
+  aktifPada: Date | null;
+  masaPembatalanBerakhirPada: Date | null;
+  /** Why it was declined or cancelled, worded; null while none. */
   alasan: string | null;
   diajukanAt: Date;
 }
@@ -546,8 +566,13 @@ export async function terencanaOf(deps: Pick<PemesananDeps, "db">, pemesan: { ac
       jenisMakamName: unit.jenisMakamName,
     })),
     konfirmasiDueAt: row.konfirmasiDueAt,
+    dikonfirmasiPada: row.dikonfirmasiPada,
+    tahanSampai: row.tahanSampai,
     tagihanId: row.tagihanId,
-    alasan: row.alasan,
+    buktiPemesananId: row.buktiPemesananId,
+    aktifPada: row.aktifPada,
+    masaPembatalanBerakhirPada: row.masaPembatalanBerakhirPada,
+    alasan: alasanTerencana(row),
     diajukanAt: row.diajukanAt,
   };
 }

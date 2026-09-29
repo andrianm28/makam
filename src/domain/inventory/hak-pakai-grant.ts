@@ -9,9 +9,8 @@
  * burial entered long after it happened still counts from the day it did.
  */
 import type { Database } from "@/db/client";
-import type { Actor } from "@/domain/identity";
 import type { Tenure } from "@/domain/tariffs";
-import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak } from "./schema";
+import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
 import { addYears } from "./tenure";
 
 /** The Pemegang Hak a grant records: never the Almarhum, and never empty. */
@@ -40,13 +39,16 @@ export interface GrantHakPakaiInput {
   dataMenyusul: boolean;
   pemegangHak: NewPemegangHak | null;
   pemakaman: NewPemakaman | null;
+  /** A Terencana order's Syarat snapshot and Calon Penghuni label, kept on the right its payment granted (ticket 37). */
+  syarat?: SyaratHakPakai | null;
+  calonPenghuni?: string | null;
 }
 
 /** Inserts the Hak Pakai row and, when given, its Pemegang Hak and first Pemakaman; returns the Hak Pakai id. */
 export async function grantHakPakai(
   tx: Database,
   now: Date,
-  by: Actor,
+  by: { accountId: string },
   input: GrantHakPakaiInput,
 ): Promise<string> {
   const tenureYears = input.tenure?.kind === "tahun" ? input.tenure.years : null;
@@ -65,6 +67,8 @@ export async function grantHakPakai(
       tenureStartAt,
       endDate,
       perluVerifikasi: input.dataMenyusul,
+      syarat: input.syarat ?? null,
+      calonPenghuni: input.calonPenghuni ?? null,
       createdAt: now,
       createdByAccountId: by.accountId,
     })

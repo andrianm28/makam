@@ -277,12 +277,40 @@ export const pemesananTerencana = pgTable(
     pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
     calonPenghuni: jsonb("calon_penghuni").$type<CalonPenghuniTerencana>().notNull(),
     syarat: jsonb("syarat").$type<SyaratTerencana>().notNull(),
-    /** The instant the Lokasi Mitra's Jam Operasional promised a confirmation by; null until ticket 37 sets it. */
+    /**
+     * The end of the Lokasi Mitra's next working day after submission (spec,
+     * Pemesanan > Terencana: "Confirmation is due by the end of the Lokasi's next
+     * working day, with no automatic cancel"), set at submission; null only while a
+     * Jam Operasional is belum diisi. The Konfirmasi Terencana row is due then, and
+     * the Tier 3 "Konfirmasi Terencana terlambat" row appears after it — neither
+     * cancels or changes the order (ticket 37).
+     */
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /** The Tagihan issued when the Lokasi Mitra confirmed; null until then. Nothing is billed at submission. */
     tagihanId: text("tagihan_id"),
     /** Why the Lokasi Mitra declined, or why the order was cancelled; null while none. */
     alasan: text("alasan"),
+    /**
+     * The payment hold (ticket 37): when the Lokasi Mitra confirmed, and when the hold
+     * on the plots runs out — the instant the pay-first Tagihan is due. Both null
+     * until the confirmation; the lapse tick releases the plots once `tahan_sampai`
+     * has passed with the Tagihan unpaid.
+     */
+    dikonfirmasiPada: at("dikonfirmasi_pada"),
+    tahanSampai: at("tahan_sampai"),
+    /** When the Lokasi Mitra declined, and the reason off the closed list (`./alasan-tolak.ts`); null while not Ditolak. */
+    ditolakPada: at("ditolak_pada"),
+    alasanTolak: text("alasan_tolak"),
+    /** When the order became Dibatalkan (withdrawn by the Pemesan, or its payment hold lapsed). */
+    dibatalkanPada: at("dibatalkan_pada"),
+    /**
+     * When the payment settled and the order became Aktif, the end of its Masa
+     * Pembatalan (counted from that payment, on the Syarat snapshot, never the
+     * Lokasi Mitra's current policy), and the Bukti Pemesanan it earned.
+     */
+    aktifPada: at("aktif_pada"),
+    masaPembatalanBerakhirPada: at("masa_pembatalan_berakhir_pada"),
+    buktiPemesananId: text("bukti_pemesanan_id"),
     diajukanAt: at("diajukan_at").notNull(),
   },
   (table) => [
@@ -314,6 +342,14 @@ export const pemesananTerencanaUnit = pgTable(
     /** The Jenis Makam that prices this unit (a Kavling Keluarga has one of its own). */
     jenisMakamId: uuid("jenis_makam_id").notNull(),
     jenisMakamName: text("jenis_makam_name").notNull(),
+    /**
+     * The term this unit was sold with, read from the quote the Lokasi Mitra's
+     * confirmation priced it at (null = Selamanya); only meaningful once the order is
+     * Dikonfirmasi. The Hak Pakai its payment grants carries the same term.
+     */
+    tenureYears: integer("tenure_years"),
+    /** The Hak Pakai this unit's payment granted; null until the order is Aktif. */
+    hakPakaiId: uuid("hak_pakai_id"),
     urutan: text("urutan").notNull(),
   },
   (table) => [

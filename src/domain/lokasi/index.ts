@@ -58,6 +58,9 @@ import {
   bukaSekarang,
   documentChecklistOf,
   saatDukaPaymentWindowHours,
+  terencanaHoldHours,
+  aturanPerpanjanganOf,
+  type AturanPerpanjangan,
   serviceHoursDeadline,
   setJamOperasional,
   type JamOperasionalResult,
@@ -359,6 +362,15 @@ export interface Lokasi {
    * burial (ticket 23). No actor; null for a Lokasi Mitra that does not exist.
    */
   saatDukaPaymentWindowHours(lokasiId: string): Promise<number | null>;
+  /** A Lokasi Mitra's name, Masa Tenggang and K for a Perpanjangan (ticket 40); no actor, not gated on the listing. Null for an unknown id. */
+  aturanPerpanjanganOf(lokasiId: string): Promise<AturanPerpanjangan | null>;
+  /**
+   * A Lokasi Mitra's effective Terencana hold in hours (its own policy, which starts at the 24 h default, so callers never apply a default): how
+   * long a confirmed Pemesanan Terencana holds its plots for the Pemesan to pay,
+   * which is when its pay-first Tagihan is due (ticket 37). No actor; null for a
+   * Lokasi Mitra that does not exist.
+   */
+  terencanaHoldHours(lokasiId: string): Promise<number | null>;
   /**
    * A Lokasi Mitra's document checklist, whatever its status (ticket 23): what
    * a family is asked to bring and what an Admin Lokasi ticks off. No actor.
@@ -468,6 +480,8 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     jamOperasionalOf: (lokasiId) => jamOperasionalOf(deps, lokasiId),
     serviceHoursDeadline: (lokasiId, hours, start) => serviceHoursDeadline(deps, lokasiId, hours, start),
     saatDukaPaymentWindowHours: (lokasiId) => saatDukaPaymentWindowHours(deps, lokasiId),
+    terencanaHoldHours: (lokasiId) => terencanaHoldHours(deps, lokasiId),
+    aturanPerpanjanganOf: (lokasiId) => aturanPerpanjanganOf(deps, lokasiId),
     documentChecklistOf: (lokasiId) => documentChecklistOf(deps, lokasiId),
     bukaSekarang: (lokasiId) => bukaSekarang(deps, lokasiId),
     recordKunjunganVerifikasi: (by, lokasiId, input) => recordKunjunganVerifikasi(deps, by, lokasiId, input),
@@ -504,3 +518,4 @@ export {
   type JamOperasionalTanpaJamBuka,
   type WorkingTimeResult,
 } from "./working-time";
+export type { AturanPerpanjangan };

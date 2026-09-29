@@ -105,6 +105,13 @@ export async function catatPemakaman(
       .returning({ id: pemesananMakam.id });
     if (moved.length === 0) return { ok: false as const, reason: "pemakaman_sudah_dicatat" as const };
 
+    // Payouts is told in the same transaction, so the fact commits with the
+    // burial or not at all (ticket 90). Its Saat Duka trigger needs it beside the
+    // Lunas half; the tick makes the Pencairan due whichever came first. The
+    // instant is the moment it was recorded, the same one the pay-after clock
+    // below starts from.
+    await deps.payouts.pemakamanTercatat(tx, { nomorPemesanan: order.nomor, pemakamanAt: now });
+
     // The pay-after Tagihan's overdue clock starts here, not at the day the
     // burial was planned: the family gets its full window from the burial that
     // happened, and the Tagihan is not reissued for it.

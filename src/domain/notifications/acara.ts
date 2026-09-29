@@ -22,9 +22,13 @@ export const TEMPLATE_EMAIL = [
   "pesanan_alternatif_ditawarkan",
   "pesanan_dibatalkan",
   "bukti_pemesanan_terbit",
+  // A Bukti Perpanjangan issued (ticket 40): transactional, it asks nothing.
+  "bukti_perpanjangan_terbit",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
+  // A Pemesanan Terencana's payment hold: one reminder about 4 h before it ends (ticket 37).
+  "tagihan_pengingat_tahan",
   // Pay-after Chasing (ticket 29): H+3, H+7, H+14, H+30 after the Tagihan's
   // own Lewat Jatuh Tempo anchor (the recorded burial plus its payment
   // window), stopping the moment it is Lunas or Tidak Tertagih.
@@ -35,6 +39,8 @@ export const TEMPLATE_EMAIL = [
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
   "pengembalian_terbit",
+  "layanan_pesanan_terbit",
+  "layanan_pekerjaan_selesai",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -58,9 +64,11 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   pesanan_alternatif_ditawarkan: "transaksional",
   pesanan_dibatalkan: "transaksional",
   bukti_pemesanan_terbit: "transaksional",
+  bukti_perpanjangan_terbit: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
+  tagihan_pengingat_tahan: "pengingat",
   tagihan_pengingat_h3: "pengingat",
   tagihan_pengingat_h7: "pengingat",
   tagihan_pengingat_h14: "pengingat",
@@ -70,6 +78,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   // A Bukti Pengembalian Dana asks nothing (the money is already on its way),
   // exactly like a Bukti Pembayaran (ticket 31).
   pengembalian_terbit: "transaksional",
+  layanan_pesanan_terbit: "transaksional",
+  layanan_pekerjaan_selesai: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -98,10 +108,13 @@ export const TABEL_ACARA: Record<
   | "pesanan_alternatif_ditawaran"
   | "pesanan_dibatalkan"
   | "bukti_pemesanan_terbit"
+  | "bukti_perpanjangan_terbit"
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
   | "pengurusan_dikonfirmasi"
+  | "layanan_pesanan_terbit"
+  | "layanan_pekerjaan_selesai"
   | "peringatan_staf",
   Acara
 > = {
@@ -159,6 +172,13 @@ export const TABEL_ACARA: Record<
     template: "bukti_pemesanan_terbit",
     waktu: WAKTU_TEMPLATE.bukti_pemesanan_terbit,
   },
+  /** The Bukti Perpanjangan of a paid Perpanjangan, by email at any hour (ticket 40); about the Lokasi Mitra's own work like the Bukti Pemesanan. */
+  bukti_perpanjangan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "bukti_perpanjangan_terbit",
+    waktu: WAKTU_TEMPLATE.bukti_perpanjangan_terbit,
+  },
   tagihan_terbit: {
     penerima: "email_pemesan",
     kanal: "email",
@@ -189,6 +209,27 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pengurusan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pengurusan_dikonfirmasi,
+  },
+  /**
+   * An order Layanan reaches its Pemesan by email only (ADR 0004), at any hour:
+   * the order and its Tagihan, and the finished job with the link to its photo
+   * proof. Both are about a Lokasi Mitra's own work, so a send that keeps
+   * failing calls that Lokasi's Admin Lokasi rather than Admin Platform. Neither
+   * asks the family to do anything, so neither waits for the 08:00–20:00 window:
+   * one is the receipt of an order they placed, the other the thing they were
+   * waiting to be shown.
+   */
+  layanan_pesanan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pesanan_terbit",
+    waktu: WAKTU_TEMPLATE.layanan_pesanan_terbit,
+  },
+  layanan_pekerjaan_selesai: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pekerjaan_selesai",
+    waktu: WAKTU_TEMPLATE.layanan_pekerjaan_selesai,
   },
   /**
    * The staff events, one Peringatan Staf per kind (the module's
@@ -226,6 +267,31 @@ export const ATURAN_PENGINGAT: Record<MacamMomenTagihan, string> = {
   saat_duka: "H+3, H+7, H+14, H+30",
   pemakaman_hak_pakai_ada: "H+3, H+7, H+14, H+30",
 };
+
+/** How long before a Pemesanan Terencana's payment hold ends its one reminder goes out (spec, Notifications' reminder table: "about 4 h before"). */
+export const JAM_PENGINGAT_TAHAN = 4;
+
+/**
+ * When a Pemesanan Terencana's one reminder goes out: 4 hours before the hold ends
+ * when that falls inside the 08:00–20:00 WIB window, else the last moment of the
+ * window before it — earlier, never later, because a reminder that waits for the
+ * next morning can arrive after the plots are already released. Null when no such
+ * moment is still ahead (a hold shorter than the reminder's lead), and then the
+ * confirmation email is the only message the family gets.
+ */
+export function jadwalPengingatTahan(dueAt: Date, now: Date): Date | null {
+  const target = new Date(dueAt.getTime() - JAM_PENGINGAT_TAHAN * HOUR_MS);
+  let saat = target;
+  if (!dalamJamKirim(target)) {
+    const hariItu = wibDayStart(target);
+    // After 20:00 the window's last minute that day; before 08:00 the one of the day before.
+    saat =
+      minutesOfWibDay(target) >= JAM_KIRIM_AKHIR * 60
+        ? new Date(hariItu.getTime() + JAM_KIRIM_AKHIR * HOUR_MS - 60_000)
+        : new Date(hariItu.getTime() - (24 - JAM_KIRIM_AKHIR) * HOUR_MS - 60_000);
+  }
+  return saat > now ? saat : null;
+}
 
 /** The pay-first moments, whose reminders this ticket schedules. */
 export const MOMEN_PAY_FIRST: ReadonlySet<MacamMomenTagihan> = new Set(["perpanjangan", "pengurusan_berkas", "layanan"]);

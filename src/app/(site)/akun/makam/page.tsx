@@ -73,6 +73,11 @@ export default async function AkunMakamPage() {
             </Link>
           </div>
           <p className="text-small text-muted-foreground">{satu.status.arti}</p>
+          {satu.tanggalBerakhir && satu.status.label !== "Berakhir" && satu.status.label !== "Dibatalkan" ? (
+            <Link href={`/perpanjangan/${satu.hakPakaiId}`} className="text-small font-medium text-brand underline underline-offset-4">
+              Perpanjang Makam
+            </Link>
+          ) : null}
 
           {satu.pemakaman.length > 0 ? (
             <div>

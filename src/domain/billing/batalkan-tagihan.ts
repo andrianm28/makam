@@ -24,8 +24,13 @@ import type { Database } from "@/db/client";
 import { tagihan, tagihanLine } from "./schema";
 import { readTagihan, type Tagihan, type TagihanDeps } from "./tagihan";
 
-/** Why a Tagihan was cancelled besides the two Billing does itself. */
-export type BatalkanTagihanAlasan = "pemesanan_dibatalkan";
+/**
+ * Why a Tagihan was cancelled by the module that owns the order it was for:
+ * the order was cancelled, or (a Pemesanan Terencana) its payment hold ran out
+ * unpaid. The second is the same reason Billing's own lapse tick writes, so a
+ * Tagihan reads the same whichever of the two got there first.
+ */
+export type BatalkanTagihanAlasan = "pemesanan_dibatalkan" | "batas_pembayaran_lewat";
 
 /** What a refund request waits for: how much, and that it was asked for. */
 export interface PermintaanPengembalian {
@@ -46,7 +51,9 @@ export type BatalkanTagihanResult =
     }
   | { ok: false; reason: "tidak_ditemukan" }
   /** The Tagihan is already Dibatalkan: there is nothing left to cancel. */
-  | { ok: false; reason: "tagihan_sudah_dibatalkan" };
+  | { ok: false; reason: "tagihan_sudah_dibatalkan" }
+  /** Asked to cancel only an unpaid Tagihan (`hanyaBelumDibayar`) and it is Lunas: money came in first, and refunding it is a Pembatalan's job. */
+  | { ok: false; reason: "tagihan_sudah_dibayar" };
 
 /**
  * Cancels one Tagihan and, in the same transaction, records the refund of any
@@ -58,13 +65,16 @@ export type BatalkanTagihanResult =
 export async function batalkanTagihan(
   deps: TagihanDeps,
   tagihanId: string,
-  input: { alasan: BatalkanTagihanAlasan },
+  input: { alasan: BatalkanTagihanAlasan; hanyaBelumDibayar?: boolean },
   now: Date,
 ): Promise<BatalkanTagihanResult> {
   return refusable<BatalkanTagihanResult>(deps.db, async (tx) => {
     const [row] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!row) return { ok: false as const, reason: "tidak_ditemukan" as const };
     if (row.status === "dibatalkan") return { ok: false as const, reason: "tagihan_sudah_dibatalkan" as const };
+    // Read under the row lock: a payment that settles first makes this refuse, and one that settles
+    // after finds a Dibatalkan Tagihan, so an order withdrawn "before paying" can never be both.
+    if (input.hanyaBelumDibayar && row.status === "lunas") return { ok: false as const, reason: "tagihan_sudah_dibayar" as const };
 
     // What the family is given back: the paid total less the Operator's own fee.
     const dibayar = row.paidAt === null ? null : await dikembalikan(tx, row);

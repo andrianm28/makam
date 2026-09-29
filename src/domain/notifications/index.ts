@@ -84,6 +84,12 @@ import {
   pesananDikonfirmasi,
   pesananDitolak,
   pesanPemesanan,
+  layananPekerjaanSelesai,
+  layananPesananTerbit,
+  pesanLayanan,
+  type LayananPekerjaanSelesaiInput,
+  type LayananPesananTerbitInput,
+  type PesanLayananResult,
   type PesanPemesananResult,
   type PesananAlternatifDitawarkanInput,
   type PesananDibatalkanInput,
@@ -93,11 +99,27 @@ import {
   type PesananDitolakInput,
 } from "./pesan-pemesanan";
 import {
+  buktiPerpanjanganTerbit,
+  type BuktiPerpanjanganTerbitInput,
+  type BuktiPerpanjanganTerbitResult,
+} from "./pesan-perpanjangan";
+import {
   pengurusanDikonfirmasi,
   pesanPengurusan,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+import {
+  terencanaBatasBayarLewat,
+  terencanaBukti,
+  terencanaDikonfirmasi,
+  terencanaDitolak,
+  type PesanTerencanaResult,
+  type TerencanaBatasBayarLewatInput,
+  type TerencanaBuktiInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
+} from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
@@ -110,8 +132,13 @@ export {
 } from "./telepon-pemesan";
 export {
   pesananBuktiPemesananSchema,
+  layananPekerjaanSelesaiSchema,
+  layananPesananTerbitSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
+  type LayananPekerjaanSelesaiInput,
+  type LayananPesananTerbitInput,
+  type PesanLayananResult,
   type PesanPemesananResult,
   type PesananBuktiPemesananInput,
   type PesananDiajukanInput,
@@ -122,6 +149,17 @@ export {
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+export {
+  terencanaBatasBayarLewatSchema,
+  terencanaBuktiSchema,
+  terencanaDikonfirmasiSchema,
+  terencanaDitolakSchema,
+  type PesanTerencanaResult,
+  type TerencanaBatasBayarLewatInput,
+  type TerencanaBuktiInput,
+  type TerencanaDikonfirmasiInput,
+  type TerencanaDitolakInput,
+} from "./pesan-terencana";
 export {
   tagihanTerbitSchema,
   type KirimJatuhTempo,
@@ -172,6 +210,8 @@ export interface NotificationsDeps {
   pesanUlangUrl: (nomor: string) => string;
   /** A Pengurusan order's own page, where a family follows a TPU filing (ticket 45). */
   pengurusanUrl: (nomor: string) => string;
+  /** An order Layanan's own page, from its Nomor Pemesanan. */
+  layananUrl: (nomor: string) => string;
 }
 
 export interface PushDevice {
@@ -337,6 +377,23 @@ export interface Notifications {
    */
   pesananBuktiPemesanan(input: PesananBuktiPemesananInput): Promise<PesanPemesananResult>;
   /**
+   * The family messages of a Pemesanan Terencana (ticket 37): its confirmation with
+   * the payment hold and the Tagihan (one email, the Tagihan's own "terbit" email is
+   * not sent beside it), a decline, a payment hold that ran out, and the Bukti
+   * Pemesanan. `within` is the caller's open transaction: the message then commits or
+   * rolls back with the change it announces. A Terencana order always has an Email
+   * Terverifikasi, so none of these opens a call row.
+   */
+  terencanaDikonfirmasi(input: TerencanaDikonfirmasiInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaDitolak(input: TerencanaDitolakInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaBatasBayarLewat(input: TerencanaBatasBayarLewatInput, within?: Database): Promise<PesanTerencanaResult>;
+  terencanaBukti(input: TerencanaBuktiInput, within?: Database): Promise<PesanTerencanaResult>;
+  /**
+   * Announces the Bukti Perpanjangan of a paid Perpanjangan by email (ticket 40),
+   * logged against the Perpanjangan itself. With no email a call row opens.
+   */
+  buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
+  /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
    * and the pay-after Tagihan. One message per order, whatever runs twice.
@@ -344,6 +401,12 @@ export interface Notifications {
   pengurusanDikonfirmasi(input: PengurusanDikonfirmasiInput): Promise<PesanPengurusanResult>;
   /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
+  /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
+  layananPesananTerbit(input: LayananPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
+  /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
+  layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
+  /** Every logged message about one order Layanan, oldest first. */
+  pesanLayanan(nomorPemesanan: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
   pesanPemesanan(pemesananId: string): Promise<PesanTercatat[]>;
   /** The staff message log of one Akun Staf (its Peringatan Staf per channel), newest first. */
@@ -668,6 +731,36 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pesananBuktiPemesanan(deps, input);
     },
 
+    async terencanaDikonfirmasi(input, within) {
+      return terencanaDikonfirmasi(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaDitolak(input, within) {
+      return terencanaDitolak(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaBatasBayarLewat(input, within) {
+      return terencanaBatasBayarLewat(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async terencanaBukti(input, within) {
+      return terencanaBukti(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async buktiPerpanjanganTerbit(input, within) {
+      return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async layananPesananTerbit(input, within) {
+      return layananPesananTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+    async layananPekerjaanSelesai(input, within) {
+      return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
+    },
+    async pesanLayanan(nomorPemesanan) {
+      return pesanLayanan(deps, nomorPemesanan);
+    },
+
     async pesanPemesanan(pemesananId) {
       return pesanPemesanan(deps, pemesananId);
     },
@@ -789,3 +882,5 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   if (!role) return { ok: false, reason: "tidak_berwenang" };
   return { ok: true, role };
 }
+
+export { buktiPerpanjanganTerbitSchema, type BuktiPerpanjanganTerbitInput, type BuktiPerpanjanganTerbitResult } from "./pesan-perpanjangan";

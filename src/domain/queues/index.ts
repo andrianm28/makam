@@ -64,7 +64,14 @@ export interface QueuesModuleDeps {
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi's confirmations and its "Catat Pemakaman" rows, plus the decline rows). */
   pemesanan: Pick<
     Pemesanan,
-    "konfirmasiLewatTenggat" | "antreanKonfirmasi" | "konfirmasiTerlambat" | "ditolak" | "saatDukaDitolak" | "antreanCatatPemakaman"
+    | "konfirmasiLewatTenggat"
+    | "antreanKonfirmasi"
+    | "konfirmasiTerlambat"
+    | "ditolak"
+    | "saatDukaDitolak"
+    | "antreanCatatPemakaman"
+    | "antreanKonfirmasiTerencana"
+    | "konfirmasiTerencanaLewatTenggat"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
@@ -77,7 +84,8 @@ export interface QueuesModuleDeps {
   /** The Ambil claim a family's own order page shows, as a name and a contact number. */
   identity: Pick<Identity, "staffAccountById">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka">;
+  /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 export interface Queues {

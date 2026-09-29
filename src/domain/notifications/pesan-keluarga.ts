@@ -29,6 +29,7 @@ import {
   adalahTemplateEmail,
   dalamJamKirim,
   jadwalPengingatPayFirst,
+  jadwalPengingatTahan,
   MACAM_MOMEN_TAGIHAN,
   MAKS_PERCOBAAN,
   MOMEN_PAY_FIRST,
@@ -39,6 +40,7 @@ import {
 } from "./acara";
 import { notificationsMessage, notificationsTagihanKontak, pesanStatuses } from "./schema";
 import { pengembalianTerbitEmail, tagihanPengingatEmail, tagihanTerbitEmail, type TagihanEmailInput } from "./template";
+import { tagihanPengingatTahanEmail } from "./template-terencana";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
 
 export interface PesanKeluargaDeps {
@@ -56,6 +58,8 @@ export interface PesanKeluargaDeps {
   pesanUlangUrl: (nomor: string) => string;
   /** A Pengurusan order's own page from its Nomor Pemesanan, where a family follows a TPU filing. */
   pengurusanUrl: (nomor: string) => string;
+  /** An order Layanan's own page, from its Nomor Pemesanan. */
+  layananUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({
@@ -176,6 +180,26 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
         const pengingat = tagihanPengingatEmail(macam, emailInput);
         const baru = await queueFamilyEmail(tx, now, {
           template,
+          pemesananId: null,
+          tagihanId: data.tagihanId,
+          nomorTagihan: data.nomorTagihan,
+          nomorPemesanan: data.nomorPemesanan,
+          email: data.email,
+          subject: pengingat.subject,
+          body: pengingat.body,
+          sendAfter: saat,
+        });
+        if (baru) diingatkan += 1;
+      }
+    }
+    // A Pemesanan Terencana's rule is its own and never stacks with the pay-first one:
+    // once, about 4 hours before the payment hold ends (spec, Notifications' reminder table).
+    if (data.momentKind === "terencana") {
+      const saat = jadwalPengingatTahan(data.dueAt, now);
+      if (saat) {
+        const pengingat = tagihanPengingatTahanEmail(emailInput);
+        const baru = await queueFamilyEmail(tx, now, {
+          template: "tagihan_pengingat_tahan",
           pemesananId: null,
           tagihanId: data.tagihanId,
           nomorTagihan: data.nomorTagihan,

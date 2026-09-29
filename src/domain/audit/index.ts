@@ -143,6 +143,8 @@ export type AuditAction =
   | "denah.pisahkan_kavling"
   /** An Admin Lokasi adds or removes a row or column of a Blok's grid. */
   | "denah.ubah_baris_kolom"
+  /** An Admin Lokasi removes a Blok that is empty of history (never used, never held), with a reason. */
+  | "denah.hapus_blok"
   /** An Admin Lokasi uploads or replaces a Blok's site-plan photo. */
   | "denah.unggah_foto_blok"
   /** An Admin Lokasi clears a newly drawn Petak or Kavling Keluarga: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai, its Pemegang Hak and, when known, its first Pemakaman). */
@@ -167,6 +169,10 @@ export type AuditAction =
   | "lokasi.konfirmasi_syarat_tayang"
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
+  /** An Admin Lokasi confirms a Pemesanan Terencana: the payment hold that starts and the pay-first Tagihan issued with it (ticket 37). */
+  | "pemesanan.konfirmasi_terencana"
+  /** An Admin Lokasi declines a Pemesanan Terencana with a reason from the fixed list, and its plots are released (ticket 37). */
+  | "pemesanan.tolak_terencana"
   /** An Admin Lokasi ticks a document off one of its orders' checklists (ticket 23). */
   | "pemesanan.centang_dokumen"
   /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */
@@ -215,6 +221,8 @@ export type AuditAction =
   | "pengembalian.terbitkan_bukti"
   /** The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "hak_pakai.akhiri_tidak_tertagih"
+  /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact) before its Perpanjangan (ticket 40). */
+  | "hak_pakai.lengkapi"
   /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "tagihan.tidak_tertagih"
   /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */
@@ -232,7 +240,19 @@ export type AuditAction =
   /** A Mitra Jasa sets or takes off one of their own "Tidak tersedia" ranges. */
   | "mitra_jasa.atur_tidak_tersedia"
   /** Admin Platform records the monthly scorecard review. */
-  | "mitra_jasa.catat_tinjauan";
+  | "mitra_jasa.catat_tinjauan"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra completes one Hak Pakai flagged Perlu
+   * Verifikasi — the flag the first Perpanjangan or Layanan on that Hak Pakai waits
+   * for, and the exit a gate with no exit could not be opened through (ticket 50).
+   */
+  | "hak_pakai.selesaikan_verifikasi"
+  /** The Admin Lokasi starts a Pekerjaan Layanan at its Lokasi Mitra: Sedang Dikerjakan (ticket 50). */
+  | "layanan.mulai_pekerjaan"
+  /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
+  | "layanan.unggah_bukti"
+  /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
+  | "layanan.selesaikan_pekerjaan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

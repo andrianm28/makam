@@ -104,6 +104,29 @@ export async function isBlockedByOverdueTagihan(
   return tagihan?.status === "lewat_jatuh_tempo";
 }
 
+/** The overdue Tagihan that blocks a Hak Pakai, as the family is told about it: its number and the link to pay it. */
+export interface TagihanPenghalang {
+  tagihanId: string;
+  nomorTagihan: string;
+  link: string;
+}
+
+/**
+ * The Lewat Jatuh Tempo Saat Duka Tagihan that blocks this Hak Pakai, or null
+ * (the same fact as `isBlockedByOverdueTagihan`, with what the family is told:
+ * "Lunasi Tagihan TGH/... terlebih dahulu" and a pay link; ticket 40).
+ */
+export async function tagihanPenghalangOf(
+  deps: Pick<PemesananDeps, "db" | "billing">,
+  hakPakaiId: string,
+): Promise<TagihanPenghalang | null> {
+  const order = await grantOrderOf(deps, hakPakaiId);
+  if (!order?.tagihanId) return null;
+  const tagihan = await deps.billing.tagihan(order.tagihanId);
+  if (tagihan?.status !== "lewat_jatuh_tempo") return null;
+  return { tagihanId: tagihan.id, nomorTagihan: tagihan.nomorTagihan, link: tagihan.link };
+}
+
 export type AkhiriHakPakaiTidakTertagihResult =
   | { ok: true; hakPakaiId: string }
   | WriteRefusal

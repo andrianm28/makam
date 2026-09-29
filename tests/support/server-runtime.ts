@@ -1,7 +1,7 @@
 import { afterAll, inject } from "vitest";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
-import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
@@ -11,14 +11,17 @@ import { composeRefunds } from "@/composition/refunds";
 import { createDatabase } from "@/db/client";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { nextTestIp } from "./identity";
+import type { Payouts } from "@/domain/payouts";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
 
@@ -47,12 +50,11 @@ export function testServerRuntime() {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
-    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+    const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     // Filled in once Payouts is composed below (ticket 30: Billing's own Harga
     // Khusus path only ever *calls* this once a write happens, well after this
     // module has finished loading), mirroring `src/server/runtime.ts`.
-    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const payoutsRef: { current?: Pick<Payouts, "pemakamanTercatat"> & { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
     const billingComposition: BillingComposition = {
       env,
       db: database.db,
@@ -108,6 +110,14 @@ export function testServerRuntime() {
       tariffs,
       inventory,
       billing: billingOn(billingComposition, database.db),
+      // A recorded Pemakaman is told to Payouts inside the burial's own transaction (ticket 90).
+      // Payouts is composed after Billing, which is after this module, so it is reached through the lazy box filled below.
+      payouts: {
+        pemakamanTercatat: (tx, input) => {
+          if (!payoutsRef.current) throw new Error("Payouts is not composed yet: pemakamanTercatat was called before startup finished");
+          return payoutsRef.current.pemakamanTercatat(tx, input);
+        },
+      },
       identity,
       notifikasi,
     });
@@ -116,7 +126,9 @@ export function testServerRuntime() {
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
+        layanan: { db: database.db, inventory },
         buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     const payouts = composePayouts({
@@ -143,6 +155,19 @@ export function testServerRuntime() {
       notifications,
       operatorSettings,
       pemesanan,
+    });
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      refunds,
+      notifications,
     });
     holder.__makamRuntime = {
       env,
@@ -178,6 +203,17 @@ export function testServerRuntime() {
         refunds,
       }),
       pengurusan: pengursModule,
+      perpanjangan: createPerpanjangan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        pemesanan,
+        identity,
+        notifikasi: notifications,
+      }),
     };
   }
   afterAll(async () => {

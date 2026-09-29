@@ -27,38 +27,65 @@ import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./ce
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
 import type { InventoryDeps } from "./deps";
+import { selesaikanVerifikasiHakPakai, type HakPakaiTarget, type SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 import type { PetakByNomor } from "./lookup";
 import { makamKeluargaSaya, type MakamSaya } from "./makam-saya";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
 import { akhiriHakPakai, type AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
+import {
+  hakPakaiUntukPerpanjangan,
+  lengkapiHakPakai,
+  lengkapiHakPakaiSchema,
+  perpanjangHakPakai,
+  type HakPakaiUntukPerpanjangan,
+  type LengkapiHakPakaiResult,
+  type PerpanjangHakPakaiResult,
+} from "./perpanjangan";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
   hakPakaiById,
+  hakPakaiOfUnit,
   staffInventoryReads,
   type BlokDenah,
   type DenahCell,
   type DenahKavling,
   type HakPakaiDetail,
+  type HakPakaiUntukUnit,
   type StaffInventoryReads,
 } from "./reads";
+import { ALASAN_HAPUS_BLOK_MAX, bolehHapusBlok, hapusBlok, type BolehHapusBlok, type HapusBlokResult } from "./hapus-blok";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
 import { lepasTahan, tahan, type LepasTahanResult, type TahanInput, type TahanResult } from "./hold";
+import {
+  beriHakPakaiDariTahan,
+  mulaiTahanBayar,
+  type BeriHakPakaiDariTahanInput,
+  type BeriHakPakaiDariTahanResult,
+} from "./tahan-bayar";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
 export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
+export type { BolehHapusBlok, HapusBlokResult };
+export { ALASAN_HAPUS_BLOK_MAX };
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
+export type { HakPakaiTarget, SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
+export type { BeriHakPakaiDariTahanInput, BeriHakPakaiDariTahanResult, UnitDariTahan } from "./tahan-bayar";
+export type { SyaratHakPakai } from "./schema";
+export type { HakPakaiUntukUnit } from "./reads";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
+export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakaiResult, PerpanjangHakPakaiResult } from "./perpanjangan";
+export { lengkapiHakPakaiSchema };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
@@ -95,6 +122,7 @@ export type {
   StaffInventoryReads,
   UploadBlokPhotoResult,
 };
+export { addYears } from "./tenure";
 export { MAX_BLOK_DIMENSION, BLOK_PHOTO_MAX_BYTES, edges as denahEdges, isValidPattern, kavlingPatternFrom, numberFromPattern };
 export { kavlingClearingSchema, petakClearingSchema };
 export { catatPemakamanSchema, type CatatPemakamanInput, type MasaHakPakai } from "./catat-pemakaman";
@@ -120,6 +148,10 @@ export interface Inventory {
   addEdge(by: Actor, lokasiId: string, blokId: string, edge: Edge): Promise<AddEdgeResult>;
   /** Removes rows or columns, only when none of their Petak was ever used and none is part of a Kavling Keluarga. */
   removeRowsOrCols(by: Actor, lokasiId: string, blokId: string, input: RemoveRowsOrColsInput): Promise<RemoveRowsOrColsResult>;
+  /** Removes a Blok that is empty of history (every Petak only ever Tersedia or Tidak Tersedia, none held), audited with the reason; refused otherwise. */
+  hapusBlok(by: Actor, lokasiId: string, blokId: string, alasan: string): Promise<HapusBlokResult>;
+  /** Whether that Blok may be removed right now, and if not why not; what the Denah editor shows "Hapus Blok" on. */
+  bolehHapusBlok(by: Actor, lokasiId: string, blokId: string): Promise<BolehHapusBlok>;
   /** Uploads (or replaces) a Blok's site-plan photo; refused with `penyimpanan_belum_tersedia` while no FileStore is configured. */
   uploadBlokPhoto(by: Actor, lokasiId: string, blokId: string, file: { body: Uint8Array; contentType: string }): Promise<UploadBlokPhotoResult>;
   /** Clears one Petak Makam: Tersedia, Tidak Tersedia (with a reason) or occupied (a minimal Hak Pakai). */
@@ -139,8 +171,33 @@ export interface Inventory {
    * the plot. Staff screens read a Hak Pakai through `asStaff`.
    */
   hakPakaiById(hakPakaiId: string): Promise<HakPakaiDetail | null>;
+  /**
+   * The Hak Pakai a Perpanjangan is about (ticket 40): status, its own term as
+   * bought, end date, Perlu Verifikasi flag, Jenis Makam, Petak numbers and the
+   * current Pemegang Hak with the recorded email. No actor: the caller is the
+   * Perpanjangan module, which never shows the holder's details to the family.
+   */
+  hakPakaiUntukPerpanjangan(hakPakaiId: string): Promise<HakPakaiUntukPerpanjangan | null>;
+  /**
+   * Moves a Hak Pakai's end date by terms x its own term (never counted from the
+   * payment) and makes a Kedaluwarsa one Aktif again. Driven by Perpanjangan
+   * inside the transaction that settles its Tagihan (`within`); no actor.
+   */
+  perpanjangHakPakai(input: { hakPakaiId: string; terms: number }): Promise<PerpanjangHakPakaiResult>;
+  /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact), audited (ticket 40). */
+  lengkapiHakPakai(by: Actor, lokasiId: string, input: unknown): Promise<LengkapiHakPakaiResult>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
+  /**
+   * That Lokasi Mitra's own Admin Lokasi completes one Hak Pakai flagged Perlu
+   * Verifikasi, taking the flag off and auditing it. The first Perpanjangan or
+   * Layanan on that Hak Pakai waits for this (spec, Inventory), so it is the exit of
+   * a gate those two put on a plot: refused for another Lokasi's Admin Lokasi, for an
+   * Admin Platform, and for a Hak Pakai that was never flagged. What "completed"
+   * fills in — the contact and end date ticket 41's review carries — is that
+   * ticket's, not this function's.
+   */
+  selesaikanVerifikasiHakPakai(by: Actor, lokasiId: string, target: HakPakaiTarget): Promise<SelesaikanVerifikasiResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
   /** How many Petak Makam here still need clearing (Perlu Verifikasi), for the Antrean Lokasi's row (ticket 23). */
@@ -194,6 +251,19 @@ export interface Inventory {
   /** Releases every hold one order placed (its decline, withdrawal or lapse), so the plots sell again. */
   lepasTahan(nomorPemesanan: string): Promise<LepasTahanResult>;
   /**
+   * Starts the payment hold of a confirmed Terencana order: every plot it holds is
+   * held until `sampai`, the instant its pay-first Tagihan is due (ticket 37). No
+   * actor: the order that owns the hold drives it, as `lepasTahan`.
+   */
+  mulaiTahanBayar(input: { nomorPemesanan: string; sampai: Date }): Promise<{ ok: true; ditahan: number }>;
+  /**
+   * A paid Terencana order's hold becomes the right it held: one Aktif Hak Pakai per
+   * Petak Makam or Kavling Keluarga, one Pemegang Hak, each with the Syarat it was
+   * bought under and the Calon Penghuni label, and the hold is released (ticket 37).
+   * Take it `within` the payment's own transaction.
+   */
+  beriHakPakaiDariTahan(input: BeriHakPakaiDariTahanInput): Promise<BeriHakPakaiDariTahanResult>;
+  /**
    * Where a grave is, for a family with no session: by Lokasi + Nomor Makam (the
    * current one or one it was renumbered from, which is never shown), by Lokasi
    * + Nomor Kavling, or by Lokasi + Almarhum name + year of death. Answers with
@@ -214,6 +284,13 @@ export interface Inventory {
    * lookup's privacy list forbids `makamPemegangHak` from carrying.
    */
   makamKeluargaSaya(input: { email: string }): Promise<MakamSaya[]>;
+  /**
+   * One grave's current Hak Pakai as the rule that gates a Layanan order needs
+   * it: its status, whether the Admin Lokasi still has to complete it, and its
+   * end date. No actor and never the Pemegang Hak, because anyone may order for
+   * a grave somebody else holds.
+   */
+  hakPakaiOfUnit(unit: { petakId: string } | { kavlingId: string }): Promise<HakPakaiUntukUnit | null>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
   /**
@@ -235,13 +312,19 @@ export function createInventory(deps: InventoryDeps): Inventory {
     createKavling: (by, lokasiId, blokId, input) => createKavling(deps, by, lokasiId, blokId, input),
     splitKavling: (by, lokasiId, kavlingId) => splitKavling(deps, by, lokasiId, kavlingId),
     addEdge: (by, lokasiId, blokId, edge) => addEdge(deps, by, lokasiId, blokId, edge),
+    hapusBlok: (by, lokasiId, blokId, alasan) => hapusBlok(deps, by, lokasiId, blokId, alasan),
+    bolehHapusBlok: (by, lokasiId, blokId) => bolehHapusBlok(deps, by, lokasiId, blokId),
     removeRowsOrCols: (by, lokasiId, blokId, input) => removeRowsOrCols(deps, by, lokasiId, blokId, input),
     uploadBlokPhoto: (by, lokasiId, blokId, file) => uploadBlokPhoto(deps, by, lokasiId, blokId, file),
     clearPetak: (by, lokasiId, petakId, input) => clearPetak(deps, by, lokasiId, petakId, input),
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
+    hakPakaiUntukPerpanjangan: (hakPakaiId) => hakPakaiUntukPerpanjangan(deps, hakPakaiId),
+    perpanjangHakPakai: (input) => perpanjangHakPakai(deps, input),
+    lengkapiHakPakai: (by, lokasiId, input) => lengkapiHakPakai(deps, by, lokasiId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
+    selesaikanVerifikasiHakPakai: (by, lokasiId, target) => selesaikanVerifikasiHakPakai(deps, by, lokasiId, target),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
@@ -252,9 +335,12 @@ export function createInventory(deps: InventoryDeps): Inventory {
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),
     lepasTahan: (nomorPemesanan) => lepasTahan(deps, nomorPemesanan),
+    mulaiTahanBayar: (input) => mulaiTahanBayar(deps, input),
+    beriHakPakaiDariTahan: (input) => beriHakPakaiDariTahan(deps, input),
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
     makamKeluargaSaya: (input) => makamKeluargaSaya(deps, input),
+    hakPakaiOfUnit: (unit) => hakPakaiOfUnit(deps, unit),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
     within: (tx) => createInventory({ ...deps, db: tx }),
   };

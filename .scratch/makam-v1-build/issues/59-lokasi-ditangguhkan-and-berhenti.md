@@ -16,3 +16,7 @@ Admin Platform sets a Lokasi Mitra Ditangguhkan or Berhenti (with an effective d
 - [ ] Effective-date tick (idempotent): unfinished Pekerjaan Layanan cancelled with full refunds incl. the Biaya Layanan Platform; Hak Pakai read-only in the Makam tab with the pengelola contact and documents.
 - [ ] Payouts on Berhenti: pending Pencairan for finished work paid net; Potongan become an offline request; held Terencana Pencairan released except for Pemesan inside their Masa Pembatalan who cancel, who are refunded.
 - [ ] Tests: each carry-on vs blocked action under Ditangguhkan; the Berhenti timeline; refunds of leftovers; payout settlement.
+
+## Comments
+
+- 2026-09-29 — From ticket 40's fix pass, a defect to settle before or with this ticket: `tariffs.quote()` prices only a Lokasi Mitra that is Terverifikasi (its public visibility), but the spec says Perpanjangan (and burials under an existing Hak Pakai, Layanan, Pembatalan) carry on at a Ditangguhkan Lokasi. Today a Perpanjangan at a Lokasi that stops being listed cannot be priced, so `tawaran` and `ajukan` refuse it (`harga_tidak_tersedia`). The fix belongs with the status work here (a quote that a Lokasi's own carry-on actions may ask for regardless of the listing), and this ticket's "carry-on vs blocked" tests should include Perpanjangan.

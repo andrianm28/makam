@@ -11,6 +11,8 @@
  */
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { buktiPekerjaanValues } from "@/domain/layanan/pesanan-schema";
+import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
 import { queueFamilyEmail, type PesanKeluargaDeps, type PesanTercatat } from "./pesan-keluarga";
 import { notificationsMessage } from "./schema";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
@@ -21,6 +23,8 @@ import {
   pesananDiajukanEmail,
   pesananDikonfirmasiEmail,
   pesananDitolakEmail,
+  layananPekerjaanSelesaiEmail,
+  layananPesananTerbitEmail,
 } from "./template";
 
 const lokasiSchema = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) });
@@ -134,7 +138,7 @@ export const pesananBuktiPemesananSchema = z.object({
   bukti: z.object({ nomor: z.string().trim().min(1).max(50), link: z.string().trim().min(1).max(100) }),
   petakNomor: z.string().trim().min(1).max(60),
   pemegangHakName: z.string().trim().min(1).max(200),
-  masa: z.object({ mulai: z.iso.date(), selesai: z.iso.date().nullable() }),
+  masa: z.object({ mulai: z.iso.date().nullable(), selesai: z.iso.date().nullable(), tahun: z.number().int().min(1).max(200).nullable().optional() }),
 });
 export type PesananBuktiPemesananInput = z.infer<typeof pesananBuktiPemesananSchema>;
 
@@ -427,6 +431,123 @@ export async function pesanPemesanan(deps: Pick<PesanKeluargaDeps, "db">, pemesa
     .select()
     .from(notificationsMessage)
     .where(eq(notificationsMessage.pemesananId, pemesananId))
+    .orderBy(asc(notificationsMessage.createdAt), asc(notificationsMessage.id));
+  return rows.map((row) => ({
+    id: row.id,
+    template: row.template,
+    channel: row.channel,
+    status: row.status,
+    subject: row.subject,
+    attempts: row.attempts,
+    sentAt: row.sentAt,
+  }));
+}
+
+/** What the Layanan module announces when a family has just placed an order Layanan. */
+export const layananPesananTerbitSchema = z.object({
+  pesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  /** The proven Email Terverifikasi, which is where the order's messages go. */
+  email: z.email().max(320),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  petak: z.object({ nomor: z.string().trim().min(1).max(60) }),
+  item: z.array(z.object({ label: z.string().trim().min(1).max(300), targetDate: z.iso.date() })).min(1).max(10),
+  tagihan: z.object({
+    nomorTagihan: z.string().trim().min(1).max(50),
+    total: z.number().int().nonnegative(),
+    dueAt: z.date(),
+    link: z.string().trim().min(1).max(100),
+  }),
+});
+export type LayananPesananTerbitInput = z.infer<typeof layananPesananTerbitSchema>;
+
+/** What the Layanan module announces when a job is finished, with the proof links. */
+export const layananPekerjaanSelesaiSchema = z.object({
+  pekerjaanId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  petak: z.object({ nomor: z.string().trim().min(1).max(60) }),
+  label: z.string().trim().min(1).max(300),
+  selesaiAt: z.date(),
+  bukti: z.array(z.object({ kind: z.enum(buktiPekerjaanValues), url: z.url().max(2048).nullable() })).min(1).max(3),
+});
+export type LayananPekerjaanSelesaiInput = z.infer<typeof layananPekerjaanSelesaiSchema>;
+
+export type PesanLayananResult = { ok: true } | { ok: false; reason: "layanan_tidak_valid" };
+
+/**
+ * Announces an order Layanan to its Pemesan: the Layanan, the dates and the
+ * Tagihan, because a standalone Layanan order is paid before the work. One
+ * message per order, whatever queues it twice.
+ */
+export async function layananPesananTerbit(deps: PesanKeluargaDeps, input: LayananPesananTerbitInput): Promise<PesanLayananResult> {
+  const parsed = layananPesananTerbitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = layananPesananTerbitEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    petakNomor: data.petak.nomor,
+    item: data.item,
+    tagihan: { ...data.tagihan, tautan: deps.dokumenUrl(data.tagihan.link) },
+    tautan: deps.layananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "layanan_pesanan_terbit",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    // Transactional: it asks nothing, and a family's proof of what they ordered goes at once.
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Announces a finished job to its Pemesan with the link to its photo proof. The
+ * proof is the whole message: it is why the work is finished, and the family is
+ * entitled to see it the moment it exists.
+ */
+export async function layananPekerjaanSelesai(deps: PesanKeluargaDeps, input: LayananPekerjaanSelesaiInput): Promise<PesanLayananResult> {
+  const parsed = layananPekerjaanSelesaiSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = layananPekerjaanSelesaiEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    petakNomor: data.petak.nomor,
+    label: data.label,
+    selesaiAt: data.selesaiAt,
+    bukti: data.bukti.map((satu) => ({ label: labelBuktiPekerjaan(satu.kind), tautan: satu.url })),
+    tautan: deps.layananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "layanan_pekerjaan_selesai",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** Every logged message about one order Layanan, oldest first: what its order page shows. */
+export async function pesanLayanan(deps: Pick<PesanKeluargaDeps, "db">, nomorPemesanan: string): Promise<PesanTercatat[]> {
+  const rows = await deps.db
+    .select()
+    .from(notificationsMessage)
+    .where(eq(notificationsMessage.nomorPemesanan, nomorPemesanan))
     .orderBy(asc(notificationsMessage.createdAt), asc(notificationsMessage.id));
   return rows.map((row) => ({
     id: row.id,

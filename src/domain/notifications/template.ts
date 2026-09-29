@@ -166,8 +166,8 @@ export interface PesananBuktiPemesananEmailInput {
   bukti: { nomor: string; tautan: string };
   petakNomor: string;
   pemegangHakName: string;
-  /** The Hak Pakai's term: the first Pemakaman's date, and the end of a fixed term (null for a Selamanya one). */
-  masa: { mulai: string; selesai: string | null };
+  /** The Hak Pakai's term: the first Pemakaman's date (null while none is recorded), the end of a fixed term (null for a Selamanya one), and the term's length while it has not started. */
+  masa: { mulai: string | null; selesai: string | null; tahun?: number | null };
   tautan: string;
 }
 
@@ -216,7 +216,14 @@ export function pengurusanDikonfirmasiEmail(input: PengurusanDikonfirmasiEmailIn
  * right it proves and carries no amounts: the payment has its own Bukti.
  */
 export function pesananBuktiPemesananEmail(input: PesananBuktiPemesananEmailInput): { subject: string; body: string } {
-  const masa = input.masa.selesai ? `${formatTanggal(input.masa.mulai)} sampai ${formatTanggal(input.masa.selesai)}` : `mulai ${formatTanggal(input.masa.mulai)}, selamanya`;
+  const masa =
+    input.masa.mulai === null
+      ? input.masa.tahun
+        ? `${input.masa.tahun} tahun sejak pemakaman pertama`
+        : "selamanya, sejak pemakaman pertama"
+      : input.masa.selesai
+        ? `${formatTanggal(input.masa.mulai)} sampai ${formatTanggal(input.masa.selesai)}`
+        : `mulai ${formatTanggal(input.masa.mulai)}, selamanya`;
   return {
     subject: `Bukti Pemesanan ${input.bukti.nomor}: hak atas Petak Makam ${input.petakNomor} di ${input.lokasiName}`,
     body: [
@@ -455,6 +462,114 @@ export function buktiPembayaranEmail(input: BuktiEmailInput): { subject: string;
       `Pembayaran Tagihan ${input.nomorTagihan}${ref} sebesar ${formatRupiah(input.total)} telah kami terima pada ${formatTanggalJam(input.paidAt)}.`,
       "",
       `Unduh Bukti Pembayaran ${input.nomorBukti} di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface BuktiPerpanjanganEmailInput {
+  lokasiName: string;
+  /** The Bukti Perpanjangan's own number, and its page's URL into the app. */
+  bukti: { nomor: string; tautan: string };
+  petakNomor: string;
+  pemegangHakName: string;
+  endDateLama: string;
+  endDateBaru: string;
+  terms: number;
+}
+
+/**
+ * The Bukti Perpanjangan of a paid Perpanjangan (transactional: any hour, it asks
+ * nothing). It names the right that was extended and both end dates; the payment
+ * has its own Bukti Pembayaran.
+ */
+export function buktiPerpanjanganEmail(input: BuktiPerpanjanganEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Bukti Perpanjangan ${input.bukti.nomor}: Petak Makam ${input.petakNomor} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      "Pembayaran Perpanjangan Makam sudah kami terima, dan Hak Pakainya sudah diperpanjang.",
+      `Bukti Perpanjangan: ${input.bukti.nomor}.`,
+      `Lokasi: ${input.lokasiName}.`,
+      `Petak Makam: ${input.petakNomor}.`,
+      `Pemegang Hak: ${input.pemegangHakName}.`,
+      `Masa berlaku sebelumnya sampai ${formatTanggal(input.endDateLama)}; sekarang sampai ${formatTanggal(input.endDateBaru)} (${input.terms} masa).`,
+      "",
+      "Simpan tautan ini. Di dalamnya ada Bukti Perpanjangan lengkap yang bisa diunduh sebagai PDF.",
+      `Bukti Perpanjangan: ${input.bukti.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface LayananPesananTerbitEmailInput {
+  nomor: string;
+  lokasiName: string;
+  petakNomor: string;
+  /** Each Layanan ordered, with the date the family asked for. */
+  item: { label: string; targetDate: string }[];
+  tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
+  tautan: string;
+}
+
+/**
+ * An order Layanan placed (transactional: any hour). It names the price and the
+ * deadline, because a standalone Layanan order is paid **before** the work: the
+ * message exists so nobody discovers the deadline by opening a bill.
+ */
+export function layananPesananTerbitEmail(input: LayananPesananTerbitEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Layanan untuk Petak ${input.petakNomor} di ${input.lokasiName} menunggu pembayaran`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Pesanan layanan Anda di ${input.lokasiName} untuk Petak ${input.petakNomor} sudah kami terima.`,
+      ...input.item.map((satu) => `- ${satu.label}, dikerjakan ${formatTanggal(satu.targetDate)}.`),
+      `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
+      "Layanan dikerjakan setelah pembayaran masuk, jadi jangan lupa membayar sebelum tenggatnya.",
+      "",
+      `Bayar di: ${input.tagihan.tautan}`,
+      `Ikuti pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface LayananPekerjaanSelesaiEmailInput {
+  nomor: string;
+  lokasiName: string;
+  petakNomor: string;
+  /** The Layanan that was done, in the wording the order kept. */
+  label: string;
+  selesaiAt: Date;
+  /** Each proof, named, with its link to open. */
+  bukti: { label: string; tautan: string | null }[];
+  tautan: string;
+}
+
+/**
+ * A job finished (transactional: any hour). It carries the **link to the photo
+ * proof** rather than the files: the proof lives in a private store, and the
+ * family opens it from their own order page.
+ */
+export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Layanan selesai: ${input.label} di Petak ${input.petakNomor}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `${input.label} untuk Petak ${input.petakNomor} di ${input.lokasiName} sudah selesai pada ${formatTanggalJam(input.selesaiAt)}.`,
+      ...input.bukti.flatMap((satu) => (satu.tautan ? [`${satu.label}: ${satu.tautan}`] : [`${satu.label}: belum bisa dibuka lewat email, ambil di halaman pesanan Anda.`])),
+      "Buka halaman pesanan Anda bila foto atau videonya tidak bisa dibuka dari email ini.",
+      "",
+      `Halaman pesanan: ${input.tautan}`,
       "",
       "Hormat kami,",
       "Tim makam.co.id",

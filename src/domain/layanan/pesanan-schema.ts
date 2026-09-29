@@ -1,0 +1,71 @@
+/**
+ * The Layanan order's boundary: what a Pemesan may ask for, and what an Admin
+ * Lokasi may do to a job.
+ *
+ * This file is nothing but `zod`, on purpose. The order form is a Client
+ * Component (it holds the chosen variants, the date picker and the Camera API's
+ * frames), and AGENTS.md allows a client component's import graph to take types
+ * and validation schemas from a domain module's **own** file, never from its
+ * barrel: a bundler keeps a module whole, and the barrel builds its public
+ * object out of the functions that reach the database. A type is erased and a
+ * Zod schema reaches nothing, so both are safe here.
+ */
+import { z } from "zod";
+
+/**
+ * The three things a job's proof can be (spec, Catalog): a photo before, a photo
+ * after, a video. The closed list lives here, in the one file of this module that
+ * is nothing but Zod, so both the database column and the client component's form
+ * can name it without either pulling in the other.
+ */
+export const buktiPekerjaanValues = ["foto_sebelum", "foto_sesudah", "video"] as const;
+export type BuktiPekerjaan = (typeof buktiPekerjaanValues)[number];
+
+/** One Layanan a Pemesan adds to an order: a fixed-price variant, its target date, and any text it asks for. */
+export const itemPesananLayananSchema = z.object({
+  layananVariantId: z.uuid("Pilih layanan yang tersedia di Lokasi Mitra ini."),
+  /** The WIB calendar date the family asks for, "YYYY-MM-DD". */
+  targetDate: z.iso.date("Tanggal target harus berformat tahun-bulan-hari."),
+  /** The Layanan's own free-text field (a nisan inscription), or null when it asks for none. */
+  teks: z.string().trim().max(500).nullable().default(null),
+});
+export type ItemPesananLayananInput = z.infer<typeof itemPesananLayananSchema>;
+
+/** The whole of the Layanan checkout: one grave, one or more Layanan, and who is paying for it. */
+export const placePesananLayananSchema = z.object({
+  /** The Petak Makam the Layanan are for, as the Makam keluarga hub's lookup named it. */
+  lokasiId: z.uuid("Lokasi Mitra tidak ditemukan."),
+  petakId: z.uuid("Petak Makam tidak ditemukan."),
+  pemesanName: z.string().trim().min(1, "Tulis nama lengkap Anda.").max(200),
+  /** E.164 or a local number; the Tagihan is addressed to it and the order may be called about it. */
+  phoneNumber: z.string().trim().min(1, "Tulis nomor telepon Anda.").max(30),
+  item: z.array(itemPesananLayananSchema).min(1, "Pilih minimal satu layanan.").max(10),
+});
+export type PlacePesananLayananInput = z.infer<typeof placePesananLayananSchema>;
+
+/** The Admin Lokasi's three steps on one job: start it, add a proof, finish it. */
+export const mulaiPekerjaanSchema = z.object({
+  pekerjaanId: z.uuid(),
+});
+
+/** One piece of photo proof, as the in-app camera hands it over. */
+export const buktiPekerjaanSchema = z.object({
+  pekerjaanId: z.uuid(),
+  kind: z.enum(buktiPekerjaanValues, { message: "Jenis bukti tidak dikenal." }),
+  /** The captured frame, as the browser's MediaRecorder / canvas produced it. */
+  file: z.object({ body: z.instanceof(Uint8Array), contentType: z.string().trim().min(1).max(120) }),
+  /**
+   * When the camera took it, as the browser's own clock reported it (ISO
+   * instant). The Admin Lokasi's phone is the witness that this was not
+   * uploaded from a gallery today, so the server clock is not asked to be one.
+   */
+  takenAt: z.coerce.date(),
+});
+export type BuktiPekerjaanInput = z.infer<typeof buktiPekerjaanSchema>;
+
+/** The Pemesan cancelling one job, with the reason they give. */
+export const batalkanPekerjaanSchema = z.object({
+  pekerjaanId: z.uuid(),
+  alasan: z.string().trim().min(1, "Tulis alasan pembatalan.").max(500),
+});
+export type BatalkanPekerjaanInput = z.infer<typeof batalkanPekerjaanSchema>;

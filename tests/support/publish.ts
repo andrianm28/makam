@@ -61,6 +61,7 @@ export function publishOnTestDatabase(db: Database, options: PublishOptions = {}
     pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,
     pesanUlangUrl: (nomor) => `https://makam.test/pesan-makam/saat-duka?dari=${nomor}`,
     pengurusanUrl: (nomor) => `https://makam.test/pengurusan/${nomor}`,
+    layananUrl: (nomor) => `https://makam.test/layanan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,

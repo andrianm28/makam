@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { pemesananResource } from "@/domain/identity";
-import { DOKUMEN_MAX_BYTES, batalkanSaatDukaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
+import { DOKUMEN_MAX_BYTES, batalkanSaatDukaSchema, tarikTerencanaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
 import { rekeningSchema } from "@/domain/refunds";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { guarded } from "@/server/guard";
@@ -106,6 +106,26 @@ export async function batalkanPesananAction(_previous: PesananActionState, formD
   };
 }
 
+/**
+ * The Pemesan withdraws its own Pemesanan Terencana before paying (spec, Pemesanan >
+ * Terencana; ticket 37): free, any time until the Tagihan is paid. A paid order is not
+ * withdrawn but cancelled with a refund under its Syarat, which is another action.
+ */
+export async function tarikTerencanaAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pemesanan.lihat",
+    resource: (actor) => pemesananResource(actor.accountId),
+    schema: tarikTerencanaSchema,
+    input: { nomor },
+    run: (actor, data) => serverRuntime().pemesanan.tarikTerencana({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: jawabMessage(result.value.reason) };
+  return { status: "berhasil", message: "Pesanan dibatalkan. Petak dilepas dan tidak ada yang ditagih." };
+}
+
 const REKENING_GAGAL: Record<string, string> = {
   tidak_ditemukan: "Tidak ada pengembalian dana yang menunggu rekening untuk pesanan ini.",
   terkunci: "Pengembalian dana ini sudah disetujui, jadi rekening tidak bisa diubah di sini. Hubungi CS bila perlu mengubahnya.",
@@ -155,6 +175,8 @@ function jawabMessage(reason: string): string {
       return "Harga pilihan itu sudah berubah atau belum tersedia. Hubungi kami lewat nomor CS.";
     case "alasan_wajib":
       return "Tulis alasan pembatalan dulu.";
+    case "sudah_dibayar":
+      return "Tagihan pesanan ini sudah dibayar, jadi tidak bisa ditarik lagi. Hubungi Lokasi Mitra untuk pembatalan sesuai Syarat Pemesanan.";
     case "pemakaman_sudah_dicatat":
       return "Pemakaman sudah dilakukan, jadi petak tidak bisa dikembalikan. Hubungi Lokasi Mitra untuk SHO dan pemindahan jenazah.";
     case "hak_pakai_tidak_ditemukan":

@@ -12,7 +12,8 @@
  * later ticket (tumpang 35, Perpanjang 40/41, Layanan 50/53/54, Pengurusan IPTM
  * 47/48), so a card carries no `href` while its flow is not there, says "Segera
  * hadir." and offers the CS instead — never a dead link and never a date
- * (docs/design-system.md, voice and tone).
+ * (docs/design-system.md, voice and tone). The Layanan branch's flow is here
+ * (50), so its card and the graves below it link to the checkout.
  */
 
 // A type only, so it is erased: this module's values stay safe on a client
@@ -43,6 +44,9 @@ export const HUB_PATH = "/makam-keluarga";
 
 export type AksiMakamKeluarga = "tumpang" | "perpanjang" | "layanan" | "pengurusan";
 
+/** The Layanan branch's own address: the order's checkout, reached with the grave the lookup named. */
+export const LAYANAN_PATH = "/layanan";
+
 /** Every branch the hub owns, in the order it shows them. */
 export const AKSI_MAKAM_KELUARGA: readonly AksiMakamKeluarga[] = ["tumpang", "perpanjang", "layanan", "pengurusan"];
 
@@ -54,6 +58,11 @@ export interface KartuAksi {
   ringkas: string;
   /** Absent while the flow itself is not built: the card says so and offers the CS instead. */
   href?: string;
+  /**
+   * What the card says instead of "Segera hadir" when its flow is built but starts from a grave, so
+   * the card itself has no address: the step to take on the result of the lookup.
+   */
+  langkah?: string;
 }
 
 /** What a service that is in a later release says about itself. */
@@ -69,11 +78,13 @@ export const kartuAksi: readonly KartuAksi[] = [
     aksi: "perpanjang",
     label: "Perpanjang Makam",
     ringkas: "Memperpanjang Hak Pakai Petak Makam atau Kavling Keluarga beserta masa tenggangnya.",
+    langkah: "Cari makamnya di atas, lalu pilih Perpanjang Makam pada hasil pencarian.",
   },
   {
     aksi: "layanan",
     label: "Layanan Makam",
     ringkas: "Perawatan makam dari daftar layanan: bunga, nisan, pembersihan dan pemotongan rumput.",
+    href: LAYANAN_PATH,
   },
   {
     aksi: "pengurusan",
@@ -91,6 +102,16 @@ export const tileKeHub: Record<"perpanjang" | "layanan", string> = {
 /** The TPU branch's way out: the guide that exists, and the TPU half of the directory. */
 export const TPU_GUIDE_PATH = "/pengurusan-tpu";
 export const TPU_DAFTAR_PATH = "/lokasi?jenis=tpu";
+
+/**
+ * The Layanan branch with one grave named, as a found grave links to it. A Petak
+ * Makam is addressed by its id here (not its number): the number is what the family
+ * reads, and the page re-reads the grave's own state from the Inventory module, so a
+ * stale address cannot order for a plot that has moved on.
+ */
+export function layananPath(params: { lokasiId: string; petakId: string }): string {
+  return `${LAYANAN_PATH}?lokasi=${encodeURIComponent(params.lokasiId)}&petak=${encodeURIComponent(params.petakId)}`;
+}
 
 /** Which of the three ways a family names the grave they are looking for. */
 export const BENTUK_CARI = ["nomor_makam", "nomor_kavling", "nama"] as const;

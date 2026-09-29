@@ -14,9 +14,10 @@
 import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
-import { pruneCariMakamAttempts } from "@/domain/inventory";
-import type { Layanan } from "@/domain/layanan";
+import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
+import { jadwalkanTertunda, tandaiTerlambat, type Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
+import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
@@ -43,10 +44,17 @@ export interface SchedulerContext {
    * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
    */
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  /**
+   * The Pemesanan module's own tick for a Pemesanan Terencana whose payment hold ran out unpaid
+   * (ticket 37): the order becomes Dibatalkan and its plots are released.
+   */
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
   /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55). */
   layanan: Pick<Layanan, "tinjauSkorTick">;
+  /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
+  inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -91,7 +99,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "notifications.chasing_eskalasi", cron: "* * * * *", tick: chasingEskalasiTick },
   // Pemesanan: a Saat Duka order still unconfirmed an hour of service time later is alerted again (ticket 23).
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
-  // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32).
+  // Pemesanan: a confirmed Terencana order whose payment hold ended unpaid is cancelled and its plots released (ticket 37).
+  { name: "pemesanan.lewat_batas_bayar_terencana", cron: "* * * * *", tick: lewatBatasBayarTerencanaTick },
+  // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32);
+  // a paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa Pembatalan (ticket 37).
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
   // Payouts: a Potongan 60 days old becomes an offline request (ticket 32).
   { name: "payouts.potongan_usia", cron: "23 2 * * *", tick: potonganUsiaTick },
@@ -101,6 +112,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "refunds.materialise", cron: "* * * * *", tick: refundsMaterialiseTick },
   // Layanan: the first of each WIB month opens one scorecard review row per Mitra Jasa (ticket 55).
   { name: "layanan.tinjau_skor_mitra_jasa", cron: "13 5 1 * *", tick: tinjauSkorTick },
+  // Layanan: a job past its target date with no proof is flagged Terlambat, which raises the Admin Lokasi's and Admin Platform's rows (ticket 50).
+  { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
+  // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
+  { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -123,6 +138,11 @@ async function chasingEskalasiTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Pemesanan module's Terencana payment-hold lapse (idempotent there, as every tick is). */
+async function lewatBatasBayarTerencanaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.terencana.lewatBatasBayarTick(now);
 }
 
 /** The worker wrapper around the Payouts trigger (idempotent there, as every tick is). */
@@ -148,4 +168,18 @@ async function refundsMaterialiseTick(ctx: SchedulerContext, now: Date): Promise
 /** The worker wrapper around the Layanan module's monthly scorecard review tick (idempotent there, as every tick is). */
 async function tinjauSkorTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.layanan.tinjauSkorTick(now);
+}
+
+/** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
+async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await tandaiTerlambat(ctx.db, now);
+}
+
+/**
+ * The worker wrapper around the Layanan module's release tick: a job held by the Hak
+ * Pakai gate is scheduled once its Hak Pakai has been completed (idempotent there, as
+ * every tick is).
+ */
+async function jadwalkanTertundaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await jadwalkanTertunda({ db: ctx.db, inventory: ctx.inventory }, now);
 }

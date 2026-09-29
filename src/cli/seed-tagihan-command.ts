@@ -5,7 +5,11 @@ import { composeBilling } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
+import { createInventory } from "@/domain/inventory";
+import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
+import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
+import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { documentPagePath } from "@/lib/document-links";
 import type { Rupiah } from "@/lib/rupiah";
@@ -41,7 +45,13 @@ export async function seedTagihanCommand(
       const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      // Billing's payment effects include the Layanan module's scheduling, which reads a grave's Hak Pakai.
+      // This CLI issues a Tagihan for an e2e stack and never takes a payment for it, but the registry is
+      // composed whole rather than partly, so the read it needs is here.
+      const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
+      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+      const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });
 
       if (!(await operatorSettings.current())) {
         const admin = (await identity.staffAccounts()).find(
