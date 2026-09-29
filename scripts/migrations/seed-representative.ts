@@ -209,6 +209,16 @@ const OVERRIDES: Record<string, Record<string, Override>> = {
    */
   inventory_hak_pakai: { kavling_id: () => null },
   inventory_plot_hold: { kavling_id: () => null },
+  /**
+   * `layanan_mitra_jasa_nik_check` and `layanan_mitra_jasa_status_alasan_check`
+   * (src/domain/layanan/schema.ts, ticket 55): a NIK is exactly 16 digits
+   * (unique, so the row number goes in its tail), and any status but `aktif`
+   * needs a reason; the seed's rows are `aktif`.
+   */
+  layanan_mitra_jasa: {
+    nik: ({ n }) => `3201010101${String(100000 + n).slice(-6)}`,
+    status: () => "aktif",
+  },
 };
 
 /**
