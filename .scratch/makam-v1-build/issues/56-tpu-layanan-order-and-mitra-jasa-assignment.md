@@ -1,6 +1,6 @@
 # TPU Layanan order and Mitra Jasa assignment
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 45, 50, 55
 Spec: Domain modules > 9. Layanan (Order at TPU, Mitra Jasa hand assignment, accept deadline); 14. Work Queues (Tier 1 jobs due today without a Mitra Jasa, Tier 2 Tidak direspons / Ditolak / reassignment); 16. Scheduler (accept deadlines); stories 85, 156, 176, 178
 
@@ -11,7 +11,7 @@ A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfille
 ## Acceptance criteria
 
 - [x] Saat Duka TPU checkout (ticket 44) offers only hari-H items; the lines go on the pay-after Saat Duka TPU Tagihan issued at confirmation (ticket 45); their Pekerjaan Layanan are Dijadwalkan at confirmation (target = burial day) and assigned to a Mitra Jasa as below.
-- [ ] Grave description order works without a Makam TPU; ordering from a Makam TPU prefills it.
+- [x] Grave description order works without a Makam TPU. (Prefilling from a Makam TPU moved to ticket 46, owner decision 2026-09-29.)
 - [x] Picker shows only Aktif Mitra Jasa covering the TPU and the Layanan and not Tidak tersedia on the target date.
 - [x] Accept deadline = min(assignment + 12 h, H-1 18:00); the tick marks Tidak direspons and the job returns to the queue.
 - [x] Tier 1 row: jobs due today without an accepted Mitra Jasa; Tier 2 rows: Tidak direspons / Ditolak / flagged for reassignment.
@@ -60,3 +60,4 @@ A Saat Duka TPU order may add "bisa hari-H" Layanan for the burial day, fulfille
   - **Readings** (whole logs): `npm run test:shared -- src/domain/layanan src/domain/pengurusan src/domain/queues src/domain/notifications src/worker tests/tooling`: 48 files passed, 501 tests passed, 1 skipped, exit 0. `npm run typecheck` exit 0, `npm run lint` exit 0, `npm run build` exit 0 ("Compiled successfully in 87s", `/layanan/tpu` listed). No full suite, by rule.
 - 2026-09-29 — OWNER DECISIONS (on the fix pass; settled): (a) an assignment made on the target day itself uses 12 h capped at midnight of that day (the model has no job start time), accepted as built; (b) Tier 2 rows keep their 23:59 due time, accepted; (c) staff alerts (push + email, ticket 28's mechanism) are sent once and not retried on a failed send: accepted for ticket 56, logged as a follow-up for the whole staff-alert system.
 - 2026-09-29 — Merged `origin/main` again (tickets 41 and 51 landed): kept both sides everywhere (51's Keluhan, Penilaian and Pencairan effects and its Tier 1 Keluhan row; `Tier1RowDeps.layanan` is now `Pick<..., "keluhanTerbuka" | "pekerjaanTpuHariIniTanpaMitra">`; both scheduler ticks; both sets of audit actions, permissions and labels). Migration renumbered to `0043_strange_black_bird.sql` on main's 0042: byte-identical to the previous 0041 SQL, second `db:generate` empty, snapshot chain dangling only 0000, 0018, 0021, 0024.
+- 2026-09-29 — Merged to `main` (branch at 52d6479, which already carried `origin/main` with tickets 41 and 51; its migration is 0043, and a second `db:generate` on the merge is empty). Two-axis review: the first review found `hargaPilihanTpu` an unguarded Server Action outside AGENTS.md's exceptions (hard) and, on the Spec axis, the accept deadline in the past for hari-H jobs, a 23:59 Tier 1 deadline against ticket 28's clocks, a query-param prefill seam, and the Mitra Jasa alert sent after commit; the fix pass computed the price in the page, applied the owner's deadline rule, queued the alert in the assignment's transaction, made the row a ticket 28 Tier 1 row open only while unassigned, and wired Pengurusan's `layanan` dependency in production (it was missing, so every hari-H item at a TPU would have been refused). Re-review: every item OK, no hard violation. Moved: the prefill AC to ticket 46. Follow-ups: ticket 91 (staff alerts are sent once, never retried); Selesai/Terlambat scorecard counts and reassignment pay are ticket 57's; Pemesan H-1 cancellation of TPU jobs is not in any AC yet. Unblocks 57.

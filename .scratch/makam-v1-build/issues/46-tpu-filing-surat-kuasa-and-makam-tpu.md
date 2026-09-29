@@ -20,6 +20,7 @@ After the burial, Admin Platform sets the Saat Duka TPU order Dimakamkan (after 
 - [ ] A paid order cancelled before IPTM Diajukan gets a refund request (ticket 31, approved by Admin Platform): the full amount paid, except that at or past Dimakamkan (burial arranged with the TPU) the Biaya Pengurusan is kept and only the other lines (e.g. Layanan not yet done) are refunded.
 - [ ] No Bukti Pemesanan / Perpanjangan is issued at a TPU.
 - [ ] Tests: status sequence; 7-day document window; Makam TPU creation and tumpang update; IPTM handed over while unpaid; cancellation before/after filing; refund amount of a paid cancellation before vs at/after Dimakamkan.
+- [ ] Ordering a Layanan from a Makam TPU prefills the grave description on the TPU Layanan order (moved from ticket 56, owner decision 2026-09-29).
 
 ## Notes
 
