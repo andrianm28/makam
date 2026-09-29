@@ -176,18 +176,23 @@ describe("an issued Tagihan is immutable", () => {
       "batalkanTagihan",
       "bayar",
       "buktiPemesananById",
+      // The Bukti Perpanjangan is a document like the Bukti Pemesanan: it adds no way to change a line (ticket 40).
+      "buktiPerpanjanganById",
       // A read by Nomor Tagihan or Nomor Pemesanan, for staff opening one by hand (ticket 30).
       "cariTagihan",
       // The manual and direct payment paths (ticket 30): both settle through
       // `recordPayment` and record their own Entri Audit, never a line change.
       "catatPembayaranLangsung",
       "catatPembayaranManual",
+      // A settled payment that cannot be applied opens a Pembayaran Perlu Ditinjau: a review row, never a line change (ticket 40).
+      "catatPembayaranPerluDitinjau",
       // Chasing's own status write: guarded on H+30 of the overdue anchor and a
       // logged call, never a line change (ticket 29).
       "declareTidakTertagih",
       "documentByLink",
       "documentPdf",
       "issueBuktiPemesanan",
+      "issueBuktiPerpanjangan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",

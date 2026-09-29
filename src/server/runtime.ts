@@ -2,7 +2,7 @@ import "server-only";
 import * as Sentry from "@sentry/nextjs";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
 import { createAdapters } from "@/composition/adapters";
-import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
+import { composeBilling, billingOn, buktiPemesananEffect, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
@@ -20,6 +20,7 @@ import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
 import { createQueues, type Queues } from "@/domain/queues";
@@ -54,6 +55,8 @@ export interface ServerRuntime {
   pemesanan: Pemesanan;
   /** Pengurusan at a DKI TPU: the Saat Duka TPU list, its submission and its order page. */
   pengurusan: Pengurusan;
+  /** Perpanjangan of a Hak Pakai at a Lokasi Mitra: the direct path, a code to the recorded email (ticket 40). */
+  perpanjangan: Perpanjangan;
   /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
   payouts: Payouts;
   /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
@@ -163,6 +166,8 @@ export function serverRuntime(): ServerRuntime {
           lokasi,
           notifikasi,
         }),
+        // A paid Perpanjangan extends its Hak Pakai and issues its Bukti Perpanjangan (ticket 40).
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.
@@ -246,6 +251,17 @@ export function serverRuntime(): ServerRuntime {
         refunds,
       }),
       pengurusan,
+      perpanjangan: createPerpanjangan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        pemesanan,
+        identity,
+        notifikasi: notifications,
+      }),
     };
   }
   return globalForRuntime.__makamRuntime;

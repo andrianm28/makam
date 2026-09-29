@@ -43,6 +43,8 @@ export const reviewReasons = [
   "batas_pembayaran_lewat",
   /** The Tagihan was already Lunas through another payment: paid twice. */
   "sudah_lunas_dibayar_lagi",
+  /** The Tagihan is Lunas and its money recorded, but what it paid for can no longer be applied automatically (a Perpanjangan of a Hak Pakai whose Masa Tenggang is over, ticket 40). */
+  "tidak_dapat_diterapkan",
 ] as const;
 
 const quoted = (values: readonly string[]) => values.map((value) => `'${value}'`).join(", ");
@@ -262,6 +264,42 @@ export const buktiPemesanan = pgTable(
     issuedAt: at("issued_at").notNull(),
   },
   (table) => [uniqueIndex("bukti_pemesanan_pemesanan_idx").on(table.pemesananId)],
+);
+
+/**
+ * Owned by the Billing module: one Bukti Perpanjangan, the proof that a Hak Pakai
+ * was extended (spec, Billing > Documents: "Petak Makam, Pemegang Hak, old and
+ * new end dates and the terms bought", in the Lokasi Mitra's name). Issued by the
+ * Perpanjangan module in the transaction that makes its Tagihan Lunas. What it
+ * proves is copied here, the way a Bukti Pemesanan keeps its facts; `perpanjangan_id`
+ * names the request and has no foreign key (Billing does not own it) but is unique,
+ * so one paid Perpanjangan can never be given two numbers.
+ *
+ * Append-only, like `bukti_pemesanan`: the migration adds a trigger refusing UPDATE
+ * and DELETE, since a family's proof of a right must not be quietly rewritten.
+ */
+export const buktiPerpanjangan = pgTable(
+  "bukti_perpanjangan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nomor: text("nomor").notNull().unique(),
+    link: text("link").notNull().unique(),
+    tagihanId: uuid("tagihan_id")
+      .notNull()
+      .references(() => tagihan.id),
+    perpanjanganId: text("perpanjangan_id").notNull(),
+    lokasiName: text("lokasi_name").notNull(),
+    /** The Petak Makam, or the Kavling Keluarga with its Petak, as the family knows it. */
+    petakNomor: text("petak_nomor").notNull(),
+    pemegangHakName: text("pemegang_hak_name").notNull(),
+    endDateLama: date("end_date_lama", { mode: "string" }).notNull(),
+    endDateBaru: date("end_date_baru", { mode: "string" }).notNull(),
+    terms: integer("terms").notNull(),
+    /** Pengaturan Operator's header values in force when the Bukti was issued. */
+    header: jsonb("header").notNull(),
+    issuedAt: at("issued_at").notNull(),
+  },
+  (table) => [uniqueIndex("bukti_perpanjangan_perpanjangan_idx").on(table.perpanjanganId)],
 );
 
 /**

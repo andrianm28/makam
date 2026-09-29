@@ -40,6 +40,8 @@ export interface PetakTerbaca {
 }
 
 export interface MakamTerbaca {
+  /** The Hak Pakai covering this grave: where "Perpanjang Makam" goes. */
+  hakPakaiId: string;
   lokasiId: string;
   namaLokasi: string;
   kavlingId: string | null;
@@ -146,6 +148,7 @@ function permintaanDari(form: TampilanHub["form"]): PermintaanCariMakam | null {
 /** A lookup result as the page reads it: the Lokasi named, the statuses in words, and nothing else. */
 function terbaca(satu: MakamDitemukan, namaLokasi: ReadonlyMap<string, string>): MakamTerbaca {
   return {
+    hakPakaiId: satu.hakPakaiId,
     lokasiId: satu.lokasiId,
     namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
     kavlingId: satu.kavlingId,

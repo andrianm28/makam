@@ -5,6 +5,7 @@ import { efekBuktiPembayaran } from "@/domain/notifications";
 import { masaPembatalanDimulai } from "@/domain/payouts";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { efekBuktiPemesanan, type BuktiPemesananEffectDeps } from "@/domain/pemesanan";
+import { efekPerpanjangan, type EfekPerpanjanganDeps } from "@/domain/perpanjangan";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { documentPagePath } from "@/lib/document-links";
 import type { RuntimeEnv } from "@/lib/env";
@@ -60,11 +61,14 @@ export function paymentEffects(deps: {
   dokumenUrl: (link: string) => string;
   /** The Pemesanan module's own effect (ticket 25), when a process composes that module beside Billing. */
   buktiPemesanan?: PaymentEffect;
+  /** The Perpanjangan module's own effect (ticket 40): a paid Perpanjangan extends its Hak Pakai and issues its Bukti. */
+  perpanjangan?: PaymentEffect;
 }): readonly PaymentEffect[] {
   return [
     efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }),
     efekPencairanSaatLunas(),
     ...(deps.buktiPemesanan ? [deps.buktiPemesanan] : []),
+    ...(deps.perpanjangan ? [deps.perpanjangan] : []),
   ];
 }
 
@@ -127,6 +131,12 @@ export function buktiPemesananEffect(
   const { compose, ...rest } = deps;
   // A paid Pemesanan Terencana tells Payouts when its Masa Pembatalan ends, in the payment's own transaction (ticket 37).
   return efekBuktiPemesanan({ ...rest, billingOn: (tx) => billingOn(compose, tx), pencairan: { masaPembatalanDimulai } });
+}
+
+/** The Perpanjangan module's payment effect, on a given payment transaction (ticket 40). */
+export function perpanjanganEffect(deps: Omit<EfekPerpanjanganDeps, "billingOn"> & { compose: BillingComposition }): PaymentEffect {
+  const { compose, ...rest } = deps;
+  return efekPerpanjangan({ ...rest, billingOn: (tx) => billingOn(compose, tx) });
 }
 
 /** Billing wired on one database: shared by the `web` runtime, its test twin, the CLIs and the worker's retry tick. */

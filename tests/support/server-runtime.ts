@@ -1,7 +1,7 @@
 import { afterAll, inject } from "vitest";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
-import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, type BillingComposition } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeLayanan } from "@/composition/layanan";
 import { composeNotifications } from "@/composition/notifications";
@@ -13,6 +13,7 @@ import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createQueues } from "@/domain/queues";
@@ -116,6 +117,7 @@ export function testServerRuntime() {
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
         buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+        perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, lokasi, notifikasi: notifications }),
       }),
     });
     const payouts = composePayouts({
@@ -177,6 +179,17 @@ export function testServerRuntime() {
         refunds,
       }),
       pengurusan: pengursModule,
+      perpanjangan: createPerpanjangan({
+        db: database.db,
+        clock: adapters.clock,
+        lokasi,
+        tariffs,
+        inventory,
+        billing,
+        pemesanan,
+        identity,
+        notifikasi: notifications,
+      }),
     };
   }
   afterAll(async () => {

@@ -92,6 +92,11 @@ import {
   type PesananDitolakInput,
 } from "./pesan-pemesanan";
 import {
+  buktiPerpanjanganTerbit,
+  type BuktiPerpanjanganTerbitInput,
+  type BuktiPerpanjanganTerbitResult,
+} from "./pesan-perpanjangan";
+import {
   pengurusanDikonfirmasi,
   pesanPengurusan,
   type PengurusanDikonfirmasiInput,
@@ -359,6 +364,11 @@ export interface Notifications {
   terencanaDitolak(input: TerencanaDitolakInput, within?: Database): Promise<PesanTerencanaResult>;
   terencanaBatasBayarLewat(input: TerencanaBatasBayarLewatInput, within?: Database): Promise<PesanTerencanaResult>;
   terencanaBukti(input: TerencanaBuktiInput, within?: Database): Promise<PesanTerencanaResult>;
+  /**
+   * Announces the Bukti Perpanjangan of a paid Perpanjangan by email (ticket 40),
+   * logged against the Perpanjangan itself. With no email a call row opens.
+   */
+  buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -703,6 +713,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return terencanaBukti(within ? { ...deps, db: within } : deps, input);
     },
 
+    async buktiPerpanjanganTerbit(input, within) {
+      return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
+    },
+
     async pesanPemesanan(pemesananId) {
       return pesanPemesanan(deps, pemesananId);
     },
@@ -824,3 +838,5 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   if (!role) return { ok: false, reason: "tidak_berwenang" };
   return { ok: true, role };
 }
+
+export { buktiPerpanjanganTerbitSchema, type BuktiPerpanjanganTerbitInput, type BuktiPerpanjanganTerbitResult } from "./pesan-perpanjangan";

@@ -8,6 +8,7 @@ import {
   documentLinkSchema,
   type BillingDocument,
   type BuktiPemesanan,
+  type BuktiPerpanjangan,
   type BuktiPembayaran,
   type NotPayable,
   type DocumentHeader,
@@ -54,6 +55,8 @@ function documentTitle(document: Document): string {
       return `Bukti Pembayaran ${document.bukti.nomorBukti}`;
     case "bukti_pemesanan":
       return `Bukti Pemesanan ${document.bukti.nomor}`;
+    case "bukti_perpanjangan":
+      return `Bukti Perpanjangan ${document.bukti.nomor}`;
     case "bukti_pencairan":
       return `Bukti Pencairan ${document.pencairan.nomorBukti}`;
     case "bukti_pengembalian_dana":
@@ -99,6 +102,8 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
           <BuktiView bukti={document.bukti} />
         ) : document.type === "bukti_pemesanan" ? (
           <BuktiPemesananView bukti={document.bukti} />
+        ) : document.type === "bukti_perpanjangan" ? (
+          <BuktiPerpanjanganView bukti={document.bukti} />
         ) : document.type === "bukti_pengembalian_dana" ? (
           <BuktiPengembalianDanaView bukti={document.bukti} />
         ) : document.pencairan.type === "bukti_pencairan" ? (
@@ -351,6 +356,34 @@ function BuktiPemesananView({ bukti }: { bukti: BuktiPemesanan }) {
           </a>
         </div>
       ) : null}
+      <DocumentFoot header={bukti.header} />
+    </>
+  );
+}
+
+/**
+ * The Bukti Perpanjangan (CONTEXT.md): the proof a Hak Pakai was extended, in the
+ * Lokasi Mitra's name, with the old and the new end dates and the terms bought.
+ * Like the Bukti Pemesanan it carries no amounts: the money has its own Bukti Pembayaran.
+ */
+function BuktiPerpanjanganView({ bukti }: { bukti: BuktiPerpanjangan }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Perpanjangan" number={bukti.nomor} status="Diterbitkan" />
+      <Facts
+        facts={[
+          ["Lokasi Mitra", bukti.lokasiName],
+          ["Petak Makam", bukti.petakNomor],
+          ["Pemegang Hak", bukti.pemegangHakName],
+          ["Masa berlaku sebelumnya sampai", formatTanggal(bukti.endDateLama)],
+          ["Masa berlaku sekarang sampai", formatTanggal(bukti.endDateBaru)],
+          ["Masa dibeli", `${bukti.terms} masa`],
+          ["Tanggal terbit", formatTanggalJam(bukti.issuedAt)],
+        ]}
+      />
+      <p className="text-muted-foreground" data-testid="bukti-perpanjangan-hak">
+        {bukti.lokasiName} memperpanjang Hak Pakai {bukti.pemegangHakName} atas {bukti.petakNomor} sampai {formatTanggal(bukti.endDateBaru)}.
+      </p>
       <DocumentFoot header={bukti.header} />
     </>
   );
