@@ -396,7 +396,8 @@ export async function seedContohPublikCommand(
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, reportError: () => {} });
+      const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
+      const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });
       const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing, reportError: () => {} });
       const modul: Modul = {
         db: database.db,
@@ -404,7 +405,7 @@ export async function seedContohPublikCommand(
         identity,
         lokasi,
         tariffs,
-        inventory: createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi }),
+        inventory,
         fieldwork: createFieldwork({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity, notifications, lokasi, billing }),
       };
 

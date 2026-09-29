@@ -124,10 +124,15 @@ export function payoutsOnTestDatabase(db: Database) {
   const layanan = composeLayanan({
     db,
     clock: setup.clock,
-    audit: setup.audit,
     files: setup.files,
+    audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    identity: setup.identity,
+    refunds,
+    notifications: setup.notifications,
   });
   const queues = createQueues({
     db,

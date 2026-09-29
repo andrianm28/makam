@@ -22,6 +22,16 @@ export const statusVocabulary = {
   terlambat: { label: "Terlambat", tone: "danger" },
   lunas: { label: "Lunas", tone: "success" },
   belum_dibayar: { label: "Belum Dibayar", tone: "warning" },
+  /**
+   * The Layanan order's own statuses: a job waiting for the money that pays for
+   * it, one the Lokasi has promised, one being worked on now, and one a Pemesan
+   * has complained about. `terlambat`, `selesai` and `dibatalkan` are shared with
+   * the other kinds of work, so they are worded once.
+   */
+  menunggu_pembayaran: { label: "Menunggu Pembayaran", tone: "info" },
+  dijadwalkan: { label: "Dijadwalkan", tone: "info" },
+  sedang_dikerjakan: { label: "Sedang Dikerjakan", tone: "info" },
+  keluhan: { label: "Keluhan", tone: "warning" },
   diajukan: { label: "Diajukan", tone: "info" },
   dikonfirmasi: { label: "Dikonfirmasi", tone: "success" },
   dimakamkan: { label: "Dimakamkan", tone: "success" },

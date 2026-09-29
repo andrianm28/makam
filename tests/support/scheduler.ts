@@ -21,6 +21,7 @@ export function schedulerContext(parts: {
   refunds?: SchedulerContext["refunds"];
   layanan?: SchedulerContext["layanan"];
   terencana?: SchedulerContext["terencana"];
+  inventory?: SchedulerContext["inventory"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -48,6 +49,9 @@ export function schedulerContext(parts: {
     layanan: parts.layanan ?? { tinjauSkorTick: async () => {} },
     // No confirmed Terencana order is waiting until a test gives the tick a real Pemesanan.
     terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
+    // A grave no tick but the Layanan release one reads: a test of another module's
+    // tick is undisturbed by it, and a test of the release one passes the real read.
+    inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
   };
 }
 

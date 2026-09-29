@@ -238,7 +238,19 @@ export type AuditAction =
   /** A Mitra Jasa sets or takes off one of their own "Tidak tersedia" ranges. */
   | "mitra_jasa.atur_tidak_tersedia"
   /** Admin Platform records the monthly scorecard review. */
-  | "mitra_jasa.catat_tinjauan";
+  | "mitra_jasa.catat_tinjauan"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra completes one Hak Pakai flagged Perlu
+   * Verifikasi — the flag the first Perpanjangan or Layanan on that Hak Pakai waits
+   * for, and the exit a gate with no exit could not be opened through (ticket 50).
+   */
+  | "hak_pakai.selesaikan_verifikasi"
+  /** The Admin Lokasi starts a Pekerjaan Layanan at its Lokasi Mitra: Sedang Dikerjakan (ticket 50). */
+  | "layanan.mulai_pekerjaan"
+  /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
+  | "layanan.unggah_bukti"
+  /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
+  | "layanan.selesaikan_pekerjaan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

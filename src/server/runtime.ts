@@ -91,7 +91,6 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = composeLayanan({ db: database.db, clock: adapters.clock, audit, files: adapters.files, lokasi, tariffs });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
@@ -158,6 +157,8 @@ export function serverRuntime(): ServerRuntime {
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
+        // A paid order Layanan schedules its jobs, unless the grave's Hak Pakai is still Perlu Verifikasi (ticket 50).
+        layanan: { db: database.db, inventory },
         // A paid order earns its Bukti Pemesanan and becomes Selesai, in the payment's own transaction (ticket 25).
         buktiPemesanan: buktiPemesananEffect({
           clock: adapters.clock,
@@ -200,6 +201,21 @@ export function serverRuntime(): ServerRuntime {
       operatorSettings,
       pemesanan,
       reportError,
+    });
+    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
+    // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      refunds,
+      notifications,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.

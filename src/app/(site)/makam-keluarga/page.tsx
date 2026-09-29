@@ -6,6 +6,7 @@ import { formatTanggalPanjang } from "@/lib/format-tanggal";
 import {
   BENTUK_CARI,
   HUB_PATH,
+  layananPath,
   TPU_DAFTAR_PATH,
   TPU_GUIDE_PATH,
   labelBentukCari,
@@ -219,6 +220,20 @@ function MakamDitemukan({ satu, aksiTerpilih, contact }: { satu: MakamTerbaca; a
           Data ini hanya berisi nama Almarhum, nomor makam, status Hak Pakai dan tanggal berakhirnya. Nama dan kontak Pemegang Hak
           tidak ditampilkan di sini.
         </p>
+        {aksiTerpilih === "layanan"
+          ? satu.petak
+              .filter((petak) => petak.status.key === "aktif" || petak.status.key === "kedaluwarsa")
+              .map((petak) => (
+                <Link key={petak.petakId} href={layananPath({ lokasiId: satu.lokasiId, petakId: petak.petakId })} className="text-body font-medium text-brand underline underline-offset-4">
+                  Pesan layanan di Petak {petak.nomorMakam}
+                </Link>
+              ))
+          : null}
+        {aksiTerpilih === "layanan" && satu.petak.every((petak) => petak.status.key !== "aktif" && petak.status.key !== "kedaluwarsa") ? (
+          <p className="text-body text-muted-foreground">
+            Hak Pakai di petak ini tidak aktif, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra.
+          </p>
+        ) : null}
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam ini" />
         <Link
           href={`/perpanjangan/${satu.hakPakaiId}`}

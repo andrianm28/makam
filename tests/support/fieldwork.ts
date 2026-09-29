@@ -29,6 +29,7 @@ export function fieldworkOnTestDatabase(db: Database) {
     pesananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesanan/${nomor}`,
     pesanUlangUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pesan-makam/saat-duka?dari=${nomor}`,
     pengurusanUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/pengurusan/${nomor}`,
+    layananUrl: (nomor) => `${TEST_PUBLIC_ORIGIN}/layanan/${nomor}`,
   });
   const fieldwork = createFieldwork({
     db,

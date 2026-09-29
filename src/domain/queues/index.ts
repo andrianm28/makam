@@ -84,7 +84,8 @@ export interface QueuesModuleDeps {
   /** The Ambil claim a family's own order page shows, as a name and a contact number. */
   identity: Pick<Identity, "staffAccountById">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka">;
+  /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 export interface Queues {

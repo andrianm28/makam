@@ -58,6 +58,8 @@ export interface PesanKeluargaDeps {
   pesanUlangUrl: (nomor: string) => string;
   /** A Pengurusan order's own page from its Nomor Pemesanan, where a family follows a TPU filing. */
   pengurusanUrl: (nomor: string) => string;
+  /** An order Layanan's own page, from its Nomor Pemesanan. */
+  layananUrl: (nomor: string) => string;
 }
 
 export const tagihanTerbitSchema = z.object({
