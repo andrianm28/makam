@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 63 resolved, 18 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 64 resolved, 17 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -44,7 +44,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-0
 | [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | ready-for-agent | 31, 37 |
 | [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
 | [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | resolved | 29, 32, 34, 82 |
-| [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
+| [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | resolved | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
 | [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | resolved | 16, 17 |
 | [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | resolved | 22, 43, 63, 82 |

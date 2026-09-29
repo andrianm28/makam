@@ -1,5 +1,5 @@
 {
-  "id": "2f5366ae-aa9d-4add-a246-c4f55224e85e",
+  "id": "cf323dc6-28c7-4095-b3b2-dac3c948b508",
   "prevId": "4d6f8b62-707e-4e77-9ff9-908433388ab8",
   "version": "7",
   "dialect": "postgresql",
@@ -7084,84 +7084,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.pencairan_pengurangan_tertunda": {
-      "name": "pencairan_pengurangan_tertunda",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "nomor_pemesanan": {
-          "name": "nomor_pemesanan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "catatan": {
-          "name": "catatan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "oleh": {
-          "name": "oleh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dibuat_pada": {
-          "name": "dibuat_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "pencairan_pengurangan_tertunda_pesanan_idx": {
-          "name": "pencairan_pengurangan_tertunda_pesanan_idx",
-          "columns": [
-            {
-              "expression": "nomor_pemesanan",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lokasi_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.pencairan_terencana": {
       "name": "pencairan_terencana",
       "schema": "",
@@ -8113,225 +8035,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.permintaan_pembatalan_terencana": {
-      "name": "permintaan_pembatalan_terencana",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "pemesanan_id": {
-          "name": "pemesanan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nomor_pemesanan": {
-          "name": "nomor_pemesanan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hak_pakai_id": {
-          "name": "hak_pakai_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit_nomor": {
-          "name": "unit_nomor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lokasi_id": {
-          "name": "lokasi_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pemohon_account_id": {
-          "name": "pemohon_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pemohon_email": {
-          "name": "pemohon_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "catatan_pemohon": {
-          "name": "catatan_pemohon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dalam_masa_pembatalan": {
-          "name": "dalam_masa_pembatalan",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "persen_refund": {
-          "name": "persen_refund",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "jumlah_refund": {
-          "name": "jumlah_refund",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lines": {
-          "name": "lines",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "putaran": {
-          "name": "putaran",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "diajukan_pada": {
-          "name": "diajukan_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tenggat_pada": {
-          "name": "tenggat_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "diputuskan_pada": {
-          "name": "diputuskan_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "diputuskan_oleh": {
-          "name": "diputuskan_oleh",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "alasan_keputusan": {
-          "name": "alasan_keputusan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dibatalkan_pada": {
-          "name": "dibatalkan_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "permintaan_pengembalian_id": {
-          "name": "permintaan_pengembalian_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "persetujuan_refund_tenggat_pada": {
-          "name": "persetujuan_refund_tenggat_pada",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "permintaan_pembatalan_terencana_pemesanan_idx": {
-          "name": "permintaan_pembatalan_terencana_pemesanan_idx",
-          "columns": [
-            {
-              "expression": "pemesanan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "permintaan_pembatalan_terencana_lokasi_idx": {
-          "name": "permintaan_pembatalan_terencana_lokasi_idx",
-          "columns": [
-            {
-              "expression": "lokasi_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "permintaan_pembatalan_terencana_terbuka_idx": {
-          "name": "permintaan_pembatalan_terencana_terbuka_idx",
-          "columns": [
-            {
-              "expression": "hak_pakai_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"permintaan_pembatalan_terencana\".\"status\" in ('diajukan', 'perlu_perbaikan')",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "permintaan_pembatalan_terencana_pemesanan_id_pemesanan_terencana_id_fk": {
-          "name": "permintaan_pembatalan_terencana_pemesanan_id_pemesanan_terencana_id_fk",
-          "tableFrom": "permintaan_pembatalan_terencana",
-          "tableTo": "pemesanan_terencana",
-          "columnsFrom": [
-            "pemesanan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.pengurusan_tpu": {
       "name": "pengurusan_tpu",
       "schema": "",
@@ -8735,6 +8438,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "permohonan_id": {
+          "name": "permohonan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8771,6 +8480,198 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.perpanjangan_permohonan": {
+      "name": "perpanjangan_permohonan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "hak_pakai_id": {
+          "name": "hak_pakai_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_name": {
+          "name": "lokasi_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "petak_nomor": {
+          "name": "petak_nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jalur": {
+          "name": "jalur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemohon_account_id": {
+          "name": "pemohon_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nomor_telepon": {
+          "name": "nomor_telepon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catatan": {
+          "name": "catatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berkas": {
+          "name": "berkas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diajukan_pada": {
+          "name": "diajukan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenggat_pada": {
+          "name": "tenggat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keputusan_pada": {
+          "name": "keputusan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keputusan_oleh_account_id": {
+          "name": "keputusan_oleh_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berlaku_sampai": {
+          "name": "berlaku_sampai",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuat_pada": {
+          "name": "dibuat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "perpanjangan_permohonan_hak_pakai_idx": {
+          "name": "perpanjangan_permohonan_hak_pakai_idx",
+          "columns": [
+            {
+              "expression": "hak_pakai_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dibuat_pada",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "perpanjangan_permohonan_lokasi_idx": {
+          "name": "perpanjangan_permohonan_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "perpanjangan_permohonan_pemohon_idx": {
+          "name": "perpanjangan_permohonan_pemohon_idx",
+          "columns": [
+            {
+              "expression": "pemohon_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

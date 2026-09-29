@@ -38,9 +38,9 @@ export const statusVocabulary = {
   selesai: { label: "Selesai", tone: "success" },
   ditolak: { label: "Ditolak", tone: "warning" },
   dibatalkan: { label: "Dibatalkan", tone: "neutral" },
-  // A Pembatalan request of a paid Terencana order (ticket 38): approved by the Lokasi, or sent back for a fix.
-  disetujui: { label: "Disetujui", tone: "success" },
+  // A manual Perpanjangan request the Admin Lokasi sent back for correction, and one it approved (`diajukan`, `ditolak` and `dibatalkan` are shared).
   perlu_perbaikan: { label: "Perlu Perbaikan", tone: "warning" },
+  disetujui: { label: "Disetujui", tone: "success" },
 } as const satisfies Record<string, { label: string; tone: StatusTone }>;
 
 export type StatusKey = keyof typeof statusVocabulary;

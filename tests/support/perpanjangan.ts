@@ -1,3 +1,4 @@
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
@@ -5,8 +6,10 @@ import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import type { Notifications } from "@/domain/notifications";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createPerpanjangan, efekPerpanjangan } from "@/domain/perpanjangan";
+import { createQueues } from "@/domain/queues";
 import { cellsOf } from "./inventory";
 import { payoutsFor } from "./payouts";
+import { refundsFor } from "./refunds";
 import { pemesanDenganEmail, siapkanOperatorPemesanan, terverifikasiLokasi, type PemesananModul } from "./pemesanan";
 import { publishOnTestDatabase, type PublishSetup } from "./publish";
 
@@ -85,9 +88,43 @@ export function perpanjanganOnTestDatabase(db: Database) {
     billing: setup.billing,
     pemesanan,
     identity: setup.identity,
+    files: setup.files,
+    audit: setup.audit,
     notifikasi,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, dikirim, perpanjangan, gagalSetelahAntre, paymentEffects };
+  // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row (ticket 41) is read through the queue itself.
+  const { refunds } = refundsFor(setup, payouts);
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    identity: setup.identity,
+    refunds,
+    notifications: setup.notifications,
+  });
+  const queues = createQueues({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    identity: setup.identity,
+    lokasi: setup.lokasi,
+    fieldwork: setup.fieldwork,
+    billing: setup.billing,
+    notifications: setup.notifications,
+    inventory: setup.inventory,
+    pemesanan,
+    layanan,
+    payouts,
+    pengurusan,
+    perpanjangan,
+    refunds,
+  });
+  return { ...setup, pemesanan, pengurusan, payouts, dikirim, perpanjangan, queues, gagalSetelahAntre, paymentEffects };
 }
 
 export type PerpanjanganSetup = ReturnType<typeof perpanjanganOnTestDatabase>;

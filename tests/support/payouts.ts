@@ -6,6 +6,7 @@ import type { Database } from "@/db/client";
 import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
 import { createRefunds } from "@/domain/refunds";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createPerpanjangan } from "@/domain/perpanjangan";
 import { createQueues } from "@/domain/queues";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import type { PaymentMethod } from "@/domain/billing";
@@ -141,6 +142,19 @@ export function payoutsOnTestDatabase(db: Database) {
     refunds,
     notifications: setup.notifications,
   });
+  const perpanjangan = createPerpanjangan({
+    db,
+    clock: setup.clock,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    pemesanan,
+    identity: setup.identity,
+    files: setup.files,
+    audit: setup.audit,
+    notifikasi: setup.notifications,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -157,6 +171,7 @@ export function payoutsOnTestDatabase(db: Database) {
     // module, and the Tier 2 "Ambil surat pengantar" row reads Identity for the
     // staff contact it shows a family.
     pengurusan,
+    perpanjangan,
     identity: setup.identity,
     refunds,
   });
