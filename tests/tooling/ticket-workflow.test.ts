@@ -211,7 +211,7 @@ describe("the ticket workflow discipline", () => {
     // on 2026-09-29. The
     // half that has no record at all never moves downwards on its own — only a
     // real merge can.
-    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(16);
+    expect(under(true).length, "records below the ratchet, in the marker's wording").toBe(17);
     expect(under(false).length, "resolved tickets below the ratchet with no review record at all").toBe(11);
   });
 

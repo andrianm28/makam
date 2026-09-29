@@ -1,6 +1,6 @@
 # Chasing overdue pay-after Tagihan and Tidak Tertagih
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 25
 Spec: Domain modules > 10. Billing (Chasing, Tidak Tertagih loss, blocks while overdue); 15. Notifications (reminder schedule); 14. Work Queues (Tier 3 Tagihan lewat jatuh tempo); stories 133, 160
 
@@ -43,3 +43,5 @@ Chasing for pay-after Tagihan only (Saat Duka and burials under an existing Hak 
   Fix-pass verification (full logs): typecheck exit 0, lint exit 0, build exit 0, `npx vitest run` on billing, notifications, pemesanan, queues, scheduler, audit, worker and tests/tooling: Test Files 56 passed (56); Tests 525 passed | 1 skipped (526); exit=0.
 
   First-pass verification (read off the full logs, never truncated): `npm run typecheck` exit 0, `npm run lint` exit 0, `npm run build` exit 0 (all three clean on a second run, after `npm run deps` re-linked `node_modules` mid-session — a worktree-local dependency hiccup unrelated to this branch's code, not a code defect). `npx vitest run` across every touched module plus its neighbours (billing, notifications, pemesanan, inventory, queues, identity, audit, scheduler, payouts, pengurusan, fieldwork, tests/tooling): **Test Files 88 passed (88); Tests 835 passed | 1 skipped (836); exit=0.** Head SHA and push: see the branch's own commit.
+
+- 2026-09-29 — **Two-axis review, merged.** Standards found 3 hard violations (Tidak Tertagih unaudited, a direct Billing call from an action, a push outside the transaction) → fixed via `pemesanan.nyatakanTidakTertagih` in one transaction. Spec partials fixed (second call at H+14, the 08:00–20:00 WIB window, Admin Lokasi standalone notes). Merged as the third of the stack 30, 31, 29; its migration became `0034_nosy_brood.sql` (byte-identical to the branch's own). Unblocks 33 and 40 (with 32, 34, 82).
