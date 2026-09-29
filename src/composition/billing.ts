@@ -45,6 +45,12 @@ export interface BillingComposition {
    * declared Tidak Tertagih, the safe default.
    */
   hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
+  /**
+   * Announces a Harga Khusus reissue's Tagihan (Notifications'
+   * `tagihanTerbitPengganti`), inside the reissue's transaction. Wired lazily
+   * by the runtime, since Notifications is composed after the Billing it reads.
+   */
+  umumkanTagihanPengganti?: BillingDeps["umumkanTagihanPengganti"];
 }
 
 /**
@@ -116,6 +122,7 @@ function billingDeps(deps: BillingComposition, paymentEffects: readonly PaymentE
     files: deps.files ?? deps.adapters.files,
     kurangiPencairanPesanan: deps.kurangiPencairanPesanan,
     hasLoggedCall: deps.hasLoggedCall,
+    umumkanTagihanPengganti: deps.umumkanTagihanPengganti,
   };
 }
 

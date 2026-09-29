@@ -30,6 +30,7 @@
  *   names it) — tolerating its "tidak_ditemukan" (nothing to lower yet) as
  *   the ordinary case above, not a refusal.
  */
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
@@ -37,7 +38,10 @@ import { tagihanResource, writeRefusal, type Actor, type WriteRefusal } from "@/
 import type { OperatorSettings } from "@/domain/operator-settings";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
+import type { PaymentMoment } from "./due-rules";
 import type { EffectDeps } from "./settlement";
+import { tagihan as tagihanTable } from "./schema";
+import { momentOf } from "./shared";
 import { readTagihan, reissueTagihan, type NewTagihanLine, type ReissueTagihanResult, type TagihanLine } from "./tagihan";
 
 export interface HargaKhususDeps extends EffectDeps {
@@ -57,6 +61,30 @@ export interface HargaKhususDeps extends EffectDeps {
     tx: Database,
     input: { nomorPemesanan: string; lokasiId: string; amount: number; alasan: "porsi_pemegang_saham"; catatan: string; oleh: string },
   ) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  /**
+   * Announces the reissued Tagihan to the family, in the same transaction as
+   * the reissue (Notifications' `tagihanTerbitPengganti`, ticket 89's pattern).
+   * A Harga Khusus reissue sends no confirmation email of its own, so this is
+   * the family's only notice and what records the new Tagihan's contact.
+   * Structurally typed, never imported from Notifications, which depends on
+   * Billing. A refusal never blocks the Harga Khusus. Left undefined where no
+   * Notifications is composed.
+   */
+  umumkanTagihanPengganti?: (
+    tx: Database,
+    input: {
+      tagihanLamaId: string;
+      tagihanId: string;
+      momentKind: PaymentMoment["kind"];
+      bersamaKonfirmasi: boolean;
+      nomorTagihan: string;
+      nomorPemesanan: string | null;
+      perihal: string;
+      total: number;
+      dueAt: Date;
+      link: string;
+    },
+  ) => Promise<{ ok: boolean }>;
 }
 
 export interface TetapkanHargaKhususInput {
@@ -136,6 +164,9 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
 
   const newLines: NewTagihanLine[] = [...old.lines.map(toNewLine), { kind: "penyesuaian_harga_khusus", amount: parsed.data.amount as Rupiah }];
 
+  const [lama] = await deps.db.select({ moment: tagihanTable.moment }).from(tagihanTable).where(eq(tagihanTable.id, old.id));
+  const momentKind = momentOf(lama?.moment).kind;
+
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const reissued = await reissueTagihan(
       { ...deps, db: tx },
@@ -143,6 +174,25 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
       {
         lines: newLines,
         hargaKhususPorsiMitra: porsiMitra > 0 ? { amount: porsiMitra as Rupiah, catatan: parsed.data.catatanPorsiMitra! } : null,
+        // Announced as soon as it exists, before a Rp 0 settlement's Bukti Pembayaran effect looks for the family's address.
+        sebelumBukti: async (txBaru, baru) => {
+          if (!deps.umumkanTagihanPengganti) return;
+          const diumumkan = await deps.umumkanTagihanPengganti(txBaru, {
+            tagihanLamaId: old.id,
+            tagihanId: baru.id,
+            momentKind: momentKind,
+            // A Rp 0 Tagihan is Lunas at once and its Bukti Pembayaran email tells the family: one email, not two.
+            bersamaKonfirmasi: baru.total === 0,
+            nomorTagihan: baru.nomorTagihan,
+            nomorPemesanan: old.nomorPemesanan,
+            perihal: old.placeName ? `Pemesanan makam di ${old.placeName}` : "Tagihan Makam.co.id",
+            total: baru.total,
+            dueAt: baru.dueAt,
+            link: baru.link,
+          });
+          // The Harga Khusus is never blocked by its own announcement.
+          if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });
+        },
       },
       now,
     );
