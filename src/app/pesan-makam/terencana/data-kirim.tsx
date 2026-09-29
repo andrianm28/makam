@@ -8,6 +8,7 @@ import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import { csWhatsAppLink, type KodeMasukRequestState } from "@/components/kode-masuk/state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatTelepon } from "@/lib/format-telepon";
 import { cn } from "@/lib/utils";
 import { kirimPesananTerencana, verifikasiKodeMasukDanKirimTerencana } from "./actions";
 import type { PilihanPicker } from "./denah-picker";
@@ -278,7 +279,7 @@ export function DataKirim({
             <MessageCircle className="size-4" aria-hidden /> Tidak punya email? Minta bantuan CS
           </a>
           <p className="inline-flex items-center gap-1.5 text-small text-muted-foreground">
-            <Phone className="size-3.5" aria-hidden /> {csContact.whatsApp} · CS dapat mengirimkan pesanan ini untuk Anda
+            <Phone className="size-3.5" aria-hidden /> {formatTelepon(csContact.whatsApp)} · CS dapat mengirimkan pesanan ini untuk Anda
           </p>
         </div>
       ) : null}

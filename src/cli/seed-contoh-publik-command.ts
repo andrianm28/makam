@@ -300,7 +300,7 @@ export const CONTOH_LOKASI: ContohLokasiSpec[] = [
     biayaPemakaman: 3_000_000,
     biayaPemakamanTumpang: 2_000_000,
     jenisMakam: [
-      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 11_000_000, hargaPerpanjangan: 5_000_000, tersedia: 64 },
+      { name: "Makam Standar", description: "Ukuran 1,2 × 2,5 m", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 9_000_000, hargaPerpanjangan: 5_000_000, tersedia: 64 },
       { name: "Makam Taman", description: "Ukuran 2 × 3 m, dengan pagar rendah", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 22_500_000, hargaPerpanjangan: 9_000_000, tersedia: 0, kosong: true },
       { name: "Kavling Keluarga 4 Petak", description: "2 × 2 petak bersebelahan", tenure: { kind: "tahun", years: 25 }, hargaHakPakai: 40_000_000, hargaPerpanjangan: 18_000_000, tersedia: 1, kavlingPetak: 4 },
     ],
