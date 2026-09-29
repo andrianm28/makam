@@ -18,6 +18,7 @@ import type { BarisRefundPembatalan, SyaratTerencana } from "./schema";
 
 export interface HitungPembatalanInput {
   /** The lines of the Tagihan the order was paid with. */
+  /** The lines this Hak Pakai is refunded from: its own Harga Hak Pakai line, and the Tagihan's Biaya Layanan Platform to show as kept. */
   lines: readonly Pick<TagihanLine, "kind" | "amount">[];
   /** The Syarat snapshotted on the order. */
   syarat: Pick<SyaratTerencana, "refundAfterMasaPembatalanPercent">;
@@ -25,7 +26,8 @@ export interface HitungPembatalanInput {
   masaPembatalanBerakhirPada: Date;
   /** The moment the request is made. */
   sekarang: Date;
-  nomorPemesanan: string;
+  /** The number the Hak Pakai's plot is known by, named on the refund. */
+  nomorUnit: string;
   /** The Lokasi Mitra whose tariff it is, and whose unpaid Pencairan the refund nets from. */
   lokasiId: string;
 }
@@ -51,7 +53,7 @@ export function hitungPembatalanTerencana(input: HitungPembatalanInput): HitungP
   const jumlahRefund = Math.max(0, Math.floor((tarif * persenRefund) / 100));
   const lines: BarisRefundPembatalan[] =
     jumlahRefund > 0
-      ? [{ label: `Pengembalian Hak Pakai ${input.nomorPemesanan} (${persenRefund}% dari tarif)`, amount: jumlahRefund, lokasiId: input.lokasiId }]
+      ? [{ label: `Pengembalian Hak Pakai ${input.nomorUnit} (${persenRefund}% dari tarif)`, amount: jumlahRefund, lokasiId: input.lokasiId }]
       : [];
   return { dalamMasaPembatalan, persenRefund, tarif, biayaLayananPlatform, jumlahRefund, lines };
 }

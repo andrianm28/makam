@@ -8,7 +8,7 @@ import type { PublishSetup } from "./publish";
 /** The Refunds module on a setup's own Billing, Notifications and Lokasi, next to a Payouts of the caller's choosing. */
 export function refundsFor(
   setup: PublishSetup,
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">,
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">,
 ): { refunds: Refunds } {
   const refunds = createRefunds({
     db: setup.db,

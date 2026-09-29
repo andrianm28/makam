@@ -4,9 +4,9 @@
  * snapshot policy ..., then an Admin Platform refund row is created"; ticket 38). Three answers, each one
  * staff write in its own transaction and each audited on the Lokasi Mitra:
  *
- * - **Setuju**: the Lokasi confirms there is no Pemakaman. In one commit every Hak Pakai of the order becomes
- *   Dibatalkan (so its Petak is Tersedia again), the order becomes Dibatalkan ("Pembatalan"), the refund
- *   the request holds is asked of Refunds (Admin Platform's Tier 3 "Pembatalan refund approval" row, due 2
+ * - **Setuju**: the Lokasi confirms there is no Pemakaman. In one commit the Hak Pakai the request names becomes
+ *   Dibatalkan (so its Petak is Tersedia again; the other Hak Pakai of the order carry on, and the order becomes
+ *   Dibatalkan ("Pembatalan") only when none is left), the refund the request holds is asked of Refunds (Admin Platform's Tier 3 "Pembatalan refund approval" row, due 2
  *   Hari Kerja on its calendar), and the family is told. A refund of nothing (a Syarat that gives 0% after the
  *   Masa Pembatalan) raises no refund request at all: the right ends and the money stays with the Lokasi Mitra.
  *   A refusal anywhere rolls all of it back, so a Hak Pakai never ends with its money unasked for.
@@ -14,7 +14,7 @@
  * - **Minta perbaikan**: the request goes back to the requester with a note; its Antrean Lokasi row closes
  *   until it is filed again.
  *
- * "There is no Pemakaman" is not taken on the caller's word: the Hak Pakai are read again inside the commit,
+ * "There is no Pemakaman" is not taken on the caller's word: the Hak Pakai is read again inside the commit,
  * and Inventory itself refuses to end one with a grave dug under it.
  */
 import { and, eq } from "drizzle-orm";
@@ -76,17 +76,20 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
   const { row, order } = dimuat;
 
   const units = await unitsOfOrder(deps.db, order.id);
-  const hakPakai = (await Promise.all(units.flatMap((satu) => (satu.hakPakaiId ? [deps.inventory.hakPakaiById(satu.hakPakaiId)] : [])))).flatMap((satu) => (satu ? [satu] : []));
+  const satuUnit = units.find((satu) => satu.hakPakaiId === row.hakPakaiId);
+  const hakPakai = await deps.inventory.hakPakaiById(row.hakPakaiId);
+  if (!satuUnit || !hakPakai) return { ok: false, reason: "tidak_ditemukan" };
   const sebab = sebabTerhalang(order, hakPakai, false);
   if (sebab) return { ok: false, reason: sebab as Exclude<SebabPembatalanTerhalang, "sudah_ada_permintaan"> };
+  // The order ends with its last Hak Pakai: the others on it, read now, decide whether this one is the last still standing.
+  const lain = await Promise.all(units.filter((satu) => satu.hakPakaiId && satu.hakPakaiId !== row.hakPakaiId).map((satu) => deps.inventory.hakPakaiById(satu.hakPakaiId!)));
+  const terakhir = lain.every((satu) => satu?.status === "dibatalkan");
 
-  // Read before the transaction opens, so its connection is never held while another read is pending.
-  const tagihan = order.tagihanId ? await deps.billing.tagihan(order.tagihanId) : null;
   const now = deps.clock.now();
   const kalender = row.jumlahRefund > 0 ? await deps.lokasi.adminPlatformCalendar() : null;
   const tenggatRefund = kalender ? addWorkingDays(kalender, now, TENGGAT_PERSETUJUAN_REFUND_HARI_KERJA) : null;
   if (tenggatRefund && !tenggatRefund.ok) throw new Error(`the Admin Platform calendar has no Hari Kerja ahead of ${now.toISOString()}`);
-  const unit = units.map((satu) => ({ nomor: nomorUnit(satu), jenisMakamName: satu.jenisMakamName }));
+  const unit = [{ nomor: nomorUnit(satuUnit), jenisMakamName: satuUnit.jenisMakamName }];
 
   return deps.audit.staffWrite<SetujuiPembatalanResult>(deps.db, async (tx, record) => {
     const disetujui = await tx
@@ -96,28 +99,24 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
       .returning({ id: permintaanPembatalanTerencana.id });
     if (disetujui.length === 0) return { ok: false, reason: "sudah_diputuskan" };
 
-    // The right ends and the plots sell again: every Hak Pakai of the order, or none of them.
-    const inventory = deps.inventory.within(tx);
-    for (const satu of units) {
-      if (!satu.hakPakaiId) continue;
-      const berakhir = await inventory.batalkanHakPakai({ hakPakaiId: satu.hakPakaiId, alasan: "Pembatalan disetujui Lokasi Mitra" });
-      if (!berakhir.ok) return { ok: false, reason: berakhir.reason === "pemakaman_sudah_dicatat" ? "sudah_ada_pemakaman" : "hak_pakai_sudah_berakhir" };
+    // The right ends and the plot sells again; the order's other Hak Pakai carry on.
+    const berakhir = await deps.inventory.within(tx).batalkanHakPakai({ hakPakaiId: row.hakPakaiId, alasan: "Pembatalan disetujui Lokasi Mitra" });
+    if (!berakhir.ok) return { ok: false, reason: berakhir.reason === "pemakaman_sudah_dicatat" ? "sudah_ada_pemakaman" : "hak_pakai_sudah_berakhir" };
+    if (terakhir) {
+      const dibatalkan = await tx
+        .update(pemesananTerencana)
+        .set({ status: "dibatalkan", dibatalkanPada: now, alasan: "pembatalan" })
+        .where(and(eq(pemesananTerencana.id, order.id), eq(pemesananTerencana.status, "aktif")))
+        .returning({ id: pemesananTerencana.id });
+      if (dibatalkan.length === 0) return { ok: false, reason: "pesanan_tidak_aktif" };
     }
-    const dibatalkan = await tx
-      .update(pemesananTerencana)
-      .set({ status: "dibatalkan", dibatalkanPada: now, alasan: "pembatalan" })
-      .where(and(eq(pemesananTerencana.id, order.id), eq(pemesananTerencana.status, "aktif")))
-      .returning({ id: pemesananTerencana.id });
-    if (dibatalkan.length === 0) return { ok: false, reason: "pesanan_tidak_aktif" };
 
-    // The refund the family was shown, asked of Refunds in this same commit. Everything comes back only when the
-    // request covers the whole tariff, so that is the only time the Tagihan is Dikembalikan penuh.
+    // The refund the family was shown, asked of Refunds in this same commit. The Tagihan is Dikembalikan penuh only when,
+    // with this one, everything the fee rule returns has been refunded in full: Refunds decides that from the whole Tagihan.
     let pengembalian: { permintaanId: string } | null = null;
     if (row.jumlahRefund > 0) {
-      if (!order.tagihanId || !tagihan) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
-      const biayaLayananPlatform = tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform").reduce((sum, line) => sum + line.amount, 0);
-      const penuh = row.persenRefund === 100 && row.jumlahRefund === tagihan.total - biayaLayananPlatform;
-      const diminta = await deps.refunds.ajukanBaris(order.tagihanId, { pihakBersalah: "pemesan", penuh, lines: row.lines }, tx);
+      if (!order.tagihanId) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
+      const diminta = await deps.refunds.ajukanBaris(order.tagihanId, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: row.lines }, tx);
       if (!diminta.ok) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       pengembalian = { permintaanId: diminta.permintaanId };
       await tx
@@ -136,7 +135,7 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
       // Amounts and numbers only: no name, email or free text of the family goes into the Audit Log.
       after: {
         status: "disetujui",
-        pesanan: "dibatalkan",
+        pesanan: terakhir ? "dibatalkan" : "aktif",
         nomorPemesanan: order.nomor,
         persenRefund: row.persenRefund,
         jumlahRefund: row.jumlahRefund,
@@ -176,6 +175,11 @@ async function umumkanDisetujui(
   }
 }
 
+/** The Jenis Makam of one plot of an order, for the family's message; the plot number is the request's own. */
+async function jenisMakamOf(deps: PemesananDeps, pemesananId: string, unitNomor: string): Promise<string> {
+  return (await unitsOfOrder(deps.db, pemesananId)).find((satu) => nomorUnit(satu) === unitNomor)?.jenisMakamName ?? "Makam";
+}
+
 /** Tolak: nothing changes on the Hak Pakai, and the family is told why. */
 export async function tolakPembatalanTerencana(deps: PemesananDeps, by: Actor, rawInput: unknown): Promise<KeputusanPembatalanResult> {
   const parsed = tolakPembatalanTerencanaSchema.safeParse(rawInput);
@@ -183,7 +187,7 @@ export async function tolakPembatalanTerencana(deps: PemesananDeps, by: Actor, r
   const dimuat = await muat(deps, by, parsed.data.id);
   if (!dimuat.ok) return dimuat.penolakan;
   const { row, order } = dimuat;
-  const units = await unitsOfOrder(deps.db, order.id);
+  const unit = [{ nomor: row.unitNomor, jenisMakamName: await jenisMakamOf(deps, order.id, row.unitNomor) }];
   const now = deps.clock.now();
   return deps.audit.staffWrite<KeputusanPembatalanResult>(deps.db, async (tx, record) => {
     const [ditolak] = await tx
@@ -198,7 +202,7 @@ export async function tolakPembatalanTerencana(deps: PemesananDeps, by: Actor, r
       nomor: order.nomor,
       email: row.pemohonEmail,
       lokasi: { id: order.lokasiId, name: order.lokasiName },
-      unit: units.map((satu) => ({ nomor: nomorUnit(satu), jenisMakamName: satu.jenisMakamName })),
+      unit,
       alasan: parsed.data.alasan,
     });
     await record({
@@ -221,7 +225,7 @@ export async function mintaPerbaikanPembatalanTerencana(deps: PemesananDeps, by:
   const dimuat = await muat(deps, by, parsed.data.id);
   if (!dimuat.ok) return dimuat.penolakan;
   const { row, order } = dimuat;
-  const units = await unitsOfOrder(deps.db, order.id);
+  const unit = [{ nomor: row.unitNomor, jenisMakamName: await jenisMakamOf(deps, order.id, row.unitNomor) }];
   const now = deps.clock.now();
   return deps.audit.staffWrite<KeputusanPembatalanResult>(deps.db, async (tx, record) => {
     const [dikembalikan] = await tx
@@ -242,7 +246,7 @@ export async function mintaPerbaikanPembatalanTerencana(deps: PemesananDeps, by:
       nomor: order.nomor,
       email: row.pemohonEmail,
       lokasi: { id: order.lokasiId, name: order.lokasiName },
-      unit: units.map((satu) => ({ nomor: nomorUnit(satu), jenisMakamName: satu.jenisMakamName })),
+      unit,
       putaran: dikembalikan.putaran,
       catatan: parsed.data.catatan,
     });

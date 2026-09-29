@@ -4,16 +4,14 @@
  * 107 and 125; ticket 38's ACs), driven only through the public interfaces of Pemesanan, Refunds,
  * Payouts, Billing, Inventory and the Antrean, on the real Postgres with the fake Clock.
  */
-import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Actor } from "@/domain/identity";
-import { inventoryPemegangHak } from "@/domain/inventory/schema";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { adminPlatformOf, logIn } from "../../../tests/support/identity";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
 import { buktiTransfer } from "../../../tests/support/refunds";
-import { terencanaLokasi, type TerencanaOptions } from "../../../tests/support/terencana";
+import { gantiPemegangHakUntukUji, terencanaLokasi, type TerencanaOptions } from "../../../tests/support/terencana";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -78,9 +76,9 @@ async function pesananAktif(setup: PemesananSetup, opsi: OpsiPesanan = {}) {
 
 type Aktif = Awaited<ReturnType<typeof pesananAktif>>;
 
-/** The Pemegang Hak asks; the request must be accepted. */
-async function ajukan(setup: PemesananSetup, dasar: Aktif, catatan = "") {
-  const hasil = await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[0], catatan });
+/** The Pemegang Hak asks to cancel one Hak Pakai of the order (the first by default); the request must be accepted. */
+async function ajukan(setup: PemesananSetup, dasar: Aktif, catatan = "", indeks = 0) {
+  const hasil = await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[indeks], catatan });
   if (!hasil.ok) throw new Error(`ajukanPembatalanTerencana refused: ${hasil.reason}`);
   return hasil.permintaan;
 }
@@ -118,13 +116,14 @@ describe('"Ajukan Pembatalan" shows the refund under the order\'s own Syarat bef
     if (!hasil.ok) throw new Error(hasil.reason);
     expect(hasil.pembatalan).toMatchObject({
       nomor: dasar.nomor,
-      unit: [expect.objectContaining({ nomor: "A-01" }), expect.objectContaining({ nomor: "A-02" })],
+      // The plot of this Hak Pakai only: A-02 is another Hak Pakai with a Pembatalan of its own.
+      unit: [expect.objectContaining({ nomor: "A-01" })],
       syarat: { masaPembatalanDays: 7, refundAfterMasaPembatalanPercent: 40 },
       masaPembatalanBerakhirPada: dasar.masaBerakhirPada,
       permintaan: null,
       bisaMengajukan: {
         ok: true,
-        refund: { dalamMasaPembatalan: true, persenRefund: 100, tarif: 5_000_000, biayaLayananPlatform: 150_000, jumlahRefund: 5_000_000 },
+        refund: { dalamMasaPembatalan: true, persenRefund: 100, tarif: 2_500_000, biayaLayananPlatform: 150_000, jumlahRefund: 2_500_000 },
       },
     });
   });
@@ -152,7 +151,7 @@ describe('"Ajukan Pembatalan" shows the refund under the order\'s own Syarat bef
       ok: true,
       pembatalan: {
         syarat: { masaPembatalanDays: 7, refundAfterMasaPembatalanPercent: 40 },
-        bisaMengajukan: { ok: true, refund: { dalamMasaPembatalan: false, persenRefund: 40, jumlahRefund: 2_000_000, biayaLayananPlatform: 150_000 } },
+        bisaMengajukan: { ok: true, refund: { dalamMasaPembatalan: false, persenRefund: 40, jumlahRefund: 1_000_000, biayaLayananPlatform: 150_000 } },
       },
     });
   });
@@ -169,7 +168,7 @@ describe('"Ajukan Pembatalan" shows the refund under the order\'s own Syarat bef
     expect(await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemesan, { hakPakaiId: dasar.hakPakaiIds[0] })).toEqual({ ok: false, reason: "tidak_ditemukan" });
   });
 
-  it("is not offered once a Pemakaman is recorded under one of the order's Hak Pakai", async () => {
+  it("is not offered for a Hak Pakai with a Pemakaman under it, while the order's other Hak Pakai can still be cancelled", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     const dicatat = await setup.inventory.catatPemakaman(dasar.fixture.adminLokasi, dasar.fixture.lokasiMitra.id, {
@@ -179,42 +178,46 @@ describe('"Ajukan Pembatalan" shows the refund under the order\'s own Syarat bef
     });
     expect(dicatat.ok).toBe(true);
 
-    const hasil = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0]);
+    const hasil = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1]);
 
     expect(hasil).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: false, sebab: "sudah_ada_pemakaman" } } });
-    expect(await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[0] })).toEqual({ ok: false, reason: "sudah_ada_pemakaman" });
+    expect(await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[1] })).toEqual({ ok: false, reason: "sudah_ada_pemakaman" });
     expect(await barisPembatalan(setup, dasar)).toEqual([]);
+    expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0])).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: true } } });
   });
 
-  it("is not offered after a Ganti Pemegang Hak, whichever Hak Pakai of the order it was on", async () => {
+  it("is not offered after a Ganti Pemegang Hak on that Hak Pakai, whose earlier holder can no longer ask", async () => {
     const setup = pemesananOnTestDatabase(db);
-    const dasar = await pesananAktif(setup);
-    // Ganti Pemegang Hak has no public function yet: the earlier holder's row is closed the way that ticket will close it.
-    await db.update(inventoryPemegangHak).set({ endAt: setup.clock.now() }).where(eq(inventoryPemegangHak.hakPakaiId, dasar.hakPakaiIds[1]));
-    await db.insert(inventoryPemegangHak).values({
-      hakPakaiId: dasar.hakPakaiIds[1],
-      name: "Ahli Waris",
-      phoneNumber: "+6281200000000",
-      email: "ahli.waris@contoh.id",
-      startAt: setup.clock.now(),
-      createdByAccountId: dasar.fixture.adminLokasi.accountId,
-    });
+    const dasar = await pesananAktif(setup, { pemegangHak: "lain" });
+    // The new Pemegang Hak of A-02 is somebody else; the Pemegang Hak of A-01 is untouched.
+    const ahliWaris = (await pemesanDenganEmail(setup, "ahli.waris@contoh.id")).pemesan;
+    await gantiPemegangHakUntukUji(setup, dasar.hakPakaiIds[1], { name: "Ahli Waris", phoneNumber: "+6281200000000", email: ahliWaris.email }, dasar.fixture.adminLokasi.accountId);
 
-    const hasil = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0]);
-
+    // The earlier holder is no longer this Hak Pakai's Pemegang Hak, and the new one may not cancel a right that changed hands.
+    expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1])).toEqual({ ok: false, reason: "tidak_ditemukan" });
+    const hasil = await setup.pemesanan.pratinjauPembatalanTerencana(ahliWaris, dasar.hakPakaiIds[1]);
     expect(hasil).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: false, sebab: "pernah_ganti_pemegang_hak" } } });
-    expect(await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[0] })).toEqual({ ok: false, reason: "pernah_ganti_pemegang_hak" });
+    expect(await setup.pemesanan.ajukanPembatalanTerencana(ahliWaris, { hakPakaiId: dasar.hakPakaiIds[1] })).toEqual({ ok: false, reason: "pernah_ganti_pemegang_hak" });
+    expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0])).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: true } } });
   });
 
-  it("is not offered for an order that is not Aktif (one still awaiting payment has no Hak Pakai to cancel)", async () => {
+  it("is not offered again for a Hak Pakai that was cancelled, and not for any once the order is Dibatalkan", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
-    const disetujui = await ajukan(setup, dasar);
-    await setujui(setup, dasar, disetujui.id);
+    const pertama = await ajukan(setup, dasar);
+    await setujui(setup, dasar, pertama.id);
 
-    const hasil = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0]);
+    expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[0])).toMatchObject({
+      ok: true,
+      pembatalan: { bisaMengajukan: { ok: false, sebab: "hak_pakai_sudah_berakhir" }, permintaan: { status: "disetujui" } },
+    });
+    const kedua = await ajukan(setup, dasar, "", 1);
+    await setujui(setup, dasar, kedua.id);
 
-    expect(hasil).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: false, sebab: "pesanan_tidak_aktif" }, permintaan: { status: "disetujui" } } });
+    expect(await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1])).toMatchObject({
+      ok: true,
+      pembatalan: { bisaMengajukan: { ok: false, sebab: "pesanan_tidak_aktif" } },
+    });
   });
 });
 
@@ -232,7 +235,7 @@ describe("the Pembatalan request and its Antrean Lokasi row", () => {
       status: "diajukan",
       dalamMasaPembatalan: true,
       persenRefund: 100,
-      jumlahRefund: 5_000_000,
+      jumlahRefund: 2_500_000,
       catatanPemohon: "Keluarga pindah kota",
       putaran: 0,
       tenggatPada: wib("2026-10-03 15:00"),
@@ -242,7 +245,7 @@ describe("the Pembatalan request and its Antrean Lokasi row", () => {
         type: "pembatalan_terencana",
         label: "Pembatalan",
         subjectKind: "permintaan_pembatalan_terencana",
-        subjectLabel: `${dasar.nomor} · A-01, A-02`,
+        subjectLabel: `${dasar.nomor} · A-01`,
         href: `/staf/admin-lokasi/${dasar.fixture.lokasiMitra.id}/pesanan/${dasar.nomor}`,
         deadline: wib("2026-10-03 15:00"),
         pastDeadline: false,
@@ -262,16 +265,18 @@ describe("the Pembatalan request and its Antrean Lokasi row", () => {
     expect(permintaan.tenggatPada).toEqual(wib("2026-10-05 15:00"));
   });
 
-  it("is asked once at a time, however many Hak Pakai the order has", async () => {
+  it("is asked once at a time for one Hak Pakai, and each Hak Pakai of the order has its own", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     await ajukan(setup, dasar);
 
-    const lagi = await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[1] });
+    const lagi = await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemegang, { hakPakaiId: dasar.hakPakaiIds[0] });
 
     expect(lagi).toEqual({ ok: false, reason: "sudah_ada_permintaan" });
-    expect(await barisPembatalan(setup, dasar)).toHaveLength(1);
-    expect(await setup.pemesanan.adaPembatalanTerbuka(dasar.hakPakaiIds[1])).toBe(true);
+    expect(await setup.pemesanan.adaPembatalanTerbuka(dasar.hakPakaiIds[0])).toBe(true);
+    expect(await setup.pemesanan.adaPembatalanTerbuka(dasar.hakPakaiIds[1])).toBe(false);
+    await ajukan(setup, dasar, "", 1);
+    expect(await barisPembatalan(setup, dasar)).toEqual([expect.objectContaining({ subjectLabel: `${dasar.nomor} · A-01` }), expect.objectContaining({ subjectLabel: `${dasar.nomor} · A-02` })]);
   });
 
   it("goes back for a fix (its row closes), is filed again with the same refund and a new deadline, and its row returns", async () => {
@@ -292,7 +297,7 @@ describe("the Pembatalan request and its Antrean Lokasi row", () => {
 
     expect(ulang).toMatchObject({
       ok: true,
-      permintaan: { status: "diajukan", persenRefund: 100, jumlahRefund: 5_000_000, catatanPemohon: "Pindah ke luar kota", alasanKeputusan: null },
+      permintaan: { status: "diajukan", persenRefund: 100, jumlahRefund: 2_500_000, catatanPemohon: "Pindah ke luar kota", alasanKeputusan: null },
     });
     expect(await barisPembatalan(setup, dasar)).toHaveLength(1);
     // Friday 2026-10-09 10:00: Saturday is the first Hari Kerja, and the closed Sunday is skipped for Monday the 12th.
@@ -319,7 +324,7 @@ describe("the Pembatalan request and its Antrean Lokasi row", () => {
 });
 
 describe("the Admin Lokasi confirms there is no Pemakaman", () => {
-  it("ends every Hak Pakai of the order, frees its Petak and cancels the order, in one audited step", async () => {
+  it("ends that Hak Pakai and frees its Petak while the order's other Hak Pakai carry on, in one audited step", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     const permintaan = await ajukan(setup, dasar);
@@ -328,12 +333,16 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     const hasil = await setujui(setup, dasar, permintaan.id);
 
     expect(hasil.permintaan).toMatchObject({ status: "disetujui", diputuskanPada: setup.clock.now() });
-    for (const hakPakaiId of dasar.hakPakaiIds) {
-      expect(await setup.inventory.hakPakaiById(hakPakaiId)).toMatchObject({ status: "dibatalkan" });
-    }
+    expect(await setup.inventory.hakPakaiById(dasar.hakPakaiIds[0])).toMatchObject({ status: "dibatalkan" });
+    expect(await setup.inventory.hakPakaiById(dasar.hakPakaiIds[1])).toMatchObject({ status: "aktif" });
     expect(await statusPetak(setup, dasar.fixture.lokasiMitra.id, "A-01")).toBe("bisa_dipilih");
-    expect(await statusPetak(setup, dasar.fixture.lokasiMitra.id, "A-02")).toBe("bisa_dipilih");
+    expect(await statusPetak(setup, dasar.fixture.lokasiMitra.id, "A-02")).toBe("terisi");
+    // The order carries on with its other plot, and is Dibatalkan only with the last of them.
+    expect(await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "aktif" });
+    const terakhir = await ajukan(setup, dasar, "", 1);
+    await setujui(setup, dasar, terakhir.id);
     expect(await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "dibatalkan", alasan: "Pembatalan disetujui Lokasi Mitra" });
+    expect(await statusPetak(setup, dasar.fixture.lokasiMitra.id, "A-02")).toBe("bisa_dipilih");
     expect(await barisPembatalan(setup, dasar)).toEqual([]);
     const tercatat = (await setup.audit.allEntries()).filter((entry) => entry.action === "pembatalan_terencana.setujui");
     expect(tercatat).toEqual([
@@ -341,8 +350,9 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
         actor: { accountId: dasar.fixture.adminLokasi.accountId, role: "admin_lokasi" },
         lokasiId: dasar.fixture.lokasiMitra.id,
         before: { status: "diajukan", pesanan: "aktif" },
-        after: expect.objectContaining({ status: "disetujui", pesanan: "dibatalkan", persenRefund: 100, jumlahRefund: 5_000_000, unit: ["A-01", "A-02"] }),
+        after: expect.objectContaining({ status: "disetujui", pesanan: "aktif", persenRefund: 100, jumlahRefund: 2_500_000, unit: ["A-01"] }),
       }),
+      expect.objectContaining({ after: expect.objectContaining({ pesanan: "dibatalkan", unit: ["A-02"] }) }),
     ]);
   });
 
@@ -361,10 +371,11 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
       id: hasil.pengembalian?.permintaanId,
       status: "diajukan",
       nomorPemesanan: dasar.nomor,
-      jumlah: 5_000_000,
+      jumlah: 2_500_000,
       pihakBersalah: "pemesan",
       biayaLayananPlatformDikembalikan: false,
-      penuh: true,
+      // One Hak Pakai of two: not everything the Tagihan can return, so an ordinary partial refund.
+      penuh: false,
       goodwill: false,
     });
     expect(await barisRefund(setup, dasar.admin)).toEqual([
@@ -389,11 +400,11 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     const dasar = await pesananAktif(setup);
     setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
     const permintaan = await ajukan(setup, dasar);
-    expect(permintaan).toMatchObject({ dalamMasaPembatalan: false, persenRefund: 40, jumlahRefund: 2_000_000 });
+    expect(permintaan).toMatchObject({ dalamMasaPembatalan: false, persenRefund: 40, jumlahRefund: 1_000_000 });
     const hasil = await setujui(setup, dasar, permintaan.id);
 
     const refund = await setup.refunds.permintaan(hasil.pengembalian!.permintaanId);
-    expect(refund).toMatchObject({ jumlah: 2_000_000, penuh: false, biayaLayananPlatformDikembalikan: false });
+    expect(refund).toMatchObject({ jumlah: 1_000_000, penuh: false, biayaLayananPlatformDikembalikan: false });
     await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
     await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: refund!.id });
     const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
@@ -402,7 +413,7 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
       bukti: buktiTransfer,
     });
 
-    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 2_000_000, biayaLayananPlatformDikembalikan: false, rekening } });
+    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 1_000_000, biayaLayananPlatformDikembalikan: false, rekening } });
     expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_sebagian" });
   });
 
@@ -427,7 +438,7 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     const dasar = await pesananAktif(setup);
     const permintaan = await ajukan(setup, dasar);
     await setup.inventory.catatPemakaman(dasar.fixture.adminLokasi, dasar.fixture.lokasiMitra.id, {
-      hakPakaiId: dasar.hakPakaiIds[1],
+      hakPakaiId: dasar.hakPakaiIds[0],
       almarhumName: "Bapak Hasan",
       tanggal: "2026-10-01",
     });
@@ -544,7 +555,7 @@ describe("the refund goes to the Pemesan who paid, to a bank account that Pemesa
 
     const kePemesan = setup.email.sent.filter((surat) => surat.to === "keluarga@contoh.id" && surat.subject === `Pembatalan pesanan ${dasar.nomor} disetujui`);
     expect(kePemesan).toHaveLength(1);
-    expect(kePemesan[0].text).toContain("Pengembalian dana: Rp 5.000.000");
+    expect(kePemesan[0].text).toContain("Pengembalian dana: Rp 2.500.000");
     expect(kePemesan[0].text).toContain("Biaya Layanan Platform tidak dikembalikan");
     expect(kePemesan[0].text).toContain("isi rekening tujuan");
     expect(kePemesan[0].text).toContain(`/pesanan/${dasar.nomor}`);
@@ -554,8 +565,10 @@ describe("the refund goes to the Pemesan who paid, to a bank account that Pemesa
     expect(kePemegang[0].text).not.toContain("Isi rekening di");
     // The order page's own read: the refund waits for its bank account, on the Pemesan's order only.
     expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ status: "diajukan", rekening: null });
-    expect(await setup.pemesanan.pembatalanUntukPesanan(dasar.pemesan, dasar.nomor)).toMatchObject({ status: "disetujui", jumlahRefund: 5_000_000 });
-    expect(await setup.pemesanan.pembatalanUntukPesanan(dasar.pemegang, dasar.nomor)).toBeNull();
+    expect(await setup.pemesanan.pembatalanUntukPesanan(dasar.pemesan, dasar.nomor)).toEqual([
+      expect.objectContaining({ status: "disetujui", jumlahRefund: 2_500_000, unitNomor: "A-01" }),
+    ]);
+    expect(await setup.pemesanan.pembatalanUntukPesanan(dasar.pemegang, dasar.nomor)).toEqual([]);
   });
 
   it("sends one email, not two, when the Pemesan is also the Pemegang Hak", async () => {
@@ -589,8 +602,8 @@ describe("the refund goes to the Pemesan who paid, to a bank account that Pemesa
       bukti: buktiTransfer,
     });
 
-    expect(terbit).toMatchObject({ ok: true, bukti: { nomorPemesanan: dasar.nomor, amount: 5_000_000, biayaLayananPlatformDikembalikan: false, rekening } });
-    expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+    expect(terbit).toMatchObject({ ok: true, bukti: { nomorPemesanan: dasar.nomor, amount: 2_500_000, biayaLayananPlatformDikembalikan: false, rekening } });
+    expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_sebagian" });
   });
 });
 
@@ -610,17 +623,43 @@ describe("the Lokasi Mitra's Pencairan of a cancelled Pemesanan Terencana", () =
     return terbit;
   }
 
-  it("is never made for a Pembatalan inside the Masa Pembatalan: the whole tariff went back to the family", async () => {
+  it("is never made for the Hak Pakai cancelled inside the Masa Pembatalan, and still made for the one that carries on", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     const permintaan = await ajukan(setup, dasar);
+    // The refund is transferred while the Lokasi has no Pencairan items yet: what it lowers is kept for the items to come.
     await kembalikan(setup, dasar, permintaan.id);
 
     setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
     await setup.payouts.tick();
 
-    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 2_500_000 })]);
     expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([]);
+  });
+
+  it("is never made when every Hak Pakai of the order is cancelled inside the Masa Pembatalan, and the Tagihan is Dikembalikan penuh", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup);
+    const pertama = await ajukan(setup, dasar);
+    const kedua = await ajukan(setup, dasar, "", 1);
+    const a = await setujui(setup, dasar, pertama.id);
+    const b = await setujui(setup, dasar, kedua.id);
+    // The second joins the refund the first opened: one transfer for the order's cancellations.
+    expect(b.pengembalian?.permintaanId).toBe(a.pengembalian?.permintaanId);
+    await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: a.pengembalian!.permintaanId });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: a.pengembalian!.permintaanId,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 5_000_000, biayaLayananPlatformDikembalikan: false } });
+
+    expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+    expect(await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "dibatalkan" });
+    setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
+    await setup.payouts.tick();
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
   });
 
   it("is cut by the refunded tariff when the Masa Pembatalan ended first, so only the share the Lokasi keeps is paid", async () => {
@@ -632,8 +671,8 @@ describe("the Lokasi Mitra's Pencairan of a cancelled Pemesanan Terencana", () =
     const permintaan = await ajukan(setup, dasar);
     await kembalikan(setup, dasar, permintaan.id);
 
-    // 40% refunded of Rp 5.000.000: the Lokasi Mitra keeps 60%, and it was not yet paid, so no Potongan.
-    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 3_000_000 })]);
+    // 40% of A-01's Rp 2.500.000 refunded: the Lokasi Mitra keeps Rp 4.000.000 of the two plots, and it was not yet paid, so no Potongan.
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 4_000_000 })]);
     expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([]);
   });
 
@@ -654,13 +693,13 @@ describe("the Lokasi Mitra's Pencairan of a cancelled Pemesanan Terencana", () =
     const permintaan = await ajukan(setup, dasar);
     const terbit = await kembalikan(setup, dasar, permintaan.id);
 
-    // Paid Rp 5.000.000, refunded 40% = Rp 2.000.000: the Lokasi Mitra owes back that much, not the whole payment.
+    // Paid Rp 5.000.000, refunded 40% of A-01 = Rp 1.000.000: the Lokasi Mitra owes back that much, not the whole payment.
     expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([
-      expect.objectContaining({ amount: 2_000_000, alasanKind: "pengembalian_dana", status: "berjalan", tautan: expect.stringContaining(terbit.bukti.link) }),
+      expect.objectContaining({ amount: 1_000_000, alasanKind: "pengembalian_dana", status: "berjalan", tautan: expect.stringContaining(terbit.bukti.link) }),
     ]);
   });
 
-  it("becomes a Potongan of the whole tariff when a full refund comes after it was paid out", async () => {
+  it("becomes a Potongan of that Hak Pakai's whole tariff when a full refund comes after it was paid out", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup, { masaPembatalanDays: 7 });
     // The request is made inside the Masa Pembatalan, and the Admin Platform's transfer only comes after the payout.
@@ -684,6 +723,33 @@ describe("the Lokasi Mitra's Pencairan of a cancelled Pemesanan Terencana", () =
       bukti: buktiTransfer,
     });
 
-    expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([expect.objectContaining({ amount: 5_000_000, alasanKind: "pengembalian_dana" })]);
+    expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([expect.objectContaining({ amount: 2_500_000, alasanKind: "pengembalian_dana" })]);
+  });
+
+  it("is lowered by as much as the unpaid Pencairan covers when it only partly covers the refund, and only the rest is a Potongan (never charged twice)", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup, { refundPercent: 80 });
+    setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
+    await setup.payouts.tick();
+    // Only A-01's item (Rp 2.500.000, the oldest) is paid out; A-02's is still to pay.
+    const [baris] = await setup.payouts.jalankanPencairan(dasar.admin);
+    const pertamaSaja = baris.items.slice(0, 1).map((item) => item.id);
+    const dicairkan = await setup.payouts.terbitkanBuktiPencairan(dasar.admin, { itemIds: pertamaSaja, ditransferPada: wibDateOf(setup.clock.now()), bukti: buktiTransfer });
+    if (!dicairkan.ok) throw new Error(`Bukti Pencairan refused: ${dicairkan.reason}`);
+
+    // Both plots are cancelled at 80%: one refund of Rp 4.000.000, of which the unpaid item can cover Rp 2.500.000.
+    const pertama = await ajukan(setup, dasar);
+    const kedua = await ajukan(setup, dasar, "", 1);
+    const a = await setujui(setup, dasar, pertama.id);
+    await setujui(setup, dasar, kedua.id);
+    const refundId = a.pengembalian!.permintaanId;
+    await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: refundId });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, { permintaanId: refundId, ditransferPada: wibDateOf(setup.clock.now()), bukti: buktiTransfer });
+    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 4_000_000 } });
+
+    // The unpaid item is gone (nothing more is paid for what the family got back) and the rest, Rp 1.500.000, is what is claimed back.
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
+    expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([expect.objectContaining({ amount: 1_500_000, alasanKind: "pengembalian_dana" })]);
   });
 });

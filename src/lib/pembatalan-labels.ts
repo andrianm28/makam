@@ -23,7 +23,7 @@ export function artiStatusPermintaan(status: PermintaanPembatalanStatus): string
     case "perlu_perbaikan":
       return "Lokasi Mitra meminta permintaan ini diperbaiki sebelum bisa diputuskan. Perbaiki lalu ajukan kembali; besar pengembalian dana tidak berubah.";
     case "disetujui":
-      return "Pembatalan disetujui: Hak Pakai dibatalkan dan petak kembali ke Lokasi Mitra.";
+      return "Pembatalan disetujui: Hak Pakai petak ini dibatalkan dan petaknya kembali ke Lokasi Mitra.";
     case "ditolak":
       return "Lokasi Mitra tidak menyetujui Pembatalan ini. Hak Pakai Anda tetap berlaku seperti semula.";
     case "dibatalkan":
@@ -37,13 +37,13 @@ export function sebabTerhalangText(sebab: SebabPembatalanTerhalang): string {
     case "pesanan_tidak_aktif":
       return "Pesanan ini sudah tidak aktif, jadi tidak ada Hak Pakai yang bisa dibatalkan.";
     case "hak_pakai_sudah_berakhir":
-      return "Salah satu Hak Pakai pada pesanan ini sudah berakhir, jadi pesanan tidak bisa dibatalkan lagi.";
+      return "Hak Pakai petak ini sudah berakhir, jadi tidak ada yang bisa dibatalkan.";
     case "sudah_ada_permintaan":
-      return "Sudah ada permintaan Pembatalan untuk pesanan ini yang belum diputuskan.";
+      return "Sudah ada permintaan Pembatalan untuk petak ini yang belum diputuskan.";
     case "sudah_ada_pemakaman":
-      return "Sudah ada pemakaman di salah satu petak pesanan ini, jadi Pembatalan tidak bisa diajukan. Untuk mengembalikan petak yang tidak terpakai, bicarakan langsung dengan Lokasi Mitra.";
+      return "Sudah ada pemakaman di petak ini, jadi Pembatalan tidak bisa diajukan. Untuk mengembalikan petak yang tidak terpakai, bicarakan langsung dengan Lokasi Mitra.";
     case "pernah_ganti_pemegang_hak":
-      return "Pemegang Hak salah satu petak pesanan ini pernah diganti, jadi Pembatalan tidak bisa diajukan. Hubungi Lokasi Mitra untuk membicarakannya.";
+      return "Pemegang Hak petak ini pernah diganti, jadi Pembatalan tidak bisa diajukan. Hubungi Lokasi Mitra untuk membicarakannya.";
   }
 }
 
@@ -86,11 +86,11 @@ export function pembatalanStafMessage(reason: Refusal<SetujuiPembatalanResult>):
     case "pesanan_tidak_aktif":
       return "Pesanan ini sudah tidak aktif, jadi tidak ada Hak Pakai yang bisa dibatalkan.";
     case "hak_pakai_sudah_berakhir":
-      return "Salah satu Hak Pakai pada pesanan ini sudah berakhir, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
+      return "Hak Pakai petak ini sudah berakhir, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
     case "sudah_ada_pemakaman":
-      return "Sudah ada Pemakaman di salah satu petak pesanan ini, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
+      return "Sudah ada Pemakaman di petak ini, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
     case "pernah_ganti_pemegang_hak":
-      return "Pemegang Hak salah satu petak pesanan ini pernah diganti, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
+      return "Pemegang Hak petak ini pernah diganti, jadi Pembatalan tidak bisa disetujui. Tolak permintaannya dengan alasan.";
     case "pengembalian_tidak_bisa_diajukan":
       return "Pengembalian dana belum bisa diajukan karena ada pengembalian lain untuk Tagihan ini yang sedang diproses. Hubungi Admin Platform; tidak ada yang berubah.";
   }

@@ -7,8 +7,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import type { PemesananDeps } from "./deps";
-import { pemesananTerencana, pemesananTerencanaUnit, permintaanPembatalanTerencana, type PermintaanPembatalanStatus } from "./schema";
-import { nomorUnit, unitsOfOrders } from "./terencana-unit";
+import { pemesananTerencana, permintaanPembatalanTerencana, type PermintaanPembatalanStatus } from "./schema";
 
 type Row = typeof permintaanPembatalanTerencana.$inferSelect;
 
@@ -16,6 +15,9 @@ type Row = typeof permintaanPembatalanTerencana.$inferSelect;
 export interface PermintaanPembatalan {
   id: string;
   nomor: string;
+  /** The Hak Pakai this request cancels, and the number its plot is known by. */
+  hakPakaiId: string;
+  unitNomor: string;
   status: PermintaanPembatalanStatus;
   /** Which side of the Masa Pembatalan the request was made on, and the share of the tariff and the amount that follows from it. */
   dalamMasaPembatalan: boolean;
@@ -37,6 +39,8 @@ export function toPermintaan(row: Row): PermintaanPembatalan {
   return {
     id: row.id,
     nomor: row.nomorPemesanan,
+    hakPakaiId: row.hakPakaiId,
+    unitNomor: row.unitNomor,
     status: row.status,
     dalamMasaPembatalan: row.dalamMasaPembatalan,
     persenRefund: row.persenRefund,
@@ -89,11 +93,10 @@ export async function antreanPembatalan(deps: Pick<PemesananDeps, "db">, lokasiI
     .from(permintaanPembatalanTerencana)
     .where(and(eq(permintaanPembatalanTerencana.lokasiId, lokasiId), eq(permintaanPembatalanTerencana.status, "diajukan")))
     .orderBy(permintaanPembatalanTerencana.diajukanPada, permintaanPembatalanTerencana.nomorPemesanan);
-  const units = await unitsOfOrders(deps.db, [...new Set(rows.map((row) => row.pemesananId))]);
   return rows.map((row) => ({
     id: row.id,
     nomor: row.nomorPemesanan,
-    unit: (units.get(row.pemesananId) ?? []).map(nomorUnit),
+    unit: [row.unitNomor],
     diajukanPada: row.diajukanPada,
     tenggatPada: row.tenggatPada,
   }));
@@ -145,39 +148,37 @@ export async function pembatalanUntukStaf(deps: Pick<PemesananDeps, "db">, by: A
 }
 
 /**
- * The latest Pembatalan request on the order of this Pemesan, or null: what the order page says about it, and
- * where it asks for the bank account. The Pemesan who paid may be somebody other than the Pemegang Hak who asked.
+ * Every Pembatalan request on the order of this Pemesan, newest first (one per Hak Pakai cancelled, and a plot may be
+ * asked about more than once): what the order page says about them, and where it asks for the bank account. The Pemesan
+ * who paid may be somebody other than the Pemegang Hak who asked.
  */
 export async function pembatalanUntukPesanan(
   deps: Pick<PemesananDeps, "db">,
   pemesan: { accountId: string },
   nomor: string,
-): Promise<PermintaanPembatalan | null> {
+): Promise<PermintaanPembatalan[]> {
   const [order] = await deps.db
     .select()
     .from(pemesananTerencana)
     .where(and(eq(pemesananTerencana.nomor, nomor), eq(pemesananTerencana.pemesanAccountId, pemesan.accountId)));
-  if (!order) return null;
-  const [row] = await deps.db
+  if (!order) return [];
+  const rows = await deps.db
     .select()
     .from(permintaanPembatalanTerencana)
     .where(eq(permintaanPembatalanTerencana.pemesananId, order.id))
-    .orderBy(desc(permintaanPembatalanTerencana.diajukanPada), desc(permintaanPembatalanTerencana.id))
-    .limit(1);
-  return row ? toPermintaan(row) : null;
+    .orderBy(desc(permintaanPembatalanTerencana.diajukanPada), desc(permintaanPembatalanTerencana.id));
+  return rows.map(toPermintaan);
 }
 
 /**
- * True while a Pembatalan request on the order this Hak Pakai belongs to is open (Diajukan, or sent back and
+ * True while a Pembatalan request on this Hak Pakai is open (Diajukan, or sent back and
  * waiting for its fix): what blocks a Ganti Pemegang Hak (spec: "blocked while a Pembatalan is open").
  */
 export async function adaPembatalanTerbuka(deps: Pick<PemesananDeps, "db">, hakPakaiId: string): Promise<boolean> {
-  const [unit] = await deps.db.select({ pemesananId: pemesananTerencanaUnit.pemesananId }).from(pemesananTerencanaUnit).where(eq(pemesananTerencanaUnit.hakPakaiId, hakPakaiId));
-  if (!unit) return false;
   const [row] = await deps.db
     .select({ id: permintaanPembatalanTerencana.id })
     .from(permintaanPembatalanTerencana)
-    .where(and(eq(permintaanPembatalanTerencana.pemesananId, unit.pemesananId), inArray(permintaanPembatalanTerencana.status, ["diajukan", "perlu_perbaikan"])))
+    .where(and(eq(permintaanPembatalanTerencana.hakPakaiId, hakPakaiId), inArray(permintaanPembatalanTerencana.status, ["diajukan", "perlu_perbaikan"])))
     .limit(1);
   return row !== undefined;
 }

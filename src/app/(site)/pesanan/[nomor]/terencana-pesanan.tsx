@@ -117,24 +117,25 @@ export async function TerencanaPesanan({ order, accountId }: { order: PemesananT
         </section>
       ) : null}
 
-      {pembatalan ? (
-        <section className="flex flex-col gap-3" data-testid="pembatalan-terencana">
+      {pembatalan.map((satu) => (
+        <section key={satu.id} className="flex flex-col gap-3" data-testid="pembatalan-terencana">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-title-3 text-foreground">Pembatalan</h2>
-            <StatusBadge status={statusPermintaanBadge[pembatalan.status]} />
+            <h2 className="text-title-3 text-foreground">Pembatalan petak {satu.unitNomor}</h2>
+            <StatusBadge status={statusPermintaanBadge[satu.status]} />
           </div>
           <p className="text-body text-muted-foreground">
-            Pemegang Hak mengajukan Pembatalan pada {formatTanggalJam(pembatalan.diajukanPada)}. {artiStatusPermintaan(pembatalan.status)}
+            Pemegang Hak mengajukan Pembatalan petak {satu.unitNomor} pada {formatTanggalJam(satu.diajukanPada)}. {artiStatusPermintaan(satu.status)} Petak lain pada pesanan ini
+            tidak terpengaruh.
           </p>
-          {pembatalan.status === "disetujui" ? (
+          {satu.status === "disetujui" ? (
             <p className="text-body text-muted-foreground">
-              {pembatalan.jumlahRefund > 0
-                ? `Pengembalian dana ${formatRupiah(pembatalan.jumlahRefund)} (${pembatalan.dalamMasaPembatalan ? "seluruh tarif Hak Pakai, masih dalam Masa Pembatalan" : `${pembatalan.persenRefund}% dari tarif Hak Pakai, sesuai Syarat`}) dikirim kepada Pemesan yang membayar. Biaya Layanan Platform tidak dikembalikan.`
+              {satu.jumlahRefund > 0
+                ? `Pengembalian dana ${formatRupiah(satu.jumlahRefund)} (${satu.dalamMasaPembatalan ? "seluruh tarif Hak Pakai petak ini, masih dalam Masa Pembatalan" : `${satu.persenRefund}% dari tarif Hak Pakai petak ini, sesuai Syarat`}) dikirim kepada Pemesan yang membayar. Biaya Layanan Platform tidak dikembalikan.`
                 : "Menurut Syarat pesanan ini, tidak ada pengembalian dana untuk Pembatalan setelah Masa Pembatalan berakhir."}
             </p>
           ) : null}
         </section>
-      ) : null}
+      ))}
 
       {pengembalian ? (
         pengembalian.status === "diajukan" ? (

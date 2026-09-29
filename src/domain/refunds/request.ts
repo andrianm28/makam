@@ -198,6 +198,7 @@ const RUPIAH_MAX_LINE = 10_000_000_000;
 const ajukanBarisSchema = z.object({
   pihakBersalah: z.enum(pihakBersalahKinds),
   penuh: z.boolean().optional(),
+  penuhBilaLengkap: z.boolean().optional(),
   lines: z
     .array(
       z.object({
@@ -218,6 +219,12 @@ export interface AjukanBarisInput {
    * Lokasi Mitra's Pencairan cancelled and never made later. Refused unless it really is everything; default false.
    */
   penuh?: boolean;
+  /**
+   * The request is "penuh" exactly when, with this one, everything the fee rule returns has been asked (a Pembatalan of the
+   * last Hak Pakai of an order, every earlier one refunded in full); otherwise it is an ordinary partial request. Never refused
+   * for not being complete, unlike `penuh`.
+   */
+  penuhBilaLengkap?: boolean;
   /** The lines of the Tagihan to return, the Biaya Layanan Platform excluded: whether that fee comes back is Refunds' rule. */
   lines: RefundLine[];
 }
@@ -280,7 +287,9 @@ async function ajukanBarisTerkunci(
 
   // A "penuh" request is everything the Tagihan can return: nothing may stay behind but the fee the fault rule keeps.
   const feeDitahan = feeLine !== undefined && !denganFee && !feeSudahDikembalikan ? feeLine.amount : 0;
-  if (parsed.data.penuh && sudah + jumlah + feeDitahan !== tagihan.total) return { ok: false, reason: "input_tidak_valid" };
+  const lengkap = sudah + jumlah + feeDitahan === tagihan.total;
+  if (parsed.data.penuh && !lengkap) return { ok: false, reason: "input_tidak_valid" };
+  const penuh = lengkap && (parsed.data.penuh === true || parsed.data.penuhBilaLengkap === true);
 
   const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
   if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
@@ -292,6 +301,8 @@ async function ajukanBarisTerkunci(
         lines: [...(terbuka.lines as RefundLine[]), ...lines],
         jumlah: rupiahSchema.parse(terbuka.jumlah + jumlah),
         biayaLayananPlatformDikembalikan: terbuka.biayaLayananPlatformDikembalikan || denganFee,
+        // Joining may complete the Tagihan: everything the fee rule returns is then asked, and the request is "penuh".
+        penuh,
       })
       .where(and(eq(permintaanPengembalian.id, terbuka.id), eq(permintaanPengembalian.status, "diajukan")));
     return { ok: true, permintaanId: terbuka.id, lines, jumlah, biayaLayananPlatformDikembalikan: denganFee };
@@ -305,7 +316,7 @@ async function ajukanBarisTerkunci(
     pihakBersalah: parsed.data.pihakBersalah,
     biayaLayananPlatformDikembalikan: denganFee,
     goodwill: false,
-    penuh: parsed.data.penuh ?? false,
+    penuh,
     lines,
     jumlah: rupiahSchema.parse(jumlah),
     catatan: null,

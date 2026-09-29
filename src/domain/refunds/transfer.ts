@@ -47,7 +47,7 @@ export interface TransferDeps {
   files: FileStore;
   operatorSettings: Pick<OperatorSettings, "current">;
   billing: Pick<Billing, "within">;
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   /** The Bukti Pengembalian Dana page's absolute URL, sent to the Pemesan and given to a Potongan raised on it. */
   buktiUrl: (link: string) => string;
@@ -95,12 +95,12 @@ export async function terbitkanBuktiPengembalianDana(deps: TransferDeps, by: Act
     return { ok: false, reason: "berkas_tidak_didukung" };
   }
 
-  const hasil = await refusable<TerbitkanBuktiResult | Diterbitkan>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
+  const hasil = await refusable<Penerbitan>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
   if (!hasil.ok) {
     await deps.files.delete(key).catch(() => undefined);
     return hasil;
   }
-  const { bukti, tidakTertutup } = hasil as Diterbitkan;
+  const { bukti, tidakTertutup } = hasil;
 
   // After the transfer really happened: whatever was already paid out to a
   // Lokasi Mitra becomes a Potongan, and the family hears about its money.
@@ -125,6 +125,9 @@ interface Diterbitkan {
   tidakTertutup: Map<string, number> | null;
 }
 
+/** Either a refusal (nothing was written) or the transfer that was issued: the two never share a shape, so no cast is needed to tell them apart. */
+type Penerbitan = Exclude<TerbitkanBuktiResult, { ok: true }> | Diterbitkan;
+
 interface IssueIn {
   permintaanId: string;
   tanggal: string;
@@ -132,7 +135,7 @@ interface IssueIn {
   header: DocumentHeader;
 }
 
-async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: IssueIn, now: Date): Promise<TerbitkanBuktiResult | Diterbitkan> {
+async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: IssueIn, now: Date): Promise<Penerbitan> {
   const [row] = await tx.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, input.permintaanId)).for("update");
   if (!row) return { ok: false, reason: "tidak_ditemukan" };
   if (row.status !== "disetujui") return { ok: false, reason: "belum_disetujui" };
@@ -177,16 +180,16 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
       tidakTertutup = new Map();
       const perLokasi = groupByLokasi(row.lines as { label: string; amount: number; lokasiId: string | null }[]);
       for (const [lokasiId, amount] of perLokasi) {
-        const dikurangi = await deps.payouts.kurangiPencairanPesanan(tx, {
+        const dikurangi = await deps.payouts.kurangiPencairanSebisanya(tx, {
           nomorPemesanan: row.nomorPemesanan ?? "",
           lokasiId,
           amount,
-          alasan: "pengembalian_dana",
           catatan: `Pengembalian dana ${nomor}`,
           oleh: by.accountId,
         });
-        // What the unpaid items could not absorb was paid to the Lokasi Mitra before the refund: it is a Potongan, and only that much.
-        if (!dikurangi.ok) tidakTertutup.set(lokasiId, amount);
+        // The unpaid items were lowered by what they could cover; what is left was paid to the Lokasi Mitra before the refund:
+        // it is a Potongan, and only that much (a refund that could not be applied at all is all of it).
+        tidakTertutup.set(lokasiId, dikurangi.ok ? dikurangi.sisa : amount);
       }
     }
   }

@@ -7,9 +7,10 @@
  * - **Who may ask** is the Pemegang Hak of the Hak Pakai, told apart the way Akun Saya's Makam tab tells
  *   them: the Akun's Email Terverifikasi equals the email recorded on the Hak Pakai's current holder
  *   (ADR 0004). The Pemesan who paid may be somebody else, and is asked for the bank account later.
- * - **The order is cancelled as a whole.** A Terencana order is one Tagihan paid once for every plot on it,
- *   so the request names one Hak Pakai but ends all of them together, and every one of them must still be
- *   cancellable: Aktif, with no Pemakaman under it and no Ganti Pemegang Hak before.
+ * - **One Hak Pakai at a time.** A Terencana order is one Tagihan paid once for every plot on it, but the right is
+ *   each plot's own: the request cancels the one Hak Pakai it names and the others on the order carry on. It must
+ *   still be cancellable: Aktif, with no Pemakaman under it and no Ganti Pemegang Hak before. The refund is that
+ *   Hak Pakai's own line of the Tagihan.
  * - **The refund is fixed at the first filing** from the order's own Syarat snapshot (`./pembatalan-terencana-hitung.ts`).
  *   Sending the request back for a fix and filing it again keeps that figure.
  * - The Lokasi Mitra's answer is due in **2 Hari Kerja** on its own Jam Operasional calendar (ticket 11); the
@@ -39,13 +40,13 @@ export const TENGGAT_PEMBATALAN_HARI_KERJA = 2;
 export type SebabPembatalanTerhalang =
   /** The order is not Aktif any more: unpaid, declined, withdrawn, or already cancelled. */
   | "pesanan_tidak_aktif"
-  /** A Hak Pakai of the order has ended (Kedaluwarsa, Berakhir or Dibatalkan). */
+  /** This Hak Pakai has ended (Kedaluwarsa, Berakhir or Dibatalkan). */
   | "hak_pakai_sudah_berakhir"
-  /** A Pembatalan request of this order is open (Diajukan, or sent back for a fix). */
+  /** A Pembatalan request of this Hak Pakai is open (Diajukan, or sent back for a fix). */
   | "sudah_ada_permintaan"
-  /** A Pemakaman is recorded under a Hak Pakai of the order: the grave is dug. */
+  /** A Pemakaman is recorded under this Hak Pakai: the grave is dug. */
   | "sudah_ada_pemakaman"
-  /** A Ganti Pemegang Hak already happened on a Hak Pakai of the order. */
+  /** A Ganti Pemegang Hak already happened on this Hak Pakai. */
   | "pernah_ganti_pemegang_hak";
 
 /** One Hak Pakai of a paid Terencana order as its Pemegang Hak sees its Pembatalan. */
@@ -53,7 +54,7 @@ export interface PembatalanHakPakai {
   hakPakaiId: string;
   nomor: string;
   lokasi: { id: string; name: string };
-  /** Every plot the order covers, since it is cancelled together. */
+  /** The plot this Hak Pakai is (one entry; the other plots of the order are not touched by this request). */
   unit: { nomor: string; jenisMakamName: string }[];
   /** The Syarat the order was placed under: what the refund follows. */
   syarat: { masaPembatalanDays: number; refundAfterMasaPembatalanPercent: number };
@@ -68,69 +69,74 @@ export type PratinjauPembatalanResult = { ok: true; pembatalan: PembatalanHakPak
 
 interface Konteks {
   order: typeof pemesananTerencana.$inferSelect;
-  units: UnitRow[];
-  hakPakai: HakPakaiDetail[];
+  /** The plot the Hak Pakai the caller named is. */
+  unit: UnitRow;
   /** The Hak Pakai the caller named. */
   diminta: HakPakaiDetail;
 }
 
-/** The order a Hak Pakai belongs to, with every Hak Pakai on it; null when it is no Terencana order's, or is not this Akun's to cancel. */
+/** The order a Hak Pakai belongs to; null when it is no Terencana order's, or is not this Akun's to cancel. */
 async function muatKonteks(deps: PemesananDeps, pemesan: Pemesan, hakPakaiId: string): Promise<Konteks | null> {
   const [unit] = await deps.db.select().from(pemesananTerencanaUnit).where(eq(pemesananTerencanaUnit.hakPakaiId, hakPakaiId));
   if (!unit) return null;
   const [order] = await deps.db.select().from(pemesananTerencana).where(eq(pemesananTerencana.id, unit.pemesananId));
   if (!order) return null;
-  const units = await unitsOfOrder(deps.db, order.id);
-  const semua = await Promise.all(units.flatMap((satu) => (satu.hakPakaiId ? [deps.inventory.hakPakaiById(satu.hakPakaiId)] : [])));
-  const hakPakai = semua.flatMap((satu) => (satu ? [satu] : []));
-  const diminta = hakPakai.find((satu) => satu.id === hakPakaiId);
+  const diminta = await deps.inventory.hakPakaiById(hakPakaiId);
   if (!diminta) return null;
   // The Pemegang Hak is who the Hak Pakai names, by the Email Terverifikasi (ADR 0004): anybody else is told nothing found.
   const email = normaliseEmail(pemesan.email);
   const pemegang = diminta.pemegangHak?.email ? normaliseEmail(diminta.pemegangHak.email) : null;
   if (!email || !pemegang || email !== pemegang) return null;
-  return { order, units, hakPakai, diminta };
+  return { order, unit, diminta };
 }
 
-/** Whether every Hak Pakai of the order can still be given back, or the first reason it cannot. */
-export function sebabTerhalang(order: { status: string }, hakPakai: readonly HakPakaiDetail[], adaPermintaanTerbuka: boolean): SebabPembatalanTerhalang | null {
+/** Whether this Hak Pakai can still be given back, or the first reason it cannot. */
+export function sebabTerhalang(order: { status: string }, hakPakai: HakPakaiDetail, adaPermintaanTerbuka: boolean): SebabPembatalanTerhalang | null {
   if (order.status !== "aktif") return "pesanan_tidak_aktif";
-  if (hakPakai.some((satu) => satu.status !== "aktif")) return "hak_pakai_sudah_berakhir";
+  if (hakPakai.status !== "aktif") return "hak_pakai_sudah_berakhir";
   if (adaPermintaanTerbuka) return "sudah_ada_permintaan";
-  if (hakPakai.some((satu) => satu.pemakaman.length > 0)) return "sudah_ada_pemakaman";
-  if (hakPakai.some((satu) => satu.pernahGantiPemegangHak)) return "pernah_ganti_pemegang_hak";
+  if (hakPakai.pemakaman.length > 0) return "sudah_ada_pemakaman";
+  if (hakPakai.pernahGantiPemegangHak) return "pernah_ganti_pemegang_hak";
   return null;
 }
 
-async function permintaanTerbuka(deps: Pick<PemesananDeps, "db">, pemesananId: string) {
+async function permintaanTerbuka(deps: Pick<PemesananDeps, "db">, hakPakaiId: string) {
   const [row] = await deps.db
     .select()
     .from(permintaanPembatalanTerencana)
-    .where(and(eq(permintaanPembatalanTerencana.pemesananId, pemesananId), inArray(permintaanPembatalanTerencana.status, ["diajukan", "perlu_perbaikan"])));
+    .where(and(eq(permintaanPembatalanTerencana.hakPakaiId, hakPakaiId), inArray(permintaanPembatalanTerencana.status, ["diajukan", "perlu_perbaikan"])));
   return row ?? null;
 }
 
-async function permintaanTerakhir(deps: Pick<PemesananDeps, "db">, pemesananId: string) {
+async function permintaanTerakhir(deps: Pick<PemesananDeps, "db">, hakPakaiId: string) {
   const [row] = await deps.db
     .select()
     .from(permintaanPembatalanTerencana)
-    .where(eq(permintaanPembatalanTerencana.pemesananId, pemesananId))
+    .where(eq(permintaanPembatalanTerencana.hakPakaiId, hakPakaiId))
     .orderBy(desc(permintaanPembatalanTerencana.diajukanPada), desc(permintaanPembatalanTerencana.id))
     .limit(1);
   return row ?? null;
 }
 
-/** The refund asking now would give, from the order's own Tagihan and Syarat; null when the order's Tagihan cannot be read. */
-async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerencana.$inferSelect, sekarang: Date): Promise<HitungPembatalan | null> {
+/**
+ * The refund asking now would give for one plot, from the order's own Tagihan and Syarat: that plot's own Harga Hak Pakai
+ * line (found by the plot number every such line ends with, else by its place among them, the order the plots were picked
+ * in), and the Tagihan's one Biaya Layanan Platform shown as kept. Null when the Tagihan or the plot's line cannot be read.
+ */
+async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerencana.$inferSelect, unit: UnitRow, sekarang: Date): Promise<HitungPembatalan | null> {
   if (!order.tagihanId || !order.masaPembatalanBerakhirPada) return null;
   const tagihan = await deps.billing.tagihan(order.tagihanId);
   if (!tagihan) return null;
+  const hargaHakPakai = tagihan.lines.filter((line) => line.kind === "harga_hak_pakai");
+  const urutan = (await unitsOfOrder(deps.db, order.id)).findIndex((satu) => satu.id === unit.id);
+  const barisUnit = hargaHakPakai.find((line) => "label" in line && line.label.endsWith(` · ${nomorUnit(unit)}`)) ?? hargaHakPakai[urutan];
+  if (!barisUnit) return null;
   return hitungPembatalanTerencana({
-    lines: tagihan.lines,
+    lines: [barisUnit, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
     syarat: order.syarat,
     masaPembatalanBerakhirPada: order.masaPembatalanBerakhirPada,
     sekarang,
-    nomorPemesanan: order.nomor,
+    nomorUnit: nomorUnit(unit),
     lokasiId: order.lokasiId,
   });
 }
@@ -144,18 +150,18 @@ export async function pratinjauPembatalanTerencana(deps: PemesananDeps, pemesan:
   if (!z.uuid().safeParse(hakPakaiId).success) return { ok: false, reason: "tidak_ditemukan" };
   const konteks = await muatKonteks(deps, pemesan, hakPakaiId);
   if (!konteks) return { ok: false, reason: "tidak_ditemukan" };
-  const { order, units, diminta } = konteks;
-  const terbuka = await permintaanTerbuka(deps, order.id);
-  const terakhir = terbuka ?? (await permintaanTerakhir(deps, order.id));
-  const sebab = sebabTerhalang(order, konteks.hakPakai, terbuka !== null);
-  const refund = sebab ? null : await hitungSekarang(deps, order, deps.clock.now());
+  const { order, unit, diminta } = konteks;
+  const terbuka = await permintaanTerbuka(deps, diminta.id);
+  const terakhir = terbuka ?? (await permintaanTerakhir(deps, diminta.id));
+  const sebab = sebabTerhalang(order, diminta, terbuka !== null);
+  const refund = sebab ? null : await hitungSekarang(deps, order, unit, deps.clock.now());
   return {
     ok: true,
     pembatalan: {
       hakPakaiId: diminta.id,
       nomor: order.nomor,
       lokasi: { id: order.lokasiId, name: order.lokasiName },
-      unit: units.map((satu) => ({ nomor: nomorUnit(satu), jenisMakamName: satu.jenisMakamName })),
+      unit: [{ nomor: nomorUnit(unit), jenisMakamName: unit.jenisMakamName }],
       syarat: { masaPembatalanDays: order.syarat.masaPembatalanDays, refundAfterMasaPembatalanPercent: order.syarat.refundAfterMasaPembatalanPercent },
       masaPembatalanBerakhirPada: order.masaPembatalanBerakhirPada,
       permintaan: terakhir ? toPermintaan(terakhir) : null,
@@ -187,12 +193,12 @@ export async function ajukanPembatalanTerencana(deps: PemesananDeps, pemesan: Pe
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const konteks = await muatKonteks(deps, pemesan, parsed.data.hakPakaiId);
   if (!konteks) return { ok: false, reason: "tidak_ditemukan" };
-  const { order } = konteks;
-  const terbuka = await permintaanTerbuka(deps, order.id);
-  const sebab = sebabTerhalang(order, konteks.hakPakai, terbuka !== null);
+  const { order, unit, diminta } = konteks;
+  const terbuka = await permintaanTerbuka(deps, diminta.id);
+  const sebab = sebabTerhalang(order, diminta, terbuka !== null);
   if (sebab) return { ok: false, reason: sebab };
   const now = deps.clock.now();
-  const refund = await hitungSekarang(deps, order, now);
+  const refund = await hitungSekarang(deps, order, unit, now);
   if (!refund) return { ok: false, reason: "pesanan_tidak_aktif" };
   const tenggatPada = await tenggatJawaban(deps, order.lokasiId, now);
 
@@ -201,6 +207,8 @@ export async function ajukanPembatalanTerencana(deps: PemesananDeps, pemesan: Pe
     .values({
       pemesananId: order.id,
       nomorPemesanan: order.nomor,
+      hakPakaiId: diminta.id,
+      unitNomor: nomorUnit(unit),
       lokasiId: order.lokasiId,
       status: "diajukan",
       pemohonAccountId: pemesan.accountId,

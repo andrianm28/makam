@@ -377,9 +377,9 @@ export interface BarisRefundPembatalan {
 }
 
 /**
- * Owned by the Pemesanan module: one Pembatalan request of a paid Pemesanan Terencana, asked by
- * the Pemegang Hak of its Hak Pakai (ticket 38). It belongs to the order, not to one plot: the
- * order was paid on one Tagihan, so the plots are cancelled together.
+ * Owned by the Pemesanan module: one Pembatalan request of one Hak Pakai of a paid Pemesanan Terencana,
+ * asked by that Hak Pakai's Pemegang Hak (ticket 38). The other Hak Pakai on the same order carry on:
+ * the refund is that Hak Pakai's own line of the order's Tagihan.
  *
  * The refund is computed once, when the request is first made, from the **Syarat snapshot on the
  * order** (never the Lokasi Mitra's current policy), and kept here: `dalam_masa_pembatalan` says
@@ -388,7 +388,7 @@ export interface BarisRefundPembatalan {
  * request the Admin Lokasi sends back for a fix and the Pemegang Hak files again keeps the same
  * figures: the family must not lose the full refund because a Lokasi took days to answer.
  *
- * At most one request is open (Diajukan or Perlu Perbaikan) per order, the partial unique index
+ * At most one request is open (Diajukan or Perlu Perbaikan) per Hak Pakai, the partial unique index
  * below. `pemohon_email` is where the family's answers go: the Email Terverifikasi of the Akun that
  * asked, who may be somebody other than the Pemesan who paid.
  */
@@ -400,6 +400,9 @@ export const permintaanPembatalanTerencana = pgTable(
       .notNull()
       .references(() => pemesananTerencana.id),
     nomorPemesanan: text("nomor_pemesanan").notNull(),
+    /** The one Hak Pakai this request cancels, and the number its plot is known by (copied, for the rows and emails that name it). */
+    hakPakaiId: uuid("hak_pakai_id").notNull(),
+    unitNomor: text("unit_nomor").notNull(),
     lokasiId: uuid("lokasi_id").notNull(),
     status: text("status", { enum: permintaanPembatalanStatuses }).notNull(),
     pemohonAccountId: text("pemohon_account_id").notNull(),
@@ -428,9 +431,9 @@ export const permintaanPembatalanTerencana = pgTable(
   (table) => [
     index("permintaan_pembatalan_terencana_pemesanan_idx").on(table.pemesananId),
     index("permintaan_pembatalan_terencana_lokasi_idx").on(table.lokasiId, table.status),
-    // One open request per order: a second filing while one is open is refused, never a second refund.
+    // One open request per Hak Pakai: a second filing while one is open is refused, never a second refund.
     uniqueIndex("permintaan_pembatalan_terencana_terbuka_idx")
-      .on(table.pemesananId)
+      .on(table.hakPakaiId)
       .where(sql`${table.status} in ('diajukan', 'perlu_perbaikan')`),
   ],
 );

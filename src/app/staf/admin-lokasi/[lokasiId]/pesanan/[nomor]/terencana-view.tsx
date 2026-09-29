@@ -141,11 +141,11 @@ export async function TerencanaPesananView({
         <Card key={permintaan.id} data-testid="permintaan-pembatalan">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2">
-              Permintaan Pembatalan <StatusBadge status={statusPermintaanBadge[permintaan.status]} />
+              Permintaan Pembatalan petak {permintaan.unitNomor} <StatusBadge status={statusPermintaanBadge[permintaan.status]} />
             </CardTitle>
             <CardDescription>
               {urutan === 0
-                ? "Diajukan oleh Pemegang Hak lewat Makam Keluarga. Menyetujui berarti Anda memastikan belum ada Pemakaman di petak mana pun pada pesanan ini."
+                ? "Diajukan oleh Pemegang Hak lewat Makam Keluarga. Menyetujui berarti Anda memastikan belum ada Pemakaman di petak ini."
                 : "Permintaan sebelumnya pada pesanan ini."}
             </CardDescription>
           </CardHeader>
@@ -220,7 +220,7 @@ function artiStatusPermintaanStaf(status: PermintaanPembatalanStaf["status"]): s
     case "perlu_perbaikan":
       return "Sudah Anda kembalikan ke keluarga. Barisnya kembali ke Antrean Lokasi setelah keluarga mengajukannya lagi.";
     case "disetujui":
-      return "Sudah Anda setujui: Hak Pakai dibatalkan, petak kembali Tersedia, dan pengembalian dana ada di Admin Platform.";
+      return "Sudah Anda setujui: Hak Pakai petak ini dibatalkan, petaknya kembali Tersedia, dan pengembalian dana ada di Admin Platform.";
     case "ditolak":
       return "Sudah Anda tolak. Hak Pakai tidak berubah.";
     case "dibatalkan":

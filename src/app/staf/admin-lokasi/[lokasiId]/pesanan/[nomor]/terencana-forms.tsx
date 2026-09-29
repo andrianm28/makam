@@ -110,8 +110,8 @@ export function SetujuiPembatalanForm({ lokasiId, nomor, permintaanId }: { lokas
       <input type="hidden" name="nomor" value={nomor} />
       <input type="hidden" name="id" value={permintaanId} />
       <p className="text-small text-muted-foreground">
-        Dengan menyetujui, Anda memastikan belum ada Pemakaman di petak mana pun pada pesanan ini. Hak Pakai dibatalkan dan petaknya kembali Tersedia untuk Anda
-        jual lagi, dan pengembalian dana diminta dari Admin Platform. Ini tidak bisa dibatalkan.
+        Dengan menyetujui, Anda memastikan belum ada Pemakaman di petak ini. Hak Pakai petak ini dibatalkan dan petaknya kembali Tersedia untuk Anda jual lagi;
+        petak lain pada pesanan ini tidak berubah. Pengembalian dana diminta dari Admin Platform. Ini tidak bisa dibatalkan.
       </p>
       <div className="flex flex-col items-start gap-2">
         <Button type="submit" disabled={pending} data-testid="setujui-pembatalan">

@@ -382,3 +382,23 @@ export const pencairanTerencana = pgTable("pencairan_terencana", {
   nomorPemesanan: text("nomor_pemesanan").primaryKey(),
   masaPembatalanBerakhirPada: at("masa_pembatalan_berakhir_pada").notNull(),
 });
+
+/**
+ * A refund netted from a Lokasi Mitra before the order's Pencairan items exist (ticket 38): a Pemesanan Terencana
+ * is paid to the Lokasi only once its Masa Pembatalan ends, so a Pembatalan refunded inside it finds nothing to
+ * lower yet. The amount waits here and the tick that makes the items lowers them by it, exactly as it applies a
+ * Harga Khusus partner share, so the Lokasi is never paid for what the family got back.
+ */
+export const pencairanPenguranganTertunda = pgTable(
+  "pencairan_pengurangan_tertunda",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nomorPemesanan: text("nomor_pemesanan").notNull(),
+    lokasiId: text("lokasi_id").notNull(),
+    amount: rupiah("amount").notNull(),
+    catatan: text("catatan").notNull(),
+    oleh: text("oleh").notNull(),
+    dibuatPada: at("dibuat_pada").notNull(),
+  },
+  (table) => [index("pencairan_pengurangan_tertunda_pesanan_idx").on(table.nomorPemesanan, table.lokasiId)],
+);

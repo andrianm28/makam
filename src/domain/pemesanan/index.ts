@@ -406,6 +406,7 @@ export interface Pemesanan {
    * The Pembatalan of a paid Terencana order (ticket 38). `pratinjauPembatalanTerencana` is Akun Saya's Makam tab:
    * for one Hak Pakai whose Pemegang Hak this Akun is, what "Ajukan Pembatalan" would refund under the order's own
    * Syarat snapshot, or why it cannot be asked (a Pemakaman, an earlier Ganti Pemegang Hak, a request already open).
+   * One Hak Pakai at a time: the others on the order carry on.
    * `ajukanPembatalanTerencana` files it Diajukan with the refund fixed at that moment and the Antrean Lokasi row due
    * in 2 Hari Kerja; `ajukanUlangPembatalanTerencana` files a request sent back for a fix again (same refund), and
    * `batalkanPermintaanPembatalanTerencana` withdraws it before a decision.
@@ -429,9 +430,9 @@ export interface Pemesanan {
   persetujuanRefundPembatalan(): Promise<BarisPersetujuanRefundPembatalan[]>;
   /** Every Pembatalan request on one order, newest first, for the Lokasi Mitra's own staff (or Admin Platform). */
   pembatalanUntukStaf(by: Actor, nomor: string): Promise<PermintaanPembatalanStaf[]>;
-  /** The latest Pembatalan request on the order of this Pemesan, or null: what the order page says, and where it asks for the bank account. */
-  pembatalanUntukPesanan(pemesan: { accountId: string }, nomor: string): Promise<PermintaanPembatalan | null>;
-  /** True while a Pembatalan request of the order this Hak Pakai belongs to is open: what blocks a Ganti Pemegang Hak. */
+  /** Every Pembatalan request on the order of this Pemesan, newest first: what the order page says, and where it asks for the bank account. */
+  pembatalanUntukPesanan(pemesan: { accountId: string }, nomor: string): Promise<PermintaanPembatalan[]>;
+  /** True while a Pembatalan request of this Hak Pakai is open: what blocks a Ganti Pemegang Hak. */
   adaPembatalanTerbuka(hakPakaiId: string): Promise<boolean>;
   /**
    * True while a Lokasi Mitra Saat Duka Tagihan on this Hak Pakai is Lewat

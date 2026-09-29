@@ -31,6 +31,7 @@ import type { ReportError } from "@/lib/observability/report-error";
 import { sumRupiah, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
 import { pencairanItem, pencairanPemakaman, pencairanPembayaran, pencairanTerencana, type PencairanItemKind } from "./schema";
+import { terapkanPenguranganTertunda } from "./item";
 import { sisipPotongan } from "./potongan";
 
 /** How long after an item becomes due Admin Platform must have transferred it: 2 Hari Kerja (AC 6). */
@@ -246,6 +247,8 @@ async function tulisPencairan(
       )
       .onConflictDoNothing({ target: [pencairanItem.tagihanId, pencairanItem.tagihanPosisi] })
       .returning({ id: pencairanItem.id });
+    // A refund netted while the order still had no items (a Pembatalan inside the Masa Pembatalan) lowers them now.
+    if (dibuat.length > 0 && tagihan.nomorPemesanan) await terapkanPenguranganTertunda(tx, tagihan.nomorPemesanan, now);
     return { ok: true, dibuat: dibuat.length, dilewati: false };
   });
   return { ...ditulis, potongan: langsung };

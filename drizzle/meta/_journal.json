@@ -288,6 +288,13 @@
       "when": 1790656785818,
       "tag": "0040_familiar_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790660100126,
+      "tag": "0041_funny_hercules",
+      "breakpoints": true
     }
   ]
 }

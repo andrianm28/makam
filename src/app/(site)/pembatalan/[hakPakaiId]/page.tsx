@@ -56,8 +56,8 @@ export default async function PembatalanPage({ params }: PageProps<"/pembatalan/
           <section className="flex flex-col gap-3">
             <h2 className="text-title-3 text-foreground">Ajukan Pembatalan</h2>
             <p className="text-small text-muted-foreground">
-              Pembatalan berlaku untuk seluruh pesanan ini ({pembatalan.unit.map((unit) => unit.nomor).join(", ")}), karena dibayar dalam satu Tagihan.
-              Kalau Lokasi Mitra menyetujui, Hak Pakai dibatalkan dan petak kembali ke Lokasi Mitra. Sampai ada jawaban, Hak Pakai Anda tetap berlaku.
+              Pembatalan ini hanya untuk petak {pembatalan.unit.map((unit) => unit.nomor).join(", ")}; petak lain pada pesanan yang sama tidak terpengaruh.
+              Kalau Lokasi Mitra menyetujui, Hak Pakai petak ini dibatalkan dan petaknya kembali ke Lokasi Mitra. Sampai ada jawaban, Hak Pakai Anda tetap berlaku.
             </p>
             <AjukanPembatalanForm hakPakaiId={pembatalan.hakPakaiId} />
           </section>

@@ -64,7 +64,7 @@ export function composeRefunds(deps: {
   billing: Pick<Billing, "within" | "tagihan" | "tagihanMenungguPengembalian">;
   /** Who placed an order; the worker, which never handles a Pemesan's write, composes without it. */
   pemesanan?: Pick<Pemesanan, "orderOf" | "terencanaOf">;
-  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanPesanan" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
+  payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   operatorSettings: Pick<OperatorSettings, "current">;
   reportError?: ReportError;
