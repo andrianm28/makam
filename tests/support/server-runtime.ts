@@ -167,6 +167,7 @@ export function testServerRuntime() {
       billing,
       identity,
       refunds,
+      payouts,
       notifications,
     });
     // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),

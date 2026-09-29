@@ -119,6 +119,7 @@ async function main() {
     billing: billingOn(billingComposition, database.db),
     identity,
     refunds,
+    payouts,
     notifications,
   });
 
@@ -166,6 +167,7 @@ async function main() {
         notifications,
         pemesanan,
         pengurusan: { konfirmasiTpuTerbuka: () => konfirmasiTpuTerbuka({ db: database.db }) },
+        layanan,
       }),
     }),
     clock: adapters.clock,

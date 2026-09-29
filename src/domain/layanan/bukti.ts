@@ -82,14 +82,15 @@ export async function simpanBukti(
     return { ok: false, reason: "penyimpanan_belum_tersedia" };
   }
   const diunggahOleh = oleh.accountId;
+  const sekarang = deps.clock.now();
   // The proof row and its Entri Audit commit together; the file itself is already in the FileStore.
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [row] = await tx
       .insert(pekerjaanLayananBukti)
-      .values({ pekerjaanId, kind, fileKey: key, contentType: file.contentType, takenAt, diunggahOleh, createdAt: deps.clock.now() })
+      .values({ pekerjaanId, kind, fileKey: key, contentType: file.contentType, takenAt, diunggahOleh, createdAt: sekarang, diperbaruiAt: sekarang })
       .onConflictDoUpdate({
         target: [pekerjaanLayananBukti.pekerjaanId, pekerjaanLayananBukti.kind],
-        set: { fileKey: key, contentType: file.contentType, takenAt, diunggahOleh },
+        set: { fileKey: key, contentType: file.contentType, takenAt, diunggahOleh, diperbaruiAt: sekarang },
       })
       .returning({ kind: pekerjaanLayananBukti.kind });
     await record({
@@ -139,4 +140,17 @@ export async function buktiUntukPekerjaan(deps: LayananDeps, pekerjaanId: string
     .where(eq(pekerjaanLayananBukti.pekerjaanId, pekerjaanId))
     .orderBy(asc(pekerjaanLayananBukti.takenAt));
   return Promise.all(rows.map(async (row) => ({ kind: row.kind, takenAt: row.takenAt, url: await buktiUrl(deps, row.fileKey) })));
+}
+
+/**
+ * The kinds of proof stored **after** `sejak` (the server's own moment, not the camera's): what a redo
+ * has renewed since Admin Platform decided it. The old proof stays in place as the evidence of the
+ * Keluhan, so "there is a proof of this kind" is not enough for a redo.
+ */
+export async function jenisBuktiBaruSejak(deps: Pick<LayananDeps, "db">, pekerjaanId: string, sejak: Date): Promise<BuktiPekerjaan[]> {
+  const rows = await deps.db
+    .select({ kind: pekerjaanLayananBukti.kind, diperbaruiAt: pekerjaanLayananBukti.diperbaruiAt })
+    .from(pekerjaanLayananBukti)
+    .where(eq(pekerjaanLayananBukti.pekerjaanId, pekerjaanId));
+  return rows.filter((row) => row.diperbaruiAt !== null && row.diperbaruiAt.getTime() > sejak.getTime()).map((row) => row.kind);
 }

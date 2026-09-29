@@ -99,6 +99,7 @@ export {
   auditLogResource,
   authorize,
   hariLiburNasionalResource,
+  keluhanLayananResource,
   layananKatalogResource,
   lokasiMitraResource,
   mitraJasaResource,

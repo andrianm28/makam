@@ -18,3 +18,7 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
 - [ ] A hari-H Layanan on a TPU Saat Duka Tagihan: the Mitra Jasa's Pencairan becomes due under the normal Mitra Jasa rule (Keluhan window closed) without waiting for the family's payment; if the Tagihan is Tidak Tertagih the Mitra Jasa is still paid and the Operator bears the loss.
 - [ ] Mitra Jasa Pencairan view shows only job, Layanan, date and rate.
 - [ ] Tests: each pay rule; TPU hari-H Pencairan due while the Tagihan is still unpaid; approval starts the Keluhan window; Mitra Jasa view fields.
+
+## Comments
+
+- 2026-09-29 — **Dari tiket 51 (Keluhan).** 57 harus mengisi `pekerjaan_layanan.bukti_ditunjukkan_at` saat Admin Platform menyetujui bukti pekerjaan TPU (di transaksi persetujuannya), supaya jendela Keluhan 3×24 h milik 51 mulai; tanpa itu Keluhan dan Pencairan Layanan TPU tidak pernah bergerak. Kerja ulang oleh pelaksana lain (spek baris 442, cerita 158: Mitra Jasa lain dibayar tarif normal dan Pencairan asli dibatalkan) adalah milik 57; 51 hanya membangun jalur Lokasi, di mana pelaksananya selalu Admin Lokasi.

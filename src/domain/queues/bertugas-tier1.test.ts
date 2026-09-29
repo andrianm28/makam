@@ -33,6 +33,7 @@ function ticksOf(setup: QueuesSetup, notifications: Parameters<typeof createQueu
     notifications,
     pemesanan: setup.pemesanan,
     pengurusan: setup.pengurusan,
+    layanan: setup.layanan,
   });
   return {
     bertugasTick: ticks.bertugasTick,

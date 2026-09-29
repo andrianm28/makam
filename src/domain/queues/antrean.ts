@@ -9,6 +9,7 @@ import type { Database } from "@/db/client";
 import { antreanResource, writeRefusal, type Actor } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { antreanRowTypes } from "./registry";
+import { KELUHAN_ROW_TYPE } from "./tier1-keluhan-row";
 import type { AntreanRowDeps, AntreanTier } from "./row-types";
 import { antreanAmbil } from "./schema";
 
@@ -85,7 +86,7 @@ export interface AntreanCounters {
   tagihanOverdue: number;
   /** Terlambat jobs (layanan module; ticket 51 fills this in). */
   terlambatJobs: number;
-  /** Open Keluhan (layanan module; ticket 51 fills this in). */
+  /** Keluhan waiting for Admin Platform's decision: the Tier 1 Keluhan rows (ticket 51). */
   keluhanOpen: number;
   /** Every Antrean row past its deadline, any tier. */
   pastDeadline: number;
@@ -100,7 +101,8 @@ export async function antreanCounters(deps: QueuesAntreanDeps, by: Actor): Promi
     pencairanDue: rows.filter((row) => row.type === "pencairan").length,
     tagihanOverdue: 0,
     terlambatJobs: 0,
-    keluhanOpen: 0,
+    // The Tier 1 Keluhan rows themselves are the count, as the Tier 3 Pencairan rows are for Pencairan due.
+    keluhanOpen: rows.filter((row) => row.type === KELUHAN_ROW_TYPE).length,
     pastDeadline: rows.filter((row) => row.pastDeadline).length,
   };
 }

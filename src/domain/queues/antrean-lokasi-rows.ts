@@ -290,6 +290,32 @@ export const layananTerlambatRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Kerjakan ulang" (Mendesak): a redo Admin Platform decided after upholding a Keluhan on a job of
+ * that Lokasi Mitra (spec, Work Queues: "Mendesak: … Kerjakan ulang"; story 131; ticket 51). The
+ * row opens with the decision and closes itself the moment the redo's new proof is shown and the
+ * job is Selesai again, because only a job whose Keluhan is `kerjakan_ulang` is on the list. No
+ * deadline of its own: the spec gives this row none, and what makes it urgent is that a family
+ * already complained.
+ */
+export const kerjakanUlangRowType: AntreanLokasiRowType = {
+  key: "kerjakan_ulang",
+  grup: "mendesak",
+  label: "Kerjakan ulang",
+  async rows(deps, by, lokasiId) {
+    const ulang = await deps.layanan.kerjakanUlangUntukLokasi(by, lokasiId);
+    return ulang.map((satu) => ({
+      type: "kerjakan_ulang",
+      label: "Kerjakan ulang",
+      subjectKind: "pekerjaan_layanan",
+      subjectId: satu.pekerjaanId,
+      subjectLabel: `${satu.label} · Petak ${satu.petak}`,
+      href: pekerjaanHref(lokasiId, satu.pekerjaanId),
+      deadline: null,
+    }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
@@ -301,4 +327,5 @@ export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   layananHariIniRowType,
   layananAkanDatangRowType,
   layananTerlambatRowType,
+  kerjakanUlangRowType,
 ];

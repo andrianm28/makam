@@ -488,6 +488,21 @@ export const pekerjaanLayanan = pgTable(
     dibatalkanAt: at("dibatalkan_at"),
     /** The family’s own reason, or the lateness that cancelled it. */
     alasanPembatalan: text("alasan_pembatalan"),
+    /**
+     * When the proof was last **shown to the Pemesan**: the Admin Lokasi's upload at a
+     * Lokasi Mitra (`selesaikanPekerjaan`, and again for a redo's new proof), or Admin
+     * Platform's approval at a TPU (ticket 57). The 3×24 h Keluhan window is counted
+     * from it. Null for a job that is not finished; a job finished before this column
+     * existed reads its `selesai_at` instead.
+     */
+    buktiDitunjukkanAt: at("bukti_ditunjukkan_at"),
+    /**
+     * When the window-close tick saw the Keluhan window over with nothing left open: the
+     * signal the message thread reads to close (ticket 52). Null while it is open.
+     */
+    jendelaDitutupAt: at("jendela_ditutup_at"),
+    /** When Payouts confirmed the job's Pencairan item is due, so the tick stops offering it. */
+    pencairanJatuhTempoAt: at("pencairan_jatuh_tempo_at"),
     createdAt: at("created_at").notNull(),
   },
   (table) => [
@@ -523,6 +538,12 @@ export const pekerjaanLayananBukti = pgTable(
     /** The Akun Staf that captured it, for the Audit Log. */
     diunggahOleh: text("diunggah_oleh").notNull(),
     createdAt: at("created_at").notNull(),
+    /**
+     * When the server last stored this kind, whichever capture that was. A redo after an
+     * upheld Keluhan must show a proof taken **after** the decision, and the camera's own
+     * `taken_at` is the phone's clock, which is not a witness for that: this is.
+     */
+    diperbaruiAt: at("diperbarui_at"),
   },
   (table) => [
     uniqueIndex("pekerjaan_layanan_bukti_idx").on(table.pekerjaanId, table.kind),
@@ -571,5 +592,70 @@ export const pengembalianLayanan = pgTable(
   (table) => [
     uniqueIndex("pengembalian_layanan_pekerjaan_idx").on(table.pekerjaanId),
     check("pengembalian_layanan_total_check", sql`${table.total} between 0 and ${rupiahMax}`),
+  ],
+);
+
+/**
+ * A Keluhan's statuses (spec, Layanan > Pekerjaan Layanan): filed and waiting for
+ * Admin Platform (`terbuka`), then one of the three outcomes — `ditolak`,
+ * `kerjakan_ulang` (the redo is owed) or `dana_kembali` (a refund of the item was
+ * asked of Refunds) — and `selesai_ulang` once the redo's new proof has been shown.
+ */
+export const keluhanStatuses = ["terbuka", "ditolak", "kerjakan_ulang", "selesai_ulang", "dana_kembali"] as const;
+export type KeluhanStatus = (typeof keluhanStatuses)[number];
+
+/**
+ * Owned by the Layanan module: one Keluhan on one Pekerjaan Layanan (CONTEXT.md:
+ * "filed within 3×24 hours of its photo proof being shown to the Pemesan"). A job has
+ * at most one, which is what makes the Pencairan trigger's "no Keluhan" a plain fact.
+ *
+ * `respon_pertama_due_at` is 4 daytime hours (06:00–18:00 WIB) after filing, kept beside
+ * the filing so the Tier 1 row's deadline is a stored fact and not a recomputation.
+ */
+export const keluhanLayanan = pgTable(
+  "keluhan_layanan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayanan.id),
+    /** What the Pemesan wrote. */
+    alasan: text("alasan").notNull(),
+    diajukanAt: at("diajukan_at").notNull(),
+    responPertamaDueAt: at("respon_pertama_due_at").notNull(),
+    status: text("status", { enum: keluhanStatuses }).notNull().default("terbuka"),
+    diputuskanAt: at("diputuskan_at"),
+    diputuskanOleh: text("diputuskan_oleh"),
+    /** The note Admin Platform gave with the decision (what to put right, or why it is rejected). */
+    catatanKeputusan: text("catatan_keputusan"),
+    /** The refund request in the Refunds module, when the outcome was a refund. */
+    permintaanPengembalianId: text("permintaan_pengembalian_id"),
+    /** When the redo's new proof was shown and the Kerjakan ulang row closed. */
+    redoSelesaiAt: at("redo_selesai_at"),
+  },
+  (table) => [uniqueIndex("keluhan_layanan_pekerjaan_idx").on(table.pekerjaanId), index("keluhan_layanan_status_idx").on(table.status)],
+);
+
+/**
+ * Owned by the Layanan module: the Pemesan's optional Penilaian of one finished
+ * Pekerjaan Layanan, 1–5 stars with a comment, one per job. **Only Admin Platform
+ * reads it** (CONTEXT.md): no read that reaches an Admin Lokasi or a Mitra Jasa
+ * carries it.
+ */
+export const penilaianLayanan = pgTable(
+  "penilaian_layanan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayanan.id),
+    pemesanAccountId: uuid("pemesan_account_id").notNull(),
+    bintang: integer("bintang").notNull(),
+    komentar: text("komentar"),
+    dibuatAt: at("dibuat_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("penilaian_layanan_pekerjaan_idx").on(table.pekerjaanId),
+    check("penilaian_layanan_bintang_check", sql`${table.bintang} between 1 and 5`),
   ],
 );

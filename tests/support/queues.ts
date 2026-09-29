@@ -47,6 +47,7 @@ export function queuesOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     refunds,
+    payouts,
     notifications: setup.notifications,
   });
   // Ticket 44 joined the tree: the Antrean Lokasi setup now lives beside the
