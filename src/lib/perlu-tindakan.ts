@@ -79,3 +79,43 @@ export function perluTindakanDariPesanan(daftar: readonly RingkasanTindakan[]): 
   }
   return item;
 }
+
+/** One manual Perpanjangan request's own facts, as much as a Perlu Tindakan row is built from. */
+export interface RingkasanPermohonan {
+  id: string;
+  lokasiName: string;
+  petakNomor: string;
+  status: "diajukan" | "perlu_perbaikan" | "disetujui" | "ditolak" | "dibatalkan";
+  /** Whether an approval can still be turned into a Tagihan (the Perpanjangan module's own classification). */
+  dapatDipesan: boolean;
+}
+
+/**
+ * The items a manual Perpanjangan request (KTP, heir, claim) adds to the strip: one when the Admin Lokasi
+ * sent it back for correction (Perlu Perbaikan) and one while an approval waits to be turned into a Tagihan.
+ * Like every item here it clears itself once its condition no longer holds.
+ */
+export function perluTindakanDariPermohonan(daftar: readonly RingkasanPermohonan[]): PerluTindakanItem[] {
+  const item: PerluTindakanItem[] = [];
+  for (const satu of daftar) {
+    const href = `/perpanjangan/permohonan/${satu.id}`;
+    const tempat = `${satu.lokasiName}, Petak ${satu.petakNomor}`;
+    if (satu.status === "perlu_perbaikan") {
+      item.push({
+        id: `permohonan-perbaikan:${satu.id}`,
+        judul: `Permohonan Perpanjangan ${tempat} perlu diperbaiki`,
+        deskripsi: "Admin Lokasi meminta perbaikan berkas. Buka permohonan untuk melihat catatannya.",
+        href,
+      });
+    }
+    if (satu.dapatDipesan) {
+      item.push({
+        id: `permohonan-disetujui:${satu.id}`,
+        judul: `Permohonan Perpanjangan ${tempat} disetujui`,
+        deskripsi: "Pilih jumlah masa untuk membuat Tagihan. Persetujuan berlaku 30 hari.",
+        href,
+      });
+    }
+  }
+  return item;
+}

@@ -234,7 +234,14 @@ export type Action =
    * Perlu Verifikasi, which the first Perpanjangan or Layanan on it waits for
    * (spec, Inventory).
    */
-  | "hak_pakai.selesaikan_verifikasi";
+  | "hak_pakai.selesaikan_verifikasi"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra reads and decides the manual Perpanjangan requests
+   * (KTP, heir, claim) of its own Lokasi, documents included (ticket 41).
+   */
+  | "perpanjangan.periksa"
+  /** The Admin Lokasi of a Lokasi Mitra records a change of Pemegang Hak or of the holder's contact on one of its Hak Pakai (ticket 41). */
+  | "hak_pakai.ubah_pemegang";
 
 /** What the action is done to. */
 export type Resource =
@@ -654,6 +661,12 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // Pakai"), and only of that Lokasi: the record belongs to the place, and an
       // Admin Platform chases a Lokasi by phone rather than completing its records
       // (story 117, and the same rule as `denah.ubah`).
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "perpanjangan.periksa":
+    case "hak_pakai.ubah_pemegang":
+      // The documents of a family and the record of who holds a grave belong to that Lokasi's own
+      // Admin Lokasi and to no one else (spec, Perpanjangan: "documents checked by the Admin Lokasi";
+      // story 124). Admin Platform chases a Lokasi by phone and never reviews for it.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }

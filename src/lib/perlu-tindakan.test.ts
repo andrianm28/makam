@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
+import { perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
 
 /** One order with nothing that needs the family, the baseline every test starts from and overrides. */
 function ringkasan(over: Partial<RingkasanTindakan> = {}): RingkasanTindakan {
@@ -59,5 +59,25 @@ describe("Akun Saya's Perlu Tindakan strip: the registry (spec story 99)", () =>
       ringkasan({ nomor: "MKM-2026-000002", href: "/pesanan/MKM-2026-000002", dokumenBelum: 1, alternatifMenunggu: true }),
     ]);
     expect(items.map((item) => item.id).sort()).toEqual(["alternatif:MKM-2026-000002", "dokumen:MKM-2026-000002", "tagihan:MKM-2026-000001"]);
+  });
+});
+
+describe("a manual Perpanjangan request in Perlu tindakan", () => {
+  const permohonan = { id: "8a1c0000-0000-4000-8000-000000000001", lokasiName: "Makam Wakaf Al-Ikhlas", petakNomor: "A-12" };
+
+  it("shows a request the Admin Lokasi sent back (Perlu Perbaikan), linking to it, and clears once it is filed again", () => {
+    expect(perluTindakanDariPermohonan([{ ...permohonan, status: "perlu_perbaikan", dapatDipesan: false }])).toEqual([
+      expect.objectContaining({ id: `permohonan-perbaikan:${permohonan.id}`, href: `/perpanjangan/permohonan/${permohonan.id}`, judul: expect.stringContaining("perlu diperbaiki") }),
+    ]);
+    expect(perluTindakanDariPermohonan([{ ...permohonan, status: "diajukan", dapatDipesan: false }])).toEqual([]);
+  });
+
+  it("shows an approval that can still be ordered on, and nothing for one that lapsed, was spent, or was rejected", () => {
+    expect(perluTindakanDariPermohonan([{ ...permohonan, status: "disetujui", dapatDipesan: true }])).toEqual([
+      expect.objectContaining({ id: `permohonan-disetujui:${permohonan.id}`, deskripsi: expect.stringContaining("30 hari") }),
+    ]);
+    for (const status of ["disetujui", "ditolak", "dibatalkan"] as const) {
+      expect(perluTindakanDariPermohonan([{ ...permohonan, status, dapatDipesan: false }])).toEqual([]);
+    }
   });
 });

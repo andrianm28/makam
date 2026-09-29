@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { CsLink } from "@/components/site/cs-link";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OpsiMasa, StatusPerpanjangan } from "@/domain/perpanjangan";
 import { documentPagePath } from "@/lib/document-links";
@@ -42,6 +42,8 @@ export default async function PerpanjanganPage({ params, searchParams }: PagePro
   const tawaran = status.boleh && !status.tagihanTerbuka && status.jalur !== "tanpa_email" ? await perpanjangan.tawaran(id.data.hakPakaiId) : null;
   const settings = await operatorSettings.current();
   const contact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
+  // A request the family already filed on this Hak Pakai (KTP, heir or claim), still open or approved and unspent.
+  const permohonan = dengan ? (await perpanjangan.permohonanSaya(dengan)).find((satu) => satu.hakPakaiId === id.data.hakPakaiId && (satu.status === "diajukan" || satu.status === "perlu_perbaikan" || satu.dapatDipesan)) : undefined;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-(--page-gutter) py-10 md:py-14">
@@ -60,6 +62,15 @@ export default async function PerpanjanganPage({ params, searchParams }: PagePro
         </p>
       ) : null}
 
+      {permohonan ? (
+        <section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
+          <p className="text-body">Anda sudah mengajukan permohonan lewat berkas untuk Hak Pakai ini.</p>
+          <Link href={`/perpanjangan/permohonan/${permohonan.id}`} className="font-medium text-brand underline underline-offset-4">
+            Lihat permohonan
+          </Link>
+        </section>
+      ) : null}
+
       {status.boleh ? (
         <Buka
           status={status}
@@ -70,20 +81,34 @@ export default async function PerpanjanganPage({ params, searchParams }: PagePro
           contact={contact}
         />
       ) : (
-        <Catatan status={status} contact={contact} />
+        <Catatan status={status} contact={contact} hakPakaiId={id.data.hakPakaiId} />
       )}
     </main>
   );
 }
 
 /** The note that replaces the button, with a pay link when an overdue Tagihan is what blocks it. */
-function Catatan({ status, contact }: { status: Extract<StatusPerpanjangan, { boleh: false }>; contact: { whatsApp: string; replyHours: string } | null }) {
+function Catatan({
+  status,
+  contact,
+  hakPakaiId,
+}: {
+  status: Extract<StatusPerpanjangan, { boleh: false }>;
+  contact: { whatsApp: string; replyHours: string } | null;
+  hakPakaiId: string;
+}) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <p className="text-body">{catatanPerpanjanganText(status.catatan)}</p>
       {status.catatan.kind === "lunasi_tagihan" ? (
         <Link href={documentPagePath(status.catatan.link)} className="font-medium text-brand underline underline-offset-4">
           Buka Tagihan untuk dibayar
+        </Link>
+      ) : null}
+      {status.catatan.kind === "hubungi_admin_lokasi" && status.catatan.sebab === "perlu_verifikasi" ? (
+        // A Hak Pakai the Admin Lokasi still has to complete is exactly what a claim by documents resolves.
+        <Link href={`/perpanjangan/${hakPakaiId}/berkas`} className="font-medium text-brand underline underline-offset-4">
+          Ajukan lewat berkas
         </Link>
       ) : null}
       <CsLink contact={contact} className="text-body" label="Tanya CS" />
@@ -125,6 +150,9 @@ function Buka({
         <p className="text-body">
           Hak Pakai ini tidak punya email tercatat, jadi kodenya tidak bisa dikirim. Perpanjangan diajukan lewat berkas (KTP, atau bukti ahli waris) yang diperiksa Admin Lokasi.
         </p>
+        <Link href={`/perpanjangan/${status.hakPakaiId}/berkas`} className={buttonVariants({ size: "lg" })}>
+          Ajukan lewat berkas
+        </Link>
         <CsLink contact={contact} className="text-body" label="Minta bantuan CS" />
       </section>
     );
@@ -176,7 +204,10 @@ function Buka({
         <Button type="submit" size="lg">
           Kirim kode
         </Button>
-        <CsLink contact={contact} className="text-body" label="Email sudah tidak dipakai? Minta bantuan CS" />
+        <Link href={`/perpanjangan/${status.hakPakaiId}/berkas`} className="font-medium text-brand underline underline-offset-4">
+          Email sudah tidak dipakai? Ajukan lewat KTP atau berkas lain
+        </Link>
+        <CsLink contact={contact} className="text-body" label="Atau minta bantuan CS" />
       </form>
     );
   }

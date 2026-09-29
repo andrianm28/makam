@@ -252,7 +252,17 @@ export type AuditAction =
   /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
   | "layanan.unggah_bukti"
   /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
-  | "layanan.selesaikan_pekerjaan";
+  | "layanan.selesaikan_pekerjaan"
+  /** An Admin Lokasi approves a manual Perpanjangan request (KTP, heir or claim); the approval stays valid 30 days (ticket 41). */
+  | "perpanjangan.setujui"
+  /** An Admin Lokasi rejects a manual Perpanjangan request, with a reason (ticket 41). */
+  | "perpanjangan.tolak"
+  /** An Admin Lokasi sends a manual Perpanjangan request back for correction, with the reason (ticket 41). */
+  | "perpanjangan.minta_perbaikan"
+  /** An Admin Lokasi records a new Pemegang Hak on a Hak Pakai; the earlier holder is kept in the history (ticket 41). */
+  | "hak_pakai.ganti_pemegang"
+  /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
+  | "hak_pakai.ubah_kontak_pemegang";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit
