@@ -184,6 +184,31 @@ export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
 };
 
 /**
+ * "Periksa dokumen Perpanjangan" (Lainnya): every manual Perpanjangan request (KTP, heir,
+ * claim) of that Lokasi Mitra still Diajukan, due 2 working days after it was filed on the
+ * Lokasi's Jam Operasional calendar (spec, Work Queues; ticket 41). A request the Admin Lokasi
+ * sent back (Perlu Perbaikan) leaves the list until the applicant files it again, and one that
+ * is decided or withdrawn closes its own row.
+ */
+export const periksaDokumenPerpanjanganRowType: AntreanLokasiRowType = {
+  key: "periksa_dokumen_perpanjangan",
+  grup: "lainnya",
+  label: "Periksa dokumen Perpanjangan",
+  async rows(deps, _by, lokasiId) {
+    const terbuka = await deps.perpanjangan.antreanPeriksaDokumen(lokasiId);
+    return terbuka.map((satu) => ({
+      type: "periksa_dokumen_perpanjangan",
+      label: "Periksa dokumen Perpanjangan",
+      subjectKind: "perpanjangan_permohonan",
+      subjectId: satu.id,
+      subjectLabel: `Petak ${satu.petakNomor} · ${satu.nama}`,
+      href: `/staf/admin-lokasi/${lokasiId}/perpanjangan/${satu.id}`,
+      deadline: satu.tenggatPada,
+    }));
+  },
+};
+
+/**
  * "Layanan hari ini" (Mendesak): the jobs of that Lokasi Mitra whose target date
  * is today, so a job that can be done today is at the top of the list. No
  * deadline of its own — the day the family asked for is the deadline, and the
@@ -265,14 +290,42 @@ export const layananTerlambatRowType: AntreanLokasiRowType = {
   },
 };
 
+/**
+ * "Kerjakan ulang" (Mendesak): a redo Admin Platform decided after upholding a Keluhan on a job of
+ * that Lokasi Mitra (spec, Work Queues: "Mendesak: … Kerjakan ulang"; story 131; ticket 51). The
+ * row opens with the decision and closes itself the moment the redo's new proof is shown and the
+ * job is Selesai again, because only a job whose Keluhan is `kerjakan_ulang` is on the list. No
+ * deadline of its own: the spec gives this row none, and what makes it urgent is that a family
+ * already complained.
+ */
+export const kerjakanUlangRowType: AntreanLokasiRowType = {
+  key: "kerjakan_ulang",
+  grup: "mendesak",
+  label: "Kerjakan ulang",
+  async rows(deps, by, lokasiId) {
+    const ulang = await deps.layanan.kerjakanUlangUntukLokasi(by, lokasiId);
+    return ulang.map((satu) => ({
+      type: "kerjakan_ulang",
+      label: "Kerjakan ulang",
+      subjectKind: "pekerjaan_layanan",
+      subjectId: satu.pekerjaanId,
+      subjectLabel: `${satu.label} · Petak ${satu.petak}`,
+      href: pekerjaanHref(lokasiId, satu.pekerjaanId),
+      deadline: null,
+    }));
+  },
+};
+
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
   konfirmasiTerencanaRowType,
+  periksaDokumenPerpanjanganRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
   catatPemakamanRowType,
   layananHariIniRowType,
   layananAkanDatangRowType,
   layananTerlambatRowType,
+  kerjakanUlangRowType,
 ];

@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 63 resolved, 18 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 65 resolved, 16 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -44,7 +44,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-0
 | [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | ready-for-agent | 31, 37 |
 | [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
 | [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | resolved | 29, 32, 34, 82 |
-| [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | ready-for-agent | 40 |
+| [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | resolved | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | ready-for-agent | 40 |
 | [43](43-dki-tpu-catalog-and-pages.md) | DKI TPU catalog, prices and pages | resolved | 16, 17 |
 | [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | resolved | 22, 43, 63, 82 |
@@ -54,7 +54,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-0
 | [48](48-perpanjangan-tpu.md) | Perpanjangan TPU (IPTM renewal) | ready-for-agent | 47 |
 | [49](49-layanan-catalog-and-paket-definitions.md) | Layanan catalog, prices and Paket Layanan definitions | resolved | 16 |
 | [50](50-layanan-order-at-lokasi-mitra.md) | Layanan order at a Lokasi Mitra and Admin Lokasi fulfilment | resolved | 19, 23, 34, 49 |
-| [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | ready-for-agent | 32, 50 |
+| [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | resolved | 32, 50 |
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |
 | [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan | ready-for-agent | 37, 40, 50 |
 | [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | ready-for-agent | 50 |

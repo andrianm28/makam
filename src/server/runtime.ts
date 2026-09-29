@@ -225,6 +225,7 @@ export function serverRuntime(): ServerRuntime {
       billing,
       identity,
       refunds,
+      payouts,
       notifications,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
@@ -242,6 +243,21 @@ export function serverRuntime(): ServerRuntime {
       // confirmation's own transaction.
       fieldwork,
       layanan,
+      notifikasi: notifications,
+    });
+    // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),
+    // so it is composed before the queue that runs that query.
+    const perpanjangan = createPerpanjangan({
+      db: database.db,
+      clock: adapters.clock,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      pemesanan,
+      identity,
+      files: adapters.files,
+      audit,
       notifikasi: notifications,
     });
     globalForRuntime.__makamRuntime = {
@@ -275,20 +291,11 @@ export function serverRuntime(): ServerRuntime {
         layanan,
         payouts,
         pengurusan,
+        perpanjangan,
         refunds,
       }),
       pengurusan,
-      perpanjangan: createPerpanjangan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
-        inventory,
-        billing,
-        pemesanan,
-        identity,
-        notifikasi: notifications,
-      }),
+      perpanjangan,
     };
   }
   return globalForRuntime.__makamRuntime;

@@ -3,7 +3,7 @@ import { cache } from "react";
 import type { PemesananOrder } from "@/domain/pemesanan";
 import type { PengurusanOrder } from "@/domain/pengurusan";
 import { documentPagePath } from "@/lib/document-links";
-import { perluTindakanDariPesanan, type PerluTindakanItem, type RingkasanTindakan } from "@/lib/perlu-tindakan";
+import { perluTindakanDariPermohonan, perluTindakanDariPesanan, type PerluTindakanItem, type RingkasanTindakan } from "@/lib/perlu-tindakan";
 import { serverRuntime } from "@/server/runtime";
 
 export interface PesananSaya {
@@ -18,10 +18,11 @@ export interface PesananSaya {
  * read per request rather than two.
  */
 export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: PesananSaya; perluTindakan: PerluTindakanItem[] }> => {
-  const { pemesanan, pengurusan, billing } = serverRuntime();
-  const [daftarPemesanan, daftarPengurusan] = await Promise.all([
+  const { pemesanan, pengurusan, billing, perpanjangan } = serverRuntime();
+  const [daftarPemesanan, daftarPengurusan, daftarPermohonan] = await Promise.all([
     pemesanan.pesananSaya({ accountId }),
     pengurusan.pesananSaya({ accountId }),
+    perpanjangan.permohonanSaya({ accountId }),
   ]);
 
   const ringkasanPemesanan: RingkasanTindakan[] = await Promise.all(
@@ -56,6 +57,6 @@ export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: 
 
   return {
     pesanan: { pemesanan: daftarPemesanan, pengurusan: daftarPengurusan },
-    perluTindakan: perluTindakanDariPesanan([...ringkasanPemesanan, ...ringkasanPengurusan]),
+    perluTindakan: [...perluTindakanDariPesanan([...ringkasanPemesanan, ...ringkasanPengurusan]), ...perluTindakanDariPermohonan(daftarPermohonan)],
   };
 });

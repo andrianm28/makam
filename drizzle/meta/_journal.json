@@ -292,8 +292,22 @@
     {
       "idx": 41,
       "version": "7",
-      "when": 1790659884183,
-      "tag": "0041_absent_namorita",
+      "when": 1790659560561,
+      "tag": "0041_puzzling_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790660751513,
+      "tag": "0042_perfect_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790662149100,
+      "tag": "0043_strange_black_bird",
       "breakpoints": true
     }
   ]

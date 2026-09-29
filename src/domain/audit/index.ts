@@ -264,7 +264,19 @@ export type AuditAction =
   /** A Mitra Jasa accepts or declines the TPU job assigned to them (ticket 56). */
   | "layanan.jawab_penugasan_tpu"
   /** Admin Platform takes a TPU job off the Mitra Jasa who holds it, so it can be given to another (ticket 56). */
-  | "layanan.lepas_penugasan_tpu";
+  | "layanan.lepas_penugasan_tpu"
+  /** An Admin Lokasi approves a manual Perpanjangan request (KTP, heir or claim); the approval stays valid 30 days (ticket 41). */
+  | "perpanjangan.setujui"
+  /** An Admin Lokasi rejects a manual Perpanjangan request, with a reason (ticket 41). */
+  | "perpanjangan.tolak"
+  /** An Admin Lokasi sends a manual Perpanjangan request back for correction, with the reason (ticket 41). */
+  | "perpanjangan.minta_perbaikan"
+  /** An Admin Lokasi records a new Pemegang Hak on a Hak Pakai; the earlier holder is kept in the history (ticket 41). */
+  | "hak_pakai.ganti_pemegang"
+  /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
+  | "hak_pakai.ubah_kontak_pemegang"
+  /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
+  | "layanan.putuskan_keluhan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

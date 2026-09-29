@@ -52,8 +52,8 @@ export interface SchedulerContext {
   terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
-  /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55). */
-  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons">;
+  /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55), the Keluhan window closing (ticket 51) and the TPU accept deadline (ticket 56). */
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan">;
   /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
   queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
@@ -122,6 +122,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   // Layanan: a TPU job assigned to a Mitra Jasa who has not answered by the accept deadline (12 h, or H-1 18:00 when
   // sooner) counts as Tidak direspons and returns to the queue (ticket 56). Every 5 minutes: the deadline is a clock time.
   { name: "layanan.tandai_tidak_direspons", cron: "*/5 * * * *", tick: tidakDiresponsTick },
+  // Layanan: a job's Keluhan window closes 3×24 h after its proof was shown, which makes its Pencairan due and closes its thread (ticket 51).
+  { name: "layanan.tutup_jendela_keluhan", cron: "*/5 * * * *", tick: tutupJendelaKeluhanTick },
   // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
   { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
   // Work Queues: a Tier 1 row alerts the Bertugas Admin Platform (all if none), everyone at 30 min untaken, and again at 90 min for a TPU confirmation; a night TPU row waits for 06:00 (ticket 28).
@@ -185,6 +187,14 @@ async function tidakDiresponsTick(ctx: SchedulerContext, now: Date): Promise<voi
 /** The worker wrapper around the Layanan module's monthly scorecard review tick (idempotent there, as every tick is). */
 async function tinjauSkorTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.layanan.tinjauSkorTick(now);
+}
+
+/**
+ * The worker wrapper around the Layanan module's Keluhan window-close tick: the thread's closing
+ * signal and the job's Pencairan becoming due (idempotent there, as every tick is).
+ */
+async function tutupJendelaKeluhanTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.layanan.tutupJendelaKeluhan(now);
 }
 
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */

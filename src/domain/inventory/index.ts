@@ -68,6 +68,7 @@ import {
   type BeriHakPakaiDariTahanInput,
   type BeriHakPakaiDariTahanResult,
 } from "./tahan-bayar";
+import { gantiPemegangHak, riwayatPemegangHak, ubahKontakPemegangHak, type PemegangHakResult, type RiwayatPemegangHak } from "./pemegang-hak";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -86,6 +87,7 @@ import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakaiResult, PerpanjangHakPakaiResult } from "./perpanjangan";
 export { lengkapiHakPakaiSchema };
+export type { PemegangHakResult, RiwayatPemegangHak };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
@@ -186,6 +188,16 @@ export interface Inventory {
   perpanjangHakPakai(input: { hakPakaiId: string; terms: number }): Promise<PerpanjangHakPakaiResult>;
   /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact), audited (ticket 40). */
   lengkapiHakPakai(by: Actor, lokasiId: string, input: unknown): Promise<LengkapiHakPakaiResult>;
+  /**
+   * The Admin Lokasi of that Lokasi records a new Pemegang Hak on a Hak Pakai (the heir and claim paths of a
+   * Perpanjangan, ticket 41): the earlier holder stays in the history with its dates. Audited, and the entry
+   * carries no phone number or email in full.
+   */
+  gantiPemegangHak(by: Actor, lokasiId: string, input: unknown): Promise<PemegangHakResult>;
+  /** Every Pemegang Hak a Hak Pakai has had with the dates each held it, oldest first; names only, never a contact (ticket 41). */
+  riwayatPemegangHak(hakPakaiId: string): Promise<RiwayatPemegangHak[]>;
+  /** The Admin Lokasi of that Lokasi changes the current Pemegang Hak's recorded phone number and email after a KTP check (ticket 41). Audited. */
+  ubahKontakPemegangHak(by: Actor, lokasiId: string, input: unknown): Promise<PemegangHakResult>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
   /**
@@ -322,6 +334,9 @@ export function createInventory(deps: InventoryDeps): Inventory {
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
     hakPakaiUntukPerpanjangan: (hakPakaiId) => hakPakaiUntukPerpanjangan(deps, hakPakaiId),
     perpanjangHakPakai: (input) => perpanjangHakPakai(deps, input),
+    gantiPemegangHak: (by, lokasiId, input) => gantiPemegangHak(deps, by, lokasiId, input),
+    riwayatPemegangHak: (hakPakaiId) => riwayatPemegangHak(deps, hakPakaiId),
+    ubahKontakPemegangHak: (by, lokasiId, input) => ubahKontakPemegangHak(deps, by, lokasiId, input),
     lengkapiHakPakai: (by, lokasiId, input) => lengkapiHakPakai(deps, by, lokasiId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     selesaikanVerifikasiHakPakai: (by, lokasiId, target) => selesaikanVerifikasiHakPakai(deps, by, lokasiId, target),

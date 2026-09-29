@@ -4,6 +4,7 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi } from "@/domain/lokasi";
+import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
@@ -199,5 +200,12 @@ export interface LayananDeps {
    * transaction (its `within` parameter), so a job is never cancelled without its refund request.
    */
   refunds: Pick<Refunds, "ajukanBaris">;
+  /**
+   * A Keluhan's Pencairan effects (ticket 51): the job's item is made due when its Keluhan window
+   * closes with no Keluhan, a Keluhan is rejected or the redo proof is shown, and Admin Platform
+   * may override what it pays after a Keluhan. Both are Payouts' public functions; this module
+   * never reaches its tables.
+   */
+  payouts: Pick<Payouts, "itemLayanan" | "jadikanLayananJatuhTempo" | "turunkanJumlahPencairan">;
   notifikasi: LayananNotifikasi;
 }

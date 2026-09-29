@@ -1,5 +1,5 @@
 {
-  "id": "34894deb-dcdd-419a-937a-d9d8006cc65d",
+  "id": "cf323dc6-28c7-4095-b3b2-dac3c948b508",
   "prevId": "4d6f8b62-707e-4e77-9ff9-908433388ab8",
   "version": "7",
   "dialect": "postgresql",
@@ -4847,412 +4847,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.pekerjaan_layanan_tpu": {
-      "name": "pekerjaan_layanan_tpu",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "sumber": {
-          "name": "sumber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nomor": {
-          "name": "nomor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "posisi": {
-          "name": "posisi",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tagihan_id": {
-          "name": "tagihan_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tpu_id": {
-          "name": "tpu_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tpu_name": {
-          "name": "tpu_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tpu_address": {
-          "name": "tpu_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "makam": {
-          "name": "makam",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_id": {
-          "name": "layanan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "layanan_variant_id": {
-          "name": "layanan_variant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "teks": {
-          "name": "teks",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount": {
-          "name": "amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_date": {
-          "name": "target_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pemesan_account_id": {
-          "name": "pemesan_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pemesan_name": {
-          "name": "pemesan_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pemesan_email": {
-          "name": "pemesan_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pemesan_phone": {
-          "name": "pemesan_phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dijadwalkan_at": {
-          "name": "dijadwalkan_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dibatalkan_at": {
-          "name": "dibatalkan_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "pekerjaan_layanan_tpu_posisi_idx": {
-          "name": "pekerjaan_layanan_tpu_posisi_idx",
-          "columns": [
-            {
-              "expression": "nomor",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "posisi",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pekerjaan_layanan_tpu_status_idx": {
-          "name": "pekerjaan_layanan_tpu_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "target_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pekerjaan_layanan_tpu_tagihan_idx": {
-          "name": "pekerjaan_layanan_tpu_tagihan_idx",
-          "columns": [
-            {
-              "expression": "tagihan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pekerjaan_layanan_tpu_pemesan_idx": {
-          "name": "pekerjaan_layanan_tpu_pemesan_idx",
-          "columns": [
-            {
-              "expression": "pemesan_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pekerjaan_layanan_tpu_layanan_id_layanan_layanan_id_fk": {
-          "name": "pekerjaan_layanan_tpu_layanan_id_layanan_layanan_id_fk",
-          "tableFrom": "pekerjaan_layanan_tpu",
-          "tableTo": "layanan_layanan",
-          "columnsFrom": [
-            "layanan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pekerjaan_layanan_tpu_layanan_variant_id_layanan_varian_id_fk": {
-          "name": "pekerjaan_layanan_tpu_layanan_variant_id_layanan_varian_id_fk",
-          "tableFrom": "pekerjaan_layanan_tpu",
-          "tableTo": "layanan_varian",
-          "columnsFrom": [
-            "layanan_variant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.pekerjaan_layanan_tpu_penugasan": {
-      "name": "pekerjaan_layanan_tpu_penugasan",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "pekerjaan_id": {
-          "name": "pekerjaan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mitra_jasa_id": {
-          "name": "mitra_jasa_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ditugaskan_at": {
-          "name": "ditugaskan_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "batas_jawab": {
-          "name": "batas_jawab",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dijawab_at": {
-          "name": "dijawab_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "hasil": {
-          "name": "hasil",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "alasan": {
-          "name": "alasan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ditugaskan_oleh_account_id": {
-          "name": "ditugaskan_oleh_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "pekerjaan_layanan_tpu_penugasan_terbuka_idx": {
-          "name": "pekerjaan_layanan_tpu_penugasan_terbuka_idx",
-          "columns": [
-            {
-              "expression": "pekerjaan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"pekerjaan_layanan_tpu_penugasan\".\"hasil\" in ('menunggu', 'diterima')",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pekerjaan_layanan_tpu_penugasan_mitra_idx": {
-          "name": "pekerjaan_layanan_tpu_penugasan_mitra_idx",
-          "columns": [
-            {
-              "expression": "mitra_jasa_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "ditugaskan_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pekerjaan_layanan_tpu_penugasan_batas_idx": {
-          "name": "pekerjaan_layanan_tpu_penugasan_batas_idx",
-          "columns": [
-            {
-              "expression": "hasil",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "batas_jawab",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pekerjaan_layanan_tpu_penugasan_pekerjaan_id_pekerjaan_layanan_tpu_id_fk": {
-          "name": "pekerjaan_layanan_tpu_penugasan_pekerjaan_id_pekerjaan_layanan_tpu_id_fk",
-          "tableFrom": "pekerjaan_layanan_tpu_penugasan",
-          "tableTo": "pekerjaan_layanan_tpu",
-          "columnsFrom": [
-            "pekerjaan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pekerjaan_layanan_tpu_penugasan_mitra_jasa_id_layanan_mitra_jasa_id_fk": {
-          "name": "pekerjaan_layanan_tpu_penugasan_mitra_jasa_id_layanan_mitra_jasa_id_fk",
-          "tableFrom": "pekerjaan_layanan_tpu_penugasan",
-          "tableTo": "layanan_mitra_jasa",
-          "columnsFrom": [
-            "mitra_jasa_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.pengembalian_layanan": {
       "name": "pengembalian_layanan",
       "schema": "",
@@ -8566,12 +8160,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "layanan_hari_h": {
-          "name": "layanan_hari_h",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "konfirmasi_due_at": {
           "name": "konfirmasi_due_at",
           "type": "timestamp with time zone",
@@ -8850,6 +8438,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "permohonan_id": {
+          "name": "permohonan_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8886,6 +8480,198 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.perpanjangan_permohonan": {
+      "name": "perpanjangan_permohonan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "hak_pakai_id": {
+          "name": "hak_pakai_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_id": {
+          "name": "lokasi_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lokasi_name": {
+          "name": "lokasi_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "petak_nomor": {
+          "name": "petak_nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jalur": {
+          "name": "jalur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemohon_account_id": {
+          "name": "pemohon_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nomor_telepon": {
+          "name": "nomor_telepon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catatan": {
+          "name": "catatan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berkas": {
+          "name": "berkas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diajukan_pada": {
+          "name": "diajukan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenggat_pada": {
+          "name": "tenggat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keputusan_pada": {
+          "name": "keputusan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "keputusan_oleh_account_id": {
+          "name": "keputusan_oleh_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berlaku_sampai": {
+          "name": "berlaku_sampai",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuat_pada": {
+          "name": "dibuat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "perpanjangan_permohonan_hak_pakai_idx": {
+          "name": "perpanjangan_permohonan_hak_pakai_idx",
+          "columns": [
+            {
+              "expression": "hak_pakai_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dibuat_pada",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "perpanjangan_permohonan_lokasi_idx": {
+          "name": "perpanjangan_permohonan_lokasi_idx",
+          "columns": [
+            {
+              "expression": "lokasi_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "perpanjangan_permohonan_pemohon_idx": {
+          "name": "perpanjangan_permohonan_pemohon_idx",
+          "columns": [
+            {
+              "expression": "pemohon_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

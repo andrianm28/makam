@@ -169,7 +169,23 @@ export function testServerRuntime() {
       billing,
       identity,
       refunds,
+      payouts,
       notifications,
+    });
+    // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),
+    // so it is composed before the queue that runs that query.
+    const perpanjangan = createPerpanjangan({
+      db: database.db,
+      clock: adapters.clock,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      pemesanan,
+      identity,
+      files: adapters.files,
+      audit,
+      notifikasi: notifications,
     });
     holder.__makamRuntime = {
       env,
@@ -202,20 +218,11 @@ export function testServerRuntime() {
         layanan,
         payouts,
         pengurusan: pengursModule,
+        perpanjangan,
         refunds,
       }),
       pengurusan: pengursModule,
-      perpanjangan: createPerpanjangan({
-        db: database.db,
-        clock: adapters.clock,
-        lokasi,
-        tariffs,
-        inventory,
-        billing,
-        pemesanan,
-        identity,
-        notifikasi: notifications,
-      }),
+      perpanjangan,
     };
   }
   afterAll(async () => {

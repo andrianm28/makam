@@ -7,8 +7,8 @@
  *
  * Owns tables: layanan_layanan, layanan_varian, layanan_penawaran, layanan_paket,
  * layanan_paket_item, pesanan_layanan, pesanan_layanan_item, pekerjaan_layanan,
- * pekerjaan_layanan_bukti, pengembalian_layanan, and the two TPU tables of ticket 56
- * (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan).
+ * pekerjaan_layanan_bukti, pengembalian_layanan, keluhan_layanan, penilaian_layanan, and the two TPU tables of
+ * ticket 56 (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan).
  *
  * Every price of a Layanan variant is a versioned tariff in the Tariffs module
  * (its price at a Lokasi Mitra, the DKI price, the Mitra Jasa rate), never a
@@ -32,9 +32,13 @@
  * written by the Admin Lokasi of the Lokasi Mitra that has to do the work, which
  * the module checks against the job's own Lokasi.
  *
+ * A finished job opens a 3×24 h Keluhan window; the Pemesan may file one Keluhan and give one
+ * Penilaian, Admin Platform decides (rejected, a redo, or a refund of the item) and may override
+ * what the job pays, and the job's Pencairan becomes due when the window closes with no Keluhan,
+ * a Keluhan is rejected or the redo proof is shown (`./keluhan.ts`, ticket 51).
+ *
  * Left to later tickets: a Paket Layanan's recurring cycles (54), the Mitra Jasa
- * who fulfils a job at a TPU (55, 56), a Keluhan, a Penilaian and a job's
- * Pencairan (51), Layanan at a DKI TPU (56), and Layanan added at a non–standalone
+ * who fulfils a job at a TPU (55, 56), Layanan at a DKI TPU (56), and Layanan added at a non–standalone
  * checkout — a Saat Duka's hari-H items, a Terencana's empty-plot items, a
  * Perpanjangan's optional step (53).
  */
@@ -179,6 +183,26 @@ import {
   type PekerjaanTpuStaf,
   type TugaskanMitraJasaResult,
 } from "./penugasan-tpu";
+import {
+  ajukanKeluhan,
+  beriPenilaian,
+  daftarPenilaian,
+  kerjakanUlangUntukLokasi,
+  keluhanTerbuka,
+  keluhanUntukPlatform,
+  putuskanKeluhan,
+  sesuaikanPencairanKeluhan,
+  tutupJendelaKeluhan,
+  type AjukanKeluhanResult,
+  type BeriPenilaianResult,
+  type KerjakanUlang,
+  type KeluhanTerbuka,
+  type KeluhanUntukPlatformResult,
+  type PenilaianDenganPekerjaan,
+  type PutuskanKeluhanResult,
+  type SesuaikanPencairanResult,
+  type TutupJendelaHasil,
+} from "./keluhan";
 
 export type {
   LayananDeps,
@@ -262,9 +286,25 @@ export { SKOR_WINDOW_HARI } from "./skor";
 export type { SkorMitraJasa, TinjauanMitraJasa } from "./skor";
 export type { MitraJasaTersedia } from "./penugasan";
 export { HARI_TERLAMBAT, batasTerlambat, jendelaKerja, sudahLewatBatas } from "./pekerjaan";
-export type { PekerjaanUntukStaf, TerlambatTerbaca } from "./pekerjaan";
+export type { KeluhanUntukStaf, PekerjaanUntukStaf, TerlambatTerbaca } from "./pekerjaan";
 export { JENDELA_TARGET_HARI, jendelaTarget, targetPalingDini } from "./pesanan";
 export type { AlasanTolakPesanan, PesananLayananOrder, PesananLayananItemTerbaca, PlacePesananLayananResult } from "./pesanan";
+export { JAM_RESPON_PERTAMA_KELUHAN, JENDELA_KELUHAN_JAM, jendelaKeluhanBerakhir } from "./keluhan";
+export type {
+  AjukanKeluhanResult,
+  BeriPenilaianResult,
+  KerjakanUlang,
+  KeluhanTerbaca,
+  KeluhanTerbuka,
+  KeluhanUntukPlatform,
+  KeluhanUntukPlatformResult,
+  PenilaianDenganPekerjaan,
+  PenilaianTerbaca,
+  PutuskanKeluhanResult,
+  SesuaikanPencairanResult,
+  TutupJendelaHasil,
+} from "./keluhan";
+export { keluhanStatuses, type KeluhanStatus } from "./schema";
 export { batasBatal, bolehDibatalkan } from "./batal";
 export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
 export type {
@@ -556,6 +596,39 @@ export interface Layanan {
   pekerjaanTpuHariIniTanpaMitra(): Promise<PekerjaanTpuAntrean[]>;
   /** The Antrean's Tier 2 rows: jobs back in the queue after Tidak direspons, Ditolak or a release for reassignment. */
   pekerjaanTpuPerluTindakan(): Promise<PekerjaanTpuAntrean[]>;
+  /* ── Keluhan and Penilaian (ticket 51) ── */
+
+  /**
+   * The Pemesan files a Keluhan on a finished job, within 3×24 h of the proof being shown to them.
+   * One per job. The job becomes Keluhan and the Antrean's Tier 1 row exists from then, with a first
+   * response due in 4 daytime hours (06:00–18:00 WIB).
+   */
+  ajukanKeluhan(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanResult>;
+  /** The Pemesan gives a finished job an optional 1–5 star Penilaian with a comment; once per job, and only Admin Platform reads it. */
+  beriPenilaian(pemesan: PemesanLayanan, input: unknown): Promise<BeriPenilaianResult>;
+  /**
+   * Admin Platform decides an open Keluhan, with a note: rejected (the job is Selesai and its Pencairan
+   * due), a redo (the Admin Lokasi gets a Kerjakan ulang row) or a refund of the job's line (asked of
+   * Refunds). Audited.
+   */
+  putuskanKeluhan(by: Actor, input: unknown): Promise<PutuskanKeluhanResult>;
+  /** Admin Platform overrides what the job pays its fulfiller after a Keluhan, with a mandatory note (Payouts records and audits it). */
+  sesuaikanPencairanKeluhan(by: Actor, input: unknown): Promise<SesuaikanPencairanResult>;
+  /** One Keluhan with the job, its proof, the Pemesan, the Penilaian and what the job pays: what Admin Platform decides on. */
+  keluhanUntukPlatform(by: Actor, keluhanId: string): Promise<KeluhanUntukPlatformResult>;
+  /** Every Penilaian, newest first: Admin Platform only (nobody else's read carries one). */
+  daftarPenilaian(by: Actor): Promise<PenilaianDenganPekerjaan[]>;
+  /** Every Keluhan waiting for Admin Platform's decision, oldest first: the Antrean's Tier 1 row and its counter. */
+  keluhanTerbuka(): Promise<KeluhanTerbuka[]>;
+  /** The redos one Lokasi Mitra owes: its Antrean Lokasi's Mendesak "Kerjakan ulang" rows. */
+  kerjakanUlangUntukLokasi(by: Actor, lokasiId: string): Promise<KerjakanUlang[]>;
+  /**
+   * The worker's Keluhan window-close tick: a job whose proof was shown more than 3×24 h ago gets its
+   * closing signal (the message thread reads it), and a job whose window closed with no Keluhan, or
+   * whose Keluhan was rejected or redone, has its Pencairan made due. Idempotent, and retried while
+   * the Pencairan item has not been written yet.
+   */
+  tutupJendelaKeluhan(now: Date): Promise<TutupJendelaHasil>;
 }
 
 /** The staff reads: which Layanan a Lokasi Mitra offers, for a Lokasi they may see. */
@@ -643,6 +716,15 @@ export function createLayanan(deps: LayananDeps): Layanan {
     tandaiTidakDirespons: (at) => tandaiTidakDirespons(deps.db, at),
     pekerjaanTpuHariIniTanpaMitra: () => pekerjaanTpuHariIniTanpaMitra(deps.db, now()),
     pekerjaanTpuPerluTindakan: () => pekerjaanTpuPerluTindakan(deps.db),
+    ajukanKeluhan: (pemesan, input) => ajukanKeluhan(deps, pemesan, input),
+    beriPenilaian: (pemesan, input) => beriPenilaian(deps, pemesan, input),
+    putuskanKeluhan: (by, input) => putuskanKeluhan(deps, by, input),
+    sesuaikanPencairanKeluhan: (by, input) => sesuaikanPencairanKeluhan(deps, by, input),
+    keluhanUntukPlatform: (by, keluhanId) => keluhanUntukPlatform(deps, by, keluhanId),
+    daftarPenilaian: (by) => daftarPenilaian(deps, by),
+    keluhanTerbuka: () => keluhanTerbuka(deps),
+    kerjakanUlangUntukLokasi: (by, lokasiId) => kerjakanUlangUntukLokasi(deps, by, lokasiId),
+    tutupJendelaKeluhan: (now) => tutupJendelaKeluhan(deps, now),
   };
 }
 

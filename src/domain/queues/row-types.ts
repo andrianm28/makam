@@ -12,6 +12,7 @@ import type { Inventory } from "@/domain/inventory";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
@@ -61,6 +62,8 @@ export interface AntreanRowDeps {
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
+  perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
@@ -75,6 +78,8 @@ export interface AntreanRowDeps {
     | "tinjauanTerbuka"
     | "pekerjaanUntukStafTerbaru"
     | "pekerjaanTerlambat"
+    | "keluhanTerbuka"
+    | "kerjakanUlangUntukLokasi"
     // The TPU jobs' Tier 1 and Tier 2 rows (ticket 56).
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
@@ -103,13 +108,13 @@ export interface AntreanRowType {
 }
 
 /**
- * What a Tier 1 row type reads (ticket 28): only these, so the worker,
+ * What a Tier 1 row type reads (ticket 28): only these six, so the worker,
  * which alerts on Tier 1 rows and has no signed-in Admin Platform, can build it
  * without composing every neighbour the rest of the Antrean reads.
  */
 export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan" | "pengurusan"> & {
-  /** The TPU jobs' Tier 1 row (ticket 56) reads the jobs due today that no Mitra Jasa holds. */
-  layanan: Pick<Layanan, "pekerjaanTpuHariIniTanpaMitra">;
+  /** The Tier 1 "Keluhan" row (ticket 51) reads the Layanan module's list of Keluhan waiting for a decision; the TPU jobs' Tier 1 row (ticket 56) reads the jobs due today that no Mitra Jasa holds. */
+  layanan: Pick<AntreanRowDeps["layanan"], "keluhanTerbuka" | "pekerjaanTpuHariIniTanpaMitra">;
 };
 
 /**

@@ -4,8 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import { StatusBadge } from "@/components/makam/status-badge";
 import { authorize, lokasiMitraResource } from "@/domain/identity";
 import { jendelaKerja } from "@/domain/layanan";
+import { keluhanStatusLabels } from "@/lib/layanan-labels";
 import { formatRupiah } from "@/lib/rupiah";
-import { formatTanggal } from "@/lib/time/jakarta";
+import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { LangkahPekerjaan } from "./langkah-pekerjaan";
@@ -66,6 +67,26 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
           target. Lewat tanggal {formatTanggal(pekerjaan.batasTerlambat)} tanpa bukti, pekerjaan ini ditandai terlambat.
         </p>
       </section>
+
+      {pekerjaan.keluhan ? (
+        <section className="flex flex-col gap-1 rounded-lg border border-border bg-warning-soft p-4" aria-labelledby="keluhan-heading">
+          <h2 id="keluhan-heading" className="text-body font-semibold">
+            Keluhan dari pemesan: {keluhanStatusLabels[pekerjaan.keluhan.status]}
+          </h2>
+          <p className="text-body">
+            Diajukan {formatTanggalJam(pekerjaan.keluhan.diajukanAt)}: &ldquo;{pekerjaan.keluhan.alasan}&rdquo;
+          </p>
+          {pekerjaan.keluhan.catatanKeputusan ? (
+            <p className="text-body text-muted-foreground">Keputusan Admin Platform: {pekerjaan.keluhan.catatanKeputusan}</p>
+          ) : null}
+          {pekerjaan.keluhan.status === "kerjakan_ulang" ? (
+            <p className="text-small text-muted-foreground">Kerjakan ulang pekerjaan ini, ambil bukti baru untuk setiap bagian, lalu tandai selesai.</p>
+          ) : null}
+          {pekerjaan.keluhan.status === "terbuka" ? (
+            <p className="text-small text-muted-foreground">Admin Platform sedang memeriksa keluhan ini. Bukti yang sudah ada tidak diubah.</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <LangkahPekerjaan lokasiId={lokasiId} pekerjaan={pekerjaan} />
     </main>
