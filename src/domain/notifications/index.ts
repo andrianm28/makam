@@ -248,8 +248,12 @@ export interface Notifications {
    * address on the order (ticket 22 owns that address); a Tagihan paid through
    * the provider needs no such call, its receipt goes out through Billing's
    * payment effect instead.
+   *
+   * `within` is the issuing module's own open transaction: the announcement
+   * then commits or rolls back with the Tagihan, so a Tagihan is never issued
+   * without its address (and never announced without existing).
    */
-  tagihanTerbit(input: TagihanTerbitInput): Promise<TagihanTerbitResult>;
+  tagihanTerbit(input: TagihanTerbitInput, within?: Database): Promise<TagihanTerbitResult>;
   /**
    * The worker's send tick: sends every queued message whose time has come
    * (reminders only 08:00–20:00 WIB), retries with backoff, drops reminders
@@ -540,8 +544,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return { ok: true };
     },
 
-    async tagihanTerbit(input) {
-      return tagihanTerbit(deps, input);
+    async tagihanTerbit(input, within) {
+      return tagihanTerbit(within ? { ...deps, db: within } : deps, input);
     },
 
     async kirimPesanJatuhTempo(now) {

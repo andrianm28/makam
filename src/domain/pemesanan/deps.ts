@@ -4,6 +4,7 @@ import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
+import type { TagihanTerbitInput, TagihanTerbitResult } from "@/domain/notifications";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -40,6 +41,13 @@ export interface TerencanaQuery {
  * Notifications, which picks the channel, the template and the timing.
  */
 export interface PemesananNotifikasi {
+  /**
+   * A Tagihan this module has just issued to a family, announced inside the
+   * issuing transaction (`tx`): Notifications records where the Tagihan's
+   * messages go and queues the Tagihan email and its reminders. A refusal
+   * rolls the whole confirmation back.
+   */
+  tagihanTerbit(tx: Database, input: TagihanTerbitInput): Promise<TagihanTerbitResult>;
   /** A Pemesanan Makam the Lokasi Mitra has to confirm, named by its Nomor Pemesanan. */
   pesananDiajukan(order: PemesananDiajukan): Promise<void>;
   /**

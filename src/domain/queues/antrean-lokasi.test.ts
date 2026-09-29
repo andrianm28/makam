@@ -123,8 +123,8 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const pemesanan = setupAntrean();
     const setup = pemesanan;
     const fixture = await pesananMenungguKonfirmasi(pemesanan);
-    // A confirmation message that keeps failing: the family must be phoned by that Lokasi's own staff.
-    pemesanan.email.failNextSend(8);
+    // Every message keeps failing (the two Lokasi-work ones and the Tagihan's, four tries each): the family must be phoned.
+    pemesanan.email.failNextSend(12);
     const [blok] = await pemesanan.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
     const [petak] = (await cellsOf(pemesanan, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
     await pemesanan.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, {
@@ -141,8 +141,10 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toHaveLength(2);
     expect(lain.every((row) => row.type === "pesan_lokasi_gagal" && row.subjectKind === "telepon_pemesan" && row.deadline === null)).toBe(true);
-    // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work.
-    expect((await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan")).toEqual([]);
+    // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work
+    // (the Tagihan terbit message failing with them is money, and may show there).
+    const uang = (await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan");
+    expect(uang.filter((row) => row.subjectKind !== "tagihan")).toEqual([]);
 
     for (const row of lain) {
       const logged = await pemesanan.notifications.catatPanggilan(fixture.adminLokasi, {

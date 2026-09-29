@@ -48,6 +48,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
   /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
   const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
   const terkumpul: PemesananNotifikasi = {
+    tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
     },
@@ -126,6 +127,7 @@ export function pemesananOnTestDatabase(db: Database, options: { notifications?:
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     notifikasi: {
+      tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };

@@ -171,6 +171,25 @@ export async function konfirmasiSaatDukaTpu(
     });
     if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
 
+    // Announced in the transaction that issues it: this records where the
+    // Tagihan's messages go, so its email, reminders and receipt find an address
+    // (an order with no email opens a Telepon Pemesan row).
+    const diumumkan = await deps.notifikasi.tagihanTerbit(
+      {
+        tagihanId: tagihan.tagihan.id,
+        momentKind: "saat_duka",
+        nomorTagihan: tagihan.tagihan.nomorTagihan,
+        nomorPemesanan: order.nomor,
+        email: order.email,
+        perihal: `Pengurusan pemakaman di ${order.tpuName}`,
+        total: tagihan.tagihan.total,
+        dueAt: tagihan.tagihan.dueAt,
+        link: tagihan.tagihan.link,
+      },
+      tx,
+    );
+    if (!diumumkan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
+
     // The condition on the update is the module's own guard against two
     // confirmations at once: whichever loses finds no row to move and the
     // whole transaction rolls back, Tagihan number included.

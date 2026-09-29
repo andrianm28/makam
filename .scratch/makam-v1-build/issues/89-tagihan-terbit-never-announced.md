@@ -1,0 +1,33 @@
+# A Tagihan was never announced: `tagihanTerbit` had no caller
+
+Status: in-progress
+Blocked by: —
+Spec: spec.md, Notifications (the family's messages, keyed to the Tagihan) and Billing > Documents
+
+## What to build
+
+`notifications.tagihanTerbit` is the only writer of `notifications_tagihan_kontak`, the address a Tagihan's messages go to, and nothing outside Notifications and test support called it. In production no Tagihan was announced: the "Tagihan terbit" email and every Tagihan-keyed reminder, overdue and refund message (tickets 19, 20, 25, 29, 31) found no address and never went out; the Bukti Pembayaran receipt logged `tanpa_email` for a family that had given an email. Ticket 36's Comments claimed otherwise, wrongly.
+
+Announce the Tagihan from every path that issues one to a family, **inside the issuing transaction** (a Tagihan is never issued without its address, and a refused announcement rolls the confirmation back), through Notifications only:
+
+- Saat Duka confirmation by the Admin Lokasi (`src/domain/pemesanan/konfirmasi-saat-duka.ts`);
+- Saat Duka TPU confirmation by the Admin Platform (`src/domain/pengurusan/konfirmasi-saat-duka-tpu.ts`).
+
+An order with no email falls back exactly as `tagihanTerbit` already does (a Telepon Pemesan row). Announcing is idempotent.
+
+## Acceptance criteria
+
+- [x] A failing domain test through the real flow (Admin Lokasi's confirmation, Admin Platform's TPU confirmation) asserts the Pemesan's email receives the Tagihan message with its link, exactly once; it failed on `main`.
+- [x] `Notifications.tagihanTerbit(input, within?)` takes the issuing module's open transaction; the Pemesanan and Pengurusan seams call it inside the transaction that issues the Tagihan.
+- [x] No other issuer exists in `src`: `reissueTagihan` has no caller outside Billing yet (Harga Khusus, ticket 30), the Terencana order issues no Tagihan yet (ticket 37), Perpanjangan has no checkout yet, and `seed-tagihan` is a development tool. Each of those must announce through the same call when it lands.
+- [x] The e2e path `e2e/bukti-pemesanan.spec.ts` is unchanged.
+
+## Notes
+
+- The family now gets the confirmation email (which carries the link) **and** the "Tagihan terbit" email for a Saat Duka order. Merging them into one message is a product decision, not taken here.
+- A Tagihan whose "Tagihan terbit" message keeps failing opens a "Telepon Pemesan" call row for Admin Platform (it is a money message), which `src/domain/queues/antrean-lokasi.test.ts` now allows for alongside the Lokasi's own rows.
+- `e2e/bukti-pemesanan.spec.ts` still reads the Tagihan link from the order page: a queued family message is sent by the worker, whose in-memory outbox the web container's dev endpoint does not see. The email now exists (the domain tests read it from the fake EmailSender), but the e2e cannot observe it, and that is left as is.
+
+## Comments
+
+- 2026-09-29 — Reproduced first: `src/domain/notifications/tagihan-terbit-alur.test.ts` (Saat Duka at a Lokasi Mitra, Saat Duka TPU) failed on `main` with no Tagihan email for the Pemesan; both pass with the fix. Correction to ticket 36's Spec 8 claim written in its Comments. Review pending.
