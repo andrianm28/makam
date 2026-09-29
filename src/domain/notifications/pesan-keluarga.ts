@@ -101,8 +101,23 @@ const TAGIHAN_MENUNGGU_UANG = ["belum_dibayar", "lewat_jatuh_tempo"];
  * email per reminder kind, however often the announcement is made.
  */
 export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbitInput): Promise<TagihanTerbitResult> {
-  const parsed = tagihanTerbitSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, reason: "tagihan_tidak_valid" };
+  let parsed = tagihanTerbitSchema.safeParse(input);
+  if (!parsed.success) {
+    // The issuing confirmation is urgent and must not be blocked by its own
+    // announcement. Report which fields were refused (never their values) and
+    // degrade to the address-less path: a "Telepon Pemesan" row, so the family
+    // is called and CS shares the link by hand. Only if the Tagihan itself is
+    // unusable without the address is it refused.
+    deps.reportError(new Error("tagihanTerbit: input refused by its schema"), {
+      tags: {
+        module: "notifications",
+        template: "tagihan_terbit",
+        fields: [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))].join(","),
+      },
+    });
+    parsed = tagihanTerbitSchema.safeParse({ ...input, email: null });
+    if (!parsed.success) return { ok: false, reason: "tagihan_tidak_valid" };
+  }
   const data = parsed.data;
   const now = deps.clock.now();
 

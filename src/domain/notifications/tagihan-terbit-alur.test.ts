@@ -7,6 +7,7 @@
  * (Admin Lokasi at a Lokasi Mitra, Admin Platform at a TPU) with the real
  * Notifications module and read only what the fake EmailSender received.
  */
+import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { createPengurusan } from "@/domain/pengurusan";
@@ -93,5 +94,30 @@ describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Ta
     const terbit = tagihanTerbitUntuk(queues, fixture.pemesan.email);
     expect(terbit).toHaveLength(1);
     expect(terbit[0]?.text).toContain(`/dokumen/${hasil.tagihan.link}`);
+  });
+});
+
+describe("a confirmation is never blocked by its Tagihan's announcement", () => {
+  it("still confirms an order whose stored email the schema rejects, and opens the Telepon Pemesan row instead", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const fixture = await saatDukaFixture(setup);
+    await siapkanOperatorPemesanan(setup);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    const placed = await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), rencanaPemakamanAt: "2026-10-02T10:00" });
+    if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
+    await db.execute(sql`update pemesanan_makam set email = 'bukan-email' where nomor = ${placed.pemesanan.nomor}`);
+    const [blok] = await setup.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
+    const petak = (await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
+
+    const hasil = await setup.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, {
+      nomor: placed.pemesanan.nomor,
+      petakId: petak[0]!.id,
+      pemakamanAt: "2026-10-02T10:00",
+    });
+
+    expect(hasil.ok).toBe(true);
+    expect((await setup.notifications.teleponPemesanTerbuka()).some((row) => row.subjectKind === "tagihan" && row.sebab === "tanpa_email")).toBe(true);
+    expect(setup.reportedErrors).toHaveLength(1);
+    expect(JSON.stringify(setup.reportedErrors)).not.toContain("bukan-email");
   });
 });
