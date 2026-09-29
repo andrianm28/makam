@@ -67,9 +67,11 @@ import {
   issueTagihan,
   lapseDuePayFirstTagihan,
   cariTagihan,
+  listTagihanMenungguPengembalian,
   listTagihanRetribusiLunas,
   readTagihan,
   reissueTagihan,
+  tandaiPengembalian,
   type IssueTagihanInput,
   type IssueTagihanResult,
   type NewTagihanLine,
@@ -77,6 +79,7 @@ import {
   type RetribusiTagihan,
   type Tagihan,
   type TagihanRingkas,
+  type TandaiPengembalianResult,
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
@@ -122,6 +125,7 @@ export {
   type TagihanLine,
   type TagihanRingkas,
   type TagihanStatus,
+  type TandaiPengembalianResult,
   type TariffLineKind,
 } from "./tagihan";
 
@@ -209,6 +213,20 @@ export interface Billing {
   tagihanRetribusiLunas(): Promise<RetribusiTagihan[]>;
   /** Finds Tagihan by Nomor Tagihan or Nomor Pemesanan (a start of either, at least 3 characters), newest first: how staff open one by hand. */
   cariTagihan(query: string): Promise<TagihanRingkas[]>;
+  /**
+   * Every Tagihan that asked for money back and has not been paid out yet
+   * (spec, Billing > Refunds), oldest request first: the Refunds module's
+   * (ticket 31) own source for the automatic half of "one refund flow for the
+   * whole platform" — a Saat Duka cancellation (ticket 24) today.
+   */
+  tagihanMenungguPengembalian(): Promise<Tagihan[]>;
+  /**
+   * Moves a Tagihan to Dikembalikan sebagian / penuh once its Bukti
+   * Pengembalian Dana is issued. The Refunds module (ticket 31) calls this
+   * `within` the same transaction that issues that Bukti, so the two commit
+   * together; only Billing itself writes a Tagihan's status otherwise.
+   */
+  tandaiPengembalian(tagihanId: string, input: { kind: "sebagian" | "penuh" }): Promise<TandaiPengembalianResult>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -321,6 +339,8 @@ export function createBilling(deps: BillingDeps): Billing {
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),
     cariTagihan: (query) => cariTagihan(deps.db, query),
+    tagihanMenungguPengembalian: () => listTagihanMenungguPengembalian(deps.db),
+    tandaiPengembalian: (tagihanId, input) => tandaiPengembalian(deps.db, tagihanId, input),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),

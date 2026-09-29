@@ -202,7 +202,17 @@ export type AuditAction =
   /** Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra" record (ticket 30). */
   | "tagihan.batalkan_pembayaran_langsung"
   /** Admin Platform sets a Harga Khusus on an order: cancels and reissues its Tagihan with a negative line (ticket 30). */
-  | "tagihan.tetapkan_harga_khusus";
+  | "tagihan.tetapkan_harga_khusus"
+  /** Admin Platform raises a goodwill refund on a Tagihan, from the Operator's own funds (ticket 31). */
+  | "pengembalian.ajukan_goodwill"
+  /** Admin Platform approves a refund request: the Tier 3 "refund transfer" row appears (ticket 31). */
+  | "pengembalian.setujui"
+  /** The refund's destination bank account is recorded by Admin Platform on the Pemesan's behalf (ticket 31). */
+  | "pengembalian.isi_rekening"
+  /** The Pemesan enters the refund's destination bank account on their own order; the number is masked in the entry (ticket 31). */
+  | "pengembalian.isi_rekening_pemesan"
+  /** Admin Platform transfers a refund by hand, uploads the proof and enters the date: one Bukti Pengembalian Dana (ticket 31). */
+  | "pengembalian.terbitkan_bukti";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

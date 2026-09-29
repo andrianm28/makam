@@ -7,6 +7,7 @@ import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesanan";
 import { composePayouts } from "@/composition/payouts";
+import { composeRefunds } from "@/composition/refunds";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
@@ -19,6 +20,7 @@ import { createOperatorSettings, type OperatorSettings } from "@/domain/operator
 import type { Pemesanan } from "@/domain/pemesanan";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import type { Payouts } from "@/domain/payouts";
+import type { Refunds } from "@/domain/refunds";
 import { createQueues, type Queues } from "@/domain/queues";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { readRuntimeEnv, type RuntimeEnv } from "@/lib/env";
@@ -53,6 +55,8 @@ export interface ServerRuntime {
   pengurusan: Pengurusan;
   /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
   payouts: Payouts;
+  /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
+  refunds: Refunds;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -172,6 +176,21 @@ export function serverRuntime(): ServerRuntime {
     // Fills the lazy reference `billingComposition.kurangiPencairanPesanan`
     // closed over above, now that Payouts exists to call.
     payoutsRef.current = payouts;
+    // Refunds (ticket 31) reads a Tagihan and numbers a Bukti through Billing
+    // and nets through Payouts, so it is composed after both.
+    const refunds = composeRefunds({
+      env,
+      db: database.db,
+      adapters,
+      audit,
+      lokasi,
+      billing,
+      payouts,
+      notifications,
+      operatorSettings,
+      pemesanan,
+      reportError,
+    });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.
     const pengurusan = createPengurusan({
@@ -204,6 +223,7 @@ export function serverRuntime(): ServerRuntime {
       fieldwork,
       pemesanan,
       payouts,
+      refunds,
       queues: createQueues({
         db: database.db,
         clock: adapters.clock,
@@ -217,6 +237,7 @@ export function serverRuntime(): ServerRuntime {
         pemesanan,
         payouts,
         pengurusan,
+        refunds,
       }),
       pengurusan,
     };

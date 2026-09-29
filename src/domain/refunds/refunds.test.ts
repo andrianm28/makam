@@ -1,0 +1,320 @@
+/**
+ * Refunds end to end (spec, Billing > Refunds; Work Queues > Tier 3 "refund
+ * transfers"; ticket 31's ACs), driven only through the public interfaces of
+ * Refunds, Billing, Payouts and Pemesanan.
+ */
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import type { Actor } from "@/domain/identity";
+import { wib } from "@/lib/time/jakarta";
+import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import {
+  bayarTagihan,
+  catatPemakaman,
+  konfirmasiPesanan,
+  pesananSaatDukaSiap,
+} from "../../../tests/support/payouts";
+import { buktiTransfer, refundsOnTestDatabase, type RefundsSetup } from "../../../tests/support/refunds";
+
+const { db, close } = testDatabase();
+afterAll(close);
+beforeEach(resetDatabase);
+
+/** The signed-in Pemesan of a fixture's order, as the guard would hand it to the module. */
+function pemesanActor(pemesan: { accountId: string; email: string }): Actor {
+  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-uji" };
+}
+
+const pemakaman = wib("2026-10-02 10:00");
+const hariTransfer = "2026-10-01";
+const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" };
+
+/** A confirmed, paid Saat Duka order, still before its burial (a Saat Duka cancellation's own boundary, ticket 24). */
+async function pesananTerbayar(setup: RefundsSetup) {
+  const fixture = await pesananSaatDukaSiap(setup);
+  const konfirmasi = await konfirmasiPesanan(setup, fixture);
+  await bayarTagihan(setup, konfirmasi.tagihanId);
+  return { ...fixture, ...konfirmasi };
+}
+
+/** That same order cancelled by the family, the way ticket 24 built it. */
+async function pesananDibatalkan(setup: RefundsSetup) {
+  const fixture = await pesananTerbayar(setup);
+  const dibatalkan = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga berubah pikiran" });
+  if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+  return fixture;
+}
+
+/** A fully paid out order: Lunas, buried, ticked and its Bukti Pencairan already issued to the Lokasi Mitra. */
+async function pesananSudahDicairkan(setup: RefundsSetup) {
+  const fixture = await pesananTerbayar(setup);
+  await catatPemakaman(setup, fixture.nomor, pemakaman);
+  await setup.payouts.tick();
+  const [row] = await setup.payouts.jalankanPencairan(fixture.admin);
+  if (!row?.items.length) throw new Error("no due Pencairan item");
+  const terbit = await setup.payouts.terbitkanBuktiPencairan(fixture.admin, {
+    // Every due item, so the whole order (Petak tariff and Biaya Pemakaman) is
+    // already paid out, not just its first item.
+    itemIds: row.items.map((item) => item.id),
+    ditransferPada: hariTransfer,
+    bukti: buktiTransfer,
+  });
+  if (!terbit.ok) throw new Error(`Bukti Pencairan refused: ${terbit.reason}`);
+  return fixture;
+}
+
+/** The one open request of a cancelled order, after the tick has materialised it. */
+async function permintaanTerbuka(setup: RefundsSetup) {
+  await setup.refunds.tick();
+  const [permintaan] = await setup.refunds.permintaanTerbuka();
+  if (!permintaan) throw new Error("no open request");
+  return permintaan;
+}
+
+describe("materialising a cancelled, paid Tagihan", () => {
+  it("turns a Pemesan's own cancellation into an open request that keeps the Biaya Layanan Platform", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+
+    expect(await setup.refunds.tick()).toEqual({ materialised: 1 });
+    const terbuka = await setup.refunds.permintaanTerbuka();
+    expect(terbuka).toHaveLength(1);
+    expect(terbuka[0]).toMatchObject({
+      tagihanId: fixture.tagihanId,
+      sumber: "pembatalan",
+      pihakBersalah: "pemesan",
+      biayaLayananPlatformDikembalikan: false,
+      goodwill: false,
+      penuh: true,
+      jumlah: 9_500_000,
+      status: "diajukan",
+    });
+  });
+
+  it("returns the Biaya Layanan Platform too when the fault is the Lokasi's, the Mitra Jasa's or the Operator's", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    // A cancellation that is not the Pemesan's: Billing cancels the bill, and the
+    // caller (Terlambat, Berhenti) names whose fault it was.
+    const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+    // Billing's own figure keeps the fee; the spec's rule, not that figure, decides here.
+    expect(dibatalkan.pengembalian?.jumlah).toBe(9_500_000);
+
+    expect(await setup.refunds.ajukanDariPembatalan(fixture.tagihanId, { pihakBersalah: "lokasi" })).toEqual({ ok: true });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ pihakBersalah: "lokasi", biayaLayananPlatformDikembalikan: true, jumlah: 9_650_000 });
+    expect(permintaan?.lines.map((line) => line.label).length).toBeGreaterThan(2);
+    // The tick never adds a second request for the same cancellation.
+    expect(await setup.refunds.tick()).toEqual({ materialised: 0 });
+  });
+
+  it("is idempotent: ticking twice never doubles the request", async () => {
+    const setup = refundsOnTestDatabase(db);
+    await pesananDibatalkan(setup);
+
+    expect(await setup.refunds.tick()).toEqual({ materialised: 1 });
+    expect(await setup.refunds.tick()).toEqual({ materialised: 0 });
+    expect(await setup.refunds.permintaanTerbuka()).toHaveLength(1);
+  });
+
+  it("materialises nothing for a Tagihan cancelled before any payment came in", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+    await konfirmasiPesanan(setup, fixture);
+    const dibatalkan = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Batal" });
+    expect(dibatalkan.ok).toBe(true);
+
+    expect(await setup.refunds.tick()).toEqual({ materialised: 0 });
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
+  });
+});
+
+describe("approval, the Tier 3 refund transfer row and the transfer", () => {
+  it("appears on approval with a 2 Hari Kerja deadline, closes when the proof is uploaded, and shows that proof on the Bukti's own link", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+    const pemesan = pemesanActor(fixture.pemesan);
+
+    expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);
+    // The Pemesan of the order enters the account before approval.
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
+
+    const setuju = await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    if (!setuju.ok) throw new Error(`approval refused: ${setuju.reason}`);
+    expect(setuju.permintaan.status).toBe("disetujui");
+    // 2026-10-01 (Thursday) + 2 Hari Kerja on the Admin Platform calendar
+    // (Monday–Friday) = the close of Monday 2026-10-05 (ticket 11).
+    expect(setuju.permintaan.tenggatTransferPada).toEqual(wib("2026-10-05 23:59"));
+    expect((await setup.refunds.pengembalianJatuhTempo()).map((row) => row.id)).toEqual([permintaan.id]);
+
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
+      permintaanId: permintaan.id,
+      ditransferPada: hariTransfer,
+      bukti: buktiTransfer,
+    });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(terbit.bukti).toMatchObject({
+      nomor: "RFD/2026/000001",
+      tagihanId: fixture.tagihanId,
+      amount: 9_500_000,
+      biayaLayananPlatformDikembalikan: false,
+      rekening,
+    });
+
+    // The Tier 3 row closes the moment the proof is uploaded (AC 3).
+    expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);
+    // A refunded Tagihan already Dibatalkan moves on to Dikembalikan penuh (AC 7).
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+    // A Saat Duka Tagihan has no family contact in notifications_tagihan_kontak
+    // (only a Tagihan kind that calls `tagihanTerbit` gets one), so its refund
+    // reaches the family by ADR 0004's fallback, a Telepon Pemesan row.
+    expect(await setup.notifications.teleponPemesanTerbuka()).toContainEqual(
+      expect.objectContaining({ subjectKind: "tagihan", subjectId: fixture.tagihanId, sebab: "tanpa_email" }),
+    );
+
+    // The document's own link carries the proof, as a short-lived signed URL.
+    const dokumen = await setup.refunds.buktiPengembalianDana(terbit.bukti.link);
+    expect(dokumen?.buktiTransferUrl).toEqual(expect.stringContaining("pengembalian/"));
+    expect(dokumen).not.toHaveProperty("buktiTransferKey");
+    expect(await setup.refunds.buktiPengembalianDana("bukan-tautan")).toBeNull();
+  });
+
+  it("cannot be transferred before a bank account is on file", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+
+    expect(
+      await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer }),
+    ).toEqual({ ok: false, reason: "rekening_belum_diisi" });
+  });
+
+  it("only Admin Platform may approve or transfer", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+
+    expect(await setup.refunds.setujuiPengembalian(fixture.adminLokasi, { permintaanId: permintaan.id })).toMatchObject({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+  });
+});
+
+describe("the refund's bank account", () => {
+  it("is the Pemesan's to enter only on their own order, locked once approved, and changed after that only by Admin Platform with a reason", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+    const pemesan = pemesanActor(fixture.pemesan);
+    const orangLain = pemesanActor({ accountId: "akun-lain", email: "lain@contoh.id" });
+
+    // Someone whose order it is not finds nothing to write to.
+    expect(await setup.refunds.isiRekeningPemesan(orangLain, { nomorPemesanan: fixture.nomor, rekening })).toEqual({
+      ok: false,
+      reason: "tidak_ditemukan",
+    });
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
+    // The Pemesan may still correct it until the refund is approved.
+    const diperbaiki = { ...rekening, nomor: "7123450000" };
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening: diperbaiki })).toMatchObject({
+      ok: true,
+      permintaan: { rekening: diperbaiki },
+    });
+
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    expect(await setup.refunds.isiRekeningPemesan(pemesan, { nomorPemesanan: fixture.nomor, rekening })).toEqual({ ok: false, reason: "terkunci" });
+
+    // Admin Platform changes it, and only with a reason.
+    expect(await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "  " })).toEqual({
+      ok: false,
+      reason: "input_tidak_valid",
+    });
+    expect(await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Salah ketik, dikonfirmasi lewat telepon" })).toMatchObject({
+      ok: true,
+      permintaan: { rekening },
+    });
+
+    // Every write is in the Audit Log, and no entry holds a whole account number.
+    const entri = await setup.audit.entriesAbout({ kind: "permintaan_pengembalian", id: permintaan.id });
+    expect(entri.map((entry) => entry.action)).toEqual([
+      "pengembalian.isi_rekening_pemesan",
+      "pengembalian.isi_rekening_pemesan",
+      "pengembalian.setujui",
+      "pengembalian.isi_rekening",
+    ]);
+    const teks = JSON.stringify(entri);
+    expect(teks).toContain("****6789");
+    expect(teks).not.toContain("7123456789");
+    expect(teks).not.toContain("7123450000");
+    expect(entri.at(-1)?.reason).toBe("Salah ketik, dikonfirmasi lewat telepon");
+  });
+});
+
+describe("netted from the partner: money already paid out becomes a Potongan", () => {
+  it("records a Potongan for the Lokasi Mitra that had already been paid, never on a fresh transfer", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananSudahDicairkan(setup);
+
+    // The netted, fault-based refund of a Keluhan or Pembatalan has no caller
+    // yet (see the ticket's Comments); this exercises Refunds' own reaction to
+    // money that already left, on a Tagihan whose Lokasi Mitra was paid before
+    // the refund was ever asked for.
+    const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+    expect(dibatalkan.pengembalian?.jumlah).toBe(9_500_000);
+
+    const permintaan = await permintaanTerbuka(setup);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+
+    expect(await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id)).toEqual([]);
+
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
+      permintaanId: permintaan.id,
+      ditransferPada: hariTransfer,
+      bukti: buktiTransfer,
+    });
+    expect(terbit.ok).toBe(true);
+
+    const potongan = await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id);
+    expect(potongan).toHaveLength(1);
+    expect(potongan[0]).toMatchObject({ amount: 9_500_000, alasanKind: "pengembalian_dana", status: "berjalan" });
+  });
+});
+
+describe("goodwill: Operator-funded, never netted", () => {
+  it("refunds from the Operator's own funds without touching the Lokasi Mitra's Pencairan or Potongan", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananSudahDicairkan(setup);
+    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+
+    const diajukan = await setup.refunds.ajukanGoodwill(fixture.admin, {
+      tagihanId: fixture.tagihanId,
+      nomorTagihan: tagihan.nomorTagihan,
+      nomorPemesanan: fixture.nomor,
+      jumlah: 500_000,
+      catatan: "Permintaan maaf atas keterlambatan",
+    });
+    if (!diajukan.ok) throw new Error(`goodwill request refused: ${diajukan.reason}`);
+    expect(diajukan.permintaan).toMatchObject({ goodwill: true, penuh: false, jumlah: 500_000 });
+
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaan.id });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: diajukan.permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
+      permintaanId: diajukan.permintaan.id,
+      ditransferPada: hariTransfer,
+      bukti: buktiTransfer,
+    });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(terbit.bukti.amount).toBe(500_000);
+
+    // Never netted: no Potongan, whatever Payouts already paid the Lokasi Mitra.
+    expect(await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id)).toEqual([]);
+    // A partial refund leaves the Tagihan Dikembalikan sebagian, not penuh.
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_sebagian" });
+  });
+});

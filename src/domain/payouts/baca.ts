@@ -134,6 +134,29 @@ export async function itemsBelumJatuhTempo(db: Database): Promise<ItemRow[]> {
     .orderBy(asc(pencairanItem.dibuatPada));
 }
 
+/**
+ * What a Tagihan's items already paid to a Lokasi Mitra come to, by Lokasi
+ * (`batalkanPencairanTagihan` cancels what is still `jatuh_tempo` or
+ * `belum_jatuh_tempo`; this is everything it deliberately left alone — spec,
+ * Payouts: "An item that was already transferred is left alone: that money is
+ * gone, and clawing it back is a Potongan, a decision of its own"). The Refunds
+ * module (ticket 31) reads this after a full refund to know whether it owes a
+ * Potongan, and for how much. Never a Mitra Jasa: Potongan are never charged
+ * to one, so a Mitra Jasa's already-paid item is not this read's business.
+ */
+export async function sudahDicairkanUntukTagihan(db: Database, tagihanId: string): Promise<{ lokasiId: string; amount: Rupiah }[]> {
+  const rows = await db
+    .select()
+    .from(pencairanItem)
+    .where(and(eq(pencairanItem.tagihanId, tagihanId), eq(pencairanItem.status, "dicairkan"), eq(pencairanItem.penerimaKind, "lokasi_mitra")));
+  const byLokasi = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.lokasiId) continue;
+    byLokasi.set(row.lokasiId, (byLokasi.get(row.lokasiId) ?? 0) + jumlahOf(row));
+  }
+  return [...byLokasi.entries()].map(([lokasiId, amount]) => ({ lokasiId, amount: amount as Rupiah }));
+}
+
 /** What a Lokasi Mitra currently owes and may net: its `berjalan` Potongan, oldest first. */
 export async function potonganBerjalan(db: Database, lokasiId: string): Promise<BarisPotongan[]> {
   const rows = await db

@@ -15,6 +15,7 @@ import {
   type TagihanLine,
 } from "@/domain/billing";
 import type { DokumenBuktiPencairan } from "@/domain/payouts";
+import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
 import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
@@ -25,7 +26,10 @@ import { bayarTagihan } from "./actions";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
 
-type Document = BillingDocument | { type: "bukti_pencairan"; pencairan: DokumenBuktiPencairan };
+type Document =
+  | BillingDocument
+  | { type: "bukti_pencairan"; pencairan: DokumenBuktiPencairan }
+  | { type: "bukti_pengembalian_dana"; bukti: DokumenBuktiPengembalianDana };
 
 async function documentOf(params: Promise<{ link: string }>): Promise<{ link: string; document: Document } | null> {
   const parsed = paramsSchema.safeParse(await params);
@@ -36,20 +40,30 @@ async function documentOf(params: Promise<{ link: string }>): Promise<{ link: st
   // A Bukti Pencairan is the Payouts module's document, not Billing's: whoever it
   // was paid to opens it on the same unguessable link (spec, Billing > Pencairan run).
   const pencairan = await runtime.payouts.buktiPencairan(parsed.data.link);
-  return pencairan && { link: parsed.data.link, document: { type: "bukti_pencairan", pencairan } };
+  if (pencairan) return { link: parsed.data.link, document: { type: "bukti_pencairan", pencairan } };
+  // A Bukti Pengembalian Dana is the Refunds module's document (ticket 31), same idea.
+  const pengembalian = await runtime.refunds.buktiPengembalianDana(parsed.data.link);
+  return pengembalian && { link: parsed.data.link, document: { type: "bukti_pengembalian_dana", bukti: pengembalian } };
+}
+
+function documentTitle(document: Document): string {
+  switch (document.type) {
+    case "tagihan":
+      return `Tagihan ${document.tagihan.nomorTagihan}`;
+    case "bukti_pembayaran":
+      return `Bukti Pembayaran ${document.bukti.nomorBukti}`;
+    case "bukti_pemesanan":
+      return `Bukti Pemesanan ${document.bukti.nomor}`;
+    case "bukti_pencairan":
+      return `Bukti Pencairan ${document.pencairan.nomorBukti}`;
+    case "bukti_pengembalian_dana":
+      return `Bukti Pengembalian Dana ${document.bukti.nomor}`;
+  }
 }
 
 export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">): Promise<Metadata> {
   const found = await documentOf(params);
-  const title = !found
-    ? "Dokumen tidak ditemukan"
-    : found.document.type === "tagihan"
-      ? `Tagihan ${found.document.tagihan.nomorTagihan}`
-      : found.document.type === "bukti_pembayaran"
-        ? `Bukti Pembayaran ${found.document.bukti.nomorBukti}`
-        : found.document.type === "bukti_pemesanan"
-          ? `Bukti Pemesanan ${found.document.bukti.nomor}`
-          : `Bukti Pencairan ${found.document.pencairan.nomorBukti}`;
+  const title = found ? documentTitle(found.document) : "Dokumen tidak ditemukan";
   // A document's link is its only key: never indexed, never followed.
   return { title: `${title} · Makam.co.id`, robots: { index: false, follow: false } };
 }
@@ -75,11 +89,18 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
       </div>
       <article className={cn(cardSurface, "flex flex-col gap-6 p-6 sm:p-10 print:rounded-none print:border-0 print:p-0 print:shadow-none")}>
         {document.type === "tagihan" ? (
-          <TagihanView link={link} tagihan={document.tagihan} notPayableBecause={document.notPayableBecause} buktiLink={document.buktiLink} />
+          <TagihanView
+            link={link}
+            tagihan={document.tagihan}
+            notPayableBecause={document.notPayableBecause}
+            buktiLink={document.buktiLink}
+          />
         ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
         ) : document.type === "bukti_pemesanan" ? (
           <BuktiPemesananView bukti={document.bukti} />
+        ) : document.type === "bukti_pengembalian_dana" ? (
+          <BuktiPengembalianDanaView bukti={document.bukti} />
         ) : document.pencairan.type === "bukti_pencairan" ? (
           <BuktiPencairanView bukti={document.pencairan} />
         ) : (
@@ -116,6 +137,15 @@ function TagihanView({
           Batas pembayaran Tagihan ini sudah lewat, sehingga tidak bisa dibayar lagi.
         </p>
       ) : null}
+      {tagihan.pengembalianDiminta && tagihan.nomorPemesanan ? (
+        <p className="rounded-lg border border-dashed px-4 py-3 print:hidden">
+          Dana sebesar {formatRupiah(tagihan.pengembalianDiminta.jumlah)} akan dikembalikan. Pemesan mengisi rekening tujuan{" "}
+          <a href={`/pesanan/${tagihan.nomorPemesanan}`} className="text-brand underline">
+            di halaman pesanan setelah masuk ke akun
+          </a>
+          .
+        </p>
+      ) : null}
       <Facts
         facts={[
           [addresseeText("tagihan", tagihan.addressee.role), tagihan.addressee.name],
@@ -141,6 +171,42 @@ function TagihanView({
           : "Mohon dibayar sebelum jatuh tempo. Bila belum dibayar sampai waktu itu, tagihan ini batal dengan sendirinya. Pembayaran boleh dilakukan oleh siapa saja yang memegang tautan tagihan ini."}
       </p>
       <DocumentFoot header={tagihan.header} />
+    </>
+  );
+}
+
+/** The Bukti Pengembalian Dana (CONTEXT.md): the Operator's record of a refund transfer, referencing the Tagihan it partly or fully reverses. */
+function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianDana }) {
+  return (
+    <>
+      <DocumentTop header={bukti.header} title="Bukti Pengembalian Dana" number={bukti.nomor} status="Ditransfer" />
+      <Facts
+        facts={[
+          ["Untuk Tagihan", bukti.nomorTagihan],
+          ["Nomor Pemesanan", bukti.nomorPemesanan],
+          ["Tanggal transfer", formatTanggal(`${bukti.ditransferPada}T00:00`)],
+          ["Rekening tujuan", `${bukti.rekening.bank} · ****${bukti.rekening.nomor.slice(-4)} a.n. ${bukti.rekening.nama}`],
+        ]}
+      />
+      <BuktiTable
+        caption="Baris yang dikembalikan"
+        rows={bukti.lines.map((line) => [line.label, formatRupiah(line.amount)])}
+        total={formatRupiah(bukti.amount)}
+        totalLabel="Total dikembalikan"
+      />
+      <p className="text-muted-foreground">
+        {bukti.biayaLayananPlatformDikembalikan
+          ? "Biaya Layanan Platform pada Tagihan ini termasuk dalam pengembalian."
+          : "Biaya Layanan Platform pada Tagihan ini tidak termasuk dalam pengembalian."}
+      </p>
+      {bukti.buktiTransferUrl ? (
+        <div className="print:hidden">
+          <a href={bukti.buktiTransferUrl} target="_blank" rel="noreferrer noopener" className={buttonVariants({ variant: "outline" })}>
+            Lihat bukti transfer
+          </a>
+        </div>
+      ) : null}
+      <DocumentFoot header={bukti.header} />
     </>
   );
 }

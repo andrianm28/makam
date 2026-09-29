@@ -41,9 +41,25 @@ const LANDLINE = String.raw`(?:(?:\+62|${BARE_62})${SEP}\(?|\(?0)[2-79]\d{1,2}\)
  */
 const INDONESIAN_PHONE = new RegExp(`${START}(?:${MOBILE}|${LANDLINE})${END}`, "g");
 
-/** Removes phone numbers and email addresses. Emails first, so their digits are never read as a number. */
+export const REKENING_PLACEHOLDER = "[rekening]";
+
+/**
+ * A bank account number (a refund's destination, ticket 31): 10-16 digits in one
+ * run, or 12-16 in groups of four. Not glued to a letter or digit, and not an
+ * amount: "Rp" before it, or a separator between digit groups, leaves it alone.
+ * Phone numbers are scrubbed first, so a mobile number is never called an account.
+ */
+const REKENING = new RegExp(
+  String.raw`(?<![0-9A-Za-z]|\d[.,-]|Rp\.?\s?)(?:\d{10,16}|\d{4}(?:[ -]\d{4}){2,3})(?![0-9A-Za-z]|[.,-]\d)`,
+  "g",
+);
+
+/** Removes phone numbers, email addresses and bank account numbers. Emails first, so their digits are never read as a number. */
 export function scrubText(text: string): string {
-  return text.replace(EMAIL, EMAIL_PLACEHOLDER).replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER);
+  return text
+    .replace(EMAIL, EMAIL_PLACEHOLDER)
+    .replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER)
+    .replace(REKENING, REKENING_PLACEHOLDER);
 }
 
 const MAX_DEPTH = 8;

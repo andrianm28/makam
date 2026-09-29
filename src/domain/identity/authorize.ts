@@ -159,6 +159,10 @@ export type Action =
   | "pencairan.punya_saya"
   /** Hold an item out of a run, override what it pays, record a Potongan, and transfer with a Bukti Pencairan (Admin Platform only). */
   | "pencairan.kelola"
+  /** Raise, approve and transfer a refund, issuing a Bukti Pengembalian Dana (Admin Platform only). */
+  | "pengembalian.kelola"
+  /** The Pemesan enters the destination bank account of the refund on their own order, until it is approved (ticket 31). */
+  | "pengembalian.isi_rekening"
   /** The Admin Lokasi of the order's own Lokasi Mitra declines it, with a reason from the fixed list. */
   | "pemesanan.tolak"
   /** The Admin Lokasi of the order's own Lokasi Mitra offers an alternative (another Jenis Makam or day). */
@@ -211,6 +215,8 @@ export type Resource =
   | { kind: "pengurusan_tpu" }
   /** The Setor Retribusi rows (Admin Platform, and the Petugas Lapangan who pays in person). */
   | { kind: "setor_retribusi" }
+  /** Every refund request, its approval and its Bukti Pengembalian Dana (Admin Platform alone). */
+  | { kind: "pengembalian" }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string }
   /** A Tagihan acted on directly by staff (manual payment, Harga Khusus): Admin Platform's own money work, not a Lokasi Mitra's. */
@@ -302,6 +308,11 @@ export function antreanResource(): Resource {
 /** The Pencairan run: every recipient's due items and Potongan, and the Bukti Pencairan a transfer issues. */
 export function pencairanResource(): Resource {
   return { kind: "pencairan" };
+}
+
+/** Every refund request, its approval and its Bukti Pengembalian Dana. */
+export function pengembalianResource(): Resource {
+  return { kind: "pengembalian" };
 }
 
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
@@ -503,6 +514,12 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // A Mitra Jasa reads its own Pencairan and no one's else: an Admin Platform
       // has the run instead, and a suspended or ended one keeps this (story 182).
       return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
+    case "pengembalian.isi_rekening":
+      return resource.kind === "pemesanan_makam" && resource.accountId === actor.accountId ? allowed : denied;
+    case "pengembalian.kelola":
+      // No money leaves without Admin Platform (spec, Billing > Refunds): raising,
+      // approving and transferring a refund are all this one action.
+      return resource.kind === "pengembalian" && holds("admin_platform") ? allowed : denied;
     case "pengurusan.lihat_staf":
     case "pengurusan.konfirmasi":
       // A TPU is a Pemda's cemetery, never a partner the Operator onboards, so

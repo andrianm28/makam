@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { pemesananResource } from "@/domain/identity";
 import { DOKUMEN_MAX_BYTES, batalkanSaatDukaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
+import { rekeningSchema } from "@/domain/refunds";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
@@ -103,6 +104,32 @@ export async function batalkanPesananAction(_previous: PesananActionState, formD
         ? `Pesanan dibatalkan. Tagihan ${tagihan.nomorTagihan} dibatalkan dan ${rupiah(tagihan.jumlahDikembalikan)} sedang dikembalikan.`
         : "Pesanan dibatalkan. Tidak ada biaya pembatalan.",
   };
+}
+
+const REKENING_GAGAL: Record<string, string> = {
+  tidak_ditemukan: "Tidak ada pengembalian dana yang menunggu rekening untuk pesanan ini.",
+  terkunci: "Pengembalian dana ini sudah disetujui, jadi rekening tidak bisa diubah di sini. Hubungi CS bila perlu mengubahnya.",
+  sudah_ditransfer: "Pengembalian dana ini sudah ditransfer.",
+  input_tidak_valid: "Periksa lagi isian rekening Anda.",
+};
+
+/** The family enters where the refund on its own order goes, until Admin Platform approves it (ticket 31). */
+export async function isiRekeningPengembalianAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "pengembalian.isi_rekening",
+    resource: (actor) => pemesananResource(actor.accountId),
+    schema: z.object({ nomorPemesanan: z.string(), rekening: rekeningSchema }),
+    input: {
+      nomorPemesanan: nomor,
+      rekening: { bank: formData.get("bank"), nomor: formData.get("nomorRekening"), nama: formData.get("nama") },
+    },
+    run: (actor, data) => serverRuntime().refunds.isiRekeningPemesan(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: REKENING_GAGAL[result.value.reason] ?? "Rekening gagal disimpan." };
+  return { status: "berhasil", message: "Rekening tersimpan. Kami akan mentransfer pengembalian dana ke rekening ini." };
 }
 
 /** A guard refusal in the family's words: a session that ended says so, the rest is the module's. */

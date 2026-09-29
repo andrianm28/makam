@@ -360,6 +360,34 @@ export function tagihanTerbitEmail(input: TagihanEmailInput): { subject: string;
   };
 }
 
+export interface PengembalianTerbitEmailInput {
+  nomorTagihan: string;
+  nomorPemesanan: string | null;
+  jumlah: number;
+  biayaLayananPlatformDikembalikan: boolean;
+  /** The Bukti Pengembalian Dana page's full URL. */
+  tautan: string;
+}
+
+/** A Bukti Pengembalian Dana issued: the amount, and whether it is the full refundable amount (ticket 31). */
+export function pengembalianTerbitEmail(input: PengembalianTerbitEmailInput): { subject: string; body: string } {
+  const lines = [
+    "Yth. Bapak/Ibu,",
+    "",
+    `Kami telah mentransfer pengembalian dana sebesar ${formatRupiah(input.jumlah)} untuk Tagihan ${input.nomorTagihan}` +
+      (input.nomorPemesanan ? ` (pesanan ${input.nomorPemesanan})` : "") +
+      ".",
+  ];
+  if (!input.biayaLayananPlatformDikembalikan) {
+    lines.push("Biaya Layanan Platform pada Tagihan ini tidak termasuk dalam pengembalian.");
+  }
+  lines.push("", `Lihat Bukti Pengembalian Dana di: ${input.tautan}`, "", "Hormat kami,", "Tim makam.co.id");
+  return {
+    subject: `Pengembalian dana untuk Tagihan ${input.nomorTagihan} sebesar ${formatRupiah(input.jumlah)}`,
+    body: lines.join("\n"),
+  };
+}
+
 /** A pay-first reminder: H-1 or the due day (only 08:00–20:00 WIB). */
 export function tagihanPengingatEmail(
   macam: "h_1" | "hari_h",

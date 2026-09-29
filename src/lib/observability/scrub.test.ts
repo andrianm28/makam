@@ -57,6 +57,23 @@ describe("phone number scrubbing", () => {
   });
 });
 
+describe("bank account number scrubbing (refund destination, ticket 31)", () => {
+  it.each([
+    ["7123456789", "10 digits"],
+    ["1234567890123456", "16 digits"],
+    ["1234 5678 9012 3456", "groups of four with spaces"],
+    ["1234-5678-9012", "groups of four with dashes"],
+  ])("removes the account %s (%s)", (nomor) => {
+    expect(scrubText(`Transfer ke BSI ${nomor} gagal`)).toBe("Transfer ke BSI [rekening] gagal");
+  });
+
+  it("does not turn a mobile number into an account, nor an amount, a date or an id", () => {
+    expect(scrubText("hubungi 081234567890")).toBe("hubungi [telepon]");
+    const text = "Rp 6221000000 Rp 12.025.500 MKM-2026-021234 2026-10-01";
+    expect(scrubText(text)).toBe(text);
+  });
+});
+
 describe("email address scrubbing (email login, ticket 67)", () => {
   it.each([
     ["sari@contoh.id", "plain"],

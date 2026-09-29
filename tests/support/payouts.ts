@@ -2,6 +2,7 @@ import { FakePdfRenderer } from "@/adapters/memory";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
+import { createRefunds } from "@/domain/refunds";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createQueues } from "@/domain/queues";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
@@ -100,8 +101,25 @@ export function payoutsOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     notifikasi: setup.notifications,
   });
-  // The Antrean beside it: the Tier 3 "Pencairan" row is the Payouts query the
-  // Work Queues module projects, and a test of one wants the other.
+  // Refunds (ticket 31) reads a Tagihan and numbers a Bukti through Billing and
+  // nets through Payouts, so it is composed after both — a downstream module,
+  // never a dependency of either.
+  const refunds = createRefunds({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    billing: setup.billing,
+    payouts,
+    notifications: setup.notifications,
+    operatorSettings: setup.operatorSettings,
+    buktiUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
+    pemilikPesanan: async (nomor, accountId) => (await pemesanan.orderOf(nomor, { accountId })) !== null,
+  });
+  // The Antrean beside it: the Tier 3 "Pencairan" and "refund transfer" rows are
+  // the Payouts and Refunds queries the Work Queues module projects, and a test
+  // of one wants the others.
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -118,8 +136,9 @@ export function payoutsOnTestDatabase(db: Database) {
     // staff contact it shows a family.
     pengurusan,
     identity: setup.identity,
+    refunds,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, dikirim, queues };
+  return { ...setup, pemesanan, pengurusan, payouts, dikirim, queues, refunds };
 }
 
 export type PayoutsSetup = ReturnType<typeof payoutsOnTestDatabase>;

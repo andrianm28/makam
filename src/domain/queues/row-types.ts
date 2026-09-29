@@ -12,6 +12,7 @@ import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Pengurusan } from "@/domain/pengurusan";
+import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
 
 export type AntreanTier = 1 | 2 | 3 | 4;
@@ -51,6 +52,8 @@ export interface AntreanRowDeps {
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
+  refunds: Pick<Refunds, "pengembalianJatuhTempo">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */

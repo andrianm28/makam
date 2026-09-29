@@ -18,6 +18,7 @@ export function schedulerContext(parts: {
   notifications?: Pick<Notifications, "kirimPesanJatuhTempo">;
   pemesanan?: SchedulerContext["pemesanan"];
   payouts?: SchedulerContext["payouts"];
+  refunds?: SchedulerContext["refunds"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -36,6 +37,9 @@ export function schedulerContext(parts: {
     // The Payouts ticks change nothing until a test gives them a real module: an
     // empty table is what an ageing tick and a trigger both find anyway.
     payouts: parts.payouts ?? { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
+    // Refunds' own tick changes nothing until a test gives it a real module: an
+    // empty Billing list is what the materialising tick finds anyway.
+    refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
   };
 }
 
