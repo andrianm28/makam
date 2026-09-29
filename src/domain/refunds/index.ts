@@ -117,9 +117,7 @@ export interface Refunds {
    * fault; the Biaya Layanan Platform follows the fee rule, once per Tagihan.
    * Approval, transfer and the Bukti are the same flow as any other request.
    */
-  ajukanBaris(tagihanId: string, input: AjukanBarisInput): Promise<AjukanBarisResult>;
-  /** The same module on another transaction, so a caller records a cancellation and its refund request in one commit. */
-  within(tx: Database): Refunds;
+  ajukanBaris(tagihanId: string, input: AjukanBarisInput, within?: Database): Promise<AjukanBarisResult>;
 }
 
 export function createRefunds(deps: RefundsDeps): Refunds {
@@ -156,8 +154,13 @@ export function createRefunds(deps: RefundsDeps): Refunds {
     isiRekeningPemesan: (by, input) => isiRekeningPemesan(rekeningDeps, by, input),
     isiRekeningAdmin: (by, input) => isiRekeningAdmin(rekeningDeps, by, input),
     terbitkanBuktiPengembalianDana: (by, input) => terbitkanBuktiPengembalianDana(transferDeps, by, input),
-    ajukanBaris: (tagihanId, input) => ajukanBaris({ db: deps.db, clock: deps.clock, billing: deps.billing }, tagihanId, input),
-    within: (tx) => createRefunds({ ...deps, db: tx, billing: deps.billing.within(tx) }),
+    // `within` is the caller's open transaction: the request and what the caller writes commit together.
+    ajukanBaris: (tagihanId, input, within) =>
+      ajukanBaris(
+        { db: within ?? deps.db, clock: deps.clock, billing: within ? deps.billing.within(within) : deps.billing },
+        tagihanId,
+        input,
+      ),
     permintaanTerbuka: () => permintaanTerbuka(deps.db),
     permintaan: (id) => permintaanById(deps.db, id),
     permintaanUntukPesanan: (nomor) => permintaanUntukPesanan(deps.db, nomor),

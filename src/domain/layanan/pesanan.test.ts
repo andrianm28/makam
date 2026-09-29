@@ -315,19 +315,33 @@ describe("placing an order Layanan", () => {
     if (!hasil.ok) throw new Error("order refused");
 
     const pesanTagihan = await setup.notifications.pesanTagihan(hasil.tagihan.id);
+    // The Tagihan's own "terbit" email is folded into the order email (one email, not two).
+    expect(pesanTagihan.map((pesan) => pesan.template)).not.toContain("tagihan_terbit");
     expect(pesanTagihan.map((pesan) => pesan.template)).toEqual(
-      expect.arrayContaining(["tagihan_terbit", "tagihan_pengingat_hari_h"]),
+      expect.arrayContaining(["tagihan_pengingat_hari_h"]),
     );
     // The order's own confirmation is the other message the family gets, and it is about the order.
     const pesanOrder = await setup.notifications.pesanLayanan(hasil.pesanan.nomor);
     expect(pesanOrder.map((pesan) => pesan.template)).toContain("layanan_pesanan_terbit");
   });
 
-  // TODO(ticket 89): `bersamaKonfirmasi` is not on `main` yet, so an order still sends two emails (the order
-  // confirmation and "Tagihan terbit"). When 89 lands, pass `bersamaKonfirmasi: true` in
-  // src/composition/layanan.ts and turn this into a test that reads the family's messages and finds
-  // exactly one email carrying the Tagihan's link, with the H-1 and due-day reminders still queued.
-  it.todo("sends exactly one email for an order: the order email carries the Tagihan link (needs ticket 89's bersamaKonfirmasi)");
+  it("sends exactly one email for an order: the order email carries both the Tagihan link and the order page", async () => {
+    const { setup, lokasi, petak, pemesan } = await siap({}, true);
+    const hasil = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"));
+    if (!hasil.ok) throw new Error("order refused");
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    // A reminder is a different kind of email; the order itself is announced by exactly one.
+    const terkirim = setup.email.sent.filter((pesan) => pesan.to === pemesan.email && !pesan.subject.startsWith("Pengingat") && pesan.text.includes("/dokumen/"));
+    expect(terkirim).toHaveLength(1);
+    expect(terkirim[0].subject).not.toContain("telah terbit");
+    expect(terkirim[0].text).toContain(`/dokumen/${hasil.tagihan.link}`);
+    expect(terkirim[0].text).toContain(`/layanan/${hasil.pesanan.nomor}`);
+    // The Tagihan's own "terbit" email is not queued, but its due-day reminder still is.
+    const templates = (await setup.notifications.pesanTagihan(hasil.tagihan.id)).map((pesan) => pesan.template);
+    expect(templates).not.toContain("tagihan_terbit");
+    expect(templates).toContain("tagihan_pengingat_hari_h");
+  });
 
   it("announces nothing when it refuses", async () => {
     const { setup, lokasi, petak, pemesan } = await siap({ leadTimeDays: 5 });

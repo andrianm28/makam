@@ -108,8 +108,8 @@ export interface LayananDeps {
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   /**
    * A cancelled job's refund is asked of the Refunds module on the cancellation's own
-   * transaction (`within`), so a job is never cancelled without its refund request.
+   * transaction (its `within` parameter), so a job is never cancelled without its refund request.
    */
-  refunds: Pick<Refunds, "within">;
+  refunds: Pick<Refunds, "ajukanBaris">;
   notifikasi: LayananNotifikasi;
 }

@@ -14,7 +14,7 @@ import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
  * Notifications module's; this only says who must hear it and what they need.
  *
  * Both messages are queued on the transaction that writes what they are about
- * (Notifications `within`), so neither exists without its order or its finished
+ * (Notifications' `within` parameter), so neither exists without its order or its finished
  * job. Without a Notifications module — a fixture that only wants to see the
  * announcement — the no-op below drops it.
  */
@@ -28,28 +28,29 @@ export function layananNotifikasiDari(notifications: Notifications | undefined):
   if (!notifications) return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {} };
   return {
     pesananLayananTerbit: async (tx, hasil) => {
-      // Both messages are queued on the order's own transaction (Notifications `within`).
-      const pesan = notifications.within(tx);
-      await pesan.layananPesananTerbit(hasil);
+      // Both messages are queued on the order's own transaction (Notifications' `within` parameter).
+      await notifications.layananPesananTerbit(hasil, tx);
       // The Tagihan itself is announced too (ticket 89): its H-1 and due-day reminders are queued from
-      // here, and the family's contact is recorded for the receipt and any refund.
-      // TODO(ticket 89): pass `bersamaKonfirmasi: true` here once it is on `main`, so the family gets one
-      // email (the order email above already carries the Tagihan's number and link); the pending test
-      // "sends exactly one email for an order" in src/domain/layanan/pesanan.test.ts says so.
-      await pesan.tagihanTerbit({
-        tagihanId: hasil.tagihan.id,
-        momentKind: "layanan",
-        nomorTagihan: hasil.tagihan.nomorTagihan,
-        nomorPemesanan: hasil.nomor,
-        email: hasil.email,
-        perihal: `Layanan makam di ${hasil.lokasi.name}`,
-        total: hasil.tagihan.total,
-        dueAt: hasil.tagihan.dueAt,
-        link: hasil.tagihan.link,
-      });
+      // here and the family's contact is recorded. `bersamaKonfirmasi` because the order email above
+      // already carries the Tagihan's number and link, so the family gets one email, not two.
+      await notifications.tagihanTerbit(
+        {
+          tagihanId: hasil.tagihan.id,
+          momentKind: "layanan",
+          nomorTagihan: hasil.tagihan.nomorTagihan,
+          nomorPemesanan: hasil.nomor,
+          email: hasil.email,
+          perihal: `Layanan makam di ${hasil.lokasi.name}`,
+          total: hasil.tagihan.total,
+          dueAt: hasil.tagihan.dueAt,
+          link: hasil.tagihan.link,
+          bersamaKonfirmasi: true,
+        },
+        tx,
+      );
     },
     pekerjaanSelesai: async (tx, hasil) => {
-      await notifications.within(tx).layananPekerjaanSelesai(hasil);
+      await notifications.layananPekerjaanSelesai(hasil, tx);
     },
   };
 }

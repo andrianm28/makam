@@ -347,9 +347,9 @@ export interface Notifications {
   /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
-  layananPesananTerbit(input: LayananPesananTerbitInput): Promise<PesanLayananResult>;
+  layananPesananTerbit(input: LayananPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
-  layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput): Promise<PesanLayananResult>;
+  layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
   /** Every logged message about one order Layanan, oldest first. */
   pesanLayanan(nomorPemesanan: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
@@ -394,12 +394,6 @@ export interface Notifications {
   tambahCatatanTagihan(by: Actor, input: TambahCatatanTagihanInput): Promise<TambahCatatanTagihanResult>;
   /** Every standalone note on one Tagihan's call log, oldest first. */
   catatanTagihan(tagihanId: string): Promise<CatatanTagihan[]>;
-  /**
-   * The same module on another transaction, so a caller queues a family message
-   * in the very commit that writes the data it is about (a message that exists
-   * only if the order or the finished job does).
-   */
-  within(tx: Database): Notifications;
 }
 
 export function createNotifications(deps: NotificationsDeps): Notifications {
@@ -678,11 +672,11 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pesananBuktiPemesanan(deps, input);
     },
 
-    async layananPesananTerbit(input) {
-      return layananPesananTerbit(deps, input);
+    async layananPesananTerbit(input, within) {
+      return layananPesananTerbit(within ? { ...deps, db: within } : deps, input);
     },
-    async layananPekerjaanSelesai(input) {
-      return layananPekerjaanSelesai(deps, input);
+    async layananPekerjaanSelesai(input, within) {
+      return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
     },
     async pesanLayanan(nomorPemesanan) {
       return pesanLayanan(deps, nomorPemesanan);
@@ -747,10 +741,6 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async catatanTagihan(tagihanId) {
       return catatanTagihan(db, tagihanId);
-    },
-
-    within(tx) {
-      return createNotifications({ ...deps, db: tx });
     },
   };
   return notifications;

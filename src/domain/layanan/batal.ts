@@ -189,10 +189,14 @@ async function tulisPengembalian(
   // Refunds owns the rule and the request: the job's own line goes in, and whether the Biaya
   // Layanan Platform comes back follows who is at fault (the Pemesan cancelling keeps it, the
   // Lokasi's lateness returns it, once for the Tagihan).
-  const diajukan = await deps.refunds.within(tx).ajukanBaris(tagihan.id, {
-    pihakBersalah: karenaLateness ? "lokasi" : "pemesan",
-    lines: [{ label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
-  });
+  const diajukan = await deps.refunds.ajukanBaris(
+    tagihan.id,
+    {
+      pihakBersalah: karenaLateness ? "lokasi" : "pemesan",
+      lines: [{ label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
+    },
+    tx,
+  );
   if (!diajukan.ok) return "tertunda";
   const baris = diajukan.lines.map((satu) => ({ label: satu.label, amount: satu.amount }));
   const values = {
