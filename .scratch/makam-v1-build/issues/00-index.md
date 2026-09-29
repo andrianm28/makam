@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 91 tickets (as of 2026-09-29): 66 resolved, 16 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-29): 67 resolved, 18 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -41,7 +41,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 91 tickets (as of 2026-0
 | [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | ready-for-agent | 25, 34 |
 | [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | resolved | 16, 82 |
 | [37](37-terencana-confirmation-and-payment.md) | Terencana confirmation, payment hold and Aktif | resolved | 23, 32, 36 |
-| [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | ready-for-agent | 31, 37 |
+| [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | resolved | 31, 37 |
 | [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
 | [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | resolved | 29, 32, 34, 82 |
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | resolved | 40 |
@@ -394,3 +394,6 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [89](89-tagihan-terbit-never-announced.md) | A Tagihan was never announced: `tagihanTerbit` had no caller | resolved | — |
 | [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | resolved | 25, 32 |
 | [91](91-staff-alerts-retried.md) | Staff alerts are sent once and never retried | ready-for-agent | — |
+| [92](92-pembatalan-kedua-menunggu-transfer.md) | A second Pembatalan on one Tagihan waits for the earlier refund's transfer | ready-for-agent | — |
+| [93](93-stored-tagihan-id-after-harga-khusus.md) | Readers of an order's stored Tagihan id after a Harga Khusus reissue | ready-for-agent | — |
+| [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | ready-for-agent | — |
