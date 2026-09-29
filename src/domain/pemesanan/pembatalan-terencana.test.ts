@@ -28,6 +28,8 @@ interface OpsiPesanan extends TerencanaOptions {
   /** Who holds the Hak Pakai: the Pemesan themselves (default), or a relative with an Akun of their own. */
   pemegangHak?: "pemesan" | "lain";
   nomorPetak?: string[];
+  /** A Harga Khusus the Operator gave before the family paid: the Tagihan is reissued and the reissue is what is paid. */
+  hargaKhusus?: number;
 }
 
 /**
@@ -57,7 +59,19 @@ async function pesananAktif(setup: PemesananSetup, opsi: OpsiPesanan = {}) {
   const konfirmasi = await setup.pemesanan.konfirmasiTerencana(fixture.adminLokasi, { nomor });
   if (!konfirmasi.ok) throw new Error(`konfirmasiTerencana refused: ${JSON.stringify(konfirmasi)}`);
   setup.clock.advance({ hours: 1 });
-  const dibayar = await setup.billing.recordPayment(konfirmasi.tagihan.id, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+  let tagihanDibayar = konfirmasi.tagihan.id;
+  if (opsi.hargaKhusus) {
+    const khusus = await setup.billing.tetapkanHargaKhusus(admin, {
+      tagihanId: konfirmasi.tagihan.id,
+      amount: opsi.hargaKhusus,
+      alasan: "Keringanan untuk keluarga",
+      porsiMitra: 0,
+      catatanPorsiMitra: "Ditanggung Operator",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    tagihanDibayar = khusus.tagihan.id;
+  }
+  const dibayar = await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
   if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
   const order = await setup.pemesanan.terencanaUntukStaf(fixture.adminLokasi, nomor);
   if (order?.status !== "aktif") throw new Error(`the paid order is ${order?.status}`);
@@ -780,5 +794,36 @@ describe("the Lokasi Mitra's Pencairan of a cancelled Pemesanan Terencana", () =
     // The unpaid item is gone (nothing more is paid for what the family got back) and the rest, Rp 1.500.000, is what is claimed back.
     expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
     expect(await setup.payouts.potonganOfLokasi(dasar.fixture.lokasiMitra.id)).toEqual([expect.objectContaining({ amount: 1_500_000, alasanKind: "pengembalian_dana" })]);
+  });
+});
+
+describe("a Pembatalan after a Harga Khusus", () => {
+  it("refunds what the family really paid from the reissued Tagihan, and the Lokasi Mitra's Pencairan follows the same amount", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    // Two plots at Rp 2.500.000 each, a Harga Khusus of Rp 1.500.000 borne by the Operator: the family paid Rp 3.500.000 plus the fee.
+    const dasar = await pesananAktif(setup, { hargaKhusus: 1_500_000 });
+    const permintaan = await ajukan(setup, dasar);
+    // Not the Rp 2.500.000 line of the Tagihan first issued, but A-01's share of what was paid: Rp 1.750.000.
+    expect(permintaan).toMatchObject({ dalamMasaPembatalan: true, persenRefund: 100, jumlahRefund: 1_750_000 });
+    const preview = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1]);
+    expect(preview).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: true, refund: { tarif: 1_750_000, jumlahRefund: 1_750_000 } } } });
+
+    const hasil = await setujui(setup, dasar, permintaan.id);
+    const refund = await setup.refunds.permintaan(hasil.pengembalian!.permintaanId);
+    // The refund is asked on the Tagihan the family paid (the reissue), which is the one Refunds may refund from.
+    expect(refund).toMatchObject({ jumlah: 1_750_000, penuh: false });
+    await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: refund!.id });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: refund!.id,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 1_750_000 } });
+
+    // The Lokasi Mitra's items (the Operator bore the Harga Khusus, so Rp 5.000.000) are lowered by that same Rp 1.750.000.
+    setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
+    await setup.payouts.tick();
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 3_250_000 })]);
   });
 });

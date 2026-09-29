@@ -125,14 +125,20 @@ async function permintaanTerakhir(deps: Pick<PemesananDeps, "db">, hakPakaiId: s
  */
 async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerencana.$inferSelect, unit: UnitRow, sekarang: Date): Promise<HitungPembatalan | null> {
   if (!order.tagihanId || !order.masaPembatalanBerakhirPada) return null;
-  const tagihan = await deps.billing.tagihan(order.tagihanId);
+  // The Tagihan in force now: a Harga Khusus reissue replaced the one the order stored, and the family paid the replacement.
+  const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
   if (!tagihan) return null;
   const hargaHakPakai = tagihan.lines.filter((line) => line.kind === "harga_hak_pakai");
   const urutan = (await unitsOfOrder(deps.db, order.id)).findIndex((satu) => satu.id === unit.id);
   const barisUnit = hargaHakPakai.find((line) => "label" in line && line.label.endsWith(` · ${nomorUnit(unit)}`)) ?? hargaHakPakai[urutan];
   if (!barisUnit) return null;
+  // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own line,
+  // so what is refunded is what the family really paid for the plot and never more.
+  const jumlahHarga = hargaHakPakai.reduce((sum, line) => sum + line.amount, 0);
+  const penyesuaian = tagihan.lines.filter((line) => line.kind === "penyesuaian_harga_khusus").reduce((sum, line) => sum + line.amount, 0);
+  const dibayarUntukUnit = jumlahHarga > 0 ? Math.floor((barisUnit.amount * (jumlahHarga + penyesuaian)) / jumlahHarga) : barisUnit.amount;
   return hitungPembatalanTerencana({
-    lines: [barisUnit, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
+    lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
     syarat: order.syarat,
     masaPembatalanBerakhirPada: order.masaPembatalanBerakhirPada,
     sekarang,

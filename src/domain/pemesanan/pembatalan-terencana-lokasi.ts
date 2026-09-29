@@ -117,8 +117,9 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
     // with this one, everything the fee rule returns has been refunded in full: Refunds decides that from the whole Tagihan.
     let pengembalian: { permintaanId: string } | null = null;
     if (row.jumlahRefund > 0) {
-      if (!order.tagihanId) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
-      const diminta = await deps.refunds.ajukanBaris(order.tagihanId, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: row.lines }, tx);
+      const tagihanBerlaku = order.tagihanId ? await deps.billing.within(tx).tagihanBerlaku(order.tagihanId) : null;
+      if (!tagihanBerlaku) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
+      const diminta = await deps.refunds.ajukanBaris(tagihanBerlaku.id, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: row.lines }, tx);
       if (!diminta.ok) {
         return { ok: false, reason: diminta.reason === "menunggu_transfer" ? "pengembalian_sebelumnya_menunggu_transfer" : "pengembalian_tidak_bisa_diajukan" };
       }

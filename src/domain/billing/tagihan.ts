@@ -360,6 +360,24 @@ export async function readTagihan(db: Database, tagihanId: string): Promise<Tagi
   return toTagihan(db, row);
 }
 
+/**
+ * The Tagihan in force for an order that was issued `tagihanId` once: itself, or the last of the replacements a Harga Khusus
+ * (or any reissue) put in its place. A reissue cancels the old Tagihan and issues a new one with new lines, so whoever stored
+ * the first id and now needs what the family really owes or paid asks this rather than reading the old lines.
+ */
+export async function readTagihanBerlaku(db: Database, tagihanId: string): Promise<Tagihan | null> {
+  if (!z.uuid().safeParse(tagihanId).success) return null;
+  let id = tagihanId;
+  // A chain is one reissue per Harga Khusus or correction: the bound only guards against a cycle that cannot exist.
+  for (let langkah = 0; langkah < 50; langkah += 1) {
+    const [row] = await db.select().from(tagihan).where(eq(tagihan.id, id));
+    if (!row) return null;
+    if (!row.replacedById) return toTagihan(db, row);
+    id = row.replacedById;
+  }
+  return null;
+}
+
 /** A Lunas Tagihan the Operator still owes a town's charge on: the shape the Setor Retribusi row and its recording are about. */
 export interface RetribusiTagihan {
   tagihanId: string;
