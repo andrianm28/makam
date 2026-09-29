@@ -34,7 +34,7 @@ import {
 import { pilihanSaatDukaTpu, type KartuTpu, type PilihanSaatDukaTpuQuery } from "./pilihan";
 import { placeSaatDukaTpu, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 import { jawabTpuLain, tawarkanTpuLain, type JawabTpuLainResult, type TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
-import { orderForStaff, orderOf, type PengurusanOrder } from "./reads";
+import { orderForStaff, orderOf, pesananSaya, type PengurusanOrder } from "./reads";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan } from "./skema-pengurusan";
 
 export type { Pemesan, PengurusanDeps } from "./deps";
@@ -85,6 +85,8 @@ export interface Pengurusan {
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PengurusanOrder | null>;
   /** The same order as Admin Platform reads it, by its Nomor Pemesanan, or null. */
   orderForStaff(by: Actor, nomor: string): Promise<PengurusanOrder | null>;
+  /** Every Pengurusan order of that Akun, newest first (Akun Saya's Pesanan tab, ticket 27). */
+  pesananSaya(pemesan: { accountId: string }): Promise<PengurusanOrder[]>;
   /**
    * Every Saat Duka TPU order still waiting for a confirmation: what the Antrean's
    * Tier 1 "Konfirmasi TPU Saat Duka" row is a projection of. Admin Platform only.
@@ -120,6 +122,7 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     placeSaatDukaTpu: (input) => placeSaatDukaTpu(withAudit, input),
     orderOf: (nomor, pemesan) => orderOf(withAudit, pemesan, nomor),
     orderForStaff: (by, nomor) => orderForStaff(withAudit, nomor),
+    pesananSaya: (pemesan) => pesananSaya(withAudit, pemesan),
     konfirmasiTpuTerbuka: () => konfirmasiTpuTerbuka(withAudit),
     konfirmasiSaatDukaTpu: (by, input) => konfirmasiSaatDukaTpu(withAudit, by, input),
     tawarkanTpuLain: (by, input) => tawarkanTpuLain(withAudit, by, input),

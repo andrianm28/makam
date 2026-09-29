@@ -7,10 +7,12 @@ import {
   bentukCariDari,
   kartuAksi,
   aksiDari,
+  STATUS_HAK_PAKAI,
   type AksiMakamKeluarga,
   type BarisMakamSaya,
   type BentukCari,
   type KartuAksi,
+  type StatusHakPakaiTerbaca,
 } from "@/lib/makam-keluarga-content";
 import { serverRuntime } from "@/server/runtime";
 
@@ -26,14 +28,6 @@ export interface PilihanLokasi {
   id: string;
   name: string;
   city: string;
-}
-
-/** A Hak Pakai status as a family is told: the word, and what it means for them. */
-export interface StatusHakPakaiTerbaca {
-  key: "aktif" | "kedaluwarsa" | "berakhir" | "dibatalkan";
-  label: string;
-  /** What the status means and what happens next (docs/design-system.md: explain every status). */
-  arti: string;
 }
 
 export interface PetakTerbaca {
@@ -77,17 +71,6 @@ export interface TampilanHub {
    */
   tabSaya: BarisMakamSaya[];
 }
-
-const STATUS_HAK_PAKAI: Record<StatusHakPakaiTerbaca["key"], StatusHakPakaiTerbaca> = {
-  aktif: { key: "aktif", label: "Aktif", arti: "Hak Pakai masih berlaku di Lokasi Mitra ini." },
-  kedaluwarsa: {
-    key: "kedaluwarsa",
-    label: "Masa Berlaku Habis",
-    arti: "Masa Hak Pakai sudah habis, jadi perpanjangan perlu diminta ke Lokasi Mitra.",
-  },
-  berakhir: { key: "berakhir", label: "Berakhir", arti: "Hak Pakai sudah berakhir; hubungi pengelola Lokasi Mitra untuk urusannya." },
-  dibatalkan: { key: "dibatalkan", label: "Dibatalkan", arti: "Hak Pakai dibatalkan, sehingga petak ini sudah dikembalikan ke Lokasi Mitra." },
-};
 
 /** The same sentence for every miss, so the answer never says which question was closer. */
 const TIDAK_DITEMUKAN =

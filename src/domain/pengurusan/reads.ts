@@ -14,7 +14,7 @@
  * its public function, never restated here: the figure the family reads on this
  * page is the figure the Tagihan carries, because it is that Tagihan.
  */
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { PengurusanDeps } from "./deps";
 import { pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuStatus } from "./schema";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak } from "./skema-pengurusan";
@@ -85,6 +85,22 @@ export async function orderOf(
   if (!row || row.pemesanAccountId !== pemesan.accountId) return null;
   const tagihan = row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null;
   return toOrder(row, tagihan);
+}
+
+/**
+ * Every Pengurusan order of that Akun, newest first (Akun Saya's Pesanan tab,
+ * ticket 27, spec story 100): the Saat Duka TPU orders it placed, alongside
+ * that Akun's Pemesanan Makam orders — one Nomor Pemesanan series, one list.
+ */
+export async function pesananSaya(deps: Pick<PengurusanDeps, "db" | "billing">, pemesan: { accountId: string }): Promise<PengurusanOrder[]> {
+  const rows = await deps.db
+    .select()
+    .from(pengurusanTpu)
+    .where(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId))
+    .orderBy(desc(pengurusanTpu.diajukanAt));
+  return Promise.all(
+    rows.map(async (row) => toOrder(row, row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null)),
+  );
 }
 
 /** The same order as Admin Platform reads it before confirming it (the Tier 1 row's page). */

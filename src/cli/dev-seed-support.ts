@@ -34,8 +34,9 @@ export const scanPerjanjian = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
 
 /**
  * The stack's first Admin Platform (seeded by `seed:admin`) as a local
- * developer with the stack's shell could act. Never on staging or
- * production: each command refuses those before this is reached.
+ * developer with the stack's shell could act. Never on production, and on
+ * staging only for a command run under its explicit `--izinkan-staging`
+ * (seed-contoh-publik); every other command refuses staging before this.
  */
 export async function adminPlatform(identity: Identity): Promise<Actor | null> {
   const admin = (await identity.staffAccounts()).find((account) => account.roles.includes("admin_platform") && !account.deactivated);
