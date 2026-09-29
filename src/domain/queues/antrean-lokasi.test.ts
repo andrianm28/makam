@@ -123,7 +123,7 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const pemesanan = setupAntrean();
     const setup = pemesanan;
     const fixture = await pesananMenungguKonfirmasi(pemesanan);
-    // A confirmation message that keeps failing: the family must be phoned by that Lokasi's own staff.
+    // Every message keeps failing (the order's two Lokasi-work messages, four tries each): the family must be phoned.
     pemesanan.email.failNextSend(8);
     const [blok] = await pemesanan.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
     const [petak] = (await cellsOf(pemesanan, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
@@ -141,7 +141,8 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toHaveLength(2);
     expect(lain.every((row) => row.type === "pesan_lokasi_gagal" && row.subjectKind === "telepon_pemesan" && row.deadline === null)).toBe(true);
-    // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work.
+    // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work, and
+    // the confirmation is one email (the Tagihan has none of its own), so no money call is opened.
     expect((await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan")).toEqual([]);
 
     for (const row of lain) {

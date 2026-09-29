@@ -54,6 +54,7 @@ export function pemesananOnTestDatabase(
   /** Every Chasing schedule the Pemesanan module announced, once a pay-after Tagihan's overdue anchor is known (ticket 29). */
   const chasingDijadwalkan: ChasingDijadwalkan[] = [];
   const terkumpul: PemesananNotifikasi = {
+    tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
     },
@@ -140,6 +141,7 @@ export function pemesananOnTestDatabase(
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     notifikasi: {
+      tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };

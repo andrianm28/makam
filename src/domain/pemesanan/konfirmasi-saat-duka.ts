@@ -118,6 +118,24 @@ export async function konfirmasiSaatDuka(
     });
     if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
 
+    // The Tagihan is announced in the same transaction that issues it: this is
+    // what records where its messages go, so its email, reminders and receipt
+    // all find an address (an order with no email opens a Telepon Pemesan row).
+    const diumumkan = await deps.notifikasi.tagihanTerbit(tx, {
+      tagihanId: tagihan.tagihan.id,
+      // The confirmation email carries this Tagihan's number and link: one email, not two.
+      bersamaKonfirmasi: true,
+      momentKind: "saat_duka",
+      nomorTagihan: tagihan.tagihan.nomorTagihan,
+      nomorPemesanan: order.nomor,
+      email: order.email,
+      perihal: `Pemakaman dan Hak Pakai Makam di ${order.lokasiName}`,
+      total: tagihan.tagihan.total,
+      dueAt: tagihan.tagihan.dueAt,
+      link: tagihan.tagihan.link,
+    });
+    if (!diumumkan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
+
     const moved = await tx
       .update(pemesananMakam)
       .set({
