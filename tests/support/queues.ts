@@ -48,6 +48,7 @@ export function queuesOnTestDatabase(db: Database) {
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     notifikasi: {
+      tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {
         dikonfirmasiTpu.push(hasil);
         return { ok: true };

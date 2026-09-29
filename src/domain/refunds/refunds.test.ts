@@ -166,10 +166,14 @@ describe("approval, the Tier 3 refund transfer row and the transfer", () => {
     expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);
     // A refunded Tagihan already Dibatalkan moves on to Dikembalikan penuh (AC 7).
     expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
-    // A Saat Duka Tagihan has no family contact in notifications_tagihan_kontak
-    // (only a Tagihan kind that calls `tagihanTerbit` gets one), so its refund
-    // reaches the family by ADR 0004's fallback, a Telepon Pemesan row.
-    expect(await setup.notifications.teleponPemesanTerbuka()).toContainEqual(
+    // Since ticket 89 a Saat Duka confirmation records the Tagihan's family
+    // contact, so the Bukti Pengembalian Dana reaches the Pemesan by email and
+    // no Telepon Pemesan row is needed for it.
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(
+      setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.text.includes(terbit.bukti.link)),
+    ).toHaveLength(1);
+    expect(await setup.notifications.teleponPemesanTerbuka()).not.toContainEqual(
       expect.objectContaining({ subjectKind: "tagihan", subjectId: fixture.tagihanId, sebab: "tanpa_email" }),
     );
 

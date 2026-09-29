@@ -55,7 +55,7 @@ export function publishOnTestDatabase(db: Database, options: PublishOptions = {}
     webPush,
     identity: setup.identity,
     audit: setup.audit,
-    reportError: () => {},
+    reportError: (error, context) => reportedErrors.push({ error, context }),
     tagihan: billing,
     dokumenUrl: (link) => `https://makam.test/dokumen/${link}`,
     pesananUrl: (nomor) => `https://makam.test/pesanan/${nomor}`,

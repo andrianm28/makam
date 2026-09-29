@@ -30,6 +30,7 @@ export function composePemesanan(
 export function pemesananNotifikasiDari(notifications: Notifications | undefined): PemesananNotifikasi {
   if (!notifications) {
     return {
+      tagihanTerbit: async () => ({ ok: true, diingatkan: 0 }),
       pesananDiajukan: async () => {},
       pesananBelumDikonfirmasi: async () => {},
       pesananDikonfirmasi: async () => {},
@@ -43,6 +44,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     };
   }
   return {
+    tagihanTerbit: (tx, input) => notifications.tagihanTerbit(input, tx),
     pesananDiajukan: async (order) => {
       await notifications.pesananDiajukan({
         pemesananId: order.id,

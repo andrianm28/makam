@@ -71,6 +71,13 @@ export const tagihanTerbitSchema = z.object({
   dueAt: z.date(),
   /** The unguessable part of the Tagihan page's link. */
   link: z.string().trim().min(1).max(100),
+  /**
+   * The issuer's own confirmation email already carries this Tagihan's number
+   * and link (Saat Duka at a Lokasi Mitra, Saat Duka TPU), so the family gets
+   * one email, not two: the contact is still recorded and the no-email
+   * fallback still applies, but the separate "Tagihan terbit" email is not queued.
+   */
+  bersamaKonfirmasi: z.boolean().optional(),
 });
 export type TagihanTerbitInput = z.infer<typeof tagihanTerbitSchema>;
 
@@ -101,8 +108,23 @@ const TAGIHAN_MENUNGGU_UANG = ["belum_dibayar", "lewat_jatuh_tempo"];
  * email per reminder kind, however often the announcement is made.
  */
 export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbitInput): Promise<TagihanTerbitResult> {
-  const parsed = tagihanTerbitSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, reason: "tagihan_tidak_valid" };
+  let parsed = tagihanTerbitSchema.safeParse(input);
+  if (!parsed.success) {
+    // The issuing confirmation is urgent and must not be blocked by its own
+    // announcement. Report which fields were refused (never their values) and
+    // degrade to the address-less path: a "Telepon Pemesan" row, so the family
+    // is called and CS shares the link by hand. Only if the Tagihan itself is
+    // unusable without the address is it refused.
+    deps.reportError(new Error("tagihanTerbit: input refused by its schema"), {
+      tags: {
+        module: "notifications",
+        template: "tagihan_terbit",
+        fields: [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))].join(","),
+      },
+    });
+    parsed = tagihanTerbitSchema.safeParse({ ...input, email: null });
+    if (!parsed.success) return { ok: false, reason: "tagihan_tidak_valid" };
+  }
   const data = parsed.data;
   const now = deps.clock.now();
 
@@ -133,7 +155,7 @@ export async function tagihanTerbit(deps: PesanKeluargaDeps, input: TagihanTerbi
       tautan: deps.dokumenUrl(data.link),
     };
     const terbit = tagihanTerbitEmail(emailInput);
-    await queueFamilyEmail(tx, now, {
+    if (!data.bersamaKonfirmasi) await queueFamilyEmail(tx, now, {
       template: "tagihan_terbit",
       pemesananId: null,
       tagihanId: data.tagihanId,
@@ -319,18 +341,18 @@ export async function kirimPesanJatuhTempo(deps: PesanKeluargaDeps, now: Date): 
  * A message about a Tagihan is dropped rather than sent once it no longer has
  * to go out: its Tagihan settled (Lunas, Dibatalkan, Tidak Tertagih, or gone
  * — its reminders stop, spec Notifications), or it is a reminder that reached
- * the family a day late and would name the wrong day. A Bukti Pembayaran is
- * the exception: its Tagihan is Lunas by definition, and the receipt is the
- * message the family is waiting for.
+ * the family a day late and would name the wrong day. A Bukti Pembayaran and
+ * a Bukti Pengembalian Dana are the exceptions: their Tagihan is Lunas or
+ * Dikembalikan by definition, and each is the message the family is waiting for.
  */
 function perluDibatalkan(template: string, tagihan: Tagihan | null, now: Date): boolean {
   if (!tagihan || !TAGIHAN_MENUNGGU_UANG.includes(tagihan.status)) return true;
   return pengingatKetinggalan(template, tagihan.dueAt, now);
 }
 
-/** Whether this module's stop rule applies to the template at all (never to the receipt). */
+/** Whether this module's stop rule applies to the template at all (never to a receipt or a refund's Bukti). */
 function berlakuUntukTagihan(template: string): boolean {
-  return adalahTemplateEmail(template) && template !== "bukti_pembayaran_terbit";
+  return adalahTemplateEmail(template) && template !== "bukti_pembayaran_terbit" && template !== "pengembalian_terbit";
 }
 
 /** Every logged message about one Tagihan, oldest first: what its order page shows. */

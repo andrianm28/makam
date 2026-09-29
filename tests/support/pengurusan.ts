@@ -26,6 +26,7 @@ export function pengurusanOnTestDatabase(db: Database) {
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     notifikasi: {
+      tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {
         diumumkan.push(hasil);
         return { ok: true };
