@@ -1,6 +1,6 @@
 # Pencairan Saat Duka tidak pernah diberi tahu bahwa Pemakaman sudah dicatat
 
-Status: in-progress
+Status: resolved
 Blocked by: 25, 32
 Spec: spec.md, Billing > Payouts — "Saat Duka Petak and a later burial's Biaya Pemakaman | Lunas **and** Pemakaman recorded"
 
@@ -20,8 +20,9 @@ Make recording a Pemakaman tell Payouts, in the same transaction as the burial r
 - [x] The other order works too (burial first, money after), and a refused recording writes no fact.
 - [x] Recording twice, or ticking twice, creates no second item.
 - [x] Every fixture that composes the Pemesanan module hands it a real Payouts, so a forgotten dependency is a type error rather than a silent gap.
-- [ ] The Terencana "first Pemakaman if sooner" trigger (ticket 37) is told through the same call once a Terencana burial can be recorded. Not on `main` when this ticket was written: only a Terencana placement exists, no Lokasi confirmation and no Terencana Pemakaman.
+- [x] ~~The Terencana "first Pemakaman if sooner" trigger~~ moved to ticket 35 (owner, 2026-09-29): the (ticket 37) is told through the same call once a Terencana burial can be recorded. Not on `main` when this ticket was written: only a Terencana placement exists, no Lokasi confirmation and no Terencana Pemakaman.
 
 ## Comments
 
 - 2026-09-29 — Opened from the review that found the gap. The recorded instant is the moment the Admin Lokasi recorded it (the same `now` that starts the pay-after clock), not the calendar day entered, so the 2 Hari Kerja deadline counts from when the burial was entered.
+- 2026-09-29 — **Two-axis review** (one reviewer, Standards and Spec sections) of `fix-pencairan-pemakaman`: no hard finding; smells left as follow-ups (an import cycle in tests/support between pemesanan.ts and payouts.ts; the `payoutsRef` lazy wrapper duplicated in src/server/runtime.ts and tests/support/server-runtime.ts). Merged to main with tickets 37/40/50. **Owner decision 2026-09-29:** the last AC (Terencana "first Pemakaman if sooner") moves to ticket 35, because a burial in a Terencana plot is ticket 35's "Makamkan di sini" order under an existing Hak Pakai (spec line 24; ticket 35's What to build) and has no order path until then; this ticket is resolved.

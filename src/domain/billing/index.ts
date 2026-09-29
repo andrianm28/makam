@@ -72,7 +72,7 @@ import {
   type PembayaranPerluDitinjau,
 } from "./payment";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
-import { tetapkanHargaKhusus, type TetapkanHargaKhususInput, type TetapkanHargaKhususResult } from "./harga-khusus";
+import { tetapkanHargaKhusus, type HargaKhususDeps, type TetapkanHargaKhususInput, type TetapkanHargaKhususResult } from "./harga-khusus";
 import {
   catatPembayaranLangsung,
   catatPembayaranManual,
@@ -196,6 +196,13 @@ export interface BillingDeps {
    * default, never a false positive.
    */
   hasLoggedCall?: (tagihanId: string) => Promise<boolean>;
+  /**
+   * Announces the Tagihan a Harga Khusus reissue issued, in the same
+   * transaction (see `HargaKhususDeps.umumkanTagihanPengganti`). Composed from
+   * Notifications' `tagihanTerbitPengganti`, never imported (Notifications
+   * already depends on Billing). Left unwired, a reissue announces nothing.
+   */
+  umumkanTagihanPengganti?: HargaKhususDeps["umumkanTagihanPengganti"];
 }
 
 export interface Billing {

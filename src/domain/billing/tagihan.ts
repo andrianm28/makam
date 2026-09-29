@@ -177,6 +177,12 @@ function linesToIssue(lines: readonly NewTagihanLine[]): { ok: true; lines: Tagi
 const dueLine = (line: TagihanLine): DueLine =>
   line.kind === "layanan" ? { kind: "layanan", targetDate: line.targetDate, leadTimeDays: line.leadTimeDays } : { kind: "other" };
 
+/** Called inside the issuing transaction once the Tagihan and its lines exist, before any Rp 0 settlement effect runs. */
+export type SebelumBukti = (
+  tx: Database,
+  baru: { id: string; nomorTagihan: string; link: string; total: number; dueAt: Date },
+) => Promise<void>;
+
 /**
  * Issues a Tagihan in `db`'s transaction at `now`; `replaces` is the Tagihan
  * it replaces, whose payment moment (and due-date anchor) it keeps.
@@ -184,7 +190,7 @@ const dueLine = (line: TagihanLine): DueLine =>
 async function issueIn(
   tx: Database,
   deps: EffectDeps,
-  input: IssueTagihanInput & { anchorAt: Date },
+  input: IssueTagihanInput & { anchorAt: Date; sebelumBukti?: SebelumBukti },
   header: DocumentHeader,
   now: Date,
   replacesId: string | null,
@@ -238,6 +244,8 @@ async function issueIn(
       layananLeadTimeDays: line.kind === "layanan" ? line.leadTimeDays : null,
     })),
   );
+  // Before a Rp 0 settlement's effects run, so whoever announces the Tagihan has recorded its contact by then.
+  await input.sebelumBukti?.(tx, { id: row.id, nomorTagihan: nomor, link: row.link, total: checked.total, dueAt: due.dueAt });
   if (checked.total === 0) {
     await issueBuktiPembayaranIn(
       tx,
@@ -282,7 +290,7 @@ const REISSUABLE = TAGIHAN_PERLU_DIBAYAR;
 export async function reissueTagihan(
   deps: TagihanDeps,
   tagihanId: string,
-  input: { lines: NewTagihanLine[]; hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null },
+  input: { lines: NewTagihanLine[]; hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null; sebelumBukti?: SebelumBukti },
   now: Date,
 ): Promise<ReissueTagihanResult> {
   const header = await currentHeader(deps.operatorSettings);
@@ -310,6 +318,7 @@ export async function reissueTagihan(
         placeName: old.placeName,
         lines: input.lines,
         hargaKhususPorsiMitra: input.hargaKhususPorsiMitra,
+        sebelumBukti: input.sebelumBukti,
       },
       header,
       now,
