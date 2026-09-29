@@ -26,13 +26,14 @@ function linked(groups: ReturnType<typeof staffMenu>) {
 
 const lokasiId = "0b7c9a52-4c1e-4a57-9d4f-1f0f5e1b2c3d";
 const blokId = "6e2b8b3a-9f0d-4e1a-8c3d-2a7f5b6c9d10";
+const mitraJasaId = "6d2f0a1e-9c3b-4f7a-8b2d-1e4c5a6b7c8d";
 
 describe("the staff menu of each role", () => {
   it("Admin Platform works in four groups: Kerja harian, Lokasi dan harga, Orang, Operator, with Audit Log under Operator", () => {
     expect(outline(staffMenu("admin_platform"))).toEqual([
       ["Kerja harian", ["Beranda", "Antrean", "Tagihan"]],
       ["Lokasi dan harga", ["Lokasi Mitra", "TPU DKI", "Tarif global", "Katalog Layanan", "Hari Libur Nasional"]],
-      ["Orang", ["Staf", "Pemulihan Akun", "Tugas Lapangan"]],
+      ["Orang", ["Staf", "Mitra Jasa", "Pemulihan Akun", "Tugas Lapangan"]],
       ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
     ]);
   });
@@ -69,6 +70,7 @@ describe("the staff menu of each role", () => {
       "Katalog Layanan",
       "Hari Libur Nasional",
       "Staf",
+      "Mitra Jasa",
       "Pemulihan Akun",
       "Tugas Lapangan",
       "Pengaturan Operator",
@@ -115,6 +117,8 @@ describe("where a staff page sits in the menu", () => {
     [`/staf/admin-platform/lokasi/${lokasiId}/tarif`, "admin_platform", "Lokasi Mitra"],
     [`/staf/admin-platform/lokasi/${lokasiId}/audit-log`, "admin_platform", "Lokasi Mitra"],
     ["/staf/admin-platform/staf", "admin_platform", "Staf"],
+    ["/staf/admin-platform/mitra-jasa", "admin_platform", "Mitra Jasa"],
+    [`/staf/admin-platform/mitra-jasa/${mitraJasaId}`, "admin_platform", "Mitra Jasa"],
     [`/staf/admin-lokasi/${lokasiId}`, "admin_lokasi", "Beranda"],
     [`/staf/admin-lokasi/${lokasiId}/antrean`, "admin_lokasi", "Antrean Lokasi"],
     [`/staf/admin-lokasi/${lokasiId}/jam-operasional`, "admin_lokasi", "Jam Operasional"],

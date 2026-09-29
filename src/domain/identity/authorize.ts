@@ -202,7 +202,21 @@ export type Action =
    * end the Hak Pakai", never for a burial under an existing Hak Pakai;
    * ticket 29).
    */
-  | "hak_pakai.akhiri_tidak_tertagih";
+  | "hak_pakai.akhiri_tidak_tertagih"
+  /** List every Mitra Jasa, and start a new one's onboarding record (Admin Platform only). */
+  | "mitra_jasa.lihat_semua"
+  /** Admin Platform starts a Mitra Jasa's onboarding record and invites them to an email. */
+  | "mitra_jasa.buat"
+  /** See one Mitra Jasa's record, bank account, NIK and scans (Admin Platform only). */
+  | "mitra_jasa.lihat"
+  /** Admin Platform changes a Mitra Jasa's profile, coverage, bank account, agreement or status (Admin Platform only). */
+  | "mitra_jasa.ubah"
+  /** Record the monthly scorecard review (Admin Platform only). */
+  | "mitra_jasa.tinjau_skor"
+  /** A Mitra Jasa reads their own record: profile, history, scorecard and availability. */
+  | "mitra_jasa.lihat_saya"
+  /** A Mitra Jasa keeps their own "Tidak tersedia" ranges up to date. */
+  | "mitra_jasa.tidak_tersedia";
 
 /** What the action is done to. */
 export type Resource =
@@ -230,6 +244,10 @@ export type Resource =
   | { kind: "setor_retribusi" }
   /** Every refund request, its approval and its Bukti Pengembalian Dana (Admin Platform alone). */
   | { kind: "pengembalian" }
+  /** Every Mitra Jasa (onboarding a new one, the Admin Platform list, the assignment picker). */
+  | { kind: "mitra_jasa_semua" }
+  /** One Mitra Jasa's record; who may read it is checked against the row by the Layanan module. */
+  | { kind: "mitra_jasa"; id: string }
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string }
   /** A Tagihan acted on directly by staff (manual payment, Harga Khusus): Admin Platform's own money work, not a Lokasi Mitra's. */
@@ -326,6 +344,16 @@ export function pencairanResource(): Resource {
 /** Every refund request, its approval and its Bukti Pengembalian Dana. */
 export function pengembalianResource(): Resource {
   return { kind: "pengembalian" };
+}
+
+/** Every Mitra Jasa: the Admin Platform list that onboards them, and the assignment picker's filtered reads. */
+export function semuaMitraJasaResource(): Resource {
+  return { kind: "mitra_jasa_semua" };
+}
+
+/** One Mitra Jasa's record (its profile, bank account, coverage, status and scorecard). */
+export function mitraJasaResource(id: string): Resource {
+  return { kind: "mitra_jasa", id };
 }
 
 /** The signed-in Akun's own Pemesanan Makam: the wizard's Kirim and its order page. */
@@ -564,5 +592,21 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // Platform gave the Tagihan up; Admin Platform never does it for it
       // (spec, Billing > Chasing).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "mitra_jasa.lihat_semua":
+    case "mitra_jasa.buat":
+      // The Mitra Jasa list and a new one's onboarding record: Admin Platform only, as for a Lokasi Mitra.
+      return resource.kind === "mitra_jasa_semua" && holds("admin_platform") ? allowed : denied;
+    case "mitra_jasa.lihat":
+    case "mitra_jasa.ubah":
+    case "mitra_jasa.tinjau_skor":
+      // One Mitra Jasa's record, bank account, NIK, coverage, status and scorecard review. A Mitra Jasa never reads
+      // another one's: they read their own through `mitra_jasa.lihat_saya` below, which takes no id at all.
+      return resource.kind === "mitra_jasa" && holds("admin_platform") ? allowed : denied;
+    case "mitra_jasa.lihat_saya":
+    case "mitra_jasa.tidak_tersedia":
+      // A Mitra Jasa's own profile, history, scorecard and "Tidak tersedia" ranges, as themselves and nothing else
+      // (the resource is their own Akun, so a caller cannot hand in another Mitra Jasa's). Any status: a Ditangguhan
+      // or Berhenti Mitra Jasa still sees all of it (spec, story 182).
+      return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
   }
 }

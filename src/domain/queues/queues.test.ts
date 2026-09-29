@@ -291,6 +291,131 @@ describe("Antrean: Tier 4 TPU flag stale", () => {
   });
 });
 
+describe("Antrean: Tier 4 Mitra Jasa onboarding and the monthly scorecard review", () => {
+  it("opens one onboarding row per incomplete record, and closes it when the last step is filled", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-01 08:00"));
+    const dibuat = await setup.layanan.buatMitraJasa(admin, "mitra@contoh.id", {
+      namaLengkap: "Siti Rahayu",
+      nik: "3201014503900001",
+      area: "Jakarta Timur",
+      kontakSiagaNama: null,
+      kontakSiagaTelepon: null,
+    });
+    if (!dibuat.ok) throw new Error(dibuat.reason);
+    const id = dibuat.mitraJasaId;
+
+    const row = (await setup.queues.antrean(admin)).find((satu) => satu.type === "mitra_jasa_onboarding");
+    expect(row).toMatchObject({
+      tier: 4,
+      subjectId: id,
+      subjectLabel: "Siti Rahayu",
+      // The spec gives this row no window (spec.md:527 names "TPU flag stale for 14
+      // days" beside it and none for this one), so it carries no deadline at all
+      // and can never be late. The number is the owner's to write, not ours.
+      deadline: null,
+      pastDeadline: false,
+      alerts: false,
+      ambil: null,
+    });
+    expect(row?.href).toBe(`/staf/admin-platform/mitra-jasa/${id}`);
+
+    // Filling every step but the bank account still leaves the row open.
+    for (const jenis of ["ktp", "foto"] as const) {
+      await setup.layanan.unggahBerkas(admin, id, { jenis, file: { body: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" } });
+    }
+    await setup.layanan.unggahBerkas(admin, id, {
+      jenis: "perjanjian",
+      file: { body: new Uint8Array([1, 2, 3]), contentType: "application/pdf" },
+      signedOn: "2026-09-20",
+    });
+    const layanan = await setup.layanan.createLayanan(admin, {
+      name: "Pembersihan Makam",
+      description: "Membersihkan dan merapikan makam.",
+      jenis: "pembersihan",
+      bukti: "foto_sebelum_dan_sesudah",
+      leadTimeDays: 3,
+      bisaHariH: false,
+      adaDiPetakKosong: true,
+      teksLabel: null,
+      varian: ["Reguler"],
+      reason: null,
+    });
+    if (!layanan.ok) throw new Error(layanan.reason);
+    const tpu = await newTpuDki(setup, admin);
+    const cakupan = await setup.layanan.ubahCoverage(admin, id, {
+      tpuDkiIds: [tpu.id],
+      layananVariantIds: [layanan.layanan.varian[0].id],
+    });
+    if (!cakupan.ok) throw new Error(`coverage refused: ${cakupan.reason}`);
+    const rekening = await setup.layanan.ubahRekening(admin, id, {
+      bankName: "BSI",
+      accountNumber: "7123456789",
+      accountHolder: "Siti Rahayu",
+      catatanOverride: null,
+    });
+    if (!rekening.ok) throw new Error(`rekening refused: ${rekening.reason}`);
+
+    // Every one of the nine steps is filled, so the record owes nothing and the row is closed.
+    expect(await setup.layanan.mitraJasaBelumLengkap(admin)).toEqual([]);
+    expect((await setup.queues.antrean(admin)).some((satu) => satu.type === "mitra_jasa_onboarding")).toBe(false);
+  });
+
+  it("opens one scorecard review row per Mitra Jasa from the tick, with no deadline the spec never gave it, and closes it on the review", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-10-01 05:13"));
+    const dibuat = await setup.layanan.buatMitraJasa(admin, "mitra@contoh.id", {
+      namaLengkap: "Siti Rahayu",
+      nik: "3201014503900001",
+      area: "Jakarta Timur",
+      kontakSiagaNama: null,
+      kontakSiagaTelepon: null,
+    });
+    if (!dibuat.ok) throw new Error(dibuat.reason);
+
+    expect((await setup.queues.antrean(admin)).some((satu) => satu.type === "mitra_jasa_skor_bulanan")).toBe(false);
+
+    await setup.layanan.tinjauSkorTick(setup.clock.now());
+    const row = (await setup.queues.antrean(admin)).find((satu) => satu.type === "mitra_jasa_skor_bulanan");
+    expect(row).toMatchObject({
+      tier: 4,
+      subjectId: dibuat.mitraJasaId,
+      subjectLabel: "Siti Rahayu — 2026-10",
+      // No window in the spec (spec.md:527), so none is invented here.
+      deadline: null,
+      pastDeadline: false,
+      alerts: false,
+    });
+
+    const [terbuka] = await setup.layanan.tinjauanTerbuka(admin);
+    if (!terbuka) throw new Error("no review row");
+    await setup.layanan.catatTinjauan(admin, { mitraJasaId: dibuat.mitraJasaId, tinjauanId: terbuka.id, catatan: "Baik" });
+    expect((await setup.queues.antrean(admin)).some((satu) => satu.type === "mitra_jasa_skor_bulanan")).toBe(false);
+  });
+
+  it("never shows either row to anyone but Admin Platform", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const dibuat = await setup.layanan.buatMitraJasa(admin, "mitra@contoh.id", {
+      namaLengkap: "Siti Rahayu",
+      nik: "3201014503900001",
+      area: "Jakarta Timur",
+      kontakSiagaNama: null,
+      kontakSiagaTelepon: null,
+    });
+    if (!dibuat.ok) throw new Error(dibuat.reason);
+    await setup.layanan.tinjauSkorTick(setup.clock.now());
+    const petugas = await signedInPetugasLapangan(setup, admin);
+
+    expect((await setup.queues.antrean(admin)).some((satu) => satu.subjectId === dibuat.mitraJasaId)).toBe(true);
+    for (const who of [petugas, await signedInAdminLokasi(setup, admin, [(await newLokasiMitra(setup, admin)).id])]) {
+      expect((await setup.queues.antrean(who)).filter((satu) => satu.subjectId === dibuat.mitraJasaId)).toEqual([]);
+    }
+  });
+});
+
 describe("Antrean: sorting and deadlines", () => {
   it("sorts rows by deadline within a tier, and marks a row past its deadline (never one not yet due)", async () => {
     const setup = queuesOnTestDatabase(db);

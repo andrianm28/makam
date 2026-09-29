@@ -246,6 +246,13 @@
       "when": 1790642910607,
       "tag": "0034_nosy_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790644673185,
+      "tag": "0035_luxuriant_revanche",
+      "breakpoints": true
     }
   ]
 }

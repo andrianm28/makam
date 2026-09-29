@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 
 import { createQueues } from "@/domain/queues";
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
 import { payoutsFor } from "./payouts";
@@ -28,6 +29,14 @@ export function queuesOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     notifications: setup.notifications,
+  });
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
   });
   const { payouts } = payoutsFor(setup);
   const { refunds } = refundsFor(setup, payouts);
@@ -65,11 +74,12 @@ export function queuesOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     inventory: setup.inventory,
     pemesanan,
+    layanan,
     payouts,
     pengurusan,
     refunds,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, refunds, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, layanan, pengurusan, payouts, refunds, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

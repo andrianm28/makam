@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import type { Database } from "@/db/client";
 import { createPayouts, type KirimBuktiPencairan } from "@/domain/payouts";
@@ -120,6 +121,14 @@ export function payoutsOnTestDatabase(db: Database) {
   // The Antrean beside it: the Tier 3 "Pencairan" and "refund transfer" rows are
   // the Payouts and Refunds queries the Work Queues module projects, and a test
   // of one wants the others.
+  const layanan = composeLayanan({
+    db,
+    clock: setup.clock,
+    audit: setup.audit,
+    files: setup.files,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
@@ -130,6 +139,7 @@ export function payoutsOnTestDatabase(db: Database) {
     notifications: setup.notifications,
     inventory: setup.inventory,
     pemesanan,
+    layanan,
     payouts,
     // Ticket 45: the Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, and the Tier 2 "Ambil surat pengantar" row reads Identity for the
