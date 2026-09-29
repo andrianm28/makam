@@ -47,6 +47,21 @@ export type TagihanLine =
 
 export type TagihanStatus = (typeof tagihanStatuses)[number];
 
+/**
+ * Every Tagihan status that still needs the family's money — the same set a
+ * reissue is offered for (`REISSUABLE`, below): once nothing is owed any more
+ * (Lunas, Dibatalkan, Dikembalikan) or the Operator has stopped chasing it
+ * (Tidak Tertagih — CONTEXT.md: "stays payable, but no one is owed a Pencairan
+ * for it"), there is nothing left to pay or to reissue for. One classification,
+ * because reissuable and still-owed are one fact about the Tagihan, not two.
+ */
+export const TAGIHAN_PERLU_DIBAYAR: readonly TagihanStatus[] = ["belum_dibayar", "lewat_jatuh_tempo"];
+
+/** Whether `status` still needs the family's money (Akun Saya's Perlu Tindakan strip, ticket 27). */
+export function tagihanPerluDibayar(status: TagihanStatus): boolean {
+  return TAGIHAN_PERLU_DIBAYAR.includes(status);
+}
+
 export interface Tagihan {
   id: string;
   nomorTagihan: string;
@@ -242,8 +257,11 @@ export async function issueTagihan(deps: TagihanDeps, input: IssueTagihanInput, 
   return refusable(deps.db, (tx) => issueIn(tx, deps, { ...input, anchorAt: now }, header, now, null));
 }
 
-/** Tagihan that can still be cancelled and reissued: not paid, not cancelled, not given up. */
-const REISSUABLE: readonly TagihanStatus[] = ["belum_dibayar", "lewat_jatuh_tempo"];
+/**
+ * Tagihan that can still be cancelled and reissued: not paid, not cancelled,
+ * not given up — exactly `TAGIHAN_PERLU_DIBAYAR`, see its own comment.
+ */
+const REISSUABLE = TAGIHAN_PERLU_DIBAYAR;
 
 /**
  * Cancels an unpaid Tagihan and issues its replacement with these lines and a

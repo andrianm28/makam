@@ -24,7 +24,14 @@ test("Masuk with a cold email: the Kode Masuk creates the Akun and lands on Akun
   await expect(page).toHaveURL(/\/akun$/);
   await expect(page.getByRole("heading", { name: "Akun Saya" })).toBeVisible();
   await expect(page.getByTestId("akun-login-email")).toHaveText(email);
-  await expect(page.getByText("Belum ada pesanan.")).toBeVisible();
+
+  // Ticket 27: a cold Akun's Pesanan and Makam Keluarga tabs are empty, each with its own guidance.
+  await page.getByRole("navigation", { name: "Tab Akun Saya" }).getByRole("link", { name: "Pesanan" }).click();
+  await expect(page).toHaveURL(/\/akun\/pesanan$/);
+  await expect(page.getByText("Belum ada pesanan")).toBeVisible();
+  await page.getByRole("navigation", { name: "Tab Akun Saya" }).getByRole("link", { name: "Makam Keluarga" }).click();
+  await expect(page).toHaveURL(/\/akun\/makam$/);
+  await expect(page.getByText("Belum ada makam yang tercatat")).toBeVisible();
 
   // Signed in: Masuk sends the Pemesan straight back to Akun Saya.
   await page.goto("/masuk");
