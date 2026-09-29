@@ -12,6 +12,7 @@ import {
   forStatus,
   hakPakaiByTarget,
   pemakamanOfHakPakai,
+  pernahGantiPemegangHak,
   petakIdsWithPemakaman,
   type HakPakaiRow,
   type PemakamanRow,
@@ -44,12 +45,23 @@ export interface BlokDenah {
 export interface HakPakaiDetail extends HakPakaiRow {
   pemegangHak: { name: string | null; phoneNumber: string | null; email: string | null } | null;
   pemakaman: PemakamanRow[];
+  /** True once a Ganti Pemegang Hak closed an earlier holder's row: the Hak Pakai has had a holder before this one. */
+  pernahGantiPemegangHak: boolean;
 }
 
 async function hakPakaiDetailOf(db: InventoryDeps["db"], hakPakai: HakPakaiRow | null): Promise<HakPakaiDetail | null> {
   if (!hakPakai) return null;
-  const [pemegangHak, pemakaman] = await Promise.all([currentPemegangHak(db, hakPakai.id), pemakamanOfHakPakai(db, hakPakai.id)]);
-  return { ...hakPakai, pemegangHak: pemegangHak ? { name: pemegangHak.name, phoneNumber: pemegangHak.phoneNumber, email: pemegangHak.email } : null, pemakaman };
+  const [pemegangHak, pemakaman, pernahGanti] = await Promise.all([
+    currentPemegangHak(db, hakPakai.id),
+    pemakamanOfHakPakai(db, hakPakai.id),
+    pernahGantiPemegangHak(db, hakPakai.id),
+  ]);
+  return {
+    ...hakPakai,
+    pemegangHak: pemegangHak ? { name: pemegangHak.name, phoneNumber: pemegangHak.phoneNumber, email: pemegangHak.email } : null,
+    pemakaman,
+    pernahGantiPemegangHak: pernahGanti,
+  };
 }
 
 /** A `inventory_hak_pakai` row as the module's own reads keep it. */

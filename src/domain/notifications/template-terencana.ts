@@ -185,3 +185,93 @@ export function tagihanPengingatTahanEmail(input: TagihanEmailInput): { subject:
     ].join("\n"),
   };
 }
+
+export type PembatalanTerencanaEmailInput =
+  | {
+      peristiwa: "disetujui";
+      /** The Pemesan who paid owes the bank account; the Pemegang Hak who asked is only told where the money goes. */
+      kepada: "pemesan" | "pemohon";
+      nomor: string;
+      lokasiName: string;
+      unit: UnitTerencanaEmail[];
+      persenRefund: number;
+      jumlahRefund: number;
+      /** Which side of the Masa Pembatalan the request was made on: the whole tariff, or the Lokasi Mitra's set share. */
+      dalamMasaPembatalan: boolean;
+      /** The order page's full URL, where the Pemesan enters the bank account. */
+      tautan: string;
+    }
+  | { peristiwa: "ditolak"; nomor: string; lokasiName: string; unit: UnitTerencanaEmail[]; alasan: string; tautan: string }
+  | { peristiwa: "perlu_perbaikan"; nomor: string; lokasiName: string; unit: UnitTerencanaEmail[]; catatan: string; tautan: string };
+
+/**
+ * The Admin Lokasi's answer to a Pembatalan request (transactional: any hour, the family is waiting
+ * for it). An approval says what comes back and what does not (the Biaya Layanan Platform never
+ * does) and, to the Pemesan who paid, asks for the bank account the refund goes to.
+ */
+export function pembatalanTerencanaEmail(input: PembatalanTerencanaEmailInput): { subject: string; body: string } {
+  const petak = daftarUnit(input.unit);
+  if (input.peristiwa === "ditolak") {
+    return {
+      subject: `Pembatalan pesanan ${input.nomor} tidak disetujui`,
+      body: [
+        "Yth. Bapak/Ibu,",
+        "",
+        `${input.lokasiName} tidak menyetujui Pembatalan Hak Pakai atas petak ${petak}.`,
+        `Alasannya: ${input.alasan}.`,
+        "Hak Pakai Anda tetap berlaku seperti semula dan tidak ada yang berubah pada pembayaran.",
+        "",
+        `Lihat Makam Keluarga Anda di: ${input.tautan}`,
+        "",
+        "Hormat kami,",
+        "Tim makam.co.id",
+      ].join("\n"),
+    };
+  }
+  if (input.peristiwa === "perlu_perbaikan") {
+    return {
+      subject: `Pembatalan pesanan ${input.nomor} perlu diperbaiki`,
+      body: [
+        "Yth. Bapak/Ibu,",
+        "",
+        `${input.lokasiName} meminta permintaan Pembatalan atas petak ${petak} diperbaiki sebelum bisa diputuskan.`,
+        `Yang diminta: ${input.catatan}.`,
+        "Setelah diperbaiki, ajukan kembali dari Makam Keluarga Anda. Besar pengembalian dana tidak berubah karena penantian ini.",
+        "",
+        `Ajukan kembali di: ${input.tautan}`,
+        "",
+        "Hormat kami,",
+        "Tim makam.co.id",
+      ].join("\n"),
+    };
+  }
+  const bagian = input.dalamMasaPembatalan
+    ? "seluruh tarif Hak Pakai (masih dalam Masa Pembatalan)"
+    : `${input.persenRefund}% dari tarif Hak Pakai (sesuai Syarat yang Anda setujui saat memesan)`;
+  const dana =
+    input.jumlahRefund > 0
+      ? `Pengembalian dana: ${formatRupiah(input.jumlahRefund)}, yaitu ${bagian}. Biaya Layanan Platform tidak dikembalikan.`
+      : `Menurut Syarat yang Anda setujui saat memesan, tidak ada pengembalian dana untuk Pembatalan setelah Masa Pembatalan berakhir (${input.persenRefund}% dari tarif).`;
+  const tujuan =
+    input.jumlahRefund === 0
+      ? []
+      : input.kepada === "pemesan"
+        ? [
+            "Dana dikembalikan kepada Pemesan yang membayar. Mohon isi rekening tujuan pengembalian di halaman pesanan; Admin kami menyetujui dan mentransfernya setelah itu.",
+            `Isi rekening di: ${input.tautan}`,
+          ]
+        : ["Dana dikembalikan kepada Pemesan yang membayar pesanan ini, ke rekening yang ia isi sendiri."];
+  return {
+    subject: `Pembatalan pesanan ${input.nomor} disetujui`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `${input.lokasiName} menyetujui Pembatalan Hak Pakai atas petak ${petak}. Hak Pakai dibatalkan dan petak kembali ke Lokasi Mitra.`,
+      dana,
+      ...tujuan,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

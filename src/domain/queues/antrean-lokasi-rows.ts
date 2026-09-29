@@ -184,6 +184,30 @@ export const konfirmasiTerencanaRowType: AntreanLokasiRowType = {
 };
 
 /**
+ * "Pembatalan" (Lainnya): every Pembatalan request of a paid Terencana order at that Lokasi Mitra still Diajukan,
+ * due 2 Hari Kerja after it was filed on the Lokasi's own calendar (spec, Work Queues: requests from the Pemegang
+ * Hak; ticket 38). It closes itself when the Admin Lokasi answers, when the request is sent back for a fix (it is
+ * back when filed again) and when the family withdraws it. Lainnya, not Mendesak: nobody waits on a burial.
+ */
+export const pembatalanTerencanaRowType: AntreanLokasiRowType = {
+  key: "pembatalan_terencana",
+  grup: "lainnya",
+  label: "Pembatalan",
+  async rows(deps, _by, lokasiId) {
+    const permintaan = await deps.pemesanan.antreanPembatalan(lokasiId);
+    return permintaan.map((satu) => ({
+      type: "pembatalan_terencana",
+      label: "Pembatalan",
+      subjectKind: "permintaan_pembatalan_terencana",
+      subjectId: satu.id,
+      subjectLabel: `${satu.nomor} · ${satu.unit.join(", ")}`,
+      href: pemakamanHref(lokasiId, satu.nomor),
+      deadline: satu.tenggatPada,
+    }));
+  },
+};
+
+/**
  * "Layanan hari ini" (Mendesak): the jobs of that Lokasi Mitra whose target date
  * is today, so a job that can be done today is at the top of the list. No
  * deadline of its own — the day the family asked for is the deadline, and the
@@ -269,6 +293,7 @@ export const layananTerlambatRowType: AntreanLokasiRowType = {
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
   konfirmasiTerencanaRowType,
+  pembatalanTerencanaRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
   catatPemakamanRowType,

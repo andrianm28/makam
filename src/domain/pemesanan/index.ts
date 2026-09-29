@@ -114,6 +114,34 @@ import {
   type PlaceTerencanaResult,
 } from "./terencana";
 
+import {
+  ajukanPembatalanTerencana,
+  ajukanUlangPembatalanTerencana,
+  batalkanPermintaanPembatalanTerencana,
+  pratinjauPembatalanTerencana,
+  type AjukanPembatalanResult,
+  type PratinjauPembatalanResult,
+  type UbahPermintaanResult,
+} from "./pembatalan-terencana";
+import {
+  mintaPerbaikanPembatalanTerencana,
+  setujuiPembatalanTerencana,
+  tolakPembatalanTerencana,
+  type KeputusanPembatalanResult,
+  type SetujuiPembatalanResult,
+} from "./pembatalan-terencana-lokasi";
+import {
+  adaPembatalanTerbuka,
+  antreanPembatalan,
+  pembatalanUntukPesanan,
+  pembatalanUntukStaf,
+  persetujuanRefundPembatalan,
+  type BarisAntreanPembatalan,
+  type BarisPersetujuanRefundPembatalan,
+  type PermintaanPembatalan,
+  type PermintaanPembatalanStaf,
+} from "./reads-pembatalan-terencana";
+
 export type {
   ChasingDijadwalkan,
   TidakTertagihDinyatakan,
@@ -188,6 +216,19 @@ export {
   type TolakTerencanaResult,
 } from "./terencana-konfirmasi";
 export { ALASAN_BATAL_TERENCANA, alasanBatalTerencana, type AlasanBatalTerencana } from "./alasan-batal-terencana";
+export { TENGGAT_PEMBATALAN_HARI_KERJA, type AjukanPembatalanResult, type PembatalanHakPakai, type PratinjauPembatalanResult, type SebabPembatalanTerhalang, type UbahPermintaanResult } from "./pembatalan-terencana";
+export { TENGGAT_PERSETUJUAN_REFUND_HARI_KERJA, type KeputusanPembatalanResult, type SetujuiPembatalanResult } from "./pembatalan-terencana-lokasi";
+export type { HitungPembatalan } from "./pembatalan-terencana-hitung";
+export type { BarisAntreanPembatalan, BarisPersetujuanRefundPembatalan, PermintaanPembatalan, PermintaanPembatalanStaf } from "./reads-pembatalan-terencana";
+export type { PermintaanPembatalanStatus } from "./schema";
+export { permintaanPembatalanStatuses } from "./schema";
+export {
+  ajukanPembatalanTerencanaSchema,
+  ajukanUlangPembatalanTerencanaSchema,
+  mintaPerbaikanPembatalanTerencanaSchema,
+  permintaanPembatalanTerencanaSchema,
+  tolakPembatalanTerencanaSchema,
+} from "./skema-pembatalan";
 export { alasanTolakTerencanaKeys, type AlasanTolakTerencana } from "./alasan-tolak";
 export type { OrderTerencanaAntrean, OrderTerencanaStaf, UnitTerencanaBaca } from "./reads-terencana-staf";
 export { pernahMenyebutPetakAtauKavling } from "./riwayat-petak";
@@ -362,6 +403,37 @@ export interface Pemesanan {
   /** Admin Platform's Tier 3 "Konfirmasi Terencana terlambat" rows: Diajukan orders past the end of their Lokasi's next working day. */
   konfirmasiTerencanaLewatTenggat(): Promise<OrderTerencanaAntrean[]>;
   /**
+   * The Pembatalan of a paid Terencana order (ticket 38). `pratinjauPembatalanTerencana` is Akun Saya's Makam tab:
+   * for one Hak Pakai whose Pemegang Hak this Akun is, what "Ajukan Pembatalan" would refund under the order's own
+   * Syarat snapshot, or why it cannot be asked (a Pemakaman, an earlier Ganti Pemegang Hak, a request already open).
+   * `ajukanPembatalanTerencana` files it Diajukan with the refund fixed at that moment and the Antrean Lokasi row due
+   * in 2 Hari Kerja; `ajukanUlangPembatalanTerencana` files a request sent back for a fix again (same refund), and
+   * `batalkanPermintaanPembatalanTerencana` withdraws it before a decision.
+   */
+  pratinjauPembatalanTerencana(pemesan: Pemesan, hakPakaiId: string): Promise<PratinjauPembatalanResult>;
+  ajukanPembatalanTerencana(pemesan: Pemesan, input: unknown): Promise<AjukanPembatalanResult>;
+  ajukanUlangPembatalanTerencana(pemesan: Pemesan, input: unknown): Promise<UbahPermintaanResult>;
+  batalkanPermintaanPembatalanTerencana(pemesan: Pemesan, input: unknown): Promise<UbahPermintaanResult>;
+  /**
+   * The Admin Lokasi's three answers (ticket 38), each audited on the Lokasi in its own transaction:
+   * `setujuiPembatalanTerencana` confirms there is no Pemakaman and, in one commit, ends every Hak Pakai of the order,
+   * frees its Petak, cancels the order, asks Refunds for the refund and tells the family;
+   * `tolakPembatalanTerencana` declines with a reason; `mintaPerbaikanPembatalanTerencana` sends it back for a fix.
+   */
+  setujuiPembatalanTerencana(by: Actor, input: unknown): Promise<SetujuiPembatalanResult>;
+  tolakPembatalanTerencana(by: Actor, input: unknown): Promise<KeputusanPembatalanResult>;
+  mintaPerbaikanPembatalanTerencana(by: Actor, input: unknown): Promise<KeputusanPembatalanResult>;
+  /** The Antrean Lokasi's "Pembatalan" rows: every request still Diajukan at that Lokasi Mitra, oldest first. */
+  antreanPembatalan(lokasiId: string): Promise<BarisAntreanPembatalan[]>;
+  /** Admin Platform's Tier 3 "Pembatalan refund approval" rows: approved Pembatalan whose refund waits for approval in Refunds. */
+  persetujuanRefundPembatalan(): Promise<BarisPersetujuanRefundPembatalan[]>;
+  /** Every Pembatalan request on one order, newest first, for the Lokasi Mitra's own staff (or Admin Platform). */
+  pembatalanUntukStaf(by: Actor, nomor: string): Promise<PermintaanPembatalanStaf[]>;
+  /** The latest Pembatalan request on the order of this Pemesan, or null: what the order page says, and where it asks for the bank account. */
+  pembatalanUntukPesanan(pemesan: { accountId: string }, nomor: string): Promise<PermintaanPembatalan | null>;
+  /** True while a Pembatalan request of the order this Hak Pakai belongs to is open: what blocks a Ganti Pemegang Hak. */
+  adaPembatalanTerbuka(hakPakaiId: string): Promise<boolean>;
+  /**
    * True while a Lokasi Mitra Saat Duka Tagihan on this Hak Pakai is Lewat
    * Jatuh Tempo (spec, Billing > Chasing; ticket 29): blocks Perpanjangan and
    * Ganti Pemegang Hak.
@@ -425,6 +497,18 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     terencanaUntukStaf: (by, nomor) => terencanaUntukStaf(deps, by, nomor),
     antreanKonfirmasiTerencana: (lokasiId) => antreanKonfirmasiTerencana(deps, lokasiId),
     konfirmasiTerencanaLewatTenggat: () => konfirmasiTerencanaLewatTenggat(deps, deps.clock.now()),
+    pratinjauPembatalanTerencana: (pemesan, hakPakaiId) => pratinjauPembatalanTerencana(deps, pemesan, hakPakaiId),
+    ajukanPembatalanTerencana: (pemesan, input) => ajukanPembatalanTerencana(deps, pemesan, input),
+    ajukanUlangPembatalanTerencana: (pemesan, input) => ajukanUlangPembatalanTerencana(deps, pemesan, input),
+    batalkanPermintaanPembatalanTerencana: (pemesan, input) => batalkanPermintaanPembatalanTerencana(deps, pemesan, input),
+    setujuiPembatalanTerencana: (by, input) => setujuiPembatalanTerencana(deps, by, input),
+    tolakPembatalanTerencana: (by, input) => tolakPembatalanTerencana(deps, by, input),
+    mintaPerbaikanPembatalanTerencana: (by, input) => mintaPerbaikanPembatalanTerencana(deps, by, input),
+    antreanPembatalan: (lokasiId) => antreanPembatalan(deps, lokasiId),
+    persetujuanRefundPembatalan: () => persetujuanRefundPembatalan(deps),
+    pembatalanUntukStaf: (by, nomor) => pembatalanUntukStaf(deps, by, nomor),
+    pembatalanUntukPesanan: (pemesan, nomor) => pembatalanUntukPesanan(deps, pemesan, nomor),
+    adaPembatalanTerbuka: (hakPakaiId) => adaPembatalanTerbuka(deps, hakPakaiId),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
     tagihanPenghalangOf: (hakPakaiId) => tagihanPenghalangOf(deps, hakPakaiId),
     nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),

@@ -1,4 +1,5 @@
-import { date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { bigint, boolean, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -356,5 +357,80 @@ export const pemesananTerencanaUnit = pgTable(
     index("pemesanan_terencana_unit_pemesanan_idx").on(table.pemesananId),
     index("pemesanan_terencana_unit_petak_idx").on(table.petakId),
     index("pemesanan_terencana_unit_kavling_idx").on(table.kavlingId),
+  ],
+);
+
+/**
+ * The statuses of a Pembatalan request from a Pemegang Hak (spec, Pemesanan > Requests
+ * from the Pemegang Hak): Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak |
+ * Dibatalkan (by the requester before a decision). The Antrean Lokasi row exists only
+ * while it is Diajukan.
+ */
+export const permintaanPembatalanStatuses = ["diajukan", "perlu_perbaikan", "disetujui", "ditolak", "dibatalkan"] as const;
+export type PermintaanPembatalanStatus = (typeof permintaanPembatalanStatuses)[number];
+
+/** One refunded amount of a Pembatalan, as Refunds' `ajukanBaris` takes it: what the Bukti Pengembalian Dana repeats and what nets from the Lokasi Mitra. */
+export interface BarisRefundPembatalan {
+  label: string;
+  amount: number;
+  lokasiId: string | null;
+}
+
+/**
+ * Owned by the Pemesanan module: one Pembatalan request of a paid Pemesanan Terencana, asked by
+ * the Pemegang Hak of its Hak Pakai (ticket 38). It belongs to the order, not to one plot: the
+ * order was paid on one Tagihan, so the plots are cancelled together.
+ *
+ * The refund is computed once, when the request is first made, from the **Syarat snapshot on the
+ * order** (never the Lokasi Mitra's current policy), and kept here: `dalam_masa_pembatalan` says
+ * which side of the Masa Pembatalan the request was made on, `persen_refund` the share of the
+ * tariff, `lines` and `jumlah_refund` the amounts. The Biaya Layanan Platform is never in them. A
+ * request the Admin Lokasi sends back for a fix and the Pemegang Hak files again keeps the same
+ * figures: the family must not lose the full refund because a Lokasi took days to answer.
+ *
+ * At most one request is open (Diajukan or Perlu Perbaikan) per order, the partial unique index
+ * below. `pemohon_email` is where the family's answers go: the Email Terverifikasi of the Akun that
+ * asked, who may be somebody other than the Pemesan who paid.
+ */
+export const permintaanPembatalanTerencana = pgTable(
+  "permintaan_pembatalan_terencana",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pemesananId: uuid("pemesanan_id")
+      .notNull()
+      .references(() => pemesananTerencana.id),
+    nomorPemesanan: text("nomor_pemesanan").notNull(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    status: text("status", { enum: permintaanPembatalanStatuses }).notNull(),
+    pemohonAccountId: text("pemohon_account_id").notNull(),
+    pemohonEmail: text("pemohon_email").notNull(),
+    /** Why the Pemegang Hak cancels, in their own words; optional. */
+    catatanPemohon: text("catatan_pemohon"),
+    dalamMasaPembatalan: boolean("dalam_masa_pembatalan").notNull(),
+    persenRefund: integer("persen_refund").notNull(),
+    jumlahRefund: bigint("jumlah_refund", { mode: "number" }).notNull(),
+    lines: jsonb("lines").$type<BarisRefundPembatalan[]>().notNull(),
+    /** How many times the Admin Lokasi sent it back for a fix: what makes each "perlu perbaikan" message its own. */
+    putaran: integer("putaran").notNull(),
+    diajukanPada: at("diajukan_pada").notNull(),
+    /** 2 Hari Kerja on the Lokasi's own calendar from the latest filing; null while its Jam Operasional is belum diisi. */
+    tenggatPada: at("tenggat_pada"),
+    diputuskanPada: at("diputuskan_pada"),
+    diputuskanOleh: text("diputuskan_oleh"),
+    /** The Admin Lokasi's reason to decline, or what it asks to be fixed. */
+    alasanKeputusan: text("alasan_keputusan"),
+    dibatalkanPada: at("dibatalkan_pada"),
+    /** The refund request this approval raised in Refunds; null while none (undecided, declined, or a refund of nothing). */
+    permintaanPengembalianId: uuid("permintaan_pengembalian_id"),
+    /** Admin Platform's "Pembatalan refund approval" deadline: 2 Hari Kerja on its calendar from the Lokasi's approval. */
+    persetujuanRefundTenggatPada: at("persetujuan_refund_tenggat_pada"),
+  },
+  (table) => [
+    index("permintaan_pembatalan_terencana_pemesanan_idx").on(table.pemesananId),
+    index("permintaan_pembatalan_terencana_lokasi_idx").on(table.lokasiId, table.status),
+    // One open request per order: a second filing while one is open is refused, never a second refund.
+    uniqueIndex("permintaan_pembatalan_terencana_terbuka_idx")
+      .on(table.pemesananId)
+      .where(sql`${table.status} in ('diajukan', 'perlu_perbaikan')`),
   ],
 );

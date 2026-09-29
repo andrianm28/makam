@@ -136,6 +136,8 @@ async function main() {
     notifikasi,
     // Recording a Pemakaman tells Payouts (ticket 90); the worker records none, but the module needs the dependency.
     payouts,
+    // A Pembatalan's refund is asked of Refunds when the Admin Lokasi approves; the worker decides none, but the module needs it.
+    refunds,
   });
 
   const worker = await startWorker({

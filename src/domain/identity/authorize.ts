@@ -169,6 +169,14 @@ export type Action =
   | "pemesanan.tawarkan_alternatif"
   /** The Admin Lokasi of the order's own Lokasi Mitra records a cancellation on the family's behalf. */
   | "pemesanan.batalkan_untuk_pemesan"
+  /**
+   * The Pemegang Hak of a paid Terencana order's Hak Pakai asks to cancel it, files the request again after a fix,
+   * or withdraws it before a decision (ticket 38). Who the Pemegang Hak is, is the module's own check against the
+   * Hak Pakai's recorded email; the guard only knows the request is made as this Akun.
+   */
+  | "pembatalan.ajukan"
+  /** The Admin Lokasi of the Hak Pakai's own Lokasi Mitra approves, declines or sends back a Pembatalan request (ticket 38). */
+  | "pembatalan.putuskan"
   /** Read a Saat Duka TPU order (Admin Platform only: a TPU is the Operator's own work, never a partner's). */
   | "pengurusan.lihat_staf"
   /** Confirm a Saat Duka TPU order, or offer the family another TPU (Admin Platform only). */
@@ -542,6 +550,14 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
         ? allowed
         : denied;
+    case "pembatalan.ajukan":
+      // A Pemegang Hak acts on its own request as itself, whoever placed the order (it may be a relative);
+      // the module checks that the Akun's Email Terverifikasi is the Hak Pakai's recorded holder.
+      return resource.kind === "pemesanan_makam" && resource.accountId === actor.accountId ? allowed : denied;
+    case "pembatalan.putuskan":
+      // The Lokasi's own Admin Lokasi confirms there is no Pemakaman and answers; Admin Platform only approves
+      // the refund that follows (`pengembalian.kelola`), never the Pembatalan itself.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
     case "pemesanan.buat":
     case "pemesanan.lihat":
     case "pemesanan.unggah_dokumen":

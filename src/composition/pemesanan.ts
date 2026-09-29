@@ -43,6 +43,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       terencanaDitolak: async () => {},
       terencanaBatasBayarLewat: async () => {},
       terencanaBukti: async () => {},
+      pembatalanTerencana: async () => {},
       chasingDijadwalkan: async () => {},
       tidakTertagihDinyatakan: async () => {},
     };
@@ -100,6 +101,9 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     },
     terencanaBukti: async (tx, input) => {
       await notifications.terencanaBukti(input, tx);
+    },
+    pembatalanTerencana: async (tx, input) => {
+      await notifications.pembatalanTerencana(input, tx);
     },
     tidakTertagihDinyatakan: async (tx, tagihan) => {
       await notifications.antrekanPeringatanTidakTertagih(tx, tagihan);

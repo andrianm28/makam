@@ -197,6 +197,7 @@ const RUPIAH_MAX_LINE = 10_000_000_000;
 
 const ajukanBarisSchema = z.object({
   pihakBersalah: z.enum(pihakBersalahKinds),
+  penuh: z.boolean().optional(),
   lines: z
     .array(
       z.object({
@@ -211,6 +212,12 @@ const ajukanBarisSchema = z.object({
 
 export interface AjukanBarisInput {
   pihakBersalah: PihakBersalah;
+  /**
+   * True when the lines return everything the fault rule lets this Tagihan return (a Pembatalan within its Masa
+   * Pembatalan: the whole tariff, the Biaya Layanan Platform kept). Only then is the Tagihan Dikembalikan penuh, the
+   * Lokasi Mitra's Pencairan cancelled and never made later. Refused unless it really is everything; default false.
+   */
+  penuh?: boolean;
   /** The lines of the Tagihan to return, the Biaya Layanan Platform excluded: whether that fee comes back is Refunds' rule. */
   lines: RefundLine[];
 }
@@ -271,7 +278,12 @@ async function ajukanBarisTerkunci(
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);
   if (jumlah === 0 || sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };
 
+  // A "penuh" request is everything the Tagihan can return: nothing may stay behind but the fee the fault rule keeps.
+  const feeDitahan = feeLine !== undefined && !denganFee && !feeSudahDikembalikan ? feeLine.amount : 0;
+  if (parsed.data.penuh && sudah + jumlah + feeDitahan !== tagihan.total) return { ok: false, reason: "input_tidak_valid" };
+
   const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
+  if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
   if (terbuka) {
     if (terbuka.status !== "diajukan" || terbuka.goodwill || terbuka.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
     await deps.db
@@ -293,7 +305,7 @@ async function ajukanBarisTerkunci(
     pihakBersalah: parsed.data.pihakBersalah,
     biayaLayananPlatformDikembalikan: denganFee,
     goodwill: false,
-    penuh: false,
+    penuh: parsed.data.penuh ?? false,
     lines,
     jumlah: rupiahSchema.parse(jumlah),
     catatan: null,

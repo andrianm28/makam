@@ -5,6 +5,7 @@ import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
 import type {
+  PembatalanTerencanaInput,
   TagihanTerbitInput,
   TagihanTerbitResult,
   TerencanaBatasBayarLewatInput,
@@ -13,6 +14,7 @@ import type {
   TerencanaDitolakInput,
 } from "@/domain/notifications";
 import type { Payouts } from "@/domain/payouts";
+import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Rupiah } from "@/lib/rupiah";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -104,6 +106,12 @@ export interface PemesananNotifikasi {
   terencanaDitolak(tx: Database, input: TerencanaDitolakInput): Promise<void>;
   terencanaBatasBayarLewat(tx: Database, input: TerencanaBatasBayarLewatInput): Promise<void>;
   terencanaBukti(tx: Database, input: TerencanaBuktiInput): Promise<void>;
+  /**
+   * The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved (the
+   * Pemesan who paid is asked for a bank account when a refund is due), declined, or sent back for a fix.
+   * Announced inside the decision's own transaction, so it commits or rolls back with it.
+   */
+  pembatalanTerencana(tx: Database, input: PembatalanTerencanaInput): Promise<void>;
   /**
    * A pay-after Tagihan's overdue anchor just became known (`catatPemakaman`,
    * right after `billing.setOverdueAnchor` sets it): Chasing's four H+3/7/14/30
@@ -298,6 +306,8 @@ export interface PemesananDeps {
     // A Terencana order's hold (Lokasi policy) and the working calendar its confirmation deadline counts on (ticket 37).
     | "terencanaHoldHours"
     | "jamOperasionalOf"
+    // A Pembatalan's refund approval by Admin Platform is due 2 Hari Kerja on its own calendar (ticket 38).
+    | "adminPlatformCalendar"
     | "documentChecklistOf"
     | "kontakSiagaOf"
   >;
@@ -331,6 +341,13 @@ export interface PemesananDeps {
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
   billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
+  /**
+   * The refund an approved Pembatalan asks for (ticket 38), raised inside the approval's own transaction so the
+   * Hak Pakai never ends with its money left unasked for, and read back to know whether Admin Platform has
+   * approved it yet. Refunds is composed after this module (it asks this module who placed an order), so a
+   * runtime reaches it through a lazy reference, as it reaches Payouts.
+   */
+  refunds: Pick<Refunds, "ajukanBaris" | "permintaan">;
   /**
    * Payouts' half of the Saat Duka trigger that only this module can write: a
    * recorded Pemakaman, told to Payouts inside the burial's own transaction

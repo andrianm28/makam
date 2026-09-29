@@ -108,6 +108,7 @@ import {
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+import { pembatalanTerencana, type PembatalanTerencanaInput, type PesanPembatalanResult } from "./pesan-pembatalan";
 import {
   terencanaBatasBayarLewat,
   terencanaBukti,
@@ -148,6 +149,7 @@ export {
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
+export { pembatalanTerencanaSchema, type PembatalanTerencanaInput, type PesanPembatalanResult } from "./pesan-pembatalan";
 export {
   terencanaBatasBayarLewatSchema,
   terencanaBuktiSchema,
@@ -377,6 +379,12 @@ export interface Notifications {
   terencanaDitolak(input: TerencanaDitolakInput, within?: Database): Promise<PesanTerencanaResult>;
   terencanaBatasBayarLewat(input: TerencanaBatasBayarLewatInput, within?: Database): Promise<PesanTerencanaResult>;
   terencanaBukti(input: TerencanaBuktiInput, within?: Database): Promise<PesanTerencanaResult>;
+  /**
+   * The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved
+   * (the Pemesan who paid is asked for the bank account the refund goes to), declined, or sent back
+   * for a fix. `within` is the decision's own transaction, so the message commits with it.
+   */
+  pembatalanTerencana(input: PembatalanTerencanaInput, within?: Database): Promise<PesanPembatalanResult>;
   /**
    * Announces the Bukti Perpanjangan of a paid Perpanjangan by email (ticket 40),
    * logged against the Perpanjangan itself. With no email a call row opens.
@@ -730,6 +738,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async terencanaBukti(input, within) {
       return terencanaBukti(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async pembatalanTerencana(input, within) {
+      return pembatalanTerencana(within ? { ...deps, db: within } : deps, input);
     },
 
     async buktiPerpanjanganTerbit(input, within) {
