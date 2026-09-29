@@ -274,7 +274,9 @@ export type AuditAction =
   /** An Admin Lokasi records a new Pemegang Hak on a Hak Pakai; the earlier holder is kept in the history (ticket 41). */
   | "hak_pakai.ganti_pemegang"
   /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
-  | "hak_pakai.ubah_kontak_pemegang";
+  | "hak_pakai.ubah_kontak_pemegang"
+  /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
+  | "layanan.putuskan_keluhan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

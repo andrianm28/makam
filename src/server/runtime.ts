@@ -229,6 +229,7 @@ export function serverRuntime(): ServerRuntime {
       billing,
       identity,
       refunds,
+      payouts,
       notifications,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan

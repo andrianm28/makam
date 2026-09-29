@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 64 resolved, 17 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 65 resolved, 16 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -54,7 +54,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-0
 | [48](48-perpanjangan-tpu.md) | Perpanjangan TPU (IPTM renewal) | ready-for-agent | 47 |
 | [49](49-layanan-catalog-and-paket-definitions.md) | Layanan catalog, prices and Paket Layanan definitions | resolved | 16 |
 | [50](50-layanan-order-at-lokasi-mitra.md) | Layanan order at a Lokasi Mitra and Admin Lokasi fulfilment | resolved | 19, 23, 34, 49 |
-| [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | ready-for-agent | 32, 50 |
+| [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | resolved | 32, 50 |
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |
 | [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan | ready-for-agent | 37, 40, 50 |
 | [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | ready-for-agent | 50 |

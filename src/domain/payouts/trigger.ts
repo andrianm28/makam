@@ -113,8 +113,12 @@ function linesOfPartner(tagihan: Tagihan): { ok: true; lines: { position: number
   return { ok: true, lines };
 }
 
-/** Which trigger is writing an order's items: the Saat Duka / Terencana ones, or the Perpanjangan one (ticket 40). */
-type Jalur = "saat_duka" | "perpanjangan";
+/**
+ * Which trigger is writing an order's items: the Saat Duka / Terencana ones, the
+ * Perpanjangan one (ticket 40), or the Layanan one (ticket 51), whose items are written
+ * when a Layanan-only order is paid and made due later by the Layanan module.
+ */
+type Jalur = "saat_duka" | "perpanjangan" | "layanan";
 
 /**
  * Whether the trigger that is running owns a line kind, and so may make its item
@@ -123,6 +127,8 @@ type Jalur = "saat_duka" | "perpanjangan";
  * the Perpanjangan line, due at the instant of payment.
  */
 function milikTriggerIni(jalur: Jalur, kind: TagihanLine["kind"]): boolean {
+  // A Layanan line is never due on payment: its job's own Keluhan window is what makes it due (`./layanan.ts`).
+  if (jalur === "layanan") return false;
   return jalur === "perpanjangan" ? kind === "perpanjangan" : kind === "harga_hak_pakai" || kind === "biaya_pemakaman";
 }
 
@@ -196,6 +202,12 @@ async function tulisPencairan(
       deps.reportError?.(new Error("a Tagihan line the partner provides has no Pencairan item kind"), {
         tags: { module: "payouts", event: "pencairan_item_jenis_tidak_dikenal", nomorTagihan: tagihan.nomorTagihan },
       });
+      return { ok: false, dibuat: 0, dilewati: false };
+    }
+    // The Layanan trigger owns an order whose partner lines are all Layanan (a standalone
+    // Layanan order has no Pemakaman and no Masa Pembatalan to wait for). Any other order that
+    // reaches this path is a Saat Duka or Terencana order still waiting for its own trigger.
+    if (row.jalur === "layanan" && (partner.lines.length === 0 || partner.lines.some(({ line }) => line.kind !== "layanan"))) {
       return { ok: false, dibuat: 0, dilewati: false };
     }
     // A Tagihan refunded in full owes nobody anything: the family's money went
@@ -316,7 +328,32 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
       ),
     )
     .orderBy(pencairanPembayaran.dibayarPada);
-  if (menunggu.length === 0 && perpanjangan.length === 0) return terencana;
+  // A standalone Layanan order (ticket 51) has a Nomor Pemesanan but neither a Pemakaman nor a Masa
+  // Pembatalan, so the two queries above never see it: its items are written as soon as it is paid, and
+  // wait, not yet due, for the Layanan module to say each job's Keluhan window is over. An order that
+  // is any other kind still waiting for its own fact is looked at and left alone (`tulisPencairan`).
+  const layanan = await deps.db
+    .select({
+      tagihanId: pencairanPembayaran.tagihanId,
+      dibayarPada: pencairanPembayaran.dibayarPada,
+      metode: pencairanPembayaran.metode,
+      dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
+    })
+    .from(pencairanPembayaran)
+    .where(
+      and(
+        isNotNull(pencairanPembayaran.nomorPemesanan),
+        notExists(
+          deps.db.select({ one: pencairanPemakaman.nomorPemesanan }).from(pencairanPemakaman).where(eq(pencairanPemakaman.nomorPemesanan, pencairanPembayaran.nomorPemesanan)),
+        ),
+        notExists(
+          deps.db.select({ one: pencairanTerencana.nomorPemesanan }).from(pencairanTerencana).where(eq(pencairanTerencana.nomorPemesanan, pencairanPembayaran.nomorPemesanan)),
+        ),
+        notExists(deps.db.select({ one: pencairanItem.id }).from(pencairanItem).where(eq(pencairanItem.tagihanId, pencairanPembayaran.tagihanId))),
+      ),
+    )
+    .orderBy(pencairanPembayaran.dibayarPada);
+  if (menunggu.length === 0 && perpanjangan.length === 0 && layanan.length === 0) return terencana;
 
   const calendar = await deps.lokasi.adminPlatformCalendar();
   const hasil: TickPencairanResult = { ...terencana };
@@ -325,6 +362,9 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
     if (row.nomorPemesanan === null || diperiksa.has(row.tagihanId)) continue;
     const dueAt = new Date(Math.max(row.dibayarPada.getTime(), row.pemakamanPada.getTime()));
     catat(hasil, await tulisPencairan(deps, { ...row, jalur: "saat_duka", dueAt }, calendar, now));
+  }
+  for (const row of layanan) {
+    catat(hasil, await tulisPencairan(deps, { ...row, jalur: "layanan", dueAt: row.dibayarPada }, calendar, now));
   }
   if (perpanjangan.length > 0) {
     // A payment under review (money that could not be applied, ticket 40) owes the Lokasi nothing until

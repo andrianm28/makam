@@ -75,7 +75,7 @@ export interface AntreanRowDeps {
    * row read the Layanan module's own public reads, never its tables: what is due
    * today, what is coming and what ran late, at one Lokasi Mitra or across all.
    */
-  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
+  layanan: Pick<Layanan, "mitraJasaBelumLengkap" | "tinjauanTerbuka" | "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat" | "keluhanTerbuka" | "kerjakanUlangUntukLokasi">;
 }
 
 /** One open row, before the aggregator attaches its type, tier, label and Ambil claim. */
@@ -100,11 +100,14 @@ export interface AntreanRowType {
 }
 
 /**
- * What a Tier 1 row type reads (ticket 28): only these four, so the worker,
+ * What a Tier 1 row type reads (ticket 28): only these five, so the worker,
  * which alerts on Tier 1 rows and has no signed-in Admin Platform, can build it
  * without composing every neighbour the rest of the Antrean reads.
  */
-export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan" | "pengurusan">;
+export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan" | "pengurusan"> & {
+  /** The Tier 1 "Keluhan" row reads the Layanan module's own list of Keluhan waiting for a decision (ticket 51). */
+  layanan: Pick<AntreanRowDeps["layanan"], "keluhanTerbuka">;
+};
 
 /**
  * An open Tier 1 row with its anchor: `sejak` is when the row appeared, a fact the

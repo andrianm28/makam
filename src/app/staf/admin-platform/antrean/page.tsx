@@ -1,7 +1,9 @@
 import { InboxIcon } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
 import { StatCard } from "@/components/makam/stat-card";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AntreanRow, AntreanTier, BertugasStatus } from "@/domain/queues";
 import { formatTanggalJam, wibTime } from "@/lib/time/jakarta";
@@ -44,6 +46,12 @@ export default async function AntreanPage() {
       <PageHeader
         title="Antrean"
         description="Setiap baris kerja terbuka dari Lokasi Mitra, Tugas Lapangan, Tagihan dan Pencairan, per tier lalu tenggat. Baris menutup diri sendiri begitu keadaannya berubah."
+        actions={
+          // The Penilaian of every finished job: read here and nowhere else, so it is one step from the Antrean.
+          <Link href="/staf/admin-platform/penilaian" className={buttonVariants({ variant: "outline" })}>
+            Penilaian pemesan
+          </Link>
+        }
       />
 
       {bertugas ? (

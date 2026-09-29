@@ -26,7 +26,7 @@
  *   ago — the scheduling half of the second rule is `jadwalkanPekerjaan`'s, in
  *   `./pembayaran`, because it is the payment that would promise the work.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { NewTagihanLine, Tagihan } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber, type PhoneNumberResult } from "@/domain/identity";
@@ -39,8 +39,9 @@ import type { LayananDeps, PemesanLayanan } from "./deps";
 import { offeringsUntukOrder, type VarianUntukOrder } from "./harga";
 import { katalog, proofOf, type ProofRequirement } from "./katalog";
 import { placePesananLayananSchema } from "./pesanan-schema";
-import { pesananLayanan, pesananLayananItem, pekerjaanLayanan, type PesananLayananStatus, type PekerjaanLayananStatus } from "./schema";
+import { keluhanLayanan, pesananLayanan, pesananLayananItem, pekerjaanLayanan, type PesananLayananStatus, type PekerjaanLayananStatus } from "./schema";
 import { buktiUntukPekerjaan, type BuktiTerbaca } from "./bukti";
+import { ditunjukkanPadaOf, jendelaKeluhanBerakhir, sudahDinilai, type KeluhanTerbaca } from "./keluhan";
 
 /** How many days either side of a target date the work may be done (spec, Pekerjaan Layanan: "Target date ±2 days"). */
 export const JENDELA_TARGET_HARI = 2;
@@ -389,6 +390,23 @@ export interface PesananLayananItemTerbaca {
     harusBukti: ProofRequirement;
     /** What has been shown, each with a link to read it. */
     bukti: BuktiTerbaca[];
+    /** When the proof was last shown to the Pemesan: the moment the 3×24 h Keluhan window opened. */
+    ditunjukkanAt: Date | null;
+    /** When that window closes (or closed), or null while no proof has been shown. */
+    jendelaKeluhanBerakhirAt: Date | null;
+    /**
+     * When the window-close tick saw the window over with nothing left open: the signal the job's
+     * message thread closes on (ticket 52). Null while it is open.
+     */
+    jendelaDitutupAt: Date | null;
+    /** Whether the Pemesan may file a Keluhan on this job right now: finished, inside the window, none yet. */
+    bolehKeluhan: boolean;
+    /** The Keluhan on this job and what became of it, or null. */
+    keluhan: Pick<KeluhanTerbaca, "id" | "status" | "alasan" | "diajukanAt" | "diputuskanAt" | "catatanKeputusan"> | null;
+    /** Whether the Pemesan has given this job its Penilaian: they may give one once, and the stars are read by Admin Platform alone. */
+    dinilai: boolean;
+    /** Whether the Pemesan may still rate this job: it was finished and has none. */
+    bolehDinilai: boolean;
   } | null;
 }
 
@@ -411,6 +429,10 @@ export async function pesananLayananOf(
     .orderBy(asc(pesananLayananItem.posisi));
   const jobs = await deps.db.select().from(pekerjaanLayanan).where(eq(pekerjaanLayanan.pesananId, order.id));
   const jobOf = new Map(jobs.map((job) => [job.pesananItemId, job]));
+  const keluhanRows = jobs.length === 0 ? [] : await deps.db.select().from(keluhanLayanan).where(inArray(keluhanLayanan.pekerjaanId, jobs.map((job) => job.id)));
+  const keluhanOf = new Map(keluhanRows.map((row) => [row.pekerjaanId, row]));
+  const dinilai = await sudahDinilai(deps.db, jobs.map((job) => job.id));
+  const sekarang = deps.clock.now();
   // What each job has to show comes from the Layanan's own kind, so the read
   // carries the requirement and not just the files that happen to be there.
   const jenisOf = new Map((await katalog(deps.db)).map((entry) => [entry.id, entry.jenis] as const));
@@ -450,10 +472,40 @@ export async function pesananLayananOf(
                 bukti: await buktiUntukPekerjaan(deps, job.id),
                 /** What this job must show, so the page can say what is still missing. */
                 harusBukti: buktiDibutuhkan.get(satu.id) ?? { fotoSesudah: true, fotoSebelum: false, video: false },
+                ...keluhanBaca(job, keluhanOf.get(job.id) ?? null, dinilai.has(job.id), sekarang),
               }
             : null,
         };
       }),
     ),
+  };
+}
+
+/** What the order page needs to offer a Keluhan and a Penilaian on one job, and to say what became of them. */
+function keluhanBaca(
+  job: typeof pekerjaanLayanan.$inferSelect,
+  keluhan: typeof keluhanLayanan.$inferSelect | null,
+  dinilai: boolean,
+  sekarang: Date,
+) {
+  const ditunjukkan = ditunjukkanPadaOf(job);
+  const berakhir = ditunjukkan ? jendelaKeluhanBerakhir(ditunjukkan) : null;
+  return {
+    ditunjukkanAt: ditunjukkan,
+    jendelaKeluhanBerakhirAt: berakhir,
+    jendelaDitutupAt: job.jendelaDitutupAt,
+    bolehKeluhan: job.status === "selesai" && keluhan === null && berakhir !== null && sekarang.getTime() <= berakhir.getTime(),
+    keluhan: keluhan
+      ? {
+          id: keluhan.id,
+          status: keluhan.status,
+          alasan: keluhan.alasan,
+          diajukanAt: keluhan.diajukanAt,
+          diputuskanAt: keluhan.diputuskanAt,
+          catatanKeputusan: keluhan.catatanKeputusan,
+        }
+      : null,
+    dinilai,
+    bolehDinilai: !dinilai && job.status !== "dibatalkan" && job.selesaiAt !== null,
   };
 }

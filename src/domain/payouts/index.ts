@@ -6,7 +6,7 @@
  * A Pencairan item is created by a **registered trigger**, not by a screen: the
  * Saat Duka trigger (Lunas **and** Pemakaman recorded) is this ticket's, and the
  * Terencana, Perpanjangan and Layanan triggers arrive with tickets 37, 40 and 51
- * calling the same functions. The amount is copied from the **issued** Tagihan
+ * calling the same functions (`./layanan.ts` is the Layanan one). The amount is copied from the **issued** Tagihan
  * line and never quoted again, so a tariff entered after the issue cannot move a
  * number the family has already been sent.
  *
@@ -34,6 +34,7 @@ import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import { sudahDicairkanUntukTagihan, type BarisPencairan } from "./baca";
+import { itemLayananOf, jadikanLayananJatuhTempo, type ItemLayanan, type LayananJatuhTempoResult } from "./layanan";
 import {
   batalkanPencairanTagihan,
   catatItemLayananMitraJasa,
@@ -103,6 +104,7 @@ export type { BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
+export type { ItemLayanan, LayananJatuhTempoResult } from "./layanan";
 
 export interface PayoutsDeps {
   db: Database;
@@ -166,7 +168,7 @@ export interface Payouts {
   /** Admin Platform transfers by hand, uploads the proof and enters the date: one Bukti Pencairan covering those items and Potongan. */
   terbitkanBuktiPencairan(by: Actor, input: TerbitkanBuktiInput): Promise<TerbitkanBuktiResult>;
   /** Admin Platform overrides what one item pays after a Keluhan, with a note. */
-  turunkanJumlahPencairan(by: Actor, input: { itemId: string; amount: number; catatan: string }): Promise<TurunkanJumlahResult>;
+  turunkanJumlahPencairan(by: Actor, input: { itemId: string; amount: number; catatan: string }, within?: Database): Promise<TurunkanJumlahResult>;
   /**
    * Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra" record
    * (ticket 30's AC 2): the platform-fee Potongan it raised is cancelled (or,
@@ -225,6 +227,19 @@ export interface Payouts {
       label?: string;
     },
   ): Promise<CatatLayananMitraJasaResult>;
+  /**
+   * The item a Tagihan's Layanan line produced, or null while there is none (the Tagihan is not
+   * paid yet, or it was paid straight to the Lokasi Mitra). The Layanan module (ticket 51) reads
+   * it to make the item due and so that Admin Platform can override what it pays after a Keluhan.
+   */
+  itemLayanan(tagihanId: string, tagihanPosisi: number, within?: Database): Promise<ItemLayanan | null>;
+  /**
+   * The Layanan trigger (ticket 51): makes one Layanan line's item due when its job's Keluhan
+   * window closes with no Keluhan, a Keluhan is rejected, or the redo proof is shown. The Layanan
+   * module calls it on the transaction that records that fact, and again on its tick while the
+   * answer is `belum_ada` (the Lunas half has not written the item yet). Idempotent.
+   */
+  jadikanLayananJatuhTempo(tx: Database, input: { tagihanId: string; tagihanPosisi: number }): Promise<LayananJatuhTempoResult>;
   /** The 2 Hari Kerja deadline for an item that another ticket's trigger has just made due. */
   jadikanJatuhTempo(tx: Database, itemId: string): Promise<{ ok: true } | { ok: false; reason: "tidak_ditemukan" }>;
 
@@ -277,13 +292,19 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),
     tahanPencairan: (by, input) => tahanPencairan(runDeps, by, input),
     terbitkanBuktiPencairan: (by, input) => terbitkanBuktiPencairan(transferDeps, by, input),
-    turunkanJumlahPencairan: (by, input) => turunkanJumlahPencairan(itemDeps, by, input),
+    turunkanJumlahPencairan: (by, input, within) => turunkanJumlahPencairan(itemDeps, by, input, within),
     batalkanPembayaranLangsung: (by, input) => batalkanPembayaranLangsung(potonganDeps, by, input),
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
     kurangiPencairanSebisanya: (tx, input) => kurangiPencairanSebisanya(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
     sudahDicairkanUntukTagihan: (tagihanId) => sudahDicairkanUntukTagihan(deps.db, tagihanId),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),
+    itemLayanan: (tagihanId, posisi, within) => itemLayananOf(within ?? deps.db, tagihanId, posisi),
+    jadikanLayananJatuhTempo: (tx, input) =>
+      jadikanLayananJatuhTempo(tx, input, {
+        now: deps.clock.now(),
+        jatuhTempoAt: () => tenggat(deps.lokasi, deps.clock.now()),
+      }),
     jadikanJatuhTempo: async (tx, itemId) => itemJatuhTempo(tx, itemId, { now: deps.clock.now(), jatuhTempoAt: await tenggat(deps.lokasi, deps.clock.now()) }),
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),
