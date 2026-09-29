@@ -218,7 +218,13 @@ export type AuditAction =
   /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "tagihan.tidak_tertagih"
   /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */
-  | "tagihan.catatan_ditambah";
+  | "tagihan.catatan_ditambah"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra completes one Hak Pakai flagged Perlu
+   * Verifikasi — the flag the first Perpanjangan or Layanan on that Hak Pakai waits
+   * for, and the exit a gate with no exit could not be opened through (ticket 50).
+   */
+  | "hak_pakai.selesaikan_verifikasi";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

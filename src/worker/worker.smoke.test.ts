@@ -42,6 +42,8 @@ describe("pg-boss wiring (smoke)", () => {
         },
         lokasi: { serviceHoursDeadline: async () => ({ ok: false, reason: "jam_operasional_belum_diisi" as const }), kontakSiagaOf: async () => null },
         identity: { adminLokasiOf: async () => [] },
+        // The Layanan module's payment effect re-run reads a grave's Hak Pakai; the smoke test pays nothing.
+        inventory: { hakPakaiOfUnit: async () => null },
         notifikasi: {
           pesananDiajukan: async () => {},
           pesananBelumDikonfirmasi: async () => {},

@@ -35,6 +35,8 @@ export const TEMPLATE_EMAIL = [
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
   "pengembalian_terbit",
+  "layanan_pesanan_terbit",
+  "layanan_pekerjaan_selesai",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -70,6 +72,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   // A Bukti Pengembalian Dana asks nothing (the money is already on its way),
   // exactly like a Bukti Pembayaran (ticket 31).
   pengembalian_terbit: "transaksional",
+  layanan_pesanan_terbit: "transaksional",
+  layanan_pekerjaan_selesai: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -102,6 +106,8 @@ export const TABEL_ACARA: Record<
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
   | "pengurusan_dikonfirmasi"
+  | "layanan_pesanan_terbit"
+  | "layanan_pekerjaan_selesai"
   | "peringatan_staf",
   Acara
 > = {
@@ -189,6 +195,27 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pengurusan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pengurusan_dikonfirmasi,
+  },
+  /**
+   * An order Layanan reaches its Pemesan by email only (ADR 0004), at any hour:
+   * the order and its Tagihan, and the finished job with the link to its photo
+   * proof. Both are about a Lokasi Mitra's own work, so a send that keeps
+   * failing calls that Lokasi's Admin Lokasi rather than Admin Platform. Neither
+   * asks the family to do anything, so neither waits for the 08:00–20:00 window:
+   * one is the receipt of an order they placed, the other the thing they were
+   * waiting to be shown.
+   */
+  layanan_pesanan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pesanan_terbit",
+    waktu: WAKTU_TEMPLATE.layanan_pesanan_terbit,
+  },
+  layanan_pekerjaan_selesai: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pekerjaan_selesai",
+    waktu: WAKTU_TEMPLATE.layanan_pekerjaan_selesai,
   },
   /**
    * The staff events, one Peringatan Staf per kind (the module's

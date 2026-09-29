@@ -19,6 +19,7 @@ export function schedulerContext(parts: {
   pemesanan?: SchedulerContext["pemesanan"];
   payouts?: SchedulerContext["payouts"];
   refunds?: SchedulerContext["refunds"];
+  inventory?: SchedulerContext["inventory"];
 }): SchedulerContext {
   return {
     db: parts.db,
@@ -43,6 +44,9 @@ export function schedulerContext(parts: {
     // Refunds' own tick changes nothing until a test gives it a real module: an
     // empty Billing list is what the materialising tick finds anyway.
     refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
+    // A grave no tick but the Layanan release one reads: a test of another module's
+    // tick is undisturbed by it, and a test of the release one passes the real read.
+    inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
   };
 }
 

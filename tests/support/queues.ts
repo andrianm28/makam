@@ -1,5 +1,5 @@
 import type { Database } from "@/db/client";
-
+import { composeLayanan } from "@/composition/layanan";
 import { createQueues } from "@/domain/queues";
 import { composePemesanan } from "@/composition/pemesanan";
 import { createPengurusan } from "@/domain/pengurusan";
@@ -18,6 +18,21 @@ import { publishOnTestDatabase } from "./publish";
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
   const pemesanan = composePemesanan({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    identity: setup.identity,
+    notifications: setup.notifications,
+  });
+  // The Antrean's Layanan rows (ticket 50) read the Layanan module's own public reads, so it is
+  // composed here beside the rest: it needs Inventory, Billing and Identity, all of which this
+  // fixture already has.
+  const layanan = composeLayanan({
     db,
     clock: setup.clock,
     files: setup.files,
@@ -68,8 +83,9 @@ export function queuesOnTestDatabase(db: Database) {
     payouts,
     pengurusan,
     refunds,
+    layanan,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, refunds, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, pengurusan, payouts, refunds, layanan, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

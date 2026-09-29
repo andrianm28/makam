@@ -13,7 +13,8 @@ import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
 import { createInventory, type Inventory } from "@/domain/inventory";
-import { createLayanan, type Layanan } from "@/domain/layanan";
+import { composeLayanan } from "@/composition/layanan";
+import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
@@ -87,7 +88,6 @@ export function serverRuntime(): ServerRuntime {
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-    const layanan = createLayanan({ db: database.db, clock: adapters.clock, audit, lokasi, tariffs });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
@@ -153,6 +153,8 @@ export function serverRuntime(): ServerRuntime {
       paymentEffects: paymentEffects({
         clock: adapters.clock,
         dokumenUrl: documentUrls(env).publicDocumentUrl,
+        // A paid order Layanan schedules its jobs, unless the grave's Hak Pakai is still Perlu Verifikasi (ticket 50).
+        layanan: { db: database.db, inventory },
         // A paid order earns its Bukti Pemesanan and becomes Selesai, in the payment's own transaction (ticket 25).
         buktiPemesanan: buktiPemesananEffect({
           clock: adapters.clock,
@@ -162,6 +164,20 @@ export function serverRuntime(): ServerRuntime {
           notifikasi,
         }),
       }),
+    });
+    // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
+    // it issues its Tagihan through Billing and announces it through Notifications, so it is composed after both.
+    const layanan = composeLayanan({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      tariffs,
+      inventory,
+      billing,
+      identity,
+      notifications,
     });
     // Payouts reads the issued Tagihan through Billing, so it is composed after it.
     const payouts = composePayouts({
@@ -241,6 +257,7 @@ export function serverRuntime(): ServerRuntime {
         payouts,
         pengurusan,
         refunds,
+        layanan,
       }),
       pengurusan,
     };

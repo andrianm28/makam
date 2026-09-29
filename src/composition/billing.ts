@@ -1,6 +1,7 @@
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { createBilling, type Billing, type BillingDeps, type PaymentEffect } from "@/domain/billing";
+import { efekJadwalkanPekerjaan, type JadwalkanDeps } from "@/domain/layanan/pembayaran";
 import { efekBuktiPembayaran } from "@/domain/notifications";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { efekBuktiPemesanan, type BuktiPemesananEffectDeps } from "@/domain/pemesanan";
@@ -52,17 +53,21 @@ export interface BillingComposition {
  * Notifications' Bukti Pembayaran receipt email (ticket 20), the Payouts
  * module's record of a settled payment, which is the Lunas half of the Saat
  * Duka Pencairan trigger (ticket 32), and the Pemesanan module's Bukti
- * Pemesanan, which makes a paid order Selesai (ticket 25).
+ * Pemesanan, which makes a paid order Selesai (ticket 25), and the Layanan
+ * module's scheduling of a paid order's jobs (ticket 50).
  */
 export function paymentEffects(deps: {
   clock: Clock;
   dokumenUrl: (link: string) => string;
+  /** What the Layanan effect needs: the database and a grave's Hak Pakai, which holds a job back until the Admin Lokasi completes it. */
+  layanan: JadwalkanDeps;
   /** The Pemesanan module's own effect (ticket 25), when a process composes that module beside Billing. */
   buktiPemesanan?: PaymentEffect;
 }): readonly PaymentEffect[] {
   return [
     efekBuktiPembayaran({ clock: deps.clock, dokumenUrl: deps.dokumenUrl }),
     efekPencairanSaatLunas(),
+    efekJadwalkanPekerjaan(deps.layanan),
     ...(deps.buktiPemesanan ? [deps.buktiPemesanan] : []),
   ];
 }
@@ -85,6 +90,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
     pesananUlangUrl: (nomor: string) => `${publicOrigin}/pesan-makam/saat-duka?dari=${encodeURIComponent(nomor)}`,
     /** A Pengurusan order's own page, where a family follows a TPU filing (ticket 45). */
     pengurusanUrl: (nomor: string) => `${publicOrigin}/pengurusan/${nomor}`,
+    /** An order Layanan's own page, where its Pemesan follows every job and its proof (ticket 50). */
+    layananUrl: (nomor: string) => `${publicOrigin}/layanan/${nomor}`,
   };
 }
 
@@ -128,9 +135,16 @@ export function buktiPemesananEffect(
 }
 
 /** Billing wired on one database: shared by the `web` runtime, its test twin, the CLIs and the worker's retry tick. */
-export function composeBilling(deps: BillingComposition & { paymentEffects?: readonly PaymentEffect[] }): Billing {
+export function composeBilling(
+  deps: BillingComposition & ({ paymentEffects: readonly PaymentEffect[] } | { layanan: JadwalkanDeps }),
+): Billing {
   const urls = documentUrls(deps.env);
   return createBilling(
-    billingDeps(deps, deps.paymentEffects ?? paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl })),
+    billingDeps(
+      deps,
+      "paymentEffects" in deps
+        ? deps.paymentEffects
+        : paymentEffects({ clock: deps.adapters.clock, dokumenUrl: urls.publicDocumentUrl, layanan: deps.layanan }),
+    ),
   );
 }

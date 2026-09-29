@@ -107,6 +107,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "hak_pakai.akhiri_tidak_tertagih": "Hak Pakai diakhiri (Tagihan Tidak Tertagih)",
   "tagihan.tidak_tertagih": "Tagihan dinyatakan Tidak Tertagih",
   "tagihan.catatan_ditambah": "Catatan ditambahkan pada Tagihan",
+  "hak_pakai.selesaikan_verifikasi": "Hak Pakai dilengkapi (Perlu Verifikasi selesai)",
 };
 
 /** The role an Entri Audit's actor wrote under. */

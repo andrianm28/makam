@@ -64,6 +64,8 @@ async function main() {
   const efek = paymentEffects({
     clock: adapters.clock,
     dokumenUrl: urls.publicDocumentUrl,
+    // A paid order Layanan's jobs are scheduled here too when the first attempt failed (ticket 50).
+    layanan: { db: database.db, inventory },
     buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
   });
   const billing = composeBilling({
@@ -110,6 +112,7 @@ async function main() {
       notifications,
       lokasi,
       identity,
+      inventory,
       notifikasi,
       payouts,
       refunds,

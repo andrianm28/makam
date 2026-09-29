@@ -21,6 +21,7 @@ import type { Fieldwork } from "@/domain/fieldwork";
 import type { Actor, Identity } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Inventory } from "@/domain/inventory";
+import type { Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
@@ -75,6 +76,8 @@ export interface QueuesModuleDeps {
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number. */
   identity: Pick<Identity, "staffAccountById">;
+  /** The Antrean Lokasi's three Layanan rows and the Tier 2 late row read the Layanan module's own lists (ticket 50). */
+  layanan: Pick<Layanan, "pekerjaanUntukStafTerbaru" | "pekerjaanTerlambat">;
 }
 
 export interface Queues {

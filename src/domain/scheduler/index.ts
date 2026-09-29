@@ -14,7 +14,8 @@
 import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
-import { pruneCariMakamAttempts } from "@/domain/inventory";
+import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
+import { jadwalkanTertunda, tandaiTerlambat } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
@@ -44,6 +45,8 @@ export interface SchedulerContext {
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
+  /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
+  inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -96,6 +99,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "pemesanan.catat_pemakaman", cron: "* * * * *", tick: catatPemakamanPromptTick },
   // Refunds: every Tagihan Billing flagged for a refund becomes a request here (ticket 31).
   { name: "refunds.materialise", cron: "* * * * *", tick: refundsMaterialiseTick },
+  // Layanan: a job past its target date with no proof is flagged Terlambat, which raises the Admin Lokasi's and Admin Platform's rows (ticket 50).
+  { name: "layanan.tandai_terlambat", cron: "7 * * * *", tick: terlambatTick },
+  // Layanan: a job the Hak Pakai gate held is scheduled now that its Hak Pakai is complete (ticket 50).
+  { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -138,4 +145,18 @@ async function catatPemakamanPromptTick(ctx: SchedulerContext, now: Date): Promi
 /** The worker wrapper around the Refunds materialising tick (idempotent there, as every tick is). */
 async function refundsMaterialiseTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.refunds.tick(now);
+}
+
+/** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
+async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await tandaiTerlambat(ctx.db, now);
+}
+
+/**
+ * The worker wrapper around the Layanan module's release tick: a job held by the Hak
+ * Pakai gate is scheduled once its Hak Pakai has been completed (idempotent there, as
+ * every tick is).
+ */
+async function jadwalkanTertundaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await jadwalkanTertunda({ db: ctx.db, inventory: ctx.inventory }, now);
 }

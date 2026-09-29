@@ -27,6 +27,7 @@ import { setCellKind, setJenisMakam, renumberCells, setSingleNumber } from "./ce
 import type { BulkEditOutcome, RenumberInput, SetCellKindInput, SetCellKindResult, SetJenisMakamInput, SetJenisMakamResult, RenumberResult, SetSingleNumberResult } from "./cells";
 import { clearKavling, clearPetak, kavlingClearingSchema, petakClearingSchema, type ClearingResult, type ClearKavlingResult } from "./clearing";
 import type { InventoryDeps } from "./deps";
+import { selesaikanVerifikasiHakPakai, type SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 import type { PetakByNomor } from "./lookup";
 import { makamKeluargaSaya, type MakamSaya } from "./makam-saya";
 import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingInput, type SplitKavlingResult } from "./kavling";
@@ -38,11 +39,13 @@ import {
   hasPetakPerluVerifikasi,
   jumlahPetakPerluVerifikasi,
   hakPakaiById,
+  hakPakaiOfUnit,
   staffInventoryReads,
   type BlokDenah,
   type DenahCell,
   type DenahKavling,
   type HakPakaiDetail,
+  type HakPakaiUntukUnit,
   type StaffInventoryReads,
 } from "./reads";
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
@@ -56,7 +59,9 @@ export type { BlokRecord, CellRow, KavlingRow, PetakKind } from "./grid";
 export { inventoryPetakKinds, inventoryHakPakaiStatuses } from "./schema";
 export type { BulkEditOutcome, NewBlokInput, NewKavlingInput, RenumberInput, SetCellKindInput, SetJenisMakamInput };
 export type { ClearingInput } from "./clearing";
+export type { SelesaikanVerifikasiResult } from "./hak-pakai-verifikasi";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
+export type { HakPakaiUntukUnit } from "./reads";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
@@ -141,6 +146,16 @@ export interface Inventory {
   hakPakaiById(hakPakaiId: string): Promise<HakPakaiDetail | null>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
+  /**
+   * That Lokasi Mitra's own Admin Lokasi completes one Hak Pakai flagged Perlu
+   * Verifikasi, taking the flag off and auditing it. The first Perpanjangan or
+   * Layanan on that Hak Pakai waits for this (spec, Inventory), so it is the exit of
+   * a gate those two put on a plot: refused for another Lokasi's Admin Lokasi, for an
+   * Admin Platform, and for a Hak Pakai that was never flagged. What "completed"
+   * fills in — the contact and end date ticket 41's review carries — is that
+   * ticket's, not this function's.
+   */
+  selesaikanVerifikasiHakPakai(by: Actor, lokasiId: string, hakPakaiId: string): Promise<SelesaikanVerifikasiResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
   hasPetakPerluVerifikasi(lokasiId: string): Promise<boolean>;
   /** How many Petak Makam here still need clearing (Perlu Verifikasi), for the Antrean Lokasi's row (ticket 23). */
@@ -214,6 +229,13 @@ export interface Inventory {
    * lookup's privacy list forbids `makamPemegangHak` from carrying.
    */
   makamKeluargaSaya(input: { email: string }): Promise<MakamSaya[]>;
+  /**
+   * One grave's current Hak Pakai as the rule that gates a Layanan order needs
+   * it: its status, whether the Admin Lokasi still has to complete it, and its
+   * end date. No actor and never the Pemegang Hak, because anyone may order for
+   * a grave somebody else holds.
+   */
+  hakPakaiOfUnit(unit: { petakId: string } | { kavlingId: string }): Promise<HakPakaiUntukUnit | null>;
   /** The same module on another transaction, so a caller can place a hold and the order that needs it in one commit. */
   within(tx: Database): Inventory;
   /**
@@ -242,6 +264,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
+    selesaikanVerifikasiHakPakai: (by, lokasiId, hakPakaiId) => selesaikanVerifikasiHakPakai(deps, by, lokasiId, hakPakaiId),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
     tersediaUntukJenisMakam: (lokasiId, jenisMakamId) => tersediaUntukJenisMakam(deps, lokasiId, jenisMakamId),
@@ -255,6 +278,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     cariMakam: (input) => cariMakam(deps, input),
     makamPemegangHak: (input) => makamPemegangHak(deps, input),
     makamKeluargaSaya: (input) => makamKeluargaSaya(deps, input),
+    hakPakaiOfUnit: (unit) => hakPakaiOfUnit(deps, unit),
     tersediaPerJenisMakam: (lokasiId) => availability(deps.db, lokasiId),
     within: (tx) => createInventory({ ...deps, db: tx }),
   };

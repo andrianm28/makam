@@ -4,7 +4,7 @@
  * that does not match the content is refused, so a renamed file of another
  * kind never passes.
  */
-export type DocumentContentType = "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+export type DocumentContentType = "image/jpeg" | "image/png" | "image/webp" | "application/pdf" | "video/mp4";
 
 const DOCUMENT_TYPES: Record<DocumentContentType, { extension: string; matches: (body: Uint8Array) => boolean }> = {
   "image/jpeg": { extension: "jpg", matches: (body) => startsWith(body, [0xff, 0xd8, 0xff]) },
@@ -16,6 +16,8 @@ const DOCUMENT_TYPES: Record<DocumentContentType, { extension: string; matches: 
   },
   // %PDF
   "application/pdf": { extension: "pdf", matches: (body) => startsWith(body, [0x25, 0x50, 0x44, 0x46]) },
+  // ....ftyp, the box every MP4 opens with (the four bytes before it are the box size).
+  "video/mp4": { extension: "mp4", matches: (body) => startsWith(body.subarray(4), [0x66, 0x74, 0x79, 0x70]) },
 };
 
 function startsWith(body: Uint8Array, magic: number[]): boolean {

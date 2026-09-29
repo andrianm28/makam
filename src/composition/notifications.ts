@@ -39,5 +39,6 @@ export function composeNotifications(deps: {
     pesananUrl: urls.pesananUrl,
     pesanUlangUrl: urls.pesananUlangUrl,
     pengurusanUrl: urls.pengurusanUrl,
+    layananUrl: urls.layananUrl,
   });
 }

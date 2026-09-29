@@ -52,6 +52,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       // A Bukti Pengembalian Dana issued (ticket 31): transactional, like a
       // Bukti Pembayaran — the money already moved, so it asks nothing.
       "pengembalian_terbit",
+      "layanan_pesanan_terbit",
+      "layanan_pekerjaan_selesai",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
   });
@@ -64,6 +66,20 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       template: "pengurusan_dikonfirmasi",
       waktu: "transaksional",
     });
+  });
+
+  it("times an order Layanan and a finished job as transactional: neither asks anything", () => {
+    // A family's order and its proof are both things they asked for and are waiting
+    // on, so neither waits for the 08:00–20:00 window a money reminder does.
+    expect(WAKTU_TEMPLATE.layanan_pesanan_terbit).toBe("transaksional");
+    expect(WAKTU_TEMPLATE.layanan_pekerjaan_selesai).toBe("transaksional");
+    expect(TABEL_ACARA.layanan_pesanan_terbit).toEqual({
+      penerima: "email_pemesan",
+      kanal: "email",
+      template: "layanan_pesanan_terbit",
+      waktu: "transaksional",
+    });
+    expect(TABEL_ACARA.layanan_pekerjaan_selesai.waktu).toBe("transaksional");
   });
 
   it("times the Tagihan on issue as a reminder, inside 08:00–20:00 WIB", () => {

@@ -202,7 +202,25 @@ export type Action =
    * end the Hak Pakai", never for a burial under an existing Hak Pakai;
    * ticket 29).
    */
-  | "hak_pakai.akhiri_tidak_tertagih";
+  | "hak_pakai.akhiri_tidak_tertagih"
+  /**
+   * Place an order Layanan of one's own, for the Petak Makam the Makam keluarga
+   * hub's lookup named. Never gated on being the Pemegang Hak: any relative may
+   * care for a grave (spec, story 84).
+   */
+  | "layanan.buat"
+  /** Read one's own order Layanan and its jobs, and cancel one of them. */
+  | "layanan.lihat"
+  /** Read one Pekerjaan Layanan, or a Lokasi Mitra's whole open list, as staff (Admin Platform, or that Lokasi's Admin Lokasi). */
+  | "layanan.lihat_staf"
+  /** The Admin Lokasi of a job's own Lokasi Mitra starts it, captures its proof and marks it Selesai. */
+  | "layanan.kerjakan"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra's own Lokasi completes one Hak Pakai flagged
+   * Perlu Verifikasi, which the first Perpanjangan or Layanan on it waits for
+   * (spec, Inventory).
+   */
+  | "hak_pakai.selesaikan_verifikasi";
 
 /** What the action is done to. */
 export type Resource =
@@ -233,7 +251,9 @@ export type Resource =
   /** The signed-in Akun's own Pemesanan Makam, whichever row of it is meant (the module checks the row). */
   | { kind: "pemesanan_makam"; accountId: string }
   /** A Tagihan acted on directly by staff (manual payment, Harga Khusus): Admin Platform's own money work, not a Lokasi Mitra's. */
-  | { kind: "tagihan" };
+  | { kind: "tagihan" }
+  /** The signed-in Akun's own order Layanan, whichever row of it is meant (the module checks the row). */
+  | { kind: "pesanan_layanan"; accountId: string };
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -346,6 +366,11 @@ export function setorRetribusiResource(): Resource {
 /** A Tagihan acted on directly by staff: a manual payment or a Harga Khusus (Admin Platform's own money work). */
 export function tagihanResource(): Resource {
   return { kind: "tagihan" };
+}
+
+/** The signed-in Akun's own order Layanan: the checkout's Kirim, its order page and its cancellation. */
+export function pesananLayananResource(accountId: string): Resource {
+  return { kind: "pesanan_layanan", accountId };
 }
 
 export type Authorization =
@@ -563,6 +588,28 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // The Lokasi Mitra's own Admin Lokasi ends its Hak Pakai once Admin
       // Platform gave the Tagihan up; Admin Platform never does it for it
       // (spec, Billing > Chasing).
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "layanan.buat":
+    case "layanan.lihat":
+      // An Akun places, reads and cancels its own order Layanan. The Petak it
+      // names is the module's own check, not the guard's: the guard only knows
+      // that the order is this Akun's.
+      return resource.kind === "pesanan_layanan" && resource.accountId === actor.accountId ? allowed : denied;
+    case "layanan.lihat_staf":
+      // An Admin Lokasi sees its own Lokasi Mitra's jobs and no other's (story 139); Admin Platform sees every job.
+      return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))
+        ? allowed
+        : denied;
+    case "layanan.kerjakan":
+      // Only the Lokasi Mitra's own Admin Lokasi does its work, and only that
+      // work: Admin Platform never fulfils a job.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "hak_pakai.selesaikan_verifikasi":
+      // The spec names the Admin Lokasi as the one who completes it ("The Admin Lokasi
+      // must complete it at the latest at the first Perpanjangan or Layanan on that Hak
+      // Pakai"), and only of that Lokasi: the record belongs to the place, and an
+      // Admin Platform chases a Lokasi by phone rather than completing its records
+      // (story 117, and the same rule as `denah.ubah`).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
   }
 }
