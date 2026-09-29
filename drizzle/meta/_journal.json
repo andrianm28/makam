@@ -278,8 +278,22 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1790655116100,
-      "tag": "0039_bright_quentin_quire",
+      "when": 1790655327550,
+      "tag": "0039_wide_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790656785818,
+      "tag": "0040_familiar_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790659590577,
+      "tag": "0041_outgoing_boomer",
       "breakpoints": true
     }
   ]

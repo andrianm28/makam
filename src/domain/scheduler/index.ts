@@ -20,6 +20,7 @@ import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
+import type { QueuesTicks } from "@/domain/queues";
 import type { Refunds } from "@/domain/refunds";
 import type { ReportError } from "@/lib/observability/report-error";
 import { readHeartbeat, recordHeartbeat, type WorkerHeartbeat } from "./heartbeat";
@@ -36,7 +37,7 @@ export interface SchedulerContext {
   paymentEffects: readonly PaymentEffect[];
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20), and the Chasing escalation tick (ticket 29). */
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
   /**
@@ -53,6 +54,8 @@ export interface SchedulerContext {
   refunds: Pick<Refunds, "tick">;
   /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55) and the Keluhan window closing (ticket 51). */
   layanan: Pick<Layanan, "tinjauSkorTick" | "tutupJendelaKeluhan">;
+  /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
+  queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
 }
@@ -118,6 +121,12 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.jadwalkan_tertunda", cron: "9 * * * *", tick: jadwalkanTertundaTick },
   // Layanan: a job's Keluhan window closes 3×24 h after its proof was shown, which makes its Pencairan due and closes its thread (ticket 51).
   { name: "layanan.tutup_jendela_keluhan", cron: "*/5 * * * *", tick: tutupJendelaKeluhanTick },
+  // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
+  { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
+  // Work Queues: a Tier 1 row alerts the Bertugas Admin Platform (all if none), everyone at 30 min untaken, and again at 90 min for a TPU confirmation; a night TPU row waits for 06:00 (ticket 28).
+  { name: "queues.peringatan_tier1", cron: "* * * * *", tick: peringatanTier1Tick },
+  // Work Queues: a Bertugas ends at 18:00 WIB or 12 h after it began, claims and notes untouched (ticket 28).
+  { name: "queues.bertugas_otomatis_mati", cron: "* * * * *", tick: bertugasOtomatisMatiTick },
 ];
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
@@ -192,4 +201,19 @@ async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
  */
 async function jadwalkanTertundaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await jadwalkanTertunda({ db: ctx.db, inventory: ctx.inventory }, now);
+}
+
+/** The worker wrapper around the Antrean's Tier 1 alert tick (idempotent there, as every tick is). */
+async function peringatanTier1Tick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.peringatanTick(now);
+}
+
+/** The worker wrapper around the Bertugas auto-off tick (idempotent there, as every tick is). */
+async function bertugasOtomatisMatiTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.queues.bertugasTick(now);
+}
+
+/** The worker wrapper around Notifications' send tick for queued Tier 1 alerts (idempotent there, as every tick is). */
+async function kirimPeringatanAntreanTick(ctx: SchedulerContext): Promise<void> {
+  await ctx.notifications.kirimPeringatanAntreanTick();
 }

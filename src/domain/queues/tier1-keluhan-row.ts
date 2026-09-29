@@ -10,16 +10,19 @@
  * hours after the Keluhan was filed (`responPertamaDueAt`, counted by `daytimeHoursDeadline`
  * when it was filed): a Keluhan filed at 17:00 is due at 09:00 the next morning, not at 21:00
  * when nobody is awake to answer it.
+ *
+ * It is a Tier 1 row type, so it alerts the Bertugas Admin Platform (ticket 28), and its alert
+ * clocks count from `sejak`, the moment the Keluhan was filed: a fact the row's subject already carries.
  */
-import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
+import type { Tier1Row, Tier1RowDeps, Tier1RowType } from "./row-types";
 
 export const KELUHAN_ROW_TYPE = "keluhan_layanan";
 
-export const keluhanRowType: AntreanRowType = {
+export const keluhanRowType: Tier1RowType = {
   key: KELUHAN_ROW_TYPE,
   tier: 1,
   label: "Keluhan",
-  async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
+  async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     const terbuka = await deps.layanan.keluhanTerbuka();
     return terbuka.map((satu) => ({
       subjectKind: "keluhan_layanan",
@@ -27,6 +30,8 @@ export const keluhanRowType: AntreanRowType = {
       subjectLabel: `${satu.lokasi.name} · ${satu.pesanan} · ${satu.petak} · ${satu.label}`,
       href: `/staf/admin-platform/keluhan/${satu.id}`,
       deadline: satu.responPertamaDueAt,
+      // The row appears when the Pemesan files the Keluhan.
+      sejak: satu.diajukanAt,
     }));
   },
 };

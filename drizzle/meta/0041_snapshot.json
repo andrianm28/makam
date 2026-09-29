@@ -1,6 +1,6 @@
 {
-  "id": "dadbd650-6057-49c7-b60b-7f0fd1d3b571",
-  "prevId": "e15d7184-7a19-4d8d-9b9d-51e57d15768a",
+  "id": "0a7dc4ae-2e9c-4ad5-b829-6937c2d962cb",
+  "prevId": "4d6f8b62-707e-4e77-9ff9-908433388ab8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3545,6 +3545,132 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.keluhan_layanan": {
+      "name": "keluhan_layanan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pekerjaan_id": {
+          "name": "pekerjaan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diajukan_at": {
+          "name": "diajukan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "respon_pertama_due_at": {
+          "name": "respon_pertama_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'terbuka'"
+        },
+        "diputuskan_at": {
+          "name": "diputuskan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diputuskan_oleh": {
+          "name": "diputuskan_oleh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "catatan_keputusan": {
+          "name": "catatan_keputusan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "permintaan_pengembalian_id": {
+          "name": "permintaan_pengembalian_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "redo_selesai_at": {
+          "name": "redo_selesai_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "keluhan_layanan_pekerjaan_idx": {
+          "name": "keluhan_layanan_pekerjaan_idx",
+          "columns": [
+            {
+              "expression": "pekerjaan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "keluhan_layanan_status_idx": {
+          "name": "keluhan_layanan_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "keluhan_layanan_pekerjaan_id_pekerjaan_layanan_id_fk": {
+          "name": "keluhan_layanan_pekerjaan_id_pekerjaan_layanan_id_fk",
+          "tableFrom": "keluhan_layanan",
+          "tableTo": "pekerjaan_layanan",
+          "columnsFrom": [
+            "pekerjaan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.layanan_layanan": {
       "name": "layanan_layanan",
       "schema": "",
@@ -4628,6 +4754,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bukti_ditunjukkan_at": {
+          "name": "bukti_ditunjukkan_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "jendela_ditutup_at": {
+          "name": "jendela_ditutup_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pencairan_jatuh_tempo_at": {
+          "name": "pencairan_jatuh_tempo_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4786,6 +4930,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "diperbarui_at": {
+          "name": "diperbarui_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -4959,6 +5109,91 @@
         "pengembalian_layanan_total_check": {
           "name": "pengembalian_layanan_total_check",
           "value": "\"pengembalian_layanan\".\"total\" between 0 and 100000000000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.penilaian_layanan": {
+      "name": "penilaian_layanan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pekerjaan_id": {
+          "name": "pekerjaan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemesan_account_id": {
+          "name": "pemesan_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bintang": {
+          "name": "bintang",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "komentar": {
+          "name": "komentar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuat_at": {
+          "name": "dibuat_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "penilaian_layanan_pekerjaan_idx": {
+          "name": "penilaian_layanan_pekerjaan_idx",
+          "columns": [
+            {
+              "expression": "pekerjaan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "penilaian_layanan_pekerjaan_id_pekerjaan_layanan_id_fk": {
+          "name": "penilaian_layanan_pekerjaan_id_pekerjaan_layanan_id_fk",
+          "tableFrom": "penilaian_layanan",
+          "tableTo": "pekerjaan_layanan",
+          "columnsFrom": [
+            "pekerjaan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "penilaian_layanan_bintang_check": {
+          "name": "penilaian_layanan_bintang_check",
+          "value": "\"penilaian_layanan\".\"bintang\" between 1 and 5"
         }
       },
       "isRLSEnabled": false
@@ -5877,6 +6112,85 @@
           ],
           "isUnique": true,
           "where": "\"notifications_message\".\"pemesanan_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notifications_peringatan_antrean": {
+      "name": "notifications_peringatan_antrean",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tahap": {
+          "name": "tahap",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_label": {
+          "name": "subject_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "href": {
+          "name": "href",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "notifications_peringatan_antrean_belum_dikirim_idx": {
+          "name": "notifications_peringatan_antrean_belum_dikirim_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"notifications_peringatan_antrean\".\"sent_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOutIcon, MailIcon, UserRoundIcon } from "lucide-react";
+import { BellRingIcon, LogOutIcon, MailIcon, UserRoundIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment } from "react";
@@ -105,6 +105,7 @@ export function StaffShell({
         <StaffSidebar menu={menu} roleLabel={roleLabel} roleHome={roleHome} pathname={pathname} />
         <SidebarInset className="min-w-0">
           <ShellHeader shell={shell} role={page.role} lokasiId={page.lokasiId} pathname={pathname} palette={palette} bottomNav={bottomNav} />
+          <Tier1Banner jumlah={shell.tier1BelumDiambil} />
           <div
             className={cn(
               "mx-auto flex w-full max-w-(--page-max-width) flex-1 flex-col gap-6 px-(--page-gutter) pt-6 pb-16 md:pt-8",
@@ -117,6 +118,30 @@ export function StaffShell({
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
+  );
+}
+
+/**
+ * The red banner under the header of every staff page of an Admin Platform while any
+ * Tier 1 Antrean row is untaken (ADR 0004, amended 2026-09-26): there is no call row for an
+ * alert nobody answered, so this is what stays in view. Links to the Antrean.
+ */
+function Tier1Banner({ jumlah }: { jumlah: number }) {
+  if (jumlah <= 0) return null;
+  return (
+    <div
+      role="status"
+      data-slot="tier1-banner"
+      className="sticky top-(--header-height) z-10 flex items-center gap-2 border-b border-danger/30 bg-danger-soft px-3 py-2 text-small text-danger-soft-foreground md:px-4"
+    >
+      <BellRingIcon className="size-4 shrink-0" aria-hidden />
+      <p className="min-w-0 flex-1">
+        {jumlah === 1 ? "1 baris Tier 1 belum diambil" : `${jumlah} baris Tier 1 belum diambil`}
+      </p>
+      <Link href="/staf/admin-platform/antrean" className="shrink-0 font-semibold underline underline-offset-4">
+        Buka Antrean
+      </Link>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { AntreanRowType } from "./row-types";
+import type { AntreanRowType, Tier1RowType } from "./row-types";
 import { layananTerlambatRowType } from "./tier2-layanan-terlambat-row";
 import { pembayaranPerluDitinjauRowType } from "./tier2-pembayaran-perlu-ditinjau-row";
 import { teleponPemesanRowType } from "./telepon-pemesan-row";
@@ -33,11 +33,15 @@ import { keluhanRowType } from "./tier1-keluhan-row";
  * Tier 1's Konfirmasi Lokasi terlambat (ticket 23).
  * Tier 2's Layanan Terlambat (ticket 50), and Tier 1's Keluhan (ticket 51).
  */
+/**
+ * The Tier 1 row types, the only ones that alert (ticket 28): a new Tier 1 type
+ * is added here and nowhere else, and a test holds this list to the registry's own
+ * Tier 1 types below.
+ */
+export const tier1RowTypes: Tier1RowType[] = [konfirmasiLokasiTerlambatRowType, saatDukaDitolakRowType, konfirmasiTpuSaatDukaRowType, keluhanRowType];
+
 export const antreanRowTypes: AntreanRowType[] = [
-  konfirmasiLokasiTerlambatRowType,
-  saatDukaDitolakRowType,
-  konfirmasiTpuSaatDukaRowType,
-  keluhanRowType,
+  ...tier1RowTypes,
   ambilSuratPengantarRowType,
   setorRetribusiRowType,
   pembayaranPerluDitinjauRowType,

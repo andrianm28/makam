@@ -293,8 +293,12 @@ Said of a Pekerjaan Layanan with no photo proof two days after its target date; 
 _Avoid_: Overdue, telat
 
 **Keluhan**:
-A Pemesan's complaint about a finished Pekerjaan Layanan, filed within 3×24 hours of its photo proof being shown to the Pemesan as Selesai, and settled by Admin Platform with a redo or a refund.
+A Pemesan's complaint about a finished Pekerjaan Layanan, filed within 3×24 hours of its photo proof being shown to the Pemesan as Selesai, and settled by Admin Platform with a Kerjakan ulang or a refund. A Pekerjaan Layanan takes at most one Keluhan.
 _Avoid_: Komplain, dispute, klaim
+
+**Kerjakan ulang**:
+The Keluhan outcome in which a Pekerjaan Layanan is done again, by the same fulfiller or another, and counts as done only once new photo proof is shown.
+_Avoid_: Redo, ulangi, revisi
 
 **Penilaian**:
 A Pemesan's optional 1–5 star rating, with comment, of one finished Pekerjaan Layanan; seen only by Admin Platform.

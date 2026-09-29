@@ -25,6 +25,8 @@ export interface KonfirmasiTpu {
   konfirmasiDueAt: Date | null;
   /** The TPU offered instead, while the family has not answered; null when none is open. */
   tpuDitawarkan: { name: string } | null;
+  /** When the family submitted the order: the Antrean row appears then, and its alert clocks count from it (ticket 28). */
+  diajukanAt: Date;
 }
 
 /** Every Diajukan Saat Duka TPU order, oldest first. */
@@ -37,6 +39,7 @@ export async function konfirmasiTpuTerbuka(deps: { db: Database }): Promise<Konf
       tpuName: pengurusanTpu.tpuName,
       konfirmasiDueAt: pengurusanTpu.konfirmasiDueAt,
       tpuDitawarkanName: pengurusanTpu.tpuDitawarkanName,
+      diajukanAt: pengurusanTpu.diajukanAt,
     })
     .from(pengurusanTpu)
     .where(and(eq(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "diajukan")))
@@ -48,5 +51,6 @@ export async function konfirmasiTpuTerbuka(deps: { db: Database }): Promise<Konf
     tpuName: row.tpuName,
     konfirmasiDueAt: row.konfirmasiDueAt,
     tpuDitawarkan: row.tpuDitawarkanName ? { name: row.tpuDitawarkanName } : null,
+    diajukanAt: row.diajukanAt,
   }));
 }

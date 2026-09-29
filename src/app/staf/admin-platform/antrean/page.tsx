@@ -4,10 +4,13 @@ import { EmptyState } from "@/components/makam/empty-state";
 import { PageHeader } from "@/components/makam/page-header";
 import { StatCard } from "@/components/makam/stat-card";
 import { buttonVariants } from "@/components/ui/button";
-import type { AntreanRow, AntreanTier } from "@/domain/queues";
+import { Card, CardContent } from "@/components/ui/card";
+import type { AntreanRow, AntreanTier, BertugasStatus } from "@/domain/queues";
+import { formatTanggalJam, wibTime } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { AntreanRowCard } from "./antrean-row-card";
+import { AktifkanBertugasForm, MatikanBertugasForm } from "./bertugas-forms";
 
 const TIERS: AntreanTier[] = [1, 2, 3, 4];
 const tierLabels: Record<AntreanTier, string> = {
@@ -20,15 +23,18 @@ const tierLabels: Record<AntreanTier, string> = {
 /**
  * Admin Platform's Antrean (spec, Work Queues; ticket 17): every open row,
  * grouped by tier then sorted by deadline, the counter strip, Ambil and
- * Catatan Internal. Tier 1 and 2 alerting and Bertugas arrive in ticket 28.
+ * Catatan Internal (ticket 17), and at the top who is Bertugas now with the
+ * signed-in Admin Platform's own switch (ticket 28). The red banner for untaken
+ * Tier 1 rows is in the staff header, on every staff page.
  */
 export default async function AntreanPage() {
   const actor = await staffMenuActor("admin_platform");
   const { queues, identity } = serverRuntime();
-  const [rows, counters, staffAccounts] = await Promise.all([
+  const [rows, counters, staffAccounts, bertugas] = await Promise.all([
     queues.antrean(actor),
     queues.counters(actor),
     identity.staffAccounts(),
+    queues.bertugas(actor),
   ]);
   const emailByAccountId = new Map(staffAccounts.map((account) => [account.accountId, account.email ?? account.accountId]));
 
@@ -47,6 +53,13 @@ export default async function AntreanPage() {
           </Link>
         }
       />
+
+      {bertugas ? (
+        <BertugasPanel
+          status={bertugas}
+          dipegang={rows.filter((row) => row.ambil?.accountId === actor.accountId)}
+        />
+      ) : null}
 
       <section aria-label="Ringkasan" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Pencairan jatuh tempo" value={counters.pencairanDue} />
@@ -79,5 +92,52 @@ export default async function AntreanPage() {
         })
       )}
     </>
+  );
+}
+
+/** Who is Bertugas now (top of the Antrean, spec story 142) and the signed-in Admin Platform's own switch. */
+function BertugasPanel({ status, dipegang }: { status: BertugasStatus; dipegang: AntreanRow[] }) {
+  const { sekarang, saya } = status;
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-title-2 text-foreground">Bertugas sekarang</h2>
+          {sekarang.length === 0 ? (
+            <p className="text-small text-muted-foreground">
+              Tidak ada yang Bertugas. Peringatan Tier 1 dikirim ke semua Admin Platform.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5 text-body text-foreground">
+              {sekarang.map((akun) => (
+                <li key={akun.accountId}>
+                  {akun.name}
+                  <span className="text-small text-muted-foreground"> · sejak {wibTime(akun.mulaiAt)}, berakhir otomatis {wibTime(akun.berakhirAt)} WIB</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {saya.bertugas ? (
+          <MatikanBertugasForm
+            baris={dipegang.map((row) => ({ type: row.type, subjectId: row.subjectId, label: row.label, subjectLabel: row.subjectLabel }))}
+          />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {saya.dimatikanOtomatisAt ? (
+              <p className="text-small text-muted-foreground">
+                Bertugas Anda mati otomatis {formatTanggalJam(saya.dimatikanOtomatisAt)}. Baris yang Anda ambil dan catatan Anda tetap ada.
+              </p>
+            ) : null}
+            {saya.perangkatPush === 0 ? (
+              <p className="text-small text-muted-foreground">
+                Bertugas perlu push aktif di sedikitnya satu perangkat Anda. Nyalakan push lewat panel di atas halaman lebih dulu.
+              </p>
+            ) : null}
+            <AktifkanBertugasForm />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
