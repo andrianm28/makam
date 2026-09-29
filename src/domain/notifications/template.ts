@@ -461,3 +461,41 @@ export function buktiPembayaranEmail(input: BuktiEmailInput): { subject: string;
     ].join("\n"),
   };
 }
+
+export interface BuktiPerpanjanganEmailInput {
+  lokasiName: string;
+  /** The Bukti Perpanjangan's own number, and its page's URL into the app. */
+  bukti: { nomor: string; tautan: string };
+  petakNomor: string;
+  pemegangHakName: string;
+  endDateLama: string;
+  endDateBaru: string;
+  terms: number;
+}
+
+/**
+ * The Bukti Perpanjangan of a paid Perpanjangan (transactional: any hour, it asks
+ * nothing). It names the right that was extended and both end dates; the payment
+ * has its own Bukti Pembayaran.
+ */
+export function buktiPerpanjanganEmail(input: BuktiPerpanjanganEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Bukti Perpanjangan ${input.bukti.nomor}: Petak Makam ${input.petakNomor} di ${input.lokasiName}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      "Pembayaran Perpanjangan Makam sudah kami terima, dan Hak Pakainya sudah diperpanjang.",
+      `Bukti Perpanjangan: ${input.bukti.nomor}.`,
+      `Lokasi: ${input.lokasiName}.`,
+      `Petak Makam: ${input.petakNomor}.`,
+      `Pemegang Hak: ${input.pemegangHakName}.`,
+      `Masa berlaku sebelumnya sampai ${formatTanggal(input.endDateLama)}; sekarang sampai ${formatTanggal(input.endDateBaru)} (${input.terms} masa).`,
+      "",
+      "Simpan tautan ini. Di dalamnya ada Bukti Perpanjangan lengkap yang bisa diunduh sebagai PDF.",
+      `Bukti Perpanjangan: ${input.bukti.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

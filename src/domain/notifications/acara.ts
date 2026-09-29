@@ -22,6 +22,8 @@ export const TEMPLATE_EMAIL = [
   "pesanan_alternatif_ditawarkan",
   "pesanan_dibatalkan",
   "bukti_pemesanan_terbit",
+  // A Bukti Perpanjangan issued (ticket 40): transactional, it asks nothing.
+  "bukti_perpanjangan_terbit",
   "tagihan_terbit",
   "tagihan_pengingat_h_1",
   "tagihan_pengingat_hari_h",
@@ -58,6 +60,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   pesanan_alternatif_ditawarkan: "transaksional",
   pesanan_dibatalkan: "transaksional",
   bukti_pemesanan_terbit: "transaksional",
+  bukti_perpanjangan_terbit: "transaksional",
   tagihan_terbit: "pengingat",
   tagihan_pengingat_h_1: "pengingat",
   tagihan_pengingat_hari_h: "pengingat",
@@ -98,6 +101,7 @@ export const TABEL_ACARA: Record<
   | "pesanan_alternatif_ditawaran"
   | "pesanan_dibatalkan"
   | "bukti_pemesanan_terbit"
+  | "bukti_perpanjangan_terbit"
   | "tagihan_terbit"
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
@@ -158,6 +162,13 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "bukti_pemesanan_terbit",
     waktu: WAKTU_TEMPLATE.bukti_pemesanan_terbit,
+  },
+  /** The Bukti Perpanjangan of a paid Perpanjangan, by email at any hour (ticket 40); about the Lokasi Mitra's own work like the Bukti Pemesanan. */
+  bukti_perpanjangan_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "bukti_perpanjangan_terbit",
+    waktu: WAKTU_TEMPLATE.bukti_perpanjangan_terbit,
   },
   tagihan_terbit: {
     penerima: "email_pemesan",

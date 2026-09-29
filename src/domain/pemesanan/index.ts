@@ -72,6 +72,8 @@ import {
   akhiriHakPakaiTidakTertagih,
   hakPakaiIdForTagihan,
   isBlockedByOverdueTagihan,
+  tagihanPenghalangOf,
+  type TagihanPenghalang,
   nyatakanTidakTertagih,
   nyatakanTidakTertagihSchema,
   type NyatakanTidakTertagihInput,
@@ -311,6 +313,8 @@ export interface Pemesanan {
    * Ganti Pemegang Hak.
    */
   isBlockedByOverdueTagihan(hakPakaiId: string): Promise<boolean>;
+  /** The Tagihan behind that block, with the number and pay link a family is shown (ticket 40), or null. */
+  tagihanPenghalangOf(hakPakaiId: string): Promise<TagihanPenghalang | null>;
   /**
    * Admin Platform declares a chased Tagihan Tidak Tertagih (ticket 29): the
    * status change (guarded on H+30 and a logged call), its Entri Audit and the
@@ -361,6 +365,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
+    tagihanPenghalangOf: (hakPakaiId) => tagihanPenghalangOf(deps, hakPakaiId),
     nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),
     akhiriHakPakaiTidakTertagih: (by, input) => akhiriHakPakaiTidakTertagih(deps, by, input),
     hakPakaiIdForTagihan: (tagihanId) => hakPakaiIdForTagihan(deps, tagihanId),
@@ -370,4 +375,5 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
 /** The worker's tick, as the scheduler registry calls it: the Saat Duka re-alert (ticket 23). */
 export const pemesananRealertTick = realertKonfirmasiSaatDukaTick;
 
+export type { TagihanPenghalang };
 export { efekBuktiPemesanan, type BuktiPemesananEffectDeps } from "./efek-bukti-pemesanan";

@@ -3,7 +3,7 @@
  * Built to dist/worker.mjs; run locally with `npm run worker`.
  */
 import { createAdapters } from "@/composition/adapters";
-import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects } from "@/composition/billing";
+import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect } from "@/composition/billing";
 import { composeIdentity } from "@/composition/identity";
 import { composeNotifications } from "@/composition/notifications";
 import { composePayouts } from "@/composition/payouts";
@@ -65,6 +65,8 @@ async function main() {
     clock: adapters.clock,
     dokumenUrl: urls.publicDocumentUrl,
     buktiPemesanan: buktiPemesananEffect({ clock: adapters.clock, compose: billingComposition, inventory, lokasi, notifikasi }),
+    // A paid Perpanjangan extends its Hak Pakai (ticket 40); a failed one is retried here too.
+    perpanjangan: perpanjanganEffect({ compose: billingComposition, inventory, notifikasi: notifications }),
   });
   const billing = composeBilling({
     ...billingComposition,

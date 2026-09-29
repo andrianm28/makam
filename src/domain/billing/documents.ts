@@ -5,6 +5,7 @@ import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import { buktiPemesananByLink, type BuktiPemesanan } from "./bukti-pemesanan";
+import { buktiPerpanjanganByLink, type BuktiPerpanjangan } from "./bukti-perpanjangan";
 import { buktiPembayaran } from "./schema";
 import { notPayableBecause, settleIn, type NotPayable } from "./settlement";
 import {
@@ -121,7 +122,9 @@ export type BillingDocument =
    * names the Pemegang Hak, so it lives on an unguessable link exactly like every
    * other document and is never listed, indexed or guessed.
    */
-  | { type: "bukti_pemesanan"; bukti: BuktiPemesanan };
+  | { type: "bukti_pemesanan"; bukti: BuktiPemesanan }
+  /** A Bukti Perpanjangan: the proof a Hak Pakai was extended, old and new end dates in the Lokasi Mitra's name (ticket 40). */
+  | { type: "bukti_perpanjangan"; bukti: BuktiPerpanjangan };
 
 /** The document behind an unguessable link, or null (anything not shaped like a link finds nothing without a lookup). */
 export async function documentByLink(db: Database, link: string, now: Date): Promise<BillingDocument | null> {
@@ -139,7 +142,9 @@ export async function documentByLink(db: Database, link: string, now: Date): Pro
   const bukti = await readBukti(db, eq(buktiPembayaran.link, link));
   if (bukti) return { type: "bukti_pembayaran", bukti };
   const pemesanan = await buktiPemesananByLink(db, link);
-  return pemesanan && { type: "bukti_pemesanan", bukti: pemesanan };
+  if (pemesanan) return { type: "bukti_pemesanan", bukti: pemesanan };
+  const perpanjangan = await buktiPerpanjanganByLink(db, link);
+  return perpanjangan && { type: "bukti_perpanjangan", bukti: perpanjangan };
 }
 
 export interface DocumentPdf {

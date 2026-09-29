@@ -22,7 +22,7 @@
  * to change them) and the family has been sent that number, so a tariff entered
  * between the issue and the burial must not move what the Lokasi Mitra is paid.
  */
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, notExists } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -115,9 +115,14 @@ function linesOfPartner(tagihan: Tagihan): { ok: true; lines: { position: number
   return { ok: true, lines };
 }
 
-/** Whether this ticket's Saat Duka trigger owns a line kind, and so may make its item due. */
-function milikTriggerIni(kind: TagihanLine["kind"]): boolean {
-  return kind === "harga_hak_pakai" || kind === "biaya_pemakaman";
+/**
+ * Whether the trigger that is running owns a line kind, and so may make its item
+ * due. The Saat Duka trigger owns the Petak's tariff and the Biaya Pemakaman; the
+ * Perpanjangan trigger (ticket 40: "Perpanjangan | on payment") owns the
+ * Perpanjangan line, due at the instant of payment.
+ */
+function milikTriggerIni(jalur: "saat_duka" | "perpanjangan", kind: TagihanLine["kind"]): boolean {
+  return jalur === "perpanjangan" ? kind === "perpanjangan" : kind === "harga_hak_pakai" || kind === "biaya_pemakaman";
 }
 
 /**
@@ -157,7 +162,7 @@ function tenggat(dueAt: Date, calendar: Awaited<ReturnType<Lokasi["adminPlatform
  * its Pencairan items, due from the later of the two instants. Idempotent.
  */
 export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPencairanResult> {
-  const menunggu = await deps.db
+  const saatDuka = await deps.db
     .select({
       tagihanId: pencairanPembayaran.tagihanId,
       nomorPemesanan: pencairanPembayaran.nomorPemesanan,
@@ -172,12 +177,36 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
     .innerJoin(pencairanPemakaman, eq(pencairanPemakaman.nomorPemesanan, pencairanPembayaran.nomorPemesanan))
     .where(isNotNull(pencairanPembayaran.nomorPemesanan))
     .orderBy(pencairanPembayaran.dibayarPada);
+  // A Perpanjangan is no Pemesanan (it has no Nomor Pemesanan and no burial to
+  // wait for): every settled Tagihan without one and without items yet is a
+  // candidate, and only one carrying a Perpanjangan line of a Lokasi Mitra
+  // becomes items, due at the instant of payment.
+  const perpanjangan = await deps.db
+    .select({
+      tagihanId: pencairanPembayaran.tagihanId,
+      nomorPemesanan: pencairanPembayaran.nomorPemesanan,
+      dibayarPada: pencairanPembayaran.dibayarPada,
+      metode: pencairanPembayaran.metode,
+      dibatalkan: pencairanPembayaran.dibayarLangsungDibatalkanPada,
+    })
+    .from(pencairanPembayaran)
+    .where(
+      and(
+        isNull(pencairanPembayaran.nomorPemesanan),
+        notExists(deps.db.select({ one: pencairanItem.id }).from(pencairanItem).where(eq(pencairanItem.tagihanId, pencairanPembayaran.tagihanId))),
+      ),
+    )
+    .orderBy(pencairanPembayaran.dibayarPada);
+  const menunggu = [
+    ...saatDuka.map((row) => ({ ...row, jalur: "saat_duka" as const })),
+    ...perpanjangan.map((row) => ({ ...row, pemakamanPada: row.dibayarPada, jalur: "perpanjangan" as const })),
+  ];
   if (menunggu.length === 0) return { items: 0, potongan: 0, dilewati: 0 };
 
   const calendar = await deps.lokasi.adminPlatformCalendar();
   const hasil: TickPencairanResult = { items: 0, potongan: 0, dilewati: 0 };
   for (const row of menunggu) {
-    if (row.nomorPemesanan === null) continue;
+    if (row.jalur === "saat_duka" && row.nomorPemesanan === null) continue;
     // A payment method that does not read is not a trigger this module acts on:
     // a row it cannot understand is left alone rather than guessed at.
     const metode = paymentMethodSchema.safeParse(row.metode);
@@ -186,6 +215,8 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
     // while another read is pending.
     const tagihan = await deps.billing.tagihan(row.tagihanId);
     if (!tagihan) continue;
+    // Not a Perpanjangan after all (a payment with no order that this trigger does not own): left alone.
+    if (row.jalur === "perpanjangan" && !tagihan.lines.some((line) => line.kind === "perpanjangan" && line.provider.kind === "lokasi_mitra")) continue;
     const ditulis = await refusable(deps.db, async (tx) => {
       const sudah = await tx
         .select({ id: pencairanItem.id })
@@ -234,10 +265,14 @@ export async function tickPencairan(deps: PemicuDeps, now: Date): Promise<TickPe
               // paid straight away, a Layanan's job after its Keluhan window) is
               // recorded now and waits: the amount is fixed by the issued Tagihan
               // either way, and nothing is ever paid before its own trigger says so.
-              dueAt: milikTriggerIni(line.kind) ? dueAt : null,
-              jatuhTempoAt: milikTriggerIni(line.kind) ? jatuhTempoAt : null,
+              dueAt: milikTriggerIni(row.jalur, line.kind) ? dueAt : null,
+              jatuhTempoAt: milikTriggerIni(row.jalur, line.kind) ? jatuhTempoAt : null,
               status:
-                adjustment?.habis ? ("dibatalkan" as const) : milikTriggerIni(line.kind) ? ("jatuh_tempo" as const) : ("belum_jatuh_tempo" as const),
+                adjustment?.habis
+                  ? ("dibatalkan" as const)
+                  : milikTriggerIni(row.jalur, line.kind)
+                    ? ("jatuh_tempo" as const)
+                    : ("belum_jatuh_tempo" as const),
               batalAlasan: adjustment?.habis ? ("telah_ditanggung" as const) : null,
               batalPada: adjustment?.habis ? now : null,
               jumlahDisesuaikan: adjustment && !adjustment.habis ? adjustment.jumlahDisesuaikan : null,

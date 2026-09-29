@@ -176,6 +176,8 @@ describe("an issued Tagihan is immutable", () => {
       "batalkanTagihan",
       "bayar",
       "buktiPemesananById",
+      // The Bukti Perpanjangan is a document like the Bukti Pemesanan: it adds no way to change a line (ticket 40).
+      "buktiPerpanjanganById",
       // A read by Nomor Tagihan or Nomor Pemesanan, for staff opening one by hand (ticket 30).
       "cariTagihan",
       // The manual and direct payment paths (ticket 30): both settle through
@@ -188,6 +190,7 @@ describe("an issued Tagihan is immutable", () => {
       "documentByLink",
       "documentPdf",
       "issueBuktiPemesanan",
+      "issueBuktiPerpanjangan",
       "issueTagihan",
       "nextDocumentNumber",
       "nextNomorPemesanan",

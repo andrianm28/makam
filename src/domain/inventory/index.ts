@@ -33,6 +33,15 @@ import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingI
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
 import { akhiriHakPakai, type AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
+import {
+  hakPakaiUntukPerpanjangan,
+  lengkapiHakPakai,
+  lengkapiHakPakaiSchema,
+  perpanjangHakPakai,
+  type HakPakaiUntukPerpanjangan,
+  type LengkapiHakPakaiResult,
+  type PerpanjangHakPakaiResult,
+} from "./perpanjangan";
 import { renumberPetak, type RenumberPetakResult } from "./renumber";
 import {
   hasPetakPerluVerifikasi,
@@ -59,6 +68,8 @@ export type { ClearingInput } from "./clearing";
 export type { NewPemakaman, NewPemegangHak } from "./hak-pakai-grant";
 import type { NewPemegangHak as NewPemegangHakInput } from "./hak-pakai-grant";
 export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
+export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakaiResult, PerpanjangHakPakaiResult } from "./perpanjangan";
+export { lengkapiHakPakaiSchema };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
@@ -95,6 +106,7 @@ export type {
   StaffInventoryReads,
   UploadBlokPhotoResult,
 };
+export { addYears } from "./tenure";
 export { MAX_BLOK_DIMENSION, BLOK_PHOTO_MAX_BYTES, edges as denahEdges, isValidPattern, kavlingPatternFrom, numberFromPattern };
 export { kavlingClearingSchema, petakClearingSchema };
 export { catatPemakamanSchema, type CatatPemakamanInput, type MasaHakPakai } from "./catat-pemakaman";
@@ -139,6 +151,21 @@ export interface Inventory {
    * the plot. Staff screens read a Hak Pakai through `asStaff`.
    */
   hakPakaiById(hakPakaiId: string): Promise<HakPakaiDetail | null>;
+  /**
+   * The Hak Pakai a Perpanjangan is about (ticket 40): status, its own term as
+   * bought, end date, Perlu Verifikasi flag, Jenis Makam, Petak numbers and the
+   * current Pemegang Hak with the recorded email. No actor: the caller is the
+   * Perpanjangan module, which never shows the holder's details to the family.
+   */
+  hakPakaiUntukPerpanjangan(hakPakaiId: string): Promise<HakPakaiUntukPerpanjangan | null>;
+  /**
+   * Moves a Hak Pakai's end date by terms x its own term (never counted from the
+   * payment) and makes a Kedaluwarsa one Aktif again. Driven by Perpanjangan
+   * inside the transaction that settles its Tagihan (`within`); no actor.
+   */
+  perpanjangHakPakai(input: { hakPakaiId: string; terms: number }): Promise<PerpanjangHakPakaiResult>;
+  /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact), audited (ticket 40). */
+  lengkapiHakPakai(by: Actor, lokasiId: string, input: unknown): Promise<LengkapiHakPakaiResult>;
   /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias. */
   renumberPetak(by: Actor, lokasiId: string, petakId: string, nomorMakam: string): Promise<RenumberPetakResult>;
   /** Whether any Petak Makam here still needs clearing (Perlu Verifikasi); no actor, the Terencana switch's own fact (ticket 16). */
@@ -241,6 +268,9 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
+    hakPakaiUntukPerpanjangan: (hakPakaiId) => hakPakaiUntukPerpanjangan(deps, hakPakaiId),
+    perpanjangHakPakai: (input) => perpanjangHakPakai(deps, input),
+    lengkapiHakPakai: (by, lokasiId, input) => lengkapiHakPakai(deps, by, lokasiId, input),
     renumberPetak: (by, lokasiId, petakId, nomorMakam) => renumberPetak(deps, by, lokasiId, petakId, nomorMakam),
     hasPetakPerluVerifikasi: (lokasiId) => hasPetakPerluVerifikasi(deps, lokasiId),
     jumlahPetakPerluVerifikasi: (lokasiId) => jumlahPetakPerluVerifikasi(deps, lokasiId),
