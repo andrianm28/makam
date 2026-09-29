@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 62 resolved, 19 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-09-29): 63 resolved, 18 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -31,7 +31,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 90 tickets (as of 2026-0
 | [25](25-pemakaman-bukti-pemesanan-and-selesai.md) | Catat Pemakaman, Bukti Pemesanan and Saat Duka Selesai | resolved | 19, 23 |
 | [26](26-public-site-shell-and-content-pages.md) | Public site shell, homepage and content pages | resolved | 22, 63 |
 | [27](27-akun-saya.md) | Akun Saya: Perlu tindakan, Pesanan and Makam tabs | resolved | 25, 82 |
-| [28](28-bertugas-and-tier-1-escalation.md) | Bertugas, Tier 1 alerts and escalation | ready-for-agent | 21, 24 |
+| [28](28-bertugas-and-tier-1-escalation.md) | Bertugas, Tier 1 alerts and escalation | resolved | 21, 24 |
 | [29](29-pay-after-tagihan-chasing.md) | Chasing overdue pay-after Tagihan and Tidak Tertagih | resolved | 25 |
 | [30](30-manual-payments-and-harga-khusus.md) | Manual payments, direct payment to the Lokasi and Harga Khusus | resolved | 25 |
 | [31](31-refunds-and-bukti-pengembalian-dana.md) | Refunds and Bukti Pengembalian Dana | resolved | 24 |
