@@ -225,6 +225,13 @@
       "when": 1790606125918,
       "tag": "0031_bukti_pemesanan_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790610925355,
+      "tag": "0032_aspiring_paladin",
+      "breakpoints": true
     }
   ]
 }

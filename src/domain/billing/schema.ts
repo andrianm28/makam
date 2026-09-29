@@ -135,6 +135,15 @@ export const tagihan = pgTable(
      */
     pengembalianDimintaAt: at("pengembalian_diminta_at"),
     pengembalianJumlah: rupiah("pengembalian_jumlah"),
+    /**
+     * The amount a Lokasi Mitra agreed to bear of a Harga Khusus reduction,
+     * entered on this Tagihan when it was reissued for one (ticket 30);
+     * null while none was entered, and 0 means the Operator bears it all.
+     * Requires `harga_khusus_porsi_mitra_catatan` when non-zero (spec,
+     * Billing > Payouts: "with a required note").
+     */
+    hargaKhususPorsiMitra: rupiah("harga_khusus_porsi_mitra"),
+    hargaKhususPorsiMitraCatatan: text("harga_khusus_porsi_mitra_catatan"),
   },
   (table) => [
     index("tagihan_lapse_idx").on(table.status, table.kind, table.dueAt),
@@ -145,6 +154,14 @@ export const tagihan = pgTable(
     check(
       "tagihan_pengembalian_check",
       sql`(${table.pengembalianDimintaAt} is null) = (${table.pengembalianJumlah} is null)`,
+    ),
+    check(
+      "tagihan_harga_khusus_porsi_mitra_check",
+      sql`${table.hargaKhususPorsiMitra} is null or ${table.hargaKhususPorsiMitra} between 0 and ${sql.raw(String(RUPIAH_MAX))}`,
+    ),
+    check(
+      "tagihan_harga_khusus_porsi_mitra_catatan_check",
+      sql`${table.hargaKhususPorsiMitra} is null or ${table.hargaKhususPorsiMitra} = 0 or ${table.hargaKhususPorsiMitraCatatan} is not null`,
     ),
   ],
 );
@@ -198,6 +215,12 @@ export const buktiPembayaran = pgTable("bukti_pembayaran", {
   reference: text("reference"),
   /** Pengaturan Operator's header values in force when the Bukti was issued. */
   header: jsonb("header").notNull(),
+  /**
+   * The private FileStore key of the uploaded proof (ticket 30): required for
+   * `transfer_manual`, `tunai` and `langsung_ke_lokasi`; null for a
+   * PaymentProvider payment and a Rp 0 Harga Khusus waiver, which carry none.
+   */
+  proofKey: text("proof_key"),
 });
 
 /**

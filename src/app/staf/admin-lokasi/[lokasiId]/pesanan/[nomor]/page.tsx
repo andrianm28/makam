@@ -11,7 +11,14 @@ import { documentPagePath } from "@/lib/document-links";
 import { serverRuntime } from "@/server/runtime";
 import { ALASAN_TOLAK, alasanTolakLokasiKeys } from "@/domain/pemesanan";
 import { adminLokasiScope } from "../../../scope";
-import { AlternatifDanTolakForm, BatalkanForm, CatatPemakamanForm, CentangDokumenForm, KonfirmasiForm } from "./pesanan-forms";
+import {
+  AlternatifDanTolakForm,
+  BatalkanForm,
+  CatatPemakamanForm,
+  CentangDokumenForm,
+  KonfirmasiForm,
+  PembayaranLangsungForm,
+} from "./pesanan-forms";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -193,6 +200,21 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
           </CardHeader>
           <CardContent>
             <BatalkanForm lokasiId={current.id} nomor={order.nomor} wajibAlasan={order.status === "dikonfirmasi"} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {tagihan && (tagihan.status === "belum_dibayar" || tagihan.status === "lewat_jatuh_tempo") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dibayar langsung ke Lokasi Mitra</CardTitle>
+            <CardDescription>
+              Hanya kalau keluarga membayar langsung ke Lokasi Mitra ini, di luar sistem. Wajib ada bukti, dan tercatat di Audit
+              Log. Admin Platform bisa membatalkan pencatatan ini kalau keliru.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PembayaranLangsungForm lokasiId={current.id} nomor={order.nomor} tagihanId={tagihan.id} />
           </CardContent>
         </Card>
       ) : null}

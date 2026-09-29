@@ -14,7 +14,21 @@ import {
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { guardMessage } from "../../../../messages";
-import { alternatifMessage, batalkanMessage, catatPemakamanMessage, konfirmasiMessage, tolakMessage } from "./pesanan-messages";
+import {
+  alternatifMessage,
+  batalkanMessage,
+  catatPemakamanMessage,
+  konfirmasiMessage,
+  pembayaranLangsungMessage,
+  tolakMessage,
+} from "./pesanan-messages";
+
+/** The proof, as the form's file input hands it over (matches `setor-retribusi`'s own action). */
+async function buktiFromForm(formData: FormData) {
+  const file = formData.get("bukti");
+  if (!(file instanceof File) || file.size === 0) return null;
+  return { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
+}
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type PesananActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -179,4 +193,36 @@ export async function catatPanggilanLokasi(_previous: PesananActionState, formDa
   revalidatePath(`/staf/admin-lokasi/${lokasiId}/antrean`);
   if (!result.value.ok) return { status: "gagal", message: "Baris panggilan ini sudah ditutup." };
   return { status: "berhasil", message: "Panggilan dicatat. Baris ditutup." };
+}
+
+const pembayaranLangsungSchema = z.object({
+  tagihanId: z.uuid(),
+  bukti: z.object({ body: z.instanceof(Uint8Array), contentType: z.string() }),
+});
+
+/**
+ * The Tagihan's own Admin Lokasi records that the family paid it directly
+ * (spec, Billing > Payment: "Dibayar langsung ke Lokasi Mitra"; ticket 30's
+ * AC 2), with a required proof file: the Tagihan becomes Lunas, and Payouts
+ * reads the same method to owe no tariff Pencairan and a platform-fee
+ * Potongan instead.
+ */
+export async function catatPembayaranLangsung(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const nomor = String(formData.get("nomor") ?? "");
+  const bukti = await buktiFromForm(formData);
+  const result = await guarded({
+    action: "tagihan.catat_pembayaran_langsung",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: pembayaranLangsungSchema,
+    input: { tagihanId: formData.get("tagihanId"), bukti },
+    run: (actor, data) => serverRuntime().billing.catatPembayaranLangsung(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: pembayaranLangsungMessage(result.value.reason) };
+  return {
+    status: "berhasil",
+    message: `Pembayaran langsung dicatat. Bukti Pembayaran ${result.value.bukti.nomorBukti} terbit.`,
+  };
 }

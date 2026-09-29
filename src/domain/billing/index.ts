@@ -17,8 +17,11 @@
  * PaymentProvider's webhook (authenticated by its signature).
  */
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
+import type { Actor } from "@/domain/identity";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Clock } from "@/ports/clock";
+import type { FileStore } from "@/ports/file-store";
 import type { PaymentProvider, WebhookRequest } from "@/ports/payment-provider";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import {
@@ -50,10 +53,20 @@ import {
   type PembayaranPerluDitinjau,
 } from "./payment";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
+import { tetapkanHargaKhusus, type TetapkanHargaKhususInput, type TetapkanHargaKhususResult } from "./harga-khusus";
+import {
+  catatPembayaranLangsung,
+  catatPembayaranManual,
+  type CatatPembayaranLangsungInput,
+  type CatatPembayaranLangsungResult,
+  type CatatPembayaranManualInput,
+  type CatatPembayaranManualResult,
+} from "./pembayaran-staf";
 import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
+  cariTagihan,
   listTagihanRetribusiLunas,
   readTagihan,
   reissueTagihan,
@@ -63,6 +76,7 @@ import {
   type ReissueTagihanResult,
   type RetribusiTagihan,
   type Tagihan,
+  type TagihanRingkas,
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
@@ -83,6 +97,13 @@ export {
 } from "./shared";
 export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
 export type { BuktiPemesanan, IssueBuktiPemesananInput, IssueBuktiPemesananResult } from "./bukti-pemesanan";
+export type {
+  CatatPembayaranLangsungInput,
+  CatatPembayaranLangsungResult,
+  CatatPembayaranManualInput,
+  CatatPembayaranManualResult,
+} from "./pembayaran-staf";
+export type { HargaKhususDeps, TetapkanHargaKhususInput, TetapkanHargaKhususResult } from "./harga-khusus";
 export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
 export { tagihanDue, type DueLine, type PaymentMoment, type TagihanDue, type TagihanKind } from "./due-rules";
 export {
@@ -99,6 +120,7 @@ export {
   type RetribusiTagihan,
   type Tagihan,
   type TagihanLine,
+  type TagihanRingkas,
   type TagihanStatus,
   type TariffLineKind,
 } from "./tagihan";
@@ -118,6 +140,26 @@ export interface BillingDeps {
   paymentEffects?: readonly PaymentEffect[];
   /** Where Billing reports what needs a human (a failed downstream effect, an odd webhook). */
   reportError?: ReportError;
+  /**
+   * Every staff write records an Entri Audit here: the manual and direct
+   * payment paths, and Harga Khusus (ticket 30). Required to call them;
+   * everything else in Billing works without it.
+   */
+  audit?: AuditLog;
+  /** The private FileStore, for a manual or direct payment's proof (ticket 30). Required to call those paths. */
+  files?: FileStore;
+  /**
+   * Lowers one order's Pencairan by a Harga Khusus partner share, in the same
+   * transaction as its reissue (Payouts' `kurangiPencairanPesanan`, ticket 32).
+   * Structurally typed so Billing never imports Payouts, which is composed
+   * *after* Billing (it reads a Tagihan through it): the composition wires
+   * this as a lazy call into the Payouts it later builds. Left undefined
+   * wherever a non-zero partner share is never recorded.
+   */
+  kurangiPencairanPesanan?: (
+    tx: Database,
+    input: { nomorPemesanan: string; lokasiId: string; amount: number; alasan: "porsi_pemegang_saham"; catatan: string; oleh: string },
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
 export interface Billing {
@@ -165,6 +207,8 @@ export interface Billing {
    * "Setor Retribusi" row is a projection of (spec, Work Queues; ticket 45).
    */
   tagihanRetribusiLunas(): Promise<RetribusiTagihan[]>;
+  /** Finds Tagihan by Nomor Tagihan or Nomor Pemesanan (a start of either, at least 3 characters), newest first: how staff open one by hand. */
+  cariTagihan(query: string): Promise<TagihanRingkas[]>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -201,8 +245,35 @@ export interface Billing {
    * one order gets one number and a rolled-back issue gives its number back.
    */
   allBuktiPemesanan(): Promise<BuktiPemesanan[]>;
+  /**
+   * Admin Platform marks a Tagihan paid by hand (Transfer manual / Tunai),
+   * with a required proof file. Settles exactly as a PaymentProvider webhook
+   * does and records one Entri Audit (ticket 30's AC 1). Requires `audit` and
+   * `files` in `BillingDeps`.
+   */
+  catatPembayaranManual(by: Actor, input: CatatPembayaranManualInput): Promise<CatatPembayaranManualResult>;
+  /**
+   * The Tagihan's own Admin Lokasi records "Dibayar langsung ke Lokasi
+   * Mitra", with a required proof file (ticket 30's AC 2). Requires `audit`
+   * and `files` in `BillingDeps`.
+   */
+  catatPembayaranLangsung(by: Actor, input: CatatPembayaranLangsungInput): Promise<CatatPembayaranLangsungResult>;
+  /**
+   * Admin Platform sets a Harga Khusus on an order, with a reason: the
+   * Tagihan is cancelled and reissued with a negative "Penyesuaian Harga
+   * Khusus" line (ticket 30's AC 3, 4). Requires `audit` in `BillingDeps`.
+   */
+  tetapkanHargaKhusus(by: Actor, input: TetapkanHargaKhususInput): Promise<TetapkanHargaKhususResult>;
   /** The same functions inside an open transaction (another module's), committing or rolling back with it. */
   within(tx: Database): Billing;
+}
+
+/** Thrown when a Billing composed without `audit` (and, for the two payments, `files`) is asked for a staff-write path (ticket 30). */
+class MissingBillingDep extends Error {
+  constructor(missing: "audit" | "files") {
+    super(`Billing was composed without '${missing}': this staff-write path (ticket 30) cannot run without it`);
+    this.name = "MissingBillingDep";
+  }
 }
 
 /**
@@ -249,6 +320,7 @@ export function createBilling(deps: BillingDeps): Billing {
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),
+    cariTagihan: (query) => cariTagihan(deps.db, query),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),
@@ -257,6 +329,20 @@ export function createBilling(deps: BillingDeps): Billing {
     issueBuktiPemesanan: (input) => issueBuktiPemesanan(deps, input, deps.clock.now()),
     buktiPemesananById: (id) => buktiPemesananById(deps.db, id),
     allBuktiPemesanan: () => allBuktiPemesanan(deps.db),
+    catatPembayaranManual: (by, input) => {
+      if (!deps.audit) throw new MissingBillingDep("audit");
+      if (!deps.files) throw new MissingBillingDep("files");
+      return catatPembayaranManual({ ...deps, audit: deps.audit, files: deps.files }, by, input);
+    },
+    catatPembayaranLangsung: (by, input) => {
+      if (!deps.audit) throw new MissingBillingDep("audit");
+      if (!deps.files) throw new MissingBillingDep("files");
+      return catatPembayaranLangsung({ ...deps, audit: deps.audit, files: deps.files }, by, input);
+    },
+    tetapkanHargaKhusus: (by, input) => {
+      if (!deps.audit) throw new MissingBillingDep("audit");
+      return tetapkanHargaKhusus({ ...deps, audit: deps.audit }, by, input);
+    },
     within: (tx) => createBilling({ ...deps, db: tx }),
   };
 }

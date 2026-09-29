@@ -194,7 +194,15 @@ export type AuditAction =
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */
   | "pemakaman.catat"
   /** An Admin Lokasi records the burial of one of its orders, which makes that order Dimakamkan (ticket 25). */
-  | "pemesanan.catat_pemakaman";
+  | "pemesanan.catat_pemakaman"
+  /** Admin Platform marks a Tagihan paid by hand (Transfer manual / Tunai), with proof (ticket 30). */
+  | "tagihan.catat_pembayaran_manual"
+  /** The Tagihan's own Admin Lokasi records "Dibayar langsung ke Lokasi Mitra", with proof (ticket 30). */
+  | "tagihan.catat_pembayaran_langsung"
+  /** Admin Platform reverses a "Dibayar langsung ke Lokasi Mitra" record (ticket 30). */
+  | "tagihan.batalkan_pembayaran_langsung"
+  /** Admin Platform sets a Harga Khusus on an order: cancels and reissues its Tagihan with a negative line (ticket 30). */
+  | "tagihan.tetapkan_harga_khusus";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

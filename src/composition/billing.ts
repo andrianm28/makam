@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import type { AuditLog } from "@/domain/audit";
 import { createBilling, type Billing, type BillingDeps, type PaymentEffect } from "@/domain/billing";
 import { efekBuktiPembayaran } from "@/domain/notifications";
 import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
@@ -17,6 +18,22 @@ export interface BillingComposition {
   adapters: Adapters;
   operatorSettings: Pick<OperatorSettings, "current">;
   reportError: ReportError;
+  /**
+   * Every staff write Billing itself records records an Entri Audit here (the
+   * manual and direct payment paths, and Harga Khusus; ticket 30). Optional so
+   * every read-only `billingOn` caller (Notifications, Fieldwork, …) need not
+   * supply one; the runtime's own composition always does.
+   */
+  audit?: AuditLog;
+  /** The private FileStore, for a manual or direct payment's proof (ticket 30). */
+  files?: Adapters["files"];
+  /**
+   * Lowers one order's Pencairan by a Harga Khusus partner share (Payouts'
+   * `kurangiPencairanPesanan`, ticket 32). Payouts is composed *after*
+   * Billing (it reads a Tagihan through it), so the runtime wires this as a
+   * lazy call into the Payouts it builds afterwards — see `src/server/runtime.ts`.
+   */
+  kurangiPencairanPesanan?: BillingDeps["kurangiPencairanPesanan"];
 }
 
 /**
@@ -75,6 +92,9 @@ function billingDeps(deps: BillingComposition, paymentEffects: readonly PaymentE
     ...urls,
     paymentEffects,
     reportError: deps.reportError,
+    audit: deps.audit,
+    files: deps.files ?? deps.adapters.files,
+    kurangiPencairanPesanan: deps.kurangiPencairanPesanan,
   };
 }
 

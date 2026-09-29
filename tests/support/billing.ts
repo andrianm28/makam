@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { FakePaymentProvider, FakePdfRenderer } from "@/adapters/memory";
 import type { Database } from "@/db/client";
-import { createBilling, type PaymentEffect, type TagihanStatus } from "@/domain/billing";
+import { createBilling, type BillingDeps, type PaymentEffect, type TagihanStatus } from "@/domain/billing";
 import { pembayaranPerluDitinjau, tagihan as tagihanTable } from "@/domain/billing/schema";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import type { Rupiah } from "@/lib/rupiah";
@@ -26,6 +26,8 @@ export const TEST_PUBLIC_ORIGIN = "https://makam.test";
 export interface BillingTestOptions {
   /** The downstream effects of a payment, as later modules register them. */
   paymentEffects?: PaymentEffect[];
+  /** Lowers an order's Pencairan by a Harga Khusus partner share (ticket 30); a test wires Payouts' own in through this. */
+  kurangiPencairanPesanan?: BillingDeps["kurangiPencairanPesanan"];
 }
 
 /**
@@ -50,6 +52,10 @@ export function billingOnTestDatabase(db: Database, options: BillingTestOptions 
     publicDocumentUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
     paymentEffects: options.paymentEffects,
     reportError: (error, context) => reportedErrors.push({ error, context }),
+    // Ticket 30: the manual and direct payment paths, and Harga Khusus, need these.
+    audit: setup.audit,
+    files: setup.files,
+    kurangiPencairanPesanan: options.kurangiPencairanPesanan,
   });
   return { ...setup, operatorSettings, pdf, payments, reportedErrors, billing };
 }

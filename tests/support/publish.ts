@@ -1,6 +1,6 @@
 import { FakePaymentProvider, FakePdfRenderer, FakeWebPush } from "@/adapters/memory";
 import type { Database } from "@/db/client";
-import { createBilling, type PaymentEffect } from "@/domain/billing";
+import { createBilling, type BillingDeps, type PaymentEffect } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createNotifications } from "@/domain/notifications";
@@ -23,6 +23,8 @@ export interface PublishOptions {
    * also needs this Billing exists).
    */
   paymentEffects?: PaymentEffect[];
+  /** Lowers an order's Pencairan by a Harga Khusus partner share (ticket 30); a test wires Payouts' own in through this. */
+  kurangiPencairanPesanan?: BillingDeps["kurangiPencairanPesanan"];
 }
 
 export function publishOnTestDatabase(db: Database, options: PublishOptions = {}) {
@@ -41,6 +43,10 @@ export function publishOnTestDatabase(db: Database, options: PublishOptions = {}
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
     paymentEffects: options.paymentEffects,
     reportError: (error, context) => reportedErrors.push({ error, context }),
+    // Ticket 30: the manual and direct payment paths, and Harga Khusus, need these.
+    audit: setup.audit,
+    files: setup.files,
+    kurangiPencairanPesanan: options.kurangiPencairanPesanan,
   });
   const notifications = createNotifications({
     db,

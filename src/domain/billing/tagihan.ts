@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -89,6 +89,12 @@ export interface Tagihan {
    * cancellation from losing a payment (ticket 24).
    */
   pengembalianDiminta: { jumlah: Rupiah; dimintaPada: Date } | null;
+  /**
+   * The share of a Harga Khusus reduction the Lokasi Mitra agreed to bear,
+   * entered when this Tagihan was reissued for one (ticket 30); null while
+   * none was entered. 0 means the Operator bears the whole reduction.
+   */
+  hargaKhususPorsiMitra: { amount: Rupiah; catatan: string } | null;
 }
 
 export interface IssueTagihanInput {
@@ -97,6 +103,8 @@ export interface IssueTagihanInput {
   nomorPemesanan: string | null;
   placeName: string | null;
   lines: NewTagihanLine[];
+  /** The partner share of a Harga Khusus reduction (ticket 30's `tetapkanHargaKhusus` only). */
+  hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null;
 }
 
 export type IssueRefusal =
@@ -214,6 +222,8 @@ async function issueIn(
       // A Rp 0 Tagihan (a Harga Khusus waiver) is Lunas at once.
       status: checked.total === 0 ? "lunas" : "belum_dibayar",
       paidAt: checked.total === 0 ? now : null,
+      hargaKhususPorsiMitra: input.hargaKhususPorsiMitra?.amount ?? null,
+      hargaKhususPorsiMitraCatatan: input.hargaKhususPorsiMitra?.catatan ?? null,
     })
     .returning({ id: tagihan.id, link: tagihan.link });
   await tx.insert(tagihanLine).values(
@@ -272,7 +282,7 @@ const REISSUABLE = TAGIHAN_PERLU_DIBAYAR;
 export async function reissueTagihan(
   deps: TagihanDeps,
   tagihanId: string,
-  input: { lines: NewTagihanLine[] },
+  input: { lines: NewTagihanLine[]; hargaKhususPorsiMitra?: { amount: Rupiah; catatan: string } | null },
   now: Date,
 ): Promise<ReissueTagihanResult> {
   const header = await currentHeader(deps.operatorSettings);
@@ -281,7 +291,13 @@ export async function reissueTagihan(
     if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
     const [old] = await tx.select().from(tagihan).where(eq(tagihan.id, tagihanId)).for("update");
     if (!old) return { ok: false, reason: "tidak_ditemukan" };
-    if (!REISSUABLE.includes(old.status)) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
+    // Immutability holds even a moment before the lapse tick runs: a pay-first
+    // Tagihan at or past its own due date has already lapsed in fact, whether or
+    // not the tick has caught up yet (spec, Billing: "a reissue never extends the
+    // time to pay"), so it is refused here exactly as `notPayableBecause` refuses
+    // a payment on it.
+    const lapsedInFact = old.kind === "pay_first" && old.dueAt <= now;
+    if (!REISSUABLE.includes(old.status) || lapsedInFact) return { ok: false, reason: "tagihan_tidak_bisa_diganti" };
     const { anchorAt, ...moment } = momentOf(old.moment);
     const reissued = await issueIn(
       tx,
@@ -293,6 +309,7 @@ export async function reissueTagihan(
         nomorPemesanan: old.nomorPemesanan,
         placeName: old.placeName,
         lines: input.lines,
+        hargaKhususPorsiMitra: input.hargaKhususPorsiMitra,
       },
       header,
       now,
@@ -430,6 +447,8 @@ async function toTagihan(db: Database, row: typeof tagihan.$inferSelect): Promis
       row.pengembalianDimintaAt && row.pengembalianJumlah !== null
         ? { jumlah: row.pengembalianJumlah, dimintaPada: row.pengembalianDimintaAt }
         : null,
+    hargaKhususPorsiMitra:
+      row.hargaKhususPorsiMitra !== null ? { amount: row.hargaKhususPorsiMitra, catatan: row.hargaKhususPorsiMitraCatatan ?? "" } : null,
   };
 }
 
@@ -446,4 +465,53 @@ function toLine(row: typeof tagihanLine.$inferSelect): TagihanLine {
     };
   }
   return { ...base, kind: z.enum(TARIFF_LINE_KINDS).parse(row.kind), provider: providerOf(row.provider) };
+}
+
+/** One Tagihan in a lookup result: enough to recognise it and open it. */
+export interface TagihanRingkas {
+  id: string;
+  nomorTagihan: string;
+  nomorPemesanan: string | null;
+  addresseeName: string;
+  status: TagihanStatus;
+  total: Rupiah;
+  issuedAt: Date;
+}
+
+/** The most one lookup returns; a nomor is precise, so more than this means the query was too short. */
+const CARI_TAGIHAN_MAX = 20;
+
+/**
+ * Finds Tagihan by Nomor Tagihan (`TGH/2026/000123`, or its start) or by the
+ * Nomor Pemesanan of the order (`MKM-2026-000123`), newest first. A read for the
+ * staff who must open a Tagihan by hand (ticket 30); a query shorter than 3
+ * characters finds nothing, and `%`/`_` never act as wildcards.
+ */
+export async function cariTagihan(db: Database, query: string): Promise<TagihanRingkas[]> {
+  const parsed = z.string().trim().min(3).max(40).safeParse(query);
+  if (!parsed.success) return [];
+  const literal = parsed.data.replace(/[\\%_]/g, (character) => `\\${character}`);
+  const rows = await db
+    .select({
+      id: tagihan.id,
+      nomor: tagihan.nomor,
+      nomorPemesanan: tagihan.nomorPemesanan,
+      addresseeName: tagihan.addresseeName,
+      status: tagihan.status,
+      total: tagihan.total,
+      issuedAt: tagihan.issuedAt,
+    })
+    .from(tagihan)
+    .where(or(ilike(tagihan.nomor, `${literal}%`), ilike(tagihan.nomorPemesanan, `${literal}%`)))
+    .orderBy(desc(tagihan.issuedAt), desc(tagihan.nomor))
+    .limit(CARI_TAGIHAN_MAX);
+  return rows.map((row) => ({
+    id: row.id,
+    nomorTagihan: row.nomor,
+    nomorPemesanan: row.nomorPemesanan,
+    addresseeName: row.addresseeName,
+    status: row.status,
+    total: row.total,
+    issuedAt: row.issuedAt,
+  }));
 }
