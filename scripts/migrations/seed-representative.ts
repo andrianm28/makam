@@ -219,6 +219,15 @@ const OVERRIDES: Record<string, Record<string, Override>> = {
     nik: ({ n }) => `3201010101${String(100000 + n).slice(-6)}`,
     status: () => "aktif",
   },
+  /**
+   * `penilaian_layanan_bintang_check` (src/domain/layanan/schema.ts, ticket 51): a
+   * Penilaian is 1 to 5 stars. The guess for an integer is `n + 1`, which stays inside
+   * that range only while the seed writes five rows or fewer per table, so the value is
+   * stated rather than left to a coincidence of `ROWS_PER_TABLE`.
+   */
+  penilaian_layanan: {
+    bintang: ({ n }) => (n % 5) + 1,
+  },
 };
 
 /**

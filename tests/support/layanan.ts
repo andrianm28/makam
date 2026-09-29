@@ -5,6 +5,7 @@ import { createBilling, type Billing } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { buktiOf, type LayananNotifikasi, type NewLayanan, type PekerjaanMitraJasa, type PekerjaanMitraJasaPort } from "@/domain/layanan";
 import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
+import { efekPencairanSaatLunas } from "@/domain/payouts/efek";
 import { PENGATURAN_OPERATOR } from "./billing";
 import { payoutsFor } from "./payouts";
 import { refundsFor } from "./refunds";
@@ -84,6 +85,7 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
     billing,
     identity: base.identity,
     refunds,
+    payouts,
     pekerjaan,
     ...(options.notifikasiNyata ? { notifications: base.notifications } : { notifikasi }),
   });
@@ -106,7 +108,7 @@ function billingDenganEfekLayanan(db: Database, base: PublishSetup): Billing {
     payments: base.payments,
     documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
-    paymentEffects: [efekJadwalkanPekerjaan({ db, inventory: base.inventory })],
+    paymentEffects: [efekJadwalkanPekerjaan({ db, inventory: base.inventory }), efekPencairanSaatLunas()],
     reportError: (error, context) => base.reportedErrors.push({ error, context }),
   });
 }

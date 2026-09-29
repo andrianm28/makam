@@ -134,6 +134,7 @@ export function payoutsOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     refunds,
+    payouts,
     notifications: setup.notifications,
   });
   const queues = createQueues({

@@ -117,6 +117,7 @@ async function main() {
     billing: billingOn(billingComposition, database.db),
     identity,
     refunds,
+    payouts,
     notifications,
   });
 

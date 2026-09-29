@@ -63,7 +63,7 @@ describe("pg-boss wiring (smoke)", () => {
         },
         payouts: { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
         refunds: { tick: async () => ({ materialised: 0 }) },
-        layanan: { tinjauSkorTick: async () => {} },
+        layanan: { tinjauSkorTick: async () => {}, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }) },
         terencana: { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
       }),
       clock,

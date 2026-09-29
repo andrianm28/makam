@@ -69,3 +69,43 @@ export const batalkanPekerjaanSchema = z.object({
   alasan: z.string().trim().min(1, "Tulis alasan pembatalan.").max(500),
 });
 export type BatalkanPekerjaanInput = z.infer<typeof batalkanPekerjaanSchema>;
+
+/** The Pemesan's Keluhan on one finished job (spec, Layanan: "file a Keluhan within 3×24 h of seeing the proof"). */
+export const ajukanKeluhanSchema = z.object({
+  pekerjaanId: z.uuid(),
+  alasan: z.string().trim().min(1, "Tulis keluhan Anda.").max(1000, "Keluhan terlalu panjang."),
+});
+export type AjukanKeluhanInput = z.infer<typeof ajukanKeluhanSchema>;
+
+/** The Pemesan's optional Penilaian of one finished job: 1–5 stars and a comment. */
+export const beriPenilaianSchema = z.object({
+  pekerjaanId: z.uuid(),
+  bintang: z.coerce.number().int("Pilih 1 sampai 5 bintang.").min(1, "Pilih 1 sampai 5 bintang.").max(5, "Pilih 1 sampai 5 bintang."),
+  komentar: z
+    .string()
+    .trim()
+    .max(1000, "Komentar terlalu panjang.")
+    .nullish()
+    .transform((value) => (value ? value : null)),
+});
+export type BeriPenilaianInput = z.infer<typeof beriPenilaianSchema>;
+
+/** What Admin Platform may decide about a Keluhan (spec: "redo or refund", or reject it). */
+export const keputusanKeluhanValues = ["tolak", "kerjakan_ulang", "kembalikan_dana"] as const;
+export type KeputusanKeluhan = (typeof keputusanKeluhanValues)[number];
+
+/** Admin Platform's decision on one Keluhan, with the note that goes with it. */
+export const putuskanKeluhanSchema = z.object({
+  keluhanId: z.uuid(),
+  keputusan: z.enum(keputusanKeluhanValues, { message: "Pilih keputusan." }),
+  catatan: z.string().trim().min(1, "Tulis catatan keputusan.").max(500, "Catatan terlalu panjang."),
+});
+export type PutuskanKeluhanInput = z.infer<typeof putuskanKeluhanSchema>;
+
+/** Admin Platform's override of what the job pays its fulfiller after a Keluhan: a new whole-rupiah amount and a mandatory note. */
+export const sesuaikanPencairanKeluhanSchema = z.object({
+  keluhanId: z.uuid(),
+  amount: z.coerce.number().int("Tulis jumlah rupiah tanpa pecahan.").positive("Jumlah harus lebih dari nol."),
+  catatan: z.string().trim().min(1, "Tulis catatan penyesuaian.").max(500, "Catatan terlalu panjang."),
+});
+export type SesuaikanPencairanKeluhanInput = z.infer<typeof sesuaikanPencairanKeluhanSchema>;

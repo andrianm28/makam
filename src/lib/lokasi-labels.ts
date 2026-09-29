@@ -122,6 +122,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "layanan.mulai_pekerjaan": "Pekerjaan Layanan dimulai",
   "layanan.unggah_bukti": "Bukti Pekerjaan Layanan diambil",
   "layanan.selesaikan_pekerjaan": "Pekerjaan Layanan diselesaikan",
+  "layanan.putuskan_keluhan": "Keluhan Pekerjaan Layanan diputuskan",
 };
 
 /** The role an Entri Audit's actor wrote under. */

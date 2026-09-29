@@ -15,6 +15,7 @@ import { pencairanRowType } from "./tier3-pencairan-row";
 import { pengembalianRowType } from "./tier3-pengembalian-row";
 import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo-row";
 import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencana-terlambat-row";
+import { keluhanRowType } from "./tier1-keluhan-row";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -30,12 +31,13 @@ import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencan
  * ticket 43 and the two Mitra Jasa rows of ticket 55), Tier 2's Pembayaran Perlu
  * Ditinjau (spec-missing; ticket 19's review) and Telepon Pemesan (ticket 20), and
  * Tier 1's Konfirmasi Lokasi terlambat (ticket 23).
- * Tier 2's Layanan Terlambat (ticket 50).
+ * Tier 2's Layanan Terlambat (ticket 50), and Tier 1's Keluhan (ticket 51).
  */
 export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiLokasiTerlambatRowType,
   saatDukaDitolakRowType,
   konfirmasiTpuSaatDukaRowType,
+  keluhanRowType,
   ambilSuratPengantarRowType,
   setorRetribusiRowType,
   pembayaranPerluDitinjauRowType,

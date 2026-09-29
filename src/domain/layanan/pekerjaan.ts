@@ -21,12 +21,14 @@ import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import {
   buktiKurang,
   buktiUntukPekerjaan,
+  jenisBuktiBaruSejak,
   jenisBuktiDibutuhkan,
   simpanBukti,
   type BuktiTerbaca,
   type SimpanBuktiResult,
 } from "./bukti";
 import type { LayananDeps } from "./deps";
+import { keluhanOfPekerjaan, selesaikanKerjakanUlang, type KeluhanTerbaca } from "./keluhan";
 import { katalog, proofOf, type ProofRequirement } from "./katalog";
 import { mulaiPekerjaanSchema } from "./pesanan-schema";
 import { pesananLayanan, pesananLayananItem, pekerjaanLayanan, type BuktiPekerjaan, type PekerjaanLayananStatus } from "./schema";
@@ -40,7 +42,7 @@ const BUKA: readonly PekerjaanLayananStatus[] = ["menunggu_pembayaran", "dijadwa
 /** The statuses the fulfiller may start a job from. */
 const BISA_DIMULAI: readonly PekerjaanLayananStatus[] = ["dijadwalkan", "terlambat"];
 
-/** The statuses a job may be finished from: waiting, already started, or already flagged late. */
+/** The statuses a job may be finished from: waiting, already started, or already flagged late. A redo is finished from Keluhan (see `selesaikanPekerjaan`). */
 const BISA_SELESAI: readonly PekerjaanLayananStatus[] = ["dijadwalkan", "sedang_dikerjakan", "terlambat"];
 
 /** The proof of a Layanan whose kind is not in the catalog, which cannot happen for a placed order. */
@@ -77,7 +79,15 @@ export interface PekerjaanUntukStaf {
   petak: { id: string; nomor: string };
   /** The family to call if something at the grave does not add up. */
   pemesan: { name: string; phoneNumber: string; email: string };
+  /**
+   * The Keluhan on this job, or null. The Admin Lokasi sees it on its own job page (story 131), with what
+   * Admin Platform decided; a **Penilaian is never here**: it is Admin Platform's alone.
+   */
+  keluhan: KeluhanUntukStaf | null;
 }
+
+/** A Keluhan as the Admin Lokasi of the job's Lokasi reads it. */
+export type KeluhanUntukStaf = Pick<KeluhanTerbaca, "status" | "alasan" | "diajukanAt" | "diputuskanAt" | "catatanKeputusan">;
 
 export type BacaPekerjaanResult = { ok: true; pekerjaan: PekerjaanUntukStaf } | WriteRefusal | { ok: false; reason: "tidak_ditemukan" | "input_tidak_valid" };
 
@@ -159,7 +169,7 @@ export async function mulaiPekerjaan(deps: LayananDeps, by: Actor, rawInput: unk
   return { ok: false, reason: "belum_dijadwalkan" };
 }
 
-export type UnggahBuktiResult = SimpanBuktiResult | WriteRefusal | { ok: false; reason: "tidak_ditemukan" | "sudah_selesai" };
+export type UnggahBuktiResult = SimpanBuktiResult | WriteRefusal | { ok: false; reason: "tidak_ditemukan" | "sudah_selesai" | "dalam_keluhan" };
 
 /**
  * The Admin Lokasi captures a proof in the app: the file goes to the private
@@ -178,6 +188,9 @@ export async function unggahBuktiPekerjaan(deps: LayananDeps, by: Actor, rawInpu
   const status = await statusOf(deps, pekerjaanId);
   if (status === null) return { ok: false, reason: "tidak_ditemukan" };
   if (status === "selesai" || status === "dibatalkan") return { ok: false, reason: "sudah_selesai" };
+  // A job under a Keluhan keeps the proof the family complained about as the evidence, until Admin
+  // Platform has decided a redo: then, and only then, the Admin Lokasi takes new proof.
+  if (status === "keluhan" && (await keluhanOfPekerjaan(deps.db, pekerjaanId))?.status !== "kerjakan_ulang") return { ok: false, reason: "dalam_keluhan" };
   const lokasiId = await lokasiOf(deps, pekerjaanId);
   if (lokasiId === null) return { ok: false, reason: "tidak_ditemukan" };
   return simpanBukti(deps, pekerjaanId, { accountId: by.accountId, lokasiId }, rawInput);
@@ -186,13 +199,18 @@ export async function unggahBuktiPekerjaan(deps: LayananDeps, by: Actor, rawInpu
 export type SelesaikanPekerjaanResult =
   | { ok: true; status: "selesai"; bukti: BuktiTerbaca[] }
   | WriteRefusal
-  | { ok: false; reason: "tidak_ditemukan" | "input_tidak_valid" | "belum_dijadwalkan" | "sudah_dibatalkan" | "bukti_belum_lengkap"; kurang?: BuktiPekerjaan[] };
+  | { ok: false; reason: "tidak_ditemukan" | "input_tidak_valid" | "belum_dijadwalkan" | "sudah_dibatalkan" | "dalam_keluhan" | "bukti_belum_lengkap"; kurang?: BuktiPekerjaan[] };
 
 /**
  * The Admin Lokasi marks a job Selesai, and the Pemesan is sent the link to its
  * proof. Refused until every proof the Layanan's kind requires is there: the photo
  * after is never optional, a photo before is required for a Pembersihan Makam and
  * a Perawatan Rumput & Taman, and a video for a Laporan Foto/Video.
+ *
+ * Showing the proof to the Pemesan opens the 3×24 h Keluhan window (`bukti_ditunjukkan_at`). A
+ * job in Keluhan whose redo Admin Platform decided is finished the same way, with **new** proof
+ * for every kind (the old ones are the Keluhan's evidence): that shows the proof again, closes the
+ * Kerjakan ulang row and releases the job's Pencairan.
  */
 export async function selesaikanPekerjaan(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<SelesaikanPekerjaanResult> {
   const parsed = mulaiPekerjaanSchema.safeParse(rawInput);
@@ -203,9 +221,12 @@ export async function selesaikanPekerjaan(deps: LayananDeps, by: Actor, rawInput
   const pekerjaan = await baca(deps, pekerjaanId);
   if (!pekerjaan) return { ok: false, reason: "tidak_ditemukan" };
   if (pekerjaan.status === "dibatalkan") return { ok: false, reason: "sudah_dibatalkan" };
-  if (!BISA_SELESAI.includes(pekerjaan.status)) return { ok: false, reason: "belum_dijadwalkan" };
+  const ulang = pekerjaan.status === "keluhan" && pekerjaan.keluhan?.status === "kerjakan_ulang";
+  if (pekerjaan.status === "keluhan" && !ulang) return { ok: false, reason: "dalam_keluhan" };
+  if (!ulang && !BISA_SELESAI.includes(pekerjaan.status)) return { ok: false, reason: "belum_dijadwalkan" };
 
-  const kurang = buktiKurang(pekerjaan.harusBukti, pekerjaan.bukti.map((satu) => satu.kind));
+  // For a redo, `kurang` already counts a kind not renewed since the decision as missing.
+  const kurang = pekerjaan.kurang;
   if (kurang.length > 0) return { ok: false, reason: "bukti_belum_lengkap", kurang };
 
   const now = deps.clock.now();
@@ -214,19 +235,25 @@ export async function selesaikanPekerjaan(deps: LayananDeps, by: Actor, rawInput
   // did not finish. The proof link is what they are sent, and the family is always
   // the Pemesan: they paid, whoever put the order in.
   const selesai = await deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const diubah = await tx
-      .update(pekerjaanLayanan)
-      .set({ status: "selesai", selesaiAt: now, mulaiAt: pekerjaan.mulaiAt ?? now })
-      .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_SELESAI)))
-      .returning({ id: pekerjaanLayanan.id });
-    if (diubah.length === 0) return { ok: false as const };
+    if (ulang) {
+      // The Kerjakan ulang row closes, the proof is shown again and the Pencairan is released, all on this transaction.
+      if (!(await selesaikanKerjakanUlang(deps, tx, pekerjaanId, now))) return { ok: false as const };
+    } else {
+      const diubah = await tx
+        .update(pekerjaanLayanan)
+        // Showing the proof to the Pemesan is what opens the Keluhan window.
+        .set({ status: "selesai", selesaiAt: now, mulaiAt: pekerjaan.mulaiAt ?? now, buktiDitunjukkanAt: now })
+        .where(and(eq(pekerjaanLayanan.id, pekerjaanId), inArray(pekerjaanLayanan.status, BISA_SELESAI)))
+        .returning({ id: pekerjaanLayanan.id });
+      if (diubah.length === 0) return { ok: false as const };
+    }
     await record({
       actor: { accountId: by.accountId, role: "admin_lokasi" },
       action: "layanan.selesaikan_pekerjaan",
       entity: { kind: "pekerjaan_layanan", id: pekerjaanId },
       lokasiId: pekerjaan.lokasi.id,
       before: { status: pekerjaan.status },
-      after: { status: "selesai", selesaiAt: now.toISOString(), bukti: pekerjaan.bukti.map((satu) => satu.kind) },
+      after: { status: "selesai", selesaiAt: now.toISOString(), bukti: pekerjaan.bukti.map((satu) => satu.kind), ...(ulang ? { kerjakanUlang: true } : {}) },
       reason: null,
     });
     await deps.notifikasi.pekerjaanSelesai(tx, {
@@ -357,6 +384,12 @@ async function baca(deps: LayananDeps, pekerjaanId: string): Promise<PekerjaanUn
   const entry = (await katalog(deps.db)).find((satu) => satu.id === row.item.layananId);
   const harusBukti = entry ? proofOf(entry.jenis) : BUKTI_DEFAULT;
   const bukti = await buktiUntukPekerjaan(deps, row.job.id);
+  const keluhan = await keluhanOfPekerjaan(deps.db, row.job.id);
+  // A redo needs a proof taken after Admin Platform decided it: the old ones are what was complained about.
+  const diambil =
+    keluhan?.status === "kerjakan_ulang" && keluhan.diputuskanAt
+      ? await jenisBuktiBaruSejak(deps, row.job.id, keluhan.diputuskanAt)
+      : bukti.map((satu) => satu.kind);
   // Only a job the gate is holding needs the grave's right read, so the Lokasi's
   // whole list does not pay for a read per row that cannot be held.
   const hakPakai = row.job.status === "menunggu_pembayaran" ? await deps.inventory.hakPakaiOfUnit({ petakId: row.job.petakId }) : null;
@@ -370,11 +403,14 @@ async function baca(deps: LayananDeps, pekerjaanId: string): Promise<PekerjaanUn
     mulaiAt: row.job.mulaiAt,
     harusBukti,
     dibutuhkan: jenisBuktiDibutuhkan(harusBukti),
-    kurang: buktiKurang(harusBukti, bukti.map((satu) => satu.kind)),
+    kurang: buktiKurang(harusBukti, diambil),
     bukti,
     pesanan: { nomor: row.order.nomor, label: row.item.label, teks: row.item.teks, amount: row.item.amount },
     lokasi: { id: row.job.lokasiId, name: row.order.lokasiName },
     petak: { id: row.job.petakId, nomor: row.order.petakNomor },
     pemesan: { name: row.order.pemesanName, phoneNumber: row.order.pemesanPhone, email: row.order.pemesanEmail },
+    keluhan: keluhan
+      ? { status: keluhan.status, alasan: keluhan.alasan, diajukanAt: keluhan.diajukanAt, diputuskanAt: keluhan.diputuskanAt, catatanKeputusan: keluhan.catatanKeputusan }
+      : null,
   };
 }

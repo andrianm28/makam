@@ -252,7 +252,9 @@ export type AuditAction =
   /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
   | "layanan.unggah_bukti"
   /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
-  | "layanan.selesaikan_pekerjaan";
+  | "layanan.selesaikan_pekerjaan"
+  /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
+  | "layanan.putuskan_keluhan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

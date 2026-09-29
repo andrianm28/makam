@@ -4,13 +4,14 @@ import { z } from "zod";
 import { StatusBadge } from "@/components/makam/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import type { PesananLayananOrder } from "@/domain/layanan";
-import { buktiPekerjaanLabels, labelBuktiPekerjaan, pesananLayananLabels } from "@/lib/layanan-labels";
+import { buktiPekerjaanLabels, keluhanPenjelasanPemesan, keluhanStatusLabels, labelBuktiPekerjaan, pesananLayananLabels } from "@/lib/layanan-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { BatalkanPekerjaan } from "./batalkan";
+import { AjukanKeluhan, BeriPenilaian } from "./keluhan";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -126,6 +127,19 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
           ))}
         </ul>
       ) : null}
+
+      {kerja.keluhan ? (
+        <div className="flex flex-col gap-1 rounded-lg bg-warning-soft p-3">
+          <p className="text-body font-semibold">Keluhan: {keluhanStatusLabels[kerja.keluhan.status]}</p>
+          <p className="text-small text-muted-foreground">Diajukan {formatTanggalJam(kerja.keluhan.diajukanAt)}: &ldquo;{kerja.keluhan.alasan}&rdquo;</p>
+          <p className="text-small text-muted-foreground">{keluhanPenjelasanPemesan[kerja.keluhan.status]}</p>
+        </div>
+      ) : null}
+      {kerja.bolehKeluhan && kerja.jendelaKeluhanBerakhirAt ? (
+        <AjukanKeluhan pekerjaanId={kerja.id} nomor={nomor} berakhirPada={formatTanggalJam(kerja.jendelaKeluhanBerakhirAt)} />
+      ) : null}
+      {kerja.bolehDinilai ? <BeriPenilaian pekerjaanId={kerja.id} nomor={nomor} /> : null}
+      {kerja.dinilai ? <p className="text-small text-muted-foreground">Terima kasih, Anda sudah menilai pekerjaan ini.</p> : null}
 
       {bisaBatal ? <BatalkanPekerjaan pekerjaanId={kerja.id} nomor={nomor} /> : null}
     </div>

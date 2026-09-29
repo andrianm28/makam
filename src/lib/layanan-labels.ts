@@ -1,4 +1,4 @@
-import type { AlasanTolakPesanan, BuktiPekerjaan, PekerjaanLayananStatus } from "@/domain/layanan";
+import type { AlasanTolakPesanan, BuktiPekerjaan, KeluhanStatus, PekerjaanLayananStatus } from "@/domain/layanan";
 import type { Bukti, Frekuensi, JenisLayanan, ProofRequirement } from "@/domain/layanan";
 import type { QuotedLine } from "@/domain/tariffs";
 import { quoteLineLabel } from "./quote-line-label";
@@ -158,6 +158,8 @@ export const pekerjaanPesanMessages = {
   belum_dijadwalkan: "Pekerjaan ini belum menunggu pembayaran, jadi belum bisa dikerjakan.",
   sudah_dikerjakan: "Pekerjaan ini sudah selesai atau sedang dikerjakan.",
   sudah_dibatalkan: "Pekerjaan ini sudah dibatalkan atau sedang dalam keluhan.",
+  dalam_keluhan: "Pekerjaan ini sedang dalam keluhan. Bukti baru baru bisa diambil setelah Admin Platform memutuskan untuk mengerjakan ulang.",
+  sudah_selesai: "Pekerjaan ini sudah selesai atau dibatalkan, jadi tidak menerima bukti lagi.",
   bukti_belum_lengkap: "Bukti wajib belum lengkap, jadi pekerjaan belum bisa ditandai selesai.",
   berkas_tidak_didukung: "Berkas ini tidak didukung. Ambil ulang fotonya dari kamera.",
   penyimpanan_belum_tersedia: "Penyimpanan berkas belum tersedia, jadi bukti belum bisa disimpan.",
@@ -165,4 +167,63 @@ export const pekerjaanPesanMessages = {
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
   perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_perlu_verifikasi: "Hak Pakai petak ini sudah lengkap.",
+} as const satisfies Record<string, string>;
+
+/** A Keluhan's status, in the words the Pemesan and the staff read. */
+export const keluhanStatusLabels = {
+  terbuka: "Menunggu keputusan",
+  ditolak: "Ditolak",
+  kerjakan_ulang: "Akan dikerjakan ulang",
+  selesai_ulang: "Sudah dikerjakan ulang",
+  dana_kembali: "Dana dikembalikan",
+} as const satisfies Record<KeluhanStatus, string>;
+
+/** What a Keluhan's status means to the Pemesan, so the order page says what happens next rather than only the status. */
+export const keluhanPenjelasanPemesan = {
+  terbuka: "Keluhan Anda sudah kami terima. Tim kami akan menghubungi Anda dan memutuskan pengerjaan ulang atau pengembalian dana.",
+  ditolak: "Keluhan Anda sudah kami periksa dan tidak dapat dilanjutkan.",
+  kerjakan_ulang: "Pekerjaan akan dikerjakan ulang oleh Lokasi Mitra. Bukti baru akan Anda terima begitu selesai.",
+  selesai_ulang: "Pekerjaan sudah dikerjakan ulang. Bukti baru sudah tersedia di atas.",
+  dana_kembali: "Pengembalian dana untuk pekerjaan ini sudah diajukan. Isi rekening tujuan lewat halaman Tagihan bila diminta.",
+} as const satisfies Record<KeluhanStatus, string>;
+
+/** Why a Keluhan is refused, saying what to do next. */
+export const keluhanMessages = {
+  input_tidak_valid: "Tulis keluhan Anda dengan singkat.",
+  bukan_pemesan: "Email ini bukan email akun Anda, jadi keluhan tidak bisa diajukan.",
+  tidak_ditemukan: "Pesanan ini tidak ada di akun Anda.",
+  sudah_dibatalkan: "Pekerjaan ini sudah dibatalkan, jadi tidak bisa dikeluhkan.",
+  belum_selesai: "Pekerjaan ini belum selesai, jadi belum ada yang bisa dikeluhkan.",
+  jendela_tertutup: "Batas 3×24 jam untuk mengajukan keluhan sudah lewat. Hubungi kami bila masih ada yang mengganjal.",
+  sudah_ada: "Keluhan untuk pekerjaan ini sudah pernah diajukan.",
+  belum_masuk: "Masuk dulu untuk mengajukan keluhan.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
+} as const satisfies Record<string, string>;
+
+/** Why a Penilaian is refused, saying what to do next. */
+export const penilaianMessages = {
+  input_tidak_valid: "Pilih 1 sampai 5 bintang.",
+  bukan_pemesan: "Email ini bukan email akun Anda, jadi penilaian tidak bisa disimpan.",
+  tidak_ditemukan: "Pesanan ini tidak ada di akun Anda.",
+  belum_selesai: "Pekerjaan ini belum selesai, jadi belum bisa dinilai.",
+  sudah_dinilai: "Pekerjaan ini sudah Anda nilai. Terima kasih.",
+  belum_masuk: "Masuk dulu untuk memberi penilaian.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
+} as const satisfies Record<string, string>;
+
+/** Why Admin Platform's decision on a Keluhan, or its Pencairan override, is refused. */
+export const putuskanKeluhanMessages = {
+  input_tidak_valid: "Pilih keputusan dan tulis catatannya.",
+  tidak_ditemukan: "Keluhan ini tidak ditemukan.",
+  sudah_diputuskan: "Keluhan ini sudah diputuskan.",
+  pengembalian_tidak_bisa_diajukan: "Pengembalian dana untuk pekerjaan ini belum bisa diajukan. Periksa Tagihan dan permintaan pengembalian yang sedang berjalan.",
+  pengembalian_tertunda: "Sudah ada permintaan pengembalian yang disetujui untuk Tagihan ini. Selesaikan itu dulu, lalu putuskan keluhan ini.",
+  pencairan_belum_ada: "Pencairan untuk pekerjaan ini belum tercatat, jadi belum bisa disesuaikan. Coba lagi setelah pembayaran tercatat.",
+  melebihi_tarif: "Jumlah tidak boleh melebihi tarif yang ditagihkan untuk pekerjaan ini.",
+  sudah_dicairkan: "Pencairan untuk pekerjaan ini sudah ditransfer, jadi tidak bisa disesuaikan.",
+  belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;

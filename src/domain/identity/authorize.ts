@@ -223,8 +223,10 @@ export type Action =
    * care for a grave (spec, story 84).
    */
   | "layanan.buat"
-  /** Read one's own order Layanan and its jobs, and cancel one of them. */
+  /** Read one's own order Layanan and its jobs, cancel one of them, file a Keluhan on a finished one and give it a Penilaian. */
   | "layanan.lihat"
+  /** Decide a Keluhan (redo, refund or rejection), override what the job pays with a note, and read every Penilaian (Admin Platform only). */
+  | "keluhan.kelola"
   /** Read one Pekerjaan Layanan, or a Lokasi Mitra's whole open list, as staff (Admin Platform, or that Lokasi's Admin Lokasi). */
   | "layanan.lihat_staf"
   /** The Admin Lokasi of a job's own Lokasi Mitra starts it, captures its proof and marks it Selesai. */
@@ -256,6 +258,8 @@ export type Resource =
   | { kind: "antrean" }
   /** The Pencairan run and its Bukti Pencairan (the run spans every Lokasi Mitra and Mitra Jasa at once). */
   | { kind: "pencairan" }
+  /** Every Keluhan and Penilaian of a Pekerjaan Layanan (Admin Platform alone: a Penilaian is seen by nobody else). */
+  | { kind: "keluhan_layanan" }
   /** Every Saat Duka TPU order (Admin Platform alone: a TPU order is the Operator's own work). */
   | { kind: "pengurusan_tpu" }
   /** The Setor Retribusi rows (Admin Platform, and the Petugas Lapangan who pays in person). */
@@ -359,6 +363,11 @@ export function antreanResource(): Resource {
 /** The Pencairan run: every recipient's due items and Potongan, and the Bukti Pencairan a transfer issues. */
 export function pencairanResource(): Resource {
   return { kind: "pencairan" };
+}
+
+/** Every Keluhan and Penilaian: what Admin Platform decides and reads, and no other role reaches. */
+export function keluhanLayananResource(): Resource {
+  return { kind: "keluhan_layanan" };
 }
 
 /** Every refund request, its approval and its Bukti Pengembalian Dana. */
@@ -639,6 +648,9 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // names is the module's own check, not the guard's: the guard only knows
       // that the order is this Akun's.
       return resource.kind === "pesanan_layanan" && resource.accountId === actor.accountId ? allowed : denied;
+    case "keluhan.kelola":
+      // A Keluhan is decided by Admin Platform alone, and a Penilaian is read by nobody else (CONTEXT.md: Penilaian).
+      return resource.kind === "keluhan_layanan" && holds("admin_platform") ? allowed : denied;
     case "layanan.lihat_staf":
       // An Admin Lokasi sees its own Lokasi Mitra's jobs and no other's (story 139); Admin Platform sees every job.
       return resource.kind === "lokasi_mitra" && (holds("admin_platform") || adminLokasiOf(actor, resource.lokasiId))

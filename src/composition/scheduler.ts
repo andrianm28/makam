@@ -28,7 +28,7 @@ export function composeSchedulerContext(deps: {
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   refunds: Pick<Refunds, "tick">;
-  layanan: Pick<Layanan, "tinjauSkorTick">;
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tutupJendelaKeluhan">;
   /** The Pemesanan module, for the Terencana payment-hold lapse (ticket 37). */
   terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
 }): SchedulerContext {

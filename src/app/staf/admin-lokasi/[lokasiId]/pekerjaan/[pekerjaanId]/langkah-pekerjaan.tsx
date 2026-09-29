@@ -17,13 +17,17 @@ const initialState: PekerjaanActionState = { status: "idle" };
  * the screen says what is still to be taken rather than a reason code.
  */
 export function LangkahPekerjaan({ lokasiId, pekerjaan }: { lokasiId: string; pekerjaan: PekerjaanUntukStaf }) {
-  const sudah = new Set(pekerjaan.bukti.map((satu) => satu.kind));
+  // A proof counts as taken when the module does not list it as missing: for a redo, the proof the family complained
+  // about is still there but does not count, so this reads `kurang` rather than what is stored.
+  const sudah = new Set(pekerjaan.dibutuhkan.filter((kind) => !pekerjaan.kurang.includes(kind)));
   // The page computed which proofs this job must carry, from the Layanan's own kind;
   // this screen never chooses them.
   // The page computed which proofs this job must carry, from the Layanan's own
   // kind; this screen never chooses them, it only walks the list.
   const dibutuhkan = pekerjaan.dibutuhkan;
-  const ditutup = pekerjaan.status === "selesai" || pekerjaan.status === "dibatalkan" || pekerjaan.status === "keluhan";
+  // A job in Keluhan takes new proof only once Admin Platform has decided a redo; until then its proof is the evidence.
+  const ulang = pekerjaan.status === "keluhan" && pekerjaan.keluhan?.status === "kerjakan_ulang";
+  const ditutup = pekerjaan.status === "selesai" || pekerjaan.status === "dibatalkan" || (pekerjaan.status === "keluhan" && !ulang);
 
   return (
     <>
@@ -33,10 +37,14 @@ export function LangkahPekerjaan({ lokasiId, pekerjaan }: { lokasiId: string; pe
         <h2 id="bukti-heading" className="text-body font-semibold">
           Bukti pekerjaan
         </h2>
-        <p className="text-small text-muted-foreground">Diambil lewat kamera di aplikasi ini, dengan waktu pengambilan ikut tersimpan.</p>
-        {dibutuhkan.map((kind) => (
-          <AmbilBukti key={kind} lokasiId={lokasiId} pekerjaanId={pekerjaan.id} kind={kind} sudahAda={sudah.has(kind)} />
-        ))}
+        <p className="text-small text-muted-foreground">
+          {ulang
+            ? "Pekerjaan ini dikerjakan ulang. Ambil bukti baru untuk setiap bagian; bukti lama tetap tersimpan sebagai catatan keluhan."
+            : "Diambil lewat kamera di aplikasi ini, dengan waktu pengambilan ikut tersimpan."}
+        </p>
+        {!ditutup
+          ? dibutuhkan.map((kind) => <AmbilBukti key={kind} lokasiId={lokasiId} pekerjaanId={pekerjaan.id} kind={kind} sudahAda={sudah.has(kind)} />)
+          : null}
         {pekerjaan.bukti.length > 0 ? (
           <ul className="flex flex-col gap-1 text-small text-muted-foreground">
             {pekerjaan.bukti.map((satu) => (

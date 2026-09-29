@@ -166,6 +166,7 @@ export function testServerRuntime() {
       billing,
       identity,
       refunds,
+      payouts,
       notifications,
     });
     holder.__makamRuntime = {
