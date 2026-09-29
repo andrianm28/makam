@@ -56,6 +56,7 @@ const TIMEOUT_LOKASI = {
   kontakSiagaOf: async () => null,
 };
 const DIAMDIAM: PemesananNotifikasi = {
+  tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
   pesananDiajukan: async () => {},
   pesananBelumDikonfirmasi: async () => {},
   pesananDikonfirmasi: async () => {},

@@ -45,6 +45,7 @@ describe("pg-boss wiring (smoke)", () => {
         // The Layanan module's payment effect re-run reads a grave's Hak Pakai; the smoke test pays nothing.
         inventory: { hakPakaiOfUnit: async () => null },
         notifikasi: {
+          tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
           pesananDiajukan: async () => {},
           pesananBelumDikonfirmasi: async () => {},
           pesananDikonfirmasi: async () => {},

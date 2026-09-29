@@ -47,5 +47,5 @@ export interface PengurusanDeps {
   identity: Pick<Identity, "accountByEmail" | "staffAccounts">;
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;
-  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi">;
+  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit">;
 }
