@@ -32,7 +32,7 @@ describe("Antrean: Tier 2 Telepon Pemesan", () => {
       tier: 2,
       label: "Telepon Pemesan",
       subjectKind: "telepon_pemesan",
-      alerts: true,
+      alerts: false,
       pastDeadline: false,
       ambil: null,
     });

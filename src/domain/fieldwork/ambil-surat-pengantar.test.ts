@@ -46,8 +46,8 @@ describe("the Ambil surat pengantar Tugas and its Tier 2 row", () => {
     expect(rows[0]).toMatchObject({
       tier: 2,
       subjectKind: "fieldwork_tugas",
-      // Tier 2 alerts, as Tier 1 does; only Tier 3 and 4 never do.
-      alerts: true,
+      // Tier 2 shows in the Antrean without an alert (ticket 28): only Tier 1 alerts.
+      alerts: false,
       href: "/staf/admin-platform/tugas-lapangan",
       deadline: wib("2026-10-02 23:59"),
     });
