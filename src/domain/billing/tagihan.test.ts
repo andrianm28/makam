@@ -176,6 +176,8 @@ describe("an issued Tagihan is immutable", () => {
       "batalkanTagihan",
       "bayar",
       "buktiPemesananById",
+      // A read by Nomor Tagihan or Nomor Pemesanan, for staff opening one by hand (ticket 30).
+      "cariTagihan",
       // The manual and direct payment paths (ticket 30): both settle through
       // `recordPayment` and record their own Entri Audit, never a line change.
       "catatPembayaranLangsung",
@@ -366,5 +368,42 @@ describe("the QRIS payment cap", () => {
     ).toEqual({ ok: false, reason: "melebihi_batas_qris" });
 
     expect(await billing.tagihan(original.tagihan.id)).toEqual(original.tagihan);
+  });
+});
+
+describe("cariTagihan: how staff find a Tagihan to open (ticket 30)", () => {
+  it("finds a Tagihan by its Nomor Tagihan or its Nomor Pemesanan, newest first, and by a start of either", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+    const first = await billing.issueTagihan(saatDukaCheckout());
+    if (!first.ok) throw new Error("not issued");
+
+    for (const query of ["TGH/2026/000001", "tgh/2026/0000", "MKM-2026-000001"]) {
+      expect(await billing.cariTagihan(query)).toMatchObject([
+        { id: first.tagihan.id, nomorTagihan: "TGH/2026/000001", nomorPemesanan: "MKM-2026-000001", status: "belum_dibayar" },
+      ]);
+    }
+  });
+
+  it("finds nothing for a query too short to be a number, an unknown one, or a wildcard", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+    await billing.issueTagihan(saatDukaCheckout());
+
+    expect(await billing.cariTagihan("TG")).toEqual([]);
+    expect(await billing.cariTagihan("TGH/2027")).toEqual([]);
+    expect(await billing.cariTagihan("%%%")).toEqual([]);
+  });
+
+  it("a replaced Tagihan is still found beside the one that replaced it", async () => {
+    const { billing } = await billingWithOperatorSettings(db);
+    const original = await billing.issueTagihan(saatDukaCheckout());
+    if (!original.ok) throw new Error("not issued");
+    await billing.reissueTagihan(original.tagihan.id, { lines: saatDukaCheckout().lines });
+
+    const found = await billing.cariTagihan("MKM-2026-000001");
+
+    expect(found.map((row) => [row.nomorTagihan, row.status])).toEqual([
+      ["TGH/2026/000002", "belum_dibayar"],
+      ["TGH/2026/000001", "dibatalkan"],
+    ]);
   });
 });

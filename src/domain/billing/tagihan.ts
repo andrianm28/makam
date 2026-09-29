@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -465,4 +465,53 @@ function toLine(row: typeof tagihanLine.$inferSelect): TagihanLine {
     };
   }
   return { ...base, kind: z.enum(TARIFF_LINE_KINDS).parse(row.kind), provider: providerOf(row.provider) };
+}
+
+/** One Tagihan in a lookup result: enough to recognise it and open it. */
+export interface TagihanRingkas {
+  id: string;
+  nomorTagihan: string;
+  nomorPemesanan: string | null;
+  addresseeName: string;
+  status: TagihanStatus;
+  total: Rupiah;
+  issuedAt: Date;
+}
+
+/** The most one lookup returns; a nomor is precise, so more than this means the query was too short. */
+const CARI_TAGIHAN_MAX = 20;
+
+/**
+ * Finds Tagihan by Nomor Tagihan (`TGH/2026/000123`, or its start) or by the
+ * Nomor Pemesanan of the order (`MKM-2026-000123`), newest first. A read for the
+ * staff who must open a Tagihan by hand (ticket 30); a query shorter than 3
+ * characters finds nothing, and `%`/`_` never act as wildcards.
+ */
+export async function cariTagihan(db: Database, query: string): Promise<TagihanRingkas[]> {
+  const parsed = z.string().trim().min(3).max(40).safeParse(query);
+  if (!parsed.success) return [];
+  const literal = parsed.data.replace(/[\\%_]/g, (character) => `\\${character}`);
+  const rows = await db
+    .select({
+      id: tagihan.id,
+      nomor: tagihan.nomor,
+      nomorPemesanan: tagihan.nomorPemesanan,
+      addresseeName: tagihan.addresseeName,
+      status: tagihan.status,
+      total: tagihan.total,
+      issuedAt: tagihan.issuedAt,
+    })
+    .from(tagihan)
+    .where(or(ilike(tagihan.nomor, `${literal}%`), ilike(tagihan.nomorPemesanan, `${literal}%`)))
+    .orderBy(desc(tagihan.issuedAt), desc(tagihan.nomor))
+    .limit(CARI_TAGIHAN_MAX);
+  return rows.map((row) => ({
+    id: row.id,
+    nomorTagihan: row.nomor,
+    nomorPemesanan: row.nomorPemesanan,
+    addresseeName: row.addresseeName,
+    status: row.status,
+    total: row.total,
+    issuedAt: row.issuedAt,
+  }));
 }

@@ -30,7 +30,7 @@ const blokId = "6e2b8b3a-9f0d-4e1a-8c3d-2a7f5b6c9d10";
 describe("the staff menu of each role", () => {
   it("Admin Platform works in four groups: Kerja harian, Lokasi dan harga, Orang, Operator, with Audit Log under Operator", () => {
     expect(outline(staffMenu("admin_platform"))).toEqual([
-      ["Kerja harian", ["Beranda", "Antrean"]],
+      ["Kerja harian", ["Beranda", "Antrean", "Tagihan"]],
       ["Lokasi dan harga", ["Lokasi Mitra", "TPU DKI", "Tarif global", "Katalog Layanan", "Hari Libur Nasional"]],
       ["Orang", ["Staf", "Pemulihan Akun", "Tugas Lapangan"]],
       ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
@@ -62,6 +62,7 @@ describe("the staff menu of each role", () => {
     expect(linked(staffMenu("admin_platform"))).toEqual([
       "Beranda",
       "Antrean",
+      "Tagihan",
       "Lokasi Mitra",
       "TPU DKI",
       "Tarif global",

@@ -66,6 +66,7 @@ import type { ReportError } from "@/lib/observability/report-error";
 import {
   issueTagihan,
   lapseDuePayFirstTagihan,
+  cariTagihan,
   listTagihanRetribusiLunas,
   readTagihan,
   reissueTagihan,
@@ -75,6 +76,7 @@ import {
   type ReissueTagihanResult,
   type RetribusiTagihan,
   type Tagihan,
+  type TagihanRingkas,
 } from "./tagihan";
 
 export type { DocumentType } from "./numbering";
@@ -118,6 +120,7 @@ export {
   type RetribusiTagihan,
   type Tagihan,
   type TagihanLine,
+  type TagihanRingkas,
   type TagihanStatus,
   type TariffLineKind,
 } from "./tagihan";
@@ -204,6 +207,8 @@ export interface Billing {
    * "Setor Retribusi" row is a projection of (spec, Work Queues; ticket 45).
    */
   tagihanRetribusiLunas(): Promise<RetribusiTagihan[]>;
+  /** Finds Tagihan by Nomor Tagihan or Nomor Pemesanan (a start of either, at least 3 characters), newest first: how staff open one by hand. */
+  cariTagihan(query: string): Promise<TagihanRingkas[]>;
   /** The Tagihan or Bukti Pembayaran behind an unguessable link, or null. */
   documentByLink(link: string): Promise<BillingDocument | null>;
   /** "Unduh PDF": the document's page rendered through the PdfRenderer, or null for an unknown link. */
@@ -315,6 +320,7 @@ export function createBilling(deps: BillingDeps): Billing {
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),
+    cariTagihan: (query) => cariTagihan(deps.db, query),
     documentByLink: (link) => documentByLink(deps.db, link, deps.clock.now()),
     documentPdf: (link) => documentPdf(deps, link, deps.clock.now()),
     nextDocumentNumber: (type) => nextDocumentNumber(deps.db, type, deps.clock.now()),

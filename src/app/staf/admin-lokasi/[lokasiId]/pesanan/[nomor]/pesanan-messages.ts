@@ -122,3 +122,28 @@ export function konfirmasiMessage(reason: string): string {
       return "Periksa lagi isian Anda.";
   }
 }
+
+/** Why a direct payment was refused, saying what to do next. */
+export function pembayaranLangsungMessage(reason: string): string {
+  switch (reason) {
+    case "tidak_ditemukan":
+      return "Tagihan ini tidak ditemukan.";
+    case "sudah_lunas":
+      return "Tagihan ini sudah Lunas, jadi pembayarannya sudah tercatat lewat jalan lain.";
+    case "tagihan_dibatalkan":
+      return "Tagihan ini sudah dibatalkan, jadi tidak bisa dibayar lagi.";
+    case "batas_pembayaran_lewat":
+      return "Pembayaran ini sudah lewat batas waktu Tagihan.";
+    case "berkas_tidak_didukung":
+      return "Bukti pembayaran harus foto (JPG, PNG) atau PDF, paling besar 10 MB.";
+    case "bukan_lokasi_mitra":
+      return "Tagihan ini bukan tagihan Lokasi Mitra, jadi tidak bisa dicatat dibayar langsung.";
+    case "pengaturan_operator_belum_diisi":
+      return "Pengaturan Operator belum diisi, jadi Bukti Pembayaran tidak bisa diterbitkan.";
+    case "perlu_totp":
+    case "tidak_berwenang":
+      return "Anda tidak berwenang melakukan ini.";
+    default:
+      return "Periksa lagi isian Anda.";
+  }
+}

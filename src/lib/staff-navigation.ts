@@ -7,6 +7,7 @@ import {
   ClipboardListIcon,
   ClockIcon,
   FileClockIcon,
+  FileSearchIcon,
   FlowerIcon,
   GridIcon,
   InboxIcon,
@@ -76,6 +77,12 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               href: `${AP}/antrean`,
               icon: InboxIcon,
               description: "Setiap baris kerja terbuka, per tier dan tenggat; Ambil dan Catatan Internal.",
+            },
+            {
+              label: "Tagihan",
+              href: `${AP}/tagihan`,
+              icon: FileSearchIcon,
+              description: "Cari Tagihan dari nomor Tagihan atau nomor pesanan: catat pembayaran manual, Harga Khusus, batalkan pembayaran langsung.",
             },
           ],
         },
@@ -326,13 +333,6 @@ const subPages: Record<string, string> = {
 };
 
 /**
- * A top-level page under a role's own area that is reached by a deep link
- * (an Antrean row, an order) rather than the role's own menu, so no
- * `staffMenu` item names it — one Tagihan (ticket 30), by its id.
- */
-const namelessTopPages: Record<string, string> = { tagihan: "Tagihan" };
-
-/**
  * The breadcrumbs of a staff page: its role, the menu item it sits under, then
  * the pages below that. `lokasiName` names a Lokasi Mitra by id; one it cannot
  * name reads "Lokasi Mitra". `blokName` likewise names a Blok under an Admin
@@ -359,16 +359,9 @@ export function staffBreadcrumbs(
     const item = staffMenu(role)
       .flatMap((group) => group.items)
       .find((candidate) => isActiveItem(candidate, pathname));
-    if (item?.href) {
-      base = item.href;
-      trail.push({ label: item.label, href: base });
-    } else {
-      const [first] = pathname.slice(home.length + 1).split("/");
-      const label = first ? namelessTopPages[first] : undefined;
-      if (!label) return withoutLastLink([...trail, { label: "Beranda" }]);
-      base = `${home}/${first}`;
-      trail.push({ label, href: base });
-    }
+    if (!item?.href) return withoutLastLink([...trail, { label: "Beranda" }]);
+    base = item.href;
+    trail.push({ label: item.label, href: base });
   }
 
   const below = pathname.slice(base.length).split("/").filter(Boolean);

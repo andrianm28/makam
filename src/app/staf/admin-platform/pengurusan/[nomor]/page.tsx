@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,7 +94,12 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           </CardHeader>
           <CardContent>
             {order.tagihan ? (
-              <p className="text-body">Total {formatRupiah(order.tagihan.total)}.</p>
+              <p className="text-body">
+                Total {formatRupiah(order.tagihan.total)}.{" "}
+                <Link href={`/staf/admin-platform/tagihan/${order.tagihan.id}`} className="font-medium text-brand underline underline-offset-4">
+                  Buka Tagihan
+                </Link>
+              </p>
             ) : null}
             {order.catatanKonfirmasi ? <p className="text-body text-muted-foreground">{order.catatanKonfirmasi}</p> : null}
           </CardContent>
