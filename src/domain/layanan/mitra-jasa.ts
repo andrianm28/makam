@@ -17,6 +17,7 @@
  * exactly as they were, because nothing here writes to identity (story 182).
  */
 import { and, asc, eq, lt, or, sql, type SQL } from "drizzle-orm";
+import type { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditAction, AuditSnapshot } from "@/domain/audit";
 import { akunResource, semuaMitraJasaResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -153,7 +154,7 @@ export async function buatMitraJasa(
       after: {
         email: address,
         namaLengkap: profile.namaLengkap,
-        nik: profile.nik,
+        nik: tersamar(profile.nik),
         area: profile.area,
         status: "aktif",
         // An Operator who onboards their own email as a Mitra Jasa can then accept work the Operator
@@ -192,14 +193,39 @@ export async function ubahProfil(
       kontakSiagaNama: profile.kontakSiagaNama ?? null,
       kontakSiagaTelepon: profile.kontakSiagaTelepon ?? null,
     },
-    before: {
-      namaLengkap: row.namaLengkap,
-      nik: row.nik,
-      area: row.area,
-      kontakSiaga: { name: row.kontakSiagaNama, phoneNumber: row.kontakSiagaTelepon },
-    },
-    after: { ...profile, kontakSiagaNama: profile.kontakSiagaNama ?? null, kontakSiagaTelepon: profile.kontakSiagaTelepon ?? null },
+    ...profilAudit(row, profile),
   }));
+}
+
+/** What an Entri Audit may say about a NIK, a phone number or an account number: the last four digits, never the whole. */
+function tersamar(value: string | null): string | null {
+  return value ? `****${value.slice(-4)}` : null;
+}
+
+/**
+ * The audit of a profile change: which fields changed, and only those, with the NIK
+ * and the emergency-contact phone masked, so the Audit Log never holds either whole.
+ */
+function profilAudit(row: Row, profile: z.infer<typeof profilMitraJasaSchema>): { before: AuditSnapshot; after: AuditSnapshot } {
+  const kontakNama = profile.kontakSiagaNama ?? null;
+  const kontakTelepon = profile.kontakSiagaTelepon ?? null;
+  const fields: [string, string | null, string | null][] = [
+    ["namaLengkap", row.namaLengkap, profile.namaLengkap],
+    ["nik", tersamar(row.nik), tersamar(profile.nik)],
+    ["area", row.area, profile.area],
+    ["kontakSiagaNama", row.kontakSiagaNama, kontakNama],
+    ["kontakSiagaTelepon", tersamar(row.kontakSiagaTelepon), tersamar(kontakTelepon)],
+  ];
+  // NIK and phone compare on the real values, not on their masks.
+  const real: Record<string, [string | null, string | null]> = {
+    nik: [row.nik, profile.nik],
+    kontakSiagaTelepon: [row.kontakSiagaTelepon, kontakTelepon],
+  };
+  const changed = fields.filter(([key, was, now]) => (real[key] ? real[key][0] !== real[key][1] : was !== now));
+  return {
+    before: { berubah: changed.map(([key]) => key), ...Object.fromEntries(changed.map(([key, was]) => [key, was])) },
+    after: { berubah: changed.map(([key]) => key), ...Object.fromEntries(changed.map(([key, , now]) => [key, now])) },
+  };
 }
 
 export type RekeningResult =
@@ -240,8 +266,8 @@ export async function ubahRekening(
         bankAccountHolder: account.accountHolder,
         catatanOverrideRekening: account.catatanOverride,
       },
-      before: { rekening: rekeningOf(row) },
-      after: { rekening: account },
+      before: { rekening: rekeningAudit(rekeningOf(row)) },
+      after: { rekening: rekeningAudit(account), berubah: rekeningBerubah(rekeningOf(row), account) },
     };
   });
 }
@@ -697,6 +723,18 @@ export async function coverageOf(db: Database, mitraJasaId: string): Promise<{ t
       .orderBy(asc(layananMitraJasaLayanan.layananVariantId)),
   ]);
   return { tpuDkiIds: tpu.map((row) => row.tpuDkiId), layananVariantIds: layanan.map((row) => row.layananVariantId) };
+}
+
+/** An account as an Entri Audit shows it: the bank, the last four digits and the override note, never the number whole nor the holder. */
+function rekeningAudit(rekening: MitraJasaRekening | null): AuditSnapshot | null {
+  return rekening
+    ? { bankName: rekening.bankName, accountNumber: tersamar(rekening.accountNumber), catatanOverride: rekening.catatanOverride }
+    : null;
+}
+
+function rekeningBerubah(was: MitraJasaRekening | null, now: MitraJasaRekening): string[] {
+  const keys = ["bankName", "accountNumber", "accountHolder", "catatanOverride"] as const;
+  return keys.filter((key) => was?.[key] !== now[key]);
 }
 
 function rekeningOf(row: Row): MitraJasaRekening | null {

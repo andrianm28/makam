@@ -81,12 +81,11 @@ export async function mitraJasaTersedia(
     )
     .orderBy(asc(layananMitraJasa.namaLengkap), asc(layananMitraJasa.id));
 
-  const withBadge: MitraJasaTersedia[] = [];
-  for (const row of rows) {
-    const selesai = (await deps.pekerjaan.daftarPekerjaan(row.id)).filter((job) => job.status === "selesai").length;
-    withBadge.push({ ...row, selesai, baru: selesai < BARU_SAMPAI_SELESAI });
-  }
-  return withBadge;
+  const selesaiPer = await deps.pekerjaan.jumlahSelesai(rows.map((row) => row.id));
+  return rows.map((row) => {
+    const selesai = selesaiPer[row.id] ?? 0;
+    return { ...row, selesai, baru: selesai < BARU_SAMPAI_SELESAI };
+  });
 }
 
 /** How many Mitra Jasa the picker may offer a job to; the empty-state message's number. */

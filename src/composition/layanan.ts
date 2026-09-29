@@ -24,10 +24,10 @@ export function composeLayanan(deps: {
   audit: AuditLog;
   files: FileStore;
   lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi">;
-  tariffs: Pick<LayananDeps["tariffs"], "quote" | "hargaLayananLokasi" | "hargaLayananLokasiSemua" | "within">;  /** The real job read, once the module that owns job rows exists. */
-  pekerjaan?: PekerjaanMitraJasaPort;
+  tariffs: Pick<LayananDeps["tariffs"], "quote" | "hargaLayananLokasi" | "hargaLayananLokasiSemua" | "within">;
 }): Layanan {
-  return createLayanan({ ...deps, pekerjaan: deps.pekerjaan ?? belumAdaPekerjaan() });
+  // The stand-in is wired here and nowhere else: tickets 50 (a Lokasi Mitra's jobs) and 56 (a TPU's) replace it with the real job read.
+  return createLayanan({ ...deps, pekerjaan: belumAdaPekerjaan() });
 }
 
 /** The job port as it stands before any job exists: nothing to list, nothing to release. */
@@ -35,6 +35,9 @@ function belumAdaPekerjaan(): PekerjaanMitraJasaPort {
   const port: PekerjaanMitraJasaPort = {
     async daftarPekerjaan() {
       return [];
+    },
+    async jumlahSelesai(ids) {
+      return Object.fromEntries(ids.map((id) => [id, 0]));
     },
     async lepasPekerjaan() {
       return { ok: false, reason: "tidak_ditemukan" };

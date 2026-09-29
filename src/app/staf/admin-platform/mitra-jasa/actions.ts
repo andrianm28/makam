@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { mulaiOnboardingMitraJasa } from "@/composition/mitra-jasa";
 import { akunResource, mitraJasaResource, semuaMitraJasaResource } from "@/domain/identity";
 import {
   berkasMitraJasaSchema,
@@ -114,16 +115,8 @@ export async function buatMitraJasa(_previous: FormState, formData: FormData): P
       },
     },
     run: async (actor, data) => {
-      // The record first: a role granted for an address with no record would be a staff Akun with nothing behind it.
-      const dibuat = await serverRuntime().layanan.buatMitraJasa(actor, data.email, data.profil);
-      if (!dibuat.ok) return dibuat;
-      const invited = await serverRuntime().identity.inviteStaff(actor, {
-        email: data.email,
-        phoneNumber: data.nomorTelepon,
-        role: "mitra_jasa",
-      });
-      if (!invited.ok) return invited;
-      return dibuat;
+      const runtime = serverRuntime();
+      return mulaiOnboardingMitraJasa({ layanan: runtime.layanan, identity: runtime.identity }, actor, data);
     },
   });
   if (!result.ok) return refused(result.error === "input_tidak_valid" ? "mitra_jasa_tidak_valid" : result.error);

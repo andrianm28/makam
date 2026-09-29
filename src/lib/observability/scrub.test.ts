@@ -67,6 +67,10 @@ describe("bank account number scrubbing (refund destination, ticket 31)", () => 
     expect(scrubText(`Transfer ke BSI ${nomor} gagal`)).toBe("Transfer ke BSI [rekening] gagal");
   });
 
+  it("removes a NIK (16 digits) like an account number, so a Mitra Jasa's KTP number never reaches Sentry", () => {
+    expect(scrubText("NIK 3201014503907777 tidak valid")).toBe("NIK [rekening] tidak valid");
+  });
+
   it("does not turn a mobile number into an account, nor an amount, a date or an id", () => {
     expect(scrubText("hubungi 081234567890")).toBe("hubungi [telepon]");
     const text = "Rp 6221000000 Rp 12.025.500 MKM-2026-021234 2026-10-01";

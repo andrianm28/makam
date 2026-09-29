@@ -104,6 +104,11 @@ export function newPekerjaanMitraJasaPort() {
     async daftarPekerjaan(mitraJasaId) {
       return pekerjaan.filter((satu) => satu.mitraJasaId === mitraJasaId).map((satu) => satu.job);
     },
+    async jumlahSelesai(ids) {
+      return Object.fromEntries(
+        ids.map((id) => [id, pekerjaan.filter((satu) => satu.mitraJasaId === id && satu.job.status === "selesai").length]),
+      );
+    },
     async lepasPekerjaan(input) {
       const satu = pekerjaan.find((satu) => satu.job.id === input.pekerjaanId);
       if (!satu || gagalLepas) return { ok: false, reason: "tidak_ditemukan" };

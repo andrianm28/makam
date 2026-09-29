@@ -48,6 +48,8 @@ export type LepasPekerjaanResult = { ok: true } | { ok: false; reason: "tidak_di
 export interface PekerjaanMitraJasaPort {
   /** Every job one Mitra Jasa holds or held, oldest first. */
   daftarPekerjaan(mitraJasaId: string): Promise<PekerjaanMitraJasa[]>;
+  /** How many jobs each of these Mitra Jasa has finished (Selesai), in one read: a Mitra Jasa with none is 0. */
+  jumlahSelesai(mitraJasaIds: string[]): Promise<Record<string, number>>;
   /** Takes one of that Mitra Jasa's jobs off them, with the reason, in the port's own words. */
   lepasPekerjaan(input: { pekerjaanId: string; alasan: string }): Promise<LepasPekerjaanResult>;
   /** The same two, bound to a caller's transaction. */

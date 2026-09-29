@@ -143,7 +143,7 @@ export {
   statusMitraJasaSchema,
   tidakTersediaSchema,
 } from "./mitra-jasa-skema";
-export type { MitraJasa, MitraJasaBelumLengkap, ReleasedJob, LangkahOnboarding } from "./mitra-jasa";
+export type { BuatMitraJasaResult, MitraJasa, MitraJasaBelumLengkap, ReleasedJob, LangkahOnboarding } from "./mitra-jasa";
 export type {
   BerkasMitraJasaInput,
   CoverageMitraJasaInput,

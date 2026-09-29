@@ -481,6 +481,39 @@ describe("who may read a Mitra Jasa", () => {
   });
 });
 
+describe("what the Audit Log keeps of a Mitra Jasa's personal data", () => {
+  it("names the fields that changed and masks the NIK, the phone and the account number to their last four digits", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const dibuat = await setup.layanan.buatMitraJasa(
+      admin,
+      "privat@contoh.id",
+      newMitraJasaInput({ nik: "3201014503907777", kontakSiagaNama: "Bapak", kontakSiagaTelepon: "081298765432" }),
+    );
+    if (!dibuat.ok) throw new Error(dibuat.reason);
+    const id = dibuat.mitraJasaId;
+    expect(
+      await setup.layanan.ubahProfil(admin, id, {
+        ...newMitraJasaInput({ nik: "3201014503907777", kontakSiagaNama: "Bapak", kontakSiagaTelepon: "081200001111" }),
+      }),
+    ).toEqual({ ok: true });
+    expect(await setup.layanan.ubahRekening(admin, id, rekeningSesuaiKtp("Siti Rahayu", { accountNumber: "7123456789" }))).toEqual({ ok: true });
+
+    const entries = await setup.audit.entriesAbout({ kind: "mitra_jasa", id });
+    const whole = JSON.stringify(entries.map((entry) => [entry.before, entry.after]));
+    for (const secret of ["3201014503907777", "081298765432", "081200001111", "7123456789"]) expect(whole).not.toContain(secret);
+    expect(entries.map((entry) => entry.action)).toEqual(["mitra_jasa.buat", "mitra_jasa.ubah_profil", "mitra_jasa.ubah_rekening"]);
+    expect(entries[0]).toMatchObject({ after: { nik: "****7777" } });
+    // Only what changed: the NIK did not, so it is not in the profile entry at all.
+    expect(entries[1]).toMatchObject({
+      before: { berubah: ["kontakSiagaTelepon"], kontakSiagaTelepon: "****5432" },
+      after: { berubah: ["kontakSiagaTelepon"], kontakSiagaTelepon: "****1111" },
+    });
+    expect(entries[1].after).not.toHaveProperty("nik");
+    expect(entries[2]).toMatchObject({ after: { rekening: { bankName: "BSI", accountNumber: "****6789" } } });
+  });
+});
+
 describe("an Operator onboarding their own email as a Mitra Jasa", () => {
   it("is marked on the Entri Audit, so it can be told from any other onboarding", async () => {
     const setup = layananOnTestDatabase(db);
