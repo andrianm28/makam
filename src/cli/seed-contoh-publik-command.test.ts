@@ -12,7 +12,7 @@ import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { publishOnTestDatabase } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
-import { seedContohPublikCommand } from "./seed-contoh-publik-command";
+import { CONTOH_LOKASI, seedContohPublikCommand } from "./seed-contoh-publik-command";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -58,6 +58,9 @@ const stagingEnv = () =>
 
 describe("seed-contoh-publik (development and test stacks only)", () => {
   it("gives the public listing the prototype's five example Lokasi Mitra, Terverifikasi", async () => {
+    // The mock's real Tersedia counts (9-118) mean a lot more sequential clearPetak calls than a small
+    // fixture Denah would; this and the other tests below that seed all five give it more room than the
+    // file's default testTimeout.
     await seedAdmin();
 
     const result = await seedContohPublikCommand([], env());
@@ -130,20 +133,125 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     expect(hijauAsriTersedia).toHaveLength(2);
     for (const one of hijauAsriTersedia) expect(one.count).toBeGreaterThan(0);
     expect(await setup.inventory.hasPetakPerluVerifikasi(hijauAsri!.id)).toBe(false);
-  });
+  }, 120_000);
 
-  it("changes nothing once all five example Lokasi Mitra are listed", async () => {
-    await seedAdmin();
-    await seedContohPublikCommand([], env());
+  // The mock's own real Tersedia counts, per Lokasi Mitra × Jenis Makam name
+  // (`_mock/data.ts` on `origin/prototype-public-site`) — including its two
+  // Kavling Keluarga entries and its one `tersedia: 0` entry (no availability
+  // row at all, asserted by its absence from the map below).
+  const mockTersedia: Record<string, Record<string, number>> = {
+    "Taman Makam Firdaus": { "Makam Standar": 42, "Makam Taman": 9, "Makam Selamanya": 3 },
+    "Pemakaman Wakaf Al-Ikhlas": { "Makam Umum": 118, "Kavling Keluarga 2 Petak": 2 },
+    "Makam Masjid Nurul Huda": { "Makam Umum": 27 },
+    "Taman Peristirahatan Hijau Asri": { "Makam Standar": 64, "Kavling Keluarga 4 Petak": 1 },
+    "Pemakaman Bukit Sejuk": { "Makam Standar": 30 },
+  };
 
-    const second = await seedContohPublikCommand([], env());
+  // The mock's own `kontakSiaga.nama` per Lokasi Mitra.
+  const mockKontakSiagaName: Record<string, string> = {
+    "Taman Makam Firdaus": "Bapak Hendra",
+    "Pemakaman Wakaf Al-Ikhlas": "Ustaz Farid",
+    "Makam Masjid Nurul Huda": "Bapak Syamsul",
+    "Taman Peristirahatan Hijau Asri": "Ibu Ratna",
+    "Pemakaman Bukit Sejuk": "Bapak Yusuf",
+  };
 
-    expect(second.exitCode).toBe(0);
-    expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
-
+  /** Every Lokasi Mitra's Tersedia counts, Kavling units and Kontak Siaga name read back equal to the mock's. */
+  async function expectSamaDenganMock() {
     const setup = publishOnTestDatabase(db);
-    expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
-  });
+    const listed = await setup.lokasi.publicLokasiMitraList();
+
+    for (const [lokasiName, perJenis] of Object.entries(mockTersedia)) {
+      const lokasi = listed.find((one) => one.name === lokasiName);
+      expect(lokasi, lokasiName).toBeTruthy();
+
+      // Jenis Makam id ↔ name, read the way a staff price list does (unfiltered by the public QRIS cap,
+      // unlike `lokasiPricing` — Firdaus's "Makam Taman" and "Makam Selamanya" are both over it).
+      const tariffs = await setup.tariffs.lokasiTariffs(lokasi!.id, setup.clock.now());
+      const tersedia = await setup.inventory.tersediaPerJenisMakam(lokasi!.id);
+      const countByJenisMakamId = new Map(tersedia.map((row) => [row.jenisMakamId, row.count]));
+
+      for (const [jenisMakamName, expectedTersedia] of Object.entries(perJenis)) {
+        const jenisMakam = tariffs.jenisMakam.find((one) => one.name === jenisMakamName);
+        expect(jenisMakam, `${lokasiName} / ${jenisMakamName}`).toBeTruthy();
+        const actual = countByJenisMakamId.get(jenisMakam!.id) ?? 0;
+        expect(actual, `${lokasiName} / ${jenisMakamName}`).toBe(expectedTersedia);
+      }
+
+      const kontakSiaga = await setup.lokasi.kontakSiagaOf(lokasi!.id);
+      expect(kontakSiaga?.name, lokasiName).toBe(mockKontakSiagaName[lokasiName]);
+    }
+  }
+
+  it(
+    "reproduces the mock's real Tersedia counts (9-118), its Kavling Keluarga unit counts and its Kontak Siaga name 1:1, per Lokasi Mitra",
+    async () => {
+      await seedAdmin();
+      const result = await seedContohPublikCommand([], env());
+      expect(result.exitCode).toBe(0);
+
+      await expectSamaDenganMock();
+    },
+    120_000,
+  );
+
+  it(
+    "reconciles Lokasi Mitra an older run listed with fewer Tersedia Petak, Kavling units and no Kontak Siaga name, only adding, and then changes nothing",
+    async () => {
+      await seedAdmin();
+      // What an older version seeded: every count capped at 3 (Kavling at 1), no Kontak Siaga name.
+      const lama = CONTOH_LOKASI.map((spec) => ({
+        ...spec,
+        kontakSiagaName: "",
+        jenisMakam: spec.jenisMakam.map((jm) => (jm.kosong ? jm : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3) })),
+      }));
+      const first = await seedContohPublikCommand([], env(), lama);
+      expect(first.exitCode).toBe(0);
+
+      const setup = publishOnTestDatabase(db);
+      const listed = await setup.lokasi.publicLokasiMitraList();
+      const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
+      expect((await setup.lokasi.kontakSiagaOf(wakaf.id))?.name).toBe("");
+      const before = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
+      const petakBefore = before.reduce((sum, one) => sum + one.count, 0);
+      expect(petakBefore).toBe(3 + 1);
+
+      // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
+      await new Promise((resolve) => setTimeout(resolve, 61_000));
+      const second = await seedContohPublikCommand([], env());
+      expect(second.exitCode, second.output).toBe(0);
+      expect(second.output).toContain("disamakan dengan contoh");
+      await expectSamaDenganMock();
+      // Pengaturan Operator holds the mock's CS contact, entered by the first run because it was empty.
+      const operator = await setup.operatorSettings.current();
+      expect(operator?.csReplyHours).toBe("setiap hari, 06.00–22.00 WIB");
+      expect(operator?.csWhatsApp).toBe("+6281100000000");
+
+      const afterSecond = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
+      const third = await seedContohPublikCommand([], env());
+      expect(third.exitCode).toBe(0);
+      expect(third.output).toContain("seed-contoh-publik tidak mengubah apa pun");
+      expect(await setup.inventory.tersediaPerJenisMakam(wakaf.id)).toEqual(afterSecond);
+    },
+    180_000,
+  );
+
+  it(
+    "changes nothing once all five example Lokasi Mitra are listed",
+    async () => {
+      await seedAdmin();
+      await seedContohPublikCommand([], env());
+
+      const second = await seedContohPublikCommand([], env());
+
+      expect(second.exitCode).toBe(0);
+      expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
+
+      const setup = publishOnTestDatabase(db);
+      expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
+    },
+    120_000,
+  );
 
   it("needs an Admin Platform to enter the example Lokasi Mitra as", async () => {
     expect(await seedContohPublikCommand([], env())).toEqual({
@@ -167,42 +275,50 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     });
   });
 
-  it("runs on staging with the named allowance, and every write it makes says so in its reason", async () => {
-    const staging = stagingEnv();
-    await seedAdminCommand(["--email", "admin-contoh-publik-staging@makam.co.id", "--phone", "081100000003"], staging);
+  it(
+    "runs on staging with the named allowance, and every write it makes says so in its reason",
+    async () => {
+      const staging = stagingEnv();
+      await seedAdminCommand(["--email", "admin-contoh-publik-staging@makam.co.id", "--phone", "081100000003"], staging);
 
-    const result = await seedContohPublikCommand(["--izinkan-staging"], staging);
+      const result = await seedContohPublikCommand(["--izinkan-staging"], staging);
 
-    expect(result.exitCode).toBe(0);
-    expect(result.output).toContain("5 Lokasi Mitra contoh terbit");
+      expect(result.exitCode).toBe(0);
+      expect(result.output).toContain("5 Lokasi Mitra contoh terbit");
 
-    const setup = publishOnTestDatabase(db);
-    const listed = await setup.lokasi.publicLokasiMitraList();
-    expect(listed).toHaveLength(5);
+      const setup = publishOnTestDatabase(db);
+      const listed = await setup.lokasi.publicLokasiMitraList();
+      expect(listed).toHaveLength(5);
 
-    // Every reason this command's own writes carry (tariffs, and the Undangan Admin
-    // Lokasi for this Lokasi Mitra) names the staging allowance.
-    const firdaus = listed.find((one) => one.name === "Taman Makam Firdaus")!;
-    const reasons = (await setup.audit.allEntriesForLokasi(firdaus.id)).map((entry) => entry.reason).filter((reason) => reason !== null);
-    expect(reasons.length).toBeGreaterThan(0);
-    expect(reasons.every((reason) => String(reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
+      // Every reason this command's own writes carry (tariffs, and the Undangan Admin
+      // Lokasi for this Lokasi Mitra) names the staging allowance.
+      const firdaus = listed.find((one) => one.name === "Taman Makam Firdaus")!;
+      const reasons = (await setup.audit.allEntriesForLokasi(firdaus.id)).map((entry) => entry.reason).filter((reason) => reason !== null);
+      expect(reasons.length).toBeGreaterThan(0);
+      expect(reasons.every((reason) => String(reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
 
-    // The Petugas Lapangan invite (not Lokasi-scoped) says the same.
-    const undangan = (await setup.audit.allEntries()).filter((entry) => entry.action === "staf.undang");
-    expect(undangan.length).toBeGreaterThanOrEqual(6); // 1 Petugas Lapangan + 5 Admin Lokasi
-    expect(undangan.every((entry) => String(entry.reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
-  });
+      // The Petugas Lapangan invite (not Lokasi-scoped) says the same.
+      const undangan = (await setup.audit.allEntries()).filter((entry) => entry.action === "staf.undang");
+      expect(undangan.length).toBeGreaterThanOrEqual(6); // 1 Petugas Lapangan + 5 Admin Lokasi
+      expect(undangan.every((entry) => String(entry.reason).includes("seed-contoh-publik (staging, --izinkan-staging)"))).toBe(true);
+    },
+    120_000,
+  );
 
-  it("changes nothing on a second staging run, the same allowance", async () => {
-    const staging = stagingEnv();
-    await seedAdminCommand(["--email", "admin-contoh-publik-staging-2@makam.co.id", "--phone", "081100000004"], staging);
-    await seedContohPublikCommand(["--izinkan-staging"], staging);
+  it(
+    "changes nothing on a second staging run, the same allowance",
+    async () => {
+      const staging = stagingEnv();
+      await seedAdminCommand(["--email", "admin-contoh-publik-staging-2@makam.co.id", "--phone", "081100000004"], staging);
+      await seedContohPublikCommand(["--izinkan-staging"], staging);
 
-    const second = await seedContohPublikCommand(["--izinkan-staging"], staging);
+      const second = await seedContohPublikCommand(["--izinkan-staging"], staging);
 
-    expect(second.exitCode).toBe(0);
-    expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
-    const setup = publishOnTestDatabase(db);
-    expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
-  });
+      expect(second.exitCode).toBe(0);
+      expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
+      const setup = publishOnTestDatabase(db);
+      expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
+    },
+    120_000,
+  );
 });
