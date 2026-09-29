@@ -39,6 +39,27 @@ describe("the Denah a Pemesan picks plots on", () => {
     expect(selof(denah!, "A-05")).toMatchObject({ jenisMakamId: null, kavlingId: denah!.bloks[0].kavling[0].id });
   });
 
+  it("a Kavling Keluarga that is already Terisi is not pickable and is not counted among what a Pemesan may pick", async () => {
+    const setup = publishOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const before = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+
+    const blok = await setup.inventory.createBlok(fixture.adminLokasi, fixture.lokasiMitra.id, { name: "C", rows: 1, cols: 2, jenisMakamId: fixture.jenisMakam.id });
+    if (!blok.ok) throw new Error(blok.reason);
+    const cells = (await setup.inventory.asStaff(fixture.adminLokasi).blok(fixture.lokasiMitra.id, blok.blok.id))!.cells;
+    const kavling = await setup.inventory.createKavling(fixture.adminLokasi, fixture.lokasiMitra.id, blok.blok.id, { cellIds: cells.map((cell) => cell.id), jenisMakamId: fixture.jenisMakam.id });
+    if (!kavling.ok) throw new Error(kavling.reason);
+    const terisi = await setup.inventory.clearKavling(fixture.adminLokasi, fixture.lokasiMitra.id, kavling.kavlingId, { mode: "terisi", dataMenyusul: true });
+    expect(terisi.ok).toBe(true);
+
+    const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+    const blokC = denah!.bloks.find((satu) => satu.name === "C")!;
+    expect(blokC.kavling).toMatchObject([{ status: "terisi" }]);
+    expect(blokC.tersedia).toBe(0);
+    expect(denah!.tersedia).toBe(before!.tersedia);
+  });
+
   it("counts, per Blok and for the whole Denah, how many units a Pemesan may pick", async () => {
     const setup = publishOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
