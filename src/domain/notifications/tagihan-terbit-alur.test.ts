@@ -178,6 +178,22 @@ describe("a Harga Khusus reissue announces its new Tagihan", () => {
     expect(setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.subject.includes("Bukti Pembayaran"))).toHaveLength(1);
   });
 
+  it("a Harga Khusus down to Rp 0 sends the Pemesan the Bukti Pembayaran by email, with no Telepon Pemesan row", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const { fixture, admin, tagihan } = await dikonfirmasi(setup);
+    const total = (await setup.billing.tagihan(tagihan.id))!.total;
+
+    const khusus = await setup.billing.tetapkanHargaKhusus(admin, { tagihanId: tagihan.id, amount: total, alasan: "Keringanan penuh" });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    expect(khusus.tagihan.total).toBe(0);
+    const bukti = setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.subject.includes("Bukti Pembayaran"));
+    expect(bukti).toHaveLength(1);
+    expect((await setup.notifications.teleponPemesanTerbuka()).filter((row) => row.subjectId === khusus.tagihan.id)).toEqual([]);
+    expect((await setup.notifications.pesanTagihan(khusus.tagihan.id)).map((pesan) => pesan.template)).not.toContain("tagihan_terbit");
+  });
+
   it("an order with no email opens the Telepon Pemesan row for the new Tagihan, and the Harga Khusus still lands", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const { admin, tagihan } = await dikonfirmasi(setup, true);

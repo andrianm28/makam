@@ -76,6 +76,7 @@ export interface HargaKhususDeps extends EffectDeps {
       tagihanLamaId: string;
       tagihanId: string;
       momentKind: PaymentMoment["kind"];
+      bersamaKonfirmasi: boolean;
       nomorTagihan: string;
       nomorPemesanan: string | null;
       perihal: string;
@@ -163,6 +164,9 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
 
   const newLines: NewTagihanLine[] = [...old.lines.map(toNewLine), { kind: "penyesuaian_harga_khusus", amount: parsed.data.amount as Rupiah }];
 
+  const [lama] = await deps.db.select({ moment: tagihanTable.moment }).from(tagihanTable).where(eq(tagihanTable.id, old.id));
+  const momentKind = momentOf(lama?.moment).kind;
+
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const reissued = await reissueTagihan(
       { ...deps, db: tx },
@@ -170,6 +174,25 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
       {
         lines: newLines,
         hargaKhususPorsiMitra: porsiMitra > 0 ? { amount: porsiMitra as Rupiah, catatan: parsed.data.catatanPorsiMitra! } : null,
+        // Announced as soon as it exists, before a Rp 0 settlement's Bukti Pembayaran effect looks for the family's address.
+        sebelumBukti: async (txBaru, baru) => {
+          if (!deps.umumkanTagihanPengganti) return;
+          const diumumkan = await deps.umumkanTagihanPengganti(txBaru, {
+            tagihanLamaId: old.id,
+            tagihanId: baru.id,
+            momentKind: momentKind,
+            // A Rp 0 Tagihan is Lunas at once and its Bukti Pembayaran email tells the family: one email, not two.
+            bersamaKonfirmasi: baru.total === 0,
+            nomorTagihan: baru.nomorTagihan,
+            nomorPemesanan: old.nomorPemesanan,
+            perihal: old.placeName ? `Pemesanan makam di ${old.placeName}` : "Tagihan Makam.co.id",
+            total: baru.total,
+            dueAt: baru.dueAt,
+            link: baru.link,
+          });
+          // The Harga Khusus is never blocked by its own announcement.
+          if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });
+        },
       },
       now,
     );
@@ -191,24 +214,6 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
       if (!kurangi.ok && kurangi.reason !== "tidak_ditemukan") {
         return { ok: false, reason: "porsi_tidak_dapat_dikurangi" } as const;
       }
-    }
-
-    // A Rp 0 Tagihan is Lunas at once: nothing to pay, so nothing to announce.
-    if (deps.umumkanTagihanPengganti && reissued.tagihan.status === "belum_dibayar") {
-      const [lama] = await tx.select({ moment: tagihanTable.moment }).from(tagihanTable).where(eq(tagihanTable.id, old.id));
-      const diumumkan = await deps.umumkanTagihanPengganti(tx, {
-        tagihanLamaId: old.id,
-        tagihanId: reissued.tagihan.id,
-        momentKind: momentOf(lama?.moment).kind,
-        nomorTagihan: reissued.tagihan.nomorTagihan,
-        nomorPemesanan: reissued.tagihan.nomorPemesanan,
-        perihal: reissued.tagihan.placeName ? `Pemesanan makam di ${reissued.tagihan.placeName}` : "Tagihan Makam.co.id",
-        total: reissued.tagihan.total,
-        dueAt: reissued.tagihan.dueAt,
-        link: reissued.tagihan.link,
-      });
-      // The Harga Khusus is never blocked by its own announcement.
-      if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });
     }
 
     await record({
