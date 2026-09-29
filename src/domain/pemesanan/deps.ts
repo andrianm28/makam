@@ -12,6 +12,7 @@ import type {
   TerencanaDikonfirmasiInput,
   TerencanaDitolakInput,
 } from "@/domain/notifications";
+import type { Payouts } from "@/domain/payouts";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Rupiah } from "@/lib/rupiah";
 import type { ReportError } from "@/lib/observability/report-error";
@@ -330,6 +331,13 @@ export interface PemesananDeps {
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
   billing: Pick<Billing, "within" | "tagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
+  /**
+   * Payouts' half of the Saat Duka trigger that only this module can write: a
+   * recorded Pemakaman, told to Payouts inside the burial's own transaction
+   * (ticket 90). Required, not optional: a fixture that omitted it would look
+   * like Payouts had never been told, which is the bug this dependency ends.
+   */
+  payouts: Pick<Payouts, "pemakamanTercatat">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   notifikasi: PemesananNotifikasi;

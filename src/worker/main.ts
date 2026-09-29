@@ -133,6 +133,8 @@ async function main() {
     billing: billingOn(billingComposition, database.db),
     identity,
     notifikasi,
+    // Recording a Pemakaman tells Payouts (ticket 90); the worker records none, but the module needs the dependency.
+    payouts,
   });
 
   const worker = await startWorker({

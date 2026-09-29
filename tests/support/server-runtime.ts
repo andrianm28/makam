@@ -20,6 +20,7 @@ import { createQueues } from "@/domain/queues";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { nextTestIp } from "./identity";
+import type { Payouts } from "@/domain/payouts";
 import type { ServerRuntime } from "@/server/runtime";
 import { serverRuntime } from "@/server/runtime";
 
@@ -52,7 +53,7 @@ export function testServerRuntime() {
     // Filled in once Payouts is composed below (ticket 30: Billing's own Harga
     // Khusus path only ever *calls* this once a write happens, well after this
     // module has finished loading), mirroring `src/server/runtime.ts`.
-    const payoutsRef: { current?: { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
+    const payoutsRef: { current?: Pick<Payouts, "pemakamanTercatat"> & { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
     const billingComposition: BillingComposition = {
       env,
       db: database.db,
@@ -107,6 +108,14 @@ export function testServerRuntime() {
       tariffs,
       inventory,
       billing: billingOn(billingComposition, database.db),
+      // A recorded Pemakaman is told to Payouts inside the burial's own transaction (ticket 90).
+      // Payouts is composed after Billing, which is after this module, so it is reached through the lazy box filled below.
+      payouts: {
+        pemakamanTercatat: (tx, input) => {
+          if (!payoutsRef.current) throw new Error("Payouts is not composed yet: pemakamanTercatat was called before startup finished");
+          return payoutsRef.current.pemakamanTercatat(tx, input);
+        },
+      },
       identity,
       notifikasi,
     });

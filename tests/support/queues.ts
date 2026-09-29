@@ -17,6 +17,7 @@ import { publishOnTestDatabase } from "./publish";
  */
 export function queuesOnTestDatabase(db: Database) {
   const setup = publishOnTestDatabase(db);
+  const { payouts } = payoutsFor(setup);
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -26,10 +27,10 @@ export function queuesOnTestDatabase(db: Database) {
     tariffs: setup.tariffs,
     inventory: setup.inventory,
     billing: setup.billing,
+    payouts,
     identity: setup.identity,
     notifications: setup.notifications,
   });
-  const { payouts } = payoutsFor(setup);
   const { refunds } = refundsFor(setup, payouts);
   // The Antrean's Layanan rows (ticket 50) read the Layanan module's own public reads, so it is
   // composed here beside the rest: it needs Inventory, Billing and Identity, all of which this

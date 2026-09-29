@@ -45,6 +45,8 @@ export function perpanjanganOnTestDatabase(db: Database) {
   const paymentEffects = [efekPencairanSaatLunas(), efek];
   const setup = publishOnTestDatabase(db, { paymentEffects });
   ref.setup = setup;
+  // Payouts first: the Pemesanan module tells it every Pemakaman it records (ticket 90).
+  const { payouts, dikirim } = payoutsFor(setup);
   const pemesanan = composePemesanan({
     db,
     clock: setup.clock,
@@ -56,6 +58,8 @@ export function perpanjanganOnTestDatabase(db: Database) {
     billing: setup.billing,
     identity: setup.identity,
     notifications: setup.notifications,
+    // A recorded Pemakaman is told to Payouts (ticket 90): the real module on the same database.
+    payouts,
   });
   const pengurusan = createPengurusan({
     db,
@@ -69,7 +73,6 @@ export function perpanjanganOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     notifikasi: setup.notifications,
   });
-  const { payouts, dikirim } = payoutsFor(setup);
   const perpanjangan = createPerpanjangan({
     db,
     clock: setup.clock,

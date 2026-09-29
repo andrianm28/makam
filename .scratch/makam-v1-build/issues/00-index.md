@@ -392,3 +392,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [88](88-pilih-makam-setelah-tolak.md) | Pilih makam after a Tolak: banner, the refusing Lokasi, and rebooking (deferred from the 24 merge) | ready-for-agent | 24 |
 | [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |
 | [89](89-tagihan-terbit-never-announced.md) | A Tagihan was never announced: `tagihanTerbit` had no caller | resolved | — |
+| [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | in-progress | 25, 32 |
