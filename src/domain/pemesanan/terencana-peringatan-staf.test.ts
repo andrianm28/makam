@@ -115,7 +115,8 @@ describe("the Peringatan Staf of a new Pemesanan Terencana", () => {
     const dasar = await siap(setup);
     // A second Kode Masuk login within the resend cooldown is refused, as a person would find.
     setup.clock.advance({ minutes: 2 });
-    const lain = await terencanaLokasi(setup, dasar.admin, { name: "Makam Lain" });
+    const lain = await terencanaLokasi(setup, dasar.admin, { name: "Makam Lain", phoneNumberAdminLokasi: "083333333344" });
+    expect(lain.adminLokasi.accountId).not.toBe(dasar.fixture.adminLokasi.accountId);
 
     await pesan(setup, dasar);
 

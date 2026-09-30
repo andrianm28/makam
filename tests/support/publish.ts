@@ -110,6 +110,8 @@ export async function signedInPetugasLapangan(setup: PublishSetup, admin: Actor,
 }
 
 export interface ReadyToPublishOptions {
+  /** The Admin Lokasi's contact number, so a second Lokasi Mitra can have its own Akun (default: the shared one). */
+  phoneNumberAdminLokasi?: string;
   /** Its first Jenis Makam (markTariffsChecked needs at least one); defaults to `jenisMakamInput()`. */
   jenisMakam?: Parameters<PublishSetup["tariffs"]["createJenisMakam"]>[2];
   biayaPemakaman?: number;
@@ -132,7 +134,7 @@ export async function readyToPublish(setup: PublishSetup, admin: Actor, lokasiId
   const jam = await setup.lokasi.setJamOperasional(admin, lokasiId, readyJamOperasional);
   if (!jam.ok) throw new Error(`jam operasional refused: ${jam.reason}`);
 
-  const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiId]);
+  const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiId], options.phoneNumberAdminLokasi);
   const pick = await setup.lokasi.pickKontakSiaga(admin, lokasiId, { accountId: adminLokasi.accountId });
   if (!pick.ok) throw new Error(`kontak siaga refused: ${pick.reason}`);
 
