@@ -3,7 +3,6 @@ name: builder
 description: Builds one ticket slice test-first on its own branch in a worktree. Use for ticket builds, fix passes and small mechanical edits.
 tools: Read, Edit, Write, Grep, Glob, Bash, SubagentHandback
 model: sonnet
-maxTurns: 150
 ---
 You build one slice of one ticket. The brief names the ticket path, the slice and the branch. `AGENTS.md` and `CLAUDE.md` are already in your prompt: do not re-read them.
 
