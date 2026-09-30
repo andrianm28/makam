@@ -234,13 +234,13 @@ export async function tickPotonganUsia(db: Database, now: Date): Promise<string[
 
 /** Every Potongan of one Lokasi Mitra, newest last, whatever its status (the Admin Lokasi's own list). */
 export async function potonganOfLokasi(db: Database, lokasiId: string): Promise<BarisPotonganUmum[]> {
-  const rows = await db.select().from(potongan).where(eq(potongan.lokasiId, lokasiId)).orderBy(asc(potongan.dibuatPada));
+  const rows = await db.select().from(potongan).where(eq(potongan.lokasiId, lokasiId)).orderBy(asc(potongan.dibuatPada), asc(potongan.id));
   return rows.map(toUmum);
 }
 
 /** Every Potongan waiting to be paid offline, oldest first: what Admin Platform settles outside a run. */
 export async function potonganPerluOffline(db: Database): Promise<BarisPotonganUmum[]> {
-  const rows = await db.select().from(potongan).where(eq(potongan.status, "perlu_offline")).orderBy(asc(potongan.dibuatPada));
+  const rows = await db.select().from(potongan).where(eq(potongan.status, "perlu_offline")).orderBy(asc(potongan.dibuatPada), asc(potongan.id));
   return rows.map(toUmum);
 }
 

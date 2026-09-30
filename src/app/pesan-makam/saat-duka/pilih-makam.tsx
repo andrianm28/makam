@@ -25,6 +25,10 @@ export interface PilihMakamProps {
   jenis: JenisPilihan;
   /** The "Pilih makam" URL to come back to, keeping the deep-linked Lokasi. */
   kembali: string;
+  /** The declined order this visit comes from, carried on every URL the screen builds; null on an ordinary visit. */
+  dari: string | null;
+  /** The banner after a Tolak: the Lokasi Mitra that refused and why, in the closed list's own words; null on an ordinary visit. */
+  banner: BannerTolak | null;
   /** The Lokasi Mitra the visitor came from; null when the list decides alone. */
   preselect: string | null;
   /**
@@ -33,6 +37,13 @@ export interface PilihMakamProps {
    */
   awal: KartuAwal | null;
   csContact: CsContact | null;
+}
+
+/** What the Tolak banner says, read off the declined order. */
+export interface BannerTolak {
+  nomor: string;
+  lokasiName: string;
+  alasan: string;
 }
 
 /** The ids of the card "Pilih makam" starts on, as the Pemesanan module's `kartuAwal` returns it. */
@@ -58,7 +69,7 @@ interface Baris {
  * carries on to the next step in its own URL, so the browser's back button
  * returns to the same choice.
  */
-export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, preselect, awal, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
   const router = useRouter();
   const [terpilih, setTerpilih] = useState<Terpilih | null>(() => pilihanAwal(grup, tpu, jenis, awal));
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
@@ -81,6 +92,8 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
             Diurutkan dari total biaya terendah. Hanya makam yang masih tersedia yang ditampilkan.
           </p>
         </div>
+
+        {banner ? <BannerTolakSaatDuka banner={banner} /> : null}
 
         <JenisFilter jenis={jenis} kembali={kembali} kota={kota} />
 
@@ -148,7 +161,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
             <Button
               size="lg"
               disabled={!terpilih}
-              onClick={() => terpilih && router.push(langkahBerikut(terpilih))}
+              onClick={() => terpilih && router.push(langkahBerikut(terpilih, dari))}
               className="h-12 shrink-0 px-6 text-body-lg"
             >
               Lanjut <ArrowRight aria-hidden />
@@ -161,10 +174,34 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, presele
 }
 
 /** The next step's URL for a choice: a Lokasi Mitra card's own, a TPU's own submission screen. */
-function langkahBerikut(terpilih: Terpilih): string {
-  return terpilih.kind === "tpu_dki"
-    ? `/pesan-makam/saat-duka/tpu?tpuId=${encodeURIComponent(terpilih.kartu.tpuId)}`
-    : `/pesan-makam/saat-duka/data?lokasiId=${encodeURIComponent(terpilih.lokasiId)}&jenisMakamId=${encodeURIComponent(terpilih.kartu.jenisMakamId)}`;
+function langkahBerikut(terpilih: Terpilih, dari: string | null): string {
+  // After a Tolak, `dari` goes on so the next screen opens with the family's own data: nobody types the same death twice.
+  const query = new URLSearchParams(
+    terpilih.kind === "tpu_dki" ? { tpuId: terpilih.kartu.tpuId } : { lokasiId: terpilih.lokasiId, jenisMakamId: terpilih.kartu.jenisMakamId },
+  );
+  if (dari) query.set("dari", dari);
+  return `/pesan-makam/saat-duka/${terpilih.kind === "tpu_dki" ? "tpu" : "data"}?${query.toString()}`;
+}
+
+/**
+ * The banner a family arrives at after a Tolak: the Lokasi Mitra that could not
+ * serve them, the reason in the closed list's own words, and the way to rebook. The
+ * list under it was read without that Lokasi Mitra, so there is nothing of it here
+ * to hide.
+ */
+function BannerTolakSaatDuka({ banner }: { banner: BannerTolak }) {
+  return (
+    <div className="rounded-xl border border-border bg-warning-soft p-5 text-body text-warning-soft-foreground" data-testid="banner-pemesan-ulang" role="status">
+      <p className="font-semibold">
+        {banner.lokasiName} belum bisa melayani pesanan {banner.nomor}.
+      </p>
+      <p className="mt-1">Alasannya: {banner.alasan}.</p>
+      <p className="mt-1">
+        Pilih makam lain di bawah. Data keluarga dan almarhum sudah terisi, dan {banner.lokasiName} tidak lagi muncul di daftar
+        ini. Tim kami juga menelepon maksimal 2 jam.
+      </p>
+    </div>
+  );
 }
 
 /**
