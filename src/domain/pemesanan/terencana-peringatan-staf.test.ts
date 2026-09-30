@@ -105,13 +105,16 @@ describe("the Peringatan Staf of a new Pemesanan Terencana", () => {
     await pesan(setup, dasar);
 
     expect(await peringatanTerencana(setup, dasar.fixture.adminLokasi.accountId)).toHaveLength(2);
-    expect(await peringatanTerencana(setup, kontak.accountId)).toHaveLength(2);
+    // The Kontak Siaga holds no Perangkat Push, so its one alert goes by email alone.
+    expect((await peringatanTerencana(setup, kontak.accountId)).map((satu) => satu.channel)).toEqual(["email"]);
     expect(await setup.notifications.pesanStaf(dasar.pemesan.accountId)).toEqual([]);
   });
 
   it("is not sent to another Lokasi's Admin Lokasi", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const dasar = await siap(setup);
+    // A second Kode Masuk login within the resend cooldown is refused, as a person would find.
+    setup.clock.advance({ minutes: 2 });
     const lain = await terencanaLokasi(setup, dasar.admin, { name: "Makam Lain" });
 
     await pesan(setup, dasar);
