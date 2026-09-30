@@ -40,7 +40,7 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
   const order = await serverRuntime().layanan.pesananLayananOf(nomor, { accountId: actor.accountId });
   // Not an order at a Lokasi Mitra: it may be an order at a DKI TPU, whose grave the family described (ticket 56).
   if (!order) return <PesananTpuPage nomor={nomor} accountId={actor.accountId} />;
-  const tagihan = await serverRuntime().billing.tagihan(order.tagihan?.id ?? "");
+  const tagihan = await serverRuntime().billing.tagihanBerlaku(order.tagihan?.id ?? "");
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-(--page-gutter) py-10">
@@ -153,7 +153,7 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
 async function PesananTpuPage({ nomor, accountId }: { nomor: string; accountId: string }) {
   const order = await serverRuntime().layanan.pesananTpuOf(nomor, { accountId });
   if (!order) notFound();
-  const tagihan = await serverRuntime().billing.tagihan(order.tagihanId);
+  const tagihan = await serverRuntime().billing.tagihanBerlaku(order.tagihanId);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-(--page-gutter) py-10">

@@ -192,7 +192,7 @@ export interface LayananDeps {
   /** A grave's Hak Pakai, which decides whether Layanan may be ordered for it at all. */
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
   /** The Nomor Pemesanan series and an order's pay-first Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   /**

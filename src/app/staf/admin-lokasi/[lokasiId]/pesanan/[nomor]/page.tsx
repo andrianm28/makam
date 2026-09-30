@@ -56,7 +56,7 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
   const petak = menunggu && order.jenisMakam
     ? await inventory.tersediaUntukJenisMakam(current.id, order.jenisMakam.id)
     : [];
-  const tagihan = order.tagihanId ? await serverRuntime().billing.tagihan(order.tagihanId) : null;
+  const tagihan = order.tagihanId ? await serverRuntime().billing.tagihanBerlaku(order.tagihanId) : null;
   const bukti = order.buktiPemesananId ? await serverRuntime().billing.buktiPemesananById(order.buktiPemesananId) : null;
   const rencana = order.rencanaPemakamanAt ? wibDateTimeLocal(order.rencanaPemakamanAt) : "";
   // The alternative is one of this Lokasi Mitra's own Jenis Makam, priced by the

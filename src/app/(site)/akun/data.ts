@@ -27,7 +27,7 @@ export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: 
 
   const ringkasanPemesanan: RingkasanTindakan[] = await Promise.all(
     daftarPemesanan.map(async (order): Promise<RingkasanTindakan> => {
-      const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
+      const tagihan = order.tagihanId ? await billing.tagihanBerlaku(order.tagihanId) : null;
       return {
         nomor: order.nomor,
         href: `/pesanan/${order.nomor}`,
@@ -40,7 +40,7 @@ export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: 
   );
   const ringkasanPengurusan: RingkasanTindakan[] = await Promise.all(
     daftarPengurusan.map(async (order): Promise<RingkasanTindakan> => {
-      const tagihan = order.tagihan ? await billing.tagihan(order.tagihan.id) : null;
+      const tagihan = order.tagihan ? await billing.tagihanBerlaku(order.tagihan.id) : null;
       return {
         nomor: order.nomor,
         href: `/pengurusan/${order.nomor}`,

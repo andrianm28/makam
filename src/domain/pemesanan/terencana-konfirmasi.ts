@@ -301,7 +301,10 @@ export async function tarikTerencana(deps: PemesananDeps, pemesan: Pemesan, rawI
     const hasil = await refusable<TarikTerencanaResult | { ok: false; reason: "berubah" }>(deps.db, async (tx) => {
       let nomorTagihan: string | null = null;
       if (order.tagihanId) {
-        const dibatalkan = await deps.billing.within(tx).batalkanTagihan(order.tagihanId, { alasan: "pemesanan_dibatalkan", hanyaBelumDibayar: true });
+        // A Harga Khusus reissues the Tagihan under a new id: the one in force is what is withdrawn, never the replaced one (ticket 93).
+        const berlaku = await deps.billing.within(tx).tagihanBerlaku(order.tagihanId);
+        if (!berlaku) throw new Error("a Terencana order names a Tagihan that does not exist");
+        const dibatalkan = await deps.billing.within(tx).batalkanTagihan(berlaku.id, { alasan: "pemesanan_dibatalkan", hanyaBelumDibayar: true });
         if (dibatalkan.ok) nomorTagihan = dibatalkan.tagihan.nomorTagihan;
         else if (dibatalkan.reason === "tagihan_sudah_dibayar") return { ok: false as const, reason: "sudah_dibayar" as const };
         else if (dibatalkan.reason === "tidak_ditemukan") throw new Error("a Terencana order names a Tagihan that does not exist");
@@ -355,7 +358,15 @@ export async function lewatBatasBayarTerencana(deps: PemesananDeps, now: Date): 
     }
     const units = await unitsOfOrder(deps.db, order.id);
     const ditutup = await refusable<{ ok: boolean }>(deps.db, async (tx) => {
-      const dibatalkan = await deps.billing.within(tx).batalkanTagihan(tagihanId, { alasan: "batas_pembayaran_lewat", hanyaBelumDibayar: true });
+      // The Tagihan in force, not the id the order stored: a Harga Khusus reissued it (ticket 93).
+      const berlaku = await deps.billing.within(tx).tagihanBerlaku(tagihanId);
+      if (!berlaku) {
+        deps.reportError?.(new Error("a Dikonfirmasi Pemesanan Terencana names a Tagihan that does not exist"), {
+          tags: { module: "pemesanan", event: "terencana_tagihan_hilang", nomor: order.nomor },
+        });
+        return { ok: false };
+      }
+      const dibatalkan = await deps.billing.within(tx).batalkanTagihan(berlaku.id, { alasan: "batas_pembayaran_lewat", hanyaBelumDibayar: true });
       let nomorTagihan = "";
       if (dibatalkan.ok) nomorTagihan = dibatalkan.tagihan.nomorTagihan;
       else if (dibatalkan.reason === "tagihan_sudah_dibayar") return { ok: false };
@@ -366,8 +377,7 @@ export async function lewatBatasBayarTerencana(deps: PemesananDeps, now: Date): 
         return { ok: false };
       } else {
         // Billing's own lapse tick got there first: the Tagihan is already Dibatalkan, and it is its number the family reads.
-        const sudah = await deps.billing.within(tx).tagihan(tagihanId);
-        nomorTagihan = sudah?.nomorTagihan ?? "";
+        nomorTagihan = berlaku.nomorTagihan;
       }
       const moved = await tx
         .update(pemesananTerencana)

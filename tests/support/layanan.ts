@@ -155,6 +155,8 @@ function billingDenganEfekLayanan(db: Database, base: PublishSetup): Billing {
     operatorSettings: base.operatorSettings,
     pdf: new FakePdfRenderer(),
     payments: base.payments,
+    // Harga Khusus (ticket 30) is an audited staff write.
+    audit: base.audit,
     documentPageUrl: (link) => `http://127.0.0.1:3000/dokumen/${link}`,
     publicDocumentUrl: (link) => `https://makam.test/dokumen/${link}`,
     paymentEffects: [efekJadwalkanPekerjaan({ db, inventory: base.inventory }), efekPencairanSaatLunas()],

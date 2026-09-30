@@ -181,7 +181,7 @@ async function tulisPengembalian(
   karenaLateness: boolean,
   now: Date,
 ): Promise<PengembalianDiminta | null | "tertunda"> {
-  const tagihan = await deps.billing.within(tx).tagihan(row.order.tagihanId);
+  const tagihan = await deps.billing.within(tx).tagihanBerlaku(row.order.tagihanId);
   if (!tagihan || tagihan.status !== "lunas") return null;
   const line = tagihan.lines[row.item.posisi];
   if (!line || line.kind !== "layanan" || line.label !== row.item.label) return null;

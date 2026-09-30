@@ -27,7 +27,7 @@ export interface PerpanjanganDeps {
   lokasi: Pick<Lokasi, "aturanPerpanjanganOf" | "jamOperasionalOf">;
   tariffs: Pick<Tariffs, "quote">;
   inventory: Pick<Inventory, "hakPakaiUntukPerpanjangan" | "perpanjangHakPakai" | "within" | "gantiPemegangHak" | "ubahKontakPemegangHak" | "lengkapiHakPakai">;
-  billing: Pick<Billing, "within" | "tagihan">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
   pemesanan: Pick<Pemesanan, "tagihanPenghalangOf">;
   identity: Pick<Identity, "requestKodeMasuk" | "verifyKodeMasuk" | "accountByEmail">;
   /** The manual paths' documents (KTP, heirship proof, ...) live only here, private, and are read back through short-lived signed URLs (ticket 41). */

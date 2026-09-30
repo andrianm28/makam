@@ -714,3 +714,77 @@ describe("the Pencairan of a paid Pemesanan Terencana", () => {
     expect(await payouts.pencairanJatuhTempo()).toHaveLength(1);
   });
 });
+
+/** The Operator gives a Harga Khusus on a confirmed order's unpaid Tagihan: it is cancelled and reissued under a new id (ticket 30). */
+async function hargaKhusus(setup: PemesananSetup, dasar: Pesanan, tagihanId: string) {
+  const khusus = await setup.billing.tetapkanHargaKhusus(dasar.admin, {
+    tagihanId,
+    amount: 500_000,
+    alasan: "Keringanan untuk keluarga",
+    porsiMitra: 0,
+    catatanPorsiMitra: "Ditanggung Operator",
+  });
+  if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+  return khusus.tagihan;
+}
+
+const bayarQris = { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null } as const;
+
+describe("a Pemesanan Terencana whose Tagihan was reissued by a Harga Khusus (ticket 93)", () => {
+  it("withdrawing it cancels the replacement Tagihan the family could still pay, not the one already replaced", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pengganti = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+
+    const hasil = await setup.pemesanan.tarikTerencana(dasar.pemesan, { nomor: dasar.nomor });
+
+    expect(hasil).toMatchObject({ ok: true, tagihan: { nomorTagihan: pengganti.nomorTagihan } });
+    expect(await setup.billing.tagihan(pengganti.id)).toMatchObject({ status: "dibatalkan", cancelledReason: "pemesanan_dibatalkan" });
+    expect(await setup.billing.recordPayment(pengganti.id, bayarQris)).toMatchObject({ ok: false, reason: "tagihan_dibatalkan" });
+    expect(await statusPetak(setup, dasar.fixture.lokasiMitra.id, "A-01")).toBe("bisa_dipilih");
+  });
+
+  it("refuses a withdrawal once the replacement Tagihan is paid: that is a Pembatalan, and nothing is cancelled", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pengganti = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    await bayar(setup, pengganti.id);
+
+    const hasil = await setup.pemesanan.tarikTerencana(dasar.pemesan, { nomor: dasar.nomor });
+
+    expect(hasil).toEqual({ ok: false, reason: "sudah_dibayar" });
+    expect(await setup.billing.tagihan(pengganti.id)).toMatchObject({ status: "lunas" });
+  });
+
+  it("a payment hold that ends unpaid cancels the replacement Tagihan 'batas pembayaran lewat' and tells the family its number", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pengganti = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    setup.clock.set(konfirmasi.pesanan.tahanSampai);
+
+    expect(await setup.pemesanan.lewatBatasBayarTick()).toEqual({ dibatalkan: 1 });
+
+    expect(await setup.billing.tagihan(pengganti.id)).toMatchObject({ status: "dibatalkan", cancelledReason: "batas_pembayaran_lewat" });
+    expect(await setup.billing.recordPayment(pengganti.id, bayarQris)).toMatchObject({ ok: false, reason: "batas_pembayaran_lewat" });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    const surat = setup.email.sent.filter((satu) => satu.subject === `Pesanan ${dasar.nomor} dibatalkan: batas pembayaran lewat`);
+    expect(surat).toHaveLength(1);
+    expect(surat[0].text).toContain(pengganti.nomorTagihan);
+  });
+
+  it("a payment hold that ends after the replacement was paid leaves the order Aktif", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pengganti = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    await bayar(setup, pengganti.id);
+    setup.clock.set(new Date(konfirmasi.pesanan.tahanSampai.getTime() + 3_600_000));
+
+    expect(await setup.pemesanan.lewatBatasBayarTick()).toEqual({ dibatalkan: 0 });
+
+    expect((await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan))?.status).toBe("aktif");
+  });
+});

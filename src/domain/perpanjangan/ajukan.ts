@@ -107,7 +107,7 @@ export async function terbukaOf(deps: PerpanjanganDeps, hakPakaiId: string, now:
     .orderBy(desc(perpanjangan.dibuatPada));
   for (const row of rows) {
     if (row.dibayarPada) continue;
-    const tagihan = await deps.billing.tagihan(row.tagihanId);
+    const tagihan = await deps.billing.tagihanBerlaku(row.tagihanId);
     if (tagihan && tagihan.status === "belum_dibayar" && tagihan.dueAt > now) {
       return { perpanjanganId: row.id, terms: row.terms, nomorTagihan: tagihan.nomorTagihan, link: tagihan.link, dueAt: tagihan.dueAt };
     }

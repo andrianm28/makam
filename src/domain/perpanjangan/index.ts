@@ -156,7 +156,7 @@ export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
   async function tercatat(row: typeof perpanjangan.$inferSelect): Promise<PerpanjanganTercatat> {
     let status: PerpanjanganTercatat["status"] = "lunas";
     if (!row.dibayarPada) {
-      const tagihan = await deps.billing.tagihan(row.tagihanId);
+      const tagihan = await deps.billing.tagihanBerlaku(row.tagihanId);
       if (!tagihan || tagihan.status === "dibatalkan") status = "dibatalkan";
       else status = tagihan.status === "lunas" || tagihan.status === "dikembalikan_penuh" || tagihan.status === "dikembalikan_sebagian" ? "perlu_ditinjau" : "menunggu_pembayaran";
     }

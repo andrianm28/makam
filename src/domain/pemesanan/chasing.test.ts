@@ -179,3 +179,69 @@ describe("nyatakanTidakTertagih: one transaction for the status, its Entri Audit
     expect(await setup.pemesanan.akhiriHakPakaiTidakTertagih(fixture.adminLokasi, { hakPakaiId: fixture.hakPakaiId })).toMatchObject({ ok: true });
   });
 });
+
+/** The Operator gives a Harga Khusus on the confirmed order's unpaid pay-after Tagihan: it is reissued under a new id (ticket 30). */
+async function denganHargaKhusus(setup: PemesananSetup, fixture: Awaited<ReturnType<typeof pesananDikonfirmasi>>) {
+  const khusus = await setup.billing.tetapkanHargaKhusus(fixture.admin, {
+    tagihanId: fixture.tagihanId,
+    amount: 100_000,
+    alasan: "Keringanan untuk keluarga",
+    porsiMitra: 0,
+    catatanPorsiMitra: "Ditanggung Operator",
+  });
+  if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+  return khusus.tagihan;
+}
+
+describe("a Saat Duka Tagihan reissued by a Harga Khusus before the Pemakaman (ticket 93)", () => {
+  it("Catat Pemakaman starts the overdue clock on the replacement Tagihan and schedules its reminders", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    const pengganti = await denganHargaKhusus(setup, fixture);
+    setup.clock.set(wib("2026-10-06 08:00"));
+
+    const dicatat = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" });
+    expect(dicatat.ok).toBe(true);
+
+    expect(setup.chasingDijadwalkan).toHaveLength(1);
+    expect(setup.chasingDijadwalkan[0]).toMatchObject({
+      tagihanId: pengganti.id,
+      nomorTagihan: pengganti.nomorTagihan,
+      total: pengganti.total,
+      link: pengganti.link,
+      lewatJatuhTempoAt: wib("2026-10-09 08:00"),
+    });
+    // Unpaid three days on, the replacement is the Tagihan that becomes Lewat Jatuh Tempo.
+    await lewatJatuhTempoPayAfterTagihanTick({ db }, wib("2026-10-09 08:00"));
+    expect(await setup.billing.tagihan(pengganti.id)).toMatchObject({ status: "lewat_jatuh_tempo" });
+  });
+
+  it("the Lewat Jatuh Tempo replacement blocks the Hak Pakai and names its number and link to the family", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    const pengganti = await denganHargaKhusus(setup, fixture);
+    await setStatus(pengganti.id, "lewat_jatuh_tempo", wib("2026-10-05 10:00"));
+
+    expect(await setup.pemesanan.isBlockedByOverdueTagihan(fixture.hakPakaiId)).toBe(true);
+    expect(await setup.pemesanan.tagihanPenghalangOf(fixture.hakPakaiId)).toEqual({
+      tagihanId: pengganti.id,
+      nomorTagihan: pengganti.nomorTagihan,
+      link: pengganti.link,
+    });
+
+    await setStatus(pengganti.id, "lunas");
+    expect(await setup.pemesanan.isBlockedByOverdueTagihan(fixture.hakPakaiId)).toBe(false);
+  });
+
+  it("finds the Hak Pakai from the replacement Tagihan, and the Admin Lokasi ends it once the replacement is Tidak Tertagih", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    const pengganti = await denganHargaKhusus(setup, fixture);
+    expect(await setup.pemesanan.hakPakaiIdForTagihan(pengganti.id)).toBe(fixture.hakPakaiId);
+
+    await setStatus(pengganti.id, "tidak_tertagih", wib("2026-10-05 10:00"));
+    const hasil = await setup.pemesanan.akhiriHakPakaiTidakTertagih(fixture.adminLokasi, { hakPakaiId: fixture.hakPakaiId });
+
+    expect(hasil).toMatchObject({ ok: true, hakPakaiId: fixture.hakPakaiId });
+  });
+});
