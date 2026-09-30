@@ -59,7 +59,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   const csContact: CsContact | null = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
   // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
-  const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
+  const tagihan = order.tagihanId ? await billing.tagihanBerlaku(order.tagihanId) : null;
   // A refund on this order waiting for a bank account: the page is the Pemesan's own, so only they see it.
   const pengembalian = await refunds.permintaanUntukPesanan(order.nomor);
   const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;

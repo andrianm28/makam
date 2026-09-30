@@ -15,7 +15,7 @@
  * the scope correct; the comment stays so a later ticket adding it does not
  * widen this by accident.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { DeclareTidakTertagihResult } from "@/domain/billing";
 import { antreanResource, lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -79,11 +79,16 @@ async function grantOrderOf(deps: Pick<PemesananDeps, "db">, hakPakaiId: string)
  * what the overdue list needs to offer "Akhiri Hak Pakai" against a Tidak
  * Tertagih Tagihan (ticket 29), without exposing the order itself.
  */
-export async function hakPakaiIdForTagihan(deps: Pick<PemesananDeps, "db">, tagihanId: string): Promise<string | null> {
+export async function hakPakaiIdForTagihan(deps: Pick<PemesananDeps, "db" | "billing">, tagihanId: string): Promise<string | null> {
+  // The order stored the id it was first issued and a Harga Khusus may since have replaced it: the order is the one whose
+  // stored id is anywhere in this Tagihan's reissue chain, which Billing answers with ids alone (ticket 93). Not read from the
+  // Tagihan's Nomor Pemesanan, so nothing here depends on that being set.
+  const rantai = await deps.billing.rantaiTagihan(tagihanId);
+  if (rantai.length === 0) return null;
   const [order] = await deps.db
     .select({ hakPakaiId: pemesananMakam.hakPakaiId })
     .from(pemesananMakam)
-    .where(and(eq(pemesananMakam.tagihanId, tagihanId), eq(pemesananMakam.kind, "saat_duka")));
+    .where(and(inArray(pemesananMakam.tagihanId, rantai), eq(pemesananMakam.kind, "saat_duka")));
   return order?.hakPakaiId ?? null;
 }
 
@@ -100,7 +105,7 @@ export async function isBlockedByOverdueTagihan(
 ): Promise<boolean> {
   const order = await grantOrderOf(deps, hakPakaiId);
   if (!order?.tagihanId) return false;
-  const tagihan = await deps.billing.tagihan(order.tagihanId);
+  const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
   return tagihan?.status === "lewat_jatuh_tempo";
 }
 
@@ -122,7 +127,7 @@ export async function tagihanPenghalangOf(
 ): Promise<TagihanPenghalang | null> {
   const order = await grantOrderOf(deps, hakPakaiId);
   if (!order?.tagihanId) return null;
-  const tagihan = await deps.billing.tagihan(order.tagihanId);
+  const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
   if (tagihan?.status !== "lewat_jatuh_tempo") return null;
   return { tagihanId: tagihan.id, nomorTagihan: tagihan.nomorTagihan, link: tagihan.link };
 }
@@ -152,7 +157,7 @@ export async function akhiriHakPakaiTidakTertagih(
   const refusal = writeRefusal(by, "hak_pakai.akhiri_tidak_tertagih", lokasiMitraResource(order.lokasiId));
   if (refusal) return refusal;
   if (!order.tagihanId) return { ok: false, reason: "hak_pakai_tidak_ditemukan" };
-  const tagihan = await deps.billing.tagihan(order.tagihanId);
+  const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
   if (tagihan?.status !== "tidak_tertagih") return { ok: false, reason: "tagihan_belum_tidak_tertagih" };
 
   const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {

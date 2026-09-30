@@ -9,6 +9,7 @@ import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
+import type { ReportError } from "@/lib/observability/report-error";
 
 /**
  * One job one Mitra Jasa holds or held, with the facts the scorecard counts and
@@ -192,7 +193,9 @@ export interface LayananDeps {
   /** A grave's Hak Pakai, which decides whether Layanan may be ordered for it at all. */
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
   /** The Nomor Pemesanan series and an order's pay-first Tagihan, taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
+  /** Where a failure that must not stop a whole tick is reported (a job whose Tagihan is missing, ticket 93); absent in a fixture. */
+  reportError?: ReportError;
   /** The Akun an email belongs to, and who is Admin Lokasi of a Lokasi Mitra. */
   identity: Pick<Identity, "accountByEmail" | "adminLokasiOf">;
   /**

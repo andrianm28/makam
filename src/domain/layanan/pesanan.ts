@@ -433,6 +433,8 @@ export async function pesananLayananOf(
   const keluhanOf = new Map(keluhanRows.map((row) => [row.pekerjaanId, row]));
   const dinilai = await sudahDinilai(deps.db, jobs.map((job) => job.id));
   const sekarang = deps.clock.now();
+  // The Tagihan in force, not the id the order stored: a Harga Khusus may have reissued it (ticket 93). Null when Billing finds none.
+  const tagihanBerlaku = await deps.billing.tagihanBerlaku(order.tagihanId);
   // What each job has to show comes from the Layanan's own kind, so the read
   // carries the requirement and not just the files that happen to be there.
   const jenisOf = new Map((await katalog(deps.db)).map((entry) => [entry.id, entry.jenis] as const));
@@ -448,7 +450,7 @@ export async function pesananLayananOf(
     status: order.status,
     total: order.total,
     createdAt: order.createdAt,
-    tagihan: { id: order.tagihanId },
+    tagihan: tagihanBerlaku ? { id: tagihanBerlaku.id } : null,
     lokasi: { id: order.lokasiId, name: order.lokasiName },
     petak: { id: order.petakId, nomor: order.petakNomor },
     item: await Promise.all(

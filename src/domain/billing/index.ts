@@ -90,6 +90,7 @@ import {
   listTagihanMenungguPengembalian,
   listTagihanRetribusiLunas,
   readTagihan,
+  readRantaiTagihan,
   readTagihanBerlaku,
   reissueTagihan,
   tandaiPengembalian,
@@ -217,6 +218,8 @@ export interface Billing {
   tagihan(tagihanId: string): Promise<Tagihan | null>;
   /** The Tagihan in force for an order first issued `tagihanId`: that one, or the last reissue that replaced it (a Harga Khusus). Null when none is found. */
   tagihanBerlaku(tagihanId: string): Promise<Tagihan | null>;
+  /** The ids a Tagihan was issued under, itself first and the first-issued last (a Harga Khusus reissue chain): how an order that stored the first id recognises the paid one. Empty when none is found. */
+  rantaiTagihan(tagihanId: string): Promise<string[]>;
   /**
    * Cancels one Tagihan because the order it was for will not happen, and in the
    * same transaction records the refund of any payment it had, less the Biaya
@@ -418,6 +421,7 @@ export function createBilling(deps: BillingDeps): Billing {
     reissueTagihan: (tagihanId, input) => reissueTagihan(deps, tagihanId, input, deps.clock.now()),
     tagihan: (tagihanId) => readTagihan(deps.db, tagihanId),
     tagihanBerlaku: (tagihanId) => readTagihanBerlaku(deps.db, tagihanId),
+    rantaiTagihan: (tagihanId) => readRantaiTagihan(deps.db, tagihanId),
     batalkanTagihan: (tagihanId, input) => batalkanTagihan(deps, tagihanId, input, deps.clock.now()),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),

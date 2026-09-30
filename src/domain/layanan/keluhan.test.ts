@@ -39,7 +39,7 @@ function bukti(pekerjaanId: string, kind: "foto_sebelum" | "foto_sesudah", taken
  * A paid order whose one job the Admin Lokasi has finished at 10:00 on the 20th: the Pemesan is shown the proof.
  * `payoutsSudahJalan: false` leaves Payouts' own tick unrun, so the job's Pencairan item is not written yet.
  */
-async function pekerjaanSelesai({ payoutsSudahJalan = true }: { payoutsSudahJalan?: boolean } = {}) {
+async function pekerjaanSelesai({ payoutsSudahJalan = true, hargaKhusus = false }: { payoutsSudahJalan?: boolean; hargaKhusus?: boolean } = {}) {
   const setup = layananOnTestDatabase(db);
   await siapkanOperatorLayanan(setup);
   const lokasi = await lokasiDenganLayanan(setup);
@@ -54,7 +54,20 @@ async function pekerjaanSelesai({ payoutsSudahJalan = true }: { payoutsSudahJala
   });
   if (!order.ok) throw new Error(`order refused: ${order.reason}`);
   setup.clock.set(wib("2026-10-01 10:00"));
-  const dibayar = await setup.billing.recordPayment(order.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: wib("2026-10-01 10:00") });
+  // A Harga Khusus before the family pays (ticket 93): the Tagihan is reissued and the reissue is what is paid; the order keeps the first id.
+  let tagihanDibayar = order.tagihan.id;
+  if (hargaKhusus) {
+    const khusus = await setup.billing.tetapkanHargaKhusus(lokasi.admin, {
+      tagihanId: order.tagihan.id,
+      amount: 50_000,
+      alasan: "Keringanan untuk keluarga",
+      porsiMitra: 0,
+      catatanPorsiMitra: "Ditanggung Operator",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    tagihanDibayar = khusus.tagihan.id;
+  }
+  const dibayar = await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "transfer_manual" }, reference: null, paidAt: wib("2026-10-01 10:00") });
   if (!dibayar.ok) throw new Error("payment refused");
   // Payouts writes the job's item when the Tagihan is Lunas: not due, waiting for the job's own trigger.
   if (payoutsSudahJalan) await setup.payouts.tick();
@@ -69,7 +82,7 @@ async function pekerjaanSelesai({ payoutsSudahJalan = true }: { payoutsSudahJala
   }
   const selesai = await setup.layanan.selesaikanPekerjaan(lokasi.adminLokasi, { pekerjaanId });
   if (!selesai.ok) throw new Error(`Selesai refused: ${selesai.reason}`);
-  return { setup, lokasi, pemesan, order, pekerjaanId };
+  return { setup, lokasi, pemesan, order, pekerjaanId, tagihanDibayar };
 }
 
 type Siap = Awaited<ReturnType<typeof pekerjaanSelesai>>;
@@ -499,5 +512,21 @@ describe("a Penilaian", () => {
     const untukPlatform = await setup.layanan.keluhanUntukPlatform(lokasi.admin, keluhanId);
     expect(untukPlatform).toMatchObject({ ok: true, keluhan: { penilaian: { bintang: 2 }, pemesan: { name: "Budi Santoso" } } });
     expect(await setup.layanan.keluhanUntukPlatform(lokasi.adminLokasi, keluhanId)).toEqual({ ok: false, reason: "tidak_berwenang" });
+  });
+});
+
+describe("a Keluhan on a job whose Tagihan a Harga Khusus reissued (ticket 93)", () => {
+  it("finds the job's Pencairan item on the Tagihan the family paid: a rejected Keluhan releases it and Admin Platform's override lowers it", async () => {
+    const siap = await pekerjaanSelesai({ hargaKhusus: true });
+    const { setup, lokasi } = siap;
+    const keluhanId = await ajukan(siap);
+    expect((await putuskan(siap, keluhanId, "tolak")).ok).toBe(true);
+    expect(await jumlahJatuhTempo(setup, lokasi.admin)).toEqual([750_000]);
+
+    expect(await setup.layanan.sesuaikanPencairanKeluhan(lokasi.admin, { keluhanId, amount: 375_000, catatan: "Setengah: bersih sebagian." })).toMatchObject({
+      ok: true,
+      jumlah: 375_000,
+      jumlahAwal: 750_000,
+    });
   });
 });

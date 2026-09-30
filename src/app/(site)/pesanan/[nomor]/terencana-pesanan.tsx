@@ -28,7 +28,7 @@ const LANGKAH_LOKASI = "/pesan-makam/terencana";
  */
 export async function TerencanaPesanan({ order, accountId }: { order: PemesananTerencanaOrder; accountId: string }) {
   const { billing, pemesanan, refunds } = serverRuntime();
-  const tagihan = order.tagihanId ? await billing.tagihan(order.tagihanId) : null;
+  const tagihan = order.tagihanId ? await billing.tagihanBerlaku(order.tagihanId) : null;
   const bukti = order.buktiPemesananId ? await billing.buktiPemesananById(order.buktiPemesananId) : null;
   const pembatalan = await pemesanan.pembatalanUntukPesanan({ accountId }, order.nomor);
   // A refund on this order waiting for a bank account: the page is the Pemesan's own, so only they see it.

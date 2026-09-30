@@ -121,6 +121,7 @@ async function main() {
     refunds,
     payouts,
     notifications,
+    reportError,
   });
 
   // The Pemesanan module, for the tick that lets a Terencana order's payment hold lapse (ticket 37): it reaches

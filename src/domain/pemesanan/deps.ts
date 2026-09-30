@@ -340,7 +340,7 @@ export interface PemesananDeps {
    * cancellation cancels, the Bukti Pemesanan it earned, and the pay-after
    * clock a recorded burial starts, all `within` the order's own transaction.
    */
-  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku" | "rantaiTagihan" | "batalkanTagihan" | "buktiPemesananById" | "issueBuktiPemesanan" | "setOverdueAnchor" | "declareTidakTertagih">;
   /**
    * The refund an approved Pembatalan asks for (ticket 38), raised inside the approval's own transaction so the
    * Hak Pakai never ends with its money left unasked for, and read back to know whether Admin Platform has

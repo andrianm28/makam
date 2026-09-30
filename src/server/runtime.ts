@@ -231,6 +231,7 @@ export function serverRuntime(): ServerRuntime {
       refunds,
       payouts,
       notifications,
+      reportError,
     });
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.

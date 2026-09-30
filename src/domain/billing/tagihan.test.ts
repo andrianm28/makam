@@ -202,6 +202,8 @@ describe("an issued Tagihan is immutable", () => {
       // those currently Lewat Jatuh Tempo or Tidak Tertagih (ticket 29).
       "payAfterAnchored",
       "pembayaranPerluDitinjau",
+      // A read of the ids a Tagihan was issued under (a Harga Khusus chain), never a way to change one (ticket 93).
+      "rantaiTagihan",
       "receivePaymentWebhook",
       "recordPayment",
       "reissueTagihan",
