@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { PilihMakam } from "./pilih-makam";
 import { layarPilihMakam } from "./daftar";
+import { dariDari } from "./dari";
 import { grupView } from "./tampilan";
+import { authorize, pemesananResource } from "@/domain/identity";
 import { kartuAwal } from "@/domain/pemesanan";
 import { satuNilai } from "@/lib/search-param";
 import { serverRuntime } from "@/server/runtime";
+import { currentActor } from "@/server/session";
 
 export const metadata: Metadata = {
   title: "Pesan Makam Saat Duka | Makam.co.id",
@@ -19,10 +22,16 @@ export const metadata: Metadata = {
  * only the TPUs taking new plots), with the type chip over the combined list.
  */
 export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan-makam/saat-duka">) {
-  const { lokasiId, kota, jenis } = await searchParams;
+  const { lokasiId, kota, jenis, dari } = await searchParams;
   const { operatorSettings } = serverRuntime();
   const [layar, pengaturan] = await Promise.all([
-    layarPilihMakam({ kota: satuNilai(kota), lokasiId: satuNilai(lokasiId), jenis: satuNilai(jenis) }),
+    layarPilihMakam({
+      kota: satuNilai(kota),
+      lokasiId: satuNilai(lokasiId),
+      jenis: satuNilai(jenis),
+      dari: dariDari(satuNilai(dari)),
+      pemesan: await pemesanDari(dariDari(satuNilai(dari))),
+    }),
     operatorSettings.current(),
   ]);
 
@@ -33,10 +42,43 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
       semuaKota={layar.semuaKota}
       kota={layar.kota}
       jenis={layar.jenis}
-      kembali={layar.asal ? `/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(layar.asal.id)}` : "/pesan-makam/saat-duka"}
+      kembali={kembaliKe(layar.asal?.id ?? null, layar.dari)}
+      dari={layar.dari}
+      banner={
+        layar.pemesanUlang
+          ? { nomor: layar.pemesanUlang.nomor, lokasiName: layar.pemesanUlang.banner.lokasi.name, alasan: layar.pemesanUlang.banner.alasan }
+          : null
+      }
       preselect={layar.asal?.id ?? null}
       awal={kartuAwal(layar.grup, layar.asal?.id ?? null)}
       csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
     />
   );
+}
+
+/**
+ * The URL this screen comes back to, keeping the deep-linked Lokasi and the Tolak
+ * it was opened from: the type chip and the city filter are built from it, so a
+ * click on either never drops the banner or the exclusion.
+ */
+function kembaliKe(lokasiId: string | null, dari: string | null): string {
+  const query = new URLSearchParams();
+  if (lokasiId) query.set("lokasiId", lokasiId);
+  if (dari) query.set("dari", dari);
+  const suffix = query.toString();
+  return suffix === "" ? "/pesan-makam/saat-duka" : `/pesan-makam/saat-duka?${suffix}`;
+}
+
+/**
+ * Who the `dari` link's family is. The prefilled data is a phone number, an email
+ * and a dead relative's name, so it is read as the signed-in Akun's own order and
+ * nobody else's, the same rule as the order page. A visitor with no session, or
+ * another Akun's number, is no family: the list opens plainly with no banner.
+ */
+async function pemesanDari(dari: string): Promise<{ accountId: string } | null> {
+  if (!dari) return null;
+  const actor = await currentActor();
+  // No session is no family: the plain list, no banner, no redirect and no return URL.
+  if (!actor) return null;
+  return authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed ? { accountId: actor.accountId } : null;
 }
