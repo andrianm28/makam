@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-30): 69 resolved, 16 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-30): 70 resolved, 15 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -36,7 +36,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-0
 | [30](30-manual-payments-and-harga-khusus.md) | Manual payments, direct payment to the Lokasi and Harga Khusus | resolved | 25 |
 | [31](31-refunds-and-bukti-pengembalian-dana.md) | Refunds and Bukti Pengembalian Dana | resolved | 24 |
 | [32](32-pencairan-potongan-and-bukti-pencairan.md) | Pencairan, Potongan and Bukti Pencairan | resolved | 25, 31 |
-| [33](33-laporan-and-transfer-list.md) | Monthly Laporan and weekly outgoing transfer list | ready-for-agent | 29, 32 |
+| [33](33-laporan-and-transfer-list.md) | Monthly Laporan and weekly outgoing transfer list | resolved | 29, 32 |
 | [34](34-makam-keluarga-hub-and-lookup.md) | Makam keluarga hub and grave lookup | resolved | 14, 26 |
 | [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | ready-for-agent | 25, 34 |
 | [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | resolved | 16, 82 |
