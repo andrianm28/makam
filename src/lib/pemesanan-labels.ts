@@ -1,5 +1,5 @@
 import type { WorkingTimeResult } from "@/domain/lokasi";
-import type { PemesananDiajukan } from "@/domain/pemesanan";
+import type { PemesananDiajukan, TerencanaDiajukan } from "@/domain/pemesanan";
 import type { Tenure } from "@/domain/tariffs";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import type { PushNotification } from "@/ports/web-push";
@@ -97,6 +97,34 @@ export function stafSaatDukaBaruAlert(
       title: "Pesan Saat Duka baru",
       body: `${order.lokasi.name} · ${order.nomor}`,
       url: `/staf/admin-lokasi/${order.lokasi.id}`,
+    },
+  };
+}
+
+/**
+ * The Peringatan Staf a new Pemesanan Terencana raises (ticket 97). It names the
+ * Lokasi Mitra, the Nomor Pemesanan and how many plots were picked, and sets no
+ * deadline: the confirmation row in the Antrean Lokasi is non-urgent. The push
+ * carries no personal data; `url` is the order's page in the staff area.
+ */
+export function stafTerencanaBaruAlert(
+  order: TerencanaDiajukan,
+): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  const jumlah = `${order.unit.length} petak/kavling`;
+  return {
+    email: {
+      subject: `Pesan Terencana baru ${order.nomor}`,
+      text: [
+        `${order.pemesan.name} memesan ${jumlah} secara terencana di ${order.lokasi.name}.`,
+        `Petak/Kavling: ${order.unit.map((satu) => `${satu.nomor} (${satu.jenisMakamName})`).join(", ")}.`,
+        order.pemesan.phoneNumber ? `Telepon Pemesan: ${order.pemesan.phoneNumber}.` : "Pemesan belum memberi nomor telepon.",
+        `Nomor Pemesanan: ${order.nomor}. Buka pesanan ini di aplikasi staf untuk mengonfirmasi atau menolaknya.`,
+      ].join("\n"),
+    },
+    push: {
+      title: "Pesan Terencana baru",
+      body: `${order.lokasi.name} · ${order.nomor} · ${jumlah}`,
+      url: `/staf/admin-lokasi/${order.lokasi.id}/pesanan/${order.nomor}`,
     },
   };
 }

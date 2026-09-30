@@ -5,7 +5,7 @@
  */
 import type { Notifications } from "@/domain/notifications";
 import { createPemesanan, type Pemesanan, type PemesananDeps, type PemesananNotifikasi } from "@/domain/pemesanan";
-import { stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert } from "@/lib/pemesanan-labels";
+import { stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
 
 /**
  * The Pemesanan module, wired to the runtime's Notifications: a new order raises
@@ -82,14 +82,12 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     pesananBuktiPemesanan: async (hasil) => {
       await notifications.pesananBuktiPemesanan(hasil);
     },
-    // A new Pemesanan Terencana's Peringatan Staf is still dropped here: Notifications
-    // has no staff kind for it, and the Lokasi's confirmation (ticket 37) does not need
-    // one — the order shows in its Antrean Lokasi as a "Konfirmasi Terencana" row, due by
-    // the end of the Lokasi's next working day. Nothing is lost but the push: the order is
-    // already written, its plots are held, and a placement never waits on a send. The
-    // Pemesanan module's own test records the call, so the seam is not a mechanism
-    // nothing can reach.
-    terencanaDiajukan: async () => {},
+    // A new Pemesanan Terencana raises one Peringatan Staf to the Lokasi's Admin Lokasi and
+    // Kontak Siaga, at any hour (ticket 97). No re-alert: the Antrean Lokasi row
+    // "Konfirmasi Terencana" stays Lainnya.
+    terencanaDiajukan: async (order) => {
+      await kirimStaf(notifications, order, stafTerencanaBaruAlert(order), "staf_terencana_baru");
+    },
     terencanaDikonfirmasi: async (tx, input) => {
       await notifications.terencanaDikonfirmasi(input, tx);
     },
@@ -118,8 +116,8 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
 async function kirimStaf(
   notifications: Notifications,
   order: { penerima: { accountId: string }[] },
-  alert: ReturnType<typeof stafSaatDukaBaruAlert>,
-  kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi",
+  alert: ReturnType<typeof stafSaatDukaBaruAlert> | ReturnType<typeof stafTerencanaBaruAlert>,
+  kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi" | "staf_terencana_baru",
 ): Promise<void> {
   for (const to of order.penerima) {
     await notifications.sendStaffAlert({ to, kind, ...alert });

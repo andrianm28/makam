@@ -243,6 +243,8 @@ export type DisablePushResult = { ok: true } | WriteRefusal;
 export const staffAlertKinds = [
   "staf_saat_duka_baru",
   "staf_saat_duka_belum_dikonfirmasi",
+  /** A family submitted a new Pemesanan Terencana; one alert, no re-alert (ticket 97). */
+  "staf_terencana_baru",
   "staf_antrean_mendesak",
   "staf_antrean_eskalasi",
   "staf_tugas_lapangan_baru",

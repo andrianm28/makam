@@ -16,6 +16,7 @@ import type { LokasiPublicPricing, QuotedLine } from "@/domain/tariffs";
 import type { PemesananDeps, Pemesan, TerencanaQuery } from "./deps";
 import { placeTerencanaSchema } from "./skema-terencana";
 import { alasanTerencana } from "./reads-terencana-staf";
+import { penerimaOf } from "./saat-duka";
 import { tenggatKonfirmasiTerencana } from "./terencana-konfirmasi";
 import { bolehDitahan, type TahanUnit } from "@/domain/inventory";
 import { pemesananTerencana, pemesananTerencanaUnit, type CalonPenghuniTerencana, type PemegangHak, type PemesananTerencanaStatus, type SyaratTerencana } from "./schema";
@@ -457,14 +458,14 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
   // The Lokasi Mitra's staff hear about the order through the Notifications module, never from here, and only once the
   // order and its hold are committed: an announcement about a rolled-back order would be a lie nobody can act on.
   if (result.ok) {
-    const penerima = await deps.identity.adminLokasiOf(draft.lokasiId);
+    const penerima = await penerimaOf(deps, draft.lokasiId);
     await deps.notifikasi.terencanaDiajukan({
       nomor: result.pemesanan.nomor,
       lokasi: { id: draft.lokasiId, name: result.pemesanan.lokasi.name },
       unit: result.pemesanan.unit.map((satu) => ({ nomor: satu.nomor, jenisMakamName: satu.jenisMakamName })),
       calon: { name: result.pemesanan.calonPenghuni.name ?? result.pemesanan.pemegangHak.name },
       pemesan: { name: result.pemesanan.pemesan.name, phoneNumber: result.pemesanan.pemesan.phoneNumber },
-      penerima: penerima.map((satu) => ({ accountId: satu.accountId })),
+      penerima,
     });
   }
   return result;

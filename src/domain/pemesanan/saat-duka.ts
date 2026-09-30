@@ -140,7 +140,7 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
  * is still Admin Lokasi here). Once each: a Lokasi Mitra's staff never hears
  * the same order twice.
  */
-async function penerimaOf(deps: PemesananDeps, lokasiId: string): Promise<{ accountId: string }[]> {
+export async function penerimaOf(deps: PemesananDeps, lokasiId: string): Promise<{ accountId: string }[]> {
   const [adminLokasi, kontakSiaga] = await Promise.all([deps.identity.adminLokasiOf(lokasiId), deps.lokasi.kontakSiagaOf(lokasiId)]);
   const ids = new Set(adminLokasi.map((akun) => akun.accountId));
   if (kontakSiaga) ids.add(kontakSiaga.accountId);
