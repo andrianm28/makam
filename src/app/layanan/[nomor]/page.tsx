@@ -153,7 +153,7 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
 async function PesananTpuPage({ nomor, accountId }: { nomor: string; accountId: string }) {
   const order = await serverRuntime().layanan.pesananTpuOf(nomor, { accountId });
   if (!order) notFound();
-  const tagihan = await serverRuntime().billing.tagihan(order.tagihanId);
+  const tagihan = await serverRuntime().billing.tagihanBerlaku(order.tagihanId);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-(--page-gutter) py-10">

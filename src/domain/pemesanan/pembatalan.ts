@@ -187,7 +187,10 @@ async function batalkanDenganAlasan(
     petak = order.petakNomor ? { nomor: order.petakNomor } : null;
   }
   if (order.tagihanId) {
-    const tagihanDibatalkan = await deps.billing.within(tx).batalkanTagihan(order.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    // A Harga Khusus reissues the Tagihan under a new id: the one in force is cancelled, never the replaced one (ticket 93).
+    const berlaku = await deps.billing.within(tx).tagihanBerlaku(order.tagihanId);
+    if (!berlaku) return { ok: false, reason: "tagihan_tidak_terbit" };
+    const tagihanDibatalkan = await deps.billing.within(tx).batalkanTagihan(berlaku.id, { alasan: "pemesanan_dibatalkan" });
     if (!tagihanDibatalkan.ok) {
       return { ok: false, reason: tagihanDibatalkan.reason === "tagihan_sudah_dibatalkan" ? "tagihan_sudah_dibatalkan" : "tagihan_tidak_terbit" };
     }

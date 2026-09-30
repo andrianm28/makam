@@ -134,4 +134,4 @@ export async function aktifkanTerencana(
 }
 
 /** What `aktifkanTerencana` asks of Billing, spelled out for a reader of the effect's dependencies. */
-export type BillingUntukBukti = Pick<Billing, "issueBuktiPemesanan" | "tagihan">;
+export type BillingUntukBukti = Pick<Billing, "issueBuktiPemesanan" | "tagihan" | "tagihanBerlaku">;

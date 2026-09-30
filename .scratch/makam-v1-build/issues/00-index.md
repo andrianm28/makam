@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-30): 70 resolved, 15 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 95 tickets (as of 2026-09-30): 71 resolved, 15 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -395,5 +395,6 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | resolved | 25, 32 |
 | [91](91-staff-alerts-retried.md) | Staff alerts are sent once and never retried | ready-for-agent | — |
 | [92](92-pembatalan-kedua-menunggu-transfer.md) | A second Pembatalan on one Tagihan waits for the earlier refund's transfer | ready-for-agent | — |
-| [93](93-stored-tagihan-id-after-harga-khusus.md) | Readers of an order's stored Tagihan id after a Harga Khusus reissue | ready-for-agent | — |
+| [93](93-stored-tagihan-id-after-harga-khusus.md) | Readers of an order's stored Tagihan id after a Harga Khusus reissue | resolved | — |
+| [95](95-refund-after-harga-khusus.md) | Refunds of a Keluhan and a Layanan cancellation after a Harga Khusus are refused | ready-for-agent | — |
 | [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | resolved | — |

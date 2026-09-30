@@ -115,17 +115,20 @@ export async function catatPemakaman(
     // The pay-after Tagihan's overdue clock starts here, not at the day the
     // burial was planned: the family gets its full window from the burial that
     // happened, and the Tagihan is not reissued for it.
-    if (order.tagihanId) {
-      const jam = await deps.billing.within(tx).setOverdueAnchor(order.tagihanId, now);
+    // A Harga Khusus may have reissued the Tagihan since the order stored its id: the clock runs on the one in force (ticket 93).
+    const berlaku = order.tagihanId ? await deps.billing.within(tx).tagihanBerlaku(order.tagihanId) : null;
+    if (order.tagihanId && !berlaku) return { ok: false as const, reason: "tagihan_tidak_ditemukan" as const };
+    if (berlaku) {
+      const jam = await deps.billing.within(tx).setOverdueAnchor(berlaku.id, now);
       // A Tagihan with no pay-after clock is nothing to do; its money did not change.
       if (!jam.ok && jam.reason !== "tidak_pay_after") return { ok: false as const, reason: "tagihan_tidak_ditemukan" as const };
       if (jam.ok) {
         // Chasing's four reminders are queued once the anchor is known (ticket
         // 29): the Tagihan itself, read fresh, carries the total and link.
-        const tagihan = await deps.billing.within(tx).tagihan(order.tagihanId);
+        const tagihan = await deps.billing.within(tx).tagihan(berlaku.id);
         if (tagihan) {
           chasing = {
-            tagihanId: order.tagihanId,
+            tagihanId: berlaku.id,
             nomorTagihan: tagihan.nomorTagihan,
             nomorPemesanan: order.nomor,
             email: order.email,
@@ -158,8 +161,8 @@ export async function catatPemakaman(
     // which together are Selesai. (The other order of the two — the burial first,
     // the payment second — is Billing's own payment effect.)
     let buktiNomor: string | null = null;
-    if (order.tagihanId) {
-      const tagihan = await deps.billing.within(tx).tagihan(order.tagihanId);
+    if (berlaku) {
+      const tagihan = await deps.billing.within(tx).tagihan(berlaku.id);
       if (tagihan?.status === "lunas") {
         buktiNomor = await terbitkanBukti(
           tx,

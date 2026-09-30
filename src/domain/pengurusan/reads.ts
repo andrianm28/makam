@@ -83,7 +83,7 @@ export async function orderOf(
 ): Promise<PengurusanOrder | null> {
   const [row] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
   if (!row || row.pemesanAccountId !== pemesan.accountId) return null;
-  const tagihan = row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null;
+  const tagihan = row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null;
   return toOrder(row, tagihan);
 }
 
@@ -99,7 +99,7 @@ export async function pesananSaya(deps: Pick<PengurusanDeps, "db" | "billing">, 
     .where(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId))
     .orderBy(desc(pengurusanTpu.diajukanAt));
   return Promise.all(
-    rows.map(async (row) => toOrder(row, row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null)),
+    rows.map(async (row) => toOrder(row, row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null)),
   );
 }
 
@@ -110,11 +110,12 @@ export async function orderForStaff(
 ): Promise<PengurusanOrder | null> {
   const [row] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
   if (!row) return null;
-  const tagihan = row.tagihanId ? await deps.billing.tagihan(row.tagihanId) : null;
+  const tagihan = row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null;
   return toOrder(row, tagihan);
 }
 
-function toOrder(row: Row, tagihan: { total: number; dueAt: Date; link: string } | null): PengurusanOrder {
+/** `tagihan` is the one in force (a Harga Khusus may have reissued the one the order stored, ticket 93): its own id, number and link are what the family is shown. */
+function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string } | null): PengurusanOrder {
   return {
     id: row.id,
     nomor: row.nomor,
@@ -129,8 +130,8 @@ function toOrder(row: Row, tagihan: { total: number; dueAt: Date; link: string }
     pemegangHak: row.pemegangHak,
     dokumen: { pemakaman: row.dokumenPemakaman, pengajuan: row.dokumenPengajuan },
     konfirmasiDueAt: row.konfirmasiDueAt,
-    tagihan: row.tagihanId && row.tagihanNomor && tagihan
-      ? { id: row.tagihanId, nomor: row.tagihanNomor, total: tagihan.total, dueAt: tagihan.dueAt, link: tagihan.link }
+    tagihan: tagihan
+      ? { id: tagihan.id, nomor: tagihan.nomorTagihan, total: tagihan.total, dueAt: tagihan.dueAt, link: tagihan.link }
       : null,
     pemakamanAt: row.pemakamanAt,
     kontakTpu: row.kontakTpu,

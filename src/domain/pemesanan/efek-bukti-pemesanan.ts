@@ -35,7 +35,7 @@ export interface BuktiPemesananEffectDeps {
    * the money, so it is issued `within` that transaction like every other
    * cross-module write inside one.
    */
-  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPemesanan" | "tagihan">;
+  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPemesanan" | "tagihan" | "tagihanBerlaku">;
   inventory: Pick<PemesananDeps["inventory"], "within">;
   lokasi: Pick<PemesananDeps["lokasi"], "publicLokasiMitra">;
   notifikasi: PemesananDeps["notifikasi"];
@@ -109,8 +109,12 @@ export async function terbitkanBukti(
   if (!masa) return null;
   const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
   const query = lokasi ? mapsQueryFor(lokasi) : null;
+  // The Bukti belongs to the Tagihan in force, the one the family paid, not one a Harga Khusus replaced (ticket 93).
+  const berlaku = await deps.billingOn(tx).tagihanBerlaku(order.tagihanId);
+  // An order that reached Dimakamkan has its Tagihan: none found is a broken invariant, so it fails visibly (the payment effect is retried and reported) rather than leaving the order short of Selesai in silence.
+  if (!berlaku) throw new Error("a Saat Duka order names a Tagihan that does not exist");
   const bukti = await deps.billingOn(tx).issueBuktiPemesanan({
-    tagihanId: order.tagihanId,
+    tagihanId: berlaku.id,
     pemesananId: order.id,
     nomorPemesanan: order.nomor,
     lokasiName: order.lokasiName,

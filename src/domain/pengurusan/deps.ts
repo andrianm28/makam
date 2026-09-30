@@ -44,7 +44,7 @@ export interface PengurusanDeps {
   lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList">;
   tariffs: Pick<Tariffs, "quote">;
   /** For the Nomor Pemesanan series and the Tagihan, both taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
   identity: Pick<Identity, "accountByEmail" | "staffAccounts">;
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;

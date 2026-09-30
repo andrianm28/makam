@@ -108,3 +108,48 @@ describe("the Admin Lokasi records the Pemakaman", () => {
     expect((await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan))?.status).toBe("dikonfirmasi");
   });
 });
+
+describe("Catat Pemakaman after a Harga Khusus reissued the Tagihan (ticket 93)", () => {
+  it("a family that paid the replacement Tagihan before the burial gets its Bukti Pemesanan: the order is Selesai at once", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    const order = await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan);
+    const khusus = await setup.billing.tetapkanHargaKhusus(fixture.admin, {
+      tagihanId: order!.tagihanId!,
+      amount: 100_000,
+      alasan: "Keringanan untuk keluarga",
+      porsiMitra: 0,
+      catatanPorsiMitra: "Ditanggung Operator",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    const dibayar = await setup.billing.recordPayment(khusus.tagihan.id, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    expect(dibayar.ok).toBe(true);
+    setup.clock.set(new Date("2026-10-06T08:00:00+07:00"));
+
+    const hasil = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" });
+
+    expect(hasil).toMatchObject({ ok: true, pesanan: { nomor: fixture.nomor, status: "selesai" } });
+    expect((await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan))?.status).toBe("selesai");
+  });
+
+  it("leaves the order Dimakamkan, not Selesai, while the replacement Tagihan is unpaid (only the replaced one is Dibatalkan)", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDikonfirmasi(setup);
+    const order = await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan);
+    const khusus = await setup.billing.tetapkanHargaKhusus(fixture.admin, {
+      tagihanId: order!.tagihanId!,
+      amount: 100_000,
+      alasan: "Keringanan untuk keluarga",
+      porsiMitra: 0,
+      catatanPorsiMitra: "Ditanggung Operator",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    setup.clock.set(new Date("2026-10-06T08:00:00+07:00"));
+
+    const hasil = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" });
+
+    expect(hasil).toMatchObject({ ok: true, pesanan: { nomor: fixture.nomor, status: "dimakamkan" } });
+    expect(await setup.billing.tagihan(order!.tagihanId!)).toMatchObject({ status: "dibatalkan", cancelledReason: "diganti" });
+    expect((await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan))?.status).toBe("dimakamkan");
+  });
+});
