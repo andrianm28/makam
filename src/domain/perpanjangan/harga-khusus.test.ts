@@ -57,5 +57,10 @@ describe("a Perpanjangan after a Harga Khusus reissued its Tagihan (ticket 93)",
 
     expect((await setup.inventory.hakPakaiUntukPerpanjangan(fixture.hakPakaiId))?.endDate).toBe("2031-10-15");
     expect(await setup.perpanjangan.perpanjanganOf(perpanjangan.id)).toMatchObject({ status: "lunas", endDateBaru: "2031-10-15" });
+
+    // The same payment delivered a second time extends nothing twice.
+    await setup.billing.recordPayment(sekarang, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    expect((await setup.inventory.hakPakaiUntukPerpanjangan(fixture.hakPakaiId))?.endDate).toBe("2031-10-15");
+    expect(await setup.perpanjangan.perpanjanganOf(perpanjangan.id)).toMatchObject({ status: "lunas", endDateBaru: "2031-10-15" });
   });
 });

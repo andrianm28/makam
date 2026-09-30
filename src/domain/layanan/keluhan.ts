@@ -631,8 +631,13 @@ export async function tutupJendelaKeluhan(deps: LayananDeps, now: Date): Promise
       const ditunjukkan = ditunjukkanPadaOf(job);
       if (!ditunjukkan || ditunjukkan.getTime() >= batas.getTime()) continue;
     }
-    const jatuhTempo = await deps.db.transaction(async (tx) => jadikanPencairanJatuhTempo(deps, tx, { job, order, item }, now));
-    if (jatuhTempo) hasil.pencairanJatuhTempo += 1;
+    // One job at a time: a job that cannot be closed (its Tagihan is missing) is reported and never holds the others back.
+    try {
+      const jatuhTempo = await deps.db.transaction(async (tx) => jadikanPencairanJatuhTempo(deps, tx, { job, order, item }, now));
+      if (jatuhTempo) hasil.pencairanJatuhTempo += 1;
+    } catch (error) {
+      deps.reportError?.(error, { tags: { module: "layanan", event: "pencairan_jatuh_tempo_gagal", pekerjaanId: job.id } });
+    }
   }
   return hasil;
 }

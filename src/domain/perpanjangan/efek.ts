@@ -32,7 +32,7 @@ import { perpanjangan } from "./schema";
 
 export interface EfekPerpanjanganDeps {
   /** Billing on the payment's own transaction, so the Bukti and the review commit with the money. */
-  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPerpanjangan" | "catatPembayaranPerluDitinjau" | "rantaiTagihan">;
+  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPerpanjangan" | "catatPembayaranPerluDitinjau" | "rantaiTagihan" | "tagihanBerlaku">;
   inventory: Pick<PerpanjanganDeps["inventory"], "within">;
   lokasi: Pick<PerpanjanganDeps["lokasi"], "aturanPerpanjanganOf">;
   notifikasi: Pick<PerpanjanganDeps["notifikasi"], "buktiPerpanjanganTerbit">;
@@ -48,6 +48,8 @@ export function efekPerpanjangan(deps: EfekPerpanjanganDeps): PaymentEffect {
       const rantai = await deps.billingOn(tx).rantaiTagihan(payment.tagihanId);
       const [row] = await tx.select().from(perpanjangan).where(inArray(perpanjangan.tagihanId, rantai.length > 0 ? rantai : [payment.tagihanId])).for("update");
       if (!row || row.dibayarPada) return;
+      // Only the Tagihan in force, the end of the chain, may extend it: a replaced one was cancelled and is never the paid one.
+      if ((await deps.billingOn(tx).tagihanBerlaku(row.tagihanId))?.id !== payment.tagihanId) return;
 
       const inventory = deps.inventory.within(tx);
       if (!(await masihBisaDiterapkan(deps, row.hakPakaiId, row.lokasiId, payment.paidAt, inventory))) {
