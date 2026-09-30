@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
-import { pemesananOnTestDatabase, terverifikasiLokasi, type PemesananSetup } from "../../../../tests/support/pemesanan";
+import { orderSaatDuka, pemesananOnTestDatabase, pemesanDenganEmail, saatDukaFixture, terverifikasiLokasi, type PemesananSetup } from "../../../../tests/support/pemesanan";
 import { hargaTpu, tpu } from "../../../../tests/support/pengurusan";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { KOTA_PILIHAN } from "./draft";
@@ -118,5 +118,88 @@ describe("the TPU section and the type chip on Pilih makam", () => {
     const satuKota = await layarPilihMakam({ kota: "Kota Jakarta Barat", lokasiId: "", jenis: "semua" }, modul(setup));
     expect(satuKota.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Barat"]);
     expect(satuKota.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Barat"]);
+  });
+});
+
+/**
+ * One Saat Duka order at "Makam Wakaf Al-Ikhlas" (Jakarta Timur) that its Admin
+ * Lokasi declined, another Lokasi Mitra and a TPU in the same city beside it, and a
+ * second family who has nothing to do with it.
+ */
+async function setelahTolak() {
+  const setup = pemesananOnTestDatabase(db);
+  const fixture = await saatDukaFixture(setup);
+  const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
+  if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
+  const ditolak = await setup.pemesanan.tolakSaatDuka(fixture.adminLokasi, { nomor: placed.pemesanan.nomor, alasan: "kapasitas_penuh" });
+  if (!ditolak.ok) throw new Error(`Tolak refused: ${ditolak.reason}`);
+  const lain = await terverifikasiLokasi(setup, { name: "Makam Sawah Indah", city: "Kota Jakarta Timur", hargaHakPakai: 7_750_000 });
+  await hargaTpu(setup);
+  await tpu(setup, { name: "TPU Kober Timur", city: "Kota Jakarta Timur" });
+  const tetangga = await pemesanDenganEmail(setup, "tetangga@contoh.id");
+  return { setup, fixture, lain, nomor: placed.pemesanan.nomor, tetangga: tetangga.pemesan };
+}
+
+describe("Pilih makam after a Tolak", () => {
+  it("opens with the banner naming the Lokasi that refused, the TPU section and the type chip, all from one city filter", async () => {
+    const { setup, fixture, lain, nomor } = await setelahTolak();
+
+    const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+
+    expect(layar.pemesanUlang?.banner).toEqual({
+      lokasi: { id: fixture.lokasiMitra.id, name: "Makam Wakaf Al-Ikhlas" },
+      alasan: "Kapasitas blok ini sudah penuh",
+    });
+    // The Lokasi Mitra that refused is not in the list the query returned; the other one is.
+    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Sawah Indah"]);
+    expect(layar.grup[0].lokasi.id).toBe(lain.lokasiMitra.id);
+    // The TPU section survives a Tolak: a TPU is not the Lokasi Mitra that refused.
+    expect(layar.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Timur"]);
+    // One city filter for all of it: the refusing Lokasi Mitra's own city.
+    expect(layar.kota).toBe("Kota Jakarta Timur");
+    expect(layar.jenis).toBe("semua");
+    expect(layar.dari).toBe(nomor);
+  });
+
+  it("keeps the Tolak under every type chip: the refusing Lokasi Mitra stays out, and the banner stays", async () => {
+    const { setup, fixture, nomor } = await setelahTolak();
+
+    const tpuSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "tpu_dki", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    expect(tpuSaja.jenis).toBe("tpu_dki");
+    expect(tpuSaja.grup).toEqual([]);
+    expect(tpuSaja.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Timur"]);
+    expect(tpuSaja.pemesanUlang?.banner.lokasi.name).toBe("Makam Wakaf Al-Ikhlas");
+    expect(tpuSaja.dari).toBe(nomor);
+
+    const lokasiSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "lokasi_mitra", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    expect(lokasiSaja.jenis).toBe("lokasi_mitra");
+    expect(lokasiSaja.tpu).toEqual([]);
+    expect(lokasiSaja.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Sawah Indah"]);
+    expect(lokasiSaja.pemesanUlang?.banner.lokasi.name).toBe("Makam Wakaf Al-Ikhlas");
+  });
+
+  it("still leaves the Lokasi Mitra that refused out when the link also names it", async () => {
+    const { setup, fixture, nomor } = await setelahTolak();
+
+    const layar = await layarPilihMakam({ kota: "Kota Jakarta Timur", lokasiId: fixture.lokasiMitra.id, jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+
+    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Sawah Indah"]);
+  });
+
+  it("a dari that names no Tolak of this family gives no banner, no exclusion and no error", async () => {
+    const { setup, fixture, nomor, tetangga } = await setelahTolak();
+
+    // A number nobody has, the number of another family's order, and a visitor with no session at all.
+    for (const params of [
+      { dari: "MKM-2026-999999", pemesan: fixture.pemesan },
+      { dari: nomor, pemesan: tetangga },
+      { dari: nomor, pemesan: null },
+    ]) {
+      const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "", ...params }, modul(setup));
+
+      expect(layar.pemesanUlang).toBeNull();
+      expect(layar.dari).toBeNull();
+      expect(layar.grup.map((satu) => satu.lokasi.name)).toContain("Makam Wakaf Al-Ikhlas");
+    }
   });
 });

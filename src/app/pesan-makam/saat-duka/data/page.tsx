@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DataKirim } from "./data-kirim";
 import { kartuView } from "../tampilan";
+import { dariDari } from "../dari";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { satuNilai } from "@/lib/search-param";
 import { wibDateTimeLocal } from "@/lib/time/jakarta";
@@ -26,7 +27,7 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
   // A rebook carries the declined order's number, and with it the family's own
   // data: a family that has just been turned away does not type the same death
   // twice (spec, Public site, "After a Tolak"; story 32).
-  const pemesanUlang = dari && actor ? await pemesanan.rebook(satuNilai(dari), { accountId: actor.accountId }) : null;
+  const pemesanUlang = dari && actor ? await pemesanan.rebook(dariDari(satuNilai(dari)), { accountId: actor.accountId }) : null;
 
   // The one card is priced again by the module, so the total a family reads on
   // this screen is the one its order will carry. A URL without both ids names no
