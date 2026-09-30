@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Where an orchestration session's tokens went, and why, from the session transcripts.
+
+    python3 scripts/agents/usage-report.py [SESSION_DIR]
+
+SESSION_DIR defaults to the newest ~/.claude/projects/*/<session-id>/ (the folder next to
+<session-id>.jsonl, holding subagents/). Prints:
+
+  1. cost in "units" for the orchestrator and the subagents, split by agent kind and by kind of
+     token. units = cache-read * 0.1 + cache-write * (1.25 for a 5-minute cache entry, 2 for a
+     1-hour one, read from each call's own `cache_creation` tags) + output * 5 (published price
+     ratios; a subscription quota may weigh differently);
+  2. the median first-call prompt per agent type and model (the fixed prompt);
+  3. the cache-miss evidence: the miss rate of an ordinary tool-loop call and of a resume turn
+     by the silent gap since the agent's previous call (a miss = a call with more than 100k
+     tokens of context of which over 30% was re-written instead of read);
+  4. the simulated saving if every agent's context were reset once it passes a cap.
+
+Subagent `output_tokens` are under-recorded by the harness (a few tokens per call): the output
+is estimated here from the text the agent wrote (bytes / 3.5) when the record is implausible.
+See docs/agents/orchestration.md, "Token discipline".
+"""
+import collections, datetime, glob, json, os, statistics, sys
+
+W_READ, W_5M, W_1H, W_OUT = 0.1, 1.25, 2.0, 5.0
+
+
+def ts(s):
+    return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def load(path):
+    """One record per distinct assistant message: timestamp, usage, output bytes, resume flag."""
+    msgs, order, resume, seen_any = {}, [], False, False
+    for line in open(path):
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        t = d.get("type")
+        if t == "user":
+            c = d.get("message", {}).get("content")
+            is_text = isinstance(c, str) or (
+                isinstance(c, list)
+                and any(b.get("type") == "text" for b in c)
+                and not any(b.get("type") == "tool_result" for b in c)
+            )
+            if is_text and seen_any:
+                resume = True
+        elif t == "assistant":
+            m = d.get("message", {})
+            mid = m.get("id")
+            if not mid:
+                continue
+            size = 0
+            for b in m.get("content", []) or []:
+                ty = b.get("type")
+                if ty == "text":
+                    size += len(b.get("text", ""))
+                elif ty == "tool_use":
+                    size += len(json.dumps(b.get("input", {})))
+            if mid not in msgs:
+                msgs[mid] = {"ts": d["timestamp"], "u": m.get("usage"), "bytes": 0, "resume": resume}
+                order.append(mid)
+                resume = False
+                seen_any = True
+            msgs[mid]["bytes"] += size
+            if m.get("usage"):
+                msgs[mid]["u"] = m["usage"]
+    return [msgs[i] for i in order if msgs[i]["u"]]
+
+
+def ctx(u):
+    return u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+
+
+def write_weight(u):
+    cc = u.get("cache_creation") or {}
+    if cc.get("ephemeral_5m_input_tokens", 0) and not cc.get("ephemeral_1h_input_tokens", 0):
+        return W_5M
+    return W_1H
+
+
+def write_units(u):
+    cc = u.get("cache_creation") or {}
+    if cc:
+        return cc.get("ephemeral_1h_input_tokens", 0) * W_1H + cc.get("ephemeral_5m_input_tokens", 0) * W_5M
+    return u.get("cache_creation_input_tokens", 0) * W_1H
+
+
+def parts(calls, estimate_output):
+    read = sum(c["u"].get("cache_read_input_tokens", 0) for c in calls) * W_READ
+    write = sum(write_units(c["u"]) for c in calls)
+    recorded = sum(c["u"].get("output_tokens", 0) for c in calls)
+    estimated = sum(c["bytes"] for c in calls) / 3.5
+    out = (estimated if estimate_output and recorded < 50 * len(calls) else recorded) * W_OUT
+    return read, write, out
+
+
+def kind(desc):
+    d = (desc or "").lower()
+    if "review" in d:
+        return "reviewer"
+    if any(w in d for w in ("build", "fix", "port", "finish", "prototype", "uat", "seed", "merge", "record")):
+        return "builder"
+    return "other"
+
+
+def capped(calls, cap, handoff=25000):
+    """Cost of an agent whose context is reset (to its first prompt plus a handoff) once it passes `cap`."""
+    cs = [ctx(c["u"]) for c in calls]
+    w = write_weight(calls[0]["u"])
+    base = cur = prev = cs[0]
+    eq = base * (W_READ + w)
+    for c in cs[1:]:
+        inc = max(0, c - prev)
+        prev = c
+        cur += inc
+        eq += w * inc
+        if cur > cap:
+            cur = base + handoff
+            eq += w * handoff
+        eq += W_READ * cur
+    return eq
+
+
+def miss_tables(agents):
+    edges = [("<5 min", 0, 5), ("5-10 min", 5, 10), (">=10 min", 10, 1e9)]
+    tables = {False: collections.defaultdict(lambda: [0, 0]), True: collections.defaultdict(lambda: [0, 0])}
+    for calls in agents:
+        prev = None
+        for c in calls:
+            gap = (ts(c["ts"]) - ts(prev)).total_seconds() / 60 if prev else None
+            prev = c["ts"]
+            x = ctx(c["u"])
+            if gap is None or x <= 100000:
+                continue
+            miss = c["u"].get("cache_creation_input_tokens", 0) > 0.3 * x
+            for name, lo, hi in edges:
+                if lo <= gap < hi:
+                    tables[c["resume"]][name][0] += 1
+                    tables[c["resume"]][name][1] += miss
+    return tables[False], tables[True], [e[0] for e in edges]
+
+
+def main():
+    root = sys.argv[1] if len(sys.argv) > 1 else max(glob.glob(os.path.expanduser("~/.claude/projects/*/*/")), key=os.path.getmtime)
+    root = root.rstrip("/")
+    main_calls = load(root + ".jsonl") if os.path.exists(root + ".jsonl") else []
+    subs = []
+    for f in glob.glob(root + "/subagents/agent-*.jsonl"):
+        calls = load(f)
+        if not calls:
+            continue
+        try:
+            meta = json.load(open(f[:-6] + ".meta.json"))
+        except (OSError, ValueError):
+            meta = {}
+        subs.append((kind(meta.get("description")), meta.get("agentType"), meta.get("model"), calls))
+
+    mr, mw, mo = parts(main_calls, False)
+    sr = sw = so = 0.0
+    for _, _, _, calls in subs:
+        r, w, o = parts(calls, True)
+        sr, sw, so = sr + r, sw + w, so + o
+    tot = (mr + mw + mo + sr + sw + so) or 1
+    print(f"orchestrator: {len(main_calls)} calls, {(mr + mw + mo) / 1e6:.1f}M units ({(mr + mw + mo) / tot * 100:.0f}%)")
+    print(f"subagents:    {len(subs)} agents, {sum(len(c) for *_, c in subs)} calls, {(sr + sw + so) / 1e6:.1f}M units ({(sr + sw + so) / tot * 100:.0f}%)")
+    print(f"by kind of token (all): cache reads {(mr + sr) / tot * 100:.0f}%, cache writes {(mw + sw) / tot * 100:.0f}%, output {(mo + so) / tot * 100:.0f}% (subagent output estimated)")
+    sub_tot = (sr + sw + so) or 1
+    by = collections.defaultdict(list)
+    for k, _, _, calls in subs:
+        by[k].append(calls)
+    for k, v in sorted(by.items(), key=lambda kv: -sum(sum(parts(c, True)) for c in kv[1])):
+        u = sum(sum(parts(c, True)) for c in v)
+        print(
+            f"  {k:9s} n={len(v):3d} avg calls={statistics.mean(len(c) for c in v):5.1f} "
+            f"avg final ctx={int(statistics.mean(ctx(c[-1]['u']) for c in v)):7d} units={u / 1e6:6.1f}M ({u / sub_tot * 100:.0f}% of subagents)"
+        )
+    pre = sum(ctx(c[0]["u"]) * (len(c) * W_READ + write_weight(c[0]["u"])) for *_, c in subs)
+    if main_calls:
+        pre += ctx(main_calls[0]["u"]) * (len(main_calls) * W_READ + write_weight(main_calls[0]["u"]))
+    print(f"fixed prompt (first-call prompt, re-read on every call, plus its first write): {pre / tot * 100:.0f}% of the total")
+
+    print("\nfirst-call prompt by agent type and model (tokens, median):")
+    g = collections.defaultdict(list)
+    for _, at, m, calls in subs:
+        g[(at, m)].append(ctx(calls[0]["u"]))
+    for k, v in sorted(g.items(), key=lambda kv: str(kv[0])):
+        print(f"  {str(k[0]):16s} {str(k[1]):7s} n={len(v):3d} median={int(statistics.median(v))}")
+
+    ordinary, resumed, names = miss_tables([c for *_, c in subs])
+    print("\ncache misses (calls with >100k context, >30% of it re-written), by silent gap since the agent's previous call:")
+    for label, table in (("ordinary tool-loop calls", ordinary), ("resume turns (a new text message)", resumed)):
+        print(f"  {label}: " + ", ".join(f"{n}: {table[n][1]}/{table[n][0]}" for n in names))
+    print("  (an agent's cache entry lives 5 minutes: a silent gap of 5 minutes or more, a long build or test or an idle wait before a resume, re-writes the whole context)")
+
+    if subs:
+        base = sum(capped(c, 10**9) for *_, c in subs)
+        for cap in (180000, 250000, 350000):
+            print(f"simulated saving if every agent reset at {cap // 1000}k tokens: {(1 - sum(capped(c, cap) for *_, c in subs) / base) * 100:.0f}% of subagent cost (optimistic)")
+
+
+if __name__ == "__main__":
+    main()

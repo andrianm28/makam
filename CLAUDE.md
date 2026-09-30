@@ -13,3 +13,7 @@ Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, 
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Orchestrator
+
+The top-level session that dispatches agents reads `docs/agents/orchestration.md` once at the start (merge procedure, review procedure, token discipline). Builders and reviewers do not need it: `AGENTS.md` carries their rules.
