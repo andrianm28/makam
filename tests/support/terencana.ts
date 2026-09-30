@@ -15,6 +15,8 @@ import { jenisMakamInput, publishedLokasiMitra, type PublishSetup } from "./publ
 
 export interface TerencanaOptions {
   name?: string;
+  /** A distinct Admin Lokasi contact number, for a second Lokasi Mitra with its own Akun. */
+  phoneNumberAdminLokasi?: string;
   /** The Jenis Makam's Harga Hak Pakai; 2.500.000 by default, so several Petak fit under the Rp 10.000.000 QRIS cap. */
   hargaHakPakai?: number;
   /** Whether this Lokasi Mitra allows tumpang, and tumpang on a released Petak (`tumpangOnReleasedPlots`); on by default. */
@@ -52,6 +54,7 @@ export interface TerencanaLokasi {
 export async function terencanaLokasi(setup: PublishSetup, admin: Actor, options: TerencanaOptions = {}): Promise<TerencanaLokasi> {
   const jenisMakamLain = jenisMakamInput("Reguler 2 × 1 m");
   const published = await publishedLokasiMitra(setup, admin, options.name, {
+    phoneNumberAdminLokasi: options.phoneNumberAdminLokasi,
     jenisMakam: { ...jenisMakamLain, tariff: { ...jenisMakamLain.tariff, hargaHakPakai: options.hargaHakPakai ?? 2_500_000 } },
   });
   const { lokasiMitra, adminLokasi, jenisMakam } = published;
