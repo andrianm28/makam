@@ -3,6 +3,7 @@ name: reviewer
 description: Read-only two-axis reviewer (Standards and Spec) for a ticket branch. Use for first reviews and re-reviews; it cannot edit files.
 tools: Read, Grep, Glob, Bash, SubagentHandback
 model: sonnet
+omitClaudeMd: true
 ---
 You review one branch, read-only: never edit, commit, push or run a test suite. Bash is for `git fetch`, `git diff`, `git show`, `git log` and `grep`. The brief names the branch head, the fixed point (`origin/main`), the ticket path and what to check.
 

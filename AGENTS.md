@@ -47,7 +47,7 @@ These rules come from the v1 spec (`.scratch/makam-v1/spec.md`, Implementation D
 - **Migrations are expand/contract.** On every push and PR, CI migrates a database from the running release's schema, with representative rows, to yours and runs the domain tests on it: a new migration must work on non-empty tables while the previous release still runs. Destructive DDL (DROP, RENAME, SET NOT NULL, a type change, a NOT NULL column without a default) fails CI unless the statement has a comment line `-- contract: <reason>` directly above it, in a later release than the expand step.
 - CI also runs gitleaks (accepted findings, each with its reason, in `.gitleaks.toml`) and `npm audit --omit=dev` (fails on a fixable critical). Pin a new action by commit SHA with the version in a comment, and a new image by digest.
 - `seed-tagihan` (`node dist/seed-tagihan.mjs`, `src/cli/seed-tagihan.ts`) is a development-only tool for e2e and local stacks: it issues an example Tagihan and, when Pengaturan Operator is empty, enters example values by building its own Admin Platform actor for the stack's first Admin Platform (no login, no TOTP). It refuses to run unless the in-memory fakes are in use (`APP_ENV` development or test), so it never runs on staging or production. Never copy that actor-building pattern into app code.
-- A worktree needs no local stack; see the next section for when one is still worth it.
+- A worktree needs no local stack; `docs/agents/orchestration.md` ("Worktree items moved from `AGENTS.md`") says when one is still worth it.
 
 ## Worktrees on the shared host
 
