@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { PilihMakam } from "./pilih-makam";
 import { layarPilihMakam } from "./daftar";
+import { dariDari } from "./dari";
 import { grupView } from "./tampilan";
 import { authorize, pemesananResource } from "@/domain/identity";
 import { kartuAwal } from "@/domain/pemesanan";
@@ -29,8 +29,8 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
       kota: satuNilai(kota),
       lokasiId: satuNilai(lokasiId),
       jenis: satuNilai(jenis),
-      dari: satuNilai(dari),
-      pemesan: await pemesanDari(satuNilai(dari)),
+      dari: dariDari(satuNilai(dari)),
+      pemesan: await pemesanDari(dariDari(satuNilai(dari))),
     }),
     operatorSettings.current(),
   ]);
@@ -72,14 +72,13 @@ function kembaliKe(lokasiId: string | null, dari: string | null): string {
 /**
  * Who the `dari` link's family is. The prefilled data is a phone number, an email
  * and a dead relative's name, so it is read as the signed-in Akun's own order and
- * nobody else's, the same rule as the order page. A visitor with no session is
- * sent to Masuk: the Kode Masuk that placed the order is the one that signs them
- * in, and their own order carries the link again. Another Akun's number is no
- * family, and the list opens plainly with no banner.
+ * nobody else's, the same rule as the order page. A visitor with no session, or
+ * another Akun's number, is no family: the list opens plainly with no banner.
  */
 async function pemesanDari(dari: string): Promise<{ accountId: string } | null> {
   if (!dari) return null;
   const actor = await currentActor();
-  if (!actor) redirect("/masuk");
+  // No session is no family: the plain list, no banner, no redirect and no return URL.
+  if (!actor) return null;
   return authorize(actor, "pemesanan.lihat", pemesananResource(actor.accountId)).allowed ? { accountId: actor.accountId } : null;
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DataTpu, type OpsiDokumen } from "./data-tpu";
 import { tpuKartuView } from "../tampilan";
+import { dariDari } from "../dari";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { satuNilai } from "@/lib/search-param";
 import { serverRuntime } from "@/server/runtime";
@@ -30,7 +31,7 @@ export default async function DataTpuPage({ searchParams }: PageProps<"/pesan-ma
   // A family turned away by a Lokasi Mitra who chooses a TPU instead keeps the data
   // they already gave (spec, Public site, "After a Tolak"): the same read as the
   // Lokasi Mitra form's, of that family's own declined order and nobody else's.
-  const pemesanUlang = dari && actor ? await pemesanan.rebook(satuNilai(dari), { accountId: actor.accountId }) : null;
+  const pemesanUlang = dari && actor ? await pemesanan.rebook(dariDari(satuNilai(dari)), { accountId: actor.accountId }) : null;
 
   // The card is priced again by the module, so the total a family reads here is
   // the one its order will carry. A URL without an id names no TPU at all.
