@@ -1,6 +1,6 @@
 # A new Pemesanan Terencana raises a Peringatan Staf to the Admin Lokasi
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: CONTEXT.md, Peringatan Staf; spec.md, Work Queues (Konfirmasi Terencana stays Lainnya)
 
@@ -15,8 +15,8 @@ Today `terencanaDiajukan` (`src/composition/pemesanan.ts`) is a no-op, so an Adm
 - [x] It is sent at any hour.
 - [x] Confirming or declining the order sends no second alert.
 - [x] An order whose alert email fails is still placed.
-- [ ] Konfirmasi Terencana stays in the Lainnya tier; no re-alert, no escalation.
-- [ ] Domain tests run green on a real Postgres (not run by the builder: no database in the sandbox; typecheck and lint pass).
+- [x] Konfirmasi Terencana stays in the Lainnya tier; no re-alert, no escalation. (No queue code touched; the "not repeated" test counts four alert rows for two orders across a confirm and a decline.)
+- [x] Domain tests run green on a real Postgres (run by the orchestrator on the shared Postgres; see Comments).
 
 ## Comments
 
@@ -25,3 +25,4 @@ Today `terencanaDiajukan` (`src/composition/pemesanan.ts`) is a no-op, so an Adm
 - 2026-09-30 — Builder, review fixes: test 1 retitled to what it proves; added a test with a Kontak Siaga who is a different Admin Lokasi (both alerted once, a non-staff account none); the any-hour test now sends on a Sunday 03:00 WIB, outside Jam Operasional. Tests still unrun by the builder.
 - 2026-09-30 — Builder: fixed two test-fixture faults found in the orchestrator's run (the Kontak Siaga has no Perangkat Push so its alert is one email; the second Lokasi's login waits out the Kode Masuk resend cooldown). No Docker/Postgres access here, so unrun by me.
 - 2026-09-30 — Builder: the 'another Lokasi' test shared one Admin Lokasi Akun with the first Lokasi (same default contact number); `phoneNumberAdminLokasi` is now threaded through `terencanaLokasi` and `readyToPublish` (default unchanged) and the test asserts the two accounts differ.
+- 2026-09-30 — Merged to `main` (branch at a7d6396, on top of main 9949c4d; no migration). Two-axis review (one reviewer, both axes): no hard violation. Standards: `penerimaOf` exported from `saat-duka.ts` and reused by `terencana.ts` is acceptable (same-module sibling, no table touched); a failed send cannot fail the order (as for Saat Duka: sent after the transaction returned); the new kind is in every place that lists alert kinds; wording carries only the Lokasi, the Nomor Pemesanan and the plot count in the push. Spec: two weak tests — the Kontak Siaga recipient was never tested distinctly (the fixture made the Admin Lokasi the Kontak Siaga) and the 03:00 test could only pass. The builder's sandbox had no database, so its tests had never run; the orchestrator ran them on the shared Postgres: two failed for fixture reasons (an expectation of 2 rows for a Kontak Siaga who has no Perangkat Push, so exactly `["email"]`; the Kode Masuk resend cooldown), then one more (the "second Lokasi" shared the first one's Admin Lokasi account through the fixture's default phone number, so it proved nothing) — fixed with an optional `phoneNumberAdminLokasi` through `terencanaLokasi` and `readyToPublish` and an assertion that the two accounts differ. Owner decision (UAT-demo planning): Terencana raises a Peringatan Staf like Saat Duka. Follow-up: ticket 96 (direct alerts are one-shot). Unblocks the UAT demo of the Terencana journey.
