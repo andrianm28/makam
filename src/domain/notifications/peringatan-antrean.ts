@@ -12,11 +12,18 @@
  * still there to send. A sent row is marked in the same transaction as its send, so
  * a row is sent once unless the process dies between the send and that commit
  * (then once more: a Peringatan Staf twice beats none).
+ *
+ * A send whose email or push failed is tried again (ticket 91), by the family
+ * messages' own policy (`MAKS_PERCOBAAN`, `tundaUlangBerikutnya`: 4 sends, 15 min,
+ * 1 h and 4 h apart). Each attempt is logged per channel; a channel that went
+ * through is never sent again; after the last attempt the alert gives up and is
+ * not escalated (spec: failed staff alerts stop at web push, email and the Antrean).
  */
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
-import type { StaffAlert, StaffAlertKind, StaffAlertResult } from "./index";
+import { MAKS_PERCOBAAN, tundaUlangBerikutnya } from "./acara";
+import type { StaffAlert, StaffAlertKind, StaffAlertLewati, StaffAlertResult } from "./index";
 import { notificationsPeringatanAntrean } from "./schema";
 
 export const tahapPeringatanAntrean = ["baru", "eskalasi_30", "eskalasi_90", "penugasan_tpu"] as const;
@@ -96,39 +103,65 @@ export async function antrekanPeringatanAntrean(db: Database, clock: Clock, inpu
 
 /**
  * The worker's send tick: every queued Peringatan Staf about the Antrean not yet
- * sent goes out through `kirim` (Notifications' own `sendStaffAlert`, which logs
- * each channel). Rows are taken `FOR UPDATE SKIP LOCKED`, so two workers never send
- * the same row. Idempotent: a sent row is never picked again.
+ * done and due goes out through `kirim` (Notifications' own staff-alert send, which
+ * logs each channel it tries). Rows are taken `FOR UPDATE SKIP LOCKED`, so two
+ * workers never send the same row. Idempotent: a done or given-up row is never
+ * picked again, and a failed one waits for its backoff, so a second tick in the
+ * same minute sends nothing.
  */
 export async function kirimPeringatanAntreanTick(
   db: Database,
   clock: Clock,
-  kirim: (alert: StaffAlert) => Promise<StaffAlertResult>,
+  kirim: (alert: StaffAlert, lewati: StaffAlertLewati) => Promise<{ result: StaffAlertResult; pushDicoba: number }>,
 ): Promise<{ dikirim: number }> {
   return db.transaction(async (tx) => {
+    const now = clock.now();
     const antre = await tx
       .select()
       .from(notificationsPeringatanAntrean)
-      .where(isNull(notificationsPeringatanAntrean.sentAt))
+      .where(
+        and(
+          isNull(notificationsPeringatanAntrean.sentAt),
+          isNull(notificationsPeringatanAntrean.gaveUpAt),
+          or(isNull(notificationsPeringatanAntrean.nextAttemptAt), lte(notificationsPeringatanAntrean.nextAttemptAt, now)),
+        ),
+      )
       .orderBy(asc(notificationsPeringatanAntrean.createdAt), asc(notificationsPeringatanAntrean.id))
       .for("update", { skipLocked: true });
     let dikirim = 0;
     for (const item of antre) {
       const tahap = item.tahap as TahapPeringatanAntrean;
       const text = isi[tahap];
-      const result = await kirim({
-        to: { accountId: item.accountId },
-        kind: text.kind,
-        email: {
-          subject: `${text.awalan}: ${item.label}`,
-          text: [text.email, `${item.label}: ${item.subjectLabel}.`, text.penutup].join("\n"),
+      const attempts = (item.attempts ?? 0) + 1;
+      const { result, pushDicoba } = await kirim(
+        {
+          to: { accountId: item.accountId },
+          kind: text.kind,
+          email: {
+            subject: `${text.awalan}: ${item.label}`,
+            text: [text.email, `${item.label}: ${item.subjectLabel}.`, text.penutup].join("\n"),
+          },
+          // A push shows on the lock screen: the row's kind only, never who it is about.
+          push: { title: `${text.awalan}: ${item.label}`, body: text.badan, url: item.href },
         },
-        // A push shows on the lock screen: the row's kind only, never who it is about.
-        push: { title: `${text.awalan}: ${item.label}`, body: text.badan, url: item.href },
-      });
+        { lonceng: attempts > 1, email: item.emailDoneAt !== null, push: item.pushDoneAt !== null },
+      );
+      // An Akun that is no longer staff has nothing to send and nothing to retry.
+      const emailSelesai = item.emailDoneAt ?? (!result.ok || result.email !== "gagal" ? now : null);
+      // No Perangkat Push to try is nothing to retry either.
+      const pushSelesai = item.pushDoneAt ?? (!result.ok || pushDicoba === 0 || result.push.delivered > 0 ? now : null);
+      const selesai = emailSelesai !== null && pushSelesai !== null;
+      const menyerah = !selesai && attempts >= MAKS_PERCOBAAN;
       await tx
         .update(notificationsPeringatanAntrean)
-        .set({ sentAt: clock.now() })
+        .set({
+          attempts,
+          emailDoneAt: emailSelesai,
+          pushDoneAt: pushSelesai,
+          sentAt: selesai ? now : null,
+          gaveUpAt: menyerah ? now : null,
+          nextAttemptAt: selesai || menyerah ? null : tundaUlangBerikutnya(attempts, now),
+        })
         .where(and(eq(notificationsPeringatanAntrean.id, item.id), isNull(notificationsPeringatanAntrean.sentAt)));
       if (result.ok) dikirim += 1;
     }

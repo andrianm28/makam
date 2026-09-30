@@ -259,6 +259,13 @@ export const staffAlertKinds = [
 ] as const;
 export type StaffAlertKind = (typeof staffAlertKinds)[number];
 
+/** What an earlier attempt of a queued Peringatan Staf already did, so a retry skips it. */
+export interface StaffAlertLewati {
+  lonceng?: boolean;
+  email?: boolean;
+  push?: boolean;
+}
+
 export interface StaffAlert {
   /** The Akun Staf; its Email Terverifikasi is read from the Akun, never taken from the caller. */
   to: { accountId: string };
@@ -313,8 +320,10 @@ export interface Notifications {
   /**
    * Sends a Peringatan Staf: by push to each Perangkat Push of the Akun and by
    * email to its Email Terverifikasi (ADR 0004). A Perangkat Push whose browser
-   * dropped it is removed. Each channel is logged in the message log; a
-   * failed staff alert is never retried nor escalated to a call row.
+   * dropped it is removed. Each channel is logged in the message log. One send,
+   * never retried here: an alert queued for the worker (`peringatanAntreanTier1`,
+   * `peringatanPenugasanTpu`) is retried by its tick; a failed one is never
+   * escalated to a call row.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
   /**
@@ -507,6 +516,115 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
   };
   const countDevices = async (tx: Database, accountId: string) => (await devicesOf(tx, accountId)).length;
 
+  /**
+   * One send of a Peringatan Staf. `lewati` names what an earlier attempt of a queued
+   * alert already did (the bell entry, a channel that went through), so a retry only
+   * repeats what failed. `pushDicoba` is how many Perangkat Push were tried.
+   */
+  async function kirimPeringatanStaf(
+    alert: StaffAlert,
+    lewati: StaffAlertLewati,
+  ): Promise<{ result: StaffAlertResult; pushDicoba: number }> {
+    for (const text of [alert.push.title, alert.push.body]) {
+      if (!lockScreenSafe(text)) {
+        throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
+      }
+    }
+    const url = staffPagePath(alert.push.url);
+    if (!url) throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
+
+    const recipient = await deps.identity.staffRecipient(alert.to.accountId);
+    if (!recipient) {
+      await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
+      return { result: { ok: false, reason: "bukan_akun_staf" }, pushDicoba: 0 };
+    }
+
+    // Kept for the bell regardless of how the email/push sends below turn out; a retry never lists it twice.
+    if (!lewati.lonceng) {
+      await db.insert(notificationsStaffAlert).values({
+        accountId: recipient.accountId,
+        title: alert.push.title,
+        body: alert.push.body,
+        url,
+        sentAt: deps.clock.now(),
+      });
+    }
+
+    let email: "terkirim" | "gagal" | "tanpa_email" = recipient.email ? "terkirim" : "tanpa_email";
+    if (recipient.email && !lewati.email) {
+      try {
+        await deps.email.send({ to: recipient.email, subject: alert.email.subject, text: alert.email.text });
+      } catch (error) {
+        email = "gagal";
+        deps.reportError(scrubbedError(error), {
+          tags: { module: "notifications", channel: "email", template: alert.kind },
+        });
+      }
+    }
+
+    const push = { delivered: 0, removed: 0 };
+    // A Perangkat Push whose session ended (Keluar, a new role grant, expiry) is gone.
+    await db
+      .delete(notificationsPushDevice)
+      .where(
+        and(
+          eq(notificationsPushDevice.accountId, recipient.accountId),
+          recipient.liveSessionIds.length > 0
+            ? notInArray(notificationsPushDevice.sessionId, recipient.liveSessionIds)
+            : undefined,
+        ),
+      );
+    let tried = 0;
+    for (const device of lewati.push ? [] : await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
+      tried += 1;
+      const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
+      const result = await deps.webPush
+        .send({ subscription, notification: { ...alert.push, url } })
+        .catch((error: unknown) => {
+          // Not delivered this time; the Perangkat Push is kept for the next Peringatan Staf.
+          deps.reportError(scrubbedError(error), {
+            tags: { module: "notifications", channel: "push", template: alert.kind },
+          });
+          return null;
+        });
+      if (result?.delivered) push.delivered++;
+      if (result?.subscriptionGone) {
+        await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
+        push.removed++;
+      }
+    }
+    // The staff alert's own log: one row per channel attempted, so each retry of a
+    // queued alert adds its own rows. A failed staff alert is never escalated to a call row.
+    const now = deps.clock.now();
+    if (!lewati.email) {
+      await catatPesanStaf(db, {
+        template: alert.kind,
+        channel: "email",
+        akunStafId: recipient.accountId,
+        email: recipient.email,
+        subject: alert.email.subject,
+        body: alert.email.text,
+        status: email,
+        sentAt: recipient.email && email === "terkirim" ? now : null,
+        now,
+      });
+    }
+    if (tried > 0) {
+      await catatPesanStaf(db, {
+        template: alert.kind,
+        channel: "push",
+        akunStafId: recipient.accountId,
+        email: null,
+        subject: alert.push.title,
+        body: alert.push.body,
+        status: push.delivered > 0 ? "terkirim" : "gagal",
+        sentAt: push.delivered > 0 ? now : null,
+        now,
+      });
+    }
+    return { result: { ok: true, email, push }, pushDicoba: tried };
+  }
+
   const notifications: Notifications = {
     async enablePush(by, input) {
       const writer = pushWriter(by);
@@ -586,100 +704,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async sendStaffAlert(alert) {
-      for (const text of [alert.push.title, alert.push.body]) {
-        if (!lockScreenSafe(text)) {
-          throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
-        }
-      }
-      const url = staffPagePath(alert.push.url);
-      if (!url) throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
-
-      const recipient = await deps.identity.staffRecipient(alert.to.accountId);
-      if (!recipient) {
-        await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
-        return { ok: false, reason: "bukan_akun_staf" };
-      }
-
-      // Kept for the bell regardless of how the email/push sends below turn out.
-      await db.insert(notificationsStaffAlert).values({
-        accountId: recipient.accountId,
-        title: alert.push.title,
-        body: alert.push.body,
-        url,
-        sentAt: deps.clock.now(),
-      });
-
-      let email: "terkirim" | "gagal" | "tanpa_email" = recipient.email ? "terkirim" : "tanpa_email";
-      if (recipient.email) {
-        try {
-          await deps.email.send({ to: recipient.email, subject: alert.email.subject, text: alert.email.text });
-        } catch (error) {
-          email = "gagal";
-          deps.reportError(scrubbedError(error), {
-            tags: { module: "notifications", channel: "email", template: alert.kind },
-          });
-        }
-      }
-
-      const push = { delivered: 0, removed: 0 };
-      // A Perangkat Push whose session ended (Keluar, a new role grant, expiry) is gone.
-      await db
-        .delete(notificationsPushDevice)
-        .where(
-          and(
-            eq(notificationsPushDevice.accountId, recipient.accountId),
-            recipient.liveSessionIds.length > 0
-              ? notInArray(notificationsPushDevice.sessionId, recipient.liveSessionIds)
-              : undefined,
-          ),
-        );
-      let tried = 0;
-      for (const device of await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
-        tried += 1;
-        const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
-        const result = await deps.webPush
-          .send({ subscription, notification: { ...alert.push, url } })
-          .catch((error: unknown) => {
-            // Not delivered this time; the Perangkat Push is kept for the next Peringatan Staf.
-            deps.reportError(scrubbedError(error), {
-              tags: { module: "notifications", channel: "push", template: alert.kind },
-            });
-            return null;
-          });
-        if (result?.delivered) push.delivered++;
-        if (result?.subscriptionGone) {
-          await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
-          push.removed++;
-        }
-      }
-      // The staff alert's own log: one row per channel attempted. A failed
-      // staff alert is never retried nor escalated to a call row.
-      const now = deps.clock.now();
-      await catatPesanStaf(db, {
-        template: alert.kind,
-        channel: "email",
-        akunStafId: recipient.accountId,
-        email: recipient.email,
-        subject: alert.email.subject,
-        body: alert.email.text,
-        status: email,
-        sentAt: recipient.email && email === "terkirim" ? now : null,
-        now,
-      });
-      if (tried > 0) {
-        await catatPesanStaf(db, {
-          template: alert.kind,
-          channel: "push",
-          akunStafId: recipient.accountId,
-          email: null,
-          subject: alert.push.title,
-          body: alert.push.body,
-          status: push.delivered > 0 ? "terkirim" : "gagal",
-          sentAt: push.delivered > 0 ? now : null,
-          now,
-        });
-      }
-      return { ok: true, email, push };
+      return (await kirimPeringatanStaf(alert, {})).result;
     },
 
     async peringatanAntreanTier1(input, within) {
@@ -695,7 +720,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async kirimPeringatanAntreanTick() {
-      return kirimPeringatanAntreanTick(db, deps.clock, (alert) => notifications.sendStaffAlert(alert));
+      return kirimPeringatanAntreanTick(db, deps.clock, kirimPeringatanStaf);
     },
 
     async staffAlerts(by, options = {}) {
