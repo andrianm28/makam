@@ -45,7 +45,7 @@ export async function pencairanJatuhTempo(db: Database): Promise<BarisJatuhTempo
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.status, "jatuh_tempo"))
-    .orderBy(asc(pencairanItem.jatuhTempoAt))).filter((item) => item.tahanAlasan === null && item.jatuhTempoAt !== null);
+    .orderBy(asc(pencairanItem.jatuhTempoAt), asc(pencairanItem.dibuatPada), asc(pencairanItem.nomorPemesanan), asc(pencairanItem.tagihanPosisi), asc(pencairanItem.id))).filter((item) => item.tahanAlasan === null && item.jatuhTempoAt !== null);
   const rows = new Map<string, BarisJatuhTempo>();
   for (const item of items) {
     const key = keyOf(item);
@@ -121,7 +121,7 @@ export async function pencairanLokasi(db: Database, by: Actor, lokasiId: string)
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.lokasiId, lokasiId))
-    .orderBy(desc(pencairanItem.dibuatPada));
+    .orderBy(desc(pencairanItem.dibuatPada), asc(pencairanItem.id));
 
   // The Bukti first, so each order can be shown the Bukti that settled it.
   const buktiIds = (
@@ -228,7 +228,7 @@ export async function pencairanMitraJasa(db: Database, by: Actor): Promise<Penca
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.penerimaAkunId, by.accountId))
-    .orderBy(asc(pencairanItem.dibuatPada));
+    .orderBy(asc(pencairanItem.dibuatPada), asc(pencairanItem.id));
   const itemsTerbayar = await db
     .select({
       itemId: buktiPencairanItem.itemId,

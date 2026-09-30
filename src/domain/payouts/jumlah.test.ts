@@ -90,6 +90,29 @@ describe("what a Pencairan item is worth", () => {
     ]);
   });
 
+  it("items due at the same moment come back in the order's own line order, (ticket 94)", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const order = await orderDue(setup);
+    // Every reduction rewrites the Hak Pakai row, so the database no longer
+    // holds the two items in the order they were made: only a tiebreaker on
+    // the ordering keeps the Hak Pakai first when both are due at once.
+    for (let i = 0; i < 3; i += 1) {
+      const dikurangi = await db.transaction((tx) =>
+        setup.payouts.kurangiPencairanPesanan(tx, {
+          nomorPemesanan: order.nomor,
+          lokasiId: order.lokasiMitra.id,
+          amount: 1_000,
+          alasan: "porsi_pemegang_saham",
+          catatan: `Bearing ke-${i + 1}`,
+          oleh: order.admin.accountId,
+        }),
+      );
+      expect(dikurangi).toMatchObject({ ok: true });
+      const [run] = await setup.payouts.jalankanPencairan(order.admin);
+      expect(run?.items.map((item) => item.kind)).toEqual(["harga_hak_pakai", "biaya_pemakaman"]);
+    }
+  });
+
   it("is lowered by a Harga Khusus partner share entered before the Tagihan was paid: applied when the item is created, oldest item first (ticket 30)", async () => {
     const setup = payoutsOnTestDatabase(db);
     const fixture = await pesananSaatDukaSiap(setup);
