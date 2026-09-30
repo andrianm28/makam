@@ -123,7 +123,8 @@ def write_units(u):
 
 
 def parts(calls, estimate_output):
-    read = sum(c["u"].get("cache_read_input_tokens", 0) for c in calls) * W_READ
+    # fresh uncached input counts at 1 (negligible with Claude's cache, all of it without a cache)
+    read = sum(c["u"].get("cache_read_input_tokens", 0) * W_READ + c["u"].get("input_tokens", 0) for c in calls)
     write = sum(write_units(c["u"]) for c in calls)
     recorded = sum(c["u"].get("output_tokens", 0) for c in calls)
     estimated = sum(c["bytes"] for c in calls) / 3.5

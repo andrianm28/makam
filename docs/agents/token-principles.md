@@ -20,7 +20,7 @@ For an agent making `n` calls on a context that grows from `c0` to `cn`:
 where a **miss** is a call whose silent gap since the previous call reached `TTL`: the whole context is paid at `w` again instead of `r`. Three things follow, and they hold for any `r < w`:
 
 1. **The prompt every call re-reads is the largest lever** (here about 20% of the total): it is paid `n` times.
-2. **Cost per call grows with context, so total cost grows roughly with `n²`**: halving the length of an agent run saves more than half.
+2. **Cost per call grows with context, so total cost grows faster than the number of calls.** Measured on this session's 78 subagents with 20 or more calls, cost rises as calls^1.52 (R² 0.96), below the textbook 2 because a fixed prompt adds a linear part: halving a run saves about 65%, not 75%. The exponent is a property of the workload; re-fit it (section 3) instead of assuming 2.
 3. **A gap of `TTL` or more turns a cheap call into an expensive one.** Whether a longer cache lifetime is worth its higher write price is arithmetic on `r`, `w`, and the measured miss count, not a default.
 
 ## 2. Rules that hold whatever the model
@@ -41,8 +41,8 @@ Do this on the first real session with the new model, before trusting any percen
 
 1. Run `python3 scripts/agents/usage-report.py [SESSION_DIR] --profile <name>` (or pass `--read`, `--write`, `--write-long`, `--out`, `--ttl`). Built-in profiles: `anthropic` (default), `half-price-cache`, `no-cache`. The profile only reweights the units; the token counts, the first-call prompt sizes and which calls missed the cache are read from the transcript, so they are facts about that session.
 2. Read four things off it: the fixed-prompt share, the share of the cost in the longest agents, the miss count by silent gap, and the simulated saving of a context reset. If the fixed-prompt share is below ~5%, rule 1 is not worth more work; if misses are near zero, rule 3 is already satisfied.
-3. A provider whose transcripts lack cache-write tags (or have no cache) shows `writes` as all one weight and misses as zero: then the model is `r = w = 1` and only rules 1, 2, 4 and 7 (fewer and shorter calls) matter. The report says so; do not apply a cache-gap rule there.
-4. Before adopting any frontmatter or harness option (a turn limit, a cache lifetime, an omitted instruction file), probe it once in a fresh session against a control, like probe 2 did: a documented key is not evidence. Probe 2 found that a turn limit was not enforced.
+3. A provider with no cache has all its context in fresh input tokens, which the report counts at weight 1 (it is 0.001% of the context with Claude's cache, so this changed no Claude number). Then `r = w = 1`, there are no misses, and only rules 1, 2, 4 and 7 (fewer and shorter calls) matter: do not apply the cache-gap rule. This path is **not yet tested on a real non-Claude transcript**; the transcript field names of another harness may differ from the ones the script reads.
+4. Before adopting any frontmatter or harness option (a turn limit, a cache lifetime, an omitted instruction file), probe it once in a fresh session against a control, like probe 2 did: a documented key is not evidence. Probe 2 found that a turn limit was not enforced (one run, one model).
 5. Record the ratios and the date with the result. A saving computed on one session is an estimate for similar sessions, not a guarantee.
 
 ## 4. What stays harness-specific
