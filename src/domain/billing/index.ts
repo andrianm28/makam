@@ -61,6 +61,7 @@ import {
   type CatatPembayaranPerluDitinjauInput,
   type CatatPembayaranPerluDitinjauResult,
 } from "./perlu-ditinjau";
+import { laporanBilling, type LaporanBilling, type RentangWaktu } from "./laporan";
 import { nextDocumentNumber, nextNomorPemesanan, type DocumentType } from "./numbering";
 import { batalkanTagihan, type BatalkanTagihanAlasan, type BatalkanTagihanResult } from "./batalkan-tagihan";
 import {
@@ -120,6 +121,7 @@ export {
 } from "./shared";
 export type { BatalkanTagihanAlasan, BatalkanTagihanResult, PermintaanPengembalian } from "./batalkan-tagihan";
 export { TIDAK_TERTAGIH_HARI, type DeclareTidakTertagihResult, type PayAfterAnchored } from "./chasing";
+export { metodeBayarKinds, pesananKinds, type LaporanBilling, type MetodeBayarKind, type PesananKind, type RentangWaktu } from "./laporan";
 export type { BuktiPemesanan, IssueBuktiPemesananInput, IssueBuktiPemesananResult } from "./bukti-pemesanan";
 export type {
   CatatPembayaranLangsungInput,
@@ -310,6 +312,12 @@ export interface Billing {
    */
   declareTidakTertagih(tagihanId: string): Promise<DeclareTidakTertagihResult>;
   /**
+   * What the monthly Laporan reads of Billing for a half-open span of instants (ticket 33): orders placed by payment
+   * moment, money received by method, the Operator's fee lines on Tagihan paid in the span, and the Tagihan given up
+   * on. It authorises nobody: the Work Queues module checks the caller and cuts the span at the Asia/Jakarta month.
+   */
+  laporan(span: RentangWaktu): Promise<LaporanBilling>;
+  /**
    * Issues the one Bukti Pemesanan of a paid order (numbered BPM/…, in the Lokasi
    * Mitra's name, carrying no amounts). Taken `within` the transaction that
    * makes the Tagihan Lunas, so the document, its number and the order's own
@@ -425,6 +433,7 @@ export function createBilling(deps: BillingDeps): Billing {
     setOverdueAnchor: (tagihanId, burialRecordedAt) => setOverdueAnchor(deps, tagihanId, burialRecordedAt),
     payAfterAnchored: () => listPayAfterAnchored(deps.db),
     tagihanLewatJatuhTempo: () => listTagihanLewatJatuhTempo(deps.db),
+    laporan: (span) => laporanBilling(deps.db, span),
     declareTidakTertagih: (tagihanId) =>
       declareTidakTertagih({ db: deps.db, hasLoggedCall: deps.hasLoggedCall ?? (async () => false) }, tagihanId, deps.clock.now()),
     issueBuktiPemesanan: (input) => issueBuktiPemesanan(deps, input, deps.clock.now()),

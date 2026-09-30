@@ -1,4 +1,5 @@
 import {
+  ArrowUpRightIcon,
   BanknoteIcon,
   BellIcon,
   BriefcaseIcon,
@@ -8,6 +9,7 @@ import {
   ClockIcon,
   FileClockIcon,
   FileSearchIcon,
+  FileSpreadsheetIcon,
   FlowerIcon,
   GridIcon,
   InboxIcon,
@@ -89,6 +91,23 @@ export function staffMenu(role: StaffRole, scope: { lokasiId?: string } = {}): N
               href: `${AP}/tagihan`,
               icon: FileSearchIcon,
               description: "Cari Tagihan dari nomor Tagihan atau nomor pesanan: catat pembayaran manual, Harga Khusus, batalkan pembayaran langsung.",
+            },
+          ],
+        },
+        {
+          label: "Keuangan",
+          items: [
+            {
+              label: "Laporan",
+              href: `${AP}/laporan`,
+              icon: FileSpreadsheetIcon,
+              description: "Laporan bulanan: pesanan, Rp diterima, pendapatan Operator, Pencairan, pengembalian dana dan Tidak Tertagih; unduh CSV.",
+            },
+            {
+              label: "Transfer keluar",
+              href: `${AP}/transfer`,
+              icon: ArrowUpRightIcon,
+              description: "Daftar mingguan setiap Pencairan dan pengembalian dana yang sudah ditransfer, dengan nomor Bukti, penyetuju dan bukti transfernya.",
             },
           ],
         },

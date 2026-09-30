@@ -75,6 +75,38 @@ describe("declareTidakTertagih: Chasing's own guard", () => {
     expect(paid.ok).toBe(true);
   });
 
+  it("counts in the Laporan of the month it was declared, not the month it lapsed, and drops out again once it is paid (ticket 33)", async () => {
+    const setup = await billingWithOperatorSettings(db, { hasLoggedCall: async () => true });
+    const tagihan = await tagihanLewatJatuhTempo(setup, wib("2026-09-20 08:00"));
+    const bulan = (dari: string, sampai: string) => setup.billing.laporan({ dari: wib(dari), sampai: wib(sampai) });
+
+    // H+30 of 20 September is 20 Oktober; Admin Platform gives up on 2 November (WIB).
+    setup.clock.set(wib("2026-11-02 08:00"));
+    expect((await setup.billing.declareTidakTertagih(tagihan.id)).ok).toBe(true);
+
+    expect((await bulan("2026-11-01", "2026-12-01")).tidakTertagih).toEqual({ jumlah: 1, amount: 3_150_000 });
+    expect((await bulan("2026-10-01", "2026-11-01")).tidakTertagih).toEqual({ jumlah: 0, amount: 0 });
+
+    // It stays payable; once paid it is Lunas and no longer given up on.
+    expect((await setup.billing.recordPayment(tagihan.id, { method: { kind: "transfer_manual" }, reference: null })).ok).toBe(true);
+    expect((await bulan("2026-11-01", "2026-12-01")).tidakTertagih).toEqual({ jumlah: 0, amount: 0 });
+  });
+
+  it("is dated from H+30 of its overdue anchor in the Laporan when it was declared before the declaration date was kept (ticket 33)", async () => {
+    const setup = await billingWithOperatorSettings(db, { hasLoggedCall: async () => true });
+    const tagihan = await tagihanLewatJatuhTempo(setup, wib("2026-09-20 08:00"));
+    setup.clock.set(wib("2026-11-02 08:00"));
+    await setup.billing.declareTidakTertagih(tagihan.id);
+    // A row from the release before: declared, but with no declaration date on record.
+    await db.update(tagihanTable).set({ tidakTertagihAt: null }).where(eq(tagihanTable.id, tagihan.id));
+
+    const oktober = await setup.billing.laporan({ dari: wib("2026-10-01"), sampai: wib("2026-11-01") });
+    const november = await setup.billing.laporan({ dari: wib("2026-11-01"), sampai: wib("2026-12-01") });
+
+    expect(oktober.tidakTertagih.jumlah).toBe(1);
+    expect(november.tidakTertagih.jumlah).toBe(0);
+  });
+
   it("is idempotent: declaring an already Tidak Tertagih Tagihan again is a no-op that still succeeds", async () => {
     const setup = await billingWithOperatorSettings(db, { hasLoggedCall: async () => true });
     const anchor = wib("2026-10-01 08:00");

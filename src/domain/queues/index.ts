@@ -42,6 +42,12 @@ import {
   type MatikanBertugasInput,
   type MatikanBertugasResult,
 } from "./bertugas";
+import {
+  daftarTransferMingguan,
+  laporanBulanan,
+  type DaftarTransferResult,
+  type LaporanResult,
+} from "./laporan";
 import { peringatanTier1Tick, tier1BelumDiambil, type PeringatanDeps, type PeringatanTickResult } from "./peringatan";
 import {
   catatanInternalFor,
@@ -53,6 +59,20 @@ import {
 
 export { catatanInternalInputSchema, type CatatanInternal, type CatatanInternalInput, type TambahCatatanInternalResult } from "./catatan-internal";
 export type { AmbilRowResult, PengurusAmbil } from "./ambil";
+export {
+  barisLaporan,
+  bulanLaporanSchema,
+  laporanKeCsv,
+  seninMinggu,
+  tanggalMingguSchema,
+  type BarisLaporan,
+  type DaftarTransfer,
+  type DaftarTransferResult,
+  type Laporan,
+  type LaporanRefusal,
+  type LaporanResult,
+  type TransferKeluar,
+} from "./laporan";
 export {
   BERTUGAS_BERAKHIR_JAM_WIB,
   BERTUGAS_MAKSIMUM_JAM,
@@ -83,7 +103,7 @@ export interface QueuesModuleDeps {
   /** The Antrean's Tier 4 rows read every Tugas; its Tier 2 "Ambil surat pengantar" and Tier 3 "Setor Retribusi" rows read this module's own two reads. */
   fieldwork: Pick<Fieldwork, "allTugasLapangan" | "ambilSuratPengantarTerbuka" | "setorRetribusiTerbuka">;
   /** The Antrean's Tier 2 Pembayaran Perlu Ditinjau row reads Billing's own query. */
-  billing: Pick<Billing, "pembayaranPerluDitinjau" | "tagihanLewatJatuhTempo">;
+  billing: Pick<Billing, "pembayaranPerluDitinjau" | "tagihanLewatJatuhTempo" | "laporan">;
   /** The Antrean's Tier 2 Telepon Pemesan row reads the open call rows (ticket 20). */
   notifications: Pick<Notifications, "teleponPemesanTerbuka" | "teleponPemesanTercatat" | "pushDevices">;
   /** The confirmation rows read the Pemesanan module's own state (the Tier 1 late row, the Antrean Lokasi's confirmations and its "Catat Pemakaman" rows, plus the decline rows). */
@@ -104,13 +124,13 @@ export interface QueuesModuleDeps {
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
-  payouts: Pick<Payouts, "pencairanJatuhTempo">;
+  payouts: Pick<Payouts, "pencairanJatuhTempo" | "pencairanDibayar" | "transferKeluar">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
   pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
   /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
-  refunds: Pick<Refunds, "pengembalianJatuhTempo">;
+  refunds: Pick<Refunds, "pengembalianJatuhTempo" | "pengembalianDibayar" | "transferKeluar">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */
   identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
@@ -140,6 +160,10 @@ export interface Queues {
    * closes its own row.
    */
   antreanLokasi(by: Actor, lokasiId: string): Promise<AntreanLokasiAntrean>;
+  /** The monthly Laporan ("YYYY-MM", Asia/Jakarta month boundaries): orders, Rp collected, platform fees, Pencairan, refunds, Tidak Tertagih. Admin Platform only (ticket 33). */
+  laporanBulanan(by: Actor, bulan: string): Promise<LaporanResult>;
+  /** Every transfer that left the bank in the Monday-to-Sunday week a WIB date falls in, Pencairan and refunds, with approver and proof. Admin Platform only (ticket 33). */
+  daftarTransferMingguan(by: Actor, tanggal: string): Promise<DaftarTransferResult>;
   /** Any Admin Platform takes (Ambil) a row, replacing any earlier claim; logged in the Audit Log. */
   ambilRow(by: Actor, input: { type: string; subjectId: string }): Promise<AmbilRowResult>;
   /**
@@ -170,6 +194,8 @@ export function createQueues(deps: QueuesModuleDeps): Queues {
     antrean: (by) => antrean(deps, by),
     counters: (by) => antreanCounters(deps, by),
     antreanLokasi: (by, lokasiId) => antreanLokasi(deps, by, lokasiId),
+    laporanBulanan: (by, bulan) => laporanBulanan(deps, by, bulan),
+    daftarTransferMingguan: (by, tanggal) => daftarTransferMingguan(deps, by, tanggal),
     ambilRow: (by, input) => ambilRow(deps, by, input),
     ambilPengurus: (row) => ambilPengurus(deps, row),
     bertugas: (by) => bertugasStatus(deps, by),

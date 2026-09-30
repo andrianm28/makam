@@ -10,8 +10,31 @@ For Admin Platform: a monthly Laporan (orders, Rp collected, platform fees, Penc
 
 ## Acceptance criteria
 
-- [ ] The Laporan for a chosen month shows counts of orders by kind, Rp collected (by method), Biaya Layanan Platform / Biaya Pengurusan earned, Pencairan paid, refunds paid, and Tidak Tertagih totals, all in Asia/Jakarta month boundaries.
-- [ ] CSV export matches the on-screen numbers.
-- [ ] The weekly transfer list shows each outgoing transfer: date, recipient, amount, Bukti Pencairan / Bukti Pengembalian Dana number, approver, proof link.
-- [ ] Only Admin Platform can open either.
-- [ ] Tests: the Laporan's totals for a seeded month; CSV content; week boundaries.
+- [x] The Laporan for a chosen month shows counts of orders by kind, Rp collected (by method), Biaya Layanan Platform / Biaya Pengurusan earned, Pencairan paid, refunds paid, and Tidak Tertagih totals, all in Asia/Jakarta month boundaries.
+- [x] CSV export matches the on-screen numbers.
+- [x] The weekly transfer list shows each outgoing transfer: date, recipient, amount, Bukti Pencairan / Bukti Pengembalian Dana number, approver, proof link.
+- [x] Only Admin Platform can open either.
+- [x] Tests: the Laporan's totals for a seeded month; CSV content; week boundaries.
+
+## Comments
+
+- 2026-09-30 — **Built** by a builder session on `origin/main` 7af6d2d, branch `ticket-33-laporan-transfer`, test-first through public interfaces on real Postgres with the fake Clock.
+  - **Work Queues** (`src/domain/queues/laporan.ts`, the spec files the Laporan under module 14): `laporanBulanan(by, "YYYY-MM")` and `daftarTransferMingguan(by, anyWibDate)`, both guarded by the new action `laporan.lihat` (Admin Platform only), composing what each owner reports: **Billing** `laporan(span)` (orders placed by payment moment, Rp received by method, fee lines on Tagihan paid in the span, Tidak Tertagih), **Payouts** `pencairanDibayar` / `transferKeluar`, **Refunds** `pengembalianDibayar` / `transferKeluar` (each also refuses anyone but Admin Platform). `barisLaporan` is the one list of rows the page and `laporanKeCsv` both render, so the CSV cannot drift from the screen.
+  - **Pages**: `/staf/admin-platform/laporan` (month picker, "Unduh CSV"), `/staf/admin-platform/laporan/csv?bulan=` (route handler, actor + role checked through Work Queues), `/staf/admin-platform/transfer` (week picker); a new "Keuangan" group in the Admin Platform menu. No Server Action was needed (both pages only read).
+  - **Migration `0045_young_blade`** (expand only: one nullable column `tagihan.tidak_tertagih_at`, set by `declareTidakTertagih`; a row declared earlier is dated from H+30 of its overdue anchor).
+  - **Tests**: `src/domain/queues/laporan.test.ts` (7: seeded month totals, month boundary at 23:30/00:30 WIB, money paid directly to a Lokasi Mitra, CSV rows equal the screen rows, Admin-Platform-only, week Monday-Sunday boundaries, transfer row contents) and two in `src/domain/billing/chasing.test.ts` (Tidak Tertagih dated by declaration; legacy dating). The Admin Platform menu tests in `src/lib/staff-navigation.test.ts` and `src/server/staff-shell.test.ts` and Billing's function list in `tagihan.test.ts` were updated for the new group and function.
+  - **Not covered / known**: `src/domain/payouts/jumlah.test.ts` "lowered by the share … oldest item first" failed once in the run (items with the same due instant come back in either order): that is ticket 94's tiebreaker, not touched here. No Playwright (not asked).
+
+### Spec gaps and decisions for the owner
+
+The spec names the six figures but not how each is attributed. Each reading below is the builder's; please confirm or change.
+
+1. **"Orders" counted by Tagihan, by payment moment.** An order is counted when its (first, not reissued) Tagihan is issued, under that Tagihan's payment moment (Saat Duka, Pemakaman di Hak Pakai yang sudah ada, Terencana, Perpanjangan, Pengurusan IPTM, Layanan, Paket Layanan cycle). So a Saat Duka order counts from its confirmation (when the Tagihan is issued), and one declined before that is not counted. Alternative: count Pemesanan orders by their own kind.
+2. **Rp collected = Bukti Pembayaran by the month it was paid and by its method**, all five methods listed. The total "diterima Operator" leaves out "Dibayar langsung ke Lokasi Mitra" (it never reached the Operator's account) but the row is still shown. Rp 0 Harga Khusus waivers appear as "Tanpa pembayaran".
+3. **Biaya Layanan Platform / Biaya Pengurusan earned = the gross fee lines of Tagihan paid in the month.** A fee handed back in a refund (Lokasi, Mitra Jasa or Operator at fault) is **not** netted off; refunds are shown as their own total. Confirm whether "earned" should be net of refunded fees.
+4. **Pencairan and refunds paid are dated by the transfer date Admin Platform enters** (`ditransfer_pada`, a WIB date), not the moment it was recorded; the amount is what left the bank (after Potongan netted). Pencairan is split Lokasi Mitra / Mitra Jasa.
+5. **Tidak Tertagih is counted in the month it was declared**, for the Tagihan total, and drops out once the Tagihan is paid (it stays payable). This needed the new column; rows declared before it are dated H+30 of their overdue anchor (the earliest they could have been declared).
+6. **"Approver" of a Pencairan.** A Pencairan has no approval step in the spec (only refunds are approved), so the list shows the Admin Platform who **issued the Bukti Pencairan** (from its Entri Audit) and, for a refund, the Admin Platform who **approved** it. The transfer of a refund is issued by an Admin Platform too, but is not shown separately. Admin Platform can approve and transfer their own refund (no second approver, as the ticket intends).
+7. **Week = Monday to Sunday, WIB**, named by any date inside it (the weekday order the codebase already uses, `NAMA_HARI`).
+8. **"Proof link" = a short-lived (5 min) signed URL to the uploaded transfer proof**, made when the page is opened, plus the Bukti's own page (`/dokumen/<link>`). It is not put in any CSV. The weekly list has no CSV (the ticket asks for one only of the Laporan).
+9. **Recipient of a refund** is the account holder named on the refund's bank account (`rekeningNama`), not the Pemesan's Akun name.

@@ -194,6 +194,8 @@ describe("an issued Tagihan is immutable", () => {
       "issueBuktiPemesanan",
       "issueBuktiPerpanjangan",
       "issueTagihan",
+      // The monthly Laporan's read of Billing: sums over issued Tagihan and Bukti Pembayaran, never a line change (ticket 33).
+      "laporan",
       "nextDocumentNumber",
       "nextNomorPemesanan",
       // Chasing's own reads: every pay-after Tagihan with a known anchor, and

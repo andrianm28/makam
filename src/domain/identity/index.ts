@@ -100,6 +100,7 @@ export {
   authorize,
   hariLiburNasionalResource,
   keluhanLayananResource,
+  laporanResource,
   layananKatalogResource,
   lokasiMitraResource,
   mitraJasaResource,
