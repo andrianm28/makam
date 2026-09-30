@@ -223,5 +223,5 @@ async function bertugasOtomatisMatiTick(ctx: SchedulerContext, now: Date): Promi
 
 /** The worker wrapper around Notifications' send tick for queued Tier 1 alerts (idempotent there, as every tick is). */
 async function kirimPeringatanAntreanTick(ctx: SchedulerContext): Promise<void> {
-  await ctx.notifications.kirimPeringatanAntreanTick();
+  await ctx.notifications.kirimPeringatanAntreanTick({ barisMasihTerbukaBelumDiambil: ctx.queues.barisMasihTerbukaBelumDiambil });
 }

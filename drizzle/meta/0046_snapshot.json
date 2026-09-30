@@ -1,5 +1,5 @@
 {
-  "id": "91cfcf44-2629-47ef-a53e-62b26499ab64",
+  "id": "ed5ddd36-27f0-4753-8662-7ed6d143ecbd",
   "prevId": "ea6a9670-9052-4b10-8f9a-69ec4b1bbbb9",
   "version": "7",
   "dialect": "postgresql",
@@ -6617,6 +6617,18 @@
         "gave_up_at": {
           "name": "gave_up_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bell_at": {
+          "name": "bell_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "row_key": {
+          "name": "row_key",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }

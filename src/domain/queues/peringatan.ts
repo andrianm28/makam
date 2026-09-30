@@ -86,6 +86,14 @@ export async function tier1BelumDiambil(deps: Tier1RowDeps & { db: Database }, b
   return baris.filter((row) => !kunci.has(row.rowKey)).length;
 }
 
+/** Whether a Tier 1 row is still open and nobody has taken it (Ambil): what a retried escalation asks before it is sent again. */
+export async function barisMasihTerbukaBelumDiambil(deps: Tier1RowDeps & { db: Database }, rowKey: string): Promise<boolean> {
+  const terbuka = (await barisTier1Terbuka(deps)).some((row) => row.rowKey === rowKey);
+  if (!terbuka) return false;
+  const [diambil] = await deps.db.select({ rowKey: antreanAmbil.rowKey }).from(antreanAmbil).where(eq(antreanAmbil.rowKey, rowKey));
+  return !diambil;
+}
+
 export interface PeringatanTickResult {
   /** Peringatan Staf queued this run (one per recipient), first alerts and escalations together; Notifications' tick sends them. */
   diantrekan: number;
@@ -151,7 +159,7 @@ export async function peringatanTier1Tick(deps: PeringatanDeps, now: Date): Prom
         .returning({ rowKey: antreanPeringatan.rowKey });
       if (klaim.length === 0) return 0; // another run has it
       const hasil = await deps.notifications.peringatanAntreanTier1(
-        { to: await penerima(), tahap, row: { label: row.type.label, subjectLabel: row.subjectLabel, href: row.href } },
+        { to: await penerima(), tahap, row: { label: row.type.label, subjectLabel: row.subjectLabel, href: row.href, key: row.rowKey } },
         tx,
       );
       return hasil.diantrekan;

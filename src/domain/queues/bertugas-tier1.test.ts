@@ -40,7 +40,8 @@ function ticksOf(setup: QueuesSetup, notifications: Parameters<typeof createQueu
     /** The Antrean's alert tick, then Notifications' send tick, as the worker runs them a minute apart. */
     async peringatanTick(now: Date) {
       const hasil = await ticks.peringatanTick(now);
-      await setup.notifications.kirimPeringatanAntreanTick();
+      // The worker passes Queues' answer on whether a row is still open and untaken.
+      await setup.notifications.kirimPeringatanAntreanTick({ barisMasihTerbukaBelumDiambil: ticks.barisMasihTerbukaBelumDiambil });
       return hasil;
     },
     /** The Antrean's alert tick alone: what is queued and not yet sent. */
@@ -285,6 +286,47 @@ describe("Tier 1 alerts", () => {
     // Only the TPU row, which nobody took, escalated; the declined order was taken.
     expect(await jumlahPeringatan(setup, lain, "staf_antrean_eskalasi")).toBe(1);
     expect(await jumlahPeringatan(setup, bertugas, "staf_antrean_eskalasi")).toBe(1);
+  });
+
+  describe("a failed 30 min escalation is retried only while its Tier 1 row is still open and untaken", () => {
+    async function eskalasiGagal() {
+      const setup = queuesOnTestDatabase(db);
+      const satu = await adminDenganPush(setup);
+      await adminLain(setup, "admin.dua@makam.co.id", { push: true });
+      setup.clock.set(wib("2026-10-01 09:00"));
+      await pesananDitolak(setup, "2026-10-01 09:00");
+      const ticks = ticksOf(setup);
+      await ticks.peringatanTick(setup.clock.now());
+      // Both Admin Platform's escalation emails fail this time (the push goes through).
+      setup.clock.set(wib("2026-10-01 09:30"));
+      setup.email.failNextSend(2);
+      await ticks.peringatanTick(setup.clock.now());
+      const eskalasiTerkirim = () => setup.email.sent.filter((surat) => surat.subject.startsWith("Belum diambil")).length;
+      expect(eskalasiTerkirim()).toBe(0);
+      return { setup, satu, ticks, eskalasiTerkirim };
+    }
+
+    it("is retried while nobody has taken the row", async () => {
+      const { setup, ticks, eskalasiTerkirim } = await eskalasiGagal();
+      setup.clock.set(wib("2026-10-01 09:45"));
+      await ticks.peringatanTick(setup.clock.now());
+      expect(eskalasiTerkirim()).toBe(2);
+    });
+
+    it("is dropped, sending nothing, once the row was taken meanwhile", async () => {
+      const { setup, satu, ticks, eskalasiTerkirim } = await eskalasiGagal();
+      const [row] = await setup.queues.antrean(satu);
+      await setup.queues.ambilRow(satu, { type: row.type, subjectId: row.subjectId });
+      setup.clock.set(wib("2026-10-01 09:45"));
+      await ticks.peringatanTick(setup.clock.now());
+      expect(eskalasiTerkirim()).toBe(0);
+      const log = await setup.notifications.pesanStaf(satu.accountId, { limit: 100 });
+      expect(log.filter((pesan) => pesan.template === "staf_antrean_eskalasi").map((pesan) => pesan.status)).toContain("dibatalkan");
+      // And it stays dropped.
+      setup.clock.set(wib("2026-10-01 12:00"));
+      await ticks.peringatanTick(setup.clock.now());
+      expect(eskalasiTerkirim()).toBe(0);
+    });
   });
 
   it("a Konfirmasi TPU Saat Duka still unconfirmed at 90 min alerts everyone again, even once taken", async () => {

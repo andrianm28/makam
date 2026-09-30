@@ -126,4 +126,41 @@ describe("a Peringatan Staf whose send failed is retried by the worker", () => {
     const lonceng = await setup.notifications.staffAlerts(staf);
     expect(lonceng.ok && lonceng.latest.filter((entry) => entry.title.startsWith("Antrean mendesak"))).toHaveLength(1);
   });
+
+  it("an alert that throws is recorded as its own failed attempt: the other alerts' sends stay recorded and are not sent again", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const staf = await signedInStaff(setup, "admin_lokasi");
+    await setup.notifications.enablePush(staf, { subscription: browserPushSubscription() });
+    // An email address in a push title is refused (it would show on the lock screen): this alert throws when sent.
+    await setup.notifications.peringatanAntreanTier1({
+      to: [{ accountId: staf.accountId }],
+      tahap: "baru",
+      row: { label: "bocor@contoh.id", subjectLabel: "MKM-2026-000001", href: "/staf/antrean" },
+    });
+    await setup.notifications.peringatanAntreanTier1({
+      to: [{ accountId: staf.accountId }],
+      tahap: "baru",
+      row: { label: "Saat Duka baru", subjectLabel: "MKM-2026-000002", href: "/staf/antrean" },
+    });
+    const surat = () => setup.email.sent.filter((satu) => satu.subject.startsWith("Antrean mendesak"));
+
+    await setup.notifications.kirimPeringatanAntreanTick();
+    expect(surat().map((satu) => satu.subject)).toEqual(["Antrean mendesak: Saat Duka baru"]);
+
+    // Next tick, past the backoff: the good alert is not resent; the throwing one is only tried again, never delivered.
+    setup.clock.advance({ minutes: 15 });
+    await setup.notifications.kirimPeringatanAntreanTick();
+    expect(surat()).toHaveLength(1);
+    expect(setup.webPush.sent).toHaveLength(1);
+  });
+
+  it("a retry adds no second bell entry", async () => {
+    const { setup, staf } = await siap();
+    setup.email.failNextSend(1);
+    await setup.notifications.kirimPeringatanAntreanTick();
+    setup.clock.advance({ minutes: 15 });
+    await setup.notifications.kirimPeringatanAntreanTick();
+    const lonceng = await setup.notifications.staffAlerts(staf);
+    expect(lonceng.ok && lonceng.latest).toHaveLength(1);
+  });
 });

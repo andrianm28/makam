@@ -55,6 +55,8 @@ import {
 import {
   antrekanPeringatanAntrean,
   kirimPeringatanAntreanTick,
+  type HasilKirimPeringatan,
+  type KirimPeringatanAntreanOpsi,
   type PeringatanAntreanInput,
   type PeringatanAntreanResult,
   type PeringatanPenugasanTpuInput,
@@ -132,7 +134,7 @@ import {
 } from "./pesan-terencana";
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
-export type { PeringatanAntreanInput, PeringatanAntreanResult, PeringatanPenugasanTpuInput, TahapPeringatanAntrean } from "./peringatan-antrean";
+export type { KirimPeringatanAntreanOpsi, PeringatanAntreanInput, PeringatanAntreanResult, PeringatanPenugasanTpuInput, TahapPeringatanAntrean } from "./peringatan-antrean";
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
 export {
   catatPanggilanSchema,
@@ -341,8 +343,12 @@ export interface Notifications {
    * logged); the words never name the family.
    */
   peringatanPenugasanTpu(input: PeringatanPenugasanTpuInput, within?: Database): Promise<PeringatanAntreanResult>;
-  /** The worker's tick: sends every queued Tier 1 alert not yet sent (push + email, logged). Idempotent. */
-  kirimPeringatanAntreanTick(): Promise<{ dikirim: number }>;
+  /**
+   * The worker's tick: sends every queued Tier 1 alert not yet done and due, and retries a failed one
+   * (4 sends, backed off; a channel that went through is not repeated). Idempotent. `opsi` carries
+   * Queues' answer on whether an Antrean row is still open and untaken.
+   */
+  kirimPeringatanAntreanTick(opsi?: KirimPeringatanAntreanOpsi): Promise<{ dikirim: number }>;
   /**
    * The bell of the signed-in Akun Staf: how many of its Peringatan Staf are
    * unread, and the latest `limit` (newest first). Only its own.
@@ -524,7 +530,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
   async function kirimPeringatanStaf(
     alert: StaffAlert,
     lewati: StaffAlertLewati,
-  ): Promise<{ result: StaffAlertResult; pushDicoba: number }> {
+    q: Database,
+  ): Promise<HasilKirimPeringatan> {
     for (const text of [alert.push.title, alert.push.body]) {
       if (!lockScreenSafe(text)) {
         throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
@@ -535,13 +542,13 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     const recipient = await deps.identity.staffRecipient(alert.to.accountId);
     if (!recipient) {
-      await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
+      await q.delete(notificationsPushDevice).where(eq(notificationsPushDevice.accountId, alert.to.accountId));
       return { result: { ok: false, reason: "bukan_akun_staf" }, pushDicoba: 0 };
     }
 
     // Kept for the bell regardless of how the email/push sends below turn out; a retry never lists it twice.
     if (!lewati.lonceng) {
-      await db.insert(notificationsStaffAlert).values({
+      await q.insert(notificationsStaffAlert).values({
         accountId: recipient.accountId,
         title: alert.push.title,
         body: alert.push.body,
@@ -564,7 +571,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     const push = { delivered: 0, removed: 0 };
     // A Perangkat Push whose session ended (Keluar, a new role grant, expiry) is gone.
-    await db
+    await q
       .delete(notificationsPushDevice)
       .where(
         and(
@@ -575,7 +582,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         ),
       );
     let tried = 0;
-    for (const device of lewati.push ? [] : await devicesOf(db, recipient.accountId, recipient.liveSessionIds)) {
+    for (const device of lewati.push ? [] : await devicesOf(q, recipient.accountId, recipient.liveSessionIds)) {
       tried += 1;
       const subscription = { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } };
       const result = await deps.webPush
@@ -589,7 +596,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
         });
       if (result?.delivered) push.delivered++;
       if (result?.subscriptionGone) {
-        await db.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
+        await q.delete(notificationsPushDevice).where(eq(notificationsPushDevice.id, device.id));
         push.removed++;
       }
     }
@@ -597,7 +604,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     // queued alert adds its own rows. A failed staff alert is never escalated to a call row.
     const now = deps.clock.now();
     if (!lewati.email) {
-      await catatPesanStaf(db, {
+      await catatPesanStaf(q, {
         template: alert.kind,
         channel: "email",
         akunStafId: recipient.accountId,
@@ -610,7 +617,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       });
     }
     if (tried > 0) {
-      await catatPesanStaf(db, {
+      await catatPesanStaf(q, {
         template: alert.kind,
         channel: "push",
         akunStafId: recipient.accountId,
@@ -704,7 +711,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async sendStaffAlert(alert) {
-      return (await kirimPeringatanStaf(alert, {})).result;
+      return (await kirimPeringatanStaf(alert, {}, db)).result;
     },
 
     async peringatanAntreanTier1(input, within) {
@@ -719,8 +726,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       });
     },
 
-    async kirimPeringatanAntreanTick() {
-      return kirimPeringatanAntreanTick(db, deps.clock, kirimPeringatanStaf);
+    async kirimPeringatanAntreanTick(opsi) {
+      return kirimPeringatanAntreanTick(db, deps.clock, kirimPeringatanStaf, opsi);
     },
 
     async staffAlerts(by, options = {}) {

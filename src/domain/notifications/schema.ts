@@ -260,6 +260,10 @@ export const notificationsPeringatanAntrean = pgTable(
     pushDoneAt: at("push_done_at"),
     /** When the last attempt failed and none is left: the alert stops here, logged, never escalated. */
     gaveUpAt: at("gave_up_at"),
+    /** When the bell entry was written (first completed attempt), so a retry never lists the alert twice. */
+    bellAt: at("bell_at"),
+    /** The Antrean row this alert is about (Queues' row key), when it has one: a retry asks Queues whether it is still open. */
+    rowKey: text("row_key"),
   },
   (table) => [index("notifications_peringatan_antrean_belum_dikirim_idx").on(table.createdAt).where(sql`${table.sentAt} is null`)],
 );
