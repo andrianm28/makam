@@ -262,6 +262,13 @@ describe("the command palette (role visibility on the server)", () => {
         ],
       },
       {
+        label: "Keuangan",
+        items: [
+          { label: "Laporan", href: "/staf/admin-platform/laporan" },
+          { label: "Transfer keluar", href: "/staf/admin-platform/transfer" },
+        ],
+      },
+      {
         label: "Lokasi dan harga",
         items: [
           { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },

@@ -34,6 +34,13 @@ import {
   type AjukanGoodwillResult,
 } from "./request";
 import { setujuiPengembalian, type SetujuiResult } from "./approve";
+import {
+  pengembalianDibayar,
+  transferKeluarPengembalian,
+  type PengembalianDibayar,
+  type RentangTanggal,
+  type TransferKeluarPengembalian,
+} from "./laporan";
 import { isiRekeningAdmin, isiRekeningPemesan, type IsiRekeningResult, type RekeningInput } from "./rekening";
 import type { PihakBersalah } from "./schema";
 import { terbitkanBuktiPengembalianDana, type TerbitkanBuktiInput, type TerbitkanBuktiResult } from "./transfer";
@@ -54,6 +61,7 @@ export { rekeningSchema, rekeningTersamar, type RekeningInput } from "./rekening
 export { pihakBersalahKinds, permintaanPengembalianStatuses, permintaanSumberKinds, type PihakBersalah } from "./schema";
 export type { AjukanBarisInput, AjukanBarisResult, RefundLine } from "./request";
 export type { PermintaanPengembalian } from "./baca";
+export type { PengembalianDibayar, RentangTanggal, TransferKeluarPengembalian } from "./laporan";
 
 export interface RefundsDeps {
   db: Database;
@@ -109,6 +117,10 @@ export interface Refunds {
   permintaanUntukPesanan(nomorPemesanan: string): Promise<PermintaanPengembalian | null>;
   /** The Antrean's Tier 3 "refund transfer" row's own query: every approved request, with its deadline. */
   pengembalianJatuhTempo(): Promise<PermintaanPengembalian[]>;
+  /** What the Bukti Pengembalian Dana transferred in a span of WIB dates come to (the Laporan; Admin Platform only, zeros for anyone else; ticket 33). */
+  pengembalianDibayar(by: Actor, span: RentangTanggal): Promise<PengembalianDibayar>;
+  /** Every refund transfer made in a span of WIB dates, oldest first, with its approver and a short-lived link to its proof (the weekly transfer list; Admin Platform only; ticket 33). */
+  transferKeluar(by: Actor, span: RentangTanggal): Promise<TransferKeluarPengembalian[]>;
   /** The Bukti Pengembalian Dana behind an unguessable link, with its transfer proof as a short-lived signed URL, or null. */
   buktiPengembalianDana(link: string): Promise<DokumenBuktiPengembalianDana | null>;
   /**
@@ -161,6 +173,8 @@ export function createRefunds(deps: RefundsDeps): Refunds {
         tagihanId,
         input,
       ),
+    pengembalianDibayar: (by, span) => pengembalianDibayar({ db: deps.db, billing: deps.billing }, by, span),
+    transferKeluar: (by, span) => transferKeluarPengembalian({ db: deps.db, files: deps.files }, by, span),
     permintaanTerbuka: () => permintaanTerbuka(deps.db),
     permintaan: (id) => permintaanById(deps.db, id),
     permintaanUntukPesanan: (nomor) => permintaanUntukPesanan(deps.db, nomor),

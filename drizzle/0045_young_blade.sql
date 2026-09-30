@@ -1,0 +1,1 @@
+ALTER TABLE "tagihan" ADD COLUMN "tidak_tertagih_at" timestamp with time zone;

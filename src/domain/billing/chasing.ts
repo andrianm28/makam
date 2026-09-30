@@ -166,7 +166,7 @@ export async function declareTidakTertagih(
     if (!(await deps.hasLoggedCall(tagihanId))) return { ok: false, reason: "belum_ada_panggilan" };
     const [moved] = await tx
       .update(tagihan)
-      .set({ status: "tidak_tertagih" })
+      .set({ status: "tidak_tertagih", tidakTertagihAt: now })
       .where(and(eq(tagihan.id, row.id), eq(tagihan.status, "lewat_jatuh_tempo")))
       .returning({ id: tagihan.id });
     if (!moved) return { ok: false, reason: "tagihan_tidak_lewat_jatuh_tempo" };

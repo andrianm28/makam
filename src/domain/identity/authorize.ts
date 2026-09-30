@@ -163,6 +163,8 @@ export type Action =
   | "pencairan.kelola"
   /** Raise, approve and transfer a refund, issuing a Bukti Pengembalian Dana (Admin Platform only). */
   | "pengembalian.kelola"
+  /** Open the monthly Laporan and the weekly outgoing transfer list (Admin Platform only; ticket 33). */
+  | "laporan.lihat"
   /** The Pemesan enters the destination bank account of the refund on their own order, until it is approved (ticket 31). */
   | "pengembalian.isi_rekening"
   /** The Admin Lokasi of the order's own Lokasi Mitra declines it, with a reason from the fixed list. */
@@ -287,6 +289,8 @@ export type Resource =
   | { kind: "setor_retribusi" }
   /** Every refund request, its approval and its Bukti Pengembalian Dana (Admin Platform alone). */
   | { kind: "pengembalian" }
+  /** The monthly Laporan and the weekly list of outgoing transfers (Admin Platform alone: the books are reviewed without a second approver). */
+  | { kind: "laporan" }
   /** Every Mitra Jasa (onboarding a new one, the Admin Platform list, the assignment picker). */
   | { kind: "mitra_jasa_semua" }
   /** One Mitra Jasa's record; who may read it is checked against the row by the Layanan module. */
@@ -396,6 +400,11 @@ export function keluhanLayananResource(): Resource {
 /** Every refund request, its approval and its Bukti Pengembalian Dana. */
 export function pengembalianResource(): Resource {
   return { kind: "pengembalian" };
+}
+
+/** The monthly Laporan and the weekly list of every outgoing transfer. */
+export function laporanResource(): Resource {
+  return { kind: "laporan" };
 }
 
 /** Every Mitra Jasa: the Admin Platform list that onboards them, and the assignment picker's filtered reads. */
@@ -628,6 +637,9 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
     case "pengembalian.isi_rekening":
       return resource.kind === "pemesanan_makam" && resource.accountId === actor.accountId ? allowed : denied;
+    case "laporan.lihat":
+      // The books are Admin Platform's alone (spec, story 165): no Admin Lokasi, Mitra Jasa or Petugas Lapangan opens either page.
+      return resource.kind === "laporan" && holds("admin_platform") ? allowed : denied;
     case "pengembalian.kelola":
       // No money leaves without Admin Platform (spec, Billing > Refunds): raising,
       // approving and transferring a refund are all this one action.

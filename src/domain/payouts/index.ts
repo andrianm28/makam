@@ -67,6 +67,13 @@ import {
   type PencairanLokasi,
   type PencairanMitraJasa,
 } from "./reads";
+import {
+  pencairanDibayar,
+  transferKeluarPencairan,
+  type PencairanDibayar,
+  type RentangTanggal,
+  type TransferKeluarPencairan,
+} from "./laporan";
 import { batalkanPembayaranLangsung, type BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 import { jalankanPencairan, tahanPencairan, type TahanPencairanResult } from "./run";
 import {
@@ -102,6 +109,7 @@ export type { BuktiPencairan, DokumenBuktiPencairan, KirimBuktiPencairan, Terbit
 export type { BarisPotonganUmum, CatatPotonganInput, CatatPotonganLunasResult, CatatPotonganResult } from "./potongan";
 export type { BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
+export type { PencairanDibayar, PencairanDibayarPerJenis, RentangTanggal, TransferKeluarPencairan } from "./laporan";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
 export type { ItemLayanan, LayananJatuhTempoResult } from "./layanan";
@@ -262,6 +270,10 @@ export interface Payouts {
   pencairanLokasi(by: Actor, lokasiId: string): Promise<PencairanLokasi>;
   /** A Mitra Jasa's own Pencairan: each job with its Layanan, date, rate and Bukti Pencairan, and nothing else. */
   pencairanMitraJasa(by: Actor): Promise<PencairanMitraJasa>;
+  /** What the Bukti Pencairan transferred in a span of WIB dates come to, by kind of recipient (the Laporan; Admin Platform only, zeros for anyone else; ticket 33). */
+  pencairanDibayar(by: Actor, span: RentangTanggal): Promise<PencairanDibayar>;
+  /** Every Pencairan transfer made in a span of WIB dates, oldest first, with its issuer and a short-lived link to its proof (the weekly transfer list; Admin Platform only; ticket 33). */
+  transferKeluar(by: Actor, span: RentangTanggal): Promise<TransferKeluarPencairan[]>;
   /** The Bukti Pencairan behind an unguessable link: a Mitra Jasa's version shows only job, Layanan, date and rate. */
   buktiPencairan(link: string): Promise<DokumenBuktiPencairan | null>;
   /** "Unduh PDF" of a Bukti Pencairan, or null for a link that finds none. */
@@ -314,6 +326,8 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     pencairanJatuhTempo: () => pencairanJatuhTempo(deps.db),
     pencairanLokasi: (by, lokasiId) => pencairanLokasi(deps.db, by, lokasiId),
     pencairanMitraJasa: (by) => pencairanMitraJasa(deps.db, by),
+    pencairanDibayar: (by, span) => pencairanDibayar(deps.db, by, span),
+    transferKeluar: (by, span) => transferKeluarPencairan({ db: deps.db, audit: deps.audit, files: deps.files }, by, span),
     buktiPencairan: (link) => buktiPencairanByLink(deps.db, link),
     buktiPencairanPdf: async (link) => {
       const document = await buktiPencairanByLink(deps.db, link);

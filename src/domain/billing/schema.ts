@@ -124,6 +124,13 @@ export const tagihan = pgTable(
      * reissued only because the burial went differently.
      */
     lewatJatuhTempoAt: at("lewat_jatuh_tempo_at"),
+    /**
+     * When Admin Platform gave up chasing it (ticket 33: the Laporan counts a
+     * Tidak Tertagih in the month it was declared, not the month it lapsed).
+     * Null while the Tagihan is not Tidak Tertagih, and for one declared before
+     * this column existed: those are dated from H+30 of their overdue anchor.
+     */
+    tidakTertagihAt: at("tidak_tertagih_at"),
     cancelledAt: at("cancelled_at"),
     cancelledReason: text("cancelled_reason", { enum: ["batas_pembayaran_lewat", "diganti", "pemesanan_dibatalkan"] }),
     replacedById: uuid("replaced_by_id"),
