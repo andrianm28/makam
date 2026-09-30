@@ -716,10 +716,10 @@ describe("the Pencairan of a paid Pemesanan Terencana", () => {
 });
 
 /** The Operator gives a Harga Khusus on a confirmed order's unpaid Tagihan: it is cancelled and reissued under a new id (ticket 30). */
-async function hargaKhusus(setup: PemesananSetup, dasar: Pesanan, tagihanId: string) {
+async function hargaKhusus(setup: PemesananSetup, dasar: Pesanan, tagihanId: string, amount = 500_000) {
   const khusus = await setup.billing.tetapkanHargaKhusus(dasar.admin, {
     tagihanId,
-    amount: 500_000,
+    amount,
     alasan: "Keringanan untuk keluarga",
     porsiMitra: 0,
     catatanPorsiMitra: "Ditanggung Operator",
@@ -781,6 +781,49 @@ describe("a Pemesanan Terencana whose Tagihan was reissued by a Harga Khusus (ti
     const konfirmasi = await dikonfirmasi(setup, dasar);
     const pengganti = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
     await bayar(setup, pengganti.id);
+    setup.clock.set(new Date(konfirmasi.pesanan.tahanSampai.getTime() + 3_600_000));
+
+    expect(await setup.pemesanan.lewatBatasBayarTick()).toEqual({ dibatalkan: 0 });
+
+    expect((await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan))?.status).toBe("aktif");
+  });
+});
+
+describe("a Pemesanan Terencana whose Tagihan was reissued twice (ticket 93)", () => {
+  it("withdrawing it cancels the last replacement in the chain, and the earlier ones stay as they were replaced", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pertama = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    const kedua = await hargaKhusus(setup, dasar, pertama.id, 100_000);
+
+    const hasil = await setup.pemesanan.tarikTerencana(dasar.pemesan, { nomor: dasar.nomor });
+
+    expect(hasil).toMatchObject({ ok: true, tagihan: { nomorTagihan: kedua.nomorTagihan } });
+    expect(await setup.billing.tagihan(kedua.id)).toMatchObject({ status: "dibatalkan", cancelledReason: "pemesanan_dibatalkan" });
+    expect(await setup.billing.tagihan(pertama.id)).toMatchObject({ status: "dibatalkan", cancelledReason: "diganti" });
+  });
+
+  it("a payment hold that ends unpaid cancels the last replacement in the chain", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pertama = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    const kedua = await hargaKhusus(setup, dasar, pertama.id, 100_000);
+    setup.clock.set(konfirmasi.pesanan.tahanSampai);
+
+    expect(await setup.pemesanan.lewatBatasBayarTick()).toEqual({ dibatalkan: 1 });
+
+    expect(await setup.billing.tagihan(kedua.id)).toMatchObject({ status: "dibatalkan", cancelledReason: "batas_pembayaran_lewat" });
+  });
+
+  it("paying the last replacement makes the order Aktif, and the lapse tick then leaves it alone", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesanan(setup);
+    const konfirmasi = await dikonfirmasi(setup, dasar);
+    const pertama = await hargaKhusus(setup, dasar, konfirmasi.tagihan.id);
+    const kedua = await hargaKhusus(setup, dasar, pertama.id, 100_000);
+    await bayar(setup, kedua.id);
     setup.clock.set(new Date(konfirmasi.pesanan.tahanSampai.getTime() + 3_600_000));
 
     expect(await setup.pemesanan.lewatBatasBayarTick()).toEqual({ dibatalkan: 0 });

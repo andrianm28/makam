@@ -247,10 +247,11 @@ export async function putuskanKeluhan(deps: LayananDeps, by: Actor, rawInput: un
 
 /**
  * The id of the Tagihan in force for an order that stored `tagihanId`: a Harga Khusus reissues the Tagihan under a new id,
- * and the money (and so the Pencairan item) is on the one the family paid (ticket 93).
+ * and the money (and so the Pencairan item) is on the one the family paid (ticket 93). Null when Billing finds none: never
+ * the stored id in its place, which would look up money on a Tagihan that was replaced.
  */
-async function tagihanBerlakuId(deps: LayananDeps, db: Database, tagihanId: string): Promise<string> {
-  return (await deps.billing.within(db).tagihanBerlaku(tagihanId))?.id ?? tagihanId;
+async function tagihanBerlakuId(deps: LayananDeps, db: Database, tagihanId: string): Promise<string | null> {
+  return (await deps.billing.within(db).tagihanBerlaku(tagihanId))?.id ?? null;
 }
 
 /** The refund request for the job's own line: Refunds owns the fee rule, the amount ceiling and the transfer. */
@@ -312,7 +313,9 @@ export async function sesuaikanPencairanKeluhan(deps: LayananDeps, by: Actor, ra
     if (!KEPUTUSAN_DENGAN_PENCAIRAN.includes(keluhan.status)) return { ok: false, reason: "keputusan_tidak_mengubah_pencairan" } as const;
     const baris = await bacaBaris(tx, keluhan.pekerjaanId);
     if (!baris) return { ok: false, reason: "tidak_ditemukan" } as const;
-    const item = await deps.payouts.itemLayanan(await tagihanBerlakuId(deps, tx, baris.order.tagihanId), baris.item.posisi, tx);
+    const tagihanId = await tagihanBerlakuId(deps, tx, baris.order.tagihanId);
+    if (!tagihanId) return { ok: false, reason: "tidak_ditemukan" } as const;
+    const item = await deps.payouts.itemLayanan(tagihanId, baris.item.posisi, tx);
     if (!item) return { ok: false, reason: "pencairan_belum_ada" } as const;
     const hasil = await deps.payouts.turunkanJumlahPencairan(by, { itemId: item.id, amount, catatan }, tx);
     if (hasil.ok) return { ok: true, jumlah: hasil.item.amount, jumlahAwal: hasil.item.amountAwal } as const;
@@ -326,7 +329,10 @@ export async function sesuaikanPencairanKeluhan(deps: LayananDeps, by: Actor, ra
  * not arrived, and the next tick asks again.
  */
 async function jadikanPencairanJatuhTempo(deps: LayananDeps, tx: Database, baris: Baris, now: Date): Promise<boolean> {
-  const hasil = await deps.payouts.jadikanLayananJatuhTempo(tx, { tagihanId: await tagihanBerlakuId(deps, tx, baris.order.tagihanId), tagihanPosisi: baris.item.posisi });
+  const tagihanId = await tagihanBerlakuId(deps, tx, baris.order.tagihanId);
+  // A Pesanan Layanan always has its Tagihan: one without is a broken invariant, so it fails visibly rather than paying nothing out in silence.
+  if (!tagihanId) throw new Error("a Pesanan Layanan names a Tagihan that does not exist");
+  const hasil = await deps.payouts.jadikanLayananJatuhTempo(tx, { tagihanId, tagihanPosisi: baris.item.posisi });
   if (!hasil.ok) return false;
   await tx
     .update(pekerjaanLayanan)
@@ -463,7 +469,8 @@ export async function keluhanUntukPlatform(deps: LayananDeps, by: Actor, keluhan
   const baris = await bacaBaris(deps.db, keluhan.pekerjaanId);
   if (!baris) return { ok: false, reason: "tidak_ditemukan" };
   const [penilaian] = await deps.db.select().from(penilaianLayanan).where(eq(penilaianLayanan.pekerjaanId, keluhan.pekerjaanId));
-  const item = await deps.payouts.itemLayanan(await tagihanBerlakuId(deps, deps.db, baris.order.tagihanId), baris.item.posisi);
+  const tagihanId = await tagihanBerlakuId(deps, deps.db, baris.order.tagihanId);
+  const item = tagihanId ? await deps.payouts.itemLayanan(tagihanId, baris.item.posisi) : null;
   const ditunjukkan = ditunjukkanPadaOf(baris.job);
   return {
     ok: true,

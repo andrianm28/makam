@@ -22,7 +22,7 @@
  * and issues no second Bukti. The Pencairan item is Payouts' own trigger, written
  * from the same payment and skipped while the payment is under review.
  */
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Billing, PaymentEffect, SettledPayment } from "@/domain/billing";
 import { wibDateOf } from "@/lib/time/jakarta";
@@ -32,7 +32,7 @@ import { perpanjangan } from "./schema";
 
 export interface EfekPerpanjanganDeps {
   /** Billing on the payment's own transaction, so the Bukti and the review commit with the money. */
-  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPerpanjangan" | "catatPembayaranPerluDitinjau">;
+  billingOn: (tx: Database) => Pick<Billing, "issueBuktiPerpanjangan" | "catatPembayaranPerluDitinjau" | "rantaiTagihan">;
   inventory: Pick<PerpanjanganDeps["inventory"], "within">;
   lokasi: Pick<PerpanjanganDeps["lokasi"], "aturanPerpanjanganOf">;
   notifikasi: Pick<PerpanjanganDeps["notifikasi"], "buktiPerpanjanganTerbit">;
@@ -43,7 +43,10 @@ export function efekPerpanjangan(deps: EfekPerpanjanganDeps): PaymentEffect {
   return {
     name: "perpanjangan.hak_pakai_diperpanjang",
     async run(tx: Database, payment: SettledPayment) {
-      const [row] = await tx.select().from(perpanjangan).where(eq(perpanjangan.tagihanId, payment.tagihanId)).for("update");
+      // The Perpanjangan stored the id it was first issued; a Harga Khusus may have replaced it, so the paid Tagihan is matched
+      // through its reissue chain, asked of Billing (ticket 93).
+      const rantai = await deps.billingOn(tx).rantaiTagihan(payment.tagihanId);
+      const [row] = await tx.select().from(perpanjangan).where(inArray(perpanjangan.tagihanId, rantai.length > 0 ? rantai : [payment.tagihanId])).for("update");
       if (!row || row.dibayarPada) return;
 
       const inventory = deps.inventory.within(tx);

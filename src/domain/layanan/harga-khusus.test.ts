@@ -40,6 +40,8 @@ describe("cancelling a job after a Harga Khusus reissued the order's Tagihan (ti
     if (!dibayar.ok) throw new Error("payment refused");
     const kerja = (await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan))?.item[0].pekerjaan;
     if (!kerja) throw new Error("no job");
+    // The order's own read names the Tagihan in force, not the id it first stored.
+    expect((await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan))?.tagihan?.id).toBe(khusus.tagihan.id);
     setup.clock.set(wib("2026-10-19 08:00"));
 
     const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: kerja.id, alasan: "Rencana berubah." });

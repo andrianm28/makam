@@ -378,6 +378,24 @@ export async function readTagihanBerlaku(db: Database, tagihanId: string): Promi
   return null;
 }
 
+/**
+ * The ids a Tagihan was issued under, itself first and the first-issued one last: the reverse of `readTagihanBerlaku`. An order
+ * that stored the first id and is told "this Tagihan was paid" asks whether the paid one is in its chain. Empty when none exists.
+ */
+export async function readRantaiTagihan(db: Database, tagihanId: string): Promise<string[]> {
+  if (!z.uuid().safeParse(tagihanId).success) return [];
+  const rantai: string[] = [];
+  let id: string | null = tagihanId;
+  // Bounded like `readTagihanBerlaku`: a chain is one reissue per Harga Khusus or correction.
+  for (let langkah = 0; id && langkah < 50; langkah += 1) {
+    const [row] = await db.select({ id: tagihan.id, replacesId: tagihan.replacesId }).from(tagihan).where(eq(tagihan.id, id));
+    if (!row) break;
+    rantai.push(row.id);
+    id = row.replacesId;
+  }
+  return rantai;
+}
+
 /** A Lunas Tagihan the Operator still owes a town's charge on: the shape the Setor Retribusi row and its recording are about. */
 export interface RetribusiTagihan {
   tagihanId: string;

@@ -15,7 +15,7 @@
  * the scope correct; the comment stays so a later ticket adding it does not
  * widen this by accident.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { DeclareTidakTertagihResult } from "@/domain/billing";
 import { antreanResource, lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -80,17 +80,16 @@ async function grantOrderOf(deps: Pick<PemesananDeps, "db">, hakPakaiId: string)
  * Tertagih Tagihan (ticket 29), without exposing the order itself.
  */
 export async function hakPakaiIdForTagihan(deps: Pick<PemesananDeps, "db" | "billing">, tagihanId: string): Promise<string | null> {
-  // The order stored the id it was first issued and a Harga Khusus may since have replaced it, so the order is found by the
-  // Tagihan's own Nomor Pemesanan and matched on the Tagihan in force too (ticket 93).
-  const tagihan = await deps.billing.tagihan(tagihanId);
-  if (!tagihan?.nomorPemesanan) return null;
+  // The order stored the id it was first issued and a Harga Khusus may since have replaced it: the order is the one whose
+  // stored id is anywhere in this Tagihan's reissue chain, which Billing answers with ids alone (ticket 93). Not read from the
+  // Tagihan's Nomor Pemesanan, so nothing here depends on that being set.
+  const rantai = await deps.billing.rantaiTagihan(tagihanId);
+  if (rantai.length === 0) return null;
   const [order] = await deps.db
-    .select({ hakPakaiId: pemesananMakam.hakPakaiId, tagihanId: pemesananMakam.tagihanId })
+    .select({ hakPakaiId: pemesananMakam.hakPakaiId })
     .from(pemesananMakam)
-    .where(and(eq(pemesananMakam.nomor, tagihan.nomorPemesanan), eq(pemesananMakam.kind, "saat_duka")));
-  if (!order?.tagihanId) return null;
-  if (order.tagihanId !== tagihanId && (await deps.billing.tagihanBerlaku(order.tagihanId))?.id !== tagihanId) return null;
-  return order.hakPakaiId ?? null;
+    .where(and(inArray(pemesananMakam.tagihanId, rantai), eq(pemesananMakam.kind, "saat_duka")));
+  return order?.hakPakaiId ?? null;
 }
 
 /**
