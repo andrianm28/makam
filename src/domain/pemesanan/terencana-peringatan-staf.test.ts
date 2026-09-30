@@ -7,7 +7,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { adminPlatformOf } from "../../../tests/support/identity";
+import { actorOf, adminPlatformOf, logIn } from "../../../tests/support/identity";
 import { browserPushSubscription } from "../../../tests/support/notifications";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
 import { terencanaLokasi } from "../../../tests/support/terencana";
@@ -49,7 +49,7 @@ async function peringatanTerencana(setup: PemesananSetup, accountId: string) {
 }
 
 describe("the Peringatan Staf of a new Pemesanan Terencana", () => {
-  it("reaches the Lokasi's Admin Lokasi and Kontak Siaga once, by bell, email and web push", async () => {
+  it("reaches the Lokasi's Admin Lokasi once, by bell, email and web push", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const dasar = await siap(setup);
     const admin = dasar.fixture.adminLokasi;
@@ -80,14 +80,33 @@ describe("the Peringatan Staf of a new Pemesanan Terencana", () => {
     expect(email?.text).not.toMatch(/paling lambat/i);
   });
 
-  it("is sent at any hour, also at 03:00 WIB", async () => {
+  it("is sent when the Lokasi is closed: a Sunday at 03:00 WIB, outside its Jam Operasional", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const dasar = await siap(setup);
-    setup.clock.set(wib("2026-10-03 03:00"));
+    setup.clock.set(wib("2026-10-04 03:00"));
 
     await pesan(setup, dasar);
 
     expect(setup.webPush.sent).toHaveLength(1);
+    expect(await peringatanTerencana(setup, dasar.fixture.adminLokasi.accountId)).toHaveLength(2);
+  });
+
+  it("reaches a Kontak Siaga who is another Admin Lokasi of the Lokasi, once each, and nobody who is not one", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const dasar = await siap(setup);
+    const email = "kontak.siaga@contoh.id";
+    const invited = await setup.lokasi.inviteAdminLokasi(dasar.admin, dasar.fixture.lokasiMitra.id, { email, phoneNumber: "083333333399" });
+    if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
+    const { cookies } = await logIn(setup, email);
+    const kontak = await actorOf(setup.identity, cookies);
+    const pick = await setup.lokasi.pickKontakSiaga(dasar.admin, dasar.fixture.lokasiMitra.id, { accountId: kontak.accountId });
+    if (!pick.ok) throw new Error(`kontak siaga refused: ${pick.reason}`);
+
+    await pesan(setup, dasar);
+
+    expect(await peringatanTerencana(setup, dasar.fixture.adminLokasi.accountId)).toHaveLength(2);
+    expect(await peringatanTerencana(setup, kontak.accountId)).toHaveLength(2);
+    expect(await setup.notifications.pesanStaf(dasar.pemesan.accountId)).toEqual([]);
   });
 
   it("is not sent to another Lokasi's Admin Lokasi", async () => {
