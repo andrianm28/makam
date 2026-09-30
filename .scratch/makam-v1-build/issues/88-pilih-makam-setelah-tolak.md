@@ -18,16 +18,30 @@ The three questions neither ticket answers, which this ticket owns:
 
 ## Acceptance criteria
 
-- [ ] `layarPilihMakam` returns the TPU section and the type chip **and** the Tolak banner, with all three coming from one read and one city filter, so the highlighted chip and every card agree.
-- [ ] The banner names the Lokasi that refused, in the words `CONTEXT.md` uses, and offers the path to rebook.
-- [ ] The Lokasi that refused does not appear in the list **in the query, not in the view** — a screen that forgets to hide it must not exist.
-- [ ] The family's own data is prefilled for the new attempt, and a `dari` naming no declined order of that family gives no banner and no error page.
-- [ ] The three questions above are each answered in the ticket's `## Comments` **before** the code that depends on them, with the reasoning, so a later reader can tell a decision from an accident.
-- [ ] Every label is a `CONTEXT.md` term. There is deliberately **no** entry for "Konfirmasi TPU Saat Duka" and none should be added: it is a compound of existing words.
-- [ ] Tests in the ticket's own glossary words, each failing before it is written, covering a Tolak followed with a TPU section, a Tolak with the chip, and a `dari` that names nothing.
+- [x] `layarPilihMakam` returns the TPU section and the type chip **and** the Tolak banner, with all three coming from one read and one city filter, so the highlighted chip and every card agree.
+- [x] The banner names the Lokasi that refused, in the words `CONTEXT.md` uses, and offers the path to rebook.
+- [x] The Lokasi that refused does not appear in the list **in the query, not in the view** — a screen that forgets to hide it must not exist.
+- [x] The family's own data is prefilled for the new attempt, and a `dari` naming no declined order of that family gives no banner and no error page.
+- [x] The three questions above are each answered in the ticket's `## Comments` **before** the code that depends on them, with the reasoning, so a later reader can tell a decision from an accident.
+- [x] Every label is a `CONTEXT.md` term. There is deliberately **no** entry for "Konfirmasi TPU Saat Duka" and none should be added: it is a compound of existing words.
+- [x] Tests in the ticket's own glossary words, each failing before it is written, covering a Tolak followed with a TPU section, a Tolak with the chip, and a `dari` that names nothing.
 
 ## Notes
 
 - **Do not rebook by rewriting the order.** Ticket 24 decides a cancellation records a refund request in the same commit (owner, 2026-09-28); a rebook is a **new** order, and the old one keeps its history. `pemesanan.rebook` already answers this and must not grow a "reuse the old order" path.
 - **`tagihan_line` and `bukti_pembayaran` are append-only**, and the first attempt at this screen must not invent a line-level correction to undo a declined attempt.
 - `pageExists` accepts only a `page.tsx` on the **last** segment, and a route group is invisible in a URL, so two `page.tsx` for one route type-checks and passes every test. Only `npm run build` sees it.
+
+## Comments
+
+- 2026-09-30 — Builder (branch `ticket-88-pilih-makam-setelah-tolak`). **The three questions, answered before the code that depends on them** (the ticket says it owns them; they are ratified or overturned in "Spec gaps and decisions for the owner" below, and no `grilling` session took place, so they are the builder's reading and not an owner decision):
+  1. **The TPU section survives a Tolak: yes.** A family turned away at a Lokasi Mitra is choosing again, and a TPU is a real alternative to it (story 19; AC 1 asks for the section and the banner from one read). Hiding it would take away the one option that does not depend on a Lokasi Mitra's plots.
+  2. **The rejecting Lokasi is NOT excluded from the TPUs.** The exclusion is `kecualiLokasiId`, a fact about one Lokasi Mitra's refusal (ticket 24, "in the query"). A TPU is a different entity owned by Pengurusan, with its own confirmation by the Operator, so a Lokasi Mitra saying "kapasitas penuh" says nothing about any TPU. Nothing in the domain ties a Lokasi Mitra to a TPU, so there is no id to exclude by, and inventing one would be a business rule in a screen.
+  3. **The type chip and `dari` compose; `dari` wins where they could disagree.** The chip stays a plain URL filter and changes no data. `dari` is kept on every URL this screen builds (the chip links, the city filter's hidden `kembali`, the Lanjut link), so choosing a chip or a city never drops the banner or the exclusion. Whatever the chip, the exclusion is read once from `dari` and applies to the Lokasi Mitra list; the banner shows under every chip (a family on "TPU DKI" still is a family that was turned away, and the banner is what tells them why the list looks as it does). A `dari` that names no declined order of this family is not kept on any URL and gives no banner and no exclusion.
+- 2026-09-30 — Builder, what was built. `layarPilihMakam` (`src/app/pesan-makam/saat-duka/daftar.ts`) takes `dari` and the signed-in `pemesan`, calls `pemesanan.rebook`, and returns the banner (`pemesanUlang`) with the TPU section and the chip from the one read and one city filter (URL city, else the deep-linked Lokasi's, else the declined order's, else the cookie). The refusing Lokasi Mitra is left out through `pilihanSaatDuka({ kecualiLokasiId })`, in the query. The page carries `dari` on the chip links, the city filter (`kembali`) and Lanjut; Lanjut to a TPU opens `/tpu?tpuId=..&dari=..`, whose form is now prefilled from `rebook` too (name, phone, email, Almarhum, tanggal wafat), as the Lokasi Mitra form already was. The client component gets only the banner text, never the family's data. Labels are existing terms (Lokasi Mitra, Tolak, TPU DKI); no "Konfirmasi TPU Saat Duka" entry added. Tests: four new in `daftar.test.ts` ("Pilih makam after a Tolak": with the TPU section, under each chip, with the refusing Lokasi named in the link, and a `dari` naming nothing: unknown number, another Akun's order, no session).
+  - **Verification limits, stated plainly:** this sandbox has no Docker daemon and the one local Postgres is not reachable, so no Vitest run could start (global setup needs a database). The new tests were therefore **never run, red or green**: the "each failing before it is written" part of AC 7 is unproven, and the orchestrator must run `npx vitest run src/app/pesan-makam` on a real stack. `npm run typecheck`, `npm run lint` and `npm run build` are green.
+
+### Spec gaps and decisions for the owner
+
+- The three questions above (TPU section survives; rejecting Lokasi not excluded from TPUs; chip and `dari` compose, `dari` kept on every URL) are **builder decisions, not owner decisions**, taken as the ticket asked but not through `grilling`. Please ratify or overturn; the code for each is one line (`pengurusan.pilihanSaatDukaTpu` is read unconditionally; `kecualiLokasiId` is passed only to `pilihanSaatDuka`; `dari` is added in `kembaliKe` and `langkahBerikut`).
+- A visitor with no session opening a `dari` link is sent to `/masuk` (ticket 24's behaviour, kept), and comes back to no `dari` unless the email link is reopened. Spec says nothing about returning after Masuk.

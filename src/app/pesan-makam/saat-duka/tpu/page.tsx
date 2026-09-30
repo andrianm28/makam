@@ -23,9 +23,14 @@ export const metadata: Metadata = {
  * the wizard's first step would never carry its id.
  */
 export default async function DataTpuPage({ searchParams }: PageProps<"/pesan-makam/saat-duka/tpu">) {
-  const tpuId = satuNilai((await searchParams).tpuId);
-  const { pengurusan, operatorSettings, layanan } = serverRuntime();
+  const { tpuId: tpuIdParam, dari } = await searchParams;
+  const tpuId = satuNilai(tpuIdParam);
+  const { pengurusan, pemesanan, operatorSettings, layanan } = serverRuntime();
   const actor = await currentActor();
+  // A family turned away by a Lokasi Mitra who chooses a TPU instead keeps the data
+  // they already gave (spec, Public site, "After a Tolak"): the same read as the
+  // Lokasi Mitra form's, of that family's own declined order and nobody else's.
+  const pemesanUlang = dari && actor ? await pemesanan.rebook(satuNilai(dari), { accountId: actor.accountId }) : null;
 
   // The card is priced again by the module, so the total a family reads here is
   // the one its order will carry. A URL without an id names no TPU at all.
@@ -49,7 +54,14 @@ export default async function DataTpuPage({ searchParams }: PageProps<"/pesan-ma
 
   return (
     <DataTpu
-      draft={{ tpuId: kartu.tpu.id, email: actor?.email ?? "", pemesanName: "", phoneNumber: "" }}
+      draft={{
+        tpuId: kartu.tpu.id,
+        email: pemesanUlang?.isi.email ?? actor?.email ?? "",
+        pemesanName: pemesanUlang?.isi.pemesanName ?? "",
+        phoneNumber: pemesanUlang?.isi.phoneNumber ?? "",
+        almarhumName: pemesanUlang?.isi.almarhumName ?? "",
+        tanggalWafat: pemesanUlang?.isi.tanggalWafat ?? "",
+      }}
       tpu={tpuKartuView(kartu)}
       opsiDokumen={opsiDokumen}
       hariH={hariH.map((grup) => ({

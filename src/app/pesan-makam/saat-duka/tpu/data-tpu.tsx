@@ -47,7 +47,7 @@ export interface OpsiHariH {
 }
 
 export interface DataTpuProps {
-  draft: Pick<DraftTpu, "tpuId" | "email" | "pemesanName" | "phoneNumber">;
+  draft: Pick<DraftTpu, "tpuId" | "email" | "pemesanName" | "phoneNumber"> & Partial<Pick<DraftTpu, "almarhumName" | "tanggalWafat">>;
   /** The Layanan "bisa hari-H" a TPU offers, so a family can add them to the burial (story 23). */
   hariH: OpsiHariH[];
   /** The TPU the list offered, with the price its order would carry. */
@@ -86,8 +86,8 @@ export function DataTpu({
   const router = useRouter();
   const [isi, setisi] = useState({
     ...draft,
-    almarhumName: "",
-    tanggalWafat: "",
+    almarhumName: draft.almarhumName ?? "",
+    tanggalWafat: draft.tanggalWafat ?? "",
   });
   const [jawaban, setjawaban] = useState<Jawaban>({
     jenis: "baru",
