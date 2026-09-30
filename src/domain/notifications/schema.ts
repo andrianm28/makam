@@ -249,7 +249,21 @@ export const notificationsPeringatanAntrean = pgTable(
     subjectLabel: text("subject_label").notNull(),
     href: text("href").notNull(),
     createdAt: at("created_at").notNull(),
+    /** When every channel that applies went through (or the Akun is no longer staff): the alert is done. */
     sentAt: at("sent_at"),
+    /** Send attempts so far (ticket 91). Defaulted, so the previous release's inserts still work. */
+    attempts: integer("attempts").default(0),
+    /** Not tried again before this; null before the first attempt. The time comes from the Clock. */
+    nextAttemptAt: at("next_attempt_at"),
+    /** When the email (or push) went through, so a retry never repeats that channel; null while it has not. */
+    emailDoneAt: at("email_done_at"),
+    pushDoneAt: at("push_done_at"),
+    /** When the last attempt failed and none is left: the alert stops here, logged, never escalated. */
+    gaveUpAt: at("gave_up_at"),
+    /** When the bell entry was written (first completed attempt), so a retry never lists the alert twice. */
+    bellAt: at("bell_at"),
+    /** The Antrean row this alert is about (Queues' row key), when it has one: a retry asks Queues whether it is still open. */
+    rowKey: text("row_key"),
   },
   (table) => [index("notifications_peringatan_antrean_belum_dikirim_idx").on(table.createdAt).where(sql`${table.sentAt} is null`)],
 );

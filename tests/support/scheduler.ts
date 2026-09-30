@@ -55,7 +55,7 @@ export function schedulerContext(parts: {
     // tick is undisturbed by it, and a test of the release one passes the real read.
     inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
     // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
-    queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), bertugasTick: async () => ({ dimatikan: 0 }) },
+    queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), barisMasihTerbukaBelumDiambil: async () => true, bertugasTick: async () => ({ dimatikan: 0 }) },
   };
 }
 
