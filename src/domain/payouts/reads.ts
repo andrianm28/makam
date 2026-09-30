@@ -11,7 +11,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import { sumRupiah, type Rupiah } from "@/lib/rupiah";
-import { jumlahOf, toBarisItem, type BarisItemPencairan, type ItemRow } from "./baca";
+import { jumlahOf, toBarisItem, URUTAN_ITEM_JATUH_TEMPO, type BarisItemPencairan, type ItemRow } from "./baca";
 import { penerimaKey } from "./penerima";
 import { potonganOfLokasi, type BarisPotonganUmum } from "./potongan";
 import { buktiPencairan, buktiPencairanItem, pencairanItem, type PencairanItemStatus } from "./schema";
@@ -45,7 +45,7 @@ export async function pencairanJatuhTempo(db: Database): Promise<BarisJatuhTempo
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.status, "jatuh_tempo"))
-    .orderBy(asc(pencairanItem.jatuhTempoAt))).filter((item) => item.tahanAlasan === null && item.jatuhTempoAt !== null);
+    .orderBy(...URUTAN_ITEM_JATUH_TEMPO)).filter((item) => item.tahanAlasan === null && item.jatuhTempoAt !== null);
   const rows = new Map<string, BarisJatuhTempo>();
   for (const item of items) {
     const key = keyOf(item);
@@ -121,7 +121,7 @@ export async function pencairanLokasi(db: Database, by: Actor, lokasiId: string)
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.lokasiId, lokasiId))
-    .orderBy(desc(pencairanItem.dibuatPada));
+    .orderBy(desc(pencairanItem.dibuatPada), asc(pencairanItem.tagihanPosisi), asc(pencairanItem.id));
 
   // The Bukti first, so each order can be shown the Bukti that settled it.
   const buktiIds = (
@@ -129,7 +129,7 @@ export async function pencairanLokasi(db: Database, by: Actor, lokasiId: string)
       .select({ id: buktiPencairan.id })
       .from(buktiPencairan)
       .where(and(eq(buktiPencairan.lokasiId, lokasiId), eq(buktiPencairan.penerimaKind, "lokasi_mitra")))
-      .orderBy(desc(buktiPencairan.ditransferPada), desc(buktiPencairan.dibuatPada))
+      .orderBy(desc(buktiPencairan.ditransferPada), desc(buktiPencairan.dibuatPada), asc(buktiPencairan.id))
   ).map((row) => row.id);
   const semuaBukti: BuktiPencairan[] = [];
   const buktiDariItem = new Map<string, RingkasBukti>();
@@ -228,7 +228,7 @@ export async function pencairanMitraJasa(db: Database, by: Actor): Promise<Penca
     .select()
     .from(pencairanItem)
     .where(eq(pencairanItem.penerimaAkunId, by.accountId))
-    .orderBy(asc(pencairanItem.dibuatPada));
+    .orderBy(asc(pencairanItem.dibuatPada), asc(pencairanItem.id));
   const itemsTerbayar = await db
     .select({
       itemId: buktiPencairanItem.itemId,
