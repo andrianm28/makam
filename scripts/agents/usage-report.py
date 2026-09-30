@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Where an orchestration session's tokens went, and why, from the session transcripts.
 
-    python3 scripts/agents/usage-report.py [SESSION_DIR]
+    python3 scripts/agents/usage-report.py [SESSION_DIR] [--profile NAME] [--read X] [--write X]
+        [--write-long X] [--out X] [--ttl MINUTES]
 
 SESSION_DIR defaults to the newest ~/.claude/projects/*/<session-id>/ (the folder next to
 <session-id>.jsonl, holding subagents/). Prints:
@@ -22,7 +23,40 @@ See docs/agents/orchestration.md, "Token discipline".
 """
 import collections, datetime, glob, json, os, statistics, sys
 
+# Price ratios against one fresh input token = 1. The default is Anthropic's published ratios; other
+# providers differ (a cache read is 0.1 to 0.5 of an input token, a write 1.0 to 1.25, a cache may
+# live 5 minutes to an hour), so pick a profile or pass the numbers: every conclusion in
+# docs/agents/token-principles.md must be re-read with the provider's own ratios.
+PROFILES = {
+    "anthropic": dict(read=0.1, write=1.25, write_long=2.0, out=5.0, ttl=5),
+    "half-price-cache": dict(read=0.5, write=1.0, write_long=1.0, out=4.0, ttl=10),
+    "no-cache": dict(read=1.0, write=1.0, write_long=1.0, out=4.0, ttl=0),
+}
 W_READ, W_5M, W_1H, W_OUT = 0.1, 1.25, 2.0, 5.0
+TTL = 5
+
+
+def configure(argv):
+    """Set the price weights and the cache lifetime from the command line; returns the session dir."""
+    global W_READ, W_5M, W_1H, W_OUT, TTL
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("session_dir", nargs="?")
+    ap.add_argument("--profile", choices=sorted(PROFILES), default="anthropic")
+    ap.add_argument("--read", type=float)
+    ap.add_argument("--write", type=float)
+    ap.add_argument("--write-long", type=float)
+    ap.add_argument("--out", type=float)
+    ap.add_argument("--ttl", type=float, help="cache lifetime in minutes (0 = no cache)")
+    a = ap.parse_args(argv)
+    p = PROFILES[a.profile]
+    W_READ = a.read if a.read is not None else p["read"]
+    W_5M = a.write if a.write is not None else p["write"]
+    W_1H = a.write_long if a.write_long is not None else p["write_long"]
+    W_OUT = a.out if a.out is not None else p["out"]
+    TTL = a.ttl if a.ttl is not None else p["ttl"]
+    return a.session_dir
 
 
 def ts(s):
@@ -125,7 +159,8 @@ def capped(calls, cap, handoff=25000):
 
 
 def miss_tables(agents):
-    edges = [("<5 min", 0, 5), ("5-10 min", 5, 10), (">=10 min", 10, 1e9)]
+    t = TTL or 5
+    edges = [(f"<{t:g} min", 0, t), (f"{t:g}-{2 * t:g} min", t, 2 * t), (f">={2 * t:g} min", 2 * t, 1e9)]
     tables = {False: collections.defaultdict(lambda: [0, 0]), True: collections.defaultdict(lambda: [0, 0])}
     for calls in agents:
         prev = None
@@ -144,7 +179,8 @@ def miss_tables(agents):
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else max(glob.glob(os.path.expanduser("~/.claude/projects/*/*/")), key=os.path.getmtime)
+    arg = configure(sys.argv[1:])
+    root = arg if arg else max(glob.glob(os.path.expanduser("~/.claude/projects/*/*/")), key=os.path.getmtime)
     root = root.rstrip("/")
     main_calls = load(root + ".jsonl") if os.path.exists(root + ".jsonl") else []
     subs = []
@@ -193,7 +229,7 @@ def main():
     print("\ncache misses (calls with >100k context, >30% of it re-written), by silent gap since the agent's previous call:")
     for label, table in (("ordinary tool-loop calls", ordinary), ("resume turns (a new text message)", resumed)):
         print(f"  {label}: " + ", ".join(f"{n}: {table[n][1]}/{table[n][0]}" for n in names))
-    print("  (an agent's cache entry lives 5 minutes: a silent gap of 5 minutes or more, a long build or test or an idle wait before a resume, re-writes the whole context)")
+    print(f"  (an agent's cache entry lives {TTL:g} minutes here: a silent gap of that long or more, a long build or test or an idle wait before a resume, re-writes the whole context)")
 
     if subs:
         base = sum(capped(c, 10**9) for *_, c in subs)

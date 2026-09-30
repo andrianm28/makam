@@ -54,6 +54,8 @@ These rules used to live only in the owner's machine-level memory; they are here
 
 ## Token discipline (measured 2026-09-30; keep this section current)
 
+**Model and provider independent version: `docs/agents/token-principles.md`** (the cost model, the rules that hold for any model, and how to re-derive every number below for another model with `usage-report.py --profile`). What follows is measured on Claude in Claude Code and is one instance of it.
+
 Measured on one orchestration session (1 119 orchestrator calls, 172 subagents, 9 460 subagent calls) with `scripts/agents/usage-report.py`, which reproduces every number below from the session transcripts. Cost in "units" = cache-read × 0.1 + cache-write × 1.25 (a 5-minute entry, which is what every subagent writes) or × 2 (a 1-hour entry, the orchestrator's) + output × 5 (published price ratios; a subscription quota may weigh differently). Subagent `output_tokens` are under-recorded by the harness (a few tokens per call), so their output is estimated from the text they wrote.
 
 **What was measured**
