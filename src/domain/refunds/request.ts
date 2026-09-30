@@ -12,7 +12,7 @@ import type { Billing, Tagihan } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
-import { biayaLayananPlatformDikembalikan } from "./aturan";
+import { bagianDibayar, biayaLayananPlatformDikembalikan } from "./aturan";
 import { permintaanPengembalian, pihakBersalahKinds, type PihakBersalah } from "./schema";
 import { toPermintaan, type PermintaanPengembalian } from "./baca";
 
@@ -277,10 +277,11 @@ async function ajukanBarisTerkunci(
   // and then reads the lines and the total this one wrote (no under-refund from a lost update).
   const sebelumnya = await deps.db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.tagihanId, tagihanId)).for("update");
   const feeSudahDikembalikan = sebelumnya.some((row) => !row.goodwill && row.biayaLayananPlatformDikembalikan);
-  const lines: RefundLine[] = [...parsed.data.lines];
+  // A Harga Khusus lowered what the family paid, not the tariff lines: each line returns its proportional share (ticket 95, `aturan.ts`).
+  const lines: RefundLine[] = parsed.data.lines.map((line) => ({ ...line, amount: bagianDibayar(tagihan.lines, line.amount) }));
   const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
   const denganFee = biayaLayananPlatformDikembalikan(parsed.data.pihakBersalah) && !feeSudahDikembalikan && feeLine !== undefined;
-  if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeLine.amount, lokasiId: null });
+  if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: bagianDibayar(tagihan.lines, feeLine.amount), lokasiId: null });
   const jumlah = lines.reduce((sum, line) => sum + line.amount, 0);
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);
   if (jumlah === 0 || sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };

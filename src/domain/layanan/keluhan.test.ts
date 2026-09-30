@@ -530,3 +530,18 @@ describe("a Keluhan on a job whose Tagihan a Harga Khusus reissued (ticket 93)",
     });
   });
 });
+
+describe("a refund after an upheld Keluhan on a Tagihan a Harga Khusus reduced (ticket 95)", () => {
+  it("asks Refunds for the job's proportional share of what the family paid, the platform fee bearing its share, rounded down", async () => {
+    const siap = await pekerjaanSelesai({ hargaKhusus: true });
+    const { setup, tagihanDibayar } = siap;
+    const keluhanId = await ajukan(siap);
+    // The Layanan line is Rp 750.000 and the fee Rp 150.000; the Harga Khusus of Rp 50.000 leaves Rp 850.000 paid, so each line returns 850/900 of itself.
+    expect(await putuskan(siap, keluhanId, "kembalikan_dana", "Pekerjaan tidak dilakukan.")).toMatchObject({ ok: true, keluhan: { status: "dana_kembali" } });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ tagihanId: tagihanDibayar, pihakBersalah: "lokasi", jumlah: 849_999, status: "diajukan" });
+    expect(permintaan.lines.map((baris) => baris.amount)).toEqual([708_333, 141_666]);
+    // Rounding down never returns more than was paid.
+    expect(permintaan.jumlah).toBeLessThanOrEqual(850_000);
+  });
+});

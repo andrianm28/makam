@@ -55,7 +55,7 @@ import {
   type PermintaanPengembalian,
 } from "./baca";
 
-export { biayaLayananPlatformDikembalikan } from "./aturan";
+export { biayaLayananPlatformDikembalikan, bagianDibayar } from "./aturan";
 export { TENGGAT_TRANSFER_HARI_KERJA } from "./approve";
 export { rekeningSchema, rekeningTersamar, type RekeningInput } from "./rekening";
 export { pihakBersalahKinds, permintaanPengembalianStatuses, permintaanSumberKinds, type PihakBersalah } from "./schema";
