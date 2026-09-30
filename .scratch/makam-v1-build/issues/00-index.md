@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-29): 67 resolved, 18 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 94 tickets (as of 2026-09-30): 69 resolved, 16 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -389,11 +389,11 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 |---|---|---|---|
 | [86](86-import-old-app-catalog-for-beta.md) | Import the old app's cemetery catalog as beta data | resolved | 12 |
 
-| [88](88-pilih-makam-setelah-tolak.md) | Pilih makam after a Tolak: banner, the refusing Lokasi, and rebooking (deferred from the 24 merge) | ready-for-agent | 24 |
+| [88](88-pilih-makam-setelah-tolak.md) | Pilih makam after a Tolak: banner, the refusing Lokasi, and rebooking (deferred from the 24 merge) | resolved | 24 |
 | [87](87-cloud-session-readiness.md) | Cloud session readiness (Claude Code on the web) | in-progress | — |
 | [89](89-tagihan-terbit-never-announced.md) | A Tagihan was never announced: `tagihanTerbit` had no caller | resolved | — |
 | [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | resolved | 25, 32 |
 | [91](91-staff-alerts-retried.md) | Staff alerts are sent once and never retried | ready-for-agent | — |
 | [92](92-pembatalan-kedua-menunggu-transfer.md) | A second Pembatalan on one Tagihan waits for the earlier refund's transfer | ready-for-agent | — |
 | [93](93-stored-tagihan-id-after-harga-khusus.md) | Readers of an order's stored Tagihan id after a Harga Khusus reissue | ready-for-agent | — |
-| [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | ready-for-agent | — |
+| [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | resolved | — |
