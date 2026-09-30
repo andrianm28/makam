@@ -174,6 +174,7 @@ describe("the monthly Laporan", () => {
 
   it("counts an order once, in the month it was paid: a Harga Khusus reissue is one order, and one paid across a month boundary belongs to the month of its payment", async () => {
     const setup = payoutsOnTestDatabase(db);
+    // Only the cancelled original is excluded here: no public flow yet makes two paid Tagihan on one Nomor Pemesanan, so the one-order-once dedupe itself is not exercised.
     // Order A: its Tagihan is replaced by a Harga Khusus one (Rp 1.000.000 off) and that is paid on 1 November 00:30 WIB. Order B: paid on 31 Oktober 23:30 WIB.
     const pesananA = await pesananSaatDukaSiap(setup, { name: "Makam Wakaf Al-Ikhlas", email: "pemesan.a@contoh.id" });
     const konfirmasiA = await konfirmasiPesanan(setup, pesananA);
@@ -235,6 +236,8 @@ describe("the monthly Laporan", () => {
     expect(selCsv("+62 812")).toBe("'+62 812");
     expect(selCsv("-1")).toBe("'-1");
     expect(selCsv("@rumus")).toBe("'@rumus");
+    expect(selCsv("\tsel")).toBe("'\tsel");
+    expect(selCsv("\rsel")).toBe('"\'\rsel"');
     expect(selCsv("Biaya, Layanan")).toBe('"Biaya, Layanan"');
     expect(selCsv(-150_000)).toBe("-150000");
     expect(selCsv(null)).toBe("");

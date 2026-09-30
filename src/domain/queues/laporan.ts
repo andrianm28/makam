@@ -199,7 +199,7 @@ export function barisLaporan(laporan: Laporan): BarisLaporan[] {
 /** A CSV cell: quoted when needed, and a text that a spreadsheet would read as a formula (`= + - @`) is made plain text. Numbers are written as they are. */
 export function selCsv(nilai: string | number | null): string {
   if (nilai === null) return "";
-  const teks = typeof nilai === "string" && /^[=+\-@]/.test(nilai) ? `'${nilai}` : String(nilai);
+  const teks = typeof nilai === "string" && /^[=+\-@\t\r]/.test(nilai) ? `'${nilai}` : String(nilai);
   return /[",\r\n]/.test(teks) ? `"${teks.replaceAll('"', '""')}"` : teks;
 }
 
