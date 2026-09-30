@@ -25,6 +25,7 @@ export default async function LaporanPage({ searchParams }: PageProps<"/staf/adm
   const mentah = (await searchParams).bulan;
   const diminta = bulanLaporanSchema.safeParse(Array.isArray(mentah) ? mentah[0] : mentah);
   const bulan = diminta.success ? diminta.data : wibDateOf(runtime.adapters.clock.now()).slice(0, 7);
+  const bulanTidakValid = mentah !== undefined && !diminta.success;
   const hasil = await runtime.queues.laporanBulanan(actor, bulan);
   const baris = hasil.ok ? barisLaporan(hasil.laporan) : [];
   const bagian = [...new Set(baris.map((satu) => satu.bagian))];
@@ -42,6 +43,12 @@ export default async function LaporanPage({ searchParams }: PageProps<"/staf/adm
           ) : null
         }
       />
+
+      {bulanTidakValid ? (
+        <p role="alert" className="text-body text-destructive">
+          Bulan yang diminta tidak valid, jadi yang ditampilkan adalah bulan ini.
+        </p>
+      ) : null}
 
       <FormSection title="Bulan">
         <form method="get" className="flex flex-wrap items-end gap-3">

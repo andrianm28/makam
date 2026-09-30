@@ -27,6 +27,7 @@ export default async function TransferKeluarPage({ searchParams }: PageProps<"/s
   const mentah = (await searchParams).tanggal;
   const diminta = tanggalMingguSchema.safeParse(Array.isArray(mentah) ? mentah[0] : mentah);
   const tanggal = diminta.success ? diminta.data : wibDateOf(runtime.adapters.clock.now());
+  const tanggalTidakValid = mentah !== undefined && !diminta.success;
   const hasil = await runtime.queues.daftarTransferMingguan(actor, tanggal);
 
   return (
@@ -35,6 +36,12 @@ export default async function TransferKeluarPage({ searchParams }: PageProps<"/s
         title="Transfer keluar mingguan"
         description="Setiap transfer yang keluar dari rekening Operator dalam satu minggu (Senin sampai Minggu, WIB): Pencairan dan pengembalian dana, dengan nomor Bukti, penyetuju dan tautan bukti transfernya."
       />
+
+      {tanggalTidakValid ? (
+        <p role="alert" className="text-body text-destructive">
+          Tanggal yang diminta tidak valid, jadi yang ditampilkan adalah minggu ini.
+        </p>
+      ) : null}
 
       <FormSection title="Minggu">
         <form method="get" className="flex flex-wrap items-end gap-3">

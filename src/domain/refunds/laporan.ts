@@ -5,35 +5,44 @@
  * (`ditransfer_pada`), a WIB calendar date, so a span is a half-open pair of WIB
  * dates. Both reads answer nothing to anyone but Admin Platform.
  */
-import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lt } from "drizzle-orm";
 import type { Database } from "@/db/client";
+import type { Billing } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor } from "@/domain/identity";
+import { BUKTI_TRANSFER_URL_DETIK, type RentangTanggal } from "@/lib/rentang-tanggal";
 import type { FileStore } from "@/ports/file-store";
 import { buktiPengembalianDana, permintaanPengembalian } from "./schema";
 
-/** A half-open span of WIB calendar dates ("YYYY-MM-DD"): `dari` is inside, `sampai` is not. */
-export interface RentangTanggal {
-  dari: string;
-  sampai: string;
-}
-
-/** How long the transfer proof's link works: a few minutes, as everywhere a private file is opened. */
-const BUKTI_TRANSFER_URL_DETIK = 5 * 60;
+export type { RentangTanggal };
 
 export interface PengembalianDibayar {
   jumlahBukti: number;
   /** What left the bank for the refunds transferred in the span. */
   amount: number;
+  /** Of that, the Biaya Layanan Platform a refund returned to the family (the fault rule): the Operator's fee earned is that much less. */
+  biayaLayananPlatformDikembalikan: number;
 }
 
-/** What the Bukti Pengembalian Dana transferred in the span come to. */
-export async function pengembalianDibayar(db: Database, by: Actor, span: RentangTanggal): Promise<PengembalianDibayar> {
-  if (writeRefusal(by, "pengembalian.kelola", pengembalianResource())) return { jumlahBukti: 0, amount: 0 };
-  const [row] = await db
-    .select({ jumlahBukti: sql<string>`count(*)`, amount: sql<string>`coalesce(sum(${buktiPengembalianDana.amount}), 0)` })
+/** What the Bukti Pengembalian Dana transferred in the span come to, and how much of it was the Operator's own fee handed back. */
+export async function pengembalianDibayar(
+  deps: { db: Database; billing: Pick<Billing, "tagihan"> },
+  by: Actor,
+  span: RentangTanggal,
+): Promise<PengembalianDibayar> {
+  const hasil: PengembalianDibayar = { jumlahBukti: 0, amount: 0, biayaLayananPlatformDikembalikan: 0 };
+  if (writeRefusal(by, "pengembalian.kelola", pengembalianResource())) return hasil;
+  const rows = await deps.db
+    .select({ tagihanId: buktiPengembalianDana.tagihanId, amount: buktiPengembalianDana.amount, denganFee: buktiPengembalianDana.biayaLayananPlatformDikembalikan })
     .from(buktiPengembalianDana)
     .where(and(gte(buktiPengembalianDana.ditransferPada, span.dari), lt(buktiPengembalianDana.ditransferPada, span.sampai)));
-  return { jumlahBukti: Number(row?.jumlahBukti ?? 0), amount: Number(row?.amount ?? 0) };
+  for (const row of rows) {
+    hasil.jumlahBukti += 1;
+    hasil.amount += Number(row.amount);
+    if (!row.denganFee) continue;
+    const tagihan = await deps.billing.tagihan(row.tagihanId);
+    hasil.biayaLayananPlatformDikembalikan += tagihan?.lines.find((line) => line.kind === "biaya_layanan_platform")?.amount ?? 0;
+  }
+  return hasil;
 }
 
 /** One outgoing refund transfer, as the weekly list shows it. */

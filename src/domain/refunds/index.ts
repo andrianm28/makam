@@ -173,7 +173,7 @@ export function createRefunds(deps: RefundsDeps): Refunds {
         tagihanId,
         input,
       ),
-    pengembalianDibayar: (by, span) => pengembalianDibayar(deps.db, by, span),
+    pengembalianDibayar: (by, span) => pengembalianDibayar({ db: deps.db, billing: deps.billing }, by, span),
     transferKeluar: (by, span) => transferKeluarPengembalian({ db: deps.db, files: deps.files }, by, span),
     permintaanTerbuka: () => permintaanTerbuka(deps.db),
     permintaan: (id) => permintaanById(deps.db, id),

@@ -18,7 +18,7 @@ import {
   pesananSaatDukaSiap,
   type PayoutsSetup,
 } from "../../../tests/support/payouts";
-import { barisLaporan, laporanKeCsv, seninMinggu } from "./laporan";
+import { barisLaporan, laporanKeCsv, selCsv, seninMinggu } from "./laporan";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -77,6 +77,23 @@ async function kembalikanDana(setup: PayoutsSetup, fixture: Fixture, tanggal: st
   return terbit.bukti;
 }
 
+/** The same cancellation, but through no fault of the family's (the Lokasi's): the refund returns the Biaya Layanan Platform too. */
+async function kembalikanDanaKesalahanLokasi(setup: PayoutsSetup, fixture: Fixture, tanggal: string) {
+  const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+  if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+  const diajukan = await setup.refunds.ajukanDariPembatalan(fixture.tagihanId, { pihakBersalah: "lokasi" });
+  if (!diajukan.ok) throw new Error(`refund refused: ${diajukan.reason}`);
+  setup.clock.set(wib(`${tanggal} 12:00`));
+  const [permintaan] = await setup.refunds.permintaanTerbuka();
+  if (!permintaan) throw new Error("no refund request");
+  await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Rekening dari keluarga lewat telepon" });
+  const setuju = await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+  if (!setuju.ok) throw new Error(`approval refused: ${setuju.reason}`);
+  const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: tanggal, bukti: buktiTransfer });
+  if (!terbit.ok) throw new Error(`refund transfer refused: ${terbit.reason}`);
+  return terbit.bukti;
+}
+
 async function laporan(setup: PayoutsSetup, fixture: Pick<Fixture, "admin">, bulan: string) {
   const hasil = await setup.queues.laporanBulanan(fixture.admin, bulan);
   if (!hasil.ok) throw new Error(`Laporan refused: ${hasil.reason}`);
@@ -84,61 +101,104 @@ async function laporan(setup: PayoutsSetup, fixture: Pick<Fixture, "admin">, bul
 }
 
 describe("the monthly Laporan", () => {
-  it("counts a month's orders by kind, Rp collected by method, platform fees, Pencairan paid, refunds paid and Tidak Tertagih", async () => {
+  it("counts a month's paid orders by kind, Rp collected by method, platform fees, Pencairan, refunds and Tidak Tertagih, and reconciles", async () => {
     const setup = payoutsOnTestDatabase(db);
     // Order A: paid through the provider, buried, and its whole Pencairan (Rp 9.500.000) transferred.
     const pesananA = await pesananTerbayar(setup, "Makam Wakaf Al-Ikhlas", "pemesan.a@contoh.id");
     await cairkanDiDuaTanggal(setup, pesananA, "2026-10-01", "2026-10-01");
-    // Order B: paid in cash, then cancelled by the family: Rp 9.500.000 refunded (the Biaya Layanan Platform is kept).
+    // Order B: paid in cash, then cancelled by the family: Rp 9.500.000 refunded (the Biaya Layanan Platform is kept). A Dibatalkan order is no order.
     const pesananB = await pesananTerbayar(setup, "Makam Sawah Besar", "pemesan.b@contoh.id", { kind: "tunai" });
     await kembalikanDana(setup, pesananB, "2026-10-01");
-    // Order C: confirmed but never paid: an order, and no money.
+    // Order C: confirmed but never paid: no money, and not yet a paid order.
     const pesananC = await pesananSaatDukaSiap(setup, { name: "Makam Kebun Jeruk", email: "pemesan.c@contoh.id" });
     await konfirmasiPesanan(setup, pesananC);
 
     const oktober = await laporan(setup, pesananA, "2026-10");
 
     expect(oktober).toMatchObject({ bulan: "2026-10", dari: "2026-10-01", sampai: "2026-11-01" });
-    expect(oktober.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(3);
+    expect(oktober.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(1);
     expect(oktober.pesanan.filter((row) => row.kind !== "saat_duka").every((row) => row.jumlah === 0)).toBe(true);
     expect(oktober.diterima.find((row) => row.metode === "penyedia_pembayaran")).toEqual({ metode: "penyedia_pembayaran", jumlahPembayaran: 1, amount: 9_650_000 });
     expect(oktober.diterima.find((row) => row.metode === "tunai")).toEqual({ metode: "tunai", jumlahPembayaran: 1, amount: 9_650_000 });
     expect(oktober.totalDiterimaOperator).toBe(19_300_000);
-    expect(oktober.biaya).toEqual({ biayaLayananPlatform: 300_000, biayaPengurusan: 0 });
-    expect(oktober.pencairan).toMatchObject({ jumlahBukti: 2, amount: 9_500_000, lokasiMitra: { jumlahBukti: 2, amount: 9_500_000 } });
+    expect(oktober.biaya).toEqual({ biayaLayananPlatformKotor: 300_000, biayaLayananPlatformDikembalikan: 0, biayaLayananPlatform: 300_000, biayaPengurusan: 0 });
+    expect(oktober.pencairan).toMatchObject({ jumlahBukti: 2, bruto: 9_500_000, potongan: 0, neto: 9_500_000, lokasiMitra: { jumlahBukti: 2, bruto: 9_500_000 } });
     expect(oktober.pengembalian).toEqual({ jumlahBukti: 1, amount: 9_500_000 });
     expect(oktober.tidakTertagih).toEqual({ jumlah: 0, amount: 0 });
+    // Received Rp 19.300.000, less the refund and the Pencairan: what is left is the two fees the Operator kept.
+    expect(oktober.arusKasBersih).toBe(300_000);
   });
 
-  it("cuts the month at midnight WIB: a payment at 23:30 WIB on 30 September is September's, one at 00:30 WIB on 1 Oktober is Oktober's", async () => {
+  it("subtracts the Biaya Layanan Platform a refund handed back, so the fee earned is what the Operator kept", async () => {
     const setup = payoutsOnTestDatabase(db);
-    // Both orders are placed and confirmed on 1 Oktober (WIB); they are paid at the two ends of the month's boundary.
-    const akhirOktober = await pesananSaatDukaSiap(setup, { name: "Makam Wakaf Al-Ikhlas", email: "pemesan.a@contoh.id" });
-    const konfirmasiA = await konfirmasiPesanan(setup, akhirOktober);
-    const awalNovember = await pesananSaatDukaSiap(setup, { name: "Makam Sawah Besar", email: "pemesan.b@contoh.id" });
-    const konfirmasiB = await konfirmasiPesanan(setup, awalNovember);
-    setup.clock.set(wib("2026-10-31 23:30"));
-    await bayarTagihan(setup, konfirmasiA.tagihanId);
-    setup.clock.set(wib("2026-11-01 00:30"));
-    await bayarTagihan(setup, konfirmasiB.tagihanId);
+    const pesanan = await pesananTerbayar(setup, "Makam Wakaf Al-Ikhlas", "pemesan.a@contoh.id");
+    await kembalikanDanaKesalahanLokasi(setup, pesanan, "2026-10-02");
 
-    const oktober = await laporan(setup, akhirOktober, "2026-10");
-    const november = await laporan(setup, akhirOktober, "2026-11");
-    const desember = await laporan(setup, akhirOktober, "2026-12");
+    const oktober = await laporan(setup, pesanan, "2026-10");
 
-    // Orders count in the month they were placed (both 1 Oktober); the money counts in the month it came in.
-    expect(oktober.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(2);
-    expect(oktober.totalDiterimaOperator).toBe(9_650_000);
-    expect(oktober.biaya.biayaLayananPlatform).toBe(150_000);
-    expect(november.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(0);
-    expect(november.totalDiterimaOperator).toBe(9_650_000);
-    expect(november.biaya.biayaLayananPlatform).toBe(150_000);
-    expect(desember.totalDiterimaOperator).toBe(0);
-    // December rolls into the next year without a stray month.
-    expect(desember).toMatchObject({ dari: "2026-12-01", sampai: "2027-01-01" });
+    expect(oktober.pengembalian).toEqual({ jumlahBukti: 1, amount: 9_650_000 });
+    expect(oktober.biaya).toMatchObject({ biayaLayananPlatformKotor: 150_000, biayaLayananPlatformDikembalikan: 150_000, biayaLayananPlatform: 0 });
+    expect(oktober.arusKasBersih).toBe(0);
   });
 
-  it("does not count money a Lokasi Mitra took directly as Rp the Operator collected, but still lists it by method", async () => {
+  it("shows the Potongan a Pencairan netted as its own line, so Rp out of the bank equals the items paid less the Potongan", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const pesanan = await pesananTerbayar(setup, "Makam Wakaf Al-Ikhlas", "pemesan.a@contoh.id");
+    await catatPemakaman(setup, pesanan.nomor, pemakaman);
+    await setup.payouts.tick();
+    const potongan = await setup.payouts.catatPotongan(pesanan.admin, {
+      lokasiId: pesanan.lokasiMitra.id,
+      amount: 1_500_000,
+      alasanKind: "lainnya",
+      alasan: "Selisih pembayaran bulan lalu",
+    });
+    if (!potongan.ok) throw new Error(`Potongan refused: ${potongan.reason}`);
+    const [row] = await setup.payouts.jalankanPencairan(pesanan.admin);
+    const terbit = await setup.payouts.terbitkanBuktiPencairan(pesanan.admin, {
+      itemIds: row!.items.map((item) => item.id),
+      potonganIds: [potongan.potongan.id],
+      ditransferPada: "2026-10-01",
+      bukti: buktiTransfer,
+    });
+    if (!terbit.ok) throw new Error(`Bukti Pencairan refused: ${terbit.reason}`);
+
+    const oktober = await laporan(setup, pesanan, "2026-10");
+
+    expect(oktober.pencairan).toMatchObject({ jumlahBukti: 1, bruto: 9_500_000, potongan: 1_500_000, neto: 8_000_000 });
+    const baris = barisLaporan(oktober);
+    expect(baris.find((satu) => satu.keterangan === "Lokasi Mitra" && satu.bagian === "Pencairan dibayar")?.amount).toBe(-9_500_000);
+    expect(baris.find((satu) => satu.keterangan === "Potongan dipotong dari Pencairan")?.amount).toBe(1_500_000);
+    expect(baris.find((satu) => satu.keterangan === "Total Pencairan yang keluar dari bank")?.amount).toBe(-8_000_000);
+    expect(oktober.arusKasBersih).toBe(9_650_000 - 9_500_000 + 1_500_000);
+  });
+
+  it("counts an order once, in the month it was paid: a Harga Khusus reissue is one order, and one paid across a month boundary belongs to the month of its payment", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    // Order A: its Tagihan is replaced by a Harga Khusus one (Rp 1.000.000 off) and that is paid on 1 November 00:30 WIB. Order B: paid on 31 Oktober 23:30 WIB.
+    const pesananA = await pesananSaatDukaSiap(setup, { name: "Makam Wakaf Al-Ikhlas", email: "pemesan.a@contoh.id" });
+    const konfirmasiA = await konfirmasiPesanan(setup, pesananA);
+    const pesananB = await pesananSaatDukaSiap(setup, { name: "Makam Sawah Besar", email: "pemesan.b@contoh.id" });
+    const konfirmasiB = await konfirmasiPesanan(setup, pesananB);
+    const khusus = await setup.billing.tetapkanHargaKhusus(pesananA.admin, { tagihanId: konfirmasiA.tagihanId, amount: 1_000_000, alasan: "Keluarga kurang mampu" });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    setup.clock.set(wib("2026-10-31 23:30"));
+    await bayarTagihan(setup, konfirmasiB.tagihanId);
+    setup.clock.set(wib("2026-11-01 00:30"));
+    await bayarTagihan(setup, khusus.tagihan.id);
+
+    const oktober = await laporan(setup, pesananA, "2026-10");
+    const november = await laporan(setup, pesananA, "2026-11");
+
+    expect(oktober.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(1);
+    expect(oktober.totalDiterimaOperator).toBe(9_650_000);
+    expect(november.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(1);
+    expect(november.totalDiterimaOperator).toBe(8_650_000);
+    // Money and fees fall in the same month: each month's fee is the fee of what was received in it.
+    expect(oktober.biaya.biayaLayananPlatformKotor).toBe(150_000);
+    expect(november.biaya.biayaLayananPlatformKotor).toBe(150_000);
+  });
+
+  it("does not count money a Lokasi Mitra took directly as Rp the Operator received or as its fee, but still lists the order and the method", async () => {
     const setup = payoutsOnTestDatabase(db);
     const pesanan = await pesananTerbayar(setup, "Makam Wakaf Al-Ikhlas", "pemesan.a@contoh.id", { kind: "langsung_ke_lokasi", lokasiName: "Makam Wakaf Al-Ikhlas" });
 
@@ -146,9 +206,11 @@ describe("the monthly Laporan", () => {
 
     expect(oktober.diterima.find((row) => row.metode === "langsung_ke_lokasi")?.amount).toBe(9_650_000);
     expect(oktober.totalDiterimaOperator).toBe(0);
+    expect(oktober.biaya.biayaLayananPlatformKotor).toBe(0);
+    expect(oktober.pesanan.find((row) => row.kind === "saat_duka")?.jumlah).toBe(1);
   });
 
-  it("exports a CSV whose every row is a row of the Laporan on screen, with the same numbers", async () => {
+  it("exports a CSV whose every row is a row of the Laporan on screen, with the same signed numbers", async () => {
     const setup = payoutsOnTestDatabase(db);
     const pesananA = await pesananTerbayar(setup, "Makam Wakaf Al-Ikhlas", "pemesan.a@contoh.id");
     await cairkanDiDuaTanggal(setup, pesananA, "2026-10-01", "2026-10-01");
@@ -161,13 +223,21 @@ describe("the monthly Laporan", () => {
     expect(baris[0]).toContain("Laporan 2026-10");
     expect(baris[1]).toBe("Bagian,Keterangan,Jumlah,Rp");
     const disaring = (teks: string) => teks.replaceAll('"', "");
-    expect(baris.slice(2).map(disaring)).toEqual(
-      barisLaporan(oktober).map((row) => disaring([row.bagian, row.keterangan, row.jumlah ?? "", row.amount ?? ""].join(",")).replaceAll(",", ",")),
-    );
-    expect(baris).toContain("Pesanan,Pemesanan Saat Duka,1,");
-    expect(baris).toContain("Pencairan dibayar,Lokasi Mitra,2,9500000");
-    expect(baris).toContain("Pendapatan Operator,Biaya Layanan Platform,,150000");
+    expect(baris.slice(2).map(disaring)).toEqual(barisLaporan(oktober).map((row) => disaring([row.bagian, row.keterangan, row.jumlah ?? "", row.amount ?? ""].join(","))));
+    expect(baris).toContain("Pesanan dibayar,Pemesanan Saat Duka,1,");
+    expect(baris).toContain("Pencairan dibayar,Lokasi Mitra,2,-9500000");
+    expect(baris).toContain("Pendapatan Operator,Biaya Layanan Platform (kotor),,150000");
     expect(baris).toContain("Pengembalian dana dibayar,Total pengembalian dana,0,0");
+  });
+
+  it("makes a text a spreadsheet would read as a formula plain text in a CSV cell", () => {
+    expect(selCsv("=SUM(A1)")).toBe("'=SUM(A1)");
+    expect(selCsv("+62 812")).toBe("'+62 812");
+    expect(selCsv("-1")).toBe("'-1");
+    expect(selCsv("@rumus")).toBe("'@rumus");
+    expect(selCsv("Biaya, Layanan")).toBe('"Biaya, Layanan"');
+    expect(selCsv(-150_000)).toBe("-150000");
+    expect(selCsv(null)).toBe("");
   });
 
   it("opens only for Admin Platform: an Admin Lokasi, a Mitra Jasa and a Pemesan are refused, and a bad month is invalid", async () => {

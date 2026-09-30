@@ -54,21 +54,49 @@ const NAMA_METODE: Record<MetodeBayarKind, string> = {
   tanpa_pembayaran: "Tanpa pembayaran (Rp 0)",
 };
 
-/** The month's Laporan: numbers only, in whole rupiah, cut at the Asia/Jakarta month. */
+/**
+ * The month's Laporan: numbers only, in whole rupiah, cut at the Asia/Jakarta month.
+ * Every figure is dated by the moment it happened: money and orders by the payment, a
+ * Pencairan or refund by the transfer date Admin Platform entered, a Tidak Tertagih by
+ * the day it was declared.
+ */
 export interface Laporan {
   /** "2026-10". */
   bulan: string;
   /** First WIB date of the month, and the first date after it. */
   dari: string;
   sampai: string;
+  /** Orders paid in the month, one each whatever number of Tagihan, by kind. */
   pesanan: { kind: PesananKind; jumlah: number }[];
   diterima: { metode: MetodeBayarKind; jumlahPembayaran: number; amount: number }[];
-  /** Money the Operator itself received: every method except "Dibayar langsung ke Lokasi Mitra", which never reached the Operator's account. */
+  /** Money the Operator itself received: every method except "Dibayar langsung ke Lokasi Mitra". */
   totalDiterimaOperator: number;
-  biaya: { biayaLayananPlatform: number; biayaPengurusan: number };
-  pencairan: { lokasiMitra: { jumlahBukti: number; amount: number }; mitraJasa: { jumlahBukti: number; amount: number }; jumlahBukti: number; amount: number };
+  biaya: {
+    /** Gross fee lines of what the Operator received in the month. */
+    biayaLayananPlatformKotor: number;
+    /** The Biaya Layanan Platform a refund transferred in the month handed back to the family. */
+    biayaLayananPlatformDikembalikan: number;
+    /** Kotor less dikembalikan: what the Operator earned. */
+    biayaLayananPlatform: number;
+    biayaPengurusan: number;
+  };
+  pencairan: {
+    lokasiMitra: { jumlahBukti: number; bruto: number };
+    mitraJasa: { jumlahBukti: number; bruto: number };
+    jumlahBukti: number;
+    /** What the transfers covered before Potongan. */
+    bruto: number;
+    /** The Potongan netted off them: money the Lokasi Mitra owed the Operator. */
+    potongan: number;
+    /** What left the bank: bruto less potongan. */
+    neto: number;
+  };
   pengembalian: { jumlahBukti: number; amount: number };
+  /** Received less refunds, less Pencairan bruto, plus the Potongan netted: the month's cash movement. */
+  arusKasBersih: number;
   tidakTertagih: { jumlah: number; amount: number };
+  /** Tagihan declared Tidak Tertagih in an earlier month that were paid in this one. */
+  dibayarSetelahTidakTertagih: { jumlah: number; amount: number };
 }
 
 export type LaporanResult = { ok: true; laporan: Laporan } | LaporanRefusal;
@@ -96,10 +124,15 @@ export async function laporanBulanan(deps: LaporanDeps, by: Actor, bulanInput: s
   const sampai = bulanBerikutnya(bulan);
 
   const [billing, pencairan, pengembalian] = await Promise.all([
-    deps.billing.laporan({ dari: wib(dari), sampai: wib(sampai) }),
+    deps.billing.laporan(by, { dari: wib(dari), sampai: wib(sampai) }),
     deps.payouts.pencairanDibayar(by, { dari, sampai }),
     deps.refunds.pengembalianDibayar(by, { dari, sampai }),
   ]);
+  if (!billing.ok) return billing;
+  const uang = billing.laporan;
+  const biayaLayananPlatform = uang.biaya.biayaLayananPlatform - pengembalian.biayaLayananPlatformDikembalikan;
+  const pencairanBruto = pencairan.lokasiMitra.bruto + pencairan.mitraJasa.bruto;
+  const potongan = pencairan.lokasiMitra.potongan + pencairan.mitraJasa.potongan;
 
   return {
     ok: true,
@@ -107,17 +140,27 @@ export async function laporanBulanan(deps: LaporanDeps, by: Actor, bulanInput: s
       bulan,
       dari,
       sampai,
-      pesanan: billing.pesanan,
-      diterima: billing.diterima,
-      totalDiterimaOperator: billing.diterima.filter((row) => row.metode !== "langsung_ke_lokasi").reduce((sum, row) => sum + row.amount, 0),
-      biaya: billing.biaya,
-      pencairan: {
-        ...pencairan,
-        jumlahBukti: pencairan.lokasiMitra.jumlahBukti + pencairan.mitraJasa.jumlahBukti,
-        amount: pencairan.lokasiMitra.amount + pencairan.mitraJasa.amount,
+      pesanan: uang.pesanan,
+      diterima: uang.diterima,
+      totalDiterimaOperator: uang.totalDiterimaOperator,
+      biaya: {
+        biayaLayananPlatformKotor: uang.biaya.biayaLayananPlatform,
+        biayaLayananPlatformDikembalikan: pengembalian.biayaLayananPlatformDikembalikan,
+        biayaLayananPlatform,
+        biayaPengurusan: uang.biaya.biayaPengurusan,
       },
-      pengembalian,
-      tidakTertagih: billing.tidakTertagih,
+      pencairan: {
+        lokasiMitra: { jumlahBukti: pencairan.lokasiMitra.jumlahBukti, bruto: pencairan.lokasiMitra.bruto },
+        mitraJasa: { jumlahBukti: pencairan.mitraJasa.jumlahBukti, bruto: pencairan.mitraJasa.bruto },
+        jumlahBukti: pencairan.lokasiMitra.jumlahBukti + pencairan.mitraJasa.jumlahBukti,
+        bruto: pencairanBruto,
+        potongan,
+        neto: pencairanBruto - potongan,
+      },
+      pengembalian: { jumlahBukti: pengembalian.jumlahBukti, amount: pengembalian.amount },
+      arusKasBersih: uang.totalDiterimaOperator - pengembalian.amount - pencairanBruto + potongan,
+      tidakTertagih: uang.tidakTertagih,
+      dibayarSetelahTidakTertagih: uang.dibayarSetelahTidakTertagih,
     },
   };
 }
@@ -128,39 +171,45 @@ export interface BarisLaporan {
   keterangan: string;
   /** How many (orders, payments, Bukti); null for a line that is only an amount. */
   jumlah: number | null;
-  /** Whole rupiah; null for a line that is only a count. */
+  /** Whole rupiah, signed: money in is positive, money out (refunds, Pencairan) negative; null for a line that is only a count. */
   amount: number | null;
 }
 
 /** The Laporan as flat rows, in reading order: the one source of both the screen and the CSV. */
 export function barisLaporan(laporan: Laporan): BarisLaporan[] {
   const baris: BarisLaporan[] = [];
-  for (const row of laporan.pesanan) baris.push({ bagian: "Pesanan", keterangan: NAMA_PESANAN[row.kind], jumlah: row.jumlah, amount: null });
+  for (const row of laporan.pesanan) baris.push({ bagian: "Pesanan dibayar", keterangan: NAMA_PESANAN[row.kind], jumlah: row.jumlah, amount: null });
   for (const row of laporan.diterima) baris.push({ bagian: "Rp diterima", keterangan: NAMA_METODE[row.metode], jumlah: row.jumlahPembayaran, amount: row.amount });
   baris.push({ bagian: "Rp diterima", keterangan: "Total diterima Operator (tanpa yang dibayar langsung ke Lokasi Mitra)", jumlah: null, amount: laporan.totalDiterimaOperator });
-  baris.push({ bagian: "Pendapatan Operator", keterangan: "Biaya Layanan Platform", jumlah: null, amount: laporan.biaya.biayaLayananPlatform });
+  baris.push({ bagian: "Pendapatan Operator", keterangan: "Biaya Layanan Platform (kotor)", jumlah: null, amount: laporan.biaya.biayaLayananPlatformKotor });
+  baris.push({ bagian: "Pendapatan Operator", keterangan: "Dikurangi Biaya Layanan Platform yang dikembalikan", jumlah: null, amount: -laporan.biaya.biayaLayananPlatformDikembalikan });
+  baris.push({ bagian: "Pendapatan Operator", keterangan: "Biaya Layanan Platform (bersih)", jumlah: null, amount: laporan.biaya.biayaLayananPlatform });
   baris.push({ bagian: "Pendapatan Operator", keterangan: "Biaya Pengurusan", jumlah: null, amount: laporan.biaya.biayaPengurusan });
-  baris.push({ bagian: "Pencairan dibayar", keterangan: "Lokasi Mitra", jumlah: laporan.pencairan.lokasiMitra.jumlahBukti, amount: laporan.pencairan.lokasiMitra.amount });
-  baris.push({ bagian: "Pencairan dibayar", keterangan: "Mitra Jasa", jumlah: laporan.pencairan.mitraJasa.jumlahBukti, amount: laporan.pencairan.mitraJasa.amount });
-  baris.push({ bagian: "Pencairan dibayar", keterangan: "Total Pencairan", jumlah: laporan.pencairan.jumlahBukti, amount: laporan.pencairan.amount });
-  baris.push({ bagian: "Pengembalian dana dibayar", keterangan: "Total pengembalian dana", jumlah: laporan.pengembalian.jumlahBukti, amount: laporan.pengembalian.amount });
-  baris.push({ bagian: "Tidak Tertagih", keterangan: "Tagihan dinyatakan Tidak Tertagih", jumlah: laporan.tidakTertagih.jumlah, amount: laporan.tidakTertagih.amount });
+  baris.push({ bagian: "Pengembalian dana dibayar", keterangan: "Total pengembalian dana", jumlah: laporan.pengembalian.jumlahBukti, amount: -laporan.pengembalian.amount });
+  baris.push({ bagian: "Pencairan dibayar", keterangan: "Lokasi Mitra", jumlah: laporan.pencairan.lokasiMitra.jumlahBukti, amount: -laporan.pencairan.lokasiMitra.bruto });
+  baris.push({ bagian: "Pencairan dibayar", keterangan: "Mitra Jasa", jumlah: laporan.pencairan.mitraJasa.jumlahBukti, amount: -laporan.pencairan.mitraJasa.bruto });
+  baris.push({ bagian: "Pencairan dibayar", keterangan: "Potongan dipotong dari Pencairan", jumlah: null, amount: laporan.pencairan.potongan });
+  baris.push({ bagian: "Pencairan dibayar", keterangan: "Total Pencairan yang keluar dari bank", jumlah: laporan.pencairan.jumlahBukti, amount: -laporan.pencairan.neto });
+  baris.push({ bagian: "Arus kas", keterangan: "Diterima Operator dikurangi pengembalian dana dan Pencairan, ditambah Potongan", jumlah: null, amount: laporan.arusKasBersih });
+  baris.push({ bagian: "Tidak Tertagih", keterangan: "Dinyatakan Tidak Tertagih bulan ini", jumlah: laporan.tidakTertagih.jumlah, amount: laporan.tidakTertagih.amount });
+  baris.push({ bagian: "Tidak Tertagih", keterangan: "Dibayar bulan ini setelah dinyatakan Tidak Tertagih", jumlah: laporan.dibayarSetelahTidakTertagih.jumlah, amount: laporan.dibayarSetelahTidakTertagih.amount });
   return baris;
 }
 
-function sel(nilai: string | number | null): string {
+/** A CSV cell: quoted when needed, and a text that a spreadsheet would read as a formula (`= + - @`) is made plain text. Numbers are written as they are. */
+export function selCsv(nilai: string | number | null): string {
   if (nilai === null) return "";
-  const teks = String(nilai);
+  const teks = typeof nilai === "string" && /^[=+\-@]/.test(nilai) ? `'${nilai}` : String(nilai);
   return /[",\r\n]/.test(teks) ? `"${teks.replaceAll('"', '""')}"` : teks;
 }
 
-/** The Laporan as CSV (RFC 4180, CRLF): the same rows as the page, amounts as plain whole-rupiah integers. */
+/** The Laporan as CSV (RFC 4180, CRLF): the same rows as the page, amounts as plain signed whole-rupiah integers. */
 export function laporanKeCsv(laporan: Laporan): string {
   const kepala = [`Laporan ${laporan.bulan} (WIB, ${laporan.dari} sampai sebelum ${laporan.sampai})`];
   const baris = [
-    kepala.map(sel).join(","),
+    kepala.map(selCsv).join(","),
     ["Bagian", "Keterangan", "Jumlah", "Rp"].join(","),
-    ...barisLaporan(laporan).map((row) => [row.bagian, row.keterangan, row.jumlah, row.amount].map(sel).join(",")),
+    ...barisLaporan(laporan).map((row) => [row.bagian, row.keterangan, row.jumlah, row.amount].map(selCsv).join(",")),
   ];
   return `${baris.join("\r\n")}\r\n`;
 }

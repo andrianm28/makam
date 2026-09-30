@@ -109,7 +109,7 @@ export type { BuktiPencairan, DokumenBuktiPencairan, KirimBuktiPencairan, Terbit
 export type { BarisPotonganUmum, CatatPotonganInput, CatatPotonganLunasResult, CatatPotonganResult } from "./potongan";
 export type { BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
-export type { PencairanDibayar, RentangTanggal, TransferKeluarPencairan } from "./laporan";
+export type { PencairanDibayar, PencairanDibayarPerJenis, RentangTanggal, TransferKeluarPencairan } from "./laporan";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
 export type { ItemLayanan, LayananJatuhTempoResult } from "./layanan";

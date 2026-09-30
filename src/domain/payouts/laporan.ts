@@ -7,47 +7,59 @@
  * Nothing here moves money or changes a row; both reads answer nothing to anyone
  * but Admin Platform, the way the run itself does.
  */
-import { and, asc, gte, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import { pencairanResource, writeRefusal, type Actor } from "@/domain/identity";
+import { BUKTI_TRANSFER_URL_DETIK, type RentangTanggal } from "@/lib/rentang-tanggal";
 import type { FileStore } from "@/ports/file-store";
-import { buktiPencairan } from "./schema";
+import { buktiPencairan, buktiPencairanPotongan } from "./schema";
 
-/** A half-open span of WIB calendar dates ("YYYY-MM-DD"): `dari` is inside, `sampai` is not. */
-export interface RentangTanggal {
-  dari: string;
-  sampai: string;
+export type { RentangTanggal };
+
+/** What the Bukti Pencairan of one kind of recipient transferred: the items paid (bruto), the Potongan netted off them, and what left the bank (neto = bruto - potongan). */
+export interface PencairanDibayarPerJenis {
+  jumlahBukti: number;
+  bruto: number;
+  potongan: number;
+  neto: number;
 }
-
-/** How long the transfer proof's link works: a few minutes, as everywhere a private file is opened. */
-const BUKTI_TRANSFER_URL_DETIK = 5 * 60;
 
 export interface PencairanDibayar {
-  lokasiMitra: { jumlahBukti: number; amount: number };
-  mitraJasa: { jumlahBukti: number; amount: number };
+  lokasiMitra: PencairanDibayarPerJenis;
+  mitraJasa: PencairanDibayarPerJenis;
 }
 
-const kosong = (): PencairanDibayar => ({ lokasiMitra: { jumlahBukti: 0, amount: 0 }, mitraJasa: { jumlahBukti: 0, amount: 0 } });
+const kosongPerJenis = (): PencairanDibayarPerJenis => ({ jumlahBukti: 0, bruto: 0, potongan: 0, neto: 0 });
 
-/** What the Bukti Pencairan transferred in the span come to, by kind of recipient: what left the bank, after the Potongan each netted. */
+/** What the Bukti Pencairan transferred in the span come to, by kind of recipient, with the Potongan each netted as its own (negative) line. */
 export async function pencairanDibayar(db: Database, by: Actor, span: RentangTanggal): Promise<PencairanDibayar> {
-  const hasil = kosong();
+  const hasil: PencairanDibayar = { lokasiMitra: kosongPerJenis(), mitraJasa: kosongPerJenis() };
   if (writeRefusal(by, "pencairan.lihat_semua", pencairanResource())) return hasil;
+  const dalamRentang = and(gte(buktiPencairan.ditransferPada, span.dari), lt(buktiPencairan.ditransferPada, span.sampai));
   const rows = await db
     .select({
       penerimaKind: buktiPencairan.penerimaKind,
       jumlahBukti: sql<string>`count(*)`,
-      amount: sql<string>`coalesce(sum(${buktiPencairan.amount}), 0)`,
+      neto: sql<string>`coalesce(sum(${buktiPencairan.amount}), 0)`,
     })
     .from(buktiPencairan)
-    .where(and(gte(buktiPencairan.ditransferPada, span.dari), lt(buktiPencairan.ditransferPada, span.sampai)))
+    .where(dalamRentang)
     .groupBy(buktiPencairan.penerimaKind);
+  const potonganRows = await db
+    .select({ penerimaKind: buktiPencairan.penerimaKind, potongan: sql<string>`coalesce(sum(${buktiPencairanPotongan.amount}), 0)` })
+    .from(buktiPencairanPotongan)
+    .innerJoin(buktiPencairan, eq(buktiPencairan.id, buktiPencairanPotongan.buktiId))
+    .where(dalamRentang)
+    .groupBy(buktiPencairan.penerimaKind);
+  const per = (kind: string) => (kind === "mitra_jasa" ? hasil.mitraJasa : hasil.lokasiMitra);
   for (const row of rows) {
-    const target = row.penerimaKind === "mitra_jasa" ? hasil.mitraJasa : hasil.lokasiMitra;
+    const target = per(row.penerimaKind);
     target.jumlahBukti += Number(row.jumlahBukti);
-    target.amount += Number(row.amount);
+    target.neto += Number(row.neto);
   }
+  for (const row of potonganRows) per(row.penerimaKind).potongan += Number(row.potongan);
+  for (const target of [hasil.lokasiMitra, hasil.mitraJasa]) target.bruto = target.neto + target.potongan;
   return hasil;
 }
 
