@@ -10,6 +10,8 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   try { input = JSON.parse(raw).tool_input ?? {}; } catch { process.exit(0); }
   const model = input.model;
   if (["sonnet", "haiku", "opus"].includes(model)) process.exit(0);
+  // The project agents in .claude/agents (builder, reviewer) name their own model in their frontmatter.
+  if (["builder", "reviewer"].includes(input.subagent_type)) process.exit(0);
   process.stderr.write(
     `Subagent call blocked: pass model ("sonnet" | "haiku" | "opus"), got ${JSON.stringify(model ?? null)}. ` +
     "AGENTS.md model tiering: sonnet for building, first reviews, research and prototypes; " +
