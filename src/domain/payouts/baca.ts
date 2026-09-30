@@ -120,12 +120,22 @@ export function toBarisItem(row: ItemRow): BarisItemPencairan {
   };
 }
 
+/**
+ * The one order every read of due items shares. Items due at the same moment (one order's lines always are) tie on
+ * `jatuhTempoAt`, and the database hands ties back in any order: creation, then the order and its own line order, then id
+ * make the run's item order, and so which item a reduction or a partial netting reaches first, the same every time (ticket 94).
+ */
+export const URUTAN_ITEM_JATUH_TEMPO = [
+  asc(pencairanItem.jatuhTempoAt),
+  asc(pencairanItem.dibuatPada),
+  asc(pencairanItem.nomorPemesanan),
+  asc(pencairanItem.tagihanPosisi),
+  asc(pencairanItem.id),
+];
+
 /** Every item that is due, oldest deadline first. Held-out items are among them: a run shows why they are not paid. */
 export async function itemsDue(db: Database): Promise<ItemRow[]> {
-  // Items due at the same moment (one order's lines always are) tie on `jatuhTempoAt`, and the database hands ties back in any
-  // order: creation, then the order and its own line order, then id make the run's item order, and so which item a reduction
-  // or a partial netting reaches first, the same every time (ticket 94).
-  return db.select().from(pencairanItem).where(eq(pencairanItem.status, "jatuh_tempo")).orderBy(asc(pencairanItem.jatuhTempoAt), asc(pencairanItem.dibuatPada), asc(pencairanItem.nomorPemesanan), asc(pencairanItem.tagihanPosisi), asc(pencairanItem.id));
+  return db.select().from(pencairanItem).where(eq(pencairanItem.status, "jatuh_tempo")).orderBy(...URUTAN_ITEM_JATUH_TEMPO);
 }
 
 /** Every item that is not due yet, oldest first. */

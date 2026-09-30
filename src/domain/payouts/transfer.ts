@@ -284,7 +284,7 @@ async function issueIn(
     return { ok: false, reason: "potongan_ke_mitra_jasa_tidak_boleh" };
   }
   if (rows.length !== input.potonganIds.length) return { ok: false, reason: "potongan_tidak_tersedia" };
-  const urut = [...rows].sort((a, b) => a.dibuatPada.getTime() - b.dibuatPada.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const urut = [...rows].sort((a, b) => a.dibuatPada.getTime() - b.dibuatPada.getTime() || a.id.localeCompare(b.id));
   for (const row of urut) {
     if (recipient.kind !== "lokasi_mitra" || row.lokasiId !== recipient.lokasiId) {
       return { ok: false, reason: "potongan_tidak_tersedia" };

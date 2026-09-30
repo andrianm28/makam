@@ -16,6 +16,7 @@ import {
   pesananSaatDukaSiap,
   type PayoutsModul,
 } from "../../../tests/support/payouts";
+import { orderSaatDuka } from "../../../tests/support/pemesanan";
 import { setTagihanStatusForTest } from "../../../tests/support/billing";
 
 /** Whole rupiah, as the Tagihan lines carry it. */
@@ -90,7 +91,7 @@ describe("what a Pencairan item is worth", () => {
     ]);
   });
 
-  it("items due at the same moment come back in the order's own line order, (ticket 94)", async () => {
+  it("items due at the same moment come back in the order's own line order (ticket 94)", async () => {
     const setup = payoutsOnTestDatabase(db);
     const order = await orderDue(setup);
     // Every reduction rewrites the Hak Pakai row, so the database no longer
@@ -111,6 +112,35 @@ describe("what a Pencairan item is worth", () => {
       const [run] = await setup.payouts.jalankanPencairan(order.admin);
       expect(run?.items.map((item) => item.kind)).toEqual(["harga_hak_pakai", "biaya_pemakaman"]);
     }
+  });
+
+  it("two orders due at the same moment come back one order after the other, each in its own line order (ticket 94)", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+    const kedua = await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), rencanaPemakamanAt: "2026-10-02T10:00" });
+    if (!kedua.ok) throw new Error(`second order refused: ${kedua.reason}`);
+    const pesanan = [
+      { nomor: fixture.nomor, petakId: fixture.cells[0]!.id },
+      { nomor: kedua.pemesanan.nomor, petakId: fixture.cells[1]!.id },
+    ];
+    // The later order is paid and made due first, so the database holds its items first:
+    // only the ordering, not the order the rows were written in, puts the first order ahead.
+    for (const satu of [...pesanan].reverse()) {
+      const hasil = await setup.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, { nomor: satu.nomor, petakId: satu.petakId, pemakamanAt: "2026-10-02T10:00" });
+      if (!hasil.ok) throw new Error(`confirmation refused: ${hasil.reason}`);
+      const order = await setup.pemesanan.orderUntukStaf(fixture.admin, satu.nomor);
+      await bayarTagihan(setup, order!.tagihanId!);
+      await db.transaction((tx) => setup.payouts.pemakamanTercatat(tx, { nomorPemesanan: satu.nomor, pemakamanAt: wib("2026-10-02 10:00") }));
+    }
+    await setup.payouts.tick();
+
+    const [run] = await setup.payouts.jalankanPencairan(fixture.admin);
+    expect(run?.items.map((item) => [item.nomorPemesanan, item.kind])).toEqual(
+      [...pesanan.map((satu) => satu.nomor)].sort().flatMap((nomor) => [
+        [nomor, "harga_hak_pakai"],
+        [nomor, "biaya_pemakaman"],
+      ]),
+    );
   });
 
   it("is lowered by a Harga Khusus partner share entered before the Tagihan was paid: applied when the item is created, oldest item first (ticket 30)", async () => {
