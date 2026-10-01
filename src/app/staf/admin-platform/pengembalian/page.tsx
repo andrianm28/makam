@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { biayaLayananPlatformTerbayar, bolehTimpakanBiayaLayananPlatform } from "@/domain/billing";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -15,8 +16,18 @@ import { GoodwillForm, PermintaanForms } from "./pengembalian-forms";
  */
 export default async function PengembalianPage() {
   await staffMenuActor("admin_platform");
-  const { refunds } = serverRuntime();
+  const { refunds, billing } = serverRuntime();
   const terbuka = await refunds.permintaanTerbuka();
+  // Owner decision 2026-10-01: Admin Platform may lower the fee only on a Tagihan
+  // that carries a Harga Khusus. The field's default is the payable fee, read from
+  // Billing's own rule so the screen and the Server Action share one source.
+  const biayaBawaan = await Promise.all(
+    terbuka.map(async (permintaan) => {
+      const tagihan = await billing.tagihan(permintaan.tagihanId);
+      if (!tagihan || !bolehTimpakanBiayaLayananPlatform(permintaan.biayaLayananPlatformDikembalikan, tagihan.lines)) return null;
+      return biayaLayananPlatformTerbayar(tagihan.lines);
+    }),
+  );
 
   return (
     <>
@@ -42,7 +53,7 @@ export default async function PengembalianPage() {
           </CardHeader>
         </Card>
       ) : (
-        terbuka.map((permintaan) => (
+        terbuka.map((permintaan, index) => (
           <Card key={permintaan.id}>
             <CardHeader>
               <CardTitle>
@@ -57,7 +68,7 @@ export default async function PengembalianPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <PermintaanForms permintaan={permintaan} />
+              <PermintaanForms permintaan={permintaan} biayaBawaan={biayaBawaan[index] ?? null} />
             </CardContent>
           </Card>
         ))

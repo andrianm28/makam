@@ -515,6 +515,23 @@ describe("a Penilaian", () => {
   });
 });
 
+describe("a Keluhan refund after a Harga Khusus (ticket 95)", () => {
+  it("returns the job line's own share of the reduced Tagihan, so the request is accepted and never over-refunds", async () => {
+    const siap = await pekerjaanSelesai({ hargaKhusus: true });
+    const { setup, lokasi } = siap;
+    const keluhanId = await ajukan(siap);
+    const hasil = await putuskan(siap, keluhanId, "kembalikan_dana", "Pekerjaan tidak dilakukan.");
+    expect(hasil).toMatchObject({ ok: true, keluhan: { status: "dana_kembali" } });
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    // The Harga Khusus is borne from the fee first (spec 503): the tariff line comes back in full
+    // (Rp 750.000) and the fee returns its payable amount (Rp 150.000 − Rp 50.000).
+    expect(permintaan).toMatchObject({ pihakBersalah: "lokasi", biayaLayananPlatformDikembalikan: true, jumlah: 850_000 });
+    expect(permintaan.lines[0]).toMatchObject({ amount: 750_000, lokasiId: lokasi.lokasiMitra.id });
+    expect(permintaan.lines[1]).toMatchObject({ label: "Biaya Layanan Platform", amount: 100_000 });
+  });
+});
+
 describe("a Keluhan on a job whose Tagihan a Harga Khusus reissued (ticket 93)", () => {
   it("finds the job's Pencairan item on the Tagihan the family paid: a rejected Keluhan releases it and Admin Platform's override lowers it", async () => {
     const siap = await pekerjaanSelesai({ hargaKhusus: true });

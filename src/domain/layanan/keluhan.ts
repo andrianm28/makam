@@ -28,6 +28,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm"
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
+import { nilaiDibayarBaris } from "@/domain/billing";
 import { daytimeHoursDeadline } from "@/domain/lokasi";
 import { keluhanLayananResource, lokasiMitraResource, normaliseEmail, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { buktiUntukPekerjaan, type BuktiTerbaca } from "./bukti";
@@ -259,15 +260,18 @@ async function mintaPengembalian(
   deps: LayananDeps,
   tx: Database,
   baris: Baris,
-): Promise<{ ok: true; permintaanId: string } | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda" }> {
+): Promise<{ ok: true; permintaanId: string | null } | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda" }> {
   const tagihan = await deps.billing.within(tx).tagihanBerlaku(baris.order.tagihanId);
   if (!tagihan) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
   // The job's own line is found by position, as a cancellation finds it: the order issued its lines in its items' order.
   const line = tagihan.lines[baris.item.posisi];
   if (!line || line.kind !== "layanan" || line.label !== baris.item.label) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
+  // After a Harga Khusus the Tagihan's total is reduced by a whole-Tagihan Penyesuaian the line does not carry: Refunds
+  // may only return the line's own share of what was paid (ticket 95), never the full original tariff.
+  const amount = nilaiDibayarBaris(tagihan.lines, line);
   const diajukan = await deps.refunds.ajukanBaris(
     tagihan.id,
-    { pihakBersalah: "lokasi", lines: [{ label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }] },
+    { pihakBersalah: "lokasi", lines: [{ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }] },
     tx,
   );
   if (diajukan.ok) return { ok: true, permintaanId: diajukan.permintaanId };

@@ -13,7 +13,7 @@
  *   Refunds, `biayaLayananPlatformDikembalikan("pemesan")`), so it is not part of the tariff here.
  * - Whole rupiah, rounded **down**: the Operator never refunds a fraction of a rupiah it did not receive.
  */
-import type { TagihanLine } from "@/domain/billing";
+import { biayaLayananPlatformDari, tarifDari, type TagihanLine } from "@/domain/billing";
 import type { BarisRefundPembatalan, SyaratTerencana } from "./schema";
 
 export interface HitungPembatalanInput {
@@ -48,8 +48,8 @@ export interface HitungPembatalan {
 export function hitungPembatalanTerencana(input: HitungPembatalanInput): HitungPembatalan {
   const dalamMasaPembatalan = input.sekarang.getTime() < input.masaPembatalanBerakhirPada.getTime();
   const persenRefund = dalamMasaPembatalan ? 100 : input.syarat.refundAfterMasaPembatalanPercent;
-  const tarif = input.lines.filter((line) => line.kind !== "biaya_layanan_platform").reduce((sum, line) => sum + line.amount, 0);
-  const biayaLayananPlatform = input.lines.filter((line) => line.kind === "biaya_layanan_platform").reduce((sum, line) => sum + line.amount, 0);
+  const tarif = tarifDari(input.lines);
+  const biayaLayananPlatform = biayaLayananPlatformDari(input.lines);
   const jumlahRefund = Math.max(0, Math.floor((tarif * persenRefund) / 100));
   const lines: BarisRefundPembatalan[] =
     jumlahRefund > 0

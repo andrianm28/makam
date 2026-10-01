@@ -34,6 +34,7 @@
 import { and, eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
+import { nilaiDibayarBaris } from "@/domain/billing";
 import { normaliseEmail } from "@/domain/identity";
 import type { Rupiah } from "@/lib/rupiah";
 import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
@@ -188,16 +189,20 @@ async function tulisPengembalian(
 
   // Refunds owns the rule and the request: the job's own line goes in, and whether the Biaya
   // Layanan Platform comes back follows who is at fault (the Pemesan cancelling keeps it, the
-  // Lokasi's lateness returns it, once for the Tagihan).
+  // Lokasi's lateness returns it, once for the Tagihan). After a Harga Khusus the line is the
+  // job's own share of what was paid, never the original tariff (ticket 95).
+  const amount = nilaiDibayarBaris(tagihan.lines, line);
   const diajukan = await deps.refunds.ajukanBaris(
     tagihan.id,
     {
       pihakBersalah: karenaLateness ? "lokasi" : "pemesan",
-      lines: [{ label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
+      lines: [{ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
     },
     tx,
   );
   if (!diajukan.ok) return "tertunda";
+  // Nothing to return (a fully-waived Tagihan owes Rp 0): the cancellation still stands, with no request.
+  if (diajukan.permintaanId === null) return null;
   const baris = diajukan.lines.map((satu) => ({ label: satu.label, amount: satu.amount }));
   const values = {
     pekerjaanId: row.job.id,

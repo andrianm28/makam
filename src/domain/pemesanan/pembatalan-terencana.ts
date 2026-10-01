@@ -20,6 +20,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { normaliseEmail } from "@/domain/identity";
+import { barisBiayaLayananPlatform, nilaiDibayarBaris } from "@/domain/billing";
 import type { HakPakaiDetail } from "@/domain/inventory";
 import { addWorkingDays } from "@/domain/lokasi";
 import type { Pemesan, PemesananDeps } from "./deps";
@@ -132,13 +133,12 @@ async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerenc
   const urutan = (await unitsOfOrder(deps.db, order.id)).findIndex((satu) => satu.id === unit.id);
   const barisUnit = hargaHakPakai.find((line) => "label" in line && line.label.endsWith(` · ${nomorUnit(unit)}`)) ?? hargaHakPakai[urutan];
   if (!barisUnit) return null;
-  // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own line,
-  // so what is refunded is what the family really paid for the plot and never more.
-  const jumlahHarga = hargaHakPakai.reduce((sum, line) => sum + line.amount, 0);
-  const penyesuaian = tagihan.lines.filter((line) => line.kind === "penyesuaian_harga_khusus").reduce((sum, line) => sum + line.amount, 0);
-  const dibayarUntukUnit = jumlahHarga > 0 ? Math.floor((barisUnit.amount * (jumlahHarga + penyesuaian)) / jumlahHarga) : barisUnit.amount;
+  // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own
+  // line within the Tagihan's whole tariff — the same base every other refund of a Harga Khusus Tagihan uses (ticket 95),
+  // so a share no one is refunded here is not silently loaded onto this plot and the sum of refunds stays within the total.
+  const dibayarUntukUnit = nilaiDibayarBaris(tagihan.lines, barisUnit);
   return hitungPembatalanTerencana({
-    lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
+    lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...barisBiayaLayananPlatform(tagihan.lines)],
     syarat: order.syarat,
     masaPembatalanBerakhirPada: order.masaPembatalanBerakhirPada,
     sekarang,

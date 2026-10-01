@@ -31,10 +31,11 @@ const HARI_INI = wib("2026-10-01 10:00");
 const TARGET = "2026-10-20";
 
 /** A paid order, so its Tagihan is Lunas and a cancellation has money to return. */
-async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] = {}) {
+async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] & { hargaKhusus?: number; tanpaBayar?: boolean } = {}) {
+  const { hargaKhusus, tanpaBayar, ...opsiLokasi } = options;
   const setup = layananOnTestDatabase(db);
   await siapkanOperatorLayanan(setup);
-  const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000, ...options });
+  const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000, ...opsiLokasi });
   const petak = await petakDenganHakPakai(setup, lokasi);
   const { pemesan } = await pemesanLayanan(setup);
   const order = await setup.layanan.placePesananLayanan(pemesan, {
@@ -46,12 +47,26 @@ async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] = {}) {
   });
   if (!order.ok) throw new Error(`order refused: ${order.reason}`);
   setup.clock.set(HARI_INI);
-  const dibayar = await setup.billing.recordPayment(order.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
-  if (!dibayar.ok) throw new Error("payment refused");
+  let tagihanDibayar = order.tagihan.id;
+  if (hargaKhusus) {
+    const khusus = await setup.billing.tetapkanHargaKhusus(lokasi.admin, {
+      tagihanId: order.tagihan.id,
+      amount: hargaKhusus,
+      alasan: "Keringanan untuk keluarga",
+      porsiMitra: 0,
+      catatanPorsiMitra: "Ditanggung Operator",
+    });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    tagihanDibayar = khusus.tagihan.id;
+  }
+  if (!tanpaBayar) {
+    const dibayar = await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
+    if (!dibayar.ok) throw new Error("payment refused");
+  }
   const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
   const kerja = dibaca?.item[0].pekerjaan;
   if (!kerja) throw new Error("no job");
-  return { setup, lokasi, pemesan, order, pekerjaanId: kerja.id };
+  return { setup, lokasi, pemesan, order, pekerjaanId: kerja.id, tagihanDibayar };
 }
 
 /** One captured proof, so a job can be finished. */
@@ -186,7 +201,7 @@ describe("the refund a cancellation asks of the Refunds module", () => {
   const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" };
 
   /** An order of two Layanan, paid, so each of its two jobs can be cancelled on its own. */
-  async function pesananDuaItem() {
+  async function pesananDuaItem({ hargaKhusus = 0 }: { hargaKhusus?: number } = {}) {
     const setup = layananOnTestDatabase(db);
     await siapkanOperatorLayanan(setup);
     const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000 });
@@ -204,11 +219,23 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     });
     if (!order.ok) throw new Error(`order refused: ${order.reason}`);
     setup.clock.set(HARI_INI);
-    await setup.billing.recordPayment(order.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
+    let tagihanDibayar = order.tagihan.id;
+    if (hargaKhusus) {
+      const khusus = await setup.billing.tetapkanHargaKhusus(lokasi.admin, {
+        tagihanId: order.tagihan.id,
+        amount: hargaKhusus,
+        alasan: "Keringanan untuk keluarga",
+        porsiMitra: 0,
+        catatanPorsiMitra: "Ditanggung Operator",
+      });
+      if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+      tagihanDibayar = khusus.tagihan.id;
+    }
+    await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
     const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
     const [satu, dua] = dibaca?.item.map((item) => item.pekerjaan?.id) ?? [];
     if (!satu || !dua) throw new Error("no jobs");
-    return { setup, lokasi, pemesan, satu, dua };
+    return { setup, lokasi, pemesan, satu, dua, tagihanDibayar };
   }
 
   it("becomes a request Admin Platform approves and transfers into a Bukti Pengembalian Dana, the platform fee kept", async () => {
@@ -262,6 +289,106 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     const [permintaan] = await setup.refunds.permintaanTerbuka();
     expect(permintaan.jumlah).toBe(1_500_000);
   });
+
+  it("returns the job line's own share of a Harga Khusus Tagihan, and the platform fee's own share when it comes back (ticket 95)", async () => {
+    const { setup, pemesan, pekerjaanId } = await siap({ hargaKhusus: 50_000 });
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
+    if (!hasil.ok) throw new Error("refused");
+    expect(hasil.pengembalian).toMatchObject({
+      // The Harga Khusus is borne from the fee first (spec 503), so the tariff line comes back in
+      // full (Rp 750.000) and the fee returns its payable part (Rp 150.000 − Rp 50.000).
+      total: 850_000,
+      platformDikembalikan: true,
+      baris: [
+        { label: "Layanan – Pembersihan Makam (Reguler)", amount: 750_000 },
+        { label: "Biaya Layanan Platform", amount: 100_000 },
+      ],
+    });
+    expect(hasil.pengembalian!.total).toBeLessThanOrEqual((await setup.billing.tagihan(hasil.pengembalian!.tagihanId))!.total);
+  });
+
+  it("keeps the Biaya Layanan Platform when the family is at fault, even after a Harga Khusus (ticket 95)", async () => {
+    const { setup, pemesan, pekerjaanId } = await siap({ hargaKhusus: 50_000 });
+    setup.clock.set(wib("2026-10-19 08:00"));
+
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Rencana berubah." });
+    if (!hasil.ok) throw new Error("refused");
+    expect(hasil.pengembalian).toMatchObject({
+      // The tariff line is untouched by the Harga Khusus: it is the fee that bore it, and the fee is kept.
+      total: 750_000,
+      platformDikembalikan: false,
+      baris: [{ label: "Layanan – Pembersihan Makam (Reguler)", amount: 750_000 }],
+    });
+  });
+
+  it("never refunds more than a Harga Khusus Tagihan was paid, across two refunds and their apportioned fee (ticket 95)", async () => {
+    const { setup, pemesan, satu, dua, tagihanDibayar } = await pesananDuaItem({ hargaKhusus: 50_000 });
+    const tagihan = await setup.billing.tagihan(tagihanDibayar);
+    if (!tagihan) throw new Error("no Tagihan");
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Terlambat." })).ok).toBe(true);
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Terlambat juga." })).ok).toBe(true);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    // Both tariff lines come back in full (the Harga Khusus came out of the fee); the payable fee is added once.
+    expect(permintaan.jumlah).toBe(750_000 + 100_000 + 750_000);
+    expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
+  });
+  it("still refunds a paid line when the Harga Khusus is larger than the tariff, never refusing it (ticket 95)", async () => {
+    // Rp 750.000 + Rp 150.000 fee, reduced by Rp 800.000: the family really paid Rp 100.000, less than the tariff alone.
+    const { setup, pemesan, pekerjaanId } = await siap({ hargaKhusus: 800_000 });
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
+    if (!hasil.ok) throw new Error("refused");
+    const tagihan = await setup.billing.tagihan(hasil.pengembalian!.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+    // Only the Rp 650.000 of Harga Khusus above the Rp 150.000 fee reduces the tariff: the line comes
+    // back at the Rp 100.000 the family really paid; the fee is fully eaten, so no fee line comes back.
+    expect(hasil.pengembalian!.baris).toEqual([
+      expect.objectContaining({ label: "Layanan – Pembersihan Makam (Reguler)", amount: 100_000 }),
+    ]);
+    expect(hasil.pengembalian!.total).toBe(100_000);
+    expect(hasil.pengembalian!.total).toBeLessThanOrEqual(tagihan.total);
+  });
+
+  it("cancels cleanly when the Harga Khusus wipes the whole Tagihan out: nothing is owed, and 0 is not a refusal (ticket 95)", async () => {
+    // Tarif Rp 750.000 + fee Rp 150.000, Harga Khusus Rp 900.000: the Tagihan is Rp 0 and Lunas at once.
+    const { setup, pemesan, pekerjaanId, tagihanDibayar } = await siap({ hargaKhusus: 900_000, tanpaBayar: true });
+    const tagihan = await setup.billing.tagihan(tagihanDibayar);
+    expect(tagihan).toMatchObject({ total: 0, status: "lunas" });
+
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
+    // The cancellation stands, with no refund request: the family paid nothing, so nothing comes back.
+    expect(hasil.ok).toBe(true);
+    if (!hasil.ok) return;
+    expect(hasil.pengembalian).toBeNull();
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
+  });
+
+  it("rounds each line's share down, so the refund never passes the reduced total (ticket 95)", async () => {
+    const { setup, pemesan, satu, dua, tagihanDibayar } = await pesananDuaItem({ hargaKhusus: 150_001 });
+    const tagihan = await setup.billing.tagihan(tagihanDibayar);
+    if (!tagihan) throw new Error("no Tagihan");
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Terlambat." })).ok).toBe(true);
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Terlambat juga." })).ok).toBe(true);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    // Only Rp 1 above the fee reduces the tariff: floor(750.000 × 1.499.999 / 1.500.000) = 749.999,5 → 749.999
+    // each; the fee is fully eaten (Rp 150.000 − Rp 150.001 < 0), so it returns nothing.
+    expect(permintaan.jumlah).toBe(749_999 + 749_999);
+    expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
+  });
+
   it("is refused, and the job left as it was, while an approved refund is still open on the Tagihan", async () => {
     const { setup, lokasi, pemesan, satu, dua } = await pesananDuaItem();
     setup.clock.set(wib("2026-10-19 08:00"));

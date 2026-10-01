@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { PermintaanPengembalian } from "@/domain/refunds";
 import type { FormState } from "../../form-state";
@@ -61,16 +61,47 @@ export function GoodwillForm() {
   );
 }
 
-/** The three steps one open request goes through: approve, bank account, transfer. */
-export function PermintaanForms({ permintaan }: { permintaan: PermintaanPengembalian }) {
+/**
+ * The three steps one open request goes through: approve, bank account, transfer.
+ *
+ * `biayaBawaan` is the payable fee the fault rule allows on a Tagihan with a
+ * Harga Khusus, or null when the fee may not be overridden (no Harga Khusus, or
+ * no fee being returned). The one field is prefilled with it; when Admin
+ * Platform lowers it, a Catatan is required (owner decision 2026-10-01).
+ */
+export function PermintaanForms({ permintaan, biayaBawaan }: { permintaan: PermintaanPengembalian; biayaBawaan: number | null }) {
   const [setujuiState, setujuiAction, menyetujui] = useActionState(setujuiPengembalianAction, idle);
   const [rekeningState, rekeningAction, mengisi] = useActionState(isiRekeningAdminAction, idle);
   const [transferState, transferAction, mentransfer] = useActionState(terbitkanBuktiPengembalianDanaAction, idle);
+  const [biaya, setBiaya] = useState(biayaBawaan === null ? "" : String(biayaBawaan));
+  // Mirrors the Server Action: an emptied field is no override (the action turns "" into undefined), and
+  // only a value that really differs from the fault rule's default needs the mandatory Catatan.
+  const biayaDiubah = biayaBawaan !== null && biaya.trim() !== "" && biaya !== String(biayaBawaan);
 
   if (permintaan.status === "diajukan") {
     return (
       <form action={setujuiAction} className="flex flex-col gap-2 sm:items-start">
         <input type="hidden" name="permintaanId" value={permintaan.id} />
+        {biayaBawaan !== null ? (
+          <>
+            <label className={labelClass}>
+              Biaya Layanan Platform yang dikembalikan (Rupiah)
+              <input
+                name="biayaLayananPlatform"
+                type="number"
+                min={0}
+                max={biayaBawaan}
+                value={biaya}
+                onChange={(event) => setBiaya(event.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className={labelClass}>
+              Catatan {biayaDiubah ? "(wajib: biaya diubah)" : "(opsional)"}
+              <input name="catatan" required={biayaDiubah} maxLength={500} className={inputClass} />
+            </label>
+          </>
+        ) : null}
         <Button type="submit" disabled={menyetujui}>
           {menyetujui ? "Menyetujui…" : "Setujui permintaan"}
         </Button>

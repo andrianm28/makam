@@ -121,6 +121,8 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
       if (!diminta.ok) {
         return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       }
+      // Guarded by `jumlahRefund > 0`, so a refund really is due; a null id would mean a no-op request.
+      if (diminta.permintaanId === null) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       pengembalian = { permintaanId: diminta.permintaanId };
       await tx
         .update(permintaanPembatalanTerencana)
