@@ -26,6 +26,7 @@ import {
   layananPekerjaanSelesaiEmail,
   layananPesananTerbitEmail,
   layananTpuPesananTerbitEmail,
+  paketSiklusDijedaEmail,
 } from "./template";
 
 const lokasiSchema = z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) });
@@ -582,6 +583,49 @@ export async function layananPekerjaanSelesai(deps: PesanKeluargaDeps, input: La
   });
   await queueFamilyEmail(deps.db, now, {
     template: "layanan_pekerjaan_selesai",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** What the Layanan module announces when a Paket Layanan cycle's Tagihan would pass the QRIS cap and the Paket is paused. */
+export const paketSiklusDijedaSchema = z.object({
+  nomor: z.string().trim().min(1).max(50),
+  /** The Pemesan's proven email: every subscription has one, so this message is never address-less. */
+  email: z.email().max(320),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  petak: z.object({ nomor: z.string().trim().min(1).max(60) }),
+  /** The WIB date of the cycle whose Tagihan was refused. */
+  siklus: z.iso.date(),
+});
+export type PaketSiklusDijedaInput = z.infer<typeof paketSiklusDijedaSchema>;
+
+/**
+ * A Paket Layanan cycle whose Tagihan Billing refused because its total passes the
+ * Rilis 1 QRIS cap (ticket 54): the Paket is paused and the Pemesan is told, so
+ * nobody is left wondering why no bill came. About a Lokasi Mitra's own work, so a
+ * send that keeps failing calls that Lokasi's Admin Lokasi.
+ */
+export async function paketSiklusDijeda(deps: PesanKeluargaDeps, input: PaketSiklusDijedaInput): Promise<PesanLayananResult> {
+  const parsed = paketSiklusDijedaSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = paketSiklusDijedaEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    petakNomor: data.petak.nomor,
+    siklus: data.siklus,
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "paket_siklus_dijeda",
     pemesananId: null,
     nomorPemesanan: data.nomor,
     lokasiId: data.lokasi.id,

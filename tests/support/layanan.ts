@@ -9,6 +9,7 @@ import {
   buktiOf,
   type LayananNotifikasi,
   type NewLayanan,
+  type PaketSiklusDijeda,
   type PekerjaanMitraJasa,
   type PekerjaanMitraJasaPort,
   type PekerjaanTpuDitugaskan,
@@ -52,16 +53,19 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
   selesai: PekerjaanLayananSelesaiTerb[];
   pesananTpuDicatat: PesananTpuTerbit[];
   ditugaskan: PekerjaanTpuDitugaskan[];
+  paketDijeda: PaketSiklusDijeda[];
 } {
   const pesananTerbit: PesananLayananTerb[] = [];
   const selesai: PekerjaanLayananSelesaiTerb[] = [];
   const pesananTpuDicatat: PesananTpuTerbit[] = [];
   const ditugaskan: PekerjaanTpuDitugaskan[] = [];
+  const paketDijeda: PaketSiklusDijeda[] = [];
   return {
     pesananTerbit,
     selesai,
     pesananTpuDicatat,
     ditugaskan,
+    paketDijeda,
     pesananLayananTerbit: async (_tx, hasil) => {
       pesananTerbit.push(hasil);
     },
@@ -73,6 +77,9 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
     },
     pekerjaanTpuDitugaskan: async (_tx, hasil) => {
       ditugaskan.push(hasil);
+    },
+    paketSiklusDijeda: async (_tx, hasil) => {
+      paketDijeda.push(hasil);
     },
   };
 }

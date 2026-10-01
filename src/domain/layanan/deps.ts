@@ -110,6 +110,12 @@ export interface LayananNotifikasi {
    * after the commit; the worker sends it and logs it.
    */
   pekerjaanTpuDitugaskan(tx: Database, hasil: PekerjaanTpuDitugaskan): Promise<void>;
+  /**
+   * A Paket Layanan cycle whose Tagihan would pass the Rilis 1 QRIS cap, so the
+   * Paket was paused (ticket 54): the Pemesan is told in the transaction that set
+   * the pause, so the pause and its Peringatan commit together.
+   */
+  paketSiklusDijeda(tx: Database, hasil: PaketSiklusDijeda): Promise<void>;
 }
 
 /** A new order Layanan at a DKI TPU as its Pemesan is told about it. */
@@ -147,6 +153,19 @@ export interface PesananLayananTerbit {
   item: { label: string; targetDate: string }[];
   /** The pay-first Tagihan issued with the order. */
   tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string };
+}
+
+/** A Paket Layanan cycle whose Tagihan would pass the QRIS cap, as its Pemesan is told about it. */
+export interface PaketSiklusDijeda {
+  /** The subscription's own Nomor Pemesanan, so the message lands on its order page. */
+  nomor: string;
+  /** The Pemesan's proven email: a subscription always has one. */
+  email: string;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  petak: { nomor: string };
+  /** The WIB date of the cycle whose Tagihan Billing refused. */
+  siklus: string;
 }
 
 /** A job finished as its Pemesan is told about it. */

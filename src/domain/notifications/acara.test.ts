@@ -58,6 +58,9 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "pengembalian_terbit",
       "layanan_pesanan_terbit",
       "layanan_pekerjaan_selesai",
+      // A Paket Layanan cycle over the QRIS cap pauses the Paket and tells the
+      // Pemesan (ticket 54): it asks them to act, so it waits for the window.
+      "paket_siklus_dijeda",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
     ]);

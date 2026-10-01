@@ -117,6 +117,58 @@ describe("a Paket Layanan cycle", () => {
     expect(await setup.layanan.paketSiklusTick(wib("2027-01-01 09:00"))).toEqual({ diterbitkan: 0 });
   });
 
+  it("pauses the Paket and queues one Peringatan when the cycle would exceed the QRIS cap", async () => {
+    // Two Layanan at Rp 6.000.000 each make one cycle's Tagihan pass the
+    // Rp 10.000.000 single-transaction QRIS cap, so Billing refuses to issue it.
+    const setup = layananOnTestDatabase(db, { notifikasiNyata: true });
+    const admin = await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup, { amount: 6_000_000 });
+    const kedua = await newLayananFor(setup, admin, { name: "Laporan Foto/Video", jenis: "laporan", leadTimeDays: 1 });
+    const ditawarkan = await setup.layanan.tawarkanLayanan(admin, lokasi.lokasiMitra.id, kedua.varian.id, {
+      amount: 6_000_000,
+      effectiveOn: "2026-10-01",
+      reason: null,
+    });
+    if (!ditawarkan.ok) throw new Error(`offering refused: ${ditawarkan.reason}`);
+    const dibuat = await setup.layanan.buatPaket(admin, {
+      name: "Paket Ziarah",
+      description: "Dua Layanan tiap siklus.",
+      frekuensi: "bulanan",
+      itemIds: [lokasi.varian.id, kedua.varian.id],
+      reason: null,
+    });
+    if (!dibuat.ok) throw new Error(`Paket refused: ${dibuat.reason}`);
+    const petak = await petakDenganHakPakai(setup, lokasi);
+    const { pemesan } = await pemesanLayanan(setup);
+    const langganan = await setup.layanan.berlanggananPaket(pemesan, {
+      paketId: dibuat.paket.id,
+      lokasiId: lokasi.lokasiMitra.id,
+      petakId: petak.petakId,
+      mulai: "2026-11-20",
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+    });
+    if (!langganan.ok) throw new Error(`Berlangganan refused: ${langganan.reason}`);
+
+    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"))).toEqual({ diterbitkan: 0 });
+
+    const dibaca = await setup.layanan.bacaPesananPaket(langganan.paket.id);
+    expect(dibaca?.status).toBe("dijeda");
+    // The cycle is not consumed: it stays where it was for a later resume.
+    expect(dibaca?.nextCycleDate).toBe("2026-11-20");
+    expect(dibaca?.siklus).toHaveLength(0);
+
+    const pesan = await setup.notifications.pesanLayanan(langganan.paket.nomor);
+    expect(pesan.map((satu) => satu.template)).toEqual(["paket_siklus_dijeda"]);
+    expect(pesan[0].status).toBe("menunggu");
+
+    // Idempotent: the paused Paket is not active, so a second tick changes
+    // nothing and queues no second Peringatan.
+    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:30"))).toEqual({ diterbitkan: 0 });
+    expect((await setup.layanan.bacaPesananPaket(langganan.paket.id))?.status).toBe("dijeda");
+    expect(await setup.notifications.pesanLayanan(langganan.paket.nomor)).toHaveLength(1);
+  });
+
   it("schedules one Pekerjaan Layanan per item for that cycle once it is paid", async () => {
     const { setup, langganan } = await siap();
     await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"));

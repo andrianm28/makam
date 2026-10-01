@@ -218,6 +218,7 @@ export type {
   PekerjaanMitraJasa,
   PekerjaanMitraJasaPort,
   PekerjaanSelesai,
+  PaketSiklusDijeda,
   PemesanLayanan,
   PesananLayananTerbit,
   PekerjaanTpuDitugaskan,

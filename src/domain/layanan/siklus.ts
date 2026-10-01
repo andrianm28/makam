@@ -18,9 +18,11 @@
  * finds the next cycle's H-7 still ahead and issues nothing. A `sekali` Paket has
  * one cycle and then no next date.
  *
- * Ticket 54's later slices add skip → pause, resume, Hentikan, the stop on a
- * Berakhir Hak Pakai, the tariff-change wording and the optional email field;
- * none of them is built here.
+ * A cycle Billing refuses for passing the Rilis 1 QRIS cap is paused here — the
+ * one refusal that can never succeed on a retry — with a Peringatan to the
+ * Pemesan. Ticket 54's other later slices add skip → pause, resume, Hentikan,
+ * the stop on a Berakhir Hak Pakai, the tariff-change wording and the optional
+ * email field; none of them is built here.
  */
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
@@ -163,6 +165,10 @@ function h7TelahTiba(cycleDate: string, now: Date): boolean {
  * jobs in `menunggu_pembayaran` and its pay-first Tagihan, then advances
  * `next_cycle_date`. Returns false when the cycle cannot be issued (a price or an
  * offering is missing), leaving the date alone so the next tick tries again.
+ *
+ * A Tagihan Billing refuses for passing the Rilis 1 QRIS cap is the one refusal
+ * that will never succeed on a retry: it pauses the Paket (`dijeda`) and tells
+ * the Pemesan, in the same transaction, so the tick stops retrying it.
  */
 async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: Date): Promise<boolean> {
   const hasil = await refusable(deps.db, async (tx) => {
@@ -206,7 +212,24 @@ async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: D
       placeName: paket.lokasiName,
       lines: baris.lines,
     });
-    if (!tagihan.ok) return { ok: true as const, diterbitkan: false };
+    if (!tagihan.ok) {
+      // A cycle whose total passes the Rilis 1 QRIS cap can never be issued, so
+      // the Paket is paused instead of retried forever: the pause and the
+      // Peringatan that explains it commit in this transaction (ticket 54).
+      if (tagihan.reason === "melebihi_batas_qris") {
+        await deps.notifikasi.paketSiklusDijeda(tx, {
+          nomor: paket.nomor,
+          email: paket.pemesanEmail,
+          pemesanName: paket.pemesanName,
+          lokasi: { id: paket.lokasiId, name: paket.lokasiName },
+          petak: { nomor: paket.petakNomor },
+          siklus: cycleDate,
+        });
+        await tx.update(pesananPaket).set({ status: "dijeda" }).where(eq(pesananPaket.id, paket.id));
+        return { ok: true as const, diterbitkan: false };
+      }
+      return { ok: true as const, diterbitkan: false };
+    }
 
     await tulisPesananLayanan(
       tx,

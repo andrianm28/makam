@@ -96,10 +96,12 @@ import {
   layananPekerjaanSelesai,
   layananPesananTerbit,
   layananTpuPesananTerbit,
+  paketSiklusDijeda,
   pesanLayanan,
   type LayananPekerjaanSelesaiInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
+  type PaketSiklusDijedaInput,
   type PesanLayananResult,
   type PesanPemesananResult,
   type PesananAlternatifDitawarkanInput,
@@ -148,11 +150,13 @@ export {
   layananPekerjaanSelesaiSchema,
   layananPesananTerbitSchema,
   layananTpuPesananTerbitSchema,
+  paketSiklusDijedaSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
   type LayananPekerjaanSelesaiInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
+  type PaketSiklusDijedaInput,
   type PesanLayananResult,
   type PesanPemesananResult,
   type PesananBuktiPemesananInput,
@@ -463,6 +467,12 @@ export interface Notifications {
   layananTpuPesananTerbit(input: LayananTpuPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
   layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
+  /**
+   * A Paket Layanan cycle whose Tagihan would pass the Rilis 1 QRIS cap, so the
+   * Paket was paused (ticket 54): the Pemesan hears why, queued on the
+   * transaction that set the pause. `within` is the tick's own transaction.
+   */
+  paketSiklusDijeda(input: PaketSiklusDijedaInput, within?: Database): Promise<PesanLayananResult>;
   /** Every logged message about one order Layanan, oldest first. */
   pesanLayanan(nomorPemesanan: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
@@ -854,6 +864,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async layananPekerjaanSelesai(input, within) {
       return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
+    },
+    async paketSiklusDijeda(input, within) {
+      return paketSiklusDijeda(within ? { ...deps, db: within } : deps, input);
     },
     async pesanLayanan(nomorPemesanan) {
       return pesanLayanan(deps, nomorPemesanan);
