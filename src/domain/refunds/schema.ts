@@ -49,6 +49,13 @@ export type PermintaanSumberKind = (typeof permintaanSumberKinds)[number];
  * whole-Tagihan source keeps its older contract (never raised beside any other
  * open request); the migration's compatibility trigger enforces that for the
  * running release too.
+ *
+ * The trigger `permintaan_pengembalian_satu_terbuka` is a DELIBERATE, PERMANENT
+ * DB-level business rule — a conscious exception to "business rules live in the
+ * domain module" (owner decision, 2026-10-01). A partial unique index cannot
+ * express the invariant, because it looks at rows OUTSIDE the indexed subset:
+ * it must block a goodwill/materialisasi insert while ANY non-transferred row
+ * exists, including a `manual` one. Kept as the guard for goodwill/materialisasi.
  */
 export const permintaanPengembalian = pgTable(
   "permintaan_pengembalian",

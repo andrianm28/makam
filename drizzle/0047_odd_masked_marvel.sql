@@ -7,6 +7,10 @@
 -- never has a gap. A `manual`, non-goodwill raise (ajukanBaris, the one path that must now coexist, ticket 92) is
 -- untouched, so the migration is safe under expand/contract. The advisory lock makes the trigger's check race-safe
 -- the way the unique index was.
+-- PERMANENT, on purpose (owner decision, 2026-10-01): this trigger is a deliberate DB-level business rule, a
+-- conscious exception to "business rules live in the domain module". A partial unique index cannot express the
+-- invariant because it depends on rows outside the indexed subset: it must block a goodwill/materialisasi insert
+-- while ANY non-transferred row exists, including a `manual` one. It remains the guard for goodwill/materialisasi.
 CREATE FUNCTION "permintaan_pengembalian_satu_terbuka"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.sumber = 'pembatalan' OR NEW.goodwill THEN
