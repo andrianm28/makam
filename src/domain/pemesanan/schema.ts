@@ -437,3 +437,67 @@ export const permintaanPembatalanTerencana = pgTable(
       .where(sql`${table.status} in ('diajukan', 'perlu_perbaikan')`),
   ],
 );
+
+/** The two other requests a Pemegang Hak may make about a Hak Pakai (spec, Pemesanan > Requests from the Pemegang Hak; ticket 39). */
+export const permintaanHakPakaiJenis = ["pengembalian", "ganti_pemegang_hak"] as const;
+export type PermintaanHakPakaiJenis = (typeof permintaanHakPakaiJenis)[number];
+
+/** The same status machine a Pembatalan request runs on (spec: Diajukan → (Perlu Perbaikan ↺ Diajukan) → Disetujui | Ditolak | Dibatalkan). */
+export const permintaanHakPakaiStatuses = ["diajukan", "perlu_perbaikan", "disetujui", "ditolak", "dibatalkan"] as const;
+export type PermintaanHakPakaiStatus = (typeof permintaanHakPakaiStatuses)[number];
+
+/** Why a Hak Pakai changes hands: a sale (only where the Lokasi Mitra allows it) or inheritance (always allowed). */
+export const permintaanGantiSebab = ["jual", "waris"] as const;
+export type PermintaanGantiSebab = (typeof permintaanGantiSebab)[number];
+
+/**
+ * Owned by the Pemesanan module: one Pengembalian Hak Pakai or Ganti Pemegang Hak request of one
+ * Hak Pakai, asked by that Hak Pakai's Pemegang Hak (spec, Pemesanan > Requests from the Pemegang
+ * Hak; ticket 39). Both run the same status machine as a Pembatalan and both have an Antrean Lokasi
+ * row while Diajukan, due 2 Hari Kerja on the Lokasi's own calendar.
+ *
+ * A Pengembalian carries no money: compensation is agreed directly with the Lokasi. A Ganti names
+ * the new holder and why (`jual` / `waris`), and the Lokasi's own fee for it is collected offline:
+ * this request only ever notes it (`biaya_ganti_offline`), never bills it.
+ */
+export const pemesananPermintaanHakPakai = pgTable(
+  "pemesanan_permintaan_hak_pakai",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jenis: text("jenis", { enum: permintaanHakPakaiJenis }).notNull(),
+    status: text("status", { enum: permintaanHakPakaiStatuses }).notNull(),
+    lokasiId: text("lokasi_id").notNull(),
+    hakPakaiId: uuid("hak_pakai_id").notNull(),
+    /** The Nomor Makam / Nomor Kavling the plot is known by, copied for the rows and messages that name it. */
+    unitNomor: text("unit_nomor").notNull(),
+    pemohonAccountId: text("pemohon_account_id").notNull(),
+    pemohonEmail: text("pemohon_email").notNull(),
+    catatanPemohon: text("catatan_pemohon"),
+    /** Ganti Pemegang Hak only: the new holder and why the right changes hands. */
+    pemegangBaruName: text("pemegang_baru_name"),
+    pemegangBaruPhone: text("pemegang_baru_phone"),
+    pemegangBaruEmail: text("pemegang_baru_email"),
+    sebab: text("sebab", { enum: permintaanGantiSebab }),
+    /** Optional documents the family attached; the keys in the private FileStore. */
+    dokumen: jsonb("dokumen").$type<string[]>().notNull(),
+    /** Rupiah the Lokasi collects offline for a Ganti Pemegang Hak, noted when the Lokasi approves; never a Tagihan. */
+    biayaGantiOffline: integer("biaya_ganti_offline"),
+    putaran: integer("putaran").notNull(),
+    diajukanPada: at("diajukan_pada").notNull(),
+    /** 2 Hari Kerja on the Lokasi's own calendar from the latest filing; null while its Jam Operasional is belum diisi. */
+    tenggatPada: at("tenggat_pada"),
+    diputuskanPada: at("diputuskan_pada"),
+    diputuskanOleh: text("diputuskan_oleh"),
+    /** The Admin Lokasi's reason to decline, or what it asks to be fixed. */
+    alasanKeputusan: text("alasan_keputusan"),
+    dibatalkanPada: at("dibatalkan_pada"),
+  },
+  (table) => [
+    index("pemesanan_permintaan_hak_pakai_lokasi_idx").on(table.lokasiId, table.status),
+    index("pemesanan_permintaan_hak_pakai_hak_pakai_idx").on(table.hakPakaiId),
+    // One open request of each kind per Hak Pakai: a second filing while one is open is refused.
+    uniqueIndex("pemesanan_permintaan_hak_pakai_terbuka_idx")
+      .on(table.hakPakaiId, table.jenis)
+      .where(sql`${table.status} in ('diajukan', 'perlu_perbaikan')`),
+  ],
+);

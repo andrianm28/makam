@@ -103,7 +103,7 @@ export async function hakPakaiByTarget(db: Database, lokasiId: string): Promise<
  * `pembongkaranAt` is always null: no ticket yet records a Pembongkaran.
  */
 export function forStatus(hakPakai: HakPakaiRow | null): ActiveHakPakaiForStatus | null {
-  return hakPakai ? { status: hakPakai.status, pembongkaranAt: null } : null;
+  return hakPakai ? { status: hakPakai.status, pembongkaranAt: null, endReason: hakPakai.endReason } : null;
 }
 
 export interface PemegangHakRow {

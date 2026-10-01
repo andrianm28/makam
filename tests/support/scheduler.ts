@@ -79,6 +79,7 @@ const DIAMDIAM: PemesananNotifikasi = {
   terencanaBatasBayarLewat: async () => {},
   terencanaBukti: async () => {},
   pembatalanTerencana: async () => {},
+  calonPenghuniBerubah: async () => {},
   chasingDijadwalkan: async () => {},
   tidakTertagihDinyatakan: async () => {},
 };

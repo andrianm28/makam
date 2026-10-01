@@ -54,6 +54,8 @@ export interface AntreanRowDeps {
     // The Pembatalan rows of a paid Terencana order: the Antrean Lokasi's and Admin Platform's Tier 3 refund approval (ticket 38).
     | "antreanPembatalan"
     | "persetujuanRefundPembatalan"
+    // The Antrean Lokasi's own Pengembalian / Ganti Pemegang Hak rows (ticket 39).
+    | "antreanPermintaanHakPakai"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
   inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;

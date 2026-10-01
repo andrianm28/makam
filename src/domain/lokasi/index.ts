@@ -124,12 +124,14 @@ import {
   type UpdateTpuDkiResult,
 } from "./tpu";
 import {
+  aturanGantiPemegangHak,
   publicLokasiMitra,
   publicLokasiMitraCities,
   publicLokasiMitraList,
   publicLokasiMakamCities,
   publicLokasiMakamList,
   publicVisitPhotoUrls,
+  type AturanGantiPemegangHak,
   type LokasiMakamCard,
   type LokasiMakamQuery,
   type PublicLokasiMitra,
@@ -241,7 +243,7 @@ export {
   type TerencanaSwitchGate,
   type TerencanaSwitchKey,
 } from "./terencana";
-export type { PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
+export type { AturanGantiPemegangHak, PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
 export type { LokasiMakamCard, LokasiMakamKind, LokasiMakamQuery } from "./public-reads";
 
 export interface LokasiModuleDeps {
@@ -422,6 +424,8 @@ export interface Lokasi {
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
   publicLokasiMitraCities(): Promise<string[]>;
+  /** A Lokasi Mitra's own Ganti Pemegang Hak rules (sale transfers allowed, the offline fee), no actor (ticket 39). */
+  aturanGantiPemegangHak(lokasiId: string): Promise<AturanGantiPemegangHak | null>;
   /** Every DKI TPU with its new-plot flag and the date that flag was checked (Admin Platform; empty for anyone else). */
   tpuDkiList(by: Actor): Promise<TpuDki[]>;
   /** Admin Platform adds a DKI TPU with the new-plot flag as found (which stamps the date it was checked), audited. */
@@ -494,6 +498,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
     publicLokasiMitraCities: () => publicLokasiMitraCities(deps),
+    aturanGantiPemegangHak: (lokasiId) => aturanGantiPemegangHak(deps, lokasiId),
     tpuDkiList: (by) => tpuDkiList(deps, by),
     createTpuDki: (by, input) => createTpuDki(deps, by, input),
     updateTpuDki: (by, tpuId, input) => updateTpuDki(deps, by, tpuId, input),

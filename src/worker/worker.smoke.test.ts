@@ -60,6 +60,7 @@ describe("pg-boss wiring (smoke)", () => {
           terencanaBatasBayarLewat: async () => {},
           terencanaBukti: async () => {},
           pembatalanTerencana: async () => {},
+          calonPenghuniBerubah: async () => {},
           chasingDijadwalkan: async () => {},
           tidakTertagihDinyatakan: async () => {},
         },

@@ -5,7 +5,7 @@
  */
 import type { Notifications } from "@/domain/notifications";
 import { createPemesanan, type Pemesanan, type PemesananDeps, type PemesananNotifikasi } from "@/domain/pemesanan";
-import { stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
+import { stafCalonPenghuniBerubahAlert, stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
 
 /**
  * The Pemesanan module, wired to the runtime's Notifications: a new order raises
@@ -44,6 +44,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       terencanaBatasBayarLewat: async () => {},
       terencanaBukti: async () => {},
       pembatalanTerencana: async () => {},
+      calonPenghuniBerubah: async () => {},
       chasingDijadwalkan: async () => {},
       tidakTertagihDinyatakan: async () => {},
     };
@@ -102,6 +103,12 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     },
     pembatalanTerencana: async (tx, input) => {
       await notifications.pembatalanTerencana(input, tx);
+    },
+    calonPenghuniBerubah: async (input) => {
+      const alert = stafCalonPenghuniBerubahAlert({ lokasi: { id: input.lokasiId }, unitNomor: input.unitNomor, label: input.label });
+      for (const to of input.penerima) {
+        await notifications.sendStaffAlert({ to, kind: "staf_calon_penghuni_diubah", ...alert });
+      }
     },
     tidakTertagihDinyatakan: async (tx, tagihan) => {
       await notifications.antrekanPeringatanTidakTertagih(tx, tagihan);
