@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-01): 78 resolved, 11 ready-for-agent, 1 needs-triage, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 100 tickets (as of 2026-10-01): 79 resolved, 11 ready-for-agent, 1 needs-triage, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -402,3 +402,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [98](98-kirim-kode-masuk-galat-tak-tertangani.md) | Kirim may show the framework error page when the Kode Masuk cannot be sent | needs-triage | — |
 | [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | resolved | — |
 | [99](99-tagihan-detail-404.md) | Admin Platform Tagihan detail always 404s | resolved | — |
+| [100](100-main-ci-seed-tests-flaky.md) | main CI red: the two seed-command tests fail on CI | resolved | — |
