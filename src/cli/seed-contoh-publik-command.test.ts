@@ -24,6 +24,12 @@ const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl"
 const seedAdmin = () => seedAdminCommand(["--email", "admin-contoh-publik@makam.co.id", "--phone", "081100000002"], env());
 /** The same instant the test support reads back through, so the seed's tariff versions are in force (ticket 100). */
 const clock = () => new FakeClock(wib("2026-10-01 09:00"));
+/** Every seed invocation carries that Clock, so no case depends on the wall clock (ticket 100). */
+const seed = (
+  argv: string[] = [],
+  source: Record<string, string | undefined> = env(),
+  contoh?: Parameters<typeof seedContohPublikCommand>[2],
+) => seedContohPublikCommand(argv, source, contoh, { clock: clock() });
 
 /** A temporary directory for the "staging" tests' live FileStore; removed after the suite. */
 const sementara: string[] = [];
@@ -67,7 +73,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     // file's default testTimeout.
     await seedAdmin();
 
-    const result = await seedContohPublikCommand([], env(), undefined, { clock: clock() });
+    const result = await seed();
 
     expect(result.exitCode).toBe(0);
 
@@ -194,7 +200,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     "reproduces the mock's real Tersedia counts (9-118), its Kavling Keluarga unit counts and its Kontak Siaga name 1:1, per Lokasi Mitra",
     async () => {
       await seedAdmin();
-      const result = await seedContohPublikCommand([], env());
+      const result = await seed();
       expect(result.exitCode).toBe(0);
 
       await expectSamaDenganMock();
@@ -206,7 +212,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     "draws the prototype's own Denah for Wakaf Al-Ikhlas and Hijau Asri, then tops each Jenis Makam up in tidy rectangular Bloks",
     async () => {
       await seedAdmin();
-      expect((await seedContohPublikCommand([], env())).exitCode).toBe(0);
+      expect((await seed()).exitCode).toBe(0);
 
       const setup = publishOnTestDatabase(db);
       const listed = await setup.lokasi.publicLokasiMitraList();
@@ -285,7 +291,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
             : { ...jm, tersedia: jm.kavlingPetak ? 1 : Math.min(jm.tersedia, 3), hargaHakPakai: spec.name === "Taman Peristirahatan Hijau Asri" && jm.name === "Makam Standar" ? 11_000_000 : jm.hargaHakPakai },
         ),
       }));
-      const first = await seedContohPublikCommand([], env(), lama);
+      const first = await seed([], env(), lama);
       expect(first.exitCode).toBe(0);
 
       const listed = await setup.lokasi.publicLokasiMitraList();
@@ -318,7 +324,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
       // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
       await new Promise((resolve) => setTimeout(resolve, 61_000));
-      const second = await seedContohPublikCommand([], env());
+      const second = await seed();
       expect(second.exitCode, second.output).toBe(0);
       expect(second.output).toContain("disamakan dengan contoh");
       // The price is brought to the mock's as a new tariff version effective today; the old version stays.
@@ -340,7 +346,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
       const afterSecond = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
       const bloksAfterSecond = (await setup.inventory.publicDenah(wakaf.id))?.bloks.map((blok) => blok.name);
-      const third = await seedContohPublikCommand([], env());
+      const third = await seed();
       expect(third.exitCode).toBe(0);
       expect(third.output).toContain("seed-contoh-publik tidak mengubah apa pun");
       expect(await setup.inventory.tersediaPerJenisMakam(wakaf.id)).toEqual(afterSecond);
@@ -353,9 +359,9 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     "changes nothing once all five example Lokasi Mitra are listed",
     async () => {
       await seedAdmin();
-      await seedContohPublikCommand([], env());
+      await seed();
 
-      const second = await seedContohPublikCommand([], env());
+      const second = await seed();
 
       expect(second.exitCode).toBe(0);
       expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
@@ -367,22 +373,22 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
   );
 
   it("needs an Admin Platform to enter the example Lokasi Mitra as", async () => {
-    expect(await seedContohPublikCommand([], env())).toEqual({
+    expect(await seed()).toEqual({
       exitCode: 1,
       output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu.",
     });
   });
 
   it("refuses to run on staging without the named allowance, and always on production, and prints its usage for an unknown flag", async () => {
-    expect(await seedContohPublikCommand([], env("staging"))).toEqual({
+    expect(await seed([], env("staging"))).toEqual({
       exitCode: 1,
       output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).",
     });
-    expect(await seedContohPublikCommand(["--izinkan-staging"], env("production"))).toEqual({
+    expect(await seed(["--izinkan-staging"], env("production"))).toEqual({
       exitCode: 1,
       output: "Ditolak: seed-contoh-publik tidak pernah jalan di production.",
     });
-    expect(await seedContohPublikCommand(["--seed"], env())).toEqual({
+    expect(await seed(["--seed"])).toEqual({
       exitCode: 2,
       output: "Pakai: seed-contoh-publik [--izinkan-staging]",
     });
@@ -394,7 +400,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const staging = stagingEnv();
       await seedAdminCommand(["--email", "admin-contoh-publik-staging@makam.co.id", "--phone", "081100000003"], staging);
 
-      const result = await seedContohPublikCommand(["--izinkan-staging"], staging);
+      const result = await seed(["--izinkan-staging"], staging);
 
       expect(result.exitCode).toBe(0);
       expect(result.output).toContain("5 Lokasi Mitra contoh terbit");
@@ -423,9 +429,9 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     async () => {
       const staging = stagingEnv();
       await seedAdminCommand(["--email", "admin-contoh-publik-staging-2@makam.co.id", "--phone", "081100000004"], staging);
-      await seedContohPublikCommand(["--izinkan-staging"], staging);
+      await seed(["--izinkan-staging"], staging);
 
-      const second = await seedContohPublikCommand(["--izinkan-staging"], staging);
+      const second = await seed(["--izinkan-staging"], staging);
 
       expect(second.exitCode).toBe(0);
       expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
