@@ -260,7 +260,7 @@ async function mintaPengembalian(
   deps: LayananDeps,
   tx: Database,
   baris: Baris,
-): Promise<{ ok: true; permintaanId: string } | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda" }> {
+): Promise<{ ok: true; permintaanId: string | null } | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda" }> {
   const tagihan = await deps.billing.within(tx).tagihanBerlaku(baris.order.tagihanId);
   if (!tagihan) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
   // The job's own line is found by position, as a cancellation finds it: the order issued its lines in its items' order.

@@ -12,13 +12,13 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import { adaHargaKhusus, biayaLayananPlatformTerbayar, type Billing } from "@/domain/billing";
+import { barisBiayaLayananPlatform, biayaLayananPlatformTerbayar, bolehTimpakanBiayaLayananPlatform, type Billing } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { addWorkingDays, type Lokasi } from "@/domain/lokasi";
 import { rupiahSchema } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
 import { toPermintaan, type PermintaanPengembalian } from "./baca";
-import type { RefundLine } from "./request";
+import { indeksBiayaLayananPlatform, type RefundLine } from "./request";
 import { permintaanPengembalian } from "./schema";
 
 /** How soon a transfer is due after approval (spec, Work Queues: "refund transfers (2 working days after approval)"). */
@@ -54,7 +54,9 @@ export type SetujuiResult =
   /** An override above the fault rule's payable fee: Admin Platform may only lower it. */
   | { ok: false; reason: "biaya_melebihi_default" }
   /** The override differs from the default but no note was given. */
-  | { ok: false; reason: "catatan_wajib" };
+  | { ok: false; reason: "catatan_wajib" }
+  /** What is about to be approved would return more than the Tagihan was paid (a row from the previous release, or an empty line set). */
+  | { ok: false; reason: "melebihi_tagihan" };
 
 const CATATAN_MAX = 500;
 const inputSchema = z.object({
@@ -79,35 +81,42 @@ export async function setujuiPengembalian(deps: ApproveDeps, by: Actor, input: S
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     if (row.status !== "diajukan") return { ok: false, reason: "sudah_diproses" } as const;
 
+    const tagihan = await deps.billing.tagihan(row.tagihanId);
+    if (!tagihan) return { ok: false, reason: "tidak_ditemukan" } as const;
     let lines = row.lines as RefundLine[];
     let jumlah = row.jumlah;
     let biayaLayananPlatformDikembalikan = row.biayaLayananPlatformDikembalikan;
     let penuh = row.penuh;
     let override: number | null = null;
     if (parsed.data.biayaLayananPlatform !== undefined) {
-      const tagihan = await deps.billing.tagihan(row.tagihanId);
-      if (!tagihan || !adaHargaKhusus(tagihan.lines)) return { ok: false, reason: "bukan_harga_khusus" } as const;
+      // One predicate for the screen and the action: the fee may only be lowered where the request
+      // already returns it and the Tagihan carries a Harga Khusus (owner decision 2026-10-01).
+      if (!bolehTimpakanBiayaLayananPlatform(row.biayaLayananPlatformDikembalikan, tagihan.lines)) return { ok: false, reason: "bukan_harga_khusus" } as const;
       // One source for the fault rule's default: the same Billing rule the approval screen prefills its field from.
       const biayaBawaan = biayaLayananPlatformTerbayar(tagihan.lines);
       if (parsed.data.biayaLayananPlatform > biayaBawaan) return { ok: false, reason: "biaya_melebihi_default" } as const;
       if (parsed.data.biayaLayananPlatform !== biayaBawaan) {
         if (!parsed.data.catatan) return { ok: false, reason: "catatan_wajib" } as const;
         const nilaiBaru = parsed.data.biayaLayananPlatform;
-        const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
-        const indeks = lines.findIndex((line) => line.kind === "biaya_layanan_platform");
+        const feeLine = barisBiayaLayananPlatform(tagihan.lines)[0];
+        // A row written before the fee `kind` existed is found by its label; a fee that cannot be
+        // found is refused, never appended as a second fee line (that is the cross-deploy over-refund).
+        const indeks = indeksBiayaLayananPlatform(lines, feeLine?.label);
+        if (indeks < 0) return { ok: false, reason: "tidak_ditemukan" } as const;
         override = nilaiBaru;
         lines =
           nilaiBaru === 0
-            ? lines.filter((line) => line.kind !== "biaya_layanan_platform")
-            : indeks >= 0
-              ? lines.map((line, i) => (i === indeks ? { ...line, amount: nilaiBaru } : line))
-              : [...lines, { label: feeLine?.label ?? "Biaya Layanan Platform", amount: nilaiBaru, lokasiId: null, kind: "biaya_layanan_platform" as const }];
+            ? lines.filter((_, i) => i !== indeks)
+            : lines.map((line, i) => (i === indeks ? { ...line, amount: nilaiBaru, kind: "biaya_layanan_platform" as const } : line));
         jumlah = rupiahSchema.parse(lines.reduce((sum, line) => sum + line.amount, 0));
         biayaLayananPlatformDikembalikan = nilaiBaru > 0;
         // A refund the fee was lowered below is no longer everything the fault rule allows.
         penuh = false;
       }
     }
+    // Cross-deploy guard: an in-flight row written by the previous release can already over-refund (a
+    // duplicated fee line). Re-check what is about to be approved against what the Tagihan was paid.
+    if (jumlah <= 0 || jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" } as const;
 
     await tx
       .update(permintaanPengembalian)

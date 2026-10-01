@@ -52,9 +52,30 @@ export function adaHargaKhusus(lines: readonly Pick<TagihanLine, "kind">[]): boo
   return lines.some((line) => line.kind === "penyesuaian_harga_khusus");
 }
 
+/** One Tagihan line is the Biaya Layanan Platform: the one kind every fee reader keys on. */
+export function adalahBiayaLayananPlatform(line: Pick<TagihanLine, "kind">): boolean {
+  return line.kind === "biaya_layanan_platform";
+}
+
+/** Every Biaya Layanan Platform line of a Tagihan, in order: the one place the fee lines are filtered out. */
+export function barisBiayaLayananPlatform<T extends Pick<TagihanLine, "kind">>(lines: readonly T[]): T[] {
+  return lines.filter(adalahBiayaLayananPlatform);
+}
+
 /** The Biaya Layanan Platform as issued on a Tagihan, zero when there is none. */
-function biayaLayananPlatformDari(lines: readonly Pick<TagihanLine, "kind" | "amount">[]): number {
-  return lines.filter((line) => line.kind === "biaya_layanan_platform").reduce((sum, line) => sum + line.amount, 0);
+export function biayaLayananPlatformDari(lines: readonly Pick<TagihanLine, "kind" | "amount">[]): number {
+  return barisBiayaLayananPlatform(lines).reduce((sum, line) => sum + line.amount, 0);
+}
+
+/**
+ * Whether Admin Platform may lower the returned Biaya Layanan Platform at
+ * approval: only where the request already returns that fee **and** the Tagihan
+ * carries a Harga Khusus (owner decision 2026-10-01). The approval screen and
+ * the Server Action share this one predicate, so a screen that hides the field
+ * and an action that must ignore it can never disagree.
+ */
+export function bolehTimpakanBiayaLayananPlatform(biayaLayananPlatformDikembalikan: boolean, lines: readonly Pick<TagihanLine, "kind">[]): boolean {
+  return biayaLayananPlatformDikembalikan && adaHargaKhusus(lines);
 }
 
 /**

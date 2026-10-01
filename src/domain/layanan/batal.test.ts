@@ -31,8 +31,8 @@ const HARI_INI = wib("2026-10-01 10:00");
 const TARGET = "2026-10-20";
 
 /** A paid order, so its Tagihan is Lunas and a cancellation has money to return. */
-async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] & { hargaKhusus?: number } = {}) {
-  const { hargaKhusus, ...opsiLokasi } = options;
+async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] & { hargaKhusus?: number; tanpaBayar?: boolean } = {}) {
+  const { hargaKhusus, tanpaBayar, ...opsiLokasi } = options;
   const setup = layananOnTestDatabase(db);
   await siapkanOperatorLayanan(setup);
   const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000, ...opsiLokasi });
@@ -59,8 +59,10 @@ async function siap(options: Parameters<typeof lokasiDenganLayanan>[1] & { harga
     if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
     tagihanDibayar = khusus.tagihan.id;
   }
-  const dibayar = await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
-  if (!dibayar.ok) throw new Error("payment refused");
+  if (!tanpaBayar) {
+    const dibayar = await setup.billing.recordPayment(tagihanDibayar, { method: { kind: "transfer_manual" }, reference: null, paidAt: HARI_INI });
+    if (!dibayar.ok) throw new Error("payment refused");
+  }
   const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
   const kerja = dibaca?.item[0].pekerjaan;
   if (!kerja) throw new Error("no job");
@@ -353,6 +355,22 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     ]);
     expect(hasil.pengembalian!.total).toBe(100_000);
     expect(hasil.pengembalian!.total).toBeLessThanOrEqual(tagihan.total);
+  });
+
+  it("cancels cleanly when the Harga Khusus wipes the whole Tagihan out: nothing is owed, and 0 is not a refusal (ticket 95)", async () => {
+    // Tarif Rp 750.000 + fee Rp 150.000, Harga Khusus Rp 900.000: the Tagihan is Rp 0 and Lunas at once.
+    const { setup, pemesan, pekerjaanId, tagihanDibayar } = await siap({ hargaKhusus: 900_000, tanpaBayar: true });
+    const tagihan = await setup.billing.tagihan(tagihanDibayar);
+    expect(tagihan).toMatchObject({ total: 0, status: "lunas" });
+
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
+    // The cancellation stands, with no refund request: the family paid nothing, so nothing comes back.
+    expect(hasil.ok).toBe(true);
+    if (!hasil.ok) return;
+    expect(hasil.pengembalian).toBeNull();
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
   });
 
   it("rounds each line's share down, so the refund never passes the reduced total (ticket 95)", async () => {

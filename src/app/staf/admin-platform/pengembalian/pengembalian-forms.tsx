@@ -74,7 +74,9 @@ export function PermintaanForms({ permintaan, biayaBawaan }: { permintaan: Permi
   const [rekeningState, rekeningAction, mengisi] = useActionState(isiRekeningAdminAction, idle);
   const [transferState, transferAction, mentransfer] = useActionState(terbitkanBuktiPengembalianDanaAction, idle);
   const [biaya, setBiaya] = useState(biayaBawaan === null ? "" : String(biayaBawaan));
-  const biayaDiubah = biayaBawaan !== null && biaya !== String(biayaBawaan);
+  // Mirrors the Server Action: an emptied field is no override (the action turns "" into undefined), and
+  // only a value that really differs from the fault rule's default needs the mandatory Catatan.
+  const biayaDiubah = biayaBawaan !== null && biaya.trim() !== "" && biaya !== String(biayaBawaan);
 
   if (permintaan.status === "diajukan") {
     return (

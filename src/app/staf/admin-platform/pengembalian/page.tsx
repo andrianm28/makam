@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { adaHargaKhusus, biayaLayananPlatformTerbayar } from "@/domain/billing";
+import { biayaLayananPlatformTerbayar, bolehTimpakanBiayaLayananPlatform } from "@/domain/billing";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -23,9 +23,8 @@ export default async function PengembalianPage() {
   // Billing's own rule so the screen and the Server Action share one source.
   const biayaBawaan = await Promise.all(
     terbuka.map(async (permintaan) => {
-      if (!permintaan.biayaLayananPlatformDikembalikan) return null;
       const tagihan = await billing.tagihan(permintaan.tagihanId);
-      if (!tagihan || !adaHargaKhusus(tagihan.lines)) return null;
+      if (!tagihan || !bolehTimpakanBiayaLayananPlatform(permintaan.biayaLayananPlatformDikembalikan, tagihan.lines)) return null;
       return biayaLayananPlatformTerbayar(tagihan.lines);
     }),
   );

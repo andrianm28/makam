@@ -60,6 +60,7 @@ const GAGAL_SETUJUI: Record<string, string> = {
   bukan_harga_khusus: "Tagihan ini tanpa Harga Khusus: biaya mengikuti tabel kesalahan.",
   biaya_melebihi_default: "Biaya yang dikembalikan tidak boleh melebihi aturan kesalahan.",
   catatan_wajib: "Catatan wajib diisi bila biaya diubah.",
+  melebihi_tagihan: "Jumlah pengembalian melebihi yang dibayar pada Tagihan ini.",
 };
 
 const isiRekeningSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema, alasan: z.string().trim().min(1) });

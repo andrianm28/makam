@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing, Tagihan } from "@/domain/billing";
-import { biayaLayananPlatformTerbayar, nilaiDibayarBaris } from "@/domain/billing";
+import { adalahBiayaLayananPlatform, barisBiayaLayananPlatform, biayaLayananPlatformTerbayar, nilaiDibayarBaris } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
@@ -25,8 +25,35 @@ export interface RefundLine {
   amount: number;
   /** The Lokasi Mitra whose tariff this line is, when it is one; null for the Operator's own line or a manual/goodwill line. */
   lokasiId: string | null;
-  /** The Tagihan line's kind this snapshots, when the caller knows it: it lets Refunds tell the fee line from a tariff line. */
+  /**
+   * The Tagihan line's kind this snapshots. Every new row, a snapshot of a
+   * Tagihan line writes sets it; it lets Refunds tell the fee line from a
+   * tariff line. It is optional only because rows written by the release before
+   * ticket 95 stored none (the `{ label, amount, lokasiId }` shape), and those
+   * in-flight rows are read through `indeksBiayaLayananPlatform` below, never
+   * appended to by guessing.
+   */
   kind?: Tagihan["lines"][number]["kind"];
+}
+
+/**
+ * The index of the Biaya Layanan Platform line among a refund request's own
+ * lines. A row written before ticket 95 carries no `kind`, so when none does,
+ * the fee is found by the label the Tagihan issues it with; as a last resort a
+ * single line whose label names the fee. `-1` when there is none, and the
+ * caller replaces only what it found — never appends a second fee line.
+ */
+export function indeksBiayaLayananPlatform(lines: readonly RefundLine[], labelBiaya: string | null | undefined): number {
+  const olehKind = lines.findIndex((line) => line.kind === "biaya_layanan_platform");
+  if (olehKind >= 0) return olehKind;
+  if (labelBiaya) {
+    const olehLabel = lines.findIndex((line) => line.label === labelBiaya);
+    if (olehLabel >= 0) return olehLabel;
+  }
+  const cocok = lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.label.toLowerCase().includes("biaya layanan platform"));
+  return cocok.length === 1 ? cocok[0].index : -1;
 }
 
 export interface RequestDeps {
@@ -107,7 +134,7 @@ export async function materialisasiDariPembatalan(
   const lines: RefundLine[] = [];
   for (const line of tagihan.lines) {
     if (line.kind === "penyesuaian_harga_khusus") continue;
-    if (line.kind === "biaya_layanan_platform") {
+    if (adalahBiayaLayananPlatform(line)) {
       if (!denganFee) continue;
       const amount = biayaLayananPlatformTerbayar(tagihan.lines);
       if (amount > 0) lines.push({ label: line.label, amount, lokasiId: null, kind: line.kind });
@@ -217,7 +244,9 @@ const ajukanBarisSchema = z.object({
     .array(
       z.object({
         label: z.string().trim().min(1).max(300),
-        amount: z.number().int().positive().max(RUPIAH_MAX_LINE),
+        // Zero is allowed: a fully-waived Tagihan (the Harga Khusus equals tariff plus fee) owes a
+        // line of Rp 0, and zero refund is not a refusal — see the no-op below, no zero row is written.
+        amount: z.number().int().nonnegative().max(RUPIAH_MAX_LINE),
         lokasiId: z.uuid().nullable(),
       }),
     )
@@ -246,7 +275,12 @@ export interface AjukanBarisInput {
 export type AjukanBarisResult =
   | {
       ok: true;
-      permintaanId: string;
+      /**
+       * The request this joined or raised, or null when there was nothing to
+       * refund at all (a fully-waived Tagihan: `jumlah` is Rp 0 and no request
+       * row is written — the check constraint holds at least Rp 1).
+       */
+      permintaanId: string | null;
       /** What this call added to the request: the lines given, plus the fee line where the fault rule and the Tagihan allow it. */
       lines: RefundLine[];
       jumlah: number;
@@ -292,7 +326,7 @@ async function ajukanBarisTerkunci(
   const sebelumnya = await deps.db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.tagihanId, tagihanId)).for("update");
   const feeSudahDikembalikan = sebelumnya.some((row) => !row.goodwill && row.biayaLayananPlatformDikembalikan);
   const lines: RefundLine[] = [...parsed.data.lines];
-  const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
+  const feeLine = barisBiayaLayananPlatform(tagihan.lines)[0];
   // After a Harga Khusus the fee is never apportioned like a tariff line (ticket 95's owner decision): the Operator bore
   // the Harga Khusus from the fee first (spec 503), so what may return is the payable fee — never its proportional share.
   const feeNilai = feeLine ? biayaLayananPlatformTerbayar(tagihan.lines) : 0;
@@ -300,7 +334,10 @@ async function ajukanBarisTerkunci(
   if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeNilai, lokasiId: null, kind: feeLine.kind });
   const jumlah = lines.reduce((sum, line) => sum + line.amount, 0);
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);
-  if (jumlah === 0 || sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };
+  if (sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };
+  // Nothing to return: a fully-waived Tagihan owes Rp 0 (its Harga Khusus equals tariff plus fee) and a
+  // zero-jumlah request row is not allowed. That is a clean no-op, not a refusal, so the caller can finish.
+  if (jumlah === 0) return { ok: true, permintaanId: null, lines, jumlah: 0, biayaLayananPlatformDikembalikan: false };
 
   // A "penuh" request is everything the Tagihan can return: nothing may stay behind but the fee the fault rule keeps.
   // What stays behind is the fee's **payable** part (`clamp(F − |P|, 0, F)`), not its gross amount: after a Harga

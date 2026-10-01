@@ -201,6 +201,8 @@ async function tulisPengembalian(
     tx,
   );
   if (!diajukan.ok) return "tertunda";
+  // Nothing to return (a fully-waived Tagihan owes Rp 0): the cancellation still stands, with no request.
+  if (diajukan.permintaanId === null) return null;
   const baris = diajukan.lines.map((satu) => ({ label: satu.label, amount: satu.amount }));
   const values = {
     pekerjaanId: row.job.id,

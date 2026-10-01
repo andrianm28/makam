@@ -3,9 +3,13 @@
  * transfers"; ticket 31's ACs), driven only through the public interfaces of
  * Refunds, Billing, Payouts and Pemesanan.
  */
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { nilaiDibayarBaris } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
+import { rupiahSchema } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
+import { permintaanPengembalian } from "./schema";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
   bayarTagihan,
@@ -418,7 +422,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     expect(await setup.refunds.ajukanBaris("00000000-0000-4000-8000-000000000000", { pihakBersalah: "pemesan", lines: [baris] })).toEqual({ ok: false, reason: "tagihan_tidak_ditemukan" });
 
     const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
-    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    if (!diajukan.ok || diajukan.permintaanId === null) throw new Error(`refused: ${diajukan.ok ? "no request" : diajukan.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
     expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "menunggu_transfer" });
   });
@@ -514,6 +518,60 @@ describe("Admin Platform's fee override on a refund after a Harga Khusus (ticket
     expect(terbit.bukti.amount).toBe(1_000 + payable - 20_000);
   });
 
+  it("replaces the fee line on a request written before lines carried a kind, never appending a second fee (ticket 95, cross-deploy)", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDenganHargaKhusus(setup, 50_000);
+    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+    const fee = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
+    const tarif = tagihan.lines.find((line) => line.kind !== "biaya_layanan_platform" && line.kind !== "penyesuaian_harga_khusus");
+    if (!fee || !tarif) throw new Error("no fee or tariff line");
+    const payable = fee.amount - 50_000;
+    const nilaiTarif = nilaiDibayarBaris(tagihan.lines, tarif);
+
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: [{ label: tarif.label, amount: nilaiTarif, lokasiId: null }] });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+
+    // The release before ticket 95 stored the request's lines without a kind.
+    await setup.db
+      .update(permintaanPengembalian)
+      .set({
+        lines: (permintaan.lines as { kind?: string }[]).map((line) => {
+          const salinan = { ...line };
+          delete salinan.kind;
+          return salinan;
+        }),
+      })
+      .where(eq(permintaanPengembalian.id, permintaan.id));
+
+    const disetujui = await setup.refunds.setujuiPengembalian(fixture.admin, {
+      permintaanId: permintaan.id,
+      biayaLayananPlatform: payable - 20_000,
+      catatan: "Sebagian biaya ditahan.",
+    });
+    if (!disetujui.ok) throw new Error("approval refused");
+    // The fee line is replaced, not appended: exactly one fee line, and the total only ever falls.
+    expect(disetujui.permintaan.jumlah).toBe(nilaiTarif + payable - 20_000);
+    expect(disetujui.permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
+    expect(disetujui.permintaan.lines.filter((line) => line.kind === "biaya_layanan_platform")).toHaveLength(1);
+  });
+
+  it("refuses to approve a request that already returns more than the Tagihan was paid (ticket 95, cross-deploy)", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDenganHargaKhusus(setup, 50_000);
+    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: [{ label: "Baris uji", amount: 1_000, lokasiId: null }] });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+
+    // A duplicated fee line from the running release leaves the row returning more than was paid.
+    await setup.db.update(permintaanPengembalian).set({ jumlah: rupiahSchema.parse(tagihan.total + 1) }).where(eq(permintaanPengembalian.id, permintaan.id));
+    expect(await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id })).toEqual({ ok: false, reason: "melebihi_tagihan" });
+  });
+
   it("accepts an override left at the default without a note, and refuses one on a Tagihan with no Harga Khusus", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananDenganHargaKhusus(setup, 50_000);
@@ -537,7 +595,7 @@ describe("Admin Platform's fee override on a refund after a Harga Khusus (ticket
       pihakBersalah: "lokasi",
       lines: [{ label: "Baris uji", amount: 1_000, lokasiId: null }],
     });
-    if (!diajukanBiasa.ok) throw new Error(`refused: ${diajukanBiasa.reason}`);
+    if (!diajukanBiasa.ok || diajukanBiasa.permintaanId === null) throw new Error(`refused: ${diajukanBiasa.ok ? "no request" : diajukanBiasa.reason}`);
     expect(await setup.refunds.setujuiPengembalian(noKhusus.admin, { permintaanId: diajukanBiasa.permintaanId, biayaLayananPlatform: 1 })).toEqual({
       ok: false,
       reason: "bukan_harga_khusus",

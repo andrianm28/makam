@@ -131,7 +131,17 @@ export type {
   CatatPembayaranManualResult,
 } from "./pembayaran-staf";
 export type { HargaKhususDeps, TetapkanHargaKhususInput, TetapkanHargaKhususResult } from "./harga-khusus";
-export { adaHargaKhusus, biayaLayananPlatformTerbayar, nilaiDibayarBaris, termasukTarif, tarifDari } from "./nilai-dibayar";
+export {
+  adaHargaKhusus,
+  adalahBiayaLayananPlatform,
+  barisBiayaLayananPlatform,
+  biayaLayananPlatformDari,
+  biayaLayananPlatformTerbayar,
+  bolehTimpakanBiayaLayananPlatform,
+  nilaiDibayarBaris,
+  termasukTarif,
+  tarifDari,
+} from "./nilai-dibayar";
 export { issueBuktiPemesananSchema } from "./bukti-pemesanan";
 export type { CatatPembayaranPerluDitinjauInput, CatatPembayaranPerluDitinjauResult } from "./perlu-ditinjau";
 export type { BuktiPerpanjangan, IssueBuktiPerpanjanganInput, IssueBuktiPerpanjanganResult } from "./bukti-perpanjangan";

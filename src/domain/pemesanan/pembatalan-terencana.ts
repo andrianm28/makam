@@ -20,7 +20,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { normaliseEmail } from "@/domain/identity";
-import { nilaiDibayarBaris } from "@/domain/billing";
+import { barisBiayaLayananPlatform, nilaiDibayarBaris } from "@/domain/billing";
 import type { HakPakaiDetail } from "@/domain/inventory";
 import { addWorkingDays } from "@/domain/lokasi";
 import type { Pemesan, PemesananDeps } from "./deps";
@@ -138,7 +138,7 @@ async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerenc
   // so a share no one is refunded here is not silently loaded onto this plot and the sum of refunds stays within the total.
   const dibayarUntukUnit = nilaiDibayarBaris(tagihan.lines, barisUnit);
   return hitungPembatalanTerencana({
-    lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
+    lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...barisBiayaLayananPlatform(tagihan.lines)],
     syarat: order.syarat,
     masaPembatalanBerakhirPada: order.masaPembatalanBerakhirPada,
     sekarang,
