@@ -143,6 +143,15 @@ import {
 } from "./skor";
 
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
+import {
+  barisCheckout,
+  jadwalkanCheckout,
+  penawaranCheckout,
+  type BarisCheckoutResult,
+  type CheckoutJenis,
+  type JadwalkanCheckoutInput,
+  type JadwalkanCheckoutResult,
+} from "./checkout";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
@@ -375,6 +384,13 @@ export {
   type BuktiTerbaca as BuktiPekerjaanTerbaca,
 } from "./bukti";
 export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, jadwalkanTertunda, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
+export {
+  itemCheckoutListSchema,
+  itemCheckoutSchema,
+  type CheckoutJenis,
+  type ItemCheckout,
+} from "./checkout-skema";
+export type { BarisCheckout, BarisCheckoutResult, JadwalkanCheckoutInput, JadwalkanCheckoutResult } from "./checkout";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -513,6 +529,33 @@ export interface Layanan {
    * the Admin Lokasi to complete the record).
    */
   cekHakPakai(lokasiId: string, petakId: string): Promise<Tertulis>;
+  /**
+   * The Layanan a booking checkout of this kind offers at a Lokasi Mitra, each
+   * variant at that place's own price: only "bisa hari-H" items at a Saat Duka,
+   * only empty-plot items at a Terencana, and the whole offering at a
+   * Perpanjangan (spec, Layanan > Order; ticket 53).
+   */
+  penawaranCheckout(lokasiId: string, jenis: CheckoutJenis): Promise<LayananUntukPesanan[]>;
+  /**
+   * Prices and checks the items a checkout picked and returns the Tagihan lines
+   * for them, **without** a Biaya Layanan Platform (the checkout's own Tagihan
+   * already carries the one the rule allows). For a Perpanjangan, pass the
+   * Tagihan's `dueAt`: each target date must then clear its Layanan's lead time
+   * after that due date, so adding Layanan never pulls the Perpanjangan earlier.
+   */
+  barisCheckout(
+    lokasi: { id: string; name: string },
+    jenis: CheckoutJenis,
+    items: unknown,
+    options?: { dueAt?: Date },
+  ): Promise<BarisCheckoutResult>;
+  /**
+   * Writes the Layanan of a checkout that has already issued its Tagihan, inside
+   * the checkout's own transaction `within`: one order, its items and one
+   * Pekerjaan Layanan each, Dijadwalkan at once (a Perlu Verifikasi Hak Pakai
+   * holds them at Menunggu Pembayaran, released by `jadwalkanTertunda`).
+   */
+  jadwalkanCheckout(input: JadwalkanCheckoutInput, within: Database): Promise<JadwalkanCheckoutResult>;
   /**
    * Places an order Layanan: one grave, one or more Layanan, a target date outside
    * each one's lead time, and the pay-first Tagihan issued with it. A Berakhir (or
@@ -711,6 +754,9 @@ export function createLayanan(deps: LayananDeps): Layanan {
     penawaranUntukPesanan: (lokasiId) => penawaranUntukPesanan(deps, lokasiId, now()),
     hargaPesananLayanan: (lokasiId, ids) => hargaPesananLayanan(deps, lokasiId, ids, now()),
     cekHakPakai: (lokasiId, petakId) => cekHakPakai(deps, lokasiId, petakId),
+    penawaranCheckout: (lokasiId, jenis) => penawaranCheckout(deps, lokasiId, jenis, now()),
+    barisCheckout: (lokasi, jenis, items, options) => barisCheckout(deps, lokasi, jenis, items, { now: now(), dueAt: options?.dueAt }),
+    jadwalkanCheckout: (input, within) => jadwalkanCheckout(deps, within, input),
     placePesananLayanan: (pemesan, input) => placePesananLayanan(deps, pemesan, input),
     pesananLayananOf: (nomor, pemesan) => pesananLayananOf(deps, nomor, pemesan),
     batalkanPekerjaan: (pemesan, input) => batalkanPekerjaan(deps, pemesan, input),
