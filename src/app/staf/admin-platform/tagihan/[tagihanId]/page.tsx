@@ -13,12 +13,11 @@ import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { BatalkanPembayaranLangsungForm, HargaKhususForm, PembayaranManualForm } from "./tagihan-forms";
 
-const paramsSchema = z.uuid();
+const paramsSchema = z.object({ tagihanId: z.uuid() });
 
 export async function generateMetadata({ params }: PageProps<"/staf/admin-platform/tagihan/[tagihanId]">): Promise<Metadata> {
-  const { tagihanId } = await params;
-  const parsed = paramsSchema.safeParse(tagihanId);
-  const tagihan = parsed.success ? await serverRuntime().billing.tagihan(parsed.data) : null;
+  const parsed = paramsSchema.safeParse(await params);
+  const tagihan = parsed.success ? await serverRuntime().billing.tagihan(parsed.data.tagihanId) : null;
   return { title: tagihan ? `Tagihan ${tagihan.nomorTagihan} · Area Staf` : "Tagihan tidak ditemukan · Area Staf" };
 }
 
@@ -36,7 +35,7 @@ export default async function TagihanPage({ params }: PageProps<"/staf/admin-pla
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) notFound();
   const { billing } = serverRuntime();
-  const tagihan = await billing.tagihan(parsed.data);
+  const tagihan = await billing.tagihan(parsed.data.tagihanId);
   if (!tagihan) notFound();
 
   const dokumen = await billing.documentByLink(tagihan.link);
