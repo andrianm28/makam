@@ -5,6 +5,7 @@ import { emailsTo } from "./support/email-outbox";
 import { coldEmail } from "./support/emails";
 import { masuk, startTotpEnrolment, submitTotp } from "./support/masuk";
 import { coldNumber } from "./support/numbers";
+import { seedTagihan } from "./support/tagihan";
 
 /*
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
@@ -96,6 +97,25 @@ test("the staff shell: Admin Platform moves between menu items, collapses the si
   await page.getByRole("button", { name: "Ganti tema" }).click();
   await page.getByRole("menuitemradio", { name: "Terang" }).click();
   await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+});
+
+test("Admin Platform opens a Tagihan from the search list; the detail renders and an unknown id keeps the not-found page", async () => {
+  const page = adminPage;
+  const { nomorTagihan } = seedTagihan();
+
+  await page.goto("/staf/admin-platform/tagihan");
+  await page.getByLabel("Nomor Tagihan atau nomor pesanan").fill(nomorTagihan);
+  await page.getByRole("button", { name: "Cari" }).click();
+  const row = page.getByRole("listitem").filter({ hasText: nomorTagihan });
+  await expect(row.getByRole("link", { name: "Buka" })).toBeVisible();
+  await row.getByRole("link", { name: "Buka" }).click();
+
+  await expect(page).toHaveURL(/\/staf\/admin-platform\/tagihan\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("heading", { name: `Tagihan ${nomorTagihan}` })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Halaman tidak ditemukan" })).toHaveCount(0);
+
+  await page.goto("/staf/admin-platform/tagihan/00000000-0000-0000-0000-000000000000");
+  await expect(page.getByRole("heading", { name: "Halaman tidak ditemukan" })).toBeVisible();
 });
 
 test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the Undangan Staf goes out by email", async ({

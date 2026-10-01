@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Webhook } from "svix";
 import { FAKE_PAYMENT_WEBHOOK_SECRET } from "../src/adapters/memory/fake-payment-secret";
 import { seedE2eAdminPlatform } from "./support/admin-platform";
+import { seedTagihan } from "./support/tagihan";
 
 /*
  * The payment webhook critical path (spec, Testing Decisions, end-to-end 2)
@@ -15,18 +15,9 @@ import { seedE2eAdminPlatform } from "./support/admin-platform";
  * Override the seed with E2E_SEED_TAGIHAN, like E2E_SEED_ADMIN, e.g.
  * "docker compose -p <stack> exec -T web node dist/seed-tagihan.mjs".
  */
-const SEED_TAGIHAN = (process.env.E2E_SEED_TAGIHAN ?? "docker compose -p makam-v1-dev exec -T web node dist/seed-tagihan.mjs").split(" ");
 
 /** The fake PaymentProvider's Svix secret, unless the stack sets its own FAKE_PAYMENT_WEBHOOK_SECRET. */
 const WEBHOOK_SECRET = process.env.E2E_PAYMENT_WEBHOOK_SECRET ?? FAKE_PAYMENT_WEBHOOK_SECRET;
-
-function seedTagihan(): { nomorTagihan: string; path: string } {
-  const [command, ...args] = SEED_TAGIHAN;
-  const output = execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  const seeded = /Tagihan contoh (TGH\/\d{4}\/\d{6}) terbit: (\/dokumen\/[A-Za-z0-9_-]{43})/.exec(output);
-  if (!seeded) throw new Error(`seed-tagihan did not issue a Tagihan: ${output}`);
-  return { nomorTagihan: seeded[1], path: seeded[2] };
-}
 
 test("a signed 'paid' webhook posted to the running app marks the Tagihan Lunas and its Bukti Pembayaran page appears", async ({
   page,
