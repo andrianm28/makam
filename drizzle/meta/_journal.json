@@ -337,6 +337,13 @@
       "when": 1790828547907,
       "tag": "0047_odd_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790842146601,
+      "tag": "0048_left_salo",
+      "breakpoints": true
     }
   ]
 }

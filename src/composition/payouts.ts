@@ -29,7 +29,7 @@ export function buktiPencairanUrl(env: Pick<RuntimeEnv, "documentPageOrigin" | "
 }
 
 /** The staff page a Bukti Pencairan's push opens: the recipient's own area. */
-function halamanStafPenerima(penerima: KirimBuktiPencairan extends (bukti: infer B) => unknown ? B extends { recipient: infer R } ? R : never : never): string {
+function halamanStafPenerima(penerima: Parameters<KirimBuktiPencairan>[0]["recipient"]): string {
   return penerima.kind === "mitra_jasa" ? "/staf/mitra-jasa/pencairan" : "/staf/admin-lokasi";
 }
 
@@ -50,31 +50,35 @@ function halamanStafPenerima(penerima: KirimBuktiPencairan extends (bukti: infer
  */
 export function kirimBuktiPencairanKe(deps: {
   identity: Pick<Identity, "adminLokasiOf">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
 }): KirimBuktiPencairan {
-  return async (bukti) => {
+  return async (bukti, tx) => {
     const accounts =
       bukti.recipient.kind === "mitra_jasa"
         ? [{ accountId: bukti.recipient.akunId }]
         : (await deps.identity.adminLokasiOf(bukti.recipient.lokasiId)).map((admin) => ({ accountId: admin.accountId }));
     for (const account of accounts) {
-      await deps.notifications.sendStaffAlert({
-        to: account,
-        kind: "staf_bukti_pencairan",
-        email: {
-          subject: `Bukti Pencairan ${bukti.nomorBukti}`,
-          text: `Bukti Pencairan ${bukti.nomorBukti} untuk transfer ${bukti.ditransferPada}: ${formatRupiah(bukti.amount)}. `
-            + `Bukti: ${bukti.url}`,
+      await deps.notifications.antrekanPeringatanStaf(
+        {
+          to: account,
+          kind: "staf_bukti_pencairan",
+          subject: { kind: "bukti_pencairan", id: bukti.id },
+          email: {
+            subject: `Bukti Pencairan ${bukti.nomorBukti}`,
+            text: `Bukti Pencairan ${bukti.nomorBukti} untuk transfer ${bukti.ditransferPada}: ${formatRupiah(bukti.amount)}. `
+              + `Bukti: ${bukti.url}`,
+          },
+          // A push shows on a lock screen, so it names the work by its document
+          // number and its amount, never by a person; and it opens a staff page,
+          // never the document itself.
+          push: {
+            title: "Bukti Pencairan",
+            body: `${bukti.nomorBukti} · ${formatRupiah(bukti.amount)}`,
+            url: halamanStafPenerima(bukti.recipient),
+          },
         },
-        // A push shows on a lock screen, so it names the work by its document
-        // number and its amount, never by a person; and it opens a staff page,
-        // never the document itself.
-        push: {
-          title: "Bukti Pencairan",
-          body: `${bukti.nomorBukti} · ${formatRupiah(bukti.amount)}`,
-          url: halamanStafPenerima(bukti.recipient),
-        },
-      });
+        tx,
+      );
     }
   };
 }
@@ -89,7 +93,7 @@ export function composePayouts(deps: {
   lokasi: Pick<Lokasi, "adminPlatformCalendar" | "lokasiMitra" | "jamOperasionalOf">;
   billing: Billing;
   operatorSettings: Pick<OperatorSettings, "current">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
   reportError: ReportError;
 }): Payouts {
   const urls = buktiPencairanUrl(deps.env);

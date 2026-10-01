@@ -154,6 +154,9 @@ async function main() {
       // The same registry Billing below holds: an effect that failed there is run again here, identically.
       paymentEffects: efek,
       notifications,
+      // A retried direct alert asks the raising module whether its subject still
+      // needs it (ticket 96); subjects Pemesanan does not own are left to send.
+      peringatanStafSubjek: (subject) => pemesanan.peringatanStafMasihPerlu(subject),
       lokasi,
       identity,
       inventory,

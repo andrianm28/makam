@@ -15,7 +15,7 @@ export function schedulerContext(parts: {
   db: Database;
   paymentEffects?: readonly PaymentEffect[];
   reportError?: ReportError;
-  notifications?: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
+  notifications?: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick">;
   pemesanan?: SchedulerContext["pemesanan"];
   payouts?: SchedulerContext["payouts"];
   refunds?: SchedulerContext["refunds"];
@@ -32,6 +32,7 @@ export function schedulerContext(parts: {
       kirimPesanJatuhTempo: async () => ({ terkirim: 0, gagal: 0, ditunda: 0, dibatalkan: 0 }),
       chasingEskalasiTick: async () => ({ dieskalasi: 0 }),
       kirimPeringatanAntreanTick: async () => ({ dikirim: 0 }),
+      kirimPeringatanStafTick: async () => ({ dikirim: 0 }),
     },
     pemesanan:
       parts.pemesanan ??
@@ -55,7 +56,7 @@ export function schedulerContext(parts: {
     // tick is undisturbed by it, and a test of the release one passes the real read.
     inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
     // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
-    queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), barisMasihTerbukaBelumDiambil: async () => true, bertugasTick: async () => ({ dimatikan: 0 }) },
+    queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), barisMasihTerbukaBelumDiambil: async () => true, barisMasihTerbuka: async () => true, bertugasTick: async () => ({ dimatikan: 0 }) },
   };
 }
 
@@ -67,6 +68,7 @@ const TIMEOUT_LOKASI = {
 const DIAMDIAM: PemesananNotifikasi = {
   tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
   pesananDiajukan: async () => {},
+  peringatanStafSaatDuka: async () => {},
   pesananBelumDikonfirmasi: async () => {},
   pesananDikonfirmasi: async () => {},
   pesananDitolak: async () => {},

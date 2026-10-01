@@ -5,7 +5,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { quoteLineLabel } from "@/lib/quote-line-label";
-import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
+import { pemesananBerkas, pemesananMakam, pemesananTerencana, type PemegangHak, type PemesananKind, type PemesananStatus } from "./schema";
 import { alasanOrder } from "./alasan-tolak";
 import { saatDukaHarga } from "./pilihan";
 import type { PemesananDeps } from "./deps";
@@ -248,4 +248,34 @@ async function dokumenMilik(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesana
       dicentang: row?.dicentangPada ? { at: row.dicentangPada, oleh: row.dicentangOleh ?? "" } : null,
     };
   });
+}
+
+/** The subject kinds a Peringatan Staf of this module can name (ticket 96). */
+export const PESANAN_SUBJECT_KINDS = ["pemesanan_makam", "pemesanan_terencana"] as const;
+
+/**
+ * Whether a queued Peringatan Staf about one of this module's subjects still
+ * needs sending (ticket 96): true while the order is still Diajukan, so a retry
+ * after its Lokasi confirmed, declined or cancelled it says nothing false.
+ * A subject this module does not own is left to whoever does.
+ */
+export async function peringatanStafMasihPerlu(
+  deps: Pick<PemesananDeps, "db">,
+  subject: { kind: string; id: string },
+): Promise<boolean> {
+  if (subject.kind === "pemesanan_makam") {
+    const [row] = await deps.db
+      .select({ status: pemesananMakam.status })
+      .from(pemesananMakam)
+      .where(eq(pemesananMakam.id, subject.id));
+    return row?.status === "diajukan";
+  }
+  if (subject.kind === "pemesanan_terencana") {
+    const [row] = await deps.db
+      .select({ status: pemesananTerencana.status })
+      .from(pemesananTerencana)
+      .where(eq(pemesananTerencana.id, subject.id));
+    return row?.status === "diajukan";
+  }
+  return true;
 }

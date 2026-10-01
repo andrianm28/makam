@@ -229,6 +229,7 @@ describe("placing a Pemesanan Terencana", () => {
     // plots by the numbers the family knows, the Calon Penghuni and the Pemesan.
     expect(setup.terencana).toEqual([
       {
+        id: expect.any(String),
         nomor: "MKM-2026-000001",
         lokasi: { id: fixture.lokasiMitra.id, name: fixture.lokasiMitra.name },
         unit: [

@@ -207,9 +207,9 @@ describe("the wizard's Kirim places a Pemesanan Saat Duka", () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const fixture = await saatDukaFixture(setup);
     const pushables = await setup.notifications.pushDevices(fixture.adminLokasi.accountId);
-    const kotakMasukSebelum = setup.email.sent.length;
 
     const placed = await setup.pemesanan.placeSaatDuka(orderSaatDuka(fixture));
+    await setup.notifications.kirimPeringatanStafTick();
 
     expect(placed.ok).toBe(true);
     // The Kontak Siaga holds no Perangkat Push, so the alert goes by email alone.
@@ -218,9 +218,10 @@ describe("the wizard's Kirim places a Pemesanan Saat Duka", () => {
     expect(pesan).toHaveLength(1);
     expect(pesan[0]).toMatchObject({ template: "staf_saat_duka_baru", channel: "email", status: "terkirim" });
     expect(pesan[0].subject).toContain("MKM-2026-000001");
-    expect(setup.email.sent.length).toBe(kotakMasukSebelum + 1);
+    expect(setup.email.sent.map((message) => message.subject)).toContain("Pesan Saat Duka baru MKM-2026-000001");
     // One order, one alert: a second Kirim is a different Nomor Pemesanan and says so.
     await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), pemesanName: "Dewi Lestari" });
+    await setup.notifications.kirimPeringatanStafTick();
     const semua = await setup.notifications.pesanStaf(fixture.adminLokasi.accountId);
     expect(semua.map((satu) => satu.subject).sort()).toEqual([
       "Pesan Saat Duka baru MKM-2026-000001",

@@ -94,6 +94,11 @@ export async function barisMasihTerbukaBelumDiambil(deps: Tier1RowDeps & { db: D
   return !diambil;
 }
 
+/** Whether a Tier 1 row is still open, taken or not: what a retried 90 min escalation asks before it is sent again (ticket 96). */
+export async function barisMasihTerbuka(deps: Tier1RowDeps, rowKey: string): Promise<boolean> {
+  return (await barisTier1Terbuka(deps)).some((row) => row.rowKey === rowKey);
+}
+
 export interface PeringatanTickResult {
   /** Peringatan Staf queued this run (one per recipient), first alerts and escalations together; Notifications' tick sends them. */
   diantrekan: number;

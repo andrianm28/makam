@@ -22,7 +22,7 @@ export function composeSchedulerContext(deps: {
   dokumenUrl: (link: string) => string;
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
   identity: Pick<Identity, "adminLokasiOf">;
   inventory: Pick<Inventory, "hakPakaiOfUnit">;
@@ -34,12 +34,15 @@ export function composeSchedulerContext(deps: {
   terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
   /** The Antrean's Tier 1 alert tick and the Bertugas auto-off (ticket 28), from `createQueuesTicks`. */
   queues: QueuesTicks;
+  /** Whether a queued direct Peringatan Staf's subject still needs it (ticket 96), answered by the raising module. */
+  peringatanStafSubjek?: (subject: { kind: string; id: string }) => Promise<boolean>;
 }): SchedulerContext {
   return {
     db: deps.db,
     paymentEffects: deps.paymentEffects ?? paymentEffects({ clock: deps.clock, dokumenUrl: deps.dokumenUrl, layanan: { db: deps.db, inventory: deps.inventory } }),
     reportError: deps.reportError,
     notifications: deps.notifications,
+    peringatanStafSubjek: deps.peringatanStafSubjek,
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
     payouts: deps.payouts,
     refunds: deps.refunds,

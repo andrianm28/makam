@@ -30,7 +30,7 @@ import type { Actor } from "@/domain/identity";
 import type { Pemesan, PemesananDeps, TerencanaQuery } from "./deps";
 import { pilihanSaatDuka, type GrupSaatDuka, type PilihanSaatDukaQuery } from "./pilihan";
 import { placeSaatDuka, type PlaceSaatDukaInput, type PlaceSaatDukaResult } from "./saat-duka";
-import { buktiUntukHakPakai, orderOf, pesananSaya, type PemesananOrder } from "./reads";
+import { buktiUntukHakPakai, orderOf, peringatanStafMasihPerlu, pesananSaya, type PemesananOrder } from "./reads";
 import { konfirmasiSaatDuka, type KonfirmasiSaatDukaInput, type KonfirmasiSaatDukaResult } from "./konfirmasi-saat-duka";
 import { tolakSaatDuka, type TolakSaatDukaInput, type TolakSaatDukaResult } from "./tolak";
 import {
@@ -194,7 +194,7 @@ export type { DokumenOrder, OrderAntrean, OrderDitolak, OrderStaf } from "./read
 export { catatPemakamanOrderSchema, type CatatPemakamanOrderInput, type CatatPemakamanOrderResult } from "./catat-pemakaman";
 export type { CentangDokumenInput, DokumenResult, UnggahDokumenInput } from "./berkas";
 export type { LangkahOrder, PemesananOrder } from "./reads";
-export { timelineOrder } from "./reads";
+export { PESANAN_SUBJECT_KINDS, timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
 export type { AkhiriHakPakaiTidakTertagihResult } from "./chasing";
 export { nyatakanTidakTertagihSchema, type NyatakanTidakTertagihInput, type NyatakanTidakTertagihResult };
@@ -396,6 +396,13 @@ export interface Pemesanan {
    * unpaid becomes Dibatalkan ("batas pembayaran lewat") and its plots are released. Idempotent.
    */
   lewatBatasBayarTick(now?: Date): Promise<LewatBatasBayarHasil>;
+  /**
+   * Whether a queued Peringatan Staf about one of this module's subjects still
+   * needs sending: true while the order is still Diajukan, so a retry after its
+   * Lokasi confirmed, declined or cancelled it is dropped (ticket 96). Answered
+   * for Notifications, which never reads these tables.
+   */
+  peringatanStafMasihPerlu(subject: { kind: string; id: string }): Promise<boolean>;
   /** One Terencana order as the Lokasi Mitra's own staff read it; null for one that is not theirs. */
   terencanaUntukStaf(by: Actor, nomor: string): Promise<OrderTerencanaStaf | null>;
   /** The Antrean Lokasi's "Konfirmasi Terencana" rows: every Diajukan order of that Lokasi Mitra, oldest first. */
@@ -495,6 +502,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
     tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),
     lewatBatasBayarTick: (now) => lewatBatasBayarTerencana(deps, now ?? deps.clock.now()),
+    peringatanStafMasihPerlu: (subject) => peringatanStafMasihPerlu(deps, subject),
     terencanaUntukStaf: (by, nomor) => terencanaUntukStaf(deps, by, nomor),
     antreanKonfirmasiTerencana: (lokasiId) => antreanKonfirmasiTerencana(deps, lokasiId),
     konfirmasiTerencanaLewatTenggat: () => konfirmasiTerencanaLewatTenggat(deps, deps.clock.now()),

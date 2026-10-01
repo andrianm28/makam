@@ -41,6 +41,8 @@ async function pesan(setup: PemesananSetup, dasar: Awaited<ReturnType<typeof sia
     units: nomorPetak.map((nomor) => ({ petakId: id[nomor] })),
   });
   if (!hasil.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(hasil)}`);
+  // The alert is queued with the order; the worker sends it (ticket 96).
+  await setup.notifications.kirimPeringatanStafTick();
   return hasil.pemesanan;
 }
 
@@ -141,7 +143,7 @@ describe("the Peringatan Staf of a new Pemesanan Terencana", () => {
   it("still places the order when the alert email cannot be sent", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const dasar = await siap(setup);
-    setup.email.failNextSend();
+    setup.email.failNextSend(20);
 
     const order = await pesan(setup, dasar);
 

@@ -164,3 +164,48 @@ describe("a Peringatan Staf whose send failed is retried by the worker", () => {
     expect(lonceng.ok && lonceng.latest).toHaveLength(1);
   });
 });
+
+describe("a retried Antrean alert whose row has closed is dropped", () => {
+  async function antrekan(tahap: "baru" | "eskalasi_90", key: string) {
+    const setup = notificationsOnTestDatabase(db);
+    const staf = await signedInStaff(setup, "admin_lokasi");
+    await setup.notifications.enablePush(staf, { subscription: browserPushSubscription() });
+    await setup.notifications.peringatanAntreanTier1({
+      to: [{ accountId: staf.accountId }],
+      tahap,
+      row: { label: "Saat Duka baru", subjectLabel: "MKM-2026-000123", href: "/staf/antrean", key },
+    });
+    setup.email.failNextSend(20);
+    const emailLog = async () =>
+      (await setup.notifications.pesanStaf(staf.accountId)).filter((pesan) => pesan.channel === "email");
+    return { setup, staf, emailLog };
+  }
+
+  it("drops a retried `baru` alert once the row was taken or closed", async () => {
+    const { setup, emailLog } = await antrekan("baru", "row-baru");
+    await setup.notifications.kirimPeringatanAntreanTick();
+    expect(await emailLog()).toHaveLength(1);
+
+    setup.clock.advance({ minutes: 15 });
+    await setup.notifications.kirimPeringatanAntreanTick({ barisMasihTerbukaBelumDiambil: async () => false });
+    expect((await emailLog()).filter((pesan) => pesan.status === "gagal")).toHaveLength(1);
+    expect((await emailLog()).some((pesan) => pesan.status === "dibatalkan")).toBe(true);
+  });
+
+  it("drops a retried `eskalasi_90` alert once the row closed, but still retries while it is open", async () => {
+    const { setup, emailLog } = await antrekan("eskalasi_90", "row-90");
+    await setup.notifications.kirimPeringatanAntreanTick();
+    expect(await emailLog()).toHaveLength(1);
+
+    // Still open (taken or not): the 90 min confirmation is retried.
+    setup.clock.advance({ minutes: 15 });
+    await setup.notifications.kirimPeringatanAntreanTick({ barisMasihTerbuka: async () => true });
+    expect(await emailLog()).toHaveLength(2);
+
+    // Closed: the next retry is dropped, nothing more sent.
+    setup.clock.advance({ hours: 1 });
+    await setup.notifications.kirimPeringatanAntreanTick({ barisMasihTerbuka: async () => false });
+    expect((await emailLog()).filter((pesan) => pesan.status === "gagal")).toHaveLength(2);
+    expect((await emailLog()).some((pesan) => pesan.status === "dibatalkan")).toBe(true);
+  });
+});

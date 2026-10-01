@@ -367,6 +367,9 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
   const calonPenghuni: CalonPenghuniTerencana =
     draft.calonPenghuni.mode === "saya" ? { mode: "saya", name: null } : { mode: "lain", name: draft.calonPenghuni.name };
 
+  // Who must hear about the order is a read, taken before the transaction so the
+  // Peringatan Staf can be queued inside it (ticket 96).
+  const penerima = await penerimaOf(deps, draft.lokasiId);
   const result = await refusable<PlaceTerencanaResult>(deps.db, async (tx) => {
     const now = deps.clock.now();
     const profile = await deps.lokasi.publicLokasiMitra(draft.lokasiId);
@@ -431,6 +434,18 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
       })),
     );
 
+    // The order, its hold and its Peringatan Staf commit together (ticket 96): a
+    // rolled-back order leaves no alert behind, and a committed one cannot lose it.
+    await deps.notifikasi.terencanaDiajukan(tx, {
+      id: order.id,
+      nomor,
+      lokasi: { id: draft.lokasiId, name: profile.name },
+      unit: units.map((unit) => ({ nomor: unit.nomor, jenisMakamName: unit.jenisMakamName })),
+      calon: { name: calonPenghuni.name ?? pemegangHak.name },
+      pemesan: { name: draft.pemesanName, phoneNumber: phone.phoneNumber },
+      penerima,
+    });
+
     return {
       ok: true,
       pemesanan: {
@@ -455,19 +470,6 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
     } satisfies PlaceTerencanaResult;
   });
 
-  // The Lokasi Mitra's staff hear about the order through the Notifications module, never from here, and only once the
-  // order and its hold are committed: an announcement about a rolled-back order would be a lie nobody can act on.
-  if (result.ok) {
-    const penerima = await penerimaOf(deps, draft.lokasiId);
-    await deps.notifikasi.terencanaDiajukan({
-      nomor: result.pemesanan.nomor,
-      lokasi: { id: draft.lokasiId, name: result.pemesanan.lokasi.name },
-      unit: result.pemesanan.unit.map((satu) => ({ nomor: satu.nomor, jenisMakamName: satu.jenisMakamName })),
-      calon: { name: result.pemesanan.calonPenghuni.name ?? result.pemesanan.pemegangHak.name },
-      pemesan: { name: result.pemesanan.pemesan.name, phoneNumber: result.pemesanan.pemesan.phoneNumber },
-      penerima,
-    });
-  }
   return result;
 }
 
