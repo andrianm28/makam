@@ -34,5 +34,7 @@ ALTER TABLE "pesanan_paket_item" ADD CONSTRAINT "pesanan_paket_item_layanan_vari
 CREATE INDEX "pesanan_paket_pemesan_idx" ON "pesanan_paket" USING btree ("pemesan_account_id","created_at");--> statement-breakpoint
 CREATE INDEX "pesanan_paket_lokasi_idx" ON "pesanan_paket" USING btree ("lokasi_id");--> statement-breakpoint
 CREATE INDEX "pesanan_paket_item_pesanan_idx" ON "pesanan_paket_item" USING btree ("pesanan_paket_id","posisi");--> statement-breakpoint
+-- contract: pesanan_layanan.pesanan_paket_id is a new, nullable column; every row the running release holds has NULL there, so the FK cannot fail for it, and the running release never reads or writes the column.
 ALTER TABLE "pesanan_layanan" ADD CONSTRAINT "pesanan_layanan_pesanan_paket_id_pesanan_paket_id_fk" FOREIGN KEY ("pesanan_paket_id") REFERENCES "public"."pesanan_paket"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+-- contract: pesanan_layanan.pesanan_paket_id and siklus are new, nullable columns; existing rows are NULL for both, and a unique index treats NULLs as distinct, so no existing row can violate it and the running release never writes these columns.
 CREATE UNIQUE INDEX "pesanan_layanan_siklus_idx" ON "pesanan_layanan" USING btree ("pesanan_paket_id","siklus");
