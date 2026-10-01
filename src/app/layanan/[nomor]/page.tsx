@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { StatusBadge } from "@/components/makam/status-badge";
+import { ThreadPekerjaan } from "@/components/makam/thread-pekerjaan";
 import { buttonVariants } from "@/components/ui/button";
 import type { PesananLayananOrder } from "@/domain/layanan";
 import { buktiPekerjaanLabels, keluhanPenjelasanPemesan, keluhanStatusLabels, labelBuktiPekerjaan, pesananLayananLabels } from "@/lib/layanan-labels";
@@ -13,6 +14,7 @@ import { currentActor } from "@/server/session";
 import { BatalkanPekerjaan } from "./batalkan";
 import { PekerjaanTpuDaftar } from "./pekerjaan-tpu";
 import { AjukanKeluhan, BeriPenilaian } from "./keluhan";
+import { kirimPesanLayanan } from "./actions";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -86,7 +88,7 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
             <p className="mt-1 text-body text-muted-foreground">
               Target {formatTanggal(satu.targetDate)} · boleh dikerjakan {formatTanggal(satu.jendela.dari)} sampai {formatTanggal(satu.jendela.sampai)}
             </p>
-            {satu.pekerjaan ? <Pekerjaan satu={satu} nomor={order.nomor} /> : null}
+            {satu.pekerjaan ? <Pekerjaan satu={satu} nomor={order.nomor} accountId={actor.accountId} /> : null}
           </li>
         ))}
       </ul>
@@ -94,11 +96,25 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
   );
 }
 
-/** One job: its status, its proof, and the cancel control while there is still time. */
-function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number]; nomor: string }) {
+/** One job: its status, its proof, its message thread, and the cancel control while there is still time. */
+async function Pekerjaan({ satu, nomor, accountId }: { satu: PesananLayananOrder["item"][number]; nomor: string; accountId: string }) {
   const kerja = satu.pekerjaan;
   if (!kerja) return null;
   const bisaBatal = kerja.status === "dijadwalkan" || kerja.status === "terlambat";
+  const hasilThread = await serverRuntime().layanan.pesanPekerjaanUntukPemesan({ accountId }, kerja.id);
+  const thread = hasilThread.ok
+    ? {
+        pekerjaanId: kerja.id,
+        readOnly: hasilThread.thread.readOnly,
+        pesan: hasilThread.thread.pesan.map((satu2) => ({
+          id: satu2.id,
+          pengirimNama: satu2.pengirimNama,
+          teks: satu2.teks,
+          waktu: formatTanggalJam(satu2.createdAt),
+          foto: satu2.lampiran.map((lampiran) => lampiran.url),
+        })),
+      }
+    : null;
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -143,6 +159,8 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
       ) : null}
       {kerja.bolehDinilai ? <BeriPenilaian pekerjaanId={kerja.id} nomor={nomor} /> : null}
       {kerja.dinilai ? <p className="text-small text-muted-foreground">Terima kasih, Anda sudah menilai pekerjaan ini.</p> : null}
+
+      {thread ? <ThreadPekerjaan thread={thread} kirim={kirimPesanLayanan} hidden={{ nomor }} /> : null}
 
       {bisaBatal ? <BatalkanPekerjaan pekerjaanId={kerja.id} nomor={nomor} /> : null}
     </div>

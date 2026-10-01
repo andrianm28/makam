@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { pesananLayananResource } from "@/domain/identity";
 import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema } from "@/domain/layanan/pesanan-schema";
-import { keluhanMessages, layananBatalMessages, penilaianMessages } from "@/lib/layanan-labels";
+import { kirimPesanSchema } from "@/domain/layanan/pesan-skema";
+import { keluhanMessages, layananBatalMessages, penilaianMessages, pesanPekerjaanMessages } from "@/lib/layanan-labels";
 import { guarded } from "@/server/guard";
+import { lampiranDari } from "@/server/form-lampiran";
 import { serverRuntime } from "@/server/runtime";
+import type { KirimPesanState } from "@/components/makam/thread-pekerjaan";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type BatalActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -84,4 +87,25 @@ export async function beriPenilaianLayanan(_previous: PemesanActionState, formDa
   revalidatePath(`/layanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: penilaianMessages[result.value.reason] ?? "Pilih 1 sampai 5 bintang." };
   return { status: "berhasil", message: "Terima kasih. Penilaian Anda sudah kami terima." };
+}
+
+/**
+ * The Pemesan writes in the thread of one of their own jobs. Thin, in order: authenticate,
+ * check the role, validate with Zod (its photos converted from the form), call the Layanan
+ * module — which decides whether the Keluhan window has closed the thread and who may post.
+ */
+export async function kirimPesanLayanan(_previous: KirimPesanState, formData: FormData): Promise<KirimPesanState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const lampiran = await lampiranDari(formData);
+  const result = await guarded({
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: kirimPesanSchema,
+    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran },
+    run: (actor, data) => serverRuntime().layanan.kirimPesanPekerjaan({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  if (!result.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.error] ?? "Periksa lagi pesan Anda." };
+  revalidatePath(`/layanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.value.reason] ?? "Periksa lagi pesan Anda." };
+  return { status: "berhasil", message: "Pesan Anda terkirim." };
 }

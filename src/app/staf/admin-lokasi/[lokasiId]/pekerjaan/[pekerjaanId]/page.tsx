@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { StatusBadge } from "@/components/makam/status-badge";
+import { ThreadPekerjaan } from "@/components/makam/thread-pekerjaan";
 import { authorize, lokasiMitraResource } from "@/domain/identity";
 import { jendelaKerja } from "@/domain/layanan";
 import { keluhanStatusLabels } from "@/lib/layanan-labels";
@@ -10,6 +11,7 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { LangkahPekerjaan } from "./langkah-pekerjaan";
+import { kirimPesanLokasi } from "./actions";
 
 export const metadata: Metadata = {
   title: "Pekerjaan Layanan | Makam.co.id",
@@ -34,6 +36,7 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
   // is where they met it, and its own list is their list.
   if (pekerjaan.lokasi.id !== lokasiId) redirect(`/staf/admin-lokasi/${lokasiId}/antrean`);
   const jendela = jendelaKerja(pekerjaan.targetDate);
+  const thread = await serverRuntime().layanan.pesanPekerjaanUntukStaf(actor, pekerjaanId);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
@@ -87,6 +90,24 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
           ) : null}
         </section>
       ) : null}
+
+      <ThreadPekerjaan
+        thread={{
+          pekerjaanId,
+          readOnly: thread?.ok ? thread.thread.readOnly : true,
+          pesan: thread?.ok
+            ? thread.thread.pesan.map((satu) => ({
+                id: satu.id,
+                pengirimNama: satu.pengirimNama,
+                teks: satu.teks,
+                waktu: formatTanggalJam(satu.createdAt),
+                foto: satu.lampiran.map((lampiran) => lampiran.url),
+              }))
+            : [],
+        }}
+        kirim={kirimPesanLokasi}
+        hidden={{ lokasiId, pekerjaanId }}
+      />
 
       <LangkahPekerjaan lokasiId={lokasiId} pekerjaan={pekerjaan} />
     </main>

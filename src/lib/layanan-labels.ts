@@ -238,3 +238,15 @@ export const putuskanKeluhanMessages = {
   perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
+
+/** Why a message in a job's thread is refused, saying what to do next. */
+export const pesanPekerjaanMessages = {
+  input_tidak_valid: "Tulis pesan Anda, dan lampirkan foto yang didukung (JPG, PNG atau WebP).",
+  tidak_ditemukan: "Pekerjaan ini tidak ditemukan.",
+  bukan_peserta: "Anda tidak ikut dalam percakapan pekerjaan ini.",
+  thread_ditutup: "Percakapan ini sudah ditutup karena masa keluhan berakhir.",
+  berkas_tidak_didukung: "Fotonya tidak bisa dibaca. Gunakan JPG, PNG atau WebP paling besar 8 MB.",
+  belum_masuk: "Masuk dulu untuk mengirim pesan.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
+} as const satisfies Record<string, string>;

@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
 import { buktiPekerjaanSchema, mulaiPekerjaanSchema } from "@/domain/layanan/pesanan-schema";
-import { pekerjaanPesanMessages } from "@/lib/layanan-labels";
+import { kirimPesanSchema } from "@/domain/layanan/pesan-skema";
+import { pekerjaanPesanMessages, pesanPekerjaanMessages } from "@/lib/layanan-labels";
 import { guarded } from "@/server/guard";
+import { lampiranDari } from "@/server/form-lampiran";
 import { serverRuntime } from "@/server/runtime";
 
 /** What a staff step's form state carries back to the screen. */
@@ -125,6 +127,29 @@ export async function selesaikanPekerjaanLokasi(_previous: PekerjaanActionState,
     return { status: "gagal", message: kurang.length > 0 ? `${pesan(result.value.reason)} Masih kurang: ${kurang.join(", ")}.` : pesan(result.value.reason) };
   }
   return { status: "berhasil", message: "Pekerjaan selesai. Bukti sudah dikirim ke pemesan." };
+}
+
+/**
+ * The Admin Lokasi writes in the thread of one of their Lokasi's jobs. Thin, in order:
+ * authenticate, check the role, validate with Zod (its photos converted from the form),
+ * call the Layanan module — which decides whether the Keluhan window has closed the thread.
+ * The Pemesan is emailed that a message arrived, never its text or its photo.
+ */
+export async function kirimPesanLokasi(_previous: PekerjaanActionState, formData: FormData): Promise<PekerjaanActionState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const pekerjaanId = String(formData.get("pekerjaanId") ?? "");
+  const lampiran = await lampiranDari(formData);
+  const result = await guarded({
+    action: "layanan.kerjakan",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: kirimPesanSchema,
+    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran },
+    run: (actor, data) => serverRuntime().layanan.kirimPesanPekerjaanStaf(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.error] ?? "Periksa lagi pesan Anda." };
+  revalidateHalaman(lokasiId, pekerjaanId);
+  if (!result.value.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.value.reason] ?? "Periksa lagi pesan Anda." };
+  return { status: "berhasil", message: "Pesan terkirim. Pemesan diberi tahu lewat email." };
 }
 
 function revalidateHalaman(lokasiId: string, pekerjaanId: string): void {
