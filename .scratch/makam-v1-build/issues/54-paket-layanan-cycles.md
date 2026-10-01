@@ -1,6 +1,6 @@
 # Paket Layanan subscriptions and cycles
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 50
 Spec: Domain modules > 9. Layanan (Recurring cycles); 10. Billing (Paket cycle due H-1); 15. Notifications (Paket H-7, H-1); 16. Scheduler (issue cycles, skip, pause); stories 87, 88, 89, 90
 
@@ -55,4 +55,5 @@ A Pemesan orders a Paket Layanan for a grave (sekali, bulanan, 3-bulanan, tahuna
   **Spec gap and decisions for the owner — Peringatan untuk operator:** pemilik meminta operator diberi tahu lewat "jalur Peringatan Staf yang sudah ada". Saya **tidak** membangunnya karena jalur itu belum *queueable* dalam transaksi seperti yang diminta: `sendStaffAlert` masih one-shot di dalam request (ticket 96, `ready-for-agent`, belum dibangun), sedangkan `antrekanPeringatanLokasi` terikat pada sebuah Tagihan yang justru tidak terbit di kasus ini. Penerima yang tepat (Admin Lokasi vs Admin Platform) juga ambigu. Yang ada hari ini: bila email Pemesan gagal terkirim berulang, `lokasiId` pesan membuka baris "Telepon Pemesan" untuk Admin Lokasi itu. Pertanyaan untuk pemilik: siapa penerima Peringatan Staf dan lewat fungsi mana, setelah ticket 96 ada? Tidak ada requirement yang saya ubah.
 
   **Angka dari log:** `MAKAM_TEST_PG=shared npx vitest run src/domain/layanan src/domain/billing src/domain/scheduler src/domain/notifications` → 36 berkas / 396 tes, exit 0 (tes baru di `siklus.test.ts`: siklus 12 juta → `dijeda`, satu pesan `paket_siklus_dijeda`, tick kedua tidak menambah; 6 tes lama tetap hijau). `npm run lint` exit 0 tanpa warning, `npm run typecheck` exit 0, `npm run build` exit 0 (`Compiled successfully in 51s`), lalu `.next` dan `dist` dihapus.
+- 2026-10-01 — Orchestrator (Rilis 1 merge batch): merged to `main`; Two-axis review complete (Standards + Spec).
 

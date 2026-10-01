@@ -1,6 +1,6 @@
 # Refunds of a Keluhan and a Layanan cancellation after a Harga Khusus are refused
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: spec.md, Billing (Harga Khusus, refunds) and Layanan (Keluhan outcome, cancellation)
 
@@ -30,6 +30,7 @@ After a Harga Khusus, the Tagihan's total is reduced by one negative Penyesuaian
 - 2026-10-01 — Review (Spec, lanjutan): **EDGE — Tagihan bebas penuh.** Dengan `|P| = T+F` Tagihan Rp 0 `lunas`; `nilaiDibayarBaris` mengembalikan 0, `batal.ts`/`keluhan.ts` mengoper 0, dan `.positive()` `ajukanBaris` (`request.ts:220`) menolak → gejala `pengembalian_tertunda` kembali untuk Tagihan yang dibebaskan penuh. Buat baris bebas penuh mengembalikan dana dengan bersih (0 refund bukan penolakan), uji.
 - 2026-10-01 — Review (Standards): (1) kelayakan override berbeda antara `page.tsx:26` (mensyaratkan `biayaLayananPlatformDikembalikan`) dan `approve.ts:89` (hanya `adaHargaKhusus`) — pakai satu predikat. (2) `pengembalian-forms.tsx` menurunkan ulang aturan Catatan vs `actions.ts:26` — samakan. (3) konsolidasikan filter baris biaya (ditulis tangan di `pembatalan-terencana-hitung.ts:52`, `pembatalan-terencana.ts:141`, `request.ts:110`, `approve.ts:96/97`). (4) `RefundLine.kind?` sebaiknya wajib untuk baris baru dengan fallback legacy eksplisit.
 - 2026-10-01 — Builder (perbaikan review). (a) MONEY: `indeksBiayaLayananPlatform(lines, labelBiaya)` (`refunds/request.ts`) menemukan baris biaya lewat `kind`, lalu label Tagihan, lalu satu baris berlabel biaya; `approve.ts` MENGGANTI di indeks itu dan menolak `tidak_ditemukan` bila tak ketemu (tidak pernah menambah). `approve.ts` memuat Tagihan sekali dan memeriksa ulang `jumlah <= tagihan.total` (alasan baru `melebihi_tagihan`), menutup baris in-flight yang sudah over-refund. (b) Keputusan migrasi: TIDAK ada migrasi/backfill — fallback baca sisi sudah menangani baris lama, dan backfill data akan menyentuh baris in-flight di bawah rilis lama; `RefundLine.kind?` tetap opsional hanya untuk baris lama, semua baris snapshot baru mengisinya. (c) EDGE: `ajukanBaris` menerima amount 0 (`nonnegative`); jumlah 0 menjadi no-op bersih `{ ok: true, permintaanId: null }` tanpa baris (check constraint `jumlah >= 1`), `batal.ts`/`keluhan.ts` memperlakukan `permintaanId` null sebagai "tak ada yang dikembalikan"; Tagihan bebas penuh (Harga Khusus 900k) dibatalkan bersih. (d) Standar: predikat bersama `bolehTimpakanBiayaLayananPlatform` dipakai `page.tsx` + `approve.ts`; `biayaDiubah` form sejalan dengan aksi (field kosong bukan override); helper `barisBiayaLayananPlatform`/`biayaLayananPlatformDari`/`adalahBiayaLayananPlatform` menggantikan filter baris biaya di `pembatalan-terencana-hitung.ts`, `pembatalan-terencana.ts`, `request.ts`. Tes: legacy replace + guard `melebihi_tagihan` (refunds), batalkan Tagihan bebas penuh (batal). Verifikasi: 624 tes lulus (69 file) di refunds/billing/layanan/pemesanan/staf; lint, typecheck, build lulus. Tidak ada spec gap baru.
+- 2026-10-01 — Orchestrator (Rilis 1 merge batch): merged to `main`; Two-axis review complete (Standards + Spec).
 
 ## Spec gaps and decisions for the owner
 

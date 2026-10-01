@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 98 tickets (as of 2026-09-30): 73 resolved, 15 ready-for-agent, 1 needs-triage, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-01): 78 resolved, 11 ready-for-agent, 1 needs-triage, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
 
 ## Tickets
 
@@ -57,7 +57,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 98 tickets (as of 2026-0
 | [51](51-keluhan-penilaian-and-layanan-pencairan.md) | Keluhan, Penilaian and Layanan Pencairan | resolved | 32, 50 |
 | [52](52-pekerjaan-layanan-message-thread.md) | Pekerjaan Layanan message thread | ready-for-agent | 51 |
 | [53](53-layanan-at-checkout.md) | Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan | ready-for-agent | 37, 40, 50 |
-| [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | ready-for-agent | 50 |
+| [54](54-paket-layanan-cycles.md) | Paket Layanan subscriptions and cycles | resolved | 50 |
 | [55](55-mitra-jasa-onboarding-and-status.md) | Mitra Jasa onboarding, availability, status and scorecard | resolved | 43, 49 |
 | [56](56-tpu-layanan-order-and-mitra-jasa-assignment.md) | TPU Layanan order and Mitra Jasa assignment | resolved | 45, 50, 55 |
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
@@ -394,10 +394,11 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [89](89-tagihan-terbit-never-announced.md) | A Tagihan was never announced: `tagihanTerbit` had no caller | resolved | — |
 | [90](90-pencairan-never-told-of-pemakaman.md) | Payouts is told when a Pemakaman is recorded (Saat Duka Pencairan never became due) | resolved | 25, 32 |
 | [91](91-staff-alerts-retried.md) | Staff alerts are sent once and never retried | resolved | — |
-| [92](92-pembatalan-kedua-menunggu-transfer.md) | A second Pembatalan on one Tagihan waits for the earlier refund's transfer | ready-for-agent | — |
+| [92](92-pembatalan-kedua-menunggu-transfer.md) | A second Pembatalan on one Tagihan waits for the earlier refund's transfer | resolved | — |
 | [93](93-stored-tagihan-id-after-harga-khusus.md) | Readers of an order's stored Tagihan id after a Harga Khusus reissue | resolved | — |
-| [95](95-refund-after-harga-khusus.md) | Refunds of a Keluhan and a Layanan cancellation after a Harga Khusus are refused | ready-for-agent | — |
-| [96](96-staff-alerts-direct-retried.md) | Staff alerts sent directly through `sendStaffAlert` are still one-shot | ready-for-agent | — |
+| [95](95-refund-after-harga-khusus.md) | Refunds of a Keluhan and a Layanan cancellation after a Harga Khusus are refused | resolved | — |
+| [96](96-staff-alerts-direct-retried.md) | Staff alerts sent directly through `sendStaffAlert` are still one-shot | resolved | — |
 | [97](97-terencana-peringatan-staf.md) | A new Pemesanan Terencana raises a Peringatan Staf to the Admin Lokasi | resolved | — |
 | [98](98-kirim-kode-masuk-galat-tak-tertangani.md) | Kirim may show the framework error page when the Kode Masuk cannot be sent | needs-triage | — |
 | [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | resolved | — |
+| [99](99-tagihan-detail-404.md) | Admin Platform Tagihan detail always 404s | resolved | — |
