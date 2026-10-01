@@ -162,6 +162,79 @@ export const layananPaketItem = pgTable(
 );
 
 /**
+ * A Paket Layanan subscription's statuses (spec, Layanan > Recurring cycles): it
+ * runs (`aktif`), two skipped cycles in a row pause it (`dijeda`), or it is stopped
+ * (`dihentikan`). The cycles, their skips and the resume belong to ticket 54; this
+ * closed list is here once so the later writes need no migration.
+ */
+export const paketStatuses = ["aktif", "dijeda", "dihentikan"] as const;
+export type PaketStatus = (typeof paketStatuses)[number];
+
+/**
+ * Owned by the Layanan module: one Pemesan's subscription to a Paket Layanan for
+ * one grave (spec, Layanan > Recurring cycles; ticket 54). Its items are
+ * snapshotted in `pesanan_paket_item` at the order, so a later catalog edit cannot
+ * change what a running subscription does; each cycle is priced fresh from the
+ * place's tariffs, so a new tariff applies from the next cycle.
+ *
+ * `next_cycle_date` is the WIB date of the cycle still to be issued, or null once
+ * a `sekali` Paket has had its one cycle: the cycle tick reads it, so a missed run
+ * is not a missed cycle and running the tick twice issues nothing twice. The
+ * subscription's own cycles are `pesanan_layanan` rows carrying `pesanan_paket_id`
+ * and `siklus`, so one cycle's jobs, proof and refunds are the ones the one-off
+ * order flow already has (tickets 50, 51).
+ */
+export const pesananPaket = pgTable(
+  "pesanan_paket",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The MKM series every order kind shares. */
+    nomor: text("nomor").notNull().unique(),
+    lokasiId: uuid("lokasi_id").notNull(),
+    petakId: uuid("petak_id").notNull(),
+    hakPakaiId: uuid("hak_pakai_id").notNull(),
+    paketId: uuid("paket_id")
+      .notNull()
+      .references(() => layananPaket.id),
+    /** The Lokasi Mitra and the Petak as they were named at submission. */
+    lokasiName: text("lokasi_name").notNull(),
+    petakNomor: text("petak_nomor").notNull(),
+    pemesanName: text("pemesan_name").notNull(),
+    pemesanPhone: text("pemesan_phone").notNull(),
+    pemesanEmail: text("pemesan_email").notNull(),
+    pemesanAccountId: uuid("pemesan_account_id").notNull(),
+    /** The frequency as it was at the order, which `next_cycle_date` advances by. */
+    frekuensi: text("frekuensi", { enum: frekuensiValues }).notNull(),
+    status: text("status", { enum: paketStatuses }).notNull().default("aktif"),
+    /** The WIB date of the cycle still to issue, or null once a `sekali` Paket has had it. */
+    nextCycleDate: date("next_cycle_date", { mode: "string" }),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [
+    index("pesanan_paket_pemesan_idx").on(table.pemesanAccountId, table.createdAt),
+    index("pesanan_paket_lokasi_idx").on(table.lokasiId),
+  ],
+);
+
+/** One Paket Layanan subscription's items, as the order snapshotted them, in the order Admin Platform listed them. */
+export const pesananPaketItem = pgTable(
+  "pesanan_paket_item",
+  {
+    pesananPaketId: uuid("pesanan_paket_id")
+      .notNull()
+      .references(() => pesananPaket.id),
+    posisi: integer("posisi").notNull(),
+    layananId: uuid("layanan_id")
+      .notNull()
+      .references(() => layananLayanan.id),
+    layananVariantId: uuid("layanan_variant_id")
+      .notNull()
+      .references(() => layananVarian.id),
+  },
+  (table) => [index("pesanan_paket_item_pesanan_idx").on(table.pesananPaketId, table.posisi)],
+);
+
+/**
  * The three Mitra Jasa statuses (spec, Layanan > Mitra Jasa). A Lokasi Mitra
  * has its own list, with "Belum Tayang" and "Terverifikasi"; a Mitra Jasa has
  * none of those, so there are exactly three (CONTEXT.md: Dihapus is avoided and
@@ -305,11 +378,16 @@ export const pesananLayanan = pgTable(
     /** The pay-first Tagihan issued with this order; the payment effect finds the order through it. */
     tagihanId: uuid("tagihan_id").notNull(),
     total: rupiah("total").notNull(),
+    /** The Paket subscription whose cycle this order is (ticket 54); null for a one-off order. */
+    pesananPaketId: uuid("pesanan_paket_id").references(() => pesananPaket.id),
+    /** The WIB cycle date this order is a cycle of (ticket 54); null for a one-off order. */
+    siklus: date("siklus", { mode: "string" }),
     createdAt: at("created_at").notNull(),
   },
   (table) => [
     index("pesanan_layanan_pemesan_idx").on(table.pemesanAccountId, table.createdAt),
     index("pesanan_layanan_lokasi_idx").on(table.lokasiId),
+    uniqueIndex("pesanan_layanan_siklus_idx").on(table.pesananPaketId, table.siklus),
     check("pesanan_layanan_total_check", sql`${table.total} between 0 and ${rupiahMax}`),
   ],
 );

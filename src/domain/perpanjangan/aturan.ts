@@ -3,15 +3,15 @@
  * what a family is told when it is not. No database, no Clock: every case is a
  * plain unit test, and the module feeds it the facts.
  */
+import { addWibDateMonths } from "@/lib/time/jakarta";
 
-/** "YYYY-MM-DD" plus `months` calendar months; a day the target month lacks becomes that month's last day. */
-export function tambahBulan(tanggal: string, months: number): string {
-  const [tahun, bulan, hari] = tanggal.split("-").map(Number);
-  const target = new Date(Date.UTC(tahun, bulan - 1 + months, 1));
-  const terakhir = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(hari, terakhir));
-  return target.toISOString().slice(0, 10);
-}
+/**
+ * "YYYY-MM-DD" plus `months` calendar months; a day the target month lacks becomes
+ * that month's last day. The arithmetic lives in `@/lib/time/jakarta` with the other
+ * WIB date helpers, so a Perpanjangan and a Paket Layanan cycle count months the
+ * same way.
+ */
+export const tambahBulan = addWibDateMonths;
 
 /** How many months before the end date a Perpanjangan opens. */
 export const BULAN_SEBELUM_BERAKHIR = 3;

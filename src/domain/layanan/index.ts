@@ -6,7 +6,7 @@
  * that order becomes**.
  *
  * Owns tables: layanan_layanan, layanan_varian, layanan_penawaran, layanan_paket,
- * layanan_paket_item, pesanan_layanan, pesanan_layanan_item, pekerjaan_layanan,
+ * layanan_paket_item, pesanan_paket, pesanan_paket_item, pesanan_layanan, pesanan_layanan_item, pekerjaan_layanan,
  * pekerjaan_layanan_bukti, pengembalian_layanan, keluhan_layanan, penilaian_layanan, and the two TPU tables of
  * ticket 56 (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan).
  *
@@ -37,8 +37,9 @@
  * what the job pays, and the job's Pencairan becomes due when the window closes with no Keluhan,
  * a Keluhan is rejected or the redo proof is shown (`./keluhan.ts`, ticket 51).
  *
- * Left to later tickets: a Paket Layanan's recurring cycles (54), the Mitra Jasa
- * who fulfils a job at a TPU (55, 56), Layanan at a DKI TPU (56), and Layanan added at a non–standalone
+ * Left to later tickets: a Paket cycle's skip → pause, resume, Hentikan and stop on
+ * a Berakhir Hak Pakai (54's next slice), the Mitra Jasa who fulfils a job at a TPU
+ * (55, 56), Layanan at a DKI TPU (56), and Layanan added at a non–standalone
  * checkout — a Saat Duka's hari-H items, a Terencana's empty-plot items, a
  * Perpanjangan's optional step (53).
  */
@@ -80,6 +81,13 @@ import {
   type PerubahanPaket,
   type UbahPaketResult,
 } from "./paket";
+import {
+  bacaPesananPaket,
+  berlanggananPaket,
+  tickSiklusPaket,
+  type BerlanggananPaketResult,
+  type PesananPaketTerbaca,
+} from "./siklus";
 import {
   hargaPaket as hargaPaketOf,
   hargaPesananLayanan,
@@ -210,6 +218,7 @@ export type {
   PekerjaanMitraJasa,
   PekerjaanMitraJasaPort,
   PekerjaanSelesai,
+  PaketSiklusDijeda,
   PemesanLayanan,
   PesananLayananTerbit,
   PekerjaanTpuDitugaskan,
@@ -246,6 +255,8 @@ export type {
 export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLayanan, VarianLayanan } from "./varian";
 export type { StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
+export type { BerlanggananPaketResult, PesananPaketTerbaca, SiklusPaketTerbaca } from "./siklus";
+export { paketStatuses, type PaketStatus } from "./schema";
 export type {
   BarisHargaPesanan,
   HargaLayanan,
@@ -521,6 +532,19 @@ export interface Layanan {
   batalkanPekerjaan(pemesan: PemesanLayanan, input: unknown): Promise<BatalkanPekerjaanResult>;
   /** Every refund request a cancellation has written, oldest first, for the refund flow to work through. */
   pengembalianTerbuka(): Promise<PengembalianTerbuka[]>;
+  /* ── a Paket Layanan subscription and its cycles (ticket 54) ── */
+
+  /**
+   * Subscribes a Pemesan to a Paket Layanan for one grave, snapshotting the
+   * Paket's items. Nothing is charged here: the cycle tick issues each cycle's
+   * Tagihan at H-7.
+   */
+  berlanggananPaket(pemesan: PemesanLayanan, input: unknown): Promise<BerlanggananPaketResult>;
+  /** One subscription and every cycle issued so far, as its Pemesan reads it. */
+  bacaPesananPaket(pesananPaketId: string): Promise<PesananPaketTerbaca | null>;
+  /** The worker's tick: issues each subscription's due cycle (Tagihan, items, jobs) and advances it. Idempotent. */
+  paketSiklusTick(now: Date): Promise<{ diterbitkan: number }>;
+
   /** The orders whose jobs are still waiting for a Hak Pakai to be completed. */
   pesananTertunda(): Promise<{ pesananId: string; nomor: string; lokasiId: string; petakNomor: string }[]>;
   /**
@@ -693,6 +717,9 @@ export function createLayanan(deps: LayananDeps): Layanan {
     pengembalianTerbuka: () => pengembalianTerbuka(deps),
     pesananTertunda: () => pesananTertunda({ db: deps.db, inventory: deps.inventory }),
     jadwalkanTertunda: (now) => jadwalkanTertundaTick({ db: deps.db, inventory: deps.inventory }, now),
+    berlanggananPaket: (pemesan, input) => berlanggananPaket(deps, pemesan, input),
+    bacaPesananPaket: (pesananPaketId) => bacaPesananPaket(deps, pesananPaketId),
+    paketSiklusTick: (now) => tickSiklusPaket(deps, now),
 
     pekerjaanUntukStaf: (by, input) => pekerjaanUntukStaf(deps, by, input),
     pekerjaanUntukStafTerbaru: (by, lokasiId) => pekerjaanUntukStafTerbaru(deps, by, lokasiId),

@@ -41,6 +41,9 @@ export const TEMPLATE_EMAIL = [
   "pengembalian_terbit",
   "layanan_pesanan_terbit",
   "layanan_pekerjaan_selesai",
+  // A Paket Layanan cycle that cannot be issued because its total passes the
+  // Rilis 1 QRIS cap: the Paket is paused and the Pemesan is told (ticket 54).
+  "paket_siklus_dijeda",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
 ] as const;
@@ -82,6 +85,9 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   pengembalian_terbit: "transaksional",
   layanan_pesanan_terbit: "transaksional",
   layanan_pekerjaan_selesai: "transaksional",
+  // A paused Paket asks the family to act for it to continue, so it waits for
+  // the window like every other message the family must answer (ticket 54).
+  paket_siklus_dijeda: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
 };
@@ -119,6 +125,7 @@ export const TABEL_ACARA: Record<
   | "pengurusan_dikonfirmasi"
   | "layanan_pesanan_terbit"
   | "layanan_pekerjaan_selesai"
+  | "paket_siklus_dijeda"
   | "pembatalan_terencana"
   | "peringatan_staf",
   Acara
@@ -235,6 +242,18 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "layanan_pekerjaan_selesai",
     waktu: WAKTU_TEMPLATE.layanan_pekerjaan_selesai,
+  },
+  /**
+   * A Paket Layanan cycle whose Tagihan Billing refused because its total passes
+   * the Rilis 1 QRIS cap (ticket 54): the Paket is paused and the Pemesan hears
+   * it, because only they can decide what to do next. About a Lokasi Mitra's own
+   * work, so a send that keeps failing calls that Lokasi's Admin Lokasi.
+   */
+  paket_siklus_dijeda: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "paket_siklus_dijeda",
+    waktu: WAKTU_TEMPLATE.paket_siklus_dijeda,
   },
   /**
    * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,
