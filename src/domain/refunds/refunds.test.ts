@@ -464,7 +464,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     const fixture = await pesananTerbayar(setup);
     const { baris } = await barisPertama(setup, fixture.tagihanId);
     const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
-    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    if (!diajukan.ok || diajukan.permintaanId === null) throw new Error(`refused: ${diajukan.ok ? "no request" : diajukan.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
 
     const goodwill = await setup.refunds.ajukanGoodwill(fixture.admin, {
@@ -487,10 +487,10 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
       .map((satu) => ({ label: satu.label, amount: satu.amount, lokasiId: satu.provider.kind === "lokasi_mitra" ? satu.provider.lokasiId : null }));
 
     const sebagian = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [baris] });
-    if (!sebagian.ok) throw new Error(`refused: ${sebagian.reason}`);
+    if (!sebagian.ok || sebagian.permintaanId === null) throw new Error(`refused: ${sebagian.ok ? "no request" : sebagian.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: sebagian.permintaanId });
     const penuh = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", penuh: true, lines: semuaBaris.slice(1) });
-    if (!penuh.ok) throw new Error(`refused: ${penuh.reason}`);
+    if (!penuh.ok || penuh.permintaanId === null) throw new Error(`refused: ${penuh.ok ? "no request" : penuh.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: penuh.permintaanId });
     await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: sebagian.permintaanId, rekening, alasan: "Diminta lewat telepon" });
     await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: penuh.permintaanId, rekening, alasan: "Diminta lewat telepon" });
