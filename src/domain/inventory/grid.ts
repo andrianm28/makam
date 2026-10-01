@@ -18,6 +18,9 @@ export interface CellRow {
   firstUsedAt: Date | null;
   /** The reason an Admin Lokasi manually marked this Petak Tidak Tersedia; only ever set while it has no Hak Pakai. */
   tidakTersediaReason: string | null;
+  /** When a Pembongkaran was recorded for this Petak, and the note with it; null until then. */
+  pembongkaranAt: Date | null;
+  pembongkaranReason: string | null;
 }
 
 export interface KavlingRow {
@@ -71,6 +74,8 @@ export async function loadCells(db: Database, blokId: string): Promise<CellRow[]
     perluVerifikasi: row.perluVerifikasi,
     firstUsedAt: row.firstUsedAt,
     tidakTersediaReason: row.tidakTersediaReason,
+    pembongkaranAt: row.pembongkaranAt,
+    pembongkaranReason: row.pembongkaranReason,
   }));
 }
 

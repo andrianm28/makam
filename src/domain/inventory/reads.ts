@@ -26,7 +26,11 @@ import { wibDateOf } from "@/lib/time/jakarta";
 /** A Denah cell as staff read it: its position, kind, derived status and "used" state. */
 export interface DenahCell extends CellRow {
   usedForever: boolean;
-  /** Only meaningful for a `"petak"` cell that is not part of a Kavling Keluarga (a member cell's status is its Kavling's). */
+  /**
+   * A standalone Petak's own status; for a member of a Kavling Keluarga, that
+   * Petak's own status under the Kavling's Hak Pakai (a member whose
+   * Pembongkaran is recorded is Tersedia while the others stay Terisi).
+   */
   status: PetakStatus;
 }
 
@@ -78,8 +82,6 @@ function toHakPakaiRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow 
     tenureStartAt: row.tenureStartAt,
     endDate: row.endDate,
     perluVerifikasi: row.perluVerifikasi,
-    pembongkaranAt: row.pembongkaranAt,
-    pembongkaranReason: row.pembongkaranReason,
     syarat: row.syarat ?? null,
     calonPenghuni: row.calonPenghuni,
   };
@@ -139,24 +141,36 @@ export function staffInventoryReads(deps: InventoryDeps, by: Actor): StaffInvent
         if (!cell.kavlingId) continue;
         cellsByKavling.set(cell.kavlingId, [...(cellsByKavling.get(cell.kavlingId) ?? []), cell.id]);
       }
+      const dibongkarByCell = new Map(cells.map((cell) => [cell.id, cell.pembongkaranAt !== null]));
       const withPemakaman = await petakIdsWithPemakaman(
         deps.db,
         cells.filter((cell) => cell.kavlingId).map((cell) => cell.id),
       );
       return {
         blok,
-        cells: cells.map((cell) => ({
-          ...cell,
-          usedForever: isUsed(cell, kavlingMap),
-          status: derivePetakStatus({ tidakTersediaReason: cell.tidakTersediaReason, hakPakai: forStatus(byPetak.get(cell.id) ?? null) }),
-        })),
+        cells: cells.map((cell) => {
+          // A member Petak's own Pembongkaran frees that Petak, so its status is
+          // derived from the Kavling's Hak Pakai and its own demolition flag.
+          const hakPakai = cell.kavlingId ? (byKavling.get(cell.kavlingId) ?? null) : (byPetak.get(cell.id) ?? null);
+          return {
+            ...cell,
+            usedForever: isUsed(cell, kavlingMap),
+            status: derivePetakStatus({ tidakTersediaReason: cell.tidakTersediaReason, hakPakai: forStatus(hakPakai, cell.pembongkaranAt !== null) }),
+          };
+        }),
         kavling: [...kavlingMap.values()].map((kavling) => {
           const memberIds = cellsByKavling.get(kavling.id) ?? [];
           const petakWithPemakaman = memberIds.filter((id) => withPemakaman.has(id)).length;
+          const petakDibongkar = memberIds.filter((id) => dibongkarByCell.get(id)).length;
           return {
             ...kavling,
             cellIds: memberIds,
-            status: deriveKavlingStatus({ hakPakai: forStatus(byKavling.get(kavling.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman }),
+            status: deriveKavlingStatus({
+              hakPakai: forStatus(byKavling.get(kavling.id) ?? null, memberIds.length > 0 && petakDibongkar >= memberIds.length),
+              totalPetak: memberIds.length,
+              petakWithPemakaman,
+              petakDibongkar,
+            }),
           };
         }),
       };

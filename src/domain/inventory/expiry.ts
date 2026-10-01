@@ -9,20 +9,10 @@
  * Mitra's own policy (default 3 months), counted from the end date.
  */
 
-/** The days before the end date a reminder goes out. */
-export const HARI_PENGINGAT_SEBELUM = [60, 30, 7] as const;
+import { tambahBulan } from "@/lib/time/bulan";
 
 /** Which reminder is due on one WIB date, or null. */
 export type MacamPengingat = "h60" | "h30" | "h7" | "mingguan";
-
-/** "YYYY-MM-DD" plus `months` calendar months; a day the target month lacks becomes that month's last day. */
-export function tambahBulan(tanggal: string, months: number): string {
-  const [tahun, bulan, hari] = tanggal.split("-").map(Number);
-  const target = new Date(Date.UTC(tahun, bulan - 1 + months, 1));
-  const terakhir = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(hari, terakhir));
-  return target.toISOString().slice(0, 10);
-}
 
 /** The WIB date a Hak Pakai's Masa Tenggang ends, inclusive. */
 export function masaTenggangSelesai(endDate: string, masaTenggangMonths: number): string {

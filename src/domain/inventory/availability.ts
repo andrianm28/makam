@@ -30,20 +30,29 @@ export async function availability(db: Database, lokasiId: string): Promise<Avai
   for (const petak of petakRows) {
     if (petak.kind !== "petak" || petak.kavlingId) continue;
     if (petak.perluVerifikasi) continue;
-    const status = derivePetakStatus({ tidakTersediaReason: petak.tidakTersediaReason, hakPakai: forStatus(byPetak.get(petak.id) ?? null) });
+    const status = derivePetakStatus({ tidakTersediaReason: petak.tidakTersediaReason, hakPakai: forStatus(byPetak.get(petak.id) ?? null, petak.pembongkaranAt !== null) });
     if (status === "tersedia") bump(petak.jenisMakamId!);
   }
 
   const membersByKavling = new Map<string, number>();
+  const dibongkarByKavling = new Map<string, number>();
   const unclearedKavling = new Set<string>();
   for (const petak of petakRows) {
     if (!petak.kavlingId) continue;
     membersByKavling.set(petak.kavlingId, (membersByKavling.get(petak.kavlingId) ?? 0) + 1);
+    if (petak.pembongkaranAt) dibongkarByKavling.set(petak.kavlingId, (dibongkarByKavling.get(petak.kavlingId) ?? 0) + 1);
     if (petak.perluVerifikasi) unclearedKavling.add(petak.kavlingId);
   }
   for (const kavling of kavlingRows) {
     if (unclearedKavling.has(kavling.id)) continue;
-    const status = deriveKavlingStatus({ hakPakai: forStatus(byKavling.get(kavling.id) ?? null), totalPetak: membersByKavling.get(kavling.id) ?? 0, petakWithPemakaman: 0 });
+    const totalPetak = membersByKavling.get(kavling.id) ?? 0;
+    const petakDibongkar = dibongkarByKavling.get(kavling.id) ?? 0;
+    const status = deriveKavlingStatus({
+      hakPakai: forStatus(byKavling.get(kavling.id) ?? null, totalPetak > 0 && petakDibongkar >= totalPetak),
+      totalPetak,
+      petakWithPemakaman: 0,
+      petakDibongkar,
+    });
     if (status === "tersedia") bump(kavling.jenisMakamId);
   }
 

@@ -117,6 +117,16 @@ export const inventoryPetak = pgTable(
      * Pakai is granted or the Petak is cleared Tersedia.
      */
     tidakTersediaReason: text("tidak_tersedia_reason"),
+    /**
+     * Recorded once the Admin Lokasi removes the remains from this Petak (spec,
+     * Inventory > Pembongkaran; story 129). A Petak stays Terisi after its Hak
+     * Pakai ends until this is set, and only then may it be sold or cleared
+     * again; `pembongkaran_reason` is the note that goes with it. A Pembongkaran
+     * is per Petak: one member of a Kavling Keluarga may be cleared while the
+     * others still hold the grave.
+     */
+    pembongkaranAt: at("pembongkaran_at"),
+    pembongkaranReason: text("pembongkaran_reason"),
     firstUsedAt: at("first_used_at"),
     createdAt: at("created_at").notNull(),
   },
@@ -165,10 +175,9 @@ export const inventoryHakPakai = pgTable(
     endDate: at("end_date"),
     perluVerifikasi: boolean("perlu_verifikasi").notNull().default(false),
     /**
-     * Recorded once the Admin Lokasi removes the remains from the Petak (spec,
-     * Inventory > Pembongkaran; story 129). A Petak stays Terisi after its Hak
-     * Pakai ends until this is set, and only then may it be sold or cleared
-     * again; `pembongkaran_reason` is the note that goes with it.
+     * Superseded by the same columns on `inventory_petak` (a Pembongkaran is per
+     * Petak, spec Inventory > Pembongkaran; story 129). Kept expand/contract so
+     * a release written against the older shape still runs; nothing writes them.
      */
     pembongkaranAt: at("pembongkaran_at"),
     pembongkaranReason: text("pembongkaran_reason"),

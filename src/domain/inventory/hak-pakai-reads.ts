@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, isNull, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { ActiveHakPakaiForStatus, HakPakaiStatus } from "./status";
-import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
+import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, inventoryPetak, type SyaratHakPakai } from "./schema";
 
 /** One Hak Pakai, as loaded (before the Pemegang Hak / Pemakaman rows it covers). */
 export interface HakPakaiRow {
@@ -16,9 +16,6 @@ export interface HakPakaiRow {
   tenureStartAt: Date | null;
   endDate: Date | null;
   perluVerifikasi: boolean;
-  /** When a Pembongkaran was recorded after this right ended, and the note with it; null until then. */
-  pembongkaranAt: Date | null;
-  pembongkaranReason: string | null;
   /** The Syarat Pemesanan Terencana in force at payment, and the Calon Penghuni label; null for any other Hak Pakai. */
   syarat: SyaratHakPakai | null;
   calonPenghuni: string | null;
@@ -37,8 +34,6 @@ function toRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
     tenureStartAt: row.tenureStartAt,
     endDate: row.endDate,
     perluVerifikasi: row.perluVerifikasi,
-    pembongkaranAt: row.pembongkaranAt,
-    pembongkaranReason: row.pembongkaranReason,
     syarat: row.syarat ?? null,
     calonPenghuni: row.calonPenghuni,
   };
@@ -72,15 +67,18 @@ export async function currentHakPakaiOfKavling(db: Database, kavlingId: string):
  * or not), so both exist and neither is used for the other's question.
  */
 export async function memegangPetak(db: Database, petakId: string): Promise<HakPakaiRow | null> {
-  return memegang(db, eq(inventoryHakPakai.petakId, petakId));
+  const [petak] = await db.select({ dibongkar: inventoryPetak.pembongkaranAt }).from(inventoryPetak).where(eq(inventoryPetak.id, petakId));
+  return memegang(db, eq(inventoryHakPakai.petakId, petakId), petak?.dibongkar != null);
 }
 
 /** The Hak Pakai that holds a Kavling Keluarga; see `memegangPetak`. */
 export async function memegangKavling(db: Database, kavlingId: string): Promise<HakPakaiRow | null> {
-  return memegang(db, eq(inventoryHakPakai.kavlingId, kavlingId));
+  const members = await db.select({ dibongkar: inventoryPetak.pembongkaranAt }).from(inventoryPetak).where(eq(inventoryPetak.kavlingId, kavlingId));
+  const semuaDibongkar = members.length > 0 && members.every((member) => member.dibongkar !== null);
+  return memegang(db, eq(inventoryHakPakai.kavlingId, kavlingId), semuaDibongkar);
 }
 
-async function memegang(db: Database, diTarget: SQL<unknown>): Promise<HakPakaiRow | null> {
+async function memegang(db: Database, diTarget: SQL<unknown>, dibongkar: boolean): Promise<HakPakaiRow | null> {
   const rows = await db
     .select()
     .from(inventoryHakPakai)
@@ -88,10 +86,10 @@ async function memegang(db: Database, diTarget: SQL<unknown>): Promise<HakPakaiR
       and(
         diTarget,
         ne(inventoryHakPakai.status, "dibatalkan"),
-        // A Berakhir Hak Pakai whose Pembongkaran is recorded no longer holds the
-        // Petak: the grave is empty again and may be cleared or sold (spec, Inventory
-        // > Pembongkaran; story 129).
-        or(ne(inventoryHakPakai.status, "berakhir"), isNull(inventoryHakPakai.pembongkaranAt)),
+        // A Berakhir Hak Pakai whose Petak (or, for a Kavling, every member Petak)
+        // has a Pembongkaran no longer holds it: the grave is empty again and may be
+        // cleared or sold (spec, Inventory > Pembongkaran; story 129).
+        dibongkar ? ne(inventoryHakPakai.status, "berakhir") : undefined,
       ),
     )
     .orderBy(desc(inventoryHakPakai.startAt))
@@ -113,15 +111,17 @@ export async function hakPakaiByTarget(db: Database, lokasiId: string): Promise<
 }
 
 /**
- * `hakPakai` as `derivePetakStatus` / `deriveKavlingStatus` need it. A Berakhir
- * right whose Pembongkaran is recorded no longer holds its plot, so it is
+ * `hakPakai` as `derivePetakStatus` / `deriveKavlingStatus` need it. `dibongkar`
+ * says whether the plot's own Pembongkaran is recorded — the Petak's own for a
+ * Petak, every member Petak's for a Kavling Keluarga (spec: Pembongkaran is per
+ * plot). A Berakhir right whose plot is demolished no longer holds it, so it is
  * treated as absent: the plot is Tersedia (or manually Tidak Tersedia) again and
- * may be sold (spec, Inventory > Pembongkaran; story 129).
+ * may be sold.
  */
-export function forStatus(hakPakai: HakPakaiRow | null): ActiveHakPakaiForStatus | null {
+export function forStatus(hakPakai: HakPakaiRow | null, dibongkar = false): ActiveHakPakaiForStatus | null {
   if (!hakPakai) return null;
-  if (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt) return null;
-  return { status: hakPakai.status, pembongkaranAt: hakPakai.pembongkaranAt };
+  if (hakPakai.status === "berakhir" && dibongkar) return null;
+  return { status: hakPakai.status };
 }
 
 export interface PemegangHakRow {

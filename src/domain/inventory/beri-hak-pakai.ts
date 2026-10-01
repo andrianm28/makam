@@ -62,7 +62,7 @@ export async function tersediaUntukJenisMakam(
     .filter((petak) => !petak.kavlingId && !petak.perluVerifikasi && petak.jenisMakamId === jenisMakamId)
     .filter(
       (petak) =>
-        derivePetakStatus({ tidakTersediaReason: petak.tidakTersediaReason, hakPakai: forStatus(byPetak.get(petak.id) ?? null) }) ===
+        derivePetakStatus({ tidakTersediaReason: petak.tidakTersediaReason, hakPakai: forStatus(byPetak.get(petak.id) ?? null, petak.pembongkaranAt !== null) }) ===
         "tersedia",
     )
     .map((petak) => ({ petakId: petak.id, nomor: petak.nomorMakam ?? "", blok: namaBlok.get(petak.blokId) ?? "" }))

@@ -188,13 +188,19 @@ export async function publicDenah(deps: InventoryDeps, lokasiId: string): Promis
     const kavlingTampil = [...allKavling[index].values()].map((row) => {
       const memberIds = membersByKavling.get(row.id) ?? [];
       const withBurial = memberIds.filter((id) => facts.layers.get(id) !== 0).length;
+      const withDibongkar = memberIds.filter((id) => cells.find((cell) => cell.id === id)?.pembongkaranAt).length;
       return {
         id: row.id,
         nomorKavling: row.nomorKavling,
         jenisMakamId: row.jenisMakamId,
         status: pilihanOf({
           perluVerifikasi: memberIds.some((id) => cells.find((cell) => cell.id === id)?.perluVerifikasi),
-          status: deriveKavlingStatus({ hakPakai: forStatus(byKavling.get(row.id) ?? null), totalPetak: memberIds.length, petakWithPemakaman: withBurial }),
+          status: deriveKavlingStatus({
+            hakPakai: forStatus(byKavling.get(row.id) ?? null, memberIds.length > 0 && withDibongkar >= memberIds.length),
+            totalPetak: memberIds.length,
+            petakWithPemakaman: withBurial,
+            petakDibongkar: withDibongkar,
+          }),
           held: held.has(row.id),
           layers: 0,
           terakhirPemakaman: null,
@@ -229,7 +235,7 @@ function publicCell(cell: CellRow, facts: PickerFacts): PublicDenahCell {
   const hakPakai = facts.byPetak.get(cell.id) ?? null;
   const pilihan = pilihanOf({
     perluVerifikasi: cell.perluVerifikasi,
-    status: derivePetakStatus({ tidakTersediaReason: cell.tidakTersediaReason, hakPakai: forStatus(hakPakai) }),
+    status: derivePetakStatus({ tidakTersediaReason: cell.tidakTersediaReason, hakPakai: forStatus(hakPakai, cell.pembongkaranAt !== null) }),
     held: facts.held.has(cell.id),
     layers: facts.layers.get(cell.id) ?? 0,
     terakhirPemakaman: facts.terakhir.get(cell.id) ?? null,

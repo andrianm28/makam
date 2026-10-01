@@ -97,7 +97,8 @@ export { berakhirHakPakaiSchema, pembongkaranSchema };
 export type { BerakhirHakPakaiInput, BerakhirHakPakaiResult } from "./berakhir-manual";
 export type { PembongkaranInput, PembongkaranResult } from "./pembongkaran";
 export type { HakPakaiMasaTenggang } from "./masa-tenggang";
-export { HARI_PENGINGAT_SEBELUM, dalamMasaTenggang, masaTenggangSelesai, pengingatHakPakaiHari, sudahKedaluwarsa } from "./expiry";
+/** Kept for the reminder-sending slice: which reminder is due, and in which terms. */
+export { pengingatHakPakaiHari } from "./expiry";
 export type { MacamPengingat } from "./expiry";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";

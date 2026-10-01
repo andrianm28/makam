@@ -4,14 +4,9 @@
  * plain unit test, and the module feeds it the facts.
  */
 
-/** "YYYY-MM-DD" plus `months` calendar months; a day the target month lacks becomes that month's last day. */
-export function tambahBulan(tanggal: string, months: number): string {
-  const [tahun, bulan, hari] = tanggal.split("-").map(Number);
-  const target = new Date(Date.UTC(tahun, bulan - 1 + months, 1));
-  const terakhir = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(hari, terakhir));
-  return target.toISOString().slice(0, 10);
-}
+import { tambahBulan } from "@/lib/time/bulan";
+
+export { tambahBulan };
 
 /** How many months before the end date a Perpanjangan opens. */
 export const BULAN_SEBELUM_BERAKHIR = 3;

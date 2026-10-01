@@ -13,13 +13,13 @@ export type KavlingStatus = "tersedia" | "dipesan" | "terpakai_sebagian" | "penu
 
 /**
  * The current Hak Pakai of a Petak or Kavling, as status derivation needs it.
- * `pembongkaranAt` is set once a Pembongkaran is recorded after a Berakhir
- * Hak Pakai (spec: the plot stays Terisi until then) — no later ticket builds
- * recording one yet, so every caller in this ticket passes `null`.
+ * A Berakhir Hak Pakai still holds its plot: the caller passes `null` only
+ * once the Pembongkaran that releases it is recorded, so the status here
+ * carries no demolition flag (spec: a plot stays Terisi after its Hak Pakai
+ * ends until a Pembongkaran is recorded).
  */
 export interface ActiveHakPakaiForStatus {
   status: HakPakaiStatus;
-  pembongkaranAt: Date | null;
 }
 
 /**
@@ -42,18 +42,29 @@ export function derivePetakStatus(input: { tidakTersediaReason: string | null; h
       // Pembongkaran is needed.
       return "tersedia";
     case "berakhir":
-      return hakPakai.pembongkaranAt ? "tersedia" : "terisi";
+      // A Berakhir Hak Pakai is gone from `hakPakai` once the Petak's own
+      // Pembongkaran is recorded, so one that is still here holds the grave.
+      return "terisi";
   }
 }
 
 /**
  * A Kavling Keluarga's derived status: it has no manual Tidak Tersedia (spec
  * lists none), and no Perlu Verifikasi of its own — a member Petak's own flag
- * gates it. `totalPetak` / `petakWithPemakaman` count its member Petak.
+ * gates it. `totalPetak` / `petakWithPemakaman` / `petakDibongkar` count its
+ * member Petak. A Berakhir Kavling Hak Pakai releases the whole Kavling only
+ * once every member Petak's own Pembongkaran is recorded (spec: one plot per
+ * Pembongkaran), so demolishing one member never frees the others.
  */
-export function deriveKavlingStatus(input: { hakPakai: ActiveHakPakaiForStatus | null; totalPetak: number; petakWithPemakaman: number }): KavlingStatus {
-  const { hakPakai, totalPetak, petakWithPemakaman } = input;
-  const released = !hakPakai || hakPakai.status === "dibatalkan" || (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt !== null);
+export function deriveKavlingStatus(input: {
+  hakPakai: ActiveHakPakaiForStatus | null;
+  totalPetak: number;
+  petakWithPemakaman: number;
+  petakDibongkar: number;
+}): KavlingStatus {
+  const { hakPakai, totalPetak, petakWithPemakaman, petakDibongkar } = input;
+  const released =
+    !hakPakai || hakPakai.status === "dibatalkan" || (hakPakai.status === "berakhir" && totalPetak > 0 && petakDibongkar >= totalPetak);
   if (released) return "tersedia";
   return totalPetak > 0 && petakWithPemakaman >= totalPetak ? "penuh" : "terpakai_sebagian";
 }
