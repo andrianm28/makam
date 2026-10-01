@@ -20,6 +20,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { normaliseEmail } from "@/domain/identity";
+import { nilaiDibayarBaris } from "@/domain/billing";
 import type { HakPakaiDetail } from "@/domain/inventory";
 import { addWorkingDays } from "@/domain/lokasi";
 import type { Pemesan, PemesananDeps } from "./deps";
@@ -133,10 +134,9 @@ async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerenc
   const barisUnit = hargaHakPakai.find((line) => "label" in line && line.label.endsWith(` · ${nomorUnit(unit)}`)) ?? hargaHakPakai[urutan];
   if (!barisUnit) return null;
   // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own line,
-  // so what is refunded is what the family really paid for the plot and never more.
-  const jumlahHarga = hargaHakPakai.reduce((sum, line) => sum + line.amount, 0);
-  const penyesuaian = tagihan.lines.filter((line) => line.kind === "penyesuaian_harga_khusus").reduce((sum, line) => sum + line.amount, 0);
-  const dibayarUntukUnit = jumlahHarga > 0 ? Math.floor((barisUnit.amount * (jumlahHarga + penyesuaian)) / jumlahHarga) : barisUnit.amount;
+  // so what is refunded is what the family really paid for the plot and never more. Billing owns that one rule (ticket 95),
+  // shared with every other refund of a Harga Khusus Tagihan.
+  const dibayarUntukUnit = nilaiDibayarBaris(tagihan.lines, barisUnit.amount);
   return hitungPembatalanTerencana({
     lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
     syarat: order.syarat,
