@@ -89,7 +89,7 @@ export interface FieldworkModuleDeps {
   files: FileStore;
   audit: AuditLog;
   identity: Pick<Identity, "staffAccounts">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
   lokasi: Pick<Lokasi, "recordKunjunganVerifikasi" | "recordCekDenah" | "adminPlatformCalendar">;
   /** Billing's own read of the Lunas Retribusi Tagihan, for the Tier 3 row and the recording that closes it. */
   billing: Pick<Billing, "tagihanRetribusiLunas">;

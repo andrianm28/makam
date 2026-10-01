@@ -120,6 +120,6 @@ async function kirimStaf(
   kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi" | "staf_terencana_baru",
 ): Promise<void> {
   for (const to of order.penerima) {
-    await notifications.sendStaffAlert({ to, kind, ...alert });
+    await notifications.antrekanPeringatanStaf({ to, kind, ...alert });
   }
 }

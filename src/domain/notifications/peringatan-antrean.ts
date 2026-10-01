@@ -118,6 +118,8 @@ export interface HasilKirimPeringatan {
 export interface KirimPeringatanAntreanOpsi {
   /** True while the Antrean row is still open and untaken (supplied by Queues; Notifications never reads its tables). */
   barisMasihTerbukaBelumDiambil?: (rowKey: string) => Promise<boolean>;
+  /** True while the Antrean row is still open, taken or not: a retried 90 min confirmation is dropped once its row closed (ticket 96). */
+  barisMasihTerbuka?: (rowKey: string) => Promise<boolean>;
 }
 
 /**
@@ -193,6 +195,24 @@ async function catatKegagalan(tx: Database, item: Antrean, now: Date): Promise<v
     .where(eq(notificationsPeringatanAntrean.id, item.id));
 }
 
+/** Why a retry of this stage is no longer true, or null to send it (ticket 96). */
+async function alasanDilewati(
+  tahap: TahapPeringatanAntrean,
+  rowKey: string,
+  opsi: KirimPeringatanAntreanOpsi,
+): Promise<string | null> {
+  // The first alert and the 30 min one (both "nobody has taken it yet") stop once
+  // the row was taken or closed; the 90 min TPU confirmation still fires on a row
+  // someone took, and stops only once the row itself closed.
+  if ((tahap === "baru" || tahap === "eskalasi_30") && opsi.barisMasihTerbukaBelumDiambil) {
+    if (!(await opsi.barisMasihTerbukaBelumDiambil(rowKey))) return "baris Antrean sudah diambil atau ditutup";
+  }
+  if (tahap === "eskalasi_90" && opsi.barisMasihTerbuka) {
+    if (!(await opsi.barisMasihTerbuka(rowKey))) return "baris Antrean sudah ditutup";
+  }
+  return null;
+}
+
 async function proses(
   tx: Database,
   id: string,
@@ -207,26 +227,25 @@ async function proses(
   const attempts = (item.attempts ?? 0) + 1;
   const subject = `${text.awalan}: ${item.label}`;
 
-  // A retry of an escalation whose row was taken or closed meanwhile would say something no longer true.
-  if (tahap === "eskalasi_30" && attempts > 1 && item.rowKey && opsi.barisMasihTerbukaBelumDiambil) {
-    if (!(await opsi.barisMasihTerbukaBelumDiambil(item.rowKey))) {
-      await tx.insert(notificationsMessage).values({
-        template: text.kind,
-        channel: "email",
-        akunStafId: item.accountId,
-        subject,
-        body: "Dibatalkan: baris Antrean sudah diambil atau ditutup sebelum percobaan ulang.",
-        status: "dibatalkan",
-        attempts,
-        sendAfter: now,
-        createdAt: now,
-      });
-      await tx
-        .update(notificationsPeringatanAntrean)
-        .set({ attempts, sentAt: now, emailDoneAt: item.emailDoneAt ?? now, pushDoneAt: item.pushDoneAt ?? now, nextAttemptAt: null })
-        .where(eq(notificationsPeringatanAntrean.id, item.id));
-      return 0;
-    }
+  // A retry whose Antrean row was taken or closed meanwhile would say something no longer true.
+  const dilewati = attempts > 1 && item.rowKey ? await alasanDilewati(tahap, item.rowKey, opsi) : null;
+  if (dilewati) {
+    await tx.insert(notificationsMessage).values({
+      template: text.kind,
+      channel: "email",
+      akunStafId: item.accountId,
+      subject,
+      body: `Dibatalkan: ${dilewati} sebelum percobaan ulang.`,
+      status: "dibatalkan",
+      attempts,
+      sendAfter: now,
+      createdAt: now,
+    });
+    await tx
+      .update(notificationsPeringatanAntrean)
+      .set({ attempts, sentAt: now, emailDoneAt: item.emailDoneAt ?? now, pushDoneAt: item.pushDoneAt ?? now, nextAttemptAt: null })
+      .where(eq(notificationsPeringatanAntrean.id, item.id));
+    return 0;
   }
 
   const { result, pushDicoba } = await kirim(

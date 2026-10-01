@@ -49,6 +49,7 @@ describe("the Bukti Pencairan's own message", () => {
     await pesananSaatDukaSiap(setup, { name: "Makam Sawah Besar", email: "keluarga.lain@contoh.id" });
 
     await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }));
+    await setup.notifications.kirimPeringatanStafTick();
 
     // The fixture's Admin Lokasi is the one invited to this Lokasi Mitra, and it is
     // the only Akun Staf told.
@@ -74,6 +75,7 @@ describe("the Bukti Pencairan's own message", () => {
     await kirimKe(setup)(
       buktiUntuk({ kind: "mitra_jasa", akunId: mitra.accountId, nama: "Rina Partial", lokasiId: fixture.lokasiMitra.id }),
     );
+    await setup.notifications.kirimPeringatanStafTick();
 
     expect(buktiDikirim(setup).map((message) => message.to)).toEqual([email]);
     const alerts = await setup.notifications.staffAlerts(mitra);
@@ -96,6 +98,7 @@ describe("the Bukti Pencairan's own message", () => {
     if (!takAda.ok) throw new Error(`remove refused: ${takAda.reason}`);
 
     await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }));
+    await setup.notifications.kirimPeringatanStafTick();
 
     // Nobody to tell is not a failure: the Bukti is in the run and in the Lokasi's
     // own view either way, and a message is only ever a courtesy on top of it.

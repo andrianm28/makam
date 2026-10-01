@@ -37,7 +37,7 @@ export interface FieldworkDeps {
   audit: AuditLog;
   /** Who may be assigned (Petugas Lapangan), and the assignment Peringatan Staf. */
   identity: Pick<Identity, "staffAccounts">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
   /**
    * A completed Kunjungan Verifikasi and Cek Denah are recorded on the Lokasi
    * only through its own public functions (AGENTS.md): the fieldwork module
@@ -177,21 +177,26 @@ export async function createTugasLapangan(
       after: { type: tugasLapangan.type, subject: tugasLapangan.subject, assigneeAccountId: tugasLapangan.assigneeAccountId },
       reason: null,
     });
+    // The assignment and its Peringatan Staf commit together (ticket 96): a
+    // rolled-back assignment leaves no alert behind, and a committed one cannot
+    // lose its alert.
+    await deps.notifications.antrekanPeringatanStaf(
+      {
+        to: { accountId: data.assigneeAccountId },
+        kind: "staf_tugas_lapangan_baru",
+        email: {
+          subject: "Tugas Lapangan baru",
+          text: `${data.subject}: ${data.address}, direncanakan ${data.plannedDate}.`,
+        },
+        push: {
+          title: "Tugas Lapangan baru",
+          body: `${data.subject}, ${data.plannedDate}`,
+          url: `/staf/petugas-lapangan/tugas/${tugasLapangan.id}`,
+        },
+      },
+      tx,
+    );
     return { ok: true, tugasLapangan } as const;
-  });
-
-  await deps.notifications.sendStaffAlert({
-    to: { accountId: data.assigneeAccountId },
-    kind: "staf_tugas_lapangan_baru",
-    email: {
-      subject: "Tugas Lapangan baru",
-      text: `${data.subject}: ${data.address}, direncanakan ${data.plannedDate}.`,
-    },
-    push: {
-      title: "Tugas Lapangan baru",
-      body: `${data.subject}, ${data.plannedDate}`,
-      url: `/staf/petugas-lapangan/tugas/${created.tugasLapangan.id}`,
-    },
   });
 
   return created;

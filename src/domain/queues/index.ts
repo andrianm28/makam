@@ -48,7 +48,7 @@ import {
   type DaftarTransferResult,
   type LaporanResult,
 } from "./laporan";
-import { barisMasihTerbukaBelumDiambil, peringatanTier1Tick, tier1BelumDiambil, type PeringatanDeps, type PeringatanTickResult } from "./peringatan";
+import { barisMasihTerbuka, barisMasihTerbukaBelumDiambil, peringatanTier1Tick, tier1BelumDiambil, type PeringatanDeps, type PeringatanTickResult } from "./peringatan";
 import {
   catatanInternalFor,
   tambahCatatanInternal,
@@ -218,6 +218,8 @@ export interface QueuesTicks {
   peringatanTick(now: Date): Promise<PeringatanTickResult>;
   /** Whether a Tier 1 row (by its key on an alert) is still open and untaken: Notifications drops a retried escalation for one that is not. */
   barisMasihTerbukaBelumDiambil(rowKey: string): Promise<boolean>;
+  /** Whether a Tier 1 row (by its key on an alert) is still open, taken or not (ticket 96). */
+  barisMasihTerbuka(rowKey: string): Promise<boolean>;
   /** Switches off every Bertugas whose 18:00 WIB or 12 h has come, leaving claims and notes. Idempotent. */
   bertugasTick(now: Date): Promise<{ dimatikan: number }>;
 }
@@ -226,6 +228,7 @@ export function createQueuesTicks(deps: PeringatanDeps): QueuesTicks {
   return {
     peringatanTick: (now) => peringatanTier1Tick(deps, now),
     barisMasihTerbukaBelumDiambil: (rowKey) => barisMasihTerbukaBelumDiambil(deps, rowKey),
+    barisMasihTerbuka: (rowKey) => barisMasihTerbuka(deps, rowKey),
     bertugasTick: (now) => bertugasOtomatisMatiTick(deps, now),
   };
 }

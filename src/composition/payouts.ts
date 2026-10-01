@@ -50,7 +50,7 @@ function halamanStafPenerima(penerima: KirimBuktiPencairan extends (bukti: infer
  */
 export function kirimBuktiPencairanKe(deps: {
   identity: Pick<Identity, "adminLokasiOf">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
 }): KirimBuktiPencairan {
   return async (bukti) => {
     const accounts =
@@ -58,7 +58,7 @@ export function kirimBuktiPencairanKe(deps: {
         ? [{ accountId: bukti.recipient.akunId }]
         : (await deps.identity.adminLokasiOf(bukti.recipient.lokasiId)).map((admin) => ({ accountId: admin.accountId }));
     for (const account of accounts) {
-      await deps.notifications.sendStaffAlert({
+      await deps.notifications.antrekanPeringatanStaf({
         to: account,
         kind: "staf_bukti_pencairan",
         email: {
@@ -89,7 +89,7 @@ export function composePayouts(deps: {
   lokasi: Pick<Lokasi, "adminPlatformCalendar" | "lokasiMitra" | "jamOperasionalOf">;
   billing: Billing;
   operatorSettings: Pick<OperatorSettings, "current">;
-  notifications: Pick<Notifications, "sendStaffAlert">;
+  notifications: Pick<Notifications, "antrekanPeringatanStaf">;
   reportError: ReportError;
 }): Payouts {
   const urls = buktiPencairanUrl(deps.env);

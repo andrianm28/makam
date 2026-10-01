@@ -61,6 +61,12 @@ import {
   type PeringatanAntreanResult,
   type PeringatanPenugasanTpuInput,
 } from "./peringatan-antrean";
+import {
+  antrekanPeringatanStaf,
+  kirimPeringatanStafTick,
+  type KirimPeringatanStafOpsi,
+  type PeringatanStafQueueResult,
+} from "./peringatan-staf";
 import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
 import {
   catatanTagihan,
@@ -135,6 +141,7 @@ import {
 import { notificationsMessage, notificationsPushDevice, notificationsStaffAlert, pesanStatuses } from "./schema";
 
 export type { KirimPeringatanAntreanOpsi, PeringatanAntreanInput, PeringatanAntreanResult, PeringatanPenugasanTpuInput, TahapPeringatanAntrean } from "./peringatan-antrean";
+export type { KirimPeringatanStafOpsi, PeringatanStafQueueResult } from "./peringatan-staf";
 export { efekBuktiPembayaran, type BuktiEffectDeps } from "./efek-bukti";
 export {
   catatPanggilanSchema,
@@ -285,6 +292,12 @@ export interface StaffAlert {
    * email may carry the rest). Phone numbers and emails are refused.
    */
   push: PushNotification & { url: string };
+  /**
+   * The subject the alert is about, when the raising module can name it (an
+   * order, a job): a retry asks that module whether it still needs the alert
+   * (ticket 96). Omitted when the module cannot answer; the retry then goes out.
+   */
+  subject?: { kind: string; id: string };
 }
 
 export type StaffAlertResult =
@@ -324,12 +337,29 @@ export interface Notifications {
   /**
    * Sends a Peringatan Staf: by push to each Perangkat Push of the Akun and by
    * email to its Email Terverifikasi (ADR 0004). A Perangkat Push whose browser
-   * dropped it is removed. Each channel is logged in the message log. One send,
-   * never retried here: an alert queued for the worker (`peringatanAntreanTier1`,
-   * `peringatanPenugasanTpu`) is retried by its tick; a failed one is never
+   * dropped it is removed. Each channel is logged in the message log. This is the
+   * one send a queued alert's tick runs; a domain event queues its own alert with
+   * `antrekanPeringatanStaf` instead of sending it here. A failed alert is never
    * escalated to a call row.
    */
   sendStaffAlert(alert: StaffAlert): Promise<StaffAlertResult>;
+  /**
+   * Queues a Peringatan Staf a domain event raises directly (a new Saat Duka or
+   * Terencana order, a Tugas Lapangan assigned, a Bukti Pencairan issued) in the
+   * transaction that raises it (`within`), so the alert commits or rolls back with
+   * the fact it announces. The worker's `kirimPeringatanStafTick` sends it and
+   * retries a failed send with the family messages' policy. Where the raising
+   * module can name `subject`, it answers a retry's "does the subject still need
+   * this?" through the tick's callback.
+   */
+  antrekanPeringatanStaf(alert: StaffAlert, within?: Database): Promise<PeringatanStafQueueResult>;
+  /**
+   * The worker's tick for the direct Peringatan Staf queued by `antrekanPeringatanStaf`:
+   * sends every one not yet done and due, and retries a failed one (4 sends, backed
+   * off; a channel that went through is not repeated). Idempotent. `opsi` carries the
+   * raising module's answer on whether a queued alert's subject still needs it.
+   */
+  kirimPeringatanStafTick(opsi?: KirimPeringatanStafOpsi): Promise<{ dikirim: number }>;
   /**
    * Queues a Peringatan Staf about a Tier 1 row of the Antrean (ticket 28), one per
    * Akun Staf in `to`: the first alert, the 30 min re-alert or the 90 min one. The
@@ -716,6 +746,24 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return (await kirimPeringatanStaf(alert, {}, db)).result;
     },
 
+    async antrekanPeringatanStaf(alert, within) {
+      // A push that would show a phone number, an email or a non-staff page is a
+      // programming error: refuse it at the queue, before it can be retried.
+      for (const text of [alert.push.title, alert.push.body]) {
+        if (!lockScreenSafe(text)) {
+          throw new Error("A Peringatan Staf push shows on the lock screen: no phone numbers or emails in its title or body");
+        }
+      }
+      if (!staffPagePath(alert.push.url)) {
+        throw new Error(`A Peringatan Staf push opens a staff page (${STAFF_AREA_PATH} or ${STAFF_AREA_PATH}/…)`);
+      }
+      return antrekanPeringatanStaf(within ?? db, deps.clock, alert);
+    },
+
+    async kirimPeringatanStafTick(opsi) {
+      return kirimPeringatanStafTick(db, deps.clock, kirimPeringatanStaf, opsi);
+    },
+
     async peringatanAntreanTier1(input, within) {
       return antrekanPeringatanAntrean(within ?? db, deps.clock, input);
     },
@@ -903,7 +951,7 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async chasingEskalasiTick(now) {
       return chasingEskalasiTick(
-        { db, billing: deps.tagihan, identity: deps.identity, send: (alert) => notifications.sendStaffAlert(alert) },
+        { db, billing: deps.tagihan, identity: deps.identity, send: (alert) => kirimPeringatanStaf(alert, {}, db).then((hasil) => hasil.result) },
         now,
       );
     },

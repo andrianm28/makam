@@ -33,6 +33,7 @@ describe("Tugas Lapangan: create and assign", () => {
     await setup.notifications.enablePush(petugas, { subscription: browserPushSubscription() });
 
     const created = await setup.fieldwork.createTugasLapangan(admin, kunjunganVerifikasiInput(lokasiMitra.id, petugas.accountId));
+    await setup.notifications.kirimPeringatanStafTick();
 
     expect(created.ok).toBe(true);
     if (!created.ok) throw new Error("unreachable");

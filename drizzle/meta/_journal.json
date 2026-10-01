@@ -330,6 +330,13 @@
       "when": 1790759201268,
       "tag": "0046_jittery_tony_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790828739282,
+      "tag": "0047_fat_george_stacy",
+      "breakpoints": true
     }
   ]
 }

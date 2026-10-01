@@ -267,3 +267,47 @@ export const notificationsPeringatanAntrean = pgTable(
   },
   (table) => [index("notifications_peringatan_antrean_belum_dikirim_idx").on(table.createdAt).where(sql`${table.sentAt} is null`)],
 );
+
+/**
+ * Owned by the notifications module: a Peringatan Staf a domain event raises
+ * directly (a new Saat Duka or Terencana order, a Tugas Lapangan assigned, a
+ * Bukti Pencairan issued), queued (ticket 96) in the transaction of the event
+ * itself and sent by the worker's tick, which retries it with the family
+ * messages' policy (ticket 91). The rendered email and push are kept whole, so
+ * the send needs nothing from the raising module and a crash between the event
+ * and the send loses nothing. Times come from the Clock.
+ */
+export const notificationsPeringatanStaf = pgTable(
+  "notifications_peringatan_staf",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The Akun Staf to alert. Not a foreign key: identity owns its tables. */
+    accountId: text("account_id").notNull(),
+    /** Which Peringatan Staf this is (a `staffAlertKinds` value). */
+    kind: text("kind").notNull(),
+    emailSubject: text("email_subject").notNull(),
+    emailText: text("email_text").notNull(),
+    pushTitle: text("push_title").notNull(),
+    pushBody: text("push_body").notNull(),
+    /** The staff page the push opens (`/staf` or under it). */
+    pushUrl: text("push_url").notNull(),
+    /** The subject the alert is about, when the raising module can name it: a retry asks that module whether it still needs the alert. */
+    subjectKind: text("subject_kind"),
+    subjectId: text("subject_id"),
+    createdAt: at("created_at").notNull(),
+    /** When every channel that applies went through (or the Akun is no longer staff): the alert is done. */
+    sentAt: at("sent_at"),
+    /** Send attempts so far (ticket 96). Defaulted, so the previous release's inserts still work. */
+    attempts: integer("attempts").default(0),
+    /** Not tried again before this; null before the first attempt. */
+    nextAttemptAt: at("next_attempt_at"),
+    /** When the email (or push) went through, so a retry never repeats that channel; null while it has not. */
+    emailDoneAt: at("email_done_at"),
+    pushDoneAt: at("push_done_at"),
+    /** When the last attempt failed and none is left: the alert stops here, logged, never escalated. */
+    gaveUpAt: at("gave_up_at"),
+    /** When the bell entry was written (first completed attempt), so a retry never lists the alert twice. */
+    bellAt: at("bell_at"),
+  },
+  (table) => [index("notifications_peringatan_staf_belum_dikirim_idx").on(table.createdAt).where(sql`${table.sentAt} is null`)],
+);
