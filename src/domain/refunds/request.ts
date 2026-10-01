@@ -238,7 +238,7 @@ export type AjukanBarisResult =
       jumlah: number;
       biayaLayananPlatformDikembalikan: boolean;
     }
-  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" | "menunggu_transfer" };
+  | { ok: false; reason: "input_tidak_valid" | "tagihan_tidak_ditemukan" | "tagihan_belum_lunas" | "melebihi_tagihan" | "sudah_ada_permintaan_terbuka" };
 
 /**
  * A refund request for some lines of a paid Tagihan: what an order cancelled one
@@ -249,8 +249,9 @@ export type AjukanBarisResult =
  * follow. The total of every request on a Tagihan never exceeds what it was paid.
  *
  * An open request that no one has approved yet takes the new lines (one transfer
- * for one order's cancellations); one already approved or transferring refuses,
- * so a caller can undo what it was doing rather than lose the money.
+ * for one order's cancellations); one already approved or transferring cannot,
+ * because its amount is fixed, so the new lines wait as a request of their own
+ * and its transfer pays them, never the approved one's.
  */
 export async function ajukanBaris(
   deps: { db: Database; clock: Clock; billing: Pick<Billing, "tagihan"> },
@@ -293,10 +294,12 @@ async function ajukanBarisTerkunci(
 
   const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
   if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
-  // An earlier request already approved is waiting for its transfer: nothing may join it now, and the caller can say so plainly.
-  if (terbuka?.status === "disetujui") return { ok: false, reason: "menunggu_transfer" };
-  if (terbuka) {
-    if (terbuka.status !== "diajukan" || terbuka.goodwill || terbuka.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
+  // Only a request still Diajukan, ordinary and not already the whole Tagihan, takes new lines. A request already
+  // approved is awaiting the transfer of the amount Admin Platform approved, so its lines are frozen; the new lines
+  // then become their own request, with a transfer of their own, so every line is still refunded exactly once.
+  const bisaDigabung = terbuka !== undefined && terbuka.status === "diajukan" && !terbuka.goodwill && !terbuka.penuh;
+  if (terbuka && !bisaDigabung && terbuka.status !== "disetujui") return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
+  if (terbuka && bisaDigabung) {
     await deps.db
       .update(permintaanPengembalian)
       .set({

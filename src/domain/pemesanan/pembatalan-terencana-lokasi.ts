@@ -47,10 +47,8 @@ export type SetujuiPembatalanResult =
   | Penolakan
   /** A Pemakaman, a Ganti Pemegang Hak, an ended Hak Pakai or an order that is no longer Aktif: the Pembatalan is no longer allowed. */
   | { ok: false; reason: Exclude<SebabPembatalanTerhalang, "sudah_ada_permintaan"> }
-  /** Refunds could not take the refund (another refund of this Tagihan is being processed): nothing was changed. */
-  | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" }
-  /** An earlier refund of the same Tagihan is approved and awaiting its transfer: nothing was changed, and the approval can be tried again once it is transferred. */
-  | { ok: false; reason: "pengembalian_sebelumnya_menunggu_transfer" };
+  /** Refunds could not take the refund (another refund of this Tagihan is still Diajukan): nothing was changed. */
+  | { ok: false; reason: "pengembalian_tidak_bisa_diajukan" };
 
 export type KeputusanPembatalanResult = { ok: true; permintaan: PermintaanPembatalan } | Penolakan;
 
@@ -121,7 +119,7 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
       if (!tagihanBerlaku) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
       const diminta = await deps.refunds.ajukanBaris(tagihanBerlaku.id, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: row.lines }, tx);
       if (!diminta.ok) {
-        return { ok: false, reason: diminta.reason === "menunggu_transfer" ? "pengembalian_sebelumnya_menunggu_transfer" : "pengembalian_tidak_bisa_diajukan" };
+        return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       }
       pengembalian = { permintaanId: diminta.permintaanId };
       await tx

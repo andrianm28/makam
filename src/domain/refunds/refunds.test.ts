@@ -390,7 +390,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     expect(permintaan.lines.map((line) => line.label).sort()).toEqual(["Baris A", "Baris B", baris.label].sort());
   });
 
-  it("refuses more than the Tagihan was paid, an unknown Tagihan, and a request once approved", async () => {
+  it("refuses more than the Tagihan was paid and an unknown Tagihan, and gives a request raised after approval its own row", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananTerbayar(setup);
     const { tagihan, baris } = await barisPertama(setup, fixture.tagihanId);
@@ -401,7 +401,13 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
     if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
-    expect(await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] })).toEqual({ ok: false, reason: "menunggu_transfer" });
+    // An approved request can no longer take lines, so the next one waits as its own request, paid by its own transfer.
+    const kedua = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
+    if (!kedua.ok) throw new Error(`refused: ${kedua.reason}`);
+    expect(kedua.permintaanId).not.toBe(diajukan.permintaanId);
+    const permintaan = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toHaveLength(2);
+    expect(permintaan.map((row) => row.jumlah)).toEqual([1_000, 1_000]);
   });
 
   it("is a full refund only when the lines really are everything the fault rule returns: the fee kept, nothing else left behind", async () => {

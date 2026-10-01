@@ -493,7 +493,7 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     expect((await setup.audit.allEntries()).filter((entry) => entry.action === "pembatalan_terencana.setujui")).toEqual([]);
   });
 
-  it("is refused with its own reason while an earlier refund of the Tagihan is approved and awaiting its transfer, and can be approved once it is transferred", async () => {
+  it("approves a second Pembatalan while an earlier refund is approved and awaiting transfer, as its own request whose transfer pays its line once", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     const pertama = await ajukan(setup, dasar);
@@ -502,19 +502,35 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
     await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: a.pengembalian!.permintaanId });
 
-    const ditolak = await setup.pemesanan.setujuiPembatalanTerencana(dasar.fixture.adminLokasi, { id: kedua.id });
+    // The earlier refund is approved and awaiting its transfer, yet the second Pembatalan is answered at once.
+    const hasil = await setujui(setup, dasar, kedua.id);
 
-    expect(ditolak).toEqual({ ok: false, reason: "pengembalian_sebelumnya_menunggu_transfer" });
-    expect(await setup.inventory.hakPakaiById(dasar.hakPakaiIds[1])).toMatchObject({ status: "aktif" });
-    expect((await setup.pemesanan.pembatalanUntukStaf(dasar.fixture.adminLokasi, dasar.nomor)).find((satu) => satu.id === kedua.id)?.status).toBe("diajukan");
+    // Its refund is its own request, naming its own plot's line, and completing the Tagihan makes it the full one.
+    expect(hasil.pengembalian?.permintaanId).not.toBe(a.pengembalian?.permintaanId);
+    const refundPertama = await setup.refunds.permintaan(a.pengembalian!.permintaanId);
+    const refundKedua = await setup.refunds.permintaan(hasil.pengembalian!.permintaanId);
+    expect(refundPertama).toMatchObject({ status: "disetujui", jumlah: 2_500_000, penuh: false });
+    expect(refundKedua).toMatchObject({ status: "diajukan", jumlah: 2_500_000, penuh: true });
+    // Both plots ended, and the order with its last Hak Pakai.
+    for (const hakPakaiId of dasar.hakPakaiIds) expect(await setup.inventory.hakPakaiById(hakPakaiId)).toMatchObject({ status: "dibatalkan" });
+    expect(await setup.pemesanan.terencanaOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "dibatalkan" });
 
-    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+    // Each refunded line is paid exactly once: one transfer per request, together the two plots' tariff.
+    const buktiPertama = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
       permintaanId: a.pengembalian!.permintaanId,
       ditransferPada: wibDateOf(setup.clock.now()),
       bukti: buktiTransfer,
     });
-    expect(terbit.ok).toBe(true);
-    expect(await setup.pemesanan.setujuiPembatalanTerencana(dasar.fixture.adminLokasi, { id: kedua.id })).toMatchObject({ ok: true });
+    await setup.refunds.isiRekeningAdmin(dasar.admin, { permintaanId: hasil.pengembalian!.permintaanId, rekening, alasan: "Diminta lewat telepon" });
+    expect((await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: hasil.pengembalian!.permintaanId })).ok).toBe(true);
+    const buktiKedua = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: hasil.pengembalian!.permintaanId,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    if (!buktiPertama.ok || !buktiKedua.ok) throw new Error("a transfer was refused");
+    expect(buktiPertama.bukti.amount + buktiKedua.bukti.amount).toBe(5_000_000);
+    expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
   });
 
   it("is that Lokasi's own Admin Lokasi's to answer, and nobody else's, Admin Platform included", async () => {

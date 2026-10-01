@@ -40,10 +40,11 @@ export const permintaanSumberKinds = ["pembatalan", "manual"] as const;
 export type PermintaanSumberKind = (typeof permintaanSumberKinds)[number];
 
 /**
- * Owned by the Refunds module: one refund from request to transfer. At most
- * one request is open (`diajukan` or `disetujui`) per Tagihan at a time — the
- * partial unique index below — so approving and transferring always act on an
- * unambiguous row.
+ * Owned by the Refunds module: one refund from request to transfer. Several
+ * requests may be open on one Tagihan at once (a second Pembatalan waiting
+ * behind a refund already approved and awaiting its transfer, ticket 92), but
+ * at most one of them may be `diajukan` — the partial unique index below —
+ * so a second raise joins the open one or is refused, never doubled.
  */
 export const permintaanPengembalian = pgTable(
   "permintaan_pengembalian",
@@ -85,12 +86,13 @@ export const permintaanPengembalian = pgTable(
   },
   (table) => [
     index("permintaan_pengembalian_tagihan_idx").on(table.tagihanId),
-    // At most one open request per Tagihan: the materialising tick and a manual
-    // raise both go through this, so a second one is a no-op / a refusal rather
-    // than a second bill of the same money.
-    uniqueIndex("permintaan_pengembalian_tagihan_open_idx")
+    // At most one request still Diajukan per Tagihan: the materialising tick, a
+    // manual raise and a Pembatalan all go through this, so a second one joins
+    // it or waits as its own request rather than doubling the same money. A
+    // request already approved may sit alongside a new one (ticket 92).
+    uniqueIndex("permintaan_pengembalian_tagihan_diajukan_idx")
       .on(table.tagihanId)
-      .where(sql`${table.status} <> 'ditransfer'`),
+      .where(sql`${table.status} = 'diajukan'`),
     // The tick's own idempotency: a Tagihan the cancellation flow flagged gets
     // materialised at most once, ever (running the tick twice never doubles it).
     uniqueIndex("permintaan_pengembalian_tagihan_sumber_idx")
