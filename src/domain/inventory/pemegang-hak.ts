@@ -28,6 +28,8 @@ export const gantiPemegangHakSchema = z.object({
   hakPakaiId: z.uuid(),
   pemegangHak: kontakSchema.extend({ name: z.string().trim().min(1).max(200) }),
   alasan: z.string().trim().min(1).max(300),
+  /** The keys in the private FileStore the transfer rests on (a request's attachments); none by default. */
+  dokumen: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
 });
 export type GantiPemegangHakInput = z.infer<typeof gantiPemegangHakSchema>;
 
@@ -102,6 +104,7 @@ export async function gantiPemegangHak(deps: InventoryDeps, by: Actor, lokasiId:
       name: input.pemegangHak.name,
       phoneNumber: kontak.phoneNumber,
       email: kontak.email,
+      dokumen: input.dokumen,
       startAt: now,
       createdByAccountId: by.accountId,
     });
@@ -167,18 +170,20 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
   });
 }
 
-/** One holder of a Hak Pakai in its history: the name and the dates, never the contact. */
+/** One holder of a Hak Pakai in its history: the name, the dates and the transfer's documents, never the contact. */
 export interface RiwayatPemegangHak {
   name: string | null;
   startAt: Date;
   /** Null for the current holder. */
   endAt: Date | null;
+  /** The documents the transfer rested on (FileStore keys); empty when none. */
+  dokumen: string[];
 }
 
 /** Every Pemegang Hak the Hak Pakai has had, oldest first. */
 export async function riwayatPemegangHak(deps: Pick<InventoryDeps, "db">, hakPakaiId: string): Promise<RiwayatPemegangHak[]> {
   return deps.db
-    .select({ name: inventoryPemegangHak.name, startAt: inventoryPemegangHak.startAt, endAt: inventoryPemegangHak.endAt })
+    .select({ name: inventoryPemegangHak.name, startAt: inventoryPemegangHak.startAt, endAt: inventoryPemegangHak.endAt, dokumen: inventoryPemegangHak.dokumen })
     .from(inventoryPemegangHak)
     .where(eq(inventoryPemegangHak.hakPakaiId, hakPakaiId))
     .orderBy(asc(inventoryPemegangHak.startAt));

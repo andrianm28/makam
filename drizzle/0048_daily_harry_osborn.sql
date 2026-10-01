@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_pemegang_hak" ADD COLUMN "dokumen" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -201,6 +201,13 @@ export const inventoryPemegangHak = pgTable(
     name: text("name"),
     phoneNumber: text("phone_number"),
     email: text("email"),
+    /**
+     * The documents the transfer rested on (a Ganti Pemegang Hak request's
+     * attachments, or an Admin Lokasi's own): keys in the private FileStore.
+     * Kept on the holder's row so the transfer record carries them; empty for
+     * a holder that never had one (ticket 39).
+     */
+    dokumen: jsonb("dokumen").$type<string[]>().notNull().default([]),
     startAt: at("start_at").notNull(),
     endAt: at("end_at"),
     createdByAccountId: text("created_by_account_id").notNull(),

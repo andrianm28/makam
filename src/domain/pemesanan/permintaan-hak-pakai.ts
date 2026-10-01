@@ -370,6 +370,11 @@ export async function setujuiPermintaanHakPakai(deps: PemesananDeps, by: Actor, 
     if (hakPakai.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
     if (await pembatalanTerbuka(deps, row.hakPakaiId)) return { ok: false, reason: "pembatalan_terbuka" };
     if (await isBlockedByOverdueTagihan(deps, row.hakPakaiId)) return { ok: false, reason: "tagihan_lewat_jatuh_tempo" };
+    // Re-checked here as well as at filing: a Lokasi that forbids sale transfers while the request is in flight still refuses it.
+    if (row.sebab === "jual") {
+      const aturanJual = await deps.lokasi.aturanGantiPemegangHak(row.lokasiId);
+      if (!aturanJual?.saleTransfersAllowed) return { ok: false, reason: "jual_tidak_diizinkan" };
+    }
   }
 
   return deps.audit.staffWrite<SetujuiPermintaanHakPakaiResult>(deps.db, async (tx, record) => {
@@ -390,6 +395,7 @@ export async function setujuiPermintaanHakPakai(deps: PemesananDeps, by: Actor, 
         hakPakaiId: row.hakPakaiId,
         pemegangHak: { name: row.pemegangBaruName, phoneNumber: row.pemegangBaruPhone, email: row.pemegangBaruEmail ?? undefined },
         alasan: `Ganti Pemegang Hak (${row.sebab ?? "waris"})`,
+        dokumen: row.dokumen,
       });
       if (!ganti.ok) return { ok: false, reason: "hak_pakai_sudah_berakhir" };
       const aturan = await deps.lokasi.aturanGantiPemegangHak(row.lokasiId);
@@ -419,13 +425,13 @@ export async function tolakPermintaanHakPakai(deps: PemesananDeps, by: Actor, ra
   const dimuat = await muatUntukLokasi(deps, by, parsed.data.id);
   if (!dimuat.ok) return dimuat.penolakan;
   const now = deps.clock.now();
-  const [ditolak] = await deps.db
-    .update(pemesananPermintaanHakPakai)
-    .set({ status: "ditolak", diputuskanPada: now, diputuskanOleh: by.accountId, alasanKeputusan: parsed.data.alasan })
-    .where(and(eq(pemesananPermintaanHakPakai.id, dimuat.row.id), eq(pemesananPermintaanHakPakai.status, "diajukan")))
-    .returning();
-  if (!ditolak) return { ok: false, reason: "status_tidak_sesuai" };
   return deps.audit.staffWrite<UbahPermintaanHakPakaiResult>(deps.db, async (tx, record) => {
+    const [ditolak] = await tx
+      .update(pemesananPermintaanHakPakai)
+      .set({ status: "ditolak", diputuskanPada: now, diputuskanOleh: by.accountId, alasanKeputusan: parsed.data.alasan })
+      .where(and(eq(pemesananPermintaanHakPakai.id, dimuat.row.id), eq(pemesananPermintaanHakPakai.status, "diajukan")))
+      .returning();
+    if (!ditolak) return { ok: false, reason: "status_tidak_sesuai" };
     await record({
       actor: { accountId: by.accountId, role: "admin_lokasi" },
       action: "permintaan_hak_pakai.tolak",
@@ -446,19 +452,19 @@ export async function mintaPerbaikanPermintaanHakPakai(deps: PemesananDeps, by: 
   const dimuat = await muatUntukLokasi(deps, by, parsed.data.id);
   if (!dimuat.ok) return dimuat.penolakan;
   const now = deps.clock.now();
-  const [dikembalikan] = await deps.db
-    .update(pemesananPermintaanHakPakai)
-    .set({
-      status: "perlu_perbaikan",
-      putaran: dimuat.row.putaran + 1,
-      diputuskanPada: now,
-      diputuskanOleh: by.accountId,
-      alasanKeputusan: parsed.data.catatan,
-    })
-    .where(and(eq(pemesananPermintaanHakPakai.id, dimuat.row.id), eq(pemesananPermintaanHakPakai.status, "diajukan")))
-    .returning();
-  if (!dikembalikan) return { ok: false, reason: "status_tidak_sesuai" };
   return deps.audit.staffWrite<UbahPermintaanHakPakaiResult>(deps.db, async (tx, record) => {
+    const [dikembalikan] = await tx
+      .update(pemesananPermintaanHakPakai)
+      .set({
+        status: "perlu_perbaikan",
+        putaran: dimuat.row.putaran + 1,
+        diputuskanPada: now,
+        diputuskanOleh: by.accountId,
+        alasanKeputusan: parsed.data.catatan,
+      })
+      .where(and(eq(pemesananPermintaanHakPakai.id, dimuat.row.id), eq(pemesananPermintaanHakPakai.status, "diajukan")))
+      .returning();
+    if (!dikembalikan) return { ok: false, reason: "status_tidak_sesuai" };
     await record({
       actor: { accountId: by.accountId, role: "admin_lokasi" },
       action: "permintaan_hak_pakai.minta_perbaikan",

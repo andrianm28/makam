@@ -153,6 +153,49 @@ describe("Ganti Pemegang Hak", () => {
     expect(makam.map((satu) => satu.hakPakaiId)).toContain(f.hakPakaiId);
   });
 
+  it("carries the documents the family filed into the transfer record on approval", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const f = await fixture(setup);
+    const dokumen = ["ktp-ibu-sari.pdf", "surat-waris.pdf"];
+
+    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(f.pemegang, {
+      hakPakaiId: f.hakPakaiId,
+      pemegangBaru: { name: "Anak Sari", phoneNumber: "081399998888", email: "anak.sari@contoh.id" },
+      sebab: "waris",
+      dokumen,
+    });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    const setuju = await setup.pemesanan.setujuiPermintaanHakPakai(f.lokasi.adminLokasi, { id: diajukan.permintaan.id });
+    if (!setuju.ok) throw new Error(setuju.reason);
+
+    const riwayat = await setup.inventory.riwayatPemegangHak(f.hakPakaiId);
+    expect(riwayat.at(-1)?.dokumen).toEqual(dokumen);
+  });
+
+  it("refuses at approval a sale the Lokasi has forbidden since the request was filed", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const f = await fixture(setup, { saleTransfers: true, fee: 500_000 });
+    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(f.pemegang, {
+      hakPakaiId: f.hakPakaiId,
+      pemegangBaru: { name: "Pembeli", phoneNumber: "081377776666" },
+      sebab: "jual",
+    });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    const larang = await setup.lokasi.setPoliciesAndFlags(f.admin, f.lokasi.lokasiMitra.id, {
+      policies: { ...DEFAULT_POLICIES, gantiPemegangHakFee: 500_000 },
+      flags: { ...DEFAULT_FLAGS, saleTransfersAllowed: false, pemesananTerencanaAktif: true },
+    });
+    if (!larang.ok) throw new Error(`setPoliciesAndFlags refused: ${larang.reason}`);
+
+    const setuju = await setup.pemesanan.setujuiPermintaanHakPakai(f.lokasi.adminLokasi, { id: diajukan.permintaan.id });
+
+    expect(setuju).toEqual({ ok: false, reason: "jual_tidak_diizinkan" });
+    const riwayat = await setup.inventory.riwayatPemegangHak(f.hakPakaiId);
+    expect(riwayat.map((satu) => satu.name)).toEqual(["Ibu Sari"]);
+  });
+
   it("refuses a sale where the Lokasi forbids sale transfers, and allows it where it does", async () => {
     const setup = pemesananOnTestDatabase(db);
     const f = await fixture(setup, { saleTransfers: false, fee: 500_000 });
