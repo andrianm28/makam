@@ -389,16 +389,26 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
   });
 
-  it("is refused, and the job left as it was, while an approved refund is still open on the Tagihan", async () => {
+  it("cancels a second job while an approved refund is still open on the Tagihan, each in its own request", async () => {
     const { setup, lokasi, pemesan, satu, dua } = await pesananDuaItem();
     setup.clock.set(wib("2026-10-19 08:00"));
     expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Satu saja." })).ok).toBe(true);
-    const [permintaan] = await setup.refunds.permintaanTerbuka();
-    await setup.refunds.setujuiPengembalian(lokasi.admin, { permintaanId: permintaan.id });
+    const [pertama] = await setup.refunds.permintaanTerbuka();
+    await setup.refunds.setujuiPengembalian(lokasi.admin, { permintaanId: pertama.id });
 
-    expect(await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Dua juga." })).toEqual({ ok: false, reason: "pengembalian_tertunda" });
-    // Nothing was cancelled and nothing was asked: the family can cancel it again after the transfer.
-    expect(await setup.layanan.pengembalianTerbuka()).toHaveLength(1);
-    expect((await setup.refunds.permintaanTerbuka())[0].jumlah).toBe(750_000);
+    // An approved request is frozen and its own transfer pays it; the next cancellation raises its own
+    // request (ticket 92), so each line is refunded exactly once even before the first transfer lands.
+    const kedua = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Dua juga." });
+    expect(kedua.ok).toBe(true);
+    if (!kedua.ok) return;
+    expect(kedua.pengembalian?.id).not.toBe(pertama.id);
+
+    // Both requests are still untransferred, so both stay "terbuka"; each carries its own line.
+    const terbuka = await setup.refunds.permintaanTerbuka();
+    expect(terbuka).toHaveLength(2);
+    const baru = terbuka.find((satu) => satu.id !== pertama.id);
+    expect(baru).toBeDefined();
+    expect(baru?.jumlah).toBe(750_000);
+    expect(await setup.layanan.pengembalianTerbuka()).toHaveLength(2);
   });
 });
