@@ -3,6 +3,7 @@
  * there: it reaches its neighbours only through their public functions, never
  * their tables.
  */
+import type { Database } from "@/db/client";
 import type { Notifications } from "@/domain/notifications";
 import { createPemesanan, type Pemesanan, type PemesananDeps, type PemesananNotifikasi } from "@/domain/pemesanan";
 import { stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
@@ -32,6 +33,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     return {
       tagihanTerbit: async () => ({ ok: true, diingatkan: 0 }),
       pesananDiajukan: async () => {},
+      peringatanStafSaatDuka: async () => {},
       pesananBelumDikonfirmasi: async () => {},
       pesananDikonfirmasi: async () => {},
       pesananDitolak: async () => {},
@@ -62,7 +64,10 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
         rencanaPemakamanAt: order.rencanaPemakamanAt,
         konfirmasiDueAt: order.konfirmasiDueAt,
       });
-      await kirimStaf(notifications, order, stafSaatDukaBaruAlert(order), "staf_saat_duka_baru");
+    },
+    // The new order's Peringatan Staf, queued inside the order's own transaction (ticket 96).
+    peringatanStafSaatDuka: async (tx, order) => {
+      await kirimStaf(notifications, order, stafSaatDukaBaruAlert(order), "staf_saat_duka_baru", tx);
     },
     pesananBelumDikonfirmasi: async (order) => {
       await kirimStaf(notifications, order, stafSaatDukaBelumDikonfirmasiAlert(order), "staf_saat_duka_belum_dikonfirmasi");
@@ -83,10 +88,10 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       await notifications.pesananBuktiPemesanan(hasil);
     },
     // A new Pemesanan Terencana raises one Peringatan Staf to the Lokasi's Admin Lokasi and
-    // Kontak Siaga, at any hour (ticket 97). No re-alert: the Antrean Lokasi row
-    // "Konfirmasi Terencana" stays Lainnya.
-    terencanaDiajukan: async (order) => {
-      await kirimStaf(notifications, order, stafTerencanaBaruAlert(order), "staf_terencana_baru");
+    // Kontak Siaga, at any hour (ticket 97), queued inside the order's own transaction (ticket 96).
+    // No re-alert: the Antrean Lokasi row "Konfirmasi Terencana" stays Lainnya.
+    terencanaDiajukan: async (tx, order) => {
+      await kirimStaf(notifications, order, stafTerencanaBaruAlert(order), "staf_terencana_baru", tx);
     },
     terencanaDikonfirmasi: async (tx, input) => {
       await notifications.terencanaDikonfirmasi(input, tx);
@@ -115,11 +120,15 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
 /** One Peringatan Staf to every Akun Staf that must see this order, by name of the kind. */
 async function kirimStaf(
   notifications: Notifications,
-  order: { penerima: { accountId: string }[] },
+  order: { id: string; penerima: { accountId: string }[] },
   alert: ReturnType<typeof stafSaatDukaBaruAlert> | ReturnType<typeof stafTerencanaBaruAlert>,
   kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi" | "staf_terencana_baru",
+  within?: Database,
 ): Promise<void> {
+  // The order is the subject a retried alert is asked about (ticket 96): a Pemesanan
+  // Makam or a Pemesanan Terencana, by the kind that raised the alert.
+  const subjectKind = kind === "staf_terencana_baru" ? "pemesanan_terencana" : "pemesanan_makam";
   for (const to of order.penerima) {
-    await notifications.antrekanPeringatanStaf({ to, kind, ...alert });
+    await notifications.antrekanPeringatanStaf({ to, kind, subject: { kind: subjectKind, id: order.id }, ...alert }, within);
   }
 }

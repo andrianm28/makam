@@ -38,6 +38,12 @@ export interface SchedulerContext {
   reportError: ReportError;
   /** Family messages due, sent through the worker (ticket 20), and the Chasing escalation tick (ticket 29). */
   notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick">;
+  /**
+   * Whether a queued direct Peringatan Staf's subject still needs it (ticket 96),
+   * answered by the module that owns the subject. Omitted: Notifications has no
+   * one to ask and a retry goes out.
+   */
+  peringatanStafSubjek?: (subject: { kind: string; id: string }) => Promise<boolean>;
   /** The Pemesanan module's own reads and announcements: the Saat Duka re-alert (ticket 23) and the "Catat Pemakaman" prompt (ticket 25). */
   pemesanan: Parameters<typeof realertKonfirmasiSaatDukaTick>[0];
   /**
@@ -233,5 +239,5 @@ async function kirimPeringatanAntreanTick(ctx: SchedulerContext): Promise<void> 
 
 /** The worker wrapper around Notifications' send tick for the direct staff alerts (idempotent there, as every tick is). */
 async function kirimPeringatanStafTick(ctx: SchedulerContext): Promise<void> {
-  await ctx.notifications.kirimPeringatanStafTick();
+  await ctx.notifications.kirimPeringatanStafTick(ctx.peringatanStafSubjek ? { subjekMasihPerlu: ctx.peringatanStafSubjek } : {});
 }

@@ -81,6 +81,7 @@ export function pemesananOnTestDatabase(
     pesananDiajukan: async (order) => {
       diumumkan.push(order);
     },
+    peringatanStafSaatDuka: async () => {},
     pesananBelumDikonfirmasi: async (order) => {
       diumumkan.push(order);
     },
@@ -99,7 +100,7 @@ export function pemesananOnTestDatabase(
     pesananBuktiPemesanan: async (hasil) => {
       buktiPemesanan.push(hasil);
     },
-    terencanaDiajukan: async (order) => {
+    terencanaDiajukan: async (_tx, order) => {
       terencana.push(order);
     },
     terencanaDikonfirmasi: async (_tx, input) => {

@@ -170,6 +170,7 @@ describe("issuing a Bukti Pencairan", () => {
     // The recipient is told once, with the link to its own Bukti Pencairan.
     expect(setup.dikirim).toEqual([
       {
+        id: expect.any(String),
         recipient: { kind: "lokasi_mitra", lokasiId: order.lokasiMitra.id, nama: "Makam Wakaf Al-Ikhlas" },
         nomorBukti: "BKP/2026/000001",
         url: `https://makam.test/dokumen/${terbit.bukti.link}`,

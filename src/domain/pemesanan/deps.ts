@@ -60,8 +60,15 @@ export interface PemesananNotifikasi {
    * rolls the whole confirmation back.
    */
   tagihanTerbit(tx: Database, input: TagihanTerbitInput): Promise<TagihanTerbitResult>;
-  /** A Pemesanan Makam the Lokasi Mitra has to confirm, named by its Nomor Pemesanan. */
+  /** The family message that a Pemesanan Makam was placed, named by its Nomor Pemesanan. */
   pesananDiajukan(order: PemesananDiajukan): Promise<void>;
+  /**
+   * The Peringatan Staf a new Saat Duka order raises, queued inside the order's
+   * own transaction `tx` (ticket 96): the alert commits or rolls back with the
+   * order, so a rolled-back order leaves no alert and a committed one cannot
+   * lose it.
+   */
+  peringatanStafSaatDuka(tx: Database, order: PemesananDiajukan): Promise<void>;
   /**
    * The same order, still unconfirmed, now that 1 h of the Lokasi's Jam
    * Operasional has passed: the Lokasi's staff are alerted once more.
@@ -93,8 +100,11 @@ export interface PemesananNotifikasi {
    * Terencana order names several plots and a Calon Penghuni who is alive, so it has
    * no Almarhum, no Jenis Makam of its own and no confirmation deadline (its plots
    * are held outright at submission, and the Tagihan follows the confirmation).
+   *
+   * Queued inside the order's own transaction `tx` (ticket 96), as the Saat Duka
+   * alert is: it commits or rolls back with the order.
    */
-  terencanaDiajukan(order: TerencanaDiajukan): Promise<void>;
+  terencanaDiajukan(tx: Database, order: TerencanaDiajukan): Promise<void>;
   /**
    * The Terencana order's own messages (ticket 37), each announced inside the
    * transaction `tx` of the change it is about, so it commits or rolls back with
@@ -151,6 +161,8 @@ export interface ChasingDijadwalkan {
 
 /** A new Pemesanan Terencana as the staff who must see it are told about it. */
 export interface TerencanaDiajukan {
+  /** The Pemesanan Terencana's own id: the subject a retried alert is asked about (ticket 96). */
+  id: string;
   nomor: string;
   lokasi: { id: string; name: string };
   /** The plots it holds, by the numbers the family knows them by. */

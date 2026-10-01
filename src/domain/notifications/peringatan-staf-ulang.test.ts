@@ -103,12 +103,15 @@ describe("a direct Peringatan Staf is queued and sent by the worker, then retrie
   });
 
   it("is idempotent: a tick run twice at the same moment sends nothing twice", async () => {
-    const { setup, surat } = await siap();
+    const { setup, staf, surat } = await siap();
 
     await setup.notifications.kirimPeringatanStafTick();
     await setup.notifications.kirimPeringatanStafTick();
     expect(surat()).toHaveLength(1);
     expect(setup.webPush.sent).toHaveLength(1);
+    // The bell entry is written once, not once per tick.
+    const lonceng = await setup.notifications.staffAlerts(staf);
+    expect(lonceng.ok && lonceng.latest).toHaveLength(1);
   });
 
   it("gives up after 4 sends, without a Telepon Pemesan row, and the bell lists the alert once", async () => {

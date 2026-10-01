@@ -184,6 +184,7 @@ export async function createTugasLapangan(
       {
         to: { accountId: data.assigneeAccountId },
         kind: "staf_tugas_lapangan_baru",
+        subject: { kind: "tugas_lapangan", id: tugasLapangan.id },
         email: {
           subject: "Tugas Lapangan baru",
           text: `${data.subject}: ${data.address}, direncanakan ${data.plannedDate}.`,

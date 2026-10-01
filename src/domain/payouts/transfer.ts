@@ -54,8 +54,10 @@ import { buktiPencairan, buktiPencairanItem, buktiPencairanPotongan, pencairanIt
 /** The largest transfer proof accepted, 10 MB (the Server Action body limit is 11 MB). */
 export const BUKTI_TRANSFER_MAX_BYTES = 10 * 1024 * 1024;
 
-/** What the recipient is told about its transfer, sent after it is issued. */
+/** What the recipient is told about its transfer, sent inside the issuing transaction. */
 export interface BuktiPencairanTerbit {
+  /** The Bukti Pencairan's own id: the subject a retried alert is asked about (ticket 96). */
+  id: string;
   recipient: Penerima;
   nomorBukti: string;
   /** The Bukti Pencairan page's absolute URL. */
@@ -66,8 +68,8 @@ export interface BuktiPencairanTerbit {
   amount: Rupiah;
 }
 
-/** Sends the Bukti Pencairan's link to its recipient; Payouts owns the decision, the caller owns the channel. */
-export type KirimBuktiPencairan = (bukti: BuktiPencairanTerbit) => Promise<void>;
+/** Queues the Bukti Pencairan's alert for its recipient inside `tx`, the issuing transaction; Payouts owns the decision, the caller owns the channel. */
+export type KirimBuktiPencairan = (bukti: BuktiPencairanTerbit, tx: Database) => Promise<void>;
 
 export interface TransferDeps {
   db: Database;
@@ -210,27 +212,28 @@ export async function terbitkanBuktiPencairan(
     return { ok: false, reason: "berkas_tidak_didukung" };
   }
 
-  const hasil = await refusable<TerbitkanBuktiResult>(deps.db, async (tx) => issueIn(deps, tx, by, { itemIds, potonganIds, tanggal, key, header }, now));
+  const hasil = await refusable<TerbitkanBuktiResult>(deps.db, async (tx) => {
+    const issued = await issueIn(deps, tx, by, { itemIds, potonganIds, tanggal, key, header }, now);
+    if (!issued.ok) return issued;
+    // The Bukti and its recipient's Peringatan Staf commit together (ticket 96):
+    // a rolled-back transfer leaves no alert, a committed one cannot lose it.
+    // Queueing is a write, not a send, so it cannot fail on a broken channel.
+    await deps.kirimBukti(
+      {
+        id: issued.bukti.id,
+        recipient: issued.bukti.recipient,
+        nomorBukti: issued.bukti.nomorBukti,
+        url: deps.buktiUrl(issued.bukti.link),
+        ditransferPada: tanggal,
+        amount: issued.bukti.amount,
+      },
+      tx,
+    );
+    return issued;
+  });
   if (!hasil.ok) {
     await deps.files.delete(key).catch(() => undefined);
     return hasil;
-  }
-
-  // The recipient hears about its money after the Bukti exists, never inside the
-  // transaction: a failed message must not undo a transfer that really happened.
-  const terima: BuktiPencairanTerbit = {
-    recipient: hasil.bukti.recipient,
-    nomorBukti: hasil.bukti.nomorBukti,
-    url: deps.buktiUrl(hasil.bukti.link),
-    ditransferPada: tanggal,
-    amount: hasil.bukti.amount,
-  };
-  try {
-    await deps.kirimBukti(terima);
-  } catch (error) {
-    deps.reportError?.(error instanceof Error ? error : new Error(String(error)), {
-      tags: { module: "payouts", event: "bukti_pencairan_gagal_dikirim", nomorBukti: hasil.bukti.nomorBukti },
-    });
   }
   return hasil;
 }

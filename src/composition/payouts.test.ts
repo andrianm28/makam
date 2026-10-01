@@ -33,6 +33,7 @@ const buktiDikirim = (setup: PayoutsModul) => setup.email.sent.filter((message) 
 /** A Bukti Pencairan as the transfer hands it to the sender, for the given recipient. */
 function buktiUntuk(recipient: Parameters<KirimBuktiPencairan>[0]["recipient"]) {
   return {
+    id: "bkp-1",
     recipient,
     nomorBukti: "BKP/2026/000001",
     url: "https://makam.test/dokumen/abc",
@@ -48,7 +49,7 @@ describe("the Bukti Pencairan's own message", () => {
     // A second Lokasi Mitra, whose Admin Lokasi must hear nothing about this one.
     await pesananSaatDukaSiap(setup, { name: "Makam Sawah Besar", email: "keluarga.lain@contoh.id" });
 
-    await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }));
+    await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }), db);
     await setup.notifications.kirimPeringatanStafTick();
 
     // The fixture's Admin Lokasi is the one invited to this Lokasi Mitra, and it is
@@ -74,6 +75,7 @@ describe("the Bukti Pencairan's own message", () => {
 
     await kirimKe(setup)(
       buktiUntuk({ kind: "mitra_jasa", akunId: mitra.accountId, nama: "Rina Partial", lokasiId: fixture.lokasiMitra.id }),
+      db,
     );
     await setup.notifications.kirimPeringatanStafTick();
 
@@ -88,8 +90,24 @@ describe("the Bukti Pencairan's own message", () => {
     expect(milikLokasi.latest.filter((entry) => entry.title === "Bukti Pencairan")).toEqual([]);
   });
 
-  it("reaches a Lokasi Mitra with no Admin Lokasi at all without failing", async () => {
+  it("queues the Bukti Pencairan's alert inside the transfer's own transaction, so a rollback drops it", async () => {
     const setup = payoutsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+
+    // The issuing transaction rolls back after the alert was queued (ticket 96):
+    // the alert must go with it, not outlive a Bukti Pencairan that never existed.
+    await db
+      .transaction(async (tx) => {
+        await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }), tx);
+        throw new Error("transfer rolled back");
+      })
+      .catch(() => undefined);
+    await setup.notifications.kirimPeringatanStafTick();
+
+    expect(buktiDikirim(setup)).toEqual([]);
+  });
+
+  it("reaches a Lokasi Mitra with no Admin Lokasi at all without failing", async () => {    const setup = payoutsOnTestDatabase(db);
     const fixture = await pesananSaatDukaSiap(setup);
     const takAda = await setup.lokasi.removeAdminLokasi(fixture.admin, fixture.lokasiMitra.id, {
       accountId: fixture.adminLokasi.accountId,
@@ -97,7 +115,7 @@ describe("the Bukti Pencairan's own message", () => {
     });
     if (!takAda.ok) throw new Error(`remove refused: ${takAda.reason}`);
 
-    await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }));
+    await kirimKe(setup)(buktiUntuk({ kind: "lokasi_mitra", lokasiId: fixture.lokasiMitra.id, nama: fixture.lokasiMitra.name }), db);
     await setup.notifications.kirimPeringatanStafTick();
 
     // Nobody to tell is not a failure: the Bukti is in the run and in the Lokasi's

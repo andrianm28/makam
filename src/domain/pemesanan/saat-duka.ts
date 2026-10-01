@@ -90,6 +90,9 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
   const konfirmasiDueAt = batas.ok ? batas.at : null;
   const rencana = rencanaPemakamanAt(input.rencanaPemakamanAt);
   const phoneNumber = phoneOf(input.phoneNumber);
+  // Who must hear about the order is a read, taken before the transaction so the
+  // Peringatan Staf can be queued inside it (ticket 96).
+  const penerima = await penerimaOf(deps, lokasi.id);
   const placed = await refusable(deps.db, async (tx) => {
     // The Nomor Pemesanan is taken inside this transaction, so a rolled-back order gives its number back.
     const nomor = await deps.billing.within(tx).nextNomorPemesanan();
@@ -116,6 +119,19 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
         diajukanAt: now,
       })
       .returning({ id: pemesananMakam.id, nomor: pemesananMakam.nomor });
+    // The order and its Peringatan Staf commit together (ticket 96): a rolled-back
+    // order leaves no alert behind, and a committed one cannot lose its alert.
+    await deps.notifikasi.peringatanStafSaatDuka(tx, {
+      id: row.id,
+      nomor: row.nomor,
+      lokasi: { id: lokasi.id, name: lokasi.name },
+      jenisMakamName: kartu.jenisMakam.name,
+      almarhum: { name: almarhumName, tanggalWafat: input.tanggalWafat },
+      pemesan: { name: pemesanName, phoneNumber, email: akun.email },
+      rencanaPemakamanAt: rencana,
+      konfirmasiDueAt,
+      penerima,
+    });
     return { ok: true as const, pemesanan: { id: row.id, nomor: row.nomor, status: "diajukan" as const, konfirmasiDueAt } };
   });
   if (!placed.ok) return placed;
@@ -129,7 +145,7 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
     pemesan: { name: pemesanName, phoneNumber, email: akun.email },
     rencanaPemakamanAt: rencana,
     konfirmasiDueAt,
-    penerima: await penerimaOf(deps, lokasi.id),
+    penerima,
   });
   return placed;
 }

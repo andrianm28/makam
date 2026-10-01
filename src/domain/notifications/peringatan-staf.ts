@@ -25,6 +25,7 @@ import { MAKS_PERCOBAAN, tundaUlangBerikutnya } from "./acara";
 import type { StaffAlert, StaffAlertKind, StaffAlertLewati } from "./index";
 import type { HasilKirimPeringatan } from "./peringatan-antrean";
 import { notificationsMessage, notificationsPeringatanStaf } from "./schema";
+import { jalankanTickAntrean } from "./tick-antrean";
 
 export interface PeringatanStafQueueResult {
   /** Peringatan Staf queued (one per recipient; always one here). */
@@ -81,31 +82,25 @@ export async function kirimPeringatanStafTick(
   kirim: (alert: StaffAlert, lewati: StaffAlertLewati, tx: Database) => Promise<HasilKirimPeringatan>,
   opsi: KirimPeringatanStafOpsi = {},
 ): Promise<{ dikirim: number }> {
-  const now = clock.now();
-  const due = await db
-    .select({ id: notificationsPeringatanStaf.id })
-    .from(notificationsPeringatanStaf)
-    .where(
-      and(
-        isNull(notificationsPeringatanStaf.sentAt),
-        isNull(notificationsPeringatanStaf.gaveUpAt),
-        or(isNull(notificationsPeringatanStaf.nextAttemptAt), lte(notificationsPeringatanStaf.nextAttemptAt, now)),
-      ),
-    )
-    .orderBy(asc(notificationsPeringatanStaf.createdAt), asc(notificationsPeringatanStaf.id));
-  let dikirim = 0;
-  for (const { id } of due) {
-    try {
-      dikirim += await db.transaction((tx) => proses(tx, id, now, kirim, opsi));
-    } catch {
-      // The send itself threw (a words check, a staff page, a port): that is this alert's failed attempt, kept apart from the others.
-      await db.transaction(async (tx) => {
-        const [item] = await lockDue(tx, id, now);
-        if (item) await catatKegagalan(tx, item, now);
-      });
-    }
-  }
-  return { dikirim };
+  return jalankanTickAntrean<Peringatan>({
+    db,
+    clock,
+    due: (now) =>
+      db
+        .select({ id: notificationsPeringatanStaf.id })
+        .from(notificationsPeringatanStaf)
+        .where(
+          and(
+            isNull(notificationsPeringatanStaf.sentAt),
+            isNull(notificationsPeringatanStaf.gaveUpAt),
+            or(isNull(notificationsPeringatanStaf.nextAttemptAt), lte(notificationsPeringatanStaf.nextAttemptAt, now)),
+          ),
+        )
+        .orderBy(asc(notificationsPeringatanStaf.createdAt), asc(notificationsPeringatanStaf.id)),
+    proses: (tx, id, now) => proses(tx, id, now, kirim, opsi),
+    lockDue,
+    catatKegagalan,
+  });
 }
 
 type Peringatan = typeof notificationsPeringatanStaf.$inferSelect;
