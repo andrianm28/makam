@@ -4,6 +4,8 @@
  * a development-only tool.
  */
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
+import { FakeClock } from "@/adapters/memory";
+import { wib } from "@/lib/time/jakarta";
 import { pemesananOnTestDatabase } from "../../tests/support/pemesanan";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
@@ -15,12 +17,14 @@ beforeEach(resetDatabase);
 
 const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl") });
 const seedAdmin = () => seedAdminCommand(["--email", "admin-e2e@makam.co.id", "--phone", "081100000001"], env());
+/** The same instant the test support reads back through, so the seed's tariff versions are in force (ticket 100). */
+const clock = () => new FakeClock(wib("2026-10-01 09:00"));
 
 describe("seed-saat-duka (development and test stacks only)", () => {
   it("gives the wizard a Terverifikasi Lokasi Mitra it can offer, with cleared Tersedia Petak", async () => {
     await seedAdmin();
 
-    const result = await seedSaatDukaCommand([], env());
+    const result = await seedSaatDukaCommand([], env(), { clock: clock() });
 
     expect(result.exitCode).toBe(0);
     const halaman = /\/lokasi\/([0-9a-f-]{36})/.exec(result.output)?.[1];
@@ -35,9 +39,9 @@ describe("seed-saat-duka (development and test stacks only)", () => {
 
   it("changes nothing once the stack has a listed Lokasi Mitra", async () => {
     await seedAdmin();
-    await seedSaatDukaCommand([], env());
+    await seedSaatDukaCommand([], env(), { clock: clock() });
 
-    const second = await seedSaatDukaCommand([], env());
+    const second = await seedSaatDukaCommand([], env(), { clock: clock() });
 
     expect(second.exitCode).toBe(0);
     expect(second.output).toContain("seed-saat-duka tidak mengubah apa pun");

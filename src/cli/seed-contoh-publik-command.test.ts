@@ -9,6 +9,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
+import { FakeClock } from "@/adapters/memory";
+import { wib } from "@/lib/time/jakarta";
 import { publishOnTestDatabase, signedInAdminLokasi, signedInAdminPlatform } from "../../tests/support/publish";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { seedAdminCommand } from "./seed-admin-command";
@@ -20,6 +22,8 @@ beforeEach(resetDatabase);
 
 const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl") });
 const seedAdmin = () => seedAdminCommand(["--email", "admin-contoh-publik@makam.co.id", "--phone", "081100000002"], env());
+/** The same instant the test support reads back through, so the seed's tariff versions are in force (ticket 100). */
+const clock = () => new FakeClock(wib("2026-10-01 09:00"));
 
 /** A temporary directory for the "staging" tests' live FileStore; removed after the suite. */
 const sementara: string[] = [];
@@ -63,7 +67,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     // file's default testTimeout.
     await seedAdmin();
 
-    const result = await seedContohPublikCommand([], env());
+    const result = await seedContohPublikCommand([], env(), undefined, { clock: clock() });
 
     expect(result.exitCode).toBe(0);
 

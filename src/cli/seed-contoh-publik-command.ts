@@ -139,6 +139,7 @@ import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
+import type { Clock } from "@/ports/clock";
 import { cliFailure } from "./cli-failure";
 import {
   adminPlatform,
@@ -457,7 +458,16 @@ function bacaIzin(argv: string[], source: Record<string, string | undefined>): {
 }
 
 /** The modules this command drives, on one database connection, composed from the adapters of this stack. */
-function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>) {
+function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>, clock?: Clock) {
+  const overrides = {
+    // See this file's header comment: every email this command sends goes to an
+    // address it invented itself, never a real person's, so it never needs the
+    // live SMTP relay, staging included.
+    ...(usesInMemoryFakes(env.APP_ENV) ? {} : { email: new FakeEmailSender() }),
+    // A test injects the same Clock it reads back through, so a version entered
+    // "today" is in force at the instant the test asks about (ticket 100).
+    ...(clock ? { clock } : {}),
+  };
   const adapters = createAdapters({
     appEnv: env.APP_ENV,
     vapid: env.vapid,
@@ -468,10 +478,7 @@ function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType
     filesRoot: env.FILES_ROOT,
     appBaseUrl: env.APP_BASE_URL,
     devFilesRoot: env.DEV_FILES_ROOT,
-    // See this file's header comment: every email this command sends goes to an
-    // address it invented itself, never a real person's, so it never needs the
-    // live SMTP relay, staging included.
-    overrides: usesInMemoryFakes(env.APP_ENV) ? undefined : { email: new FakeEmailSender() },
+    overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
   });
   const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
@@ -531,6 +538,8 @@ export async function seedContohPublikCommand(
   source: Record<string, string | undefined> = process.env,
   /** The example Lokasi Mitra to seed; only a test passes another (a reduced copy, standing in for an older version's run). */
   contoh: ContohLokasiSpec[] = CONTOH_LOKASI,
+  /** Only a test passes a Clock, so its read-back at a fixed instant sees the versions this run entered (ticket 100). */
+  options: { clock?: Clock } = {},
 ): Promise<Hasil> {
   const izin = bacaIzin(argv, source);
   if ("tolak" in izin) return izin.tolak;
@@ -540,7 +549,7 @@ export async function seedContohPublikCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-contoh-publik" });
     try {
-      const { modul, operatorSettings } = susunModul(env, database);
+      const { modul, operatorSettings } = susunModul(env, database, options.clock);
       const admin = await adminPlatform(modul.identity);
       if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
 

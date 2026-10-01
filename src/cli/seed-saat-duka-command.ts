@@ -26,6 +26,7 @@ import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
+import type { Clock } from "@/ports/clock";
 import { cliFailure } from "./cli-failure";
 import { adminPlatform, masukSebagai, scanPerjanjian, type Gagal, type Modul } from "./dev-seed-support";
 
@@ -70,6 +71,8 @@ const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 export async function seedSaatDukaCommand(
   argv: string[],
   source: Record<string, string | undefined> = process.env,
+  /** Only a test passes a Clock, so its read-back at a fixed instant sees the versions this run entered (ticket 100). */
+  options: { clock?: Clock } = {},
 ): Promise<{ exitCode: number; output: string }> {
   if (argv.length > 0) return { exitCode: 2, output: USAGE };
   const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
@@ -81,7 +84,14 @@ export async function seedSaatDukaCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-seed-saat-duka" });
     try {
-      const adapters = createAdapters({ appEnv: env.APP_ENV, vapid: env.vapid, devFilesRoot: env.DEV_FILES_ROOT });
+      const adapters = createAdapters({
+        appEnv: env.APP_ENV,
+        vapid: env.vapid,
+        devFilesRoot: env.DEV_FILES_ROOT,
+        // A test injects the same Clock it reads back through, so a version entered
+        // "today" is in force at the instant the test asks about (ticket 100).
+        overrides: options.clock ? { clock: options.clock } : undefined,
+      });
       const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
       const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
