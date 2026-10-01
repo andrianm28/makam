@@ -282,7 +282,7 @@ async function ajukanBarisTerkunci(
   const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
   // After a Harga Khusus the fee line too carries only its own share of what was paid (ticket 95), the same rule the
   // caller used for its own lines: the request may never exceed the Tagihan's reduced total.
-  const feeNilai = feeLine ? nilaiDibayarBaris(tagihan.lines, feeLine.amount) : 0;
+  const feeNilai = feeLine ? nilaiDibayarBaris(tagihan.lines, feeLine) : 0;
   const denganFee = biayaLayananPlatformDikembalikan(parsed.data.pihakBersalah) && !feeSudahDikembalikan && feeLine !== undefined;
   if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeNilai, lokasiId: null });
   const jumlah = lines.reduce((sum, line) => sum + line.amount, 0);

@@ -191,7 +191,7 @@ async function tulisPengembalian(
   // Layanan Platform comes back follows who is at fault (the Pemesan cancelling keeps it, the
   // Lokasi's lateness returns it, once for the Tagihan). After a Harga Khusus the line is the
   // job's own share of what was paid, never the original tariff (ticket 95).
-  const amount = nilaiDibayarBaris(tagihan.lines, line.amount);
+  const amount = nilaiDibayarBaris(tagihan.lines, line);
   const diajukan = await deps.refunds.ajukanBaris(
     tagihan.id,
     {

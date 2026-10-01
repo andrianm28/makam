@@ -268,7 +268,7 @@ async function mintaPengembalian(
   if (!line || line.kind !== "layanan" || line.label !== baris.item.label) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
   // After a Harga Khusus the Tagihan's total is reduced by a whole-Tagihan Penyesuaian the line does not carry: Refunds
   // may only return the line's own share of what was paid (ticket 95), never the full original tariff.
-  const amount = nilaiDibayarBaris(tagihan.lines, line.amount);
+  const amount = nilaiDibayarBaris(tagihan.lines, line);
   const diajukan = await deps.refunds.ajukanBaris(
     tagihan.id,
     { pihakBersalah: "lokasi", lines: [{ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }] },

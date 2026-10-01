@@ -133,10 +133,10 @@ async function hitungSekarang(deps: PemesananDeps, order: typeof pemesananTerenc
   const urutan = (await unitsOfOrder(deps.db, order.id)).findIndex((satu) => satu.id === unit.id);
   const barisUnit = hargaHakPakai.find((line) => "label" in line && line.label.endsWith(` · ${nomorUnit(unit)}`)) ?? hargaHakPakai[urutan];
   if (!barisUnit) return null;
-  // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own line,
-  // so what is refunded is what the family really paid for the plot and never more. Billing owns that one rule (ticket 95),
-  // shared with every other refund of a Harga Khusus Tagihan.
-  const dibayarUntukUnit = nilaiDibayarBaris(tagihan.lines, barisUnit.amount);
+  // A Harga Khusus is one negative line for the whole Tagihan: this plot bears its share of it, in proportion to its own
+  // line within the Tagihan's whole tariff — the same base every other refund of a Harga Khusus Tagihan uses (ticket 95),
+  // so a share no one is refunded here is not silently loaded onto this plot and the sum of refunds stays within the total.
+  const dibayarUntukUnit = nilaiDibayarBaris(tagihan.lines, barisUnit);
   return hitungPembatalanTerencana({
     lines: [{ kind: barisUnit.kind, amount: dibayarUntukUnit }, ...tagihan.lines.filter((line) => line.kind === "biaya_layanan_platform")],
     syarat: order.syarat,
