@@ -25,13 +25,12 @@
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Tagihan, TagihanKind, TagihanStatus } from "@/domain/billing";
-import { normaliseEmail, normalisePhoneNumber, type PhoneNumberResult } from "@/domain/identity";
+import type { PhoneNumberResult } from "@/domain/identity";
 import { refusable } from "@/db/unit-of-work";
-import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
-import type { Rupiah } from "@/lib/rupiah";
+import { addWibDateDays, addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { offeringsUntukOrder, type VarianUntukOrder } from "./harga";
-import { barisTagihan, cekHakPakai } from "./pesanan";
+import { barisTagihan, cekPemesanDanGrave, tulisPesananLayanan } from "./pesanan";
 import { findPaketById } from "./paket";
 import {
   pesananLayanan,
@@ -48,17 +47,7 @@ import {
 type PhoneRefusal = Extract<PhoneNumberResult, { ok: false }>["reason"];
 
 /** How many days before its cycle date a Paket cycle's Tagihan is issued (spec: H-7). */
-export const JENDELA_TERBIT_CYCLE_HARI = 7;
-
-export interface NewLangganan {
-  paketId: string;
-  lokasiId: string;
-  petakId: string;
-  /** The WIB date of the first cycle; H-7 of it is when its Tagihan is issued. */
-  mulai: string;
-  pemesanName: string;
-  phoneNumber: string;
-}
+const JENDELA_TERBIT_CYCLE_HARI = 7;
 
 export type AlasanTolakLangganan =
   | "input_tidak_valid"
@@ -93,16 +82,14 @@ export async function berlanggananPaket(deps: LayananDeps, pemesan: PemesanLayan
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
 
-  const email = normaliseEmail(pemesan.email);
-  if (email === null) return { ok: false, reason: "email_bukan_akun_ini" };
-  const akun = await deps.identity.accountByEmail(email);
-  if (!akun || akun.id !== pemesan.accountId) return { ok: false, reason: "email_bukan_akun_ini" };
+  const penjaga = await cekPemesanDanGrave(deps, pemesan, {
+    lokasiId: input.lokasiId,
+    petakId: input.petakId,
+    phoneNumber: input.phoneNumber,
+  });
+  if (!penjaga.ok) return penjaga;
+  const { email, phoneNumber, tertulis } = penjaga;
   const pemesanName = input.pemesanName.trim();
-  const telepon = normalisePhoneNumber(input.phoneNumber);
-  if (!telepon.ok) return { ok: false, reason: telepon.reason };
-
-  const tertulis = await cekHakPakai(deps, input.lokasiId, input.petakId);
-  if (!tertulis.ok) return tertulis;
 
   const paket = await findPaketById(deps.db, input.paketId);
   if (!paket || paket.item.length === 0) return { ok: false, reason: "paket_tidak_tersedia" };
@@ -124,7 +111,7 @@ export async function berlanggananPaket(deps: LayananDeps, pemesan: PemesanLayan
         lokasiName: tertulis.lokasi.name,
         petakNomor: tertulis.petak.nomor,
         pemesanName,
-        pemesanPhone: telepon.phoneNumber,
+        pemesanPhone: phoneNumber,
         pemesanEmail: email,
         pemesanAccountId: pemesan.accountId,
         frekuensi: paket.frekuensi,
@@ -221,9 +208,9 @@ async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: D
     });
     if (!tagihan.ok) return { ok: true as const, diterbitkan: false };
 
-    const [order] = await tx
-      .insert(pesananLayanan)
-      .values({
+    await tulisPesananLayanan(
+      tx,
+      {
         nomor,
         lokasiId: paket.lokasiId,
         petakId: paket.petakId,
@@ -239,35 +226,15 @@ async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: D
         pesananPaketId: paket.id,
         siklus: cycleDate,
         createdAt: now,
-      })
-      .returning({ id: pesananLayanan.id });
-
-    for (const [posisi, satu] of varian.entries()) {
-      const satuBaris = baris.perBaris[posisi];
-      const [ditambahkan] = await tx
-        .insert(pesananLayananItem)
-        .values({
-          pesananId: order.id,
-          posisi,
-          layananId: satu.layananId,
-          layananVariantId: satu.id,
-          label: satuBaris.label,
-          amount: satuBaris.amount as Rupiah,
-          leadTimeDays: satu.leadTimeDays,
-          targetDate: cycleDate,
-          teks: null,
-        })
-        .returning({ id: pesananLayananItem.id });
-      await tx.insert(pekerjaanLayanan).values({
-        pesananId: order.id,
-        pesananItemId: ditambahkan.id,
-        lokasiId: paket.lokasiId,
-        petakId: paket.petakId,
-        status: "menunggu_pembayaran",
+      },
+      varian.map((satu, posisi) => ({
+        varian: satu,
+        label: baris.perBaris[posisi].label,
+        amount: baris.perBaris[posisi].amount,
         targetDate: cycleDate,
-        createdAt: now,
-      });
-    }
+        teks: null,
+      })),
+    );
 
     await tx
       .update(pesananPaket)
@@ -279,7 +246,7 @@ async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: D
 }
 
 /** The WIB date of the cycle after `cycleDate`, or null for a `sekali` Paket, which has only one. */
-export function siklusBerikut(frekuensi: Frekuensi, cycleDate: string): string | null {
+function siklusBerikut(frekuensi: Frekuensi, cycleDate: string): string | null {
   switch (frekuensi) {
     case "sekali":
       return null;
@@ -290,16 +257,6 @@ export function siklusBerikut(frekuensi: Frekuensi, cycleDate: string): string |
     case "tahunan":
       return addWibDateMonths(cycleDate, 12);
   }
-}
-
-/** `tanggal` (WIB "YYYY-MM-DD") advanced by months, clamped to the target month's last day. */
-function addWibDateMonths(tanggal: string, months: number): string {
-  const [year, month, day] = tanggal.split("-").map(Number);
-  const target = month - 1 + months;
-  const y = year + Math.floor(target / 12);
-  const m = ((target % 12) + 12) % 12;
-  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-  return `${y}-${String(m + 1).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
 
 /** One cycle of a subscription as its Pemesan reads it: its Tagihan, its date and its jobs. */

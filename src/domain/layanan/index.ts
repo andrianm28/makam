@@ -254,8 +254,7 @@ export type {
 export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLayanan, VarianLayanan } from "./varian";
 export type { StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
-export type { BerlanggananPaketResult, NewLangganan, PesananPaketTerbaca, SiklusPaketTerbaca } from "./siklus";
-export { JENDELA_TERBIT_CYCLE_HARI, siklusBerikut } from "./siklus";
+export type { BerlanggananPaketResult, PesananPaketTerbaca, SiklusPaketTerbaca } from "./siklus";
 export { paketStatuses, type PaketStatus } from "./schema";
 export type {
   BarisHargaPesanan,

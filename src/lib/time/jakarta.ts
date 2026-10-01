@@ -77,6 +77,15 @@ export function addWibDateDays(tanggal: string, days: number): string {
   return wibDateOf(addWibDays(new Date(`${tanggal}T00:00:00+07:00`), days));
 }
 
+/** A WIB calendar date ("YYYY-MM-DD") `months` calendar months later; a day the target month lacks becomes that month's last day. */
+export function addWibDateMonths(tanggal: string, months: number): string {
+  const [year, month, day] = tanggal.split("-").map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
 /** "2026-10-02T10:00": the WIB wall clock of `instant` as a `datetime-local` input holds it (never re-derived as an instant). */
 export function wibDateTimeLocal(instant: Date): string {
   return `${wibDateOf(instant)}T${wibTime(instant)}`;

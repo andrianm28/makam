@@ -30,6 +30,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { NewTagihanLine, Tagihan } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber, type PhoneNumberResult } from "@/domain/identity";
+import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import { hargaLayananPartLabel } from "@/lib/layanan-labels";
 import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
@@ -108,6 +109,45 @@ export type PlacePesananLayananResult =
 /** What the order's own transaction returns: the same two shapes, narrowed to the ones it can refuse. */
 type Hasil = { ok: true; pesanan: { id: string; nomor: string; status: "menunggu_pembayaran"; total: number }; tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; kind: Tagihan["kind"]; link: string } } | { ok: false; reason: "tagihan_tidak_terbit" };
 
+/** The refusal reasons a Pemesan or their grave can give, shared by an order and a subscription. */
+export type TolakPemesanAtauGrave =
+  | "email_bukan_akun_ini"
+  | "grave_tidak_ditemukan"
+  | "lokasi_tidak_terbuka"
+  | "hak_pakai_berakhir"
+  | PhoneRefusal;
+
+/** The Pemesan and the grave, checked and returned, or why they cannot take an order. */
+export type PenjagaPemesan =
+  | { ok: true; email: string; phoneNumber: string; tertulis: Extract<Tertulis, { ok: true }> }
+  | { ok: false; reason: TolakPemesanAtauGrave };
+
+/**
+ * The Pemesan and the grave, checked in one place: the email is an Akun's
+ * Terverifikasi one and is that Akun's, the phone is a number a Tagihan can be
+ * addressed to, and a Berakhir Hak Pakai takes no further Layanan. Both the
+ * one-off checkout (`placePesananLayanan`) and a Paket Layanan subscription
+ * (`berlanggananPaket`) need exactly these, so keeping them here is what stops
+ * the two boundaries from drifting apart.
+ */
+export async function cekPemesanDanGrave(
+  deps: LayananDeps,
+  pemesan: PemesanLayanan,
+  input: { lokasiId: string; petakId: string; phoneNumber: string },
+): Promise<PenjagaPemesan> {
+  const email = normaliseEmail(pemesan.email);
+  if (email === null) return { ok: false, reason: "email_bukan_akun_ini" };
+  const akun = await deps.identity.accountByEmail(email);
+  if (!akun || akun.id !== pemesan.accountId) return { ok: false, reason: "email_bukan_akun_ini" };
+  // The Tagihan is addressed to this number, so it is checked here where the family
+  // can still fix it, rather than inside Billing where the whole order is refused.
+  const telepon = normalisePhoneNumber(input.phoneNumber);
+  if (!telepon.ok) return { ok: false, reason: telepon.reason };
+  const tertulis = await cekHakPakai(deps, input.lokasiId, input.petakId);
+  if (!tertulis.ok) return { ok: false, reason: tertulis.reason };
+  return { ok: true, email, phoneNumber: telepon.phoneNumber, tertulis };
+}
+
 /**
  * Places one order Layanan: the order, its items, the Pekerjaan Layanan waiting
  * for the money (one per item, so a family sees its whole order at once) and the
@@ -123,20 +163,15 @@ export async function placePesananLayanan(
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
 
-  const email = normaliseEmail(pemesan.email);
-  if (email === null) return { ok: false, reason: "email_bukan_akun_ini" };
-  const akun = await deps.identity.accountByEmail(email);
-  if (!akun || akun.id !== pemesan.accountId) return { ok: false, reason: "email_bukan_akun_ini" };
+  const penjaga = await cekPemesanDanGrave(deps, pemesan, {
+    lokasiId: input.lokasiId,
+    petakId: input.petakId,
+    phoneNumber: input.phoneNumber,
+  });
+  if (!penjaga.ok) return penjaga;
+  const { email, phoneNumber, tertulis } = penjaga;
   const pemesanName = input.pemesanName.trim();
   if (pemesanName === "") return { ok: false, reason: "input_tidak_valid" };
-  // The Tagihan is addressed to this number, so it is checked here where the family
-  // can still fix it, rather than inside Billing where the whole order is refused.
-  const telepon = normalisePhoneNumber(input.phoneNumber);
-  if (!telepon.ok) return { ok: false, reason: telepon.reason };
-  const phoneNumber = telepon.phoneNumber;
-
-  const tertulis = await cekHakPakai(deps, input.lokasiId, input.petakId);
-  if (!tertulis.ok) return tertulis;
 
   const now = deps.clock.now();
   const varianTersedia = await offeringsUntukOrder(deps, input.lokasiId, now);
@@ -179,9 +214,9 @@ export async function placePesananLayanan(
       });
       if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
 
-      const [order] = await tx
-        .insert(pesananLayanan)
-        .values({
+      const order = await tulisPesananLayanan(
+        tx,
+        {
           nomor,
           lokasiId: input.lokasiId,
           petakId: input.petakId,
@@ -195,38 +230,15 @@ export async function placePesananLayanan(
           tagihanId: tagihan.tagihan.id,
           total: tagihan.tagihan.total,
           createdAt: now,
-        })
-        .returning({ id: pesananLayanan.id });
-
-      for (const [posisi, satu] of item.entries()) {
-        const satuBaris = baris.perBaris[posisi];
-        const [ditambahkan] = await tx
-          .insert(pesananLayananItem)
-          .values({
-            pesananId: order.id,
-            posisi,
-            layananId: satu.varian.layananId,
-            layananVariantId: satu.varian.id,
-            label: satuBaris.label,
-            amount: satuBaris.amount as Rupiah,
-            leadTimeDays: satu.varian.leadTimeDays,
-            targetDate: satu.targetDate,
-            teks: satu.teks,
-          })
-          .returning({ id: pesananLayananItem.id });
-        // The job exists from the order, waiting for the money: one per Layanan,
-        // so the family sees every piece of its order from the start and one
-        // payment moves them all from Menunggu Pembayaran to Dijadwalkan.
-        await tx.insert(pekerjaanLayanan).values({
-          pesananId: order.id,
-          pesananItemId: ditambahkan.id,
-          lokasiId: input.lokasiId,
-          petakId: input.petakId,
-          status: "menunggu_pembayaran",
+        },
+        item.map((satu, posisi) => ({
+          varian: satu.varian,
+          label: baris.perBaris[posisi].label,
+          amount: baris.perBaris[posisi].amount,
           targetDate: satu.targetDate,
-          createdAt: now,
-        });
-      }
+          teks: satu.teks,
+        })),
+      );
 
       // The message is queued in this very commit, so a family is told of an order that exists and
       // an order that exists is never left unannounced.
@@ -262,6 +274,100 @@ export async function placePesananLayanan(
     },
   );
   return hasil;
+}
+
+/** One item of an order as it is written: the variant it is, its priced line, its date and its text. */
+export interface ItemPesananLayanan {
+  varian: { id: string; layananId: string; leadTimeDays: number };
+  label: string;
+  amount: number;
+  targetDate: string;
+  teks: string | null;
+}
+
+/** One order Layanan's header, already validated and priced by its caller. */
+export interface KepalaPesananLayanan {
+  nomor: string;
+  lokasiId: string;
+  petakId: string;
+  hakPakaiId: string;
+  lokasiName: string;
+  petakNomor: string;
+  pemesanName: string;
+  pemesanPhone: string;
+  pemesanEmail: string;
+  pemesanAccountId: string;
+  tagihanId: string;
+  total: number;
+  createdAt: Date;
+  /** Set when this order is one cycle of a Paket Layanan (ticket 54). */
+  pesananPaketId?: string | null;
+  siklus?: string | null;
+}
+
+/**
+ * Writes one order Layanan with its items and the Pekerjaan Layanan waiting for
+ * the money: one job per Layanan, so the family sees every piece of its order
+ * from the start and one payment moves them all from Menunggu Pembayaran to
+ * Dijadwalkan.
+ *
+ * The one-off checkout (`placePesananLayanan`) and a Paket Layanan's cycle
+ * (`terbitkanSiklus`) both write their order here, so the two cannot drift: a
+ * cycle gets the rows a one-off order gets, which is what lets the payment's
+ * `efekJadwalkanPekerjaan` schedule it with no second scheduling rule.
+ */
+export async function tulisPesananLayanan(
+  tx: Database,
+  kepala: KepalaPesananLayanan,
+  item: readonly ItemPesananLayanan[],
+): Promise<{ id: string }> {
+  const [order] = await tx
+    .insert(pesananLayanan)
+    .values({
+      nomor: kepala.nomor,
+      lokasiId: kepala.lokasiId,
+      petakId: kepala.petakId,
+      hakPakaiId: kepala.hakPakaiId,
+      lokasiName: kepala.lokasiName,
+      petakNomor: kepala.petakNomor,
+      pemesanName: kepala.pemesanName,
+      pemesanPhone: kepala.pemesanPhone,
+      pemesanEmail: kepala.pemesanEmail,
+      pemesanAccountId: kepala.pemesanAccountId,
+      tagihanId: kepala.tagihanId,
+      total: kepala.total as Rupiah,
+      pesananPaketId: kepala.pesananPaketId ?? null,
+      siklus: kepala.siklus ?? null,
+      createdAt: kepala.createdAt,
+    })
+    .returning({ id: pesananLayanan.id });
+
+  for (const [posisi, satu] of item.entries()) {
+    const [ditambahkan] = await tx
+      .insert(pesananLayananItem)
+      .values({
+        pesananId: order.id,
+        posisi,
+        layananId: satu.varian.layananId,
+        layananVariantId: satu.varian.id,
+        label: satu.label,
+        amount: satu.amount as Rupiah,
+        leadTimeDays: satu.varian.leadTimeDays,
+        targetDate: satu.targetDate,
+        teks: satu.teks,
+      })
+      .returning({ id: pesananLayananItem.id });
+    await tx.insert(pekerjaanLayanan).values({
+      pesananId: order.id,
+      pesananItemId: ditambahkan.id,
+      lokasiId: kepala.lokasiId,
+      petakId: kepala.petakId,
+      status: "menunggu_pembayaran",
+      targetDate: satu.targetDate,
+      createdAt: kepala.createdAt,
+    });
+  }
+  return order;
 }
 
 /**
