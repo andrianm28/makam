@@ -276,7 +276,7 @@ export async function placePesananLayanan(
  * between that and a real invoice would be the compiler, which a future widening
  * could satisfy by widening this file too.
  */
-function barisTagihan(
+export function barisTagihan(
   quoted: { lines: readonly QuotedLine[] },
   item: readonly { varian: VarianUntukOrder; targetDate: string }[],
   lokasiId: string,

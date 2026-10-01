@@ -52,8 +52,8 @@ export interface SchedulerContext {
   terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
-  /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55), the Keluhan window closing (ticket 51) and the TPU accept deadline (ticket 56). */
-  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan">;
+  /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55), the Keluhan window closing (ticket 51), the TPU accept deadline (ticket 56) and the Paket Layanan cycles (ticket 54). */
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick">;
   /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
   queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
@@ -124,6 +124,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tandai_tidak_direspons", cron: "*/5 * * * *", tick: tidakDiresponsTick },
   // Layanan: a job's Keluhan window closes 3×24 h after its proof was shown, which makes its Pencairan due and closes its thread (ticket 51).
   { name: "layanan.tutup_jendela_keluhan", cron: "*/5 * * * *", tick: tutupJendelaKeluhanTick },
+  // Layanan: each Paket Layanan subscription's next cycle is issued at H-7 (ticket 54).
+  { name: "layanan.paket_siklus", cron: "11 * * * *", tick: paketSiklusTick },
   // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
   { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
   // Work Queues: a Tier 1 row alerts the Bertugas Admin Platform (all if none), everyone at 30 min untaken, and again at 90 min for a TPU confirmation; a night TPU row waits for 06:00 (ticket 28).
@@ -200,6 +202,11 @@ async function tutupJendelaKeluhanTick(ctx: SchedulerContext, now: Date): Promis
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
 async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
+}
+
+/** The worker wrapper around the Layanan module's Paket cycle tick (idempotent there, as every tick is). */
+async function paketSiklusTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.layanan.paketSiklusTick(now);
 }
 
 /**
