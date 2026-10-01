@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing, Tagihan } from "@/domain/billing";
-import { nilaiDibayarBaris } from "@/domain/billing";
+import { biayaLayananPlatformTerbayar } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
@@ -280,10 +280,10 @@ async function ajukanBarisTerkunci(
   const feeSudahDikembalikan = sebelumnya.some((row) => !row.goodwill && row.biayaLayananPlatformDikembalikan);
   const lines: RefundLine[] = [...parsed.data.lines];
   const feeLine = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform");
-  // After a Harga Khusus the fee line too carries only its own share of what was paid (ticket 95), the same rule the
-  // caller used for its own lines: the request may never exceed the Tagihan's reduced total.
-  const feeNilai = feeLine ? nilaiDibayarBaris(tagihan.lines, feeLine) : 0;
-  const denganFee = biayaLayananPlatformDikembalikan(parsed.data.pihakBersalah) && !feeSudahDikembalikan && feeLine !== undefined;
+  // After a Harga Khusus the fee is never apportioned like a tariff line (ticket 95's owner decision): the Operator bore
+  // the Harga Khusus from the fee first (spec 503), so what may return is the payable fee — never its proportional share.
+  const feeNilai = feeLine ? biayaLayananPlatformTerbayar(tagihan.lines) : 0;
+  const denganFee = biayaLayananPlatformDikembalikan(parsed.data.pihakBersalah) && !feeSudahDikembalikan && feeLine !== undefined && feeNilai > 0;
   if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeNilai, lokasiId: null });
   const jumlah = lines.reduce((sum, line) => sum + line.amount, 0);
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);

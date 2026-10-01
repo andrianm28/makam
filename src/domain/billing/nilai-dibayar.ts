@@ -41,6 +41,30 @@ function penyesuaianDari(lines: readonly Pick<TagihanLine, "kind" | "amount">[])
   return lines.filter((line) => line.kind === "penyesuaian_harga_khusus").reduce((sum, line) => sum + line.amount, 0);
 }
 
+/** Whether a Tagihan carries a Harga Khusus: it has a Penyesuaian Harga Khusus line. */
+export function adaHargaKhusus(lines: readonly Pick<TagihanLine, "kind">[]): boolean {
+  return lines.some((line) => line.kind === "penyesuaian_harga_khusus");
+}
+
+/** The Biaya Layanan Platform as issued on a Tagihan, zero when there is none. */
+function biayaLayananPlatformDari(lines: readonly Pick<TagihanLine, "kind" | "amount">[]): number {
+  return lines.filter((line) => line.kind === "biaya_layanan_platform").reduce((sum, line) => sum + line.amount, 0);
+}
+
+/**
+ * The Biaya Layanan Platform that may come back after a Harga Khusus: the
+ * **payable fee**, the gross fee less the fee portion the Operator bore from
+ * the Harga Khusus first (spec, "a Harga Khusus is borne by the Operator from
+ * the Biaya Layanan Platform first, then its own funds"). The proportional
+ * `nilaiDibayarBaris` rule above applies to tariff lines only, never to the
+ * fee; a refund of the fee returns at most this, never more than was issued.
+ */
+export function biayaLayananPlatformTerbayar(lines: readonly Pick<TagihanLine, "kind" | "amount">[]): number {
+  const fee = biayaLayananPlatformDari(lines);
+  if (fee <= 0) return 0;
+  return Math.max(0, Math.min(fee, fee + penyesuaianDari(lines)));
+}
+
 /**
  * The value of `line` as actually paid: the line's amount less its share of the
  * Tagihan's Penyesuaian Harga Khusus. `line` is one of `lines`, so the invariant

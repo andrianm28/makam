@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nilaiDibayarBaris, termasukTarif, tarifDari } from "./nilai-dibayar";
+import { adaHargaKhusus, biayaLayananPlatformTerbayar, nilaiDibayarBaris, termasukTarif, tarifDari } from "./nilai-dibayar";
 import type { TagihanLine } from "./tagihan";
 
 /** Enough of a Tagihan line for the one rule: its kind and its amount. */
@@ -61,5 +61,39 @@ describe("what one line of a Tagihan is worth after a Harga Khusus", () => {
     expect(termasukTarif(penyesuaianHargaKhusus(-1))).toBe(false);
     expect(termasukTarif(hakPakai(1))).toBe(true);
     expect(termasukTarif(layanan(1))).toBe(true);
+  });
+});
+
+describe("the Biaya Layanan Platform that may return after a Harga Khusus", () => {
+  it("returns the whole fee when there is no Penyesuaian Harga Khusus", () => {
+    const lines = [layanan(750_000), biayaLayananPlatform(150_000)];
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(150_000);
+  });
+
+  it("takes the Harga Khusus from the fee first, leaving the rest payable", () => {
+    // spec 503: "a Harga Khusus is borne by the Operator from the Biaya Layanan Platform first".
+    const lines = [layanan(750_000), biayaLayananPlatform(150_000), penyesuaianHargaKhusus(-50_000)];
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(100_000);
+  });
+
+  it("leaves nothing payable once the Harga Khusus has eaten the whole fee", () => {
+    const lines = [layanan(750_000), biayaLayananPlatform(150_000), penyesuaianHargaKhusus(-800_000)];
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(0);
+  });
+
+  it("never returns more than the fee issued, even a positive Penyesuaian", () => {
+    const lines = [layanan(750_000), biayaLayananPlatform(150_000), penyesuaianHargaKhusus(20_000)];
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(150_000);
+  });
+
+  it("returns nothing when the Tagihan carries no Biaya Layanan Platform line", () => {
+    expect(biayaLayananPlatformTerbayar([layanan(750_000), penyesuaianHargaKhusus(-50_000)])).toBe(0);
+  });
+});
+
+describe("whether a Tagihan carries a Harga Khusus", () => {
+  it("is true only when a Penyesuaian Harga Khusus line is present", () => {
+    expect(adaHargaKhusus([layanan(750_000), penyesuaianHargaKhusus(-50_000)])).toBe(true);
+    expect(adaHargaKhusus([layanan(750_000), biayaLayananPlatform(150_000)])).toBe(false);
   });
 });

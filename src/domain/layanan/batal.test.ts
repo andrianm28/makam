@@ -296,14 +296,29 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." });
     if (!hasil.ok) throw new Error("refused");
     expect(hasil.pengembalian).toMatchObject({
-      total: 840_000,
+      // The tariff line keeps its own proportional share (Rp 700.000); the fee is not
+      // apportioned like a tariff line but returns the payable fee (Rp 150.000 − Rp 50.000).
+      total: 800_000,
       platformDikembalikan: true,
       baris: [
         { label: "Layanan – Pembersihan Makam (Reguler)", amount: 700_000 },
-        { label: "Biaya Layanan Platform", amount: 140_000 },
+        { label: "Biaya Layanan Platform", amount: 100_000 },
       ],
     });
     expect(hasil.pengembalian!.total).toBeLessThanOrEqual((await setup.billing.tagihan(hasil.pengembalian!.tagihanId))!.total);
+  });
+
+  it("keeps the Biaya Layanan Platform when the family is at fault, even after a Harga Khusus (ticket 95)", async () => {
+    const { setup, pemesan, pekerjaanId } = await siap({ hargaKhusus: 50_000 });
+    setup.clock.set(wib("2026-10-19 08:00"));
+
+    const hasil = await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Rencana berubah." });
+    if (!hasil.ok) throw new Error("refused");
+    expect(hasil.pengembalian).toMatchObject({
+      total: 700_000,
+      platformDikembalikan: false,
+      baris: [{ label: "Layanan – Pembersihan Makam (Reguler)", amount: 700_000 }],
+    });
   });
 
   it("never refunds more than a Harga Khusus Tagihan was paid, across two refunds and their apportioned fee (ticket 95)", async () => {
@@ -316,8 +331,8 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Terlambat." })).ok).toBe(true);
     expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Terlambat juga." })).ok).toBe(true);
     const [permintaan] = await setup.refunds.permintaanTerbuka();
-    // Each line's share of the reduced total, rounded down; the fee's share is added once.
-    expect(permintaan.jumlah).toBe(725_000 + 145_000 + 725_000);
+    // Each tariff line's share of the reduced total, rounded down; the payable fee is added once.
+    expect(permintaan.jumlah).toBe(725_000 + 100_000 + 725_000);
     expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
   });
   it("still refunds a paid line when the Harga Khusus is larger than the tariff, never refusing it (ticket 95)", async () => {
@@ -330,12 +345,12 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     if (!hasil.ok) throw new Error("refused");
     const tagihan = await setup.billing.tagihan(hasil.pengembalian!.tagihanId);
     if (!tagihan) throw new Error("no Tagihan");
-    // Each paid line's share of the Rp 100.000 that was really paid, never refused and never more than it.
+    // The tariff line falls back to its share of the Rp 100.000 really paid; the Harga Khusus has
+    // eaten the whole fee, so its payable amount is zero and no fee line comes back.
     expect(hasil.pengembalian!.baris).toEqual([
       expect.objectContaining({ label: "Layanan – Pembersihan Makam (Reguler)", amount: 83_333 }),
-      expect.objectContaining({ label: "Biaya Layanan Platform", amount: 16_666 }),
     ]);
-    expect(hasil.pengembalian!.total).toBe(99_999);
+    expect(hasil.pengembalian!.total).toBe(83_333);
     expect(hasil.pengembalian!.total).toBeLessThanOrEqual(tagihan.total);
   });
 
@@ -349,8 +364,8 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Terlambat." })).ok).toBe(true);
     expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Terlambat juga." })).ok).toBe(true);
     const [permintaan] = await setup.refunds.permintaanTerbuka();
-    // floor(750.000 × 1.449.999 / 1.500.000) = 724.999,5 → 724.999 each; the fee's share floors the same way.
-    expect(permintaan.jumlah).toBe(724_999 + 144_999 + 724_999);
+    // floor(750.000 × 1.449.999 / 1.500.000) = 724.999,5 → 724.999 each; the payable fee is Rp 150.000 − Rp 50.001.
+    expect(permintaan.jumlah).toBe(724_999 + 99_999 + 724_999);
     expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
   });
 

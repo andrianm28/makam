@@ -33,7 +33,7 @@ import {
   type AjukanGoodwillInput,
   type AjukanGoodwillResult,
 } from "./request";
-import { setujuiPengembalian, type SetujuiResult } from "./approve";
+import { setujuiPengembalian, type SetujuiInput, type SetujuiResult } from "./approve";
 import {
   pengembalianDibayar,
   transferKeluarPengembalian,
@@ -60,6 +60,7 @@ export { TENGGAT_TRANSFER_HARI_KERJA } from "./approve";
 export { rekeningSchema, rekeningTersamar, type RekeningInput } from "./rekening";
 export { pihakBersalahKinds, permintaanPengembalianStatuses, permintaanSumberKinds, type PihakBersalah } from "./schema";
 export type { AjukanBarisInput, AjukanBarisResult, RefundLine } from "./request";
+export type { SetujuiInput, SetujuiResult } from "./approve";
 export type { PermintaanPengembalian } from "./baca";
 export type { PengembalianDibayar, RentangTanggal, TransferKeluarPengembalian } from "./laporan";
 
@@ -101,8 +102,13 @@ export interface Refunds {
   ajukanDariPembatalan(tagihanId: string, input: { pihakBersalah: PihakBersalah }): Promise<AjukanDariPembatalanResult>;
   /** Admin Platform raises a goodwill refund on any Tagihan, from the Operator's own funds, never netted. */
   ajukanGoodwill(by: Actor, input: AjukanGoodwillInput): Promise<AjukanGoodwillResult>;
-  /** Admin Platform approves a request: the Tier 3 "refund transfer" row appears with its 2 Hari Kerja deadline. */
-  setujuiPengembalian(by: Actor, input: { permintaanId: string }): Promise<SetujuiResult>;
+  /**
+   * Admin Platform approves a request: the Tier 3 "refund transfer" row appears
+   * with its 2 Hari Kerja deadline. On a Harga Khusus Tagihan it may also set
+   * the fee to return, never above the fault rule's payable-fee default, with a
+   * required note when it differs (owner decision 2026-10-01).
+   */
+  setujuiPengembalian(by: Actor, input: SetujuiInput): Promise<SetujuiResult>;
   /** The Pemesan of the order enters the refund's destination bank account, until Admin Platform approves it. Audited. */
   isiRekeningPemesan(by: Actor, input: { nomorPemesanan: string; rekening: RekeningInput }): Promise<IsiRekeningResult>;
   /** Admin Platform records or changes the bank account, before or after approval, with a reason. Audited. */
@@ -133,7 +139,7 @@ export interface Refunds {
 }
 
 export function createRefunds(deps: RefundsDeps): Refunds {
-  const approveDeps = { db: deps.db, clock: deps.clock, audit: deps.audit, lokasi: deps.lokasi };
+  const approveDeps = { db: deps.db, clock: deps.clock, audit: deps.audit, lokasi: deps.lokasi, billing: deps.billing };
   const requestDeps = { db: deps.db, clock: deps.clock, audit: deps.audit };
   const rekeningDeps = {
     db: deps.db,

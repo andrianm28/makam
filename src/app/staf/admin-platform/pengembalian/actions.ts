@@ -18,23 +18,47 @@ async function buktiFromForm(formData: FormData) {
   return { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
 }
 
-const setujuiSchema = z.object({ permintaanId: z.uuid() });
+const teksAtauKosong = (value: FormDataEntryValue | null) => (value === null || value === "" ? undefined : value);
+const setujuiSchema = z.object({
+  permintaanId: z.uuid(),
+  biayaLayananPlatform: z.preprocess(
+    teksAtauKosong,
+    z.coerce.number().int().min(0).optional(),
+  ),
+  catatan: z.preprocess(teksAtauKosong, z.string().trim().min(1).optional()),
+});
 
-/** Admin Platform approves a refund request: the Tier 3 "refund transfer" row appears with its own deadline. */
+/**
+ * Admin Platform approves a refund request: the Tier 3 "refund transfer" row appears with its own deadline.
+ * On a Harga Khusus Tagihan the form may also carry the fee to return (`biayaLayananPlatform`, never above the
+ * fault rule's default) and, when it differs, the required `catatan` (owner decision 2026-10-01).
+ */
 export async function setujuiPengembalianAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
     action: "pengembalian.kelola",
     resource: () => pengembalianResource(),
     schema: setujuiSchema,
-    input: { permintaanId: formData.get("permintaanId") },
+    input: {
+      permintaanId: formData.get("permintaanId"),
+      biayaLayananPlatform: formData.get("biayaLayananPlatform"),
+      catatan: formData.get("catatan"),
+    },
     run: (actor, data) => serverRuntime().refunds.setujuiPengembalian(actor, data),
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   revalidatePath(PATH);
   revalidatePath("/staf/admin-platform/antrean");
-  if (!result.value.ok) return { status: "gagal", message: "Permintaan tidak bisa disetujui." };
+  if (!result.value.ok) return { status: "gagal", message: GAGAL_SETUJUI[result.value.reason] ?? "Permintaan tidak bisa disetujui." };
   return { status: "berhasil", message: "Permintaan pengembalian disetujui." };
 }
+
+const GAGAL_SETUJUI: Record<string, string> = {
+  tidak_ditemukan: "Permintaan tidak ditemukan.",
+  sudah_diproses: "Permintaan ini sudah diproses.",
+  bukan_harga_khusus: "Tagihan ini tanpa Harga Khusus: biaya mengikuti tabel kesalahan.",
+  biaya_melebihi_default: "Biaya yang dikembalikan tidak boleh melebihi aturan kesalahan.",
+  catatan_wajib: "Catatan wajib diisi bila biaya diubah.",
+};
 
 const isiRekeningSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningSchema, alasan: z.string().trim().min(1) });
 
