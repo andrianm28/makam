@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adaHargaKhusus, biayaLayananPlatformTerbayar, nilaiDibayarBaris, termasukTarif, tarifDari } from "./nilai-dibayar";
+import { adaHargaKhusus, biayaLayananPlatformTerbayar, nilaiDibayarBaris, termasukTarif, tarifDari } from "@/domain/billing";
 import type { TagihanLine } from "./tagihan";
 
 /** Enough of a Tagihan line for the one rule: its kind and its amount. */
@@ -19,9 +19,17 @@ describe("what one line of a Tagihan is worth after a Harga Khusus", () => {
     expect(nilaiDibayarBaris(lines, lines[1]!)).toBe(200_000);
   });
 
-  it("returns the line's proportional share of the reduced tariff, the Biaya Layanan Platform left out", () => {
+  it("returns the tariff line in full while the Harga Khusus is still borne by the fee", () => {
+    // The fee first (spec 503): the Harga Khusus of Rp 50.000 comes out of the Rp 150.000 fee, so the tariff is untouched.
+    const lines = [layanan(750_000), biayaLayananPlatform(150_000), penyesuaianHargaKhusus(-50_000)];
+    expect(nilaiDibayarBaris(lines, lines[0]!)).toBe(750_000);
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(100_000);
+  });
+
+  it("reduces the tariff proportionally only by the part of the Harga Khusus that exceeds the fee", () => {
+    // Excess = 1_500_000 − 250_000 = 1_250_000 over a Rp 5.000.000 tariff: 2_500_000 × 3_750_000/5_000_000.
     const lines = [hakPakai(2_500_000), hakPakai(2_500_000), biayaLayananPlatform(250_000), penyesuaianHargaKhusus(-1_500_000)];
-    expect(nilaiDibayarBaris(lines, lines[0]!)).toBe(1_750_000);
+    expect(nilaiDibayarBaris(lines, lines[0]!)).toBe(1_875_000);
   });
 
   it("rounds the share down to whole rupiah", () => {
@@ -35,15 +43,14 @@ describe("what one line of a Tagihan is worth after a Harga Khusus", () => {
     expect(nilaiDibayarBaris(lines, lines[0]!)).toBeLessThanOrEqual(1_000_000);
   });
 
-  it("still returns a positive share when the Penyesuaian is larger than the tariff, so Refunds never refuses a paid line", () => {
-    // tariff Rp 1.000.000 + fee Rp 200.000, reduced by Rp 1.100.000: the family paid Rp 100.000.
+  it("still returns the tariff line's share when the Harga Khusus passes the fee, and leaves the fee with nothing payable", () => {
+    // Excess = 1_100_000 − 200_000 = 900_000 over a Rp 1.000.000 tariff: the line still comes back.
     const lines = [layanan(1_000_000), biayaLayananPlatform(200_000), penyesuaianHargaKhusus(-1_100_000)];
     const bagian = nilaiDibayarBaris(lines, lines[0]!);
-    const bagianFee = nilaiDibayarBaris(lines, lines[1]!);
-    expect(bagian).toBeGreaterThan(0);
-    expect(bagianFee).toBeGreaterThan(0);
-    // Both shares together are the reduced total, never more than what was paid.
-    expect(bagian + bagianFee).toBeLessThanOrEqual(100_000);
+    expect(bagian).toBe(100_000);
+    // The Harga Khusus ate the whole fee, so none of it is payable: the refund is the reduced tariff alone.
+    expect(biayaLayananPlatformTerbayar(lines)).toBe(0);
+    expect(bagian).toBeLessThanOrEqual(100_000);
   });
 
   it("spreads the Penyesuaian over the whole tariff, a biaya_pemakaman or biaya_pengurusan line included", () => {

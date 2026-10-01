@@ -7,21 +7,27 @@
  * reduced total, or the request exceeds what was paid (`melebihi_tagihan`).
  *
  * The one rule, shared by every refund after a Harga Khusus (a Pembatalan
- * Terencana, a Keluhan outcome, a Layanan cancellation), is ticket 38's:
+ * Terencana, a Keluhan outcome, a Layanan cancellation): a Harga Khusus is
+ * applied exactly once and is borne by the Operator from the Biaya Layanan
+ * Platform first (spec 503). Up to the fee it never reaches the tariff, so each
+ * tariff line comes back whole; only the surplus
  *
- *     floor(amount × (tarif + penyesuaian) / tarif)
+ *     kelebihan = max(0, |penyesuaian| − F)
+ *
+ * reduces the tariff, and then proportionally:
+ *
+ *     floor(amount × (tarif − kelebihan) / tarif)
  *
  * where `tarif` is every line but the Biaya Layanan Platform and the Penyesuaian
- * itself — any line of that tariff universe, the Biaya Layanan Platform among
- * them when it is the line being refunded. Whole rupiah, rounded down: the
- * Operator never refunds a fraction of a rupiah it did not receive, and the sum
- * of a Tagihan's refunds never exceeds what was paid.
+ * itself. The fee is never apportioned this way: `biayaLayananPlatformTerbayar`
+ * returns `clamp(F − |P|, 0, F)` for it, so a fault refund is the whole tariff
+ * plus the payable fee and never exceeds what was paid. Whole rupiah, rounded
+ * down: the Operator never refunds a fraction of a rupiah it did not receive.
  *
- * When the Penyesuaian is larger than the tariff, `tarif + penyesuaian` goes to
- * zero or below and the tariff-only rule breaks: the line would come out zero or
- * negative, and Refunds' `ajukanBaris` (`.positive()`) would refuse the whole
- * request. A paid line then falls back to its proportional share of the Tagihan's
- * actual total (what was really paid, the Penyesuaian already applied), so it
+ * When the surplus is larger than the tariff (`|P| > T + F`, so nothing was
+ * really paid), the proportional rule goes to zero or below and Refunds'
+ * `ajukanBaris` (`.positive()`) would refuse the whole request. A paid line then
+ * falls back to its proportional share of the Tagihan's actual total, so it
  * still comes back — never negative, never refused.
  */
 import type { TagihanLine } from "./tagihan";
@@ -78,9 +84,12 @@ export function nilaiDibayarBaris(
   const tarif = tarifDari(lines);
   const penyesuaian = penyesuaianDari(lines);
   if (tarif <= 0 || penyesuaian === 0) return line.amount;
-  const nilai = Math.floor((line.amount * (tarif + penyesuaian)) / tarif);
+  // Spec 503: the fee bears the Harga Khusus first, so only the surplus above it ever reaches the tariff.
+  const kelebihan = Math.max(0, -penyesuaian - biayaLayananPlatformDari(lines));
+  if (kelebihan === 0) return line.amount;
+  const nilai = Math.floor((line.amount * (tarif - kelebihan)) / tarif);
   if (nilai > 0) return Math.min(nilai, line.amount);
-  // The Penyesuaian has eaten the whole tariff, so the tariff-only rule goes to zero or
+  // The surplus has eaten the whole tariff too, so the proportional rule goes to zero or
   // below. Fall back to the line's share of the reduced total the family actually paid.
   const sebelumPenyesuaian = lines
     .filter((satu) => satu.kind !== "penyesuaian_harga_khusus")

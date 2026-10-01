@@ -108,6 +108,25 @@ describe("materialising a cancelled, paid Tagihan", () => {
     expect(await setup.refunds.tick()).toEqual({ materialised: 0 });
   });
 
+  it("materialises a paid Tagihan after a Harga Khusus without over-refunding it (ticket 95)", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDenganHargaKhusus(setup, 50_000);
+    const tagihan = await setup.billing.tagihan(fixture.tagihanId);
+    if (!tagihan) throw new Error("no Tagihan");
+    const tarif = tagihan.lines
+      .filter((line) => line.kind !== "biaya_layanan_platform" && line.kind !== "penyesuaian_harga_khusus")
+      .reduce((sum, line) => sum + line.amount, 0);
+    const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+
+    // The Pemesan's own cancellation keeps the fee; the Harga Khusus came out of that fee, so the tariff lines
+    // return in full and the request never passes what was paid.
+    expect(await setup.refunds.ajukanDariPembatalan(fixture.tagihanId, { pihakBersalah: "pemesan" })).toEqual({ ok: true });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan.jumlah).toBe(tarif);
+    expect(permintaan.jumlah).toBeLessThanOrEqual(tagihan.total);
+  });
+
   it("is idempotent: ticking twice never doubles the request", async () => {
     const setup = refundsOnTestDatabase(db);
     await pesananDibatalkan(setup);

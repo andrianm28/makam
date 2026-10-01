@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Billing, Tagihan } from "@/domain/billing";
-import { biayaLayananPlatformTerbayar } from "@/domain/billing";
+import { biayaLayananPlatformTerbayar, nilaiDibayarBaris } from "@/domain/billing";
 import { pengembalianResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { rupiahSchema, type Rupiah } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
@@ -25,6 +25,8 @@ export interface RefundLine {
   amount: number;
   /** The Lokasi Mitra whose tariff this line is, when it is one; null for the Operator's own line or a manual/goodwill line. */
   lokasiId: string | null;
+  /** The Tagihan line's kind this snapshots, when the caller knows it: it lets Refunds tell the fee line from a tariff line. */
+  kind?: Tagihan["lines"][number]["kind"];
 }
 
 export interface RequestDeps {
@@ -99,14 +101,25 @@ export async function materialisasiDariPembatalan(
 ): Promise<{ id: string } | null> {
   if (!tagihan.pengembalianDiminta) return null;
   const denganFee = biayaLayananPlatformDikembalikan(pihakBersalah);
-  const lines: RefundLine[] = tagihan.lines
-    .filter((line) => denganFee || line.kind !== "biaya_layanan_platform")
-    .map((line) => ({
-      label: line.label,
-      amount: line.amount,
-      lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null,
-    }));
-  const jumlah = rupiahSchema.safeParse(lines.reduce((sum, line) => sum + line.amount, 0));
+  // After a Harga Khusus each line is refunded at what was really paid (ticket 95's owner decision):
+  // the tariff lines in full (only the surplus above the fee reduces them) and the fee at its payable
+  // part. The Penyesuaian line itself is never refunded — it is not money the family paid.
+  const lines: RefundLine[] = [];
+  for (const line of tagihan.lines) {
+    if (line.kind === "penyesuaian_harga_khusus") continue;
+    if (line.kind === "biaya_layanan_platform") {
+      if (!denganFee) continue;
+      const amount = biayaLayananPlatformTerbayar(tagihan.lines);
+      if (amount > 0) lines.push({ label: line.label, amount, lokasiId: null, kind: line.kind });
+      continue;
+    }
+    const amount = nilaiDibayarBaris(tagihan.lines, line);
+    if (amount > 0) lines.push({ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null, kind: line.kind });
+  }
+  const total = lines.reduce((sum, line) => sum + line.amount, 0);
+  // The lines are each line's paid value, so their sum can never pass what the Tagihan was paid.
+  if (total <= 0 || total > tagihan.total) return null;
+  const jumlah = rupiahSchema.safeParse(total);
   if (!jumlah.success || jumlah.data === 0) return null;
   return raiseRequest(db, now, {
     tagihanId: tagihan.id,
@@ -284,15 +297,15 @@ async function ajukanBarisTerkunci(
   // the Harga Khusus from the fee first (spec 503), so what may return is the payable fee — never its proportional share.
   const feeNilai = feeLine ? biayaLayananPlatformTerbayar(tagihan.lines) : 0;
   const denganFee = biayaLayananPlatformDikembalikan(parsed.data.pihakBersalah) && !feeSudahDikembalikan && feeLine !== undefined && feeNilai > 0;
-  if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeNilai, lokasiId: null });
+  if (denganFee && feeLine) lines.push({ label: feeLine.label, amount: feeNilai, lokasiId: null, kind: feeLine.kind });
   const jumlah = lines.reduce((sum, line) => sum + line.amount, 0);
   const sudah = sebelumnya.reduce((sum, row) => sum + row.jumlah, 0);
   if (jumlah === 0 || sudah + jumlah > tagihan.total) return { ok: false, reason: "melebihi_tagihan" };
 
   // A "penuh" request is everything the Tagihan can return: nothing may stay behind but the fee the fault rule keeps.
-  // The fee the rule keeps is not the fee being refunded: under the per-line rule the tariff lines absorb the Penyesuaian,
-  // so what stays behind is the fee as issued, and the full tariff plus it is the reduced total again.
-  const feeDitahan = feeLine !== undefined && !denganFee && !feeSudahDikembalikan ? feeLine.amount : 0;
+  // What stays behind is the fee's **payable** part (`clamp(F − |P|, 0, F)`), not its gross amount: after a Harga
+  // Khusus the Operator already bore part of it, so the full tariff plus the payable fee is the reduced total again.
+  const feeDitahan = feeLine !== undefined && !denganFee && !feeSudahDikembalikan ? biayaLayananPlatformTerbayar(tagihan.lines) : 0;
   const lengkap = sudah + jumlah + feeDitahan === tagihan.total;
   if (parsed.data.penuh && !lengkap) return { ok: false, reason: "input_tidak_valid" };
   const penuh = lengkap && (parsed.data.penuh === true || parsed.data.penuhBilaLengkap === true);

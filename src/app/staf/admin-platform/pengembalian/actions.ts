@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { pengembalianResource } from "@/domain/identity";
 import { rekeningSchema } from "@/domain/refunds";
+import { rupiahSchema } from "@/lib/rupiah";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
@@ -21,9 +22,10 @@ async function buktiFromForm(formData: FormData) {
 const teksAtauKosong = (value: FormDataEntryValue | null) => (value === null || value === "" ? undefined : value);
 const setujuiSchema = z.object({
   permintaanId: z.uuid(),
+  // One money schema at both boundaries: the form's string is made a number, then `rupiahSchema` (the domain's own).
   biayaLayananPlatform: z.preprocess(
-    teksAtauKosong,
-    z.coerce.number().int().min(0).optional(),
+    (value) => (value === null || value === "" ? undefined : Number(value)),
+    rupiahSchema.optional(),
   ),
   catatan: z.preprocess(teksAtauKosong, z.string().trim().min(1).optional()),
 });

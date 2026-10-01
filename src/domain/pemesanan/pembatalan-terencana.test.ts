@@ -803,15 +803,16 @@ describe("a Pembatalan after a Harga Khusus", () => {
     // Two plots at Rp 2.500.000 each, a Harga Khusus of Rp 1.500.000 borne by the Operator: the family paid Rp 3.500.000 plus the fee.
     const dasar = await pesananAktif(setup, { hargaKhusus: 1_500_000 });
     const permintaan = await ajukan(setup, dasar);
-    // Not the Rp 2.500.000 line of the Tagihan first issued, but A-01's share of what was paid: Rp 1.750.000.
-    expect(permintaan).toMatchObject({ dalamMasaPembatalan: true, persenRefund: 100, jumlahRefund: 1_750_000 });
+    // The Harga Khusus of Rp 1.500.000 comes out of the Rp 150.000 fee first, so only Rp 1.350.000 reduces the
+    // Rp 5.000.000 tariff: A-01's share is floor(2.500.000 × 3.650.000/5.000.000) = Rp 1.825.000.
+    expect(permintaan).toMatchObject({ dalamMasaPembatalan: true, persenRefund: 100, jumlahRefund: 1_825_000 });
     const preview = await setup.pemesanan.pratinjauPembatalanTerencana(dasar.pemegang, dasar.hakPakaiIds[1]);
-    expect(preview).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: true, refund: { tarif: 1_750_000, jumlahRefund: 1_750_000 } } } });
+    expect(preview).toMatchObject({ ok: true, pembatalan: { bisaMengajukan: { ok: true, refund: { tarif: 1_825_000, jumlahRefund: 1_825_000 } } } });
 
     const hasil = await setujui(setup, dasar, permintaan.id);
     const refund = await setup.refunds.permintaan(hasil.pengembalian!.permintaanId);
     // The refund is asked on the Tagihan the family paid (the reissue), which is the one Refunds may refund from.
-    expect(refund).toMatchObject({ jumlah: 1_750_000, penuh: false });
+    expect(refund).toMatchObject({ jumlah: 1_825_000, penuh: false });
     await setup.refunds.isiRekeningPemesan(sebagaiActor(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening });
     await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: refund!.id });
     const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
@@ -819,11 +820,11 @@ describe("a Pembatalan after a Harga Khusus", () => {
       ditransferPada: wibDateOf(setup.clock.now()),
       bukti: buktiTransfer,
     });
-    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 1_750_000 } });
+    expect(terbit).toMatchObject({ ok: true, bukti: { amount: 1_825_000 } });
 
-    // The Lokasi Mitra's items (the Operator bore the Harga Khusus, so Rp 5.000.000) are lowered by that same Rp 1.750.000.
+    // The Lokasi Mitra's items (the Operator bore the Harga Khusus, so Rp 5.000.000) are lowered by that same Rp 1.825.000.
     setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
     await setup.payouts.tick();
-    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 3_250_000 })]);
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 3_175_000 })]);
   });
 });
