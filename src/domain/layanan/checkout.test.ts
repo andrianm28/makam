@@ -128,9 +128,19 @@ describe("pricing a checkout's Layanan", () => {
     expect(tepat).toMatchObject({ ok: true, total: 750_000 });
   });
 
+  it("refuses a target date that is not a calendar date", async () => {
+    const { setup, lokasi } = await siap();
+    const hasil = await setup.layanan.barisCheckout(
+      { id: lokasi.lokasiMitra.id, name: lokasi.lokasiMitra.name },
+      "perpanjangan",
+      [{ layananVariantId: lokasi.varian.id, targetDate: "zzzz" }],
+    );
+    expect(hasil).toEqual({ ok: false, reason: "input_tidak_valid" });
+  });
+
   it("rejects a Layanan that asks for text when the field is empty", async () => {
     const { setup, lokasi } = await siap();
-    const nisan = await tawarkan(setup, lokasi, { bisaHariH: true, adaDiPetakKosong: false });
+    await tawarkan(setup, lokasi, { bisaHariH: true, adaDiPetakKosong: false });
     // Give the second Layanan a text field by replacing its catalog entry through a new one.
     const denganTeks = await newLayananFor(setup, lokasi.admin, { name: "Batu Nisan", bisaHariH: true, adaDiPetakKosong: false, teksLabel: "Tulisan batu" });
     const ditawarkan = await setup.layanan.tawarkanLayanan(lokasi.admin, lokasi.lokasiMitra.id, denganTeks.varian.id, {
@@ -146,12 +156,11 @@ describe("pricing a checkout's Layanan", () => {
       [{ layananVariantId: denganTeks.varian.id, targetDate: "2026-10-04", teks: "" }],
     );
     expect(hasil).toEqual({ ok: false, reason: "teks_kosong" });
-    expect(nisan).toBeTruthy();
   });
 });
 
 describe("a checkout's Layanan become Pekerjaan Layanan", () => {
-  it("are written as one order on the checkout's Tagihan, Dijadwalkan at once", async () => {
+  it("schedules a pay-after order's jobs without recording it as paid", async () => {
     const { setup, lokasi, pemesan } = await siap();
     const bunga = await tawarkan(setup, lokasi, { bisaHariH: true, adaDiPetakKosong: false });
     const petak = await petakDenganHakPakai(setup, lokasi);
@@ -174,6 +183,7 @@ describe("a checkout's Layanan become Pekerjaan Layanan", () => {
         hakPakaiId: petak.hakPakaiId,
         tagihanId,
         createdAt: wib("2026-10-01 09:00"),
+        tagihanSudahDibayar: false,
         baris: [{ layananId: bunga.layanan.id, layananVariantId: bunga.varian.id, label: "Layanan – Bunga Tabur", amount: 400_000, leadTimeDays: 0, targetDate: "2026-10-04", teks: null }],
       },
       db,
@@ -183,8 +193,44 @@ describe("a checkout's Layanan become Pekerjaan Layanan", () => {
 
     const order = await setup.layanan.pesananLayananOf(hasil.nomor, { accountId: pemesan.accountId });
     expect(order?.tagihan?.id).toBe(tagihanId);
+    // The Saat Duka Tagihan is pay-after: the confirmation schedules the jobs, but no
+    // payment has happened, so the order is not recorded Terbayar — its later payment is.
+    expect(order?.status).toBe("menunggu_pembayaran");
     expect(order?.item).toHaveLength(1);
     expect(order?.item[0].targetDate).toBe("2026-10-04");
+    expect(order?.item[0].pekerjaan?.status).toBe("dijadwalkan");
+  });
+
+  it("records a pay-first order as paid once its payment has happened", async () => {
+    const { setup, lokasi, pemesan } = await siap();
+    const bunga = await tawarkan(setup, lokasi, { bisaHariH: true, adaDiPetakKosong: false });
+    const petak = await petakDenganHakPakai(setup, lokasi);
+    const tagihan = await setup.billing.issueTagihan({
+      moment: { kind: "layanan" },
+      addressee: { name: "Budi Santoso", phoneNumber: "081234567890", accountId: pemesan.accountId },
+      nomorPemesanan: "MKM-2026-000002",
+      placeName: lokasi.lokasiMitra.name,
+      lines: [{ kind: "layanan", label: "Layanan – Perawatan Rumput", amount: rp(750_000), provider: { kind: "lokasi_mitra", lokasiId: lokasi.lokasiMitra.id, name: lokasi.lokasiMitra.name }, targetDate: "2026-10-04", leadTimeDays: 0 }],
+    });
+    if (!tagihan.ok) throw new Error(`Tagihan refused: ${tagihan.reason}`);
+
+    const hasil = await setup.layanan.jadwalkanCheckout(
+      {
+        pemesan: { accountId: pemesan.accountId, name: "Budi Santoso", email: pemesan.email, phoneNumber: "081234567890" },
+        lokasi: { id: lokasi.lokasiMitra.id, name: lokasi.lokasiMitra.name },
+        petak: { id: petak.petakId, nomor: petak.nomor },
+        hakPakaiId: petak.hakPakaiId,
+        tagihanId: tagihan.tagihan.id,
+        createdAt: wib("2026-10-01 09:00"),
+        tagihanSudahDibayar: true,
+        baris: [{ layananId: bunga.layanan.id, layananVariantId: bunga.varian.id, label: "Layanan – Bunga Tabur", amount: 400_000, leadTimeDays: 0, targetDate: "2026-10-04", teks: null }],
+      },
+      db,
+    );
+    if (!hasil.ok) throw new Error(`checkout order refused: ${hasil.reason}`);
+
+    const order = await setup.layanan.pesananLayananOf(hasil.nomor, { accountId: pemesan.accountId });
+    expect(order?.status).toBe("terbayar");
     expect(order?.item[0].pekerjaan?.status).toBe("dijadwalkan");
   });
 });

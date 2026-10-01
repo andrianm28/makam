@@ -553,7 +553,9 @@ export interface Layanan {
    * Writes the Layanan of a checkout that has already issued its Tagihan, inside
    * the checkout's own transaction `within`: one order, its items and one
    * Pekerjaan Layanan each, Dijadwalkan at once (a Perlu Verifikasi Hak Pakai
-   * holds them at Menunggu Pembayaran, released by `jadwalkanTertunda`).
+   * holds them at Menunggu Pembayaran, released by `jadwalkanTertunda`). The order
+   * is recorded Terbayar only when the input's `tagihanSudahDibayar` says its
+   * Tagihan is paid, so a pay-after Saat Duka checkout is not counted as paid.
    */
   jadwalkanCheckout(input: JadwalkanCheckoutInput, within: Database): Promise<JadwalkanCheckoutResult>;
   /**

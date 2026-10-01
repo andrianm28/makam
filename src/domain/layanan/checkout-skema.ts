@@ -13,8 +13,9 @@ export type CheckoutJenis = "saat_duka" | "terencana" | "perpanjangan";
 export const itemCheckoutSchema = z.object({
   layananVariantId: z.uuid(),
   /** The WIB calendar date the work should happen on, "YYYY-MM-DD". */
-  targetDate: z.string().trim().min(1).max(10),
-  teks: z.string().max(2000).nullish(),
+  targetDate: z.iso.date("Tanggal target harus berformat tahun-bulan-hari."),
+  /** The Layanan's own free-text field (a nisan inscription), or null when it asks for none. */
+  teks: z.string().trim().max(500).nullable().default(null),
 });
 export const itemCheckoutListSchema = z.array(itemCheckoutSchema).max(20);
 export type ItemCheckout = z.infer<typeof itemCheckoutSchema>;

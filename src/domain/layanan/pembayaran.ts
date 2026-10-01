@@ -89,10 +89,23 @@ async function jadwalkanDariPembayaran(deps: JadwalkanDeps, db: Database, paymen
  * flagged Perlu Verifikasi — and records the order as `terbayar` either way,
  * because its Tagihan is.
  *
+ * `tandaiTerbayar: false` is for a checkout that schedules its jobs before any
+ * payment exists — a Saat Duka's pay-after Tagihan, whose hari-H jobs the spec
+ * has Dijadwalkan at the confirmation. The jobs move, but no payment has
+ * happened, so the order is left `menunggu_pembayaran`; the Tagihan's later
+ * payment calls this again, finds no waiting job and records the order Terbayar.
+ *
  * Idempotent: a job that has already moved on is matched on its status, so
  * running this for a payment already seen changes nothing.
  */
-export async function jadwalkan(db: Database, deps: JadwalkanDeps, pesananId: string, paidAt: Date): Promise<HasilJadwalkan> {
+export async function jadwalkan(
+  db: Database,
+  deps: JadwalkanDeps,
+  pesananId: string,
+  paidAt: Date,
+  options: { tandaiTerbayar?: boolean } = {},
+): Promise<HasilJadwalkan> {
+  const tandaiTerbayar = options.tandaiTerbayar ?? true;
   const [order] = await db.select({ id: pesananLayanan.id, petakId: pesananLayanan.petakId, status: pesananLayanan.status }).from(pesananLayanan).where(eq(pesananLayanan.id, pesananId));
   if (!order) return { ok: false, reason: "tidak_ditemukan" };
 
@@ -101,7 +114,7 @@ export async function jadwalkan(db: Database, deps: JadwalkanDeps, pesananId: st
     .from(pekerjaanLayanan)
     .where(and(eq(pekerjaanLayanan.pesananId, pesananId), eq(pekerjaanLayanan.status, "menunggu_pembayaran")));
   if (menunggu.length === 0) {
-    if (order.status !== "terbayar") await db.update(pesananLayanan).set({ status: "terbayar" }).where(eq(pesananLayanan.id, pesananId));
+    if (tandaiTerbayar && order.status !== "terbayar") await db.update(pesananLayanan).set({ status: "terbayar" }).where(eq(pesananLayanan.id, pesananId));
     return { ok: true, dijadwalkan: 0, tertunda: 0 };
   }
 
@@ -117,7 +130,7 @@ export async function jadwalkan(db: Database, deps: JadwalkanDeps, pesananId: st
       .set({ status: "dijadwalkan", dijadwalkanAt: paidAt })
       .where(and(eq(pekerjaanLayanan.id, satu.id), eq(pekerjaanLayanan.status, "menunggu_pembayaran")));
   }
-  if (order.status !== "terbayar") await db.update(pesananLayanan).set({ status: "terbayar" }).where(eq(pesananLayanan.id, pesananId));
+  if (tandaiTerbayar && order.status !== "terbayar") await db.update(pesananLayanan).set({ status: "terbayar" }).where(eq(pesananLayanan.id, pesananId));
   return { ok: true, dijadwalkan: boleh.length, tertunda: menunggu.length - boleh.length };
 }
 

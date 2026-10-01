@@ -27,17 +27,14 @@
  */
 import type { Database } from "@/db/client";
 import type { NewTagihanLine } from "@/domain/billing";
-import { hargaLayananPartLabel } from "@/lib/layanan-labels";
 import { itemCheckoutListSchema, type CheckoutJenis } from "./checkout-skema";
 import type { LayananDeps } from "./deps";
 import { penawaranUntukPesanan, offeringsUntukOrder, type LayananUntukPesanan, type VarianUntukOrder } from "./harga";
 import { jadwalkan } from "./pembayaran";
-import { targetPalingDini, tulisPesananLayanan } from "./pesanan";
+import { barisTagihan, targetPalingDini, tulisPesananLayanan } from "./pesanan";
 
 export type { CheckoutJenis, ItemCheckout } from "./checkout-skema";
 export { itemCheckoutListSchema, itemCheckoutSchema } from "./checkout-skema";
-
-/** One item a checkout picked: the variant, its target date and the text the Layanan asks for. */
 
 /** Why a set of checkout items cannot be priced or puts a Layanan where it may not go. */
 export type BarisCheckoutRefusal =
@@ -48,6 +45,11 @@ export type BarisCheckoutRefusal =
   | "lead_time_melewati"
   /** A Layanan that asks for a text field, left empty. */
   | "teks_kosong"
+  /**
+   * A quote line this flow cannot put on the checkout's Tagihan at all (never in
+   * practice: a widened quote), the same refusal a standalone order gives.
+   */
+  | "baris_tidak_bisa_ditagih"
   /** The item could not be priced (no tariff in force). */
   | "harga_tidak_tersedia";
 
@@ -134,35 +136,21 @@ export async function barisCheckout(
   );
   if (!quoted.ok) return { ok: false, reason: "harga_tidak_tersedia" };
 
-  const baris: BarisCheckout[] = [];
-  const lines: NewTagihanLine[] = [];
-  for (const line of quoted.lines) {
-    // The quote appended the one Biaya Layanan Platform a Lokasi Mitra set carries; the
-    // checkout's own Tagihan already has it, so it is dropped here, never sent onward.
-    if (line.kind === "biaya_layanan_platform") continue;
-    if (line.kind !== "layanan_lokasi") return { ok: false, reason: "harga_tidak_tersedia" };
-    const satu = dipilih[baris.length];
-    if (!satu) return { ok: false, reason: "harga_tidak_tersedia" };
-    const label = hargaLayananPartLabel(line, satu.varian);
-    baris.push({
-      layananId: satu.varian.layananId,
-      layananVariantId: satu.varian.id,
-      label,
-      amount: line.amount,
-      leadTimeDays: satu.varian.leadTimeDays,
-      targetDate: satu.targetDate,
-      teks: satu.teks,
-    });
-    lines.push({
-      kind: "layanan",
-      label,
-      amount: line.amount,
-      provider: { kind: "lokasi_mitra", lokasiId: lokasi.id, name: lokasi.name },
-      targetDate: satu.targetDate,
-      leadTimeDays: satu.varian.leadTimeDays,
-    });
-  }
-  if (baris.length !== dipilih.length) return { ok: false, reason: "harga_tidak_tersedia" };
+  // The same quote→line mapping a standalone order uses, so the two cannot drift;
+  // the fee line is then dropped: the quote appended the one Biaya Layanan Platform
+  // a Lokasi Mitra set carries, and the checkout's own Tagihan already has it.
+  const ditagih = barisTagihan(quoted, dipilih, lokasi.id, lokasi.name);
+  if (!ditagih.ok) return { ok: false, reason: ditagih.reason };
+  const lines = ditagih.lines.filter((line) => line.kind !== "biaya_layanan_platform");
+  const baris: BarisCheckout[] = dipilih.map((satu, posisi) => ({
+    layananId: satu.varian.layananId,
+    layananVariantId: satu.varian.id,
+    label: ditagih.perBaris[posisi].label,
+    amount: ditagih.perBaris[posisi].amount,
+    leadTimeDays: satu.varian.leadTimeDays,
+    targetDate: satu.targetDate,
+    teks: satu.teks,
+  }));
   return { ok: true, baris, lines, total: baris.reduce((jumlah, satu) => jumlah + satu.amount, 0) };
 }
 
@@ -176,6 +164,14 @@ export interface JadwalkanCheckoutInput {
   tagihanId: string;
   /** The WIB date the Tagihan was issued at: the moment the jobs are written. */
   createdAt: Date;
+  /**
+   * Whether the checkout's Tagihan has already been paid when the order is
+   * written. A pay-after checkout (a Saat Duka's) passes false: its jobs are
+   * still Dijadwalkan at the confirmation, but the order is not recorded Terbayar
+   * until its later payment. A pay-first checkout whose payment has happened
+   * passes true.
+   */
+  tagihanSudahDibayar: boolean;
   /** The already-priced items `barisCheckout` returned. */
   baris: readonly BarisCheckout[];
 }
@@ -187,9 +183,10 @@ export type JadwalkanCheckoutResult =
 /**
  * Writes the Layanan of a checkout the checkout has already issued its Tagihan
  * for: one order, its items and one Pekerjaan Layanan each, Dijadwalkan at once
- * because a checkout's Layanan are paid for by that Tagihan (a Saat Duka's
- * pay-after one included — the spec schedules its hari-H jobs at the confirmation,
- * never waiting for the money). Runs inside the checkout's own transaction
+ * (a Saat Duka's pay-after one included — the spec schedules its hari-H jobs at
+ * the confirmation, never waiting for the money). The order is recorded Terbayar
+ * only when `tagihanSudahDibayar` says the checkout's Tagihan is paid, so a
+ * pay-after checkout is not mistaken for money that has arrived. Runs inside the checkout's own transaction
  * (`within`), so the Tagihan, the order and its jobs commit together.
  *
  * A grave whose Hak Pakai is still flagged Perlu Verifikasi holds its jobs as
@@ -224,11 +221,13 @@ export async function jadwalkanCheckout(deps: LayananDeps, within: Database, inp
       teks: satu.teks,
     })),
   );
-  // The payment already happened as part of the checkout, so the jobs are scheduled now,
-  // through ticket 50's own `jadwalkan` (which also records the order as Terbayar) — the
-  // Hak Pakai gate is honoured there, and the release tick is the same one a standalone
-  // order's held job waits for.
-  const hasil = await jadwalkan(within, { db: within, inventory: deps.inventory }, order.id, input.createdAt);
+  // The jobs are scheduled now through ticket 50's own `jadwalkan` (the Hak Pakai
+  // gate and the release tick are the same a standalone order meets). For a
+  // pay-after checkout the order is only marked Terbayar once its Tagihan is
+  // actually paid, which `tagihanSudahDibayar` carries.
+  const hasil = await jadwalkan(within, { db: within, inventory: deps.inventory }, order.id, input.createdAt, {
+    tandaiTerbayar: input.tagihanSudahDibayar,
+  });
   if (!hasil.ok) return { ok: false, reason: "tidak_ditemukan" };
   return {
     ok: true,
