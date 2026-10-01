@@ -136,6 +136,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "layanan.tugaskan_pekerjaan_tpu": "Pekerjaan TPU ditugaskan ke Mitra Jasa",
   "layanan.jawab_penugasan_tpu": "Penugasan pekerjaan TPU dijawab",
   "layanan.lepas_penugasan_tpu": "Penugasan pekerjaan TPU dilepas",
+  "layanan.kirim_pesan": "Pesan thread Pekerjaan Layanan dikirim",
   "layanan.putuskan_keluhan": "Keluhan Pekerjaan Layanan diputuskan",
 };
 

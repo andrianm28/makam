@@ -97,11 +97,14 @@ export async function beriPenilaianLayanan(_previous: PemesanActionState, formDa
 export async function kirimPesanLayanan(_previous: KirimPesanState, formData: FormData): Promise<KirimPesanState> {
   const nomor = String(formData.get("nomor") ?? "");
   const lampiran = await lampiranDari(formData);
+  // A photo the form cannot carry is refused here, before any message is written,
+  // so the screen never reports a success that quietly lost it.
+  if (!lampiran.ok) return { status: "gagal", message: pesanPekerjaanMessages[lampiran.reason] ?? "Periksa lagi pesan Anda." };
   const result = await guarded({
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: kirimPesanSchema,
-    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran },
+    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran: lampiran.lampiran },
     run: (actor, data) => serverRuntime().layanan.kirimPesanPekerjaan({ accountId: actor.accountId, email: actor.email }, data),
   });
   if (!result.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.error] ?? "Periksa lagi pesan Anda." };

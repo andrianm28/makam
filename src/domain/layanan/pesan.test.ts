@@ -144,6 +144,22 @@ describe("a Pekerjaan Layanan's message thread", () => {
     });
   });
 
+  it("records an Entri Audit for a message staff or the fulfiller wrote, and none for the Pemesan's own", async () => {
+    const { setup, lokasi, pemesan, pekerjaanId } = await orderLokasi();
+
+    // The family's own words are their own checkout, not a staff write: nothing is audited.
+    await setup.layanan.kirimPesanPekerjaan(pemesan, { pekerjaanId, teks: "Apakah sudah mulai?" });
+    expect(await setup.audit.entriesAbout({ kind: "pekerjaan_layanan", id: pekerjaanId })).toEqual([]);
+
+    await setup.layanan.kirimPesanPekerjaanStaf(lokasi.adminLokasi, { pekerjaanId, teks: "Kami mulai besok pagi." });
+    const entri = await setup.audit.entriesAbout({ kind: "pekerjaan_layanan", id: pekerjaanId });
+    expect(entri).toMatchObject([
+      { action: "layanan.kirim_pesan", actor: { accountId: lokasi.adminLokasi.accountId, role: "admin_lokasi" } },
+    ]);
+    // The conversation stays in the thread; the Entri Audit records that it happened, not what it said.
+    expect(JSON.stringify(entri)).not.toContain("Kami mulai besok pagi.");
+  });
+
   it("tells the Pemesan a message arrived, without its text or its photo, and never about the Pemesan's own", async () => {
     const { setup, lokasi, pemesan, pekerjaanId, order } = await orderLokasi();
     await setup.layanan.kirimPesanPekerjaanStaf(lokasi.adminLokasi, { pekerjaanId, teks: "Nisannya sudah dibersihkan.", lampiran: [{ body: foto(), contentType: "image/jpeg" }] });

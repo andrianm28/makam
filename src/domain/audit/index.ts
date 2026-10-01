@@ -281,6 +281,8 @@ export type AuditAction =
   | "hak_pakai.ganti_pemegang"
   /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
   | "hak_pakai.ubah_kontak_pemegang"
+  /** Staff or the fulfiller writes one message in a Pekerjaan Layanan's thread (ticket 52). */
+  | "layanan.kirim_pesan"
   /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
   | "layanan.putuskan_keluhan";
 

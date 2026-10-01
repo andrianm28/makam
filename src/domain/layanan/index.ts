@@ -374,7 +374,6 @@ export {
 } from "./bukti";
 export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, jadwalkanTertunda, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
 /** The message thread (ticket 52): its public functions and what a reader sees. */
-export { jobPesan } from "./pesan";
 export type { BacaThreadResult, KirimPesanResult, PelaksanaTerbaca, PesanTerbaca, ThreadPekerjaan } from "./pesan";
 /**
  * The thread's boundary for a Client Component's import graph: the Zod schema and the

@@ -26,6 +26,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
+import type { AuditActorRole } from "@/domain/audit";
 import { normaliseEmail, type Actor } from "@/domain/identity";
 import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
 import type { LayananDeps, PemesanLayanan } from "./deps";
@@ -297,12 +298,13 @@ async function simpanPesan(
   job: JobRingkas,
   pengirim: { accountId: string; peran: PesanPeran; nama: string },
   data: { teks: string; lampiran?: { body: Uint8Array; contentType: string }[] },
+  staf?: { actor: Actor; role: AuditActorRole },
 ): Promise<KirimPesanResult> {
   if (job.ditutupAt) return { ok: false, reason: "thread_ditutup" };
   const foto = await simpanLampiran(deps, job, data.lampiran);
   if (!foto.ok) return { ok: false, reason: "berkas_tidak_didukung" };
   const now = deps.clock.now();
-  return deps.db.transaction(async (tx) => {
+  const tulis = async (tx: Database) => {
     const [row] = await tx
       .insert(pekerjaanLayananPesan)
       .values({ pekerjaanId: job.id, jenis: job.jenis, pengirimAccountId: pengirim.accountId, pengirimPeran: pengirim.peran, pengirimNama: pengirim.nama, teks: data.teks, createdAt: now })
@@ -327,6 +329,23 @@ async function simpanPesan(
       });
     }
     return { ok: true as const, id: row.id };
+  };
+  // A Pemesan's own words are their checkout, not a staff write, so they are not audited.
+  // Staff and the fulfiller write through the Audit Log, their Entri Audit in the same transaction.
+  if (!staf) return deps.db.transaction(tulis);
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const ditulis = await tulis(tx);
+    await record({
+      actor: { accountId: staf.actor.accountId, role: staf.role },
+      action: "layanan.kirim_pesan",
+      entity: job.jenis === "tpu" ? { kind: "pekerjaan_layanan_tpu", id: job.id } : { kind: "pekerjaan_layanan", id: job.id },
+      lokasiId: job.lokasi?.id ?? null,
+      before: null,
+      // The record says a message happened; the words stay in the thread.
+      after: { pesanId: ditulis.id, jumlahLampiran: foto.disimpan.length },
+      reason: null,
+    });
+    return ditulis;
   });
 }
 
@@ -349,7 +368,7 @@ export async function kirimPesanStaf(deps: LayananDeps, by: Actor, rawInput: unk
   const peran = await peranStaf(deps, job, by);
   if (!peran) return { ok: false, reason: "bukan_peserta" };
   const nama = await namaPengirim(deps, by, job, peran);
-  return simpanPesan(deps, job, { accountId: by.accountId, peran, nama }, parsed.data);
+  return simpanPesan(deps, job, { accountId: by.accountId, peran, nama }, parsed.data, { actor: by, role: peran });
 }
 
 /** What one staff writer is called in the thread, as they are named on record. */

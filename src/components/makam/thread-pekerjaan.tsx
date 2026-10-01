@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { PESAN_MAKS_PANJANG } from "@/domain/layanan/pesan-skema";
 
 /** One message as the screen shows it: names already lowered by the domain to what the reader may see. */
 export interface PesanTampil {
@@ -85,7 +86,7 @@ export function ThreadPekerjaan({
             id={`pesan-${thread.pekerjaanId}`}
             name="teks"
             rows={2}
-            maxLength={2000}
+            maxLength={PESAN_MAKS_PANJANG}
             required
             placeholder="Tulis pesan untuk pelaksana pekerjaan."
             className="rounded-lg border border-input bg-background px-3 py-2 text-body"

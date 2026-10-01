@@ -106,7 +106,7 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
             : [],
         }}
         kirim={kirimPesanLokasi}
-        hidden={{ lokasiId, pekerjaanId }}
+        hidden={{ lokasiId }}
       />
 
       <LangkahPekerjaan lokasiId={lokasiId} pekerjaan={pekerjaan} />

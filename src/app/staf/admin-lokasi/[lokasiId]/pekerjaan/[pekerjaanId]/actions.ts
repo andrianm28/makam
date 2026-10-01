@@ -139,11 +139,14 @@ export async function kirimPesanLokasi(_previous: PekerjaanActionState, formData
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const pekerjaanId = String(formData.get("pekerjaanId") ?? "");
   const lampiran = await lampiranDari(formData);
+  // A photo the form cannot carry is refused here, before any message is written,
+  // so the screen never reports a success that quietly lost it.
+  if (!lampiran.ok) return { status: "gagal", message: pesanPekerjaanMessages[lampiran.reason] ?? "Periksa lagi pesan Anda." };
   const result = await guarded({
     action: "layanan.kerjakan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: kirimPesanSchema,
-    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran },
+    input: { pekerjaanId: formData.get("pekerjaanId"), teks: formData.get("teks"), lampiran: lampiran.lampiran },
     run: (actor, data) => serverRuntime().layanan.kirimPesanPekerjaanStaf(actor, data),
   });
   if (!result.ok) return { status: "gagal", message: pesanPekerjaanMessages[result.error] ?? "Periksa lagi pesan Anda." };
