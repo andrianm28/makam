@@ -24,6 +24,7 @@ import {
   pesananDikonfirmasiEmail,
   pesananDitolakEmail,
   layananPekerjaanSelesaiEmail,
+  layananPesanBaruEmail,
   layananPesananTerbitEmail,
   layananTpuPesananTerbitEmail,
 } from "./template";
@@ -495,6 +496,19 @@ export const layananPekerjaanSelesaiSchema = z.object({
 });
 export type LayananPekerjaanSelesaiInput = z.infer<typeof layananPekerjaanSelesaiSchema>;
 
+/** What the Layanan module announces when a staff member or the fulfiller writes in a job's thread (ticket 52). */
+export const layananPesanBaruSchema = z.object({
+  pekerjaanId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320),
+  pemesanName: z.string().trim().min(1).max(200),
+  pengirim: z.enum(["admin_lokasi", "mitra_jasa", "admin_platform"]),
+  label: z.string().trim().min(1).max(300),
+  tempatName: z.string().trim().min(1).max(200),
+  lokasi: z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) }).nullable(),
+});
+export type LayananPesanBaruInput = z.infer<typeof layananPesanBaruSchema>;
+
 export type PesanLayananResult = { ok: true } | { ok: false; reason: "layanan_tidak_valid" };
 
 /**
@@ -585,6 +599,36 @@ export async function layananPekerjaanSelesai(deps: PesanKeluargaDeps, input: La
     pemesananId: null,
     nomorPemesanan: data.nomor,
     lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/**
+ * Tells the Pemesan a new message arrived in a job's thread (ticket 52). The email
+ * carries a link and no content: the text and photos stay in the app, and no contact
+ * detail travels either. Transactional, so it goes at any hour.
+ */
+export async function layananPesanBaru(deps: PesanKeluargaDeps, input: LayananPesanBaruInput): Promise<PesanLayananResult> {
+  const parsed = layananPesanBaruSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = layananPesanBaruEmail({
+    nomor: data.nomor,
+    tempatName: data.tempatName,
+    label: data.label,
+    pengirim: data.pengirim,
+    tautan: deps.layananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "layanan_pesan_baru",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi?.id ?? null,
     email: data.email,
     subject: email.subject,
     body: email.body,

@@ -94,10 +94,12 @@ import {
   pesananDitolak,
   pesanPemesanan,
   layananPekerjaanSelesai,
+  layananPesanBaru,
   layananPesananTerbit,
   layananTpuPesananTerbit,
   pesanLayanan,
   type LayananPekerjaanSelesaiInput,
+  type LayananPesanBaruInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
   type PesanLayananResult,
@@ -146,11 +148,13 @@ export {
 export {
   pesananBuktiPemesananSchema,
   layananPekerjaanSelesaiSchema,
+  layananPesanBaruSchema,
   layananPesananTerbitSchema,
   layananTpuPesananTerbitSchema,
   pesananDiajukanSchema,
   pesananDikonfirmasiSchema,
   type LayananPekerjaanSelesaiInput,
+  type LayananPesanBaruInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
   type PesanLayananResult,
@@ -463,6 +467,8 @@ export interface Notifications {
   layananTpuPesananTerbit(input: LayananTpuPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
   layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
+  /** A new message from staff or the fulfiller in a job's thread: the Pemesan is told one arrived, never what it says (ticket 52). */
+  layananPesanBaru(input: LayananPesanBaruInput, within?: Database): Promise<PesanLayananResult>;
   /** Every logged message about one order Layanan, oldest first. */
   pesanLayanan(nomorPemesanan: string): Promise<PesanTercatat[]>;
   /** Every logged message about one Pemesanan Makam, oldest first: what its order page shows. */
@@ -854,6 +860,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async layananPekerjaanSelesai(input, within) {
       return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
+    },
+    async layananPesanBaru(input, within) {
+      return layananPesanBaru(within ? { ...deps, db: within } : deps, input);
     },
     async pesanLayanan(nomorPemesanan) {
       return pesanLayanan(deps, nomorPemesanan);

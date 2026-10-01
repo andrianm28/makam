@@ -153,6 +153,14 @@ import {
 } from "./pekerjaan";
 import { batalkanPekerjaan, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
 import {
+  kirimPesanPemesan,
+  kirimPesanStaf,
+  threadUntukPemesan,
+  threadUntukStaf,
+  type BacaThreadResult,
+  type KirimPesanResult,
+} from "./pesan";
+import {
   barisHariHTpu,
   hargaPesananTpu,
   jadwalkanHariHTpu,
@@ -211,6 +219,7 @@ export type {
   PekerjaanMitraJasaPort,
   PekerjaanSelesai,
   PemesanLayanan,
+  PesanBaru,
   PesananLayananTerbit,
   PekerjaanTpuDitugaskan,
   PesananTpuTerbit,
@@ -364,6 +373,23 @@ export {
   type BuktiTerbaca as BuktiPekerjaanTerbaca,
 } from "./bukti";
 export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, jadwalkanTertunda, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
+/** The message thread (ticket 52): its public functions and what a reader sees. */
+export { jobPesan } from "./pesan";
+export type { BacaThreadResult, KirimPesanResult, PelaksanaTerbaca, PesanTerbaca, ThreadPekerjaan } from "./pesan";
+/**
+ * The thread's boundary for a Client Component's import graph: the Zod schema and the
+ * plain constants of one message, taken from this module's **own** file rather than
+ * from this barrel (which reaches the database).
+ */
+export {
+  PESAN_FOTO_MAX_BYTES,
+  PESAN_LAMPIRAN_MAX,
+  PESAN_LAMPIRAN_TYPES,
+  PESAN_MAKS_PANJANG,
+  PESAN_URL_SECONDS,
+  kirimPesanSchema,
+  type KirimPesanInput,
+} from "./pesan-skema";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -547,6 +573,22 @@ export interface Layanan {
   selesaikanPekerjaan(by: Actor, input: unknown): Promise<SelesaikanPekerjaanResult>;
   /** Every job currently Terlambat, oldest target date first (the Tier 2 row's list). */
   pekerjaanTerlambat(): Promise<TerlambatTerbaca[]>;
+  /* ── the message thread of one job (ticket 52) ── */
+
+  /**
+   * One job's message thread as its Pemesan reads it: refused for anyone else's job.
+   * The Pemesan sees a Mitra Jasa's first name and photo, and never a contact.
+   */
+  pesanPekerjaanUntukPemesan(pemesan: { accountId: string }, pekerjaanId: string): Promise<BacaThreadResult>;
+  /**
+   * The same thread as the job's Admin Lokasi, its assigned Mitra Jasa or Admin Platform
+   * reads it; nobody else may read it at all.
+   */
+  pesanPekerjaanUntukStaf(by: Actor, pekerjaanId: string): Promise<BacaThreadResult>;
+  /** The Pemesan writes into a job's thread; refused once the Keluhan window closed it. */
+  kirimPesanPekerjaan(pemesan: PemesanLayanan, input: unknown): Promise<KirimPesanResult>;
+  /** Staff or the fulfiller writes into a job's thread; a new one tells the Pemesan by email, without its text or photos. */
+  kirimPesanPekerjaanStaf(by: Actor, input: unknown): Promise<KirimPesanResult>;
 
   /* ── Layanan at a DKI TPU, fulfilled by a Mitra Jasa (ticket 56) ── */
 
@@ -700,6 +742,10 @@ export function createLayanan(deps: LayananDeps): Layanan {
     unggahBuktiPekerjaan: (by, input) => unggahBuktiPekerjaan(deps, by, input),
     selesaikanPekerjaan: (by, input) => selesaikanPekerjaan(deps, by, input),
     pekerjaanTerlambat: () => pekerjaanTerlambat(deps),
+    pesanPekerjaanUntukPemesan: (pemesan, pekerjaanId) => threadUntukPemesan(deps, pemesan, pekerjaanId),
+    pesanPekerjaanUntukStaf: (by, pekerjaanId) => threadUntukStaf(deps, by, pekerjaanId),
+    kirimPesanPekerjaan: (pemesan, input) => kirimPesanPemesan(deps, pemesan, input),
+    kirimPesanPekerjaanStaf: (by, input) => kirimPesanStaf(deps, by, input),
 
     penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
     hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),

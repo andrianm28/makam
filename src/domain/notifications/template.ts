@@ -576,6 +576,41 @@ export function layananTpuPesananTerbitEmail(input: LayananTpuPesananTerbitEmail
   };
 }
 
+export interface LayananPesanBaruEmailInput {
+  nomor: string;
+  /** Where the job is, as the family knows it: the Lokasi Mitra's name, or the TPU's. */
+  tempatName: string;
+  label: string;
+  /** Who wrote, never their contact details. */
+  pengirim: "admin_lokasi" | "mitra_jasa" | "admin_platform";
+  /** The job's own page, where the thread is read and answered. */
+  tautan: string;
+}
+
+/**
+ * A new message in a job's thread (transactional: any hour, ticket 52). It says a
+ * message arrived and where to read it, and **nothing about the message itself**: no
+ * text and no photo, both of which stay in the app. It names the writer only by their
+ * role, so no contact detail travels by email either.
+ */
+export function layananPesanBaruEmail(input: LayananPesanBaruEmailInput): { subject: string; body: string } {
+  const pengirim = input.pengirim === "mitra_jasa" ? "Mitra Jasa pelaksana" : input.pengirim === "admin_lokasi" ? "Admin Lokasi" : "Tim makam.co.id";
+  return {
+    subject: `Pesan baru tentang ${input.label} (${input.nomor})`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Ada pesan baru dari ${pengirim} tentang ${input.label} di ${input.tempatName}.`,
+      "Demi keamanan dan privasi, isi pesan dan fotonya tidak kami kirim lewat email. Buka halaman pesan di bawah untuk membacanya dan membalas.",
+      "",
+      `Halaman pesan: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface LayananPekerjaanSelesaiEmailInput {
   nomor: string;
   lokasiName: string;

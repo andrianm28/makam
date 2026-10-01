@@ -53,9 +53,18 @@ export function composeLayanan(
 
 export function layananNotifikasiDari(notifications: Notifications | undefined, identity?: Pick<Identity, "accountByEmail">): LayananNotifikasi {
   if (!notifications) {
-    return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {}, pesananTpuTerbit: async () => {}, pekerjaanTpuDitugaskan: async () => {} };
+    return {
+      pesananLayananTerbit: async () => {},
+      pekerjaanSelesai: async () => {},
+      pesananTpuTerbit: async () => {},
+      pekerjaanTpuDitugaskan: async () => {},
+      pesanBaru: async () => {},
+    };
   }
   return {
+    pesanBaru: async (tx, hasil) => {
+      await notifications.layananPesanBaru(hasil, tx);
+    },
     pesananTpuTerbit: async (tx, hasil) => {
       await notifications.layananTpuPesananTerbit(hasil, tx);
       // As for a Lokasi Mitra's order: the Tagihan is announced with it (H-1 and due-day reminders, the family's contact),

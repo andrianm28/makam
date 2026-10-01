@@ -41,6 +41,8 @@ export const TEMPLATE_EMAIL = [
   "pengembalian_terbit",
   "layanan_pesanan_terbit",
   "layanan_pekerjaan_selesai",
+  // A new message in a job's thread (ticket 52): the family is told a message arrived and where to read it, never what it says.
+  "layanan_pesan_baru",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
 ] as const;
@@ -82,6 +84,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   pengembalian_terbit: "transaksional",
   layanan_pesanan_terbit: "transaksional",
   layanan_pekerjaan_selesai: "transaksional",
+  layanan_pesan_baru: "transaksional",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
 };
@@ -119,6 +122,7 @@ export const TABEL_ACARA: Record<
   | "pengurusan_dikonfirmasi"
   | "layanan_pesanan_terbit"
   | "layanan_pekerjaan_selesai"
+  | "layanan_pesan_baru"
   | "pembatalan_terencana"
   | "peringatan_staf",
   Acara
@@ -235,6 +239,17 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "layanan_pekerjaan_selesai",
     waktu: WAKTU_TEMPLATE.layanan_pekerjaan_selesai,
+  },
+  /**
+   * A new message in a job's thread (ticket 52): by email at any hour, about a Lokasi
+   * Mitra's own work. The words and photos stay in the app, so the email carries a link
+   * and nothing else.
+   */
+  layanan_pesan_baru: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pesan_baru",
+    waktu: WAKTU_TEMPLATE.layanan_pesan_baru,
   },
   /**
    * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,

@@ -12,6 +12,7 @@ import {
   type PekerjaanMitraJasa,
   type PekerjaanMitraJasaPort,
   type PekerjaanTpuDitugaskan,
+  type PesanBaru,
   type PesananTpuTerbit,
 } from "@/domain/layanan";
 import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
@@ -52,16 +53,19 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
   selesai: PekerjaanLayananSelesaiTerb[];
   pesananTpuDicatat: PesananTpuTerbit[];
   ditugaskan: PekerjaanTpuDitugaskan[];
+  pesanBaruDicatat: PesanBaru[];
 } {
   const pesananTerbit: PesananLayananTerb[] = [];
   const selesai: PekerjaanLayananSelesaiTerb[] = [];
   const pesananTpuDicatat: PesananTpuTerbit[] = [];
   const ditugaskan: PekerjaanTpuDitugaskan[] = [];
+  const pesanBaruDicatat: PesanBaru[] = [];
   return {
     pesananTerbit,
     selesai,
     pesananTpuDicatat,
     ditugaskan,
+    pesanBaruDicatat,
     pesananLayananTerbit: async (_tx, hasil) => {
       pesananTerbit.push(hasil);
     },
@@ -73,6 +77,9 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
     },
     pekerjaanTpuDitugaskan: async (_tx, hasil) => {
       ditugaskan.push(hasil);
+    },
+    pesanBaru: async (_tx, hasil) => {
+      pesanBaruDicatat.push(hasil);
     },
   };
 }

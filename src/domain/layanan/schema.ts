@@ -740,6 +740,14 @@ export const pekerjaanLayananTpu = pgTable(
     pemesanPhone: text("pemesan_phone"),
     dijadwalkanAt: at("dijadwalkan_at"),
     dibatalkanAt: at("dibatalkan_at"),
+    /**
+     * When the Keluhan window over this job closed with nothing left open: the
+     * signal the job's message thread reads to become read-only (ticket 52). A
+     * Lokasi Mitra job carries the same column on `pekerjaan_layanan`, set by
+     * `tutupJendelaKeluhan`; ticket 57 fills this one when it approves the Mitra
+     * Jasa's proof, which is when that job's window opens and so closes.
+     */
+    jendelaDitutupAt: at("jendela_ditutup_at"),
     createdAt: at("created_at").notNull(),
   },
   (table) => [
@@ -784,4 +792,63 @@ export const pekerjaanLayananTpuPenugasan = pgTable(
     index("pekerjaan_layanan_tpu_penugasan_mitra_idx").on(table.mitraJasaId, table.ditugaskanAt),
     index("pekerjaan_layanan_tpu_penugasan_batas_idx").on(table.hasil, table.batasJawab),
   ],
+);
+
+/** Who wrote one thread message. `pemesan` is the family; the rest are staff or the fulfiller. */
+export const pesanPeranValues = ["pemesan", "admin_lokasi", "mitra_jasa", "admin_platform"] as const;
+export type PesanPeran = (typeof pesanPeranValues)[number];
+
+/** Which kind of Pekerjaan Layanan a thread hangs on: a Petak Makam job at a Lokasi Mitra, or a TPU job. */
+export const pesanJenisValues = ["lokasi", "tpu"] as const;
+export type PesanJenis = (typeof pesanJenisValues)[number];
+
+/**
+ * Owned by the Layanan module: one message in the thread of one Pekerjaan Layanan
+ * (spec, "Message thread per Pekerjaan Layanan (text + photos)"; ticket 52). The
+ * thread is a per-job conversation between the Pemesan and the fulfiller (the Admin
+ * Lokasi of a Lokasi Mitra job, the assigned Mitra Jasa of a TPU job), which Admin
+ * Platform may read and join.
+ *
+ * `pekerjaan_id` names a job of either kind (`pekerjaan_layanan` or
+ * `pekerjaan_layanan_tpu`), so it has no foreign key: `jenis` says which table to
+ * look in, and the module checks the job exists before it writes a message.
+ *
+ * The message's text and its photos stay in the app: the Pemesan is told a message
+ * arrived and where to read it, never what it says. A photo is a key into the private
+ * FileStore and is shown only through a short-lived signed URL.
+ */
+export const pekerjaanLayananPesan = pgTable(
+  "pekerjaan_layanan_pesan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id").notNull(),
+    jenis: text("jenis", { enum: pesanJenisValues }).notNull(),
+    /** The Akun that wrote it (the Pemesan's, or the staff/fulfiller Akun's). */
+    pengirimAccountId: text("pengirim_account_id").notNull(),
+    pengirimPeran: text("pengirim_peran", { enum: pesanPeranValues }).notNull(),
+    /**
+     * Who wrote it, as they were named when they did: a snapshot, so a later
+     * profile edit (or a reassignment) does not re-attribute history. A reader of
+     * lower standing sees only the first name of it, whatever is stored.
+     */
+    pengirimNama: text("pengirim_nama").notNull(),
+    teks: text("teks").notNull(),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [index("pekerjaan_layanan_pesan_pekerjaan_idx").on(table.pekerjaanId, table.createdAt)],
+);
+
+/** One photo in a thread message: a key into the private FileStore, never shown except by signed URL. */
+export const pekerjaanLayananPesanLampiran = pgTable(
+  "pekerjaan_layanan_pesan_lampiran",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pesanId: uuid("pesan_id")
+      .notNull()
+      .references(() => pekerjaanLayananPesan.id),
+    fileKey: text("file_key").notNull(),
+    contentType: text("content_type").notNull(),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [index("pekerjaan_layanan_pesan_lampiran_pesan_idx").on(table.pesanId)],
 );

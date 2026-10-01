@@ -110,6 +110,29 @@ export interface LayananNotifikasi {
    * after the commit; the worker sends it and logs it.
    */
   pekerjaanTpuDitugaskan(tx: Database, hasil: PekerjaanTpuDitugaskan): Promise<void>;
+  /**
+   * A new message from staff or the fulfiller in a job's thread (ticket 52): the
+   * Pemesan is told a message arrived and where to read it, and is told nothing
+   * about what it says or shows. Queued through Notifications on the message's own
+   * transaction, so it exists only if the message does.
+   */
+  pesanBaru(tx: Database, hasil: PesanBaru): Promise<void>;
+}
+
+/** A new thread message as its Pemesan is told about it: never the text or a photo. */
+export interface PesanBaru {
+  pekerjaanId: string;
+  nomor: string;
+  /** The Email Terverifikasi the order was proven with; the message is only called when one exists. */
+  email: string;
+  pemesanName: string;
+  /** Who wrote it, so the email can say a person answered. Never their contact details. */
+  pengirim: "admin_lokasi" | "mitra_jasa" | "admin_platform";
+  label: string;
+  /** Where the job is, as the family knows it: the Lokasi Mitra's name, or the TPU's. */
+  tempatName: string;
+  /** The Lokasi Mitra whose job it is; null for a TPU job, so a failed send opens no Lokasi row. */
+  lokasi: { id: string; name: string } | null;
 }
 
 /** A new order Layanan at a DKI TPU as its Pemesan is told about it. */

@@ -58,6 +58,9 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "pengembalian_terbit",
       "layanan_pesanan_terbit",
       "layanan_pekerjaan_selesai",
+      // A new message in a job's thread (ticket 52): transactional, and it carries
+      // no text or photo, only the link into the app.
+      "layanan_pesan_baru",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
     ]);
