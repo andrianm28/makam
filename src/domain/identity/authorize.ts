@@ -215,6 +215,12 @@ export type Action =
    * ticket 29).
    */
   | "hak_pakai.akhiri_tidak_tertagih"
+  /**
+   * The Admin Lokasi of a Lokasi Mitra ends a Hak Pakai by hand from the Petak /
+   * Hak Pakai page (Berakhir, with a reason; story 129), or records a
+   * Pembongkaran on one that already ended.
+   */
+  | "hak_pakai.berakhir"
   /** List every Mitra Jasa, and start a new one's onboarding record (Admin Platform only). */
   | "mitra_jasa.lihat_semua"
   /** Admin Platform starts a Mitra Jasa's onboarding record and invites them to an email. */
@@ -674,6 +680,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       // The Lokasi Mitra's own Admin Lokasi ends its Hak Pakai once Admin
       // Platform gave the Tagihan up; Admin Platform never does it for it
       // (spec, Billing > Chasing).
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "hak_pakai.berakhir":
+      // The Petak / Hak Pakai page is the Lokasi Mitra's own: only its Admin
+      // Lokasi ends a right by hand or records a Pembongkaran (spec, story 129).
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
     case "mitra_jasa.lihat_semua":
     case "mitra_jasa.buat":

@@ -25,7 +25,7 @@ export function composeSchedulerContext(deps: {
   notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf">;
   identity: Pick<Identity, "adminLokasiOf">;
-  inventory: Pick<Inventory, "hakPakaiOfUnit">;
+  inventory: Pick<Inventory, "hakPakaiOfUnit" | "tandaiKedaluwarsa">;
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan">;
   refunds: Pick<Refunds, "tick">;

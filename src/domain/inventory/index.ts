@@ -34,6 +34,10 @@ import { createKavling, splitKavling, type CreateKavlingResult, type NewKavlingI
 import { uploadBlokPhoto, type UploadBlokPhotoResult, BLOK_PHOTO_MAX_BYTES } from "./photo";
 import { batalkanHakPakai, type BatalkanHakPakaiResult } from "./batalkan-hak-pakai";
 import { akhiriHakPakai, type AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
+import { berakhirHakPakaiSchema, berakhirkanHakPakai, type BerakhirHakPakaiResult } from "./berakhir-manual";
+import { catatPembongkaran, pembongkaranSchema, type PembongkaranResult } from "./pembongkaran";
+import { hakPakaiMasaTenggang, type HakPakaiMasaTenggang } from "./masa-tenggang";
+import { tandaiKedaluwarsa } from "./tandai-kedaluwarsa";
 import {
   hakPakaiUntukPerpanjangan,
   lengkapiHakPakai,
@@ -89,6 +93,12 @@ export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakai
 export { lengkapiHakPakaiSchema };
 export type { PemegangHakResult, RiwayatPemegangHak };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
+export { berakhirHakPakaiSchema, pembongkaranSchema };
+export type { BerakhirHakPakaiInput, BerakhirHakPakaiResult } from "./berakhir-manual";
+export type { PembongkaranInput, PembongkaranResult } from "./pembongkaran";
+export type { HakPakaiMasaTenggang } from "./masa-tenggang";
+export { HARI_PENGINGAT_SEBELUM, dalamMasaTenggang, masaTenggangSelesai, pengingatHakPakaiHari, sudahKedaluwarsa } from "./expiry";
+export type { MacamPengingat } from "./expiry";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -243,6 +253,30 @@ export interface Inventory {
    * Tertagih. Ending is final, the same as `batalkanHakPakai`.
    */
   akhiriHakPakai(input: { hakPakaiId: string; alasan: string }): Promise<AkhiriHakPakaiResult>;
+  /**
+   * The Admin Lokasi of that Lokasi ends one of its Hak Pakai by hand from the
+   * Petak / Hak Pakai page: Berakhir, with a reason, final (story 129). An Aktif
+   * or Kedaluwarsa right may be ended; a Berakhir or Dibatalkan one is refused.
+   * Audited.
+   */
+  berakhirkanHakPakai(by: Actor, lokasiId: string, input: unknown): Promise<BerakhirHakPakaiResult>;
+  /**
+   * The Admin Lokasi records a Pembongkaran on an ended Hak Pakai, so its Petak
+   * is empty again and may be cleared or sold (spec, Inventory > Pembongkaran;
+   * story 129). Audited.
+   */
+  catatPembongkaran(by: Actor, lokasiId: string, input: unknown): Promise<PembongkaranResult>;
+  /**
+   * The Kedaluwarsa Hak Pakai of one Lokasi Mitra still inside their Masa
+   * Tenggang: what the Antrean Lokasi's "Hak Pakai in masa tenggang" row reads
+   * (story 130). No actor: every row type reads it for its own Lokasi.
+   */
+  hakPakaiMasaTenggang(lokasiId: string): Promise<HakPakaiMasaTenggang[]>;
+  /**
+   * The Scheduler's own tick: every Aktif Hak Pakai whose end date has passed
+   * becomes Kedaluwarsa (story 57). No actor; idempotent.
+   */
+  tandaiKedaluwarsa(now: Date): Promise<number>;
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
@@ -346,6 +380,10 @@ export function createInventory(deps: InventoryDeps): Inventory {
     beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
     batalkanHakPakai: (input) => batalkanHakPakai(deps, input),
     akhiriHakPakai: (input) => akhiriHakPakai(deps, input),
+    berakhirkanHakPakai: (by, lokasiId, input) => berakhirkanHakPakai(deps, by, lokasiId, input),
+    catatPembongkaran: (by, lokasiId, input) => catatPembongkaran(deps, by, lokasiId, input),
+    hakPakaiMasaTenggang: (lokasiId) => hakPakaiMasaTenggang(deps, lokasiId),
+    tandaiKedaluwarsa: (now) => tandaiKedaluwarsa(deps, now),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),

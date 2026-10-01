@@ -165,6 +165,14 @@ export const inventoryHakPakai = pgTable(
     endDate: at("end_date"),
     perluVerifikasi: boolean("perlu_verifikasi").notNull().default(false),
     /**
+     * Recorded once the Admin Lokasi removes the remains from the Petak (spec,
+     * Inventory > Pembongkaran; story 129). A Petak stays Terisi after its Hak
+     * Pakai ends until this is set, and only then may it be sold or cleared
+     * again; `pembongkaran_reason` is the note that goes with it.
+     */
+    pembongkaranAt: at("pembongkaran_at"),
+    pembongkaranReason: text("pembongkaran_reason"),
+    /**
      * The Syarat Pemesanan Terencana in force when a Terencana order's payment
      * granted this right (spec, Inventory > Hak Pakai: "the terms in force at
      * payment"), and the Calon Penghuni label the order named for the plot; both

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { ActiveHakPakaiForStatus, HakPakaiStatus } from "./status";
 import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
@@ -16,6 +16,9 @@ export interface HakPakaiRow {
   tenureStartAt: Date | null;
   endDate: Date | null;
   perluVerifikasi: boolean;
+  /** When a Pembongkaran was recorded after this right ended, and the note with it; null until then. */
+  pembongkaranAt: Date | null;
+  pembongkaranReason: string | null;
   /** The Syarat Pemesanan Terencana in force at payment, and the Calon Penghuni label; null for any other Hak Pakai. */
   syarat: SyaratHakPakai | null;
   calonPenghuni: string | null;
@@ -34,6 +37,8 @@ function toRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
     tenureStartAt: row.tenureStartAt,
     endDate: row.endDate,
     perluVerifikasi: row.perluVerifikasi,
+    pembongkaranAt: row.pembongkaranAt,
+    pembongkaranReason: row.pembongkaranReason,
     syarat: row.syarat ?? null,
     calonPenghuni: row.calonPenghuni,
   };
@@ -79,7 +84,16 @@ async function memegang(db: Database, diTarget: SQL<unknown>): Promise<HakPakaiR
   const rows = await db
     .select()
     .from(inventoryHakPakai)
-    .where(and(diTarget, ne(inventoryHakPakai.status, "dibatalkan")))
+    .where(
+      and(
+        diTarget,
+        ne(inventoryHakPakai.status, "dibatalkan"),
+        // A Berakhir Hak Pakai whose Pembongkaran is recorded no longer holds the
+        // Petak: the grave is empty again and may be cleared or sold (spec, Inventory
+        // > Pembongkaran; story 129).
+        or(ne(inventoryHakPakai.status, "berakhir"), isNull(inventoryHakPakai.pembongkaranAt)),
+      ),
+    )
     .orderBy(desc(inventoryHakPakai.startAt))
     .limit(1);
   return rows[0] ? toRow(rows[0]) : null;
@@ -99,11 +113,15 @@ export async function hakPakaiByTarget(db: Database, lokasiId: string): Promise<
 }
 
 /**
- * `hakPakai` as `derivePetakStatus` / `deriveKavlingStatus` need it.
- * `pembongkaranAt` is always null: no ticket yet records a Pembongkaran.
+ * `hakPakai` as `derivePetakStatus` / `deriveKavlingStatus` need it. A Berakhir
+ * right whose Pembongkaran is recorded no longer holds its plot, so it is
+ * treated as absent: the plot is Tersedia (or manually Tidak Tersedia) again and
+ * may be sold (spec, Inventory > Pembongkaran; story 129).
  */
 export function forStatus(hakPakai: HakPakaiRow | null): ActiveHakPakaiForStatus | null {
-  return hakPakai ? { status: hakPakai.status, pembongkaranAt: null } : null;
+  if (!hakPakai) return null;
+  if (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt) return null;
+  return { status: hakPakai.status, pembongkaranAt: hakPakai.pembongkaranAt };
 }
 
 export interface PemegangHakRow {

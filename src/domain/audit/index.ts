@@ -233,6 +233,10 @@ export type AuditAction =
   | "pengembalian.terbitkan_bukti"
   /** The Admin Lokasi ends a Hak Pakai once its Saat Duka Tagihan is Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "hak_pakai.akhiri_tidak_tertagih"
+  /** The Admin Lokasi ends a Hak Pakai by hand from the Petak / Hak Pakai page, with the reason (spec, Inventory; story 129). */
+  | "hak_pakai.berakhir"
+  /** The Admin Lokasi records a Pembongkaran on an ended Hak Pakai, so its Petak is empty again (spec, Inventory; story 129). */
+  | "hak_pakai.pembongkaran"
   /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact) before its Perpanjangan (ticket 40). */
   | "hak_pakai.lengkapi"
   /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */

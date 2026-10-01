@@ -55,8 +55,8 @@ export interface AntreanRowDeps {
     | "antreanPembatalan"
     | "persetujuanRefundPembatalan"
   >;
-  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23). */
-  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own (ticket 23); its "Hak Pakai in masa tenggang" row reads the Kedaluwarsa rights still in their Masa Tenggang (ticket 42). */
+  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi" | "hakPakaiMasaTenggang">;
   /**
    * The Antrean's Tier 3 "Pencairan" row reads the Payouts module's own query
    * (ticket 32): one open row per recipient with the 2 Hari Kerja deadline the

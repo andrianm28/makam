@@ -121,8 +121,8 @@ export interface QueuesModuleDeps {
     | "antreanPembatalan"
     | "persetujuanRefundPembatalan"
   >;
-  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
-  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak; its "Hak Pakai in masa tenggang" row reads the Kedaluwarsa rights still in their grace period (ticket 42). */
+  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi" | "hakPakaiMasaTenggang">;
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
   payouts: Pick<Payouts, "pencairanJatuhTempo" | "pencairanDibayar" | "transferKeluar">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */

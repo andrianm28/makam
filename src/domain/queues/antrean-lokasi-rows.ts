@@ -14,6 +14,7 @@
 import type { Actor } from "@/domain/identity";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps } from "./row-types";
+import { hakPakaiMasaTenggangRowType } from "./masa-tenggang-row";
 
 /** The two groups the spec names (CONTEXT.md: "split into Mendesak and Lainnya"). */
 export type AntreanLokasiGrup = "mendesak" | "lainnya";
@@ -343,6 +344,7 @@ export const kerjakanUlangRowType: AntreanLokasiRowType = {
 /** Every row type the Antrean Lokasi shows; later tickets add theirs here. */
 export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   konfirmasiSaatDukaRowType,
+  hakPakaiMasaTenggangRowType,
   konfirmasiTerencanaRowType,
   pembatalanTerencanaRowType,
   periksaDokumenPerpanjanganRowType,

@@ -56,8 +56,8 @@ export interface SchedulerContext {
   layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan">;
   /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
   queues: QueuesTicks;
-  /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
-  inventory: Pick<Inventory, "hakPakaiOfUnit">;
+  /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50), and the end-of-term tick that marks a fixed-term one Kedaluwarsa (ticket 42). */
+  inventory: Pick<Inventory, "hakPakaiOfUnit" | "tandaiKedaluwarsa">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -90,6 +90,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "identity.prune_ip_requests", cron: "17 * * * *", tick: pruneIpRequestsTick },
   // Inventory: the Makam keluarga hub's per-IP lookup attempts older than 24 h (ticket 34).
   { name: "inventory.prune_cari_makam_attempts", cron: "23 * * * *", tick: pruneCariMakamAttemptsTick },
+  // Inventory: a fixed-term Hak Pakai whose end date has passed becomes Kedaluwarsa (ticket 42).
+  { name: "inventory.tandai_kedaluwarsa", cron: "1 * * * *", tick: tandaiKedaluwarsaTick },
   // Billing: unpaid pay-first Tagihan lapse to Dibatalkan at their due date (ticket 18).
   { name: "billing.lapse_pay_first_tagihan", cron: "* * * * *", tick: lapsePayFirstTagihanTick },
   // Billing: a pay-after Tagihan whose recorded burial has passed its window becomes Lewat Jatuh Tempo (ticket 25).
@@ -138,6 +140,11 @@ async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<vo
 
 async function pruneCariMakamAttemptsTick(ctx: { db: Database }, now: Date): Promise<void> {
   await pruneCariMakamAttempts(ctx, now);
+}
+
+/** The worker wrapper around Inventory's end-of-term tick (idempotent there, as every tick is). */
+async function tandaiKedaluwarsaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.inventory.tandaiKedaluwarsa(now);
 }
 
 async function kirimPesanTick(ctx: SchedulerContext, now: Date): Promise<void> {
