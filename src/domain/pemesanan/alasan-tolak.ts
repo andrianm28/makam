@@ -64,9 +64,20 @@ export const alasanTolakKeluargaKeys = [
 /** A reason the family gives, which a Lokasi can never choose. */
 export type AlasanTolakKeluarga = (typeof alasanTolakKeluargaKeys)[number];
 
+/**
+ * The reason only the **Pemegang Hak** of an existing Hak Pakai can produce: a
+ * further burial under that right needs their consent, and refusing it ends the
+ * order Ditolak (spec, Pemesanan > Burial under an existing Hak Pakai). It is a
+ * list of its own because neither the Lokasi nor the Pemesan may record it — the
+ * holder answers the consent request themselves.
+ */
+export const alasanTolakPemegangHakKeys = ["pemegang_hak_tidak_setuju"] as const;
+/** A reason the holder of the Hak Pakai gives, which a Lokasi can never choose. */
+export type AlasanTolakPemegangHak = (typeof alasanTolakPemegangHakKeys)[number];
+
 /** Every reason an order can end as Ditolak with, whichever side produced it. */
-export type AlasanTolak = AlasanTolakLokasi | AlasanTolakKeluarga;
-export const alasanTolakKeys: readonly AlasanTolak[] = [...alasanTolakLokasiKeys, ...alasanTolakKeluargaKeys];
+export type AlasanTolak = AlasanTolakLokasi | AlasanTolakKeluarga | AlasanTolakPemegangHak;
+export const alasanTolakKeys: readonly AlasanTolak[] = [...alasanTolakLokasiKeys, ...alasanTolakKeluargaKeys, ...alasanTolakPemegangHakKeys];
 
 /** The reason as the family reads it, in the wording of the list; the only wording any screen may show. */
 export const ALASAN_TOLAK: Readonly<Record<AlasanTolak, string>> = {
@@ -77,6 +88,7 @@ export const ALASAN_TOLAK: Readonly<Record<AlasanTolak, string>> = {
   di_luar_wilayah: "Di luar wilayah pelayanan Lokasi Mitra ini",
   harga_belum_disepakati: "Harga belum disepakati dengan keluarga",
   alternatif_ditolak: "Keluarga menolak alternatif yang ditawarkan",
+  pemegang_hak_tidak_setuju: "Pemegang Hak tidak menyetujui",
 };
 
 /**

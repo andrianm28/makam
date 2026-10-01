@@ -20,6 +20,32 @@ export const pemesananStatuses = ["diajukan", "dikonfirmasi", "dimakamkan", "sel
 export type PemesananStatus = (typeof pemesananStatuses)[number];
 
 /**
+ * The three requests "Makamkan di sini" can carry (spec, Pemesanan > Burial
+ * under an existing Hak Pakai): a tumpang on an occupied plot, the next plot of
+ * a Kavling Keluarga, or the burial of the Calon Penghuni a Terencana plot was
+ * prepared for. All three run the same track; the difference is which checks
+ * apply (a tumpang waits out the policy, an unused plot does not).
+ */
+export const tumpangJenisKeys = ["tumpang", "kavling_berikutnya", "calon_penghuni"] as const;
+export type TumpangJenis = (typeof tumpangJenisKeys)[number];
+
+/**
+ * How the Pemegang Hak's consent to a further burial resolved (spec, Pemesanan >
+ * Burial under an existing Hak Pakai): implicit when the logged-in Akun's Email
+ * Terverifikasi is the holder's recorded email (`implisit`), an emailed Setujui /
+ * Tolak after a code sent to that address (`menunggu_email` → `disetujui` /
+ * `ditolak`), verbal consent logged by the Admin Lokasi, or heirship proof
+ * brought on the day. `menunggu_email` is the only state an order sits in while
+ * it waits for the holder.
+ */
+export const konsenTumpangStates = ["implisit", "menunggu_email", "menunggu_lokasi", "disetujui", "ditolak"] as const;
+export type KonsenTumpangState = (typeof konsenTumpangStates)[number];
+
+/** How a consent that was not implicit came to be: an email answer, verbal consent, or heirship proof. */
+export const konsenTumpangVias = ["implicit", "email", "verbal", "ahli_waris"] as const;
+export type KonsenTumpangVia = (typeof konsenTumpangVias)[number];
+
+/**
  * The Pemegang Hak the Pemesan named (CONTEXT.md): the Pemesan themselves by
  * default, else another relative with their own name, phone number and email
  * when it is known. Never the Almarhum (refused on the way in).
@@ -82,6 +108,36 @@ export const pemesananMakam = pgTable(
     /** A placement wish (e.g. near the family's other graves), free text. */
     keinginanPenempatan: text("keinginan_penempatan"),
     pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
+    /**
+     * A tumpang order (spec, Pemesanan > Burial under an existing Hak Pakai): the
+     * kind of request and the Nomor Pemesanan whose plot it uses when that plot is
+     * a Pemesanan Terencana's. `hak_pakai_id`, `petak_id` and `petak_nomor` are
+     * set at submission for a tumpang order (the grave is known up front), where a
+     * Saat Duka order learns them at confirmation. All null for a Saat Duka order.
+     */
+    tumpangJenis: text("tumpang_jenis", { enum: tumpangJenisKeys }),
+    pemesananIndukNomor: text("pemesanan_induk_nomor"),
+    /**
+     * The Pemegang Hak's consent to the burial, as columns rather than one jsonb
+     * so its dates keep their type. `konsen_state` is null for any order that is
+     * not a tumpang; `menunggu_email` carries the hashed one-time code and its
+     * expiry, and every settled state carries how it was settled.
+     */
+    konsenState: text("konsen_state", { enum: konsenTumpangStates }),
+    konsenEmail: text("konsen_email"),
+    /** The HMAC of the one-time code sent to `konsen_email`; never the code itself. */
+    konsenKodeHash: text("konsen_kode_hash"),
+    konsenKodeExpiresAt: at("konsen_kode_expires_at"),
+    /** Wrong codes entered: the 5th burns the code, the same rule the Kode Masuk keeps. */
+    konsenSalah: integer("konsen_salah").notNull().default(0),
+    konsenVia: text("konsen_via", { enum: konsenTumpangVias }),
+    /** The Admin Lokasi's note on a verbal consent, or what the heirship proof was. */
+    konsenCatatan: text("konsen_catatan"),
+    /** The private FileStore key of the heirship proof brought on the day, when one was filed. */
+    konsenBuktiFileKey: text("konsen_bukti_file_key"),
+    /** Who recorded a verbal consent or heirship proof; null for an email answer. */
+    konsenOleh: text("konsen_oleh"),
+    konsenDiputuskanPada: at("konsen_diputuskan_pada"),
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /**
      * When the worker's re-alert went out: once 1 h of the Lokasi's Jam

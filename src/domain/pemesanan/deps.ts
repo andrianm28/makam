@@ -325,6 +325,8 @@ export interface PemesananDeps {
     | "akhiriHakPakai"
     // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
     | "hakPakaiById"
+    // The Hak Pakai "Makamkan di sini" buries under, with its holder and its tumpang facts (ticket 35).
+    | "hakPakaiUntukTumpang"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"

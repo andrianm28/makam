@@ -111,6 +111,13 @@ export async function catatPemakaman(
     // instant is the moment it was recorded, the same one the pay-after clock
     // below starts from.
     await deps.payouts.pemakamanTercatat(tx, { nomorPemesanan: order.nomor, pemakamanAt: now });
+    // A further burial joins a right that already exists. When that right is a
+    // Pemesanan Terencana's plot, the Terencana order is told too, in this same
+    // transaction, so its Pencairan becomes due at the first Pemakaman when that
+    // is sooner than the end of its Masa Pembatalan (ticket 35's AC 20).
+    if (order.pemesananIndukNomor) {
+      await deps.payouts.pemakamanTercatat(tx, { nomorPemesanan: order.pemesananIndukNomor, pemakamanAt: now });
+    }
 
     // The pay-after Tagihan's overdue clock starts here, not at the day the
     // burial was planned: the family gets its full window from the burial that
@@ -161,20 +168,33 @@ export async function catatPemakaman(
     // which together are Selesai. (The other order of the two — the burial first,
     // the payment second — is Billing's own payment effect.)
     let buktiNomor: string | null = null;
+    let selesai = false;
     if (berlaku) {
       const tagihan = await deps.billing.within(tx).tagihan(berlaku.id);
       if (tagihan?.status === "lunas") {
-        buktiNomor = await terbitkanBukti(
-          tx,
-          {
-            billingOn: (db) => deps.billing.within(db),
-            inventory: deps.inventory,
-            lokasi: deps.lokasi,
-            notifikasi: deps.notifikasi,
-          },
-          order.id,
-          now,
-        );
+        // A further burial earns no Bukti Pemesanan: it grants no new right (the
+        // document proves a right, and this one is already proved). Its Selesai is
+        // the Lunas plus the recorded Pemakaman, without a document.
+        if (order.kind === "tumpang") {
+          await tx
+            .update(pemesananMakam)
+            .set({ status: "selesai", selesaiPada: now })
+            .where(and(eq(pemesananMakam.id, order.id), eq(pemesananMakam.status, "dimakamkan")));
+          selesai = true;
+        } else {
+          buktiNomor = await terbitkanBukti(
+            tx,
+            {
+              billingOn: (db) => deps.billing.within(db),
+              inventory: deps.inventory,
+              lokasi: deps.lokasi,
+              notifikasi: deps.notifikasi,
+            },
+            order.id,
+            now,
+          );
+          selesai = buktiNomor !== null;
+        }
       }
     }
 
@@ -182,7 +202,7 @@ export async function catatPemakaman(
       ok: true as const,
       pesanan: {
         nomor: order.nomor,
-        status: (buktiNomor ? "selesai" : "dimakamkan") as "dimakamkan" | "selesai",
+        status: (selesai ? "selesai" : "dimakamkan") as "dimakamkan" | "selesai",
         petakNomor: order.petakNomor ?? "",
       },
       pemakaman: { almarhumName: dicatat.pemakaman.almarhumName, tanggal: dicatat.pemakaman.date, layer: dicatat.pemakaman.layer },

@@ -127,9 +127,32 @@ export function pilihanOf(facts: PilihanFacts): { status: PilihanStatus; tumpang
  * so only the Lokasi Mitra's own rule is left to read.
  */
 function bisaTumpang(facts: PilihanFacts): boolean {
-  if (facts.released ? !facts.tumpang.onReleased : !facts.tumpang.allowed) return false;
-  if (facts.layers >= facts.tumpang.maxLayers) return false;
-  return facts.terakhirPemakaman === null || addYears(facts.terakhirPemakaman, facts.tumpang.minYears) <= facts.hariIni;
+  return periksaBolehTumpang(facts, facts.tumpang).ok;
+}
+
+/** Why a Terisi plot cannot take another burial: the Lokasi's own answer, or the wait or the layers. */
+export type AlasanTumpang = "tumpang_tidak_diizinkan" | "tumpang_petak_dilepas_tidak_diizinkan" | "lapisan_penuh" | "masa_tunggu_belum_lewat";
+
+/**
+ * The tumpang policy as a rule both the picker and a "Makamkan di sini"
+ * confirmation read (spec, Inventory > Hak Pakai; Pemesanan > Burial under an
+ * existing Hak Pakai): the Lokasi Mitra allows tumpang at all — a released plot
+ * needs its own flag as well — a layer is still free, and the last burial is at
+ * least `minYears` old. A plot with no recorded burial has no years to wait for,
+ * so only the Lokasi's own rule is left to read.
+ */
+export function periksaBolehTumpang(
+  fakta: { released: boolean; layers: number; terakhirPemakaman: string | null; hariIni: string },
+  tumpang: AturanTumpang,
+): { ok: true } | { ok: false; reason: AlasanTumpang } {
+  if (fakta.released ? !tumpang.onReleased : !tumpang.allowed) {
+    return { ok: false, reason: fakta.released ? "tumpang_petak_dilepas_tidak_diizinkan" : "tumpang_tidak_diizinkan" };
+  }
+  if (fakta.layers >= tumpang.maxLayers) return { ok: false, reason: "lapisan_penuh" };
+  if (fakta.terakhirPemakaman !== null && addYears(fakta.terakhirPemakaman, tumpang.minYears) > fakta.hariIni) {
+    return { ok: false, reason: "masa_tunggu_belum_lewat" };
+  }
+  return { ok: true };
 }
 
 /** A Hak Pakai that has ended (Berakhir) or been cancelled, so the plot underneath it is free again. */

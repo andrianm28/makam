@@ -69,7 +69,21 @@ export function efekBuktiPemesanan(deps: BuktiPemesananEffectDeps): PaymentEffec
         return;
       }
       const [order] = await tx.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, payment.nomorPemesanan));
-      if (!order || order.kind !== "saat_duka") return;
+      if (!order) return;
+      // A further burial runs the same track but earns no Bukti Pemesanan: it grants
+      // no new right. Its Selesai is Lunas plus the recorded Pemakaman, exactly as a
+      // Saat Duka order's is, minus the document (its recording step is the other
+      // half, the way `terbitkanBukti` is for a Saat Duka order).
+      if (order.kind === "tumpang") {
+        if (order.status === "dimakamkan") {
+          await tx
+            .update(pemesananMakam)
+            .set({ status: "selesai", selesaiPada: deps.clock.now() })
+            .where(and(eq(pemesananMakam.id, order.id), eq(pemesananMakam.status, "dimakamkan")));
+        }
+        return;
+      }
+      if (order.kind !== "saat_duka") return;
       // The burial must already be on record: the document names the Hak Pakai's
       // term, and that term starts at the first Pemakaman. The other order of the
       // two facts — paid first, buried later — is the recording step's own.

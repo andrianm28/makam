@@ -46,6 +46,21 @@ import { batalkanSaatDuka, batalkanUntukPemesan, type BatalkanSaatDukaInput, typ
 import { rebookPesanan, type RebookPesanan } from "./rebook";
 import { catatPemakaman, type CatatPemakamanOrderInput, type CatatPemakamanOrderResult } from "./catat-pemakaman";
 import {
+  ajukanTumpang,
+  catatKonsenTumpang,
+  konfirmasiTumpang,
+  setujuiTumpang,
+  tolakTumpang,
+  type AjukanTumpangInput,
+  type AjukanTumpangResult,
+  type CatatKonsenInput,
+  type CatatKonsenResult,
+  type JawabKonsenInput,
+  type JawabKonsenResult,
+  type KonfirmasiTumpangInput,
+  type KonfirmasiTumpangResult,
+} from "./tumpang";
+import {
   antreanCatatPemakaman,
   antreanKonfirmasi,
   ditolak as ditolakOf,
@@ -333,6 +348,20 @@ export interface Pemesanan {
    */
   catatPemakaman(by: Actor, input: CatatPemakamanOrderInput): Promise<CatatPemakamanOrderResult>;
   /**
+   * "Makamkan di sini" (ticket 35): places a further burial under an existing Hak
+   * Pakai, resolving the Pemegang Hak's consent as far as it can go without them.
+   * The returned `kode` is the one-time code the boundary must email to the holder
+   * when the state is `menunggu_email`.
+   */
+  ajukanTumpang(input: AjukanTumpangInput): Promise<AjukanTumpangResult>;
+  /** The Pemegang Hak's emailed answer to the consent request. */
+  setujuiTumpang(input: JawabKonsenInput): Promise<JawabKonsenResult>;
+  tolakTumpang(input: JawabKonsenInput): Promise<JawabKonsenResult>;
+  /** The Admin Lokasi logs a verbal consent or heirship proof for a holder with no email (or one who answered verbally). */
+  catatKonsenTumpang(by: Actor, input: CatatKonsenInput): Promise<CatatKonsenResult>;
+  /** The Admin Lokasi confirms the burial: tumpang checks, then the pay-after Tagihan. No Hak Pakai is created. */
+  konfirmasiTumpang(by: Actor, input: KonfirmasiTumpangInput): Promise<KonfirmasiTumpangResult>;
+  /**
    * One order as that Lokasi Mitra's staff read it, with the family's own
    * details and its documents; null for an order that is not theirs (an Admin
    * Lokasi sees its own Lokasi's orders only).
@@ -475,6 +504,11 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     batalkanUntukPemesan: (by, input) => batalkanUntukPemesan(deps, by, input),
     rebook: (nomor, pemesan) => rebookPesanan(deps, nomor, pemesan),
     catatPemakaman: (by, input) => catatPemakaman(deps, by, input),
+    ajukanTumpang: (input) => ajukanTumpang(deps, input),
+    setujuiTumpang: (input) => setujuiTumpang(deps, input),
+    tolakTumpang: (input) => tolakTumpang(deps, input),
+    catatKonsenTumpang: (by, input) => catatKonsenTumpang(deps, by, input),
+    konfirmasiTumpang: (by, input) => konfirmasiTumpang(deps, by, input),
     orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
     orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
     antreanCatatPemakaman: (lokasiId) => antreanCatatPemakaman(deps, lokasiId),

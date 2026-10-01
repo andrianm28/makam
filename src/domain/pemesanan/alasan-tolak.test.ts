@@ -10,7 +10,7 @@
  * arrange.
  */
 import { describe, expect, it } from "vitest";
-import { ALASAN_TOLAK, alasanTolakKeys, alasanTolakKeluargaKeys, alasanTolakLokasiKeys, alasanTolakLokasiSchema } from "./alasan-tolak";
+import { ALASAN_TOLAK, alasanTolakKeys, alasanTolakKeluargaKeys, alasanTolakLokasiKeys, alasanTolakLokasiSchema, alasanTolakPemegangHakKeys } from "./alasan-tolak";
 
 describe("the closed list of Tolak reasons", () => {
   it("gives the Lokasi only reasons about its own capacity, calendar, papers, area and price", () => {
@@ -32,9 +32,15 @@ describe("the closed list of Tolak reasons", () => {
     for (const kunci of alasanTolakKeluargaKeys) {
       expect(alasanTolakLokasiKeys).not.toContain(kunci);
     }
-    // Still one closed list for the column and the family's email: the two halves
-    // together, with no third way in and nothing dropped between them.
-    expect(alasanTolakKeys).toEqual([...alasanTolakLokasiKeys, ...alasanTolakKeluargaKeys]);
+    // The Pemegang Hak's own refusal is its own list too (ticket 35): a further
+    // burial needs their consent, and the reason belongs to them, not the Lokasi.
+    for (const kunci of alasanTolakPemegangHakKeys) {
+      expect(alasanTolakLokasiKeys).not.toContain(kunci);
+      expect(alasanTolakKeluargaKeys).not.toContain(kunci);
+    }
+    // Still one closed list for the column and the family's email: every list
+    // together, with no way in and nothing dropped between them.
+    expect(alasanTolakKeys).toEqual([...alasanTolakLokasiKeys, ...alasanTolakKeluargaKeys, ...alasanTolakPemegangHakKeys]);
     expect(Object.keys(ALASAN_TOLAK).sort()).toEqual([...alasanTolakKeys].sort());
   });
 
