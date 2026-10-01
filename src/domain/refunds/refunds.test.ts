@@ -334,7 +334,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     return { tagihan, fee, baris: { label: line.label, amount: line.amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null } };
   }
 
-  it("keeps the Biaya Layanan Platform when the Pemesan cancels, and is a partial request through the same approval, transfer and Bukti", async () => {
+  it("keeps the Biaya Layanan Platform when the Pemesan cancels, and is a permintaan sebagian through the same approval, transfer and Bukti", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananTerbayar(setup);
     const { baris } = await barisPertama(setup, fixture.tagihanId);
@@ -372,7 +372,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     expect(permintaan.jumlah).toBe(3_000 + fee.amount);
   });
 
-  it("keeps every line when two cancellations join the open request at the same moment (concurrent, on the row lock)", async () => {
+  it("keeps every line when two cancellations join the open permintaan pengembalian at the same moment (concurrent, on the row lock)", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananTerbayar(setup);
     const { baris } = await barisPertama(setup, fixture.tagihanId);
@@ -390,7 +390,7 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     expect(permintaan.lines.map((line) => line.label).sort()).toEqual(["Baris A", "Baris B", baris.label].sort());
   });
 
-  it("refuses more than the Tagihan was paid and an unknown Tagihan, and gives a request raised after approval its own row", async () => {
+  it("refuses more than the Tagihan was paid and an unknown Tagihan, and gives a pengembalian dana raised after approval its own permintaan", async () => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananTerbayar(setup);
     const { tagihan, baris } = await barisPertama(setup, fixture.tagihanId);
@@ -433,6 +433,51 @@ describe("a refund of some lines of a paid Tagihan (an order cancelled one item 
     await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
     const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer });
     expect(terbit.ok).toBe(true);
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+  });
+
+  it("refuses a goodwill pengembalian dana while a permintaan pengembalian of the Tagihan is still open (its old contract)", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { baris } = await barisPertama(setup, fixture.tagihanId);
+    const diajukan = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [{ ...baris, amount: 1_000 }] });
+    if (!diajukan.ok) throw new Error(`refused: ${diajukan.reason}`);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: diajukan.permintaanId });
+
+    const goodwill = await setup.refunds.ajukanGoodwill(fixture.admin, {
+      tagihanId: fixture.tagihanId,
+      nomorTagihan: "TGH",
+      nomorPemesanan: "MKM-2026-000001",
+      jumlah: 100_000,
+      catatan: "Uji",
+    });
+    expect(goodwill).toEqual({ ok: false, reason: "sudah_ada_permintaan_terbuka" });
+    expect(await setup.refunds.permintaanTerbuka()).toHaveLength(1);
+  });
+
+  it("keeps a Tagihan Dikembalikan penuh when the full permintaan pengembalian is transferred before the partial one", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const { tagihan, baris } = await barisPertama(setup, fixture.tagihanId);
+    const semuaBaris = tagihan.lines
+      .filter((satu) => satu.kind !== "biaya_layanan_platform")
+      .map((satu) => ({ label: satu.label, amount: satu.amount, lokasiId: satu.provider.kind === "lokasi_mitra" ? satu.provider.lokasiId : null }));
+
+    const sebagian = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", lines: [baris] });
+    if (!sebagian.ok) throw new Error(`refused: ${sebagian.reason}`);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: sebagian.permintaanId });
+    const penuh = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "pemesan", penuh: true, lines: semuaBaris.slice(1) });
+    if (!penuh.ok) throw new Error(`refused: ${penuh.reason}`);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: penuh.permintaanId });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: sebagian.permintaanId, rekening, alasan: "Diminta lewat telepon" });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: penuh.permintaanId, rekening, alasan: "Diminta lewat telepon" });
+
+    // The full refund is transferred first; then the earlier partial one must not downgrade the Tagihan.
+    const buktiPenuh = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: penuh.permintaanId, ditransferPada: hariTransfer, bukti: buktiTransfer });
+    if (!buktiPenuh.ok) throw new Error(`transfer refused: ${buktiPenuh.reason}`);
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+    const buktiSebagian = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: sebagian.permintaanId, ditransferPada: hariTransfer, bukti: buktiTransfer });
+    if (!buktiSebagian.ok) throw new Error(`transfer refused: ${buktiSebagian.reason}`);
     expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
   });
 });

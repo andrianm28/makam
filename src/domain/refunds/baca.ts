@@ -86,8 +86,11 @@ export async function permintaanDisetujui(db: Database): Promise<PermintaanPenge
 }
 
 /**
- * The open request (diajukan or disetujui) on one order, newest first, or null:
- * what the Pemesan's own order page reads to offer the bank-account form.
+ * The open pengembalian dana on one order that the Pemesan can act on: the one
+ * still Diajukan when there is one (a new request is only ever raised while
+ * none is Diajukan, so the newest open one is always that), else the newest
+ * already-approved one, or null. What the Pemesan's own order page reads to
+ * offer the bank-account form.
  */
 export async function permintaanUntukPesanan(db: Database, nomorPemesanan: string): Promise<PermintaanPengembalian | null> {
   const [row] = await db

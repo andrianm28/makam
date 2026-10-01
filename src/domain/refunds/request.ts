@@ -2,7 +2,7 @@
  * Raising a refund request (spec, Billing > Refunds): from a cancelled, paid
  * Tagihan (`materialisasiDariPembatalan`), or Admin Platform's goodwill refund
  * from the Operator's own funds (`ajukanGoodwill`). Both write through
- * `raiseRequest`, so the open-request index is never bypassed.
+ * `raiseRequest`, so the one-Diajukan index is never bypassed.
  */
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -143,7 +143,7 @@ export type AjukanGoodwillResult =
   | { ok: true; permintaan: PermintaanPengembalian }
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" }
-  /** Another request for this Tagihan is already open (diajukan or disetujui). */
+  /** Another pengembalian dana for this Tagihan is still open (Diajukan or Disetujui, not yet transferred). */
   | { ok: false; reason: "sudah_ada_permintaan_terbuka" };
 
 /**
@@ -292,25 +292,28 @@ async function ajukanBarisTerkunci(
   if (parsed.data.penuh && !lengkap) return { ok: false, reason: "input_tidak_valid" };
   const penuh = lengkap && (parsed.data.penuh === true || parsed.data.penuhBilaLengkap === true);
 
-  const terbuka = sebelumnya.find((row) => row.status !== "ditransfer");
-  if (terbuka && parsed.data.penuh) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
-  // Only a request still Diajukan, ordinary and not already the whole Tagihan, takes new lines. A request already
-  // approved is awaiting the transfer of the amount Admin Platform approved, so its lines are frozen; the new lines
-  // then become their own request, with a transfer of their own, so every line is still refunded exactly once.
-  const bisaDigabung = terbuka !== undefined && terbuka.status === "diajukan" && !terbuka.goodwill && !terbuka.penuh;
-  if (terbuka && !bisaDigabung && terbuka.status !== "disetujui") return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
-  if (terbuka && bisaDigabung) {
+  // The one request still Diajukan (the partial unique index allows at most one) is the only one a new line may
+  // join. Named explicitly, never by row order: a request already approved is awaiting the transfer of the amount
+  // Admin Platform approved, so its lines are frozen, and a goodwill one is the Operator's own gesture, not this
+  // caller's to add to. The new lines then become their own request, with a transfer of their own, so every line is
+  // still refunded exactly once however many plots are cancelled, in whatever order.
+  const diajukan = sebelumnya.find((row) => row.status === "diajukan");
+  const bisaDigabung = diajukan !== undefined && !diajukan.goodwill && !diajukan.penuh;
+  // A Diajukan request that cannot take these lines leaves nowhere else for them: a second Diajukan request for one
+  // Tagihan is impossible by the partial unique index, so the raise is refused rather than colliding with it.
+  if (diajukan && !bisaDigabung) return { ok: false, reason: "sudah_ada_permintaan_terbuka" };
+  if (diajukan && bisaDigabung) {
     await deps.db
       .update(permintaanPengembalian)
       .set({
-        lines: [...(terbuka.lines as RefundLine[]), ...lines],
-        jumlah: rupiahSchema.parse(terbuka.jumlah + jumlah),
-        biayaLayananPlatformDikembalikan: terbuka.biayaLayananPlatformDikembalikan || denganFee,
+        lines: [...(diajukan.lines as RefundLine[]), ...lines],
+        jumlah: rupiahSchema.parse(diajukan.jumlah + jumlah),
+        biayaLayananPlatformDikembalikan: diajukan.biayaLayananPlatformDikembalikan || denganFee,
         // Joining may complete the Tagihan: everything the fee rule returns is then asked, and the request is "penuh".
         penuh,
       })
-      .where(and(eq(permintaanPengembalian.id, terbuka.id), eq(permintaanPengembalian.status, "diajukan")));
-    return { ok: true, permintaanId: terbuka.id, lines, jumlah, biayaLayananPlatformDikembalikan: denganFee };
+      .where(and(eq(permintaanPengembalian.id, diajukan.id), eq(permintaanPengembalian.status, "diajukan")));
+    return { ok: true, permintaanId: diajukan.id, lines, jumlah, biayaLayananPlatformDikembalikan: denganFee };
   }
 
   const raised = await raiseRequest(deps.db, deps.clock.now(), {

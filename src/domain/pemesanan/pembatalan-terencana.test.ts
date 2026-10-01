@@ -493,7 +493,7 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     expect((await setup.audit.allEntries()).filter((entry) => entry.action === "pembatalan_terencana.setujui")).toEqual([]);
   });
 
-  it("approves a second Pembatalan while an earlier refund is approved and awaiting transfer, as its own request whose transfer pays its line once", async () => {
+  it("approves a second Pembatalan while an earlier pengembalian dana is approved and awaiting transfer, as its own permintaan whose transfer pays its line once", async () => {
     const setup = pemesananOnTestDatabase(db);
     const dasar = await pesananAktif(setup);
     const pertama = await ajukan(setup, dasar);
@@ -530,6 +530,44 @@ describe("the Admin Lokasi confirms there is no Pemakaman", () => {
     });
     if (!buktiPertama.ok || !buktiKedua.ok) throw new Error("a transfer was refused");
     expect(buktiPertama.bukti.amount + buktiKedua.bukti.amount).toBe(5_000_000);
+    expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
+  });
+
+  it("approves a third Pembatalan at once by joining the permintaan pengembalian still Diajukan, and pays each plot once", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup, { nomorPetak: ["A-01", "A-02", "A-07"] });
+    const pertama = await ajukan(setup, dasar, "", 0);
+    const kedua = await ajukan(setup, dasar, "", 1);
+    const ketiga = await ajukan(setup, dasar, "", 2);
+    // The first plot's pengembalian dana is approved and awaiting transfer, so its permintaan is frozen...
+    const a = await setujui(setup, dasar, pertama.id);
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: a.pengembalian!.permintaanId });
+    // ...the second plot's is its own permintaan, still Diajukan...
+    const b = await setujui(setup, dasar, kedua.id);
+    expect(b.pengembalian?.permintaanId).not.toBe(a.pengembalian?.permintaanId);
+
+    // ...and the third plot joins that still-Diajukan permintaan instead of colliding with it.
+    const c = await setujui(setup, dasar, ketiga.id);
+    expect(c.pengembalian?.permintaanId).toBe(b.pengembalian?.permintaanId);
+    const refundKedua = await setup.refunds.permintaan(b.pengembalian!.permintaanId);
+    expect(refundKedua).toMatchObject({ status: "diajukan", jumlah: 5_000_000, penuh: true });
+
+    // Each plot's line is paid exactly once, across the two transfers.
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: b.pengembalian!.permintaanId });
+    await setup.refunds.isiRekeningAdmin(dasar.admin, { permintaanId: a.pengembalian!.permintaanId, rekening, alasan: "Diminta lewat telepon" });
+    await setup.refunds.isiRekeningAdmin(dasar.admin, { permintaanId: b.pengembalian!.permintaanId, rekening, alasan: "Diminta lewat telepon" });
+    const buktiPertama = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: a.pengembalian!.permintaanId,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    const buktiKedua = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: b.pengembalian!.permintaanId,
+      ditransferPada: wibDateOf(setup.clock.now()),
+      bukti: buktiTransfer,
+    });
+    if (!buktiPertama.ok || !buktiKedua.ok) throw new Error("a transfer was refused");
+    expect(buktiPertama.bukti.amount + buktiKedua.bukti.amount).toBe(7_500_000);
     expect(await setup.billing.tagihan(dasar.tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
   });
 

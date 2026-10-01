@@ -40,11 +40,15 @@ export const permintaanSumberKinds = ["pembatalan", "manual"] as const;
 export type PermintaanSumberKind = (typeof permintaanSumberKinds)[number];
 
 /**
- * Owned by the Refunds module: one refund from request to transfer. Several
- * requests may be open on one Tagihan at once (a second Pembatalan waiting
- * behind a refund already approved and awaiting its transfer, ticket 92), but
- * at most one of them may be `diajukan` — the partial unique index below —
- * so a second raise joins the open one or is refused, never doubled.
+ * Owned by the Refunds module: one pengembalian dana from request to transfer.
+ * Several requests may be open on one Tagihan at once (a second Pembatalan
+ * waiting behind one already approved and awaiting its transfer, ticket 92),
+ * but at most one of them may be `diajukan` — the partial unique index below —
+ * so a second raise joins the still-Diajukan one when that one can take it,
+ * and otherwise becomes its own request, never doubling a line. A goodwill or
+ * whole-Tagihan source keeps its older contract (never raised beside any other
+ * open request); the migration's compatibility trigger enforces that for the
+ * running release too.
  */
 export const permintaanPengembalian = pgTable(
   "permintaan_pengembalian",

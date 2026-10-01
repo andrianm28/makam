@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, lte, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -480,6 +480,11 @@ export type TandaiPengembalianResult = { ok: true } | { ok: false; reason: "tida
  * taken `within` the transaction that issues that Bukti, so the two commit
  * together). This is the one place anything but Billing itself changes a
  * Tagihan's status, because the Tagihan is Billing's own table.
+ *
+ * The move is monotonic: a Tagihan already Dikembalikan penuh is never taken
+ * back to sebagian by a later transfer of another request on the same Tagihan,
+ * whatever order the two transfers happen in (ticket 92). The Bukti is still
+ * issued and its money still moves; only the status may not go backwards.
  */
 export async function tandaiPengembalian(
   db: Database,
@@ -488,8 +493,16 @@ export async function tandaiPengembalian(
 ): Promise<TandaiPengembalianResult> {
   if (!z.uuid().safeParse(tagihanId).success) return { ok: false, reason: "tidak_ditemukan" };
   const status = input.kind === "penuh" ? "dikembalikan_penuh" : "dikembalikan_sebagian";
-  const updated = await db.update(tagihan).set({ status }).where(eq(tagihan.id, tagihanId)).returning({ id: tagihan.id });
-  return updated.length > 0 ? { ok: true } : { ok: false, reason: "tidak_ditemukan" };
+  const updated = await db
+    .update(tagihan)
+    .set({ status })
+    .where(input.kind === "sebagian" ? and(eq(tagihan.id, tagihanId), ne(tagihan.status, "dikembalikan_penuh")) : eq(tagihan.id, tagihanId))
+    .returning({ id: tagihan.id });
+  if (updated.length > 0) return { ok: true };
+  // Nothing was updated: either the Tagihan is gone, or it is already Dikembalikan penuh
+  // and this partial transfer must not downgrade it, so the transfer itself still succeeds.
+  const [row] = await db.select({ id: tagihan.id }).from(tagihan).where(eq(tagihan.id, tagihanId));
+  return row ? { ok: true } : { ok: false, reason: "tidak_ditemukan" };
 }
 
 /** The Tagihan behind a document link, or null. */
