@@ -115,6 +115,16 @@ describe("the Admin Lokasi of that Lokasi ticks its checklist off", () => {
 });
 
 describe("an Admin Lokasi reads one order's family, and only its own Lokasi's", () => {
+  it("lists the Lokasi's whole checklist on an order the family has uploaded nothing to", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await orderDenganChecklist(setup);
+
+    const order = await setup.pemesanan.orderUntukStaf(fixture.adminLokasi, fixture.nomor);
+
+    expect(fixture.checklist.length).toBeGreaterThan(0);
+    expect(order?.dokumen.map((satu) => satu.nama)).toEqual(fixture.checklist);
+  });
+
   it("shows the Pemesan's name, phone, email, the Almarhum and the documents for its own order", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await orderDenganChecklist(setup);
@@ -127,7 +137,10 @@ describe("an Admin Lokasi reads one order's family, and only its own Lokasi's", 
       status: "diajukan",
       pemesan: { name: "Budi Santoso", phoneNumber: "+6281234567890", email: "pemesan@contoh.id" },
       almarhum: { name: "Siti Aminah", tanggalWafat: "2026-09-30" },
-      dokumen: [expect.objectContaining({ diunggah: expect.objectContaining({ at: wib("2026-10-01 09:00") }) })],
+      dokumen: [
+        expect.objectContaining({ nama: fixture.checklist[0], diunggah: expect.objectContaining({ at: wib("2026-10-01 09:00") }) }),
+        ...fixture.checklist.slice(1).map((lain) => ({ nama: lain, diunggah: null, dicentang: null })),
+      ],
     });
     expect(await setup.pemesanan.urlDokumenUntukStaf(fixture.adminLokasi, fixture.nomor, fixture.checklist[0]!)).toEqual(
       expect.stringContaining("/"),

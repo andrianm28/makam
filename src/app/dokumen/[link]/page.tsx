@@ -227,7 +227,7 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianD
   );
 }
 
-/** Bayar: on to the payment page (Virtual Account or QRIS). Never printed. */
+/** Bayar: on to the payment page (QRIS). Never printed. */
 function BayarForm({ link, total }: { link: string; total: number }) {
   return (
     <form action={bayarTagihan} className="flex flex-col gap-2 print:hidden sm:items-start">
@@ -236,7 +236,7 @@ function BayarForm({ link, total }: { link: string; total: number }) {
         Bayar {formatRupiah(total)}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Bayar dengan Virtual Account (VA) atau QRIS. Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas
+        Bayar dengan QRIS. Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas
         setelah pembayaran kami terima; muat ulang halaman ini sebentar lagi.
       </p>
     </form>

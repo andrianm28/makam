@@ -37,7 +37,7 @@ export default async function StafAdminPage() {
               {invites.map((invite) => (
                 <li key={invite.id}>
                   {invite.email} · {invite.phoneNumber} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
-                  {formatWib(invite.expiresAt)} WIB
+                  {formatWib(invite.expiresAt)}
                 </li>
               ))}
             </ul>
