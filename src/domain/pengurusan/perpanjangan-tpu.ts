@@ -197,3 +197,50 @@ export async function cekTpuTerbuka(deps: Pick<PengurusanDeps, "db" | "lokasi">)
   );
   return hasil.sort((a, b) => a.diajukanAt.getTime() - b.diajukanAt.getTime());
 }
+
+export const koreksiIptmBerakhirSchema = z.object({
+  nomor: nomorSchema,
+  /** The expiry as the IPTM photo shows it, `YYYY-MM-DD`. */
+  berlakuSampai: z.iso.date(),
+  alasan: z.string().trim().min(1).max(500),
+});
+
+export type KoreksiIptmBerakhirResult =
+  | { ok: true; berlakuSampai: string }
+  | WriteRefusal
+  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
+
+/**
+ * Admin Platform corrects the expiry date the Pemegang Hak read off the IPTM photo (spec: "read off the IPTM photo and
+ * corrected by Admin Platform"), until a Tagihan has been issued. Whether the request is past the masa tenggang is read
+ * again from the corrected date, as of the day it was placed. Audited with the reason.
+ */
+export async function koreksiIptmBerakhir(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<KoreksiIptmBerakhirResult> {
+  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+  if (refusal) return refusal;
+  const parsed = koreksiIptmBerakhirSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const input = parsed.data;
+  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
+  const lewat = wibDateOf(order.diajukanAt) > addWibDateMonths(input.berlakuSampai, BULAN_MASA_TENGGANG_TPU);
+  return deps.audit.staffWrite<KoreksiIptmBerakhirResult>(deps.db, async (tx, record) => {
+    const hasil = await tx
+      .update(pengurusanTpu)
+      .set({ iptmBerakhirPada: input.berlakuSampai, lewatMasaTenggang: lewat, ...(lewat === order.lewatMasaTenggang ? {} : { cekTpuSelesaiPada: null }) })
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status), isNull(pengurusanTpu.tagihanId)))
+      .returning({ id: pengurusanTpu.id });
+    if (hasil.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "pengurusan.iptm_berakhir_dikoreksi",
+      entity: { kind: "pengurusan_tpu", id: order.id },
+      lokasiId: null,
+      before: { berlakuSampai: order.iptmBerakhirPada },
+      after: { berlakuSampai: input.berlakuSampai },
+      reason: input.alasan,
+    });
+    return { ok: true as const, berlakuSampai: input.berlakuSampai };
+  });
+}

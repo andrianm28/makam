@@ -289,7 +289,7 @@ describe("correcting the IPTM expiry date", () => {
     expect(entri).toMatchObject({ before: { berlakuSampai: "2027-05-30" }, after: { berlakuSampai: "2027-02-15" }, reason: "Tanggal di foto IPTM: 15 Februari 2027" });
   });
 
-  it("is Admin Platform's alone and only until the Tagihan is issued", async () => {
+  it("needs a reason and is refused once the Tagihan is issued", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await makamBerakhir(setup, "2027-02-15");
     const { nomor } = await sampaiMenungguPembayaran(setup, dasar);

@@ -77,15 +77,10 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
-import { cekTpuTerbuka, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";
-import type { CekTpuTerbuka, PutuskanCekTpuResult } from "./perpanjangan-tpu";
-export type { CekTpuTerbuka, PutuskanCekTpuResult };
-export { putuskanCekTpuSchema, HARI_KERJA_CEK_TPU } from "./perpanjangan-tpu";
-export { mintaPerbaikanSchema } from "./perpanjangan-tpu";
-import type { MintaPerbaikanResult } from "./perpanjangan-tpu";
-export type { MintaPerbaikanResult };
-import type { PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult } from "./perpanjangan-tpu";
-export type { PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult };
+import { cekTpuTerbuka, koreksiIptmBerakhir, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";
+import type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult } from "./perpanjangan-tpu";
+export type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult };
+export { HARI_KERJA_CEK_TPU, koreksiIptmBerakhirSchema, mintaPerbaikanSchema, putuskanCekTpuSchema } from "./perpanjangan-tpu";
 export { pembayaranBerkasTick, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
 export type { PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
 export type { PengurusanOrder } from "./reads";
@@ -164,6 +159,8 @@ export interface Pengurusan {
   mintaPerbaikan(by: Actor, input: unknown): Promise<MintaPerbaikanResult>;
   /** The TPU's answer to a past-grace Perpanjangan TPU, recorded by Admin Platform: on to the document check, or Ditolak with the reason and no charge. Audited. */
   putuskanCekTpu(by: Actor, input: unknown): Promise<PutuskanCekTpuResult>;
+  /** Admin Platform corrects the IPTM expiry date read off the photo, until a Tagihan is issued. Audited with the reason. */
+  koreksiIptmBerakhir(by: Actor, input: unknown): Promise<KoreksiIptmBerakhirResult>;
   /** Every past-grace Perpanjangan TPU waiting for the TPU's answer: the Antrean's Tier 3 past-grace TPU check (1 working day). No actor: the caller checks `antrean.lihat`. */
   cekTpuTerbuka(): Promise<CekTpuTerbuka[]>;
   /** Every filing-only order whose documents are all in and unchecked: the Antrean's Tier 3 document check (1 working day). No actor: the caller checks `antrean.lihat`. */
@@ -260,6 +257,7 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     placePerpanjanganTpu: (input) => placePerpanjanganTpu(withAudit, input),
     mintaPerbaikan: (by, input) => mintaPerbaikan(withAudit, by, input),
     putuskanCekTpu: (by, input) => putuskanCekTpu(withAudit, by, input),
+    koreksiIptmBerakhir: (by, input) => koreksiIptmBerakhir(withAudit, by, input),
     cekTpuTerbuka: () => cekTpuTerbuka(withAudit),
     periksaBerkasTerbuka: () => periksaBerkasTerbuka(withAudit),
     pengajuanBerkasTerbuka: () => pengajuanBerkasTerbuka(withAudit),
