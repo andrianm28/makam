@@ -43,6 +43,15 @@ These rules used to live only in the owner's machine-level memory; they are here
 
 
 
+## Details moved from `AGENTS.md` (2026-10-02, to keep every agent's prompt small)
+
+- **E2e in CI**: job `e2e` in `.github/workflows/ci.yml` runs the pushed `sha-<commit>` image on a GitHub-hosted runner with its own Postgres (`deploy/ci/e2e.env`), never on the shared host; a failure uploads traces, screenshots and stack logs as the `e2e-results` artifact. PRs and branches skip it.
+- **Trivy and the deploy gate**: `tests/trivyignore.test.ts` checks each `.trivyignore` entry has a reason and an `exp:` at most 90 days out. A deploy depends on `deploy-gate`, which needs every CI job.
+- **`seed-tagihan`** (`node dist/seed-tagihan.mjs`, `src/cli/seed-tagihan.ts`): development-only, for e2e and local stacks; issues an example Tagihan and, when Pengaturan Operator is empty, enters example values as the stack's first Admin Platform. Refuses to run unless `APP_ENV` is development or test.
+- **Dependencies**: the store is `~/.cache/makam/deps` (one `npm ci` per lockfile); a tool that edits a package file in place fails with EACCES. A package that must be rebuilt in place (`npm rebuild`, node-gyp) needs a private copy: `npm ci` in that worktree, at the full ~1 GB cost. `npm test` (not `test:shared`) starts its own container.
+- **Image cleanup on a deployed host**: `makam-prune-images` removes `ghcr.io/andrianm28/makam:sha-<commit>` versions only; use its `--dry-run` first (`docs/ops/runbook.md`, "Images on the host and the disk"). `tests/tooling/image-retention.test.ts` fails the build if a prune without a name appears in any file git tracks (including extension-less files in `deploy/bin/`, the `Dockerfile` and systemd units); only documentation and lock files are skipped.
+- **Domain module notes**: refunds covers refund requests, their approval and the Bukti Pengembalian Dana a transfer issues (ticket 31); katalog-lama holds the catalog codes an import brought across (ticket 86). The Kode Masuk exception is from the spec, Identity & Access and Notifications.
+
 ## Worktree items moved from `AGENTS.md`
 
 3. **Local stack**, only when a ticket needs to see the running app beyond what CI's e2e covers (e.g. a UI you must look at, a worker job end to end): `npm run stack -- up --build -d` runs `docker-compose.yml` as this worktree's own compose project (`npm run stack` prints its name; pick a free port with `MAKAM_WEB_PORT`; for local e2e set `E2E_SEED_ADMIN="npm run -s stack -- exec -T web node dist/seed-admin.mjs"`). Stop it with `npm run clean` as soon as you are done. Use `npm run stack` rather than a plain `docker compose up`, which joins the shared `makam-v1-dev` project that `npm run clean` never touches.
