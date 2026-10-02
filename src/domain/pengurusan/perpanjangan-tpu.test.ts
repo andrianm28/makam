@@ -247,3 +247,25 @@ describe("a PTSP rejection of a Perpanjangan TPU", () => {
     expect(await setup.refunds.permintaanTerbuka()).toEqual([expect.objectContaining({ nomorPemesanan: nomor, jumlah: 1_000_000, status: "diajukan" })]);
   });
 });
+
+describe("IPTM Terbit of a Perpanjangan TPU", () => {
+  it("updates the Makam TPU's current IPTM and history, on the same record and without another Almarhum", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const sebelum = (await setup.pengurusan.makamTpuSaya(dasar.pemesan))[0]!;
+    expect(sebelum.riwayatIptm.map((entri) => entri.berlakuSampai)).toEqual(["2027-02-15"]);
+    const { nomor } = await sampaiDiajukan(setup, dasar);
+
+    setup.clock.set(wib("2026-12-24 11:00"));
+    const terbit = await setup.pengurusan.terbitkanIptm(dasar.admin, { nomor, berkas: berkas(), berlakuSampai: "2030-02-15" });
+    expect(terbit).toEqual({ ok: true, status: "iptm_terbit", makamTpuId: dasar.makamTpuId, diperbarui: true });
+
+    const makam = await setup.pengurusan.makamTpuSaya(dasar.pemesan);
+    expect(makam).toHaveLength(1);
+    expect(makam[0]).toMatchObject({ id: dasar.makamTpuId, iptm: { berlakuSampai: "2030-02-15" }, almarhum: sebelum.almarhum });
+    expect(makam[0]!.riwayatIptm.map((entri) => entri.berlakuSampai)).toEqual(["2027-02-15", "2030-02-15"]);
+    expect(makam[0]!.riwayatIptm[1]).toMatchObject({ nomorPengurusan: nomor });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "iptm_terbit", makamTpuId: dasar.makamTpuId, iptm: { berlakuSampai: "2030-02-15" } });
+    expect(await setup.pengurusan.iptmScanUrl(dasar.pemesan, nomor)).not.toBeNull();
+  });
+});

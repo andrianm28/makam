@@ -209,7 +209,7 @@ export type TolakPtspResult =
   | { ok: true; status: "ditolak"; pengembalian: number }
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" | "dokumen_tidak_dikenal" }
-  /** A final rejection's full refund is for a filing-only order; a Saat Duka TPU one is not decided here. */
+  /** A final rejection's full refund is for filing-only work (a filing-only order or a Perpanjangan TPU); a Saat Duka TPU one is not decided here. */
   | { ok: false; reason: "bukan_pengurusan_berkas" }
   | { ok: false; reason: "pengembalian_tidak_terbit" };
 
@@ -226,7 +226,7 @@ export async function tolakPtsp(deps: PengurusanDeps, by: Actor, rawInput: unkno
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
   const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
-  if (!order || (order.kind !== "pengurusan_iptm" && order.kind !== "saat_duka_tpu")) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   if (order.status !== "iptm_diajukan") return { ok: false, reason: "status_tidak_sesuai" };
   const now = deps.clock.now();
 
@@ -234,7 +234,7 @@ export async function tolakPtsp(deps: PengurusanDeps, by: Actor, rawInput: unkno
     return kembalikanKePerbaikan(deps, by, order, { aksi: "pengurusan.ptsp_perbaikan", alasan: input.alasan, dokumen: input.dokumen });
   }
 
-  if (order.kind !== "pengurusan_iptm") return { ok: false, reason: "bukan_pengurusan_berkas" };
+  if (order.kind === "saat_duka_tpu") return { ok: false, reason: "bukan_pengurusan_berkas" };
   return deps.audit.staffWrite<TolakPtspResult>(deps.db, async (tx, record) => {
     const moved = await tx
       .update(pengurusanTpu)
