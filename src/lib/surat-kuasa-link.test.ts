@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { suratKuasaRenderPath, suratKuasaRenderSah } from "./surat-kuasa-link";
 
@@ -13,5 +14,11 @@ describe("the Surat Kuasa render link", () => {
     expect(suratKuasaRenderSah(SECRET, "MKM-2026-000002", queryDari(path), sekarang)).toBe(false);
     expect(suratKuasaRenderSah(SECRET, "MKM-2026-000001", { sampai: queryDari(path).sampai, tanda: "x" }, sekarang)).toBe(false);
     expect(suratKuasaRenderSah(SECRET, "MKM-2026-000001", {}, sekarang)).toBe(false);
+  });
+
+  it("refuses a link MACed with the raw AUTH_SECRET: the link has a key of its own", () => {
+    const sampai = sekarang.getTime() + 60_000;
+    const tanda = createHmac("sha256", SECRET).update(`surat-kuasa-render:MKM-2026-000001:${sampai}`).digest("base64url");
+    expect(suratKuasaRenderSah(SECRET, "MKM-2026-000001", { sampai: String(sampai), tanda }, sekarang)).toBe(false);
   });
 });
