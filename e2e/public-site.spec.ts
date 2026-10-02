@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { readRilisEnv } from "../src/lib/env";
+import { terbukaDi } from "../src/lib/rilis-peta";
 
 /**
  * The public site's own smoke test: the Beranda's hero in the order a family in a
@@ -13,8 +16,27 @@ import { expect, test } from "@playwright/test";
  */
 const menuLabels = ["Pesan Makam", "Makam Keluarga", "Layanan", "Wakaf Tanah", "Daftar Lokasi"];
 
-/** The two services that arrive in a later release; Makam Keluarga is built and opens the hub. */
-const belumHadir = ["Layanan", "Wakaf Tanah"];
+/**
+ * The release the stack under test has open (ADR 0006). The stack takes it from
+ * `deploy/ci/e2e.env`, which the runner's own environment does not carry, so unless
+ * `RILIS_TERBUKA` is set for the run (a local stack on another release), read it there.
+ */
+function rilisStack() {
+  let fromFile: string | undefined;
+  try {
+    fromFile = /^RILIS_TERBUKA=(\d*)\s*$/m.exec(readFileSync("deploy/ci/e2e.env", "utf8"))?.[1];
+  } catch {
+    fromFile = undefined;
+  }
+  return readRilisEnv({ APP_ENV: process.env.APP_ENV, RILIS_TERBUKA: process.env.RILIS_TERBUKA ?? fromFile });
+}
+
+/**
+ * The menu items whose page is not there in this release, so "Segera hadir": Layanan
+ * has no page of its own at any release (Layanan Makam is ordered from the Makam
+ * Keluarga hub), and Wakaf Tanah opens with Rilis 3. Makam Keluarga is built and opens the hub.
+ */
+const belumHadir = ["Layanan", ...(terbukaDi("wakaf", rilisStack()) ? [] : ["Wakaf Tanah"])];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -74,6 +96,10 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
     await expect(menu.getByRole("link", { name: new RegExp(`^${label}`) })).toHaveCount(0);
   }
   await expect(menu.getByText("Segera", { exact: true })).toHaveCount(belumHadir.length);
+  // An item whose release is open is a link to its page.
+  if (!belumHadir.includes("Wakaf Tanah")) {
+    await expect(menu.getByRole("link", { name: /^Wakaf Tanah/ })).toHaveAttribute("href", "/wakaf-tanah");
+  }
 });
 
 test.describe("on a phone", () => {
