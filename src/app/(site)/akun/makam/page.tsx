@@ -8,6 +8,7 @@ import { kartuMakamSaya, type PengelolaLokasi } from "@/lib/makam-keluarga-conte
 import { formatTanggal } from "@/lib/time/jakarta";
 import { currentActor } from "@/server/session";
 import { serverRuntime } from "@/server/runtime";
+import { CalonPenghuniForm } from "../../permintaan-hak-pakai/[hakPakaiId]/permintaan-forms";
 
 export const metadata: Metadata = {
   title: "Makam Keluarga · Akun Saya | Makam.co.id",
@@ -123,6 +124,19 @@ export default async function AkunMakamPage() {
             <Link href={`/perpanjangan/${satu.hakPakaiId}`} className="text-small font-medium text-brand underline underline-offset-4">
               Perpanjang Makam
             </Link>
+          ) : null}
+
+          {!satu.hanyaBaca && satu.status.key === "aktif" ? (
+            <Link href={`/permintaan-hak-pakai/${satu.hakPakaiId}`} className="text-small font-medium text-brand underline underline-offset-4" data-testid="tautan-permintaan-hak-pakai">
+              Kembalikan Hak Pakai atau Ajukan Ganti Pemegang Hak
+            </Link>
+          ) : null}
+          {!satu.hanyaBaca && satu.status.key === "aktif" ? (
+            <div className="flex flex-col gap-3">
+              {(unit.find((makam) => makam.hakPakaiId === satu.hakPakaiId)?.petak ?? []).map((petak) => (
+                <CalonPenghuniForm key={petak.petakId} hakPakaiId={satu.hakPakaiId} petakId={petak.petakId} nomor={petak.nomorMakam} label={petak.calonPenghuni} />
+              ))}
+            </div>
           ) : null}
 
           {satu.hanyaBaca ? null : <PembatalanTautan hakPakaiId={satu.hakPakaiId} info={pembatalan.get(satu.hakPakaiId)} />}

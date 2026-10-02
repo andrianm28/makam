@@ -68,7 +68,7 @@ import {
   type BeriHakPakaiDariTahanInput,
   type BeriHakPakaiDariTahanResult,
 } from "./tahan-bayar";
-import { gantiPemegangHak, riwayatPemegangHak, ubahKontakPemegangHak, type PemegangHakResult, type RiwayatPemegangHak } from "./pemegang-hak";
+import { gantiPemegangHak, riwayatPemegangHak, ubahKontakPemegangHak, ubahKontakPemegangHakSchema, type PemegangHakResult, type RiwayatPemegangHak } from "./pemegang-hak";
 import {
   akhiriHakPakaiManual,
   catatPembongkaran,
@@ -105,6 +105,7 @@ export type { BeriHakPakaiResult, TersediaUnit } from "./beri-hak-pakai";
 export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakaiResult, PerpanjangHakPakaiResult } from "./perpanjangan";
 export { lengkapiHakPakaiSchema };
 export type { PemegangHakResult, RiwayatPemegangHak };
+export { ubahKontakPemegangHakSchema };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { AkhiriHakPakaiManualResult, CatatPembongkaranResult, HakPakaiMasaTenggang, HakPakaiMenjelangAkhir };
 export { akhiriHakPakaiManualSchema, catatPembongkaranSchema, kedaluwarsaTick } from "./masa-berlaku";

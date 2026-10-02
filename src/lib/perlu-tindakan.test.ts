@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perluTindakanDariBerkasTpu, perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
+import { perluTindakanDariBerkasTpu, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
 
 /** One order with nothing that needs the family, the baseline every test starts from and overrides. */
 function ringkasan(over: Partial<RingkasanTindakan> = {}): RingkasanTindakan {
@@ -100,5 +100,16 @@ describe("a TPU filing in Perlu tindakan (ticket 46)", () => {
 
   it("has nothing for an order whose documents are all in", () => {
     expect(perluTindakanDariBerkasTpu([])).toEqual([]);
+  });
+});
+
+describe("perluTindakanDariPermintaanHakPakai", () => {
+  const permintaan = { id: "11111111-1111-4111-8111-111111111111", hakPakaiId: "22222222-2222-4222-8222-222222222222", jenis: "pengembalian", unitNomor: "A-01" } as const;
+
+  it("shows a Pengembalian or Ganti Pemegang Hak request sent back for a fix, linking to its Hak Pakai's request page", () => {
+    expect(perluTindakanDariPermintaanHakPakai([permintaan, { ...permintaan, id: "33333333-3333-4333-8333-333333333333", jenis: "ganti_pemegang_hak" }])).toEqual([
+      expect.objectContaining({ id: `permintaan-hak-pakai-perbaikan:${permintaan.id}`, href: `/permintaan-hak-pakai/${permintaan.hakPakaiId}`, judul: expect.stringContaining("Pengembalian Hak Pakai A-01") }),
+      expect.objectContaining({ judul: expect.stringContaining("Ganti Pemegang Hak A-01") }),
+    ]);
   });
 });
