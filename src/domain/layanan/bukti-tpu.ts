@@ -45,7 +45,7 @@ import {
   pekerjaanLayananTpuPenugasan,
 } from "./schema";
 import { kerjaUlangTpuSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema } from "./tpu-skema";
-import { buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
+import { BATAS_VERIFIKASI_BUKTI_JAM, buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
 import { tugaskanMitraJasa, type TugaskanMitraJasaResult } from "./penugasan-tpu";
 
 import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
@@ -54,8 +54,6 @@ import { HARI_TERLAMBAT } from "./pekerjaan";
 const BUKTI_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
 const JAM_MS = 3_600_000;
 
-/** Admin Platform has this long to approve or reject a proof (the Tier 2 row's deadline). */
-export const BATAS_VERIFIKASI_BUKTI_JAM = 24;
 
 type Penolakan = { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" };
 
@@ -259,9 +257,9 @@ export async function setujuiBuktiTpu(deps: LayananDeps, by: Actor, rawInput: un
 
     let pencairanItemId: string | null = null;
     let dibayar = false;
-    const asal = job.kerjaUlangDariId ? await pelaksanaDan(tx, job.kerjaUlangDariId) : null;
-    const samaDenganAsal = asal !== null && asal.pelaksana?.id === pelaksana.id;
-    if (!samaDenganAsal) {
+    const pekerjaanAsal = job.kerjaUlangDariId ? await pelaksanaDan(tx, job.kerjaUlangDariId) : null;
+    const diulangOlehYangSama = pekerjaanAsal !== null && pekerjaanAsal.pelaksana?.id === pelaksana.id;
+    if (!diulangOlehYangSama) {
       // Paid at the rate in force for the variant: the normal rate, for the first job and for a redo by another Mitra Jasa.
       const tarif = await deps.tariffs.mitraJasaRate(by, job.layananVariantId, sekarang);
       if (!tarif) return { ok: false as const, reason: "tarif_belum_ada" as const };
@@ -284,15 +282,15 @@ export async function setujuiBuktiTpu(deps: LayananDeps, by: Actor, rawInput: un
     }
 
     // The redo's own approval is what settles the original's Pencairan.
-    if (asal) {
-      if (samaDenganAsal) {
-        if (asal.job.pencairanItemId) await deps.payouts.jadikanJatuhTempo(tx, asal.job.pencairanItemId);
+    if (pekerjaanAsal) {
+      if (diulangOlehYangSama) {
+        if (pekerjaanAsal.job.pencairanItemId) await deps.payouts.jadikanJatuhTempo(tx, pekerjaanAsal.job.pencairanItemId);
         await tx
           .update(pekerjaanLayananTpu)
           .set({ status: "selesai", buktiDitunjukkanAt: sekarang, pencairanJatuhTempoAt: sekarang })
-          .where(eq(pekerjaanLayananTpu.id, asal.job.id));
-      } else if (asal.job.pencairanItemId) {
-        await deps.payouts.batalkanItem(tx, { itemId: asal.job.pencairanItemId, alasan: "diganti_pelaksana" });
+          .where(eq(pekerjaanLayananTpu.id, pekerjaanAsal.job.id));
+      } else if (pekerjaanAsal.job.pencairanItemId) {
+        await deps.payouts.batalkanItem(tx, { itemId: pekerjaanAsal.job.pencairanItemId, alasan: "diganti_pelaksana" });
       }
     }
 
@@ -388,73 +386,6 @@ async function pelaksanaDan(db: Database, pekerjaanId: string) {
   return job ? { job, pelaksana: await pelaksanaOf(db, pekerjaanId) } : null;
 }
 
-export type KerjaUlangTpuResult =
-  | { ok: true; pekerjaanId: string; penugasan: Extract<TugaskanMitraJasaResult, { ok: true }> }
-  | Penolakan
-  | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "bukan_selesai" | "sudah_dikerjakan_ulang" | "mitra_jasa_tidak_tersedia" };
-
-/**
- * Admin Platform has a finished job redone (the decision of an upheld Keluhan, by the same or another
- * Mitra Jasa; spec, Layanan > Keluhan outcome). The redo is a job of its own, linked to the original,
- * handed to the chosen Mitra Jasa through the same picker rule as any assignment; the original goes to
- * Keluhan and keeps its Pencairan, which the redo's approval then releases or cancels.
- */
-export async function kerjaUlangTpu(deps: LayananDeps, by: Actor, rawInput: unknown, dariKeluhan = false): Promise<KerjaUlangTpuResult> {
-  const statusAsal = dariKeluhan ? "keluhan" : "selesai";
-  const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
-  if (refusal) return refusal;
-  const parsed = kerjaUlangTpuSchema.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
-  const { pekerjaanId, mitraJasaId } = parsed.data;
-  const sekarang = deps.clock.now();
-
-  const dibuat = await deps.db.transaction(async (tx) => {
-    const [asal] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
-    if (!asal) return { ok: false as const, reason: "tidak_ditemukan" as const };
-    if (asal.status !== statusAsal) return { ok: false as const, reason: "bukan_selesai" as const };
-    const [ada] = await tx.select({ id: pekerjaanLayananTpu.id }).from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.kerjaUlangDariId, pekerjaanId));
-    if (ada) return { ok: false as const, reason: "sudah_dikerjakan_ulang" as const };
-    const [urutan] = await tx
-      .select({ maks: sql<number>`coalesce(max(${pekerjaanLayananTpu.posisi}), 0)` })
-      .from(pekerjaanLayananTpu)
-      .where(eq(pekerjaanLayananTpu.nomor, asal.nomor));
-    const salinan: Omit<typeof asal, "id"> & { id?: string } = { ...asal };
-    delete salinan.id;
-    const [baru] = await tx
-      .insert(pekerjaanLayananTpu)
-      .values({
-        ...salinan,
-        posisi: urutan.maks + 1,
-        status: "dijadwalkan",
-        dijadwalkanAt: sekarang,
-        createdAt: sekarang,
-        mulaiAt: null,
-        buktiDikirimAt: null,
-        buktiDitolakAlasan: null,
-        buktiDitunjukkanAt: null,
-        selesaiAt: null,
-        jendelaDitutupAt: null,
-        pencairanItemId: null,
-        pencairanJatuhTempoAt: null,
-        kerjaUlangDariId: pekerjaanId,
-      })
-      .returning({ id: pekerjaanLayananTpu.id });
-    await tx.update(pekerjaanLayananTpu).set({ status: "keluhan" }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
-    return { ok: true as const, id: baru.id };
-  });
-  if (!dibuat.ok) return dibuat;
-  const tugas = await tugaskanMitraJasa(deps, by, { pekerjaanId: dibuat.id, mitraJasaId });
-  if (!tugas.ok) {
-    // Handing it over failed (the picker refused them): put the original back, and drop the unassigned redo.
-    await deps.db.transaction(async (tx) => {
-      await tx.delete(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, dibuat.id));
-      await tx.update(pekerjaanLayananTpu).set({ status: statusAsal }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
-    });
-    return { ok: false, reason: tugas.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid" };
-  }
-  return { ok: true, pekerjaanId: dibuat.id, penugasan: tugas };
-}
-
 /* ── the window tick and the Antrean ── */
 
 /**
@@ -497,60 +428,3 @@ export async function tutupJendelaTpu(deps: LayananDeps, now: Date): Promise<{ d
   return hasil;
 }
 
-/** A TPU job whose proof waits for Admin Platform, for the Tier 2 row. */
-export interface PekerjaanTpuMenungguVerifikasi {
-  id: string;
-  nomor: string;
-  label: string;
-  tpuName: string;
-  targetDate: string;
-  dikirimAt: Date;
-  /** 24 h after it was sent: when Admin Platform has to have decided. */
-  batasVerifikasi: Date;
-}
-
-export async function pekerjaanTpuMenungguVerifikasi(db: Database): Promise<PekerjaanTpuMenungguVerifikasi[]> {
-  const rows = await db
-    .select()
-    .from(pekerjaanLayananTpu)
-    .where(and(eq(pekerjaanLayananTpu.status, "menunggu_verifikasi"), isNotNull(pekerjaanLayananTpu.buktiDikirimAt)))
-    .orderBy(asc(pekerjaanLayananTpu.buktiDikirimAt));
-  return rows.map((job) => ({
-    id: job.id,
-    nomor: job.nomor,
-    label: job.label,
-    tpuName: job.tpuName,
-    targetDate: job.targetDate,
-    dikirimAt: job.buktiDikirimAt as Date,
-    batasVerifikasi: new Date((job.buktiDikirimAt as Date).getTime() + BATAS_VERIFIKASI_BUKTI_JAM * JAM_MS),
-  }));
-}
-
-/**
- * The worker's tick: a TPU job two days past its target date that has not been sent for approval
- * is flagged Terlambat (spec, Pekerjaan Layanan). The flag changes no pay: a Terlambat job that
- * is done after all is paid in full when its proof is approved. Idempotent: a flagged job is
- * no longer in the states the tick looks at. Returns how many jobs it flagged.
- */
-export async function tandaiTerlambatTpu(db: Database, now: Date): Promise<number> {
-  const batas = addWibDateDays(wibDateOf(now), -HARI_TERLAMBAT);
-  const ditandai = await db
-    .update(pekerjaanLayananTpu)
-    .set({ status: "terlambat" })
-    .where(and(inArray(pekerjaanLayananTpu.status, ["dijadwalkan", "sedang_dikerjakan"]), lte(pekerjaanLayananTpu.targetDate, batas)))
-    .returning({ id: pekerjaanLayananTpu.id });
-  return ditandai.length;
-}
-
-/**
- * When the Keluhan window of a TPU job opened (Admin Platform approved the proof), when it ends, and whether the
- * window-close tick has closed it: what the job's message thread reads to turn read-only. Null for no such job.
- */
-export async function jendelaKeluhanTpu(db: Database, pekerjaanId: string): Promise<{ dibukaAt: Date | null; berakhirAt: Date | null; ditutup: boolean } | null> {
-  const [job] = await db
-    .select({ dibuka: pekerjaanLayananTpu.buktiDitunjukkanAt, ditutup: pekerjaanLayananTpu.jendelaDitutupAt })
-    .from(pekerjaanLayananTpu)
-    .where(eq(pekerjaanLayananTpu.id, pekerjaanId));
-  if (!job) return null;
-  return { dibukaAt: job.dibuka, berakhirAt: job.dibuka ? new Date(job.dibuka.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null, ditutup: job.ditutup !== null };
-}

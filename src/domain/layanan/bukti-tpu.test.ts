@@ -4,7 +4,7 @@ import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { layananOnTestDatabase, type LayananSetup } from "../../../tests/support/layanan";
 import { mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
-import { tandaiTerlambatTpu } from "./bukti-tpu";
+import { tandaiTerlambatTpu } from "./terlambat-tpu";
 
 /**
  * The photo proof of a TPU job, its approval, and the Mitra Jasa pay rules (spec, Layanan > Mitra Jasa;

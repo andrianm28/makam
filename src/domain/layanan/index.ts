@@ -143,7 +143,21 @@ import {
 } from "./skor";
 
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
-import { ajukanKeluhanTpu, keluhanTpuTerbuka, putuskanKeluhanTpu, type AjukanKeluhanTpuResult, type KeluhanTpuTerbuka, type PutuskanKeluhanTpuResult } from "./keluhan-tpu";
+import { kerjaUlangTpu, type KerjaUlangTpuResult } from "./kerja-ulang-tpu";
+import { jendelaKeluhanTpu, pekerjaanTpuMenungguVerifikasi, type PekerjaanTpuMenungguVerifikasi } from "./bukti-tpu-baca";
+import { tandaiTerlambatTpu } from "./terlambat-tpu";
+import {
+  ajukanKeluhanTpu,
+  keluhanTpuTerbuka,
+  keluhanTpuTerbukaAntrean,
+  keluhanTpuUntukPlatform,
+  putuskanKeluhanTpu,
+  type AjukanKeluhanTpuResult,
+  type KeluhanTpuTerbuka,
+  type KeluhanTpuTerbukaAntrean,
+  type KeluhanTpuUntukPlatformResult,
+  type PutuskanKeluhanTpuResult,
+} from "./keluhan-tpu";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
@@ -177,20 +191,14 @@ import {
 import {
   buktiTpuSaya,
   buktiTpuUntukStaf,
-  kerjaUlangTpu,
   kirimBuktiTpu,
-  pekerjaanTpuMenungguVerifikasi,
   setujuiBuktiTpu,
   simpanBuktiTpu,
   tolakBuktiTpu,
   tutupJendelaTpu,
-  tandaiTerlambatTpu,
-  jendelaKeluhanTpu,
   type BuktiTpuMitraJasa,
   type BuktiTpuStaf,
-  type KerjaUlangTpuResult,
   type KirimBuktiTpuResult,
-  type PekerjaanTpuMenungguVerifikasi,
   type SetujuiBuktiTpuResult,
   type SimpanBuktiTpuResult,
   type TolakBuktiTpuResult,
@@ -340,7 +348,7 @@ export type {
 export { keluhanStatuses, type KeluhanStatus } from "./schema";
 export { batasBatal, bolehDibatalkan } from "./batal";
 export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
-export { BATAS_VERIFIKASI_BUKTI_JAM } from "./bukti-tpu";
+export { BATAS_VERIFIKASI_BUKTI_JAM } from "./bukti-tpu-baca";
 export type {
   BacaPekerjaanTpuResult,
   JawabPenugasanResult,
@@ -667,6 +675,10 @@ export interface Layanan {
   putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
   /** The TPU Keluhan waiting for Admin Platform, oldest first. */
   keluhanTpuTerbuka(by: Actor): Promise<KeluhanTpuTerbuka[]>;
+  /** One open or decided Keluhan on a TPU job as Admin Platform reads it to decide: the Pemesan's words, the proof they were shown, and the Mitra Jasa who could redo it. */
+  keluhanTpuUntukPlatform(by: Actor, keluhanId: string): Promise<KeluhanTpuUntukPlatformResult>;
+  /** The Keluhan on TPU jobs waiting for a decision, with their first-response deadline, for the Tier 1 Antrean row. */
+  keluhanTpuTerbukaAntrean(): Promise<KeluhanTpuTerbukaAntrean[]>;
   /** The Antrean's Tier 2 "foto bukti" rows: proofs waiting for approval, oldest first. */
   pekerjaanTpuMenungguVerifikasi(): Promise<PekerjaanTpuMenungguVerifikasi[]>;
   /* ── Keluhan and Penilaian (ticket 51) ── */
@@ -803,6 +815,8 @@ export function createLayanan(deps: LayananDeps): Layanan {
     ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
     putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
     keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),
+    keluhanTpuUntukPlatform: (by, keluhanId) => keluhanTpuUntukPlatform(deps, by, keluhanId),
+    keluhanTpuTerbukaAntrean: () => keluhanTpuTerbukaAntrean(deps),
     pekerjaanTpuMenungguVerifikasi: () => pekerjaanTpuMenungguVerifikasi(deps.db),
     ajukanKeluhan: (pemesan, input) => ajukanKeluhan(deps, pemesan, input),
     beriPenilaian: (pemesan, input) => beriPenilaian(deps, pemesan, input),

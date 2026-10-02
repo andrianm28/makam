@@ -3,13 +3,17 @@
  * on a Selesai job inside the 3×24 h window that opened when Admin Platform approved the proof; the
  * job becomes Keluhan, which holds the Mitra Jasa's Pencairan (the window-close tick only looks at
  * Selesai jobs). Admin Platform then rejects it (the job is Selesai again and the tick releases the
- * Pencairan once the window is over) or has the job redone by a Mitra Jasa it names (`kerjaUlangTpu`,
+ * Pencairan once the window is over) or has the job redone by a Mitra Jasa it names (`kerjaUlangDariKeluhanTpu`,
  * whose pay rules then apply). A refund is not offered here.
  */
 import { and, asc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { daytimeHoursDeadline } from "@/domain/lokasi";
 import type { Actor } from "@/domain/identity";
 import { normaliseEmail, pekerjaanTpuSemuaResource, writeRefusal, type WriteRefusal } from "@/domain/identity";
-import { kerjaUlangTpu } from "./bukti-tpu";
+import { buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
+import { kerjaUlangDariKeluhanTpu } from "./kerja-ulang-tpu";
+import { mitraJasaTersedia, type MitraJasaTersedia } from "./penugasan";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { JENDELA_KELUHAN_JAM } from "./keluhan";
 import { keluhanLayananTpu, pekerjaanLayananTpu } from "./schema";
@@ -49,6 +53,18 @@ export type PutuskanKeluhanTpuResult =
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "sudah_diputuskan" | "mitra_jasa_tidak_tersedia" };
 
+/** A redo that could not be handed over: thrown inside the decision's transaction so that nothing of the decision is kept. */
+class KerjaUlangGagal extends Error {
+  constructor(readonly reason: "input_tidak_valid" | "mitra_jasa_tidak_tersedia") {
+    super(reason);
+  }
+}
+
+/**
+ * Admin Platform decides a Keluhan. One transaction: the claim on the Keluhan, the redo or the job's return
+ * to Selesai, and the audit entry stand or fall together, so a redo that cannot be handed over leaves the
+ * Keluhan open for Admin Platform to decide differently, and two decisions on it take turns.
+ */
 export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<PutuskanKeluhanTpuResult> {
   const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
   if (refusal) return refusal;
@@ -57,43 +73,45 @@ export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput:
   const { keluhanId, keputusan, catatan, mitraJasaId } = parsed.data;
   if (keputusan === "kerjakan_ulang" && !mitraJasaId) return { ok: false, reason: "input_tidak_valid" };
   const now = deps.clock.now();
-
-  // The Keluhan is claimed first, so two decisions on it take turns and the second finds it decided.
   const status = keputusan === "tolak" ? ("ditolak" as const) : ("kerjakan_ulang" as const);
-  const diklaim = await deps.db
-    .update(keluhanLayananTpu)
-    .set({ status, diputuskanAt: now, diputuskanOleh: by.accountId, catatanKeputusan: catatan })
-    .where(and(eq(keluhanLayananTpu.id, keluhanId), eq(keluhanLayananTpu.status, "terbuka")))
-    .returning({ pekerjaanId: keluhanLayananTpu.pekerjaanId });
-  if (diklaim.length === 0) {
-    const [ada] = await deps.db.select({ id: keluhanLayananTpu.id }).from(keluhanLayananTpu).where(eq(keluhanLayananTpu.id, keluhanId));
-    return { ok: false, reason: ada ? "sudah_diputuskan" : "tidak_ditemukan" };
-  }
-  const { pekerjaanId } = diklaim[0];
 
-  if (keputusan === "kerjakan_ulang" && mitraJasaId) {
-    const ulang = await kerjaUlangTpu(deps, by, { pekerjaanId, mitraJasaId }, true);
-    if (!ulang.ok) {
-      // Nothing was redone: the Keluhan is open again for Admin Platform to decide differently.
-      await deps.db.update(keluhanLayananTpu).set({ status: "terbuka", diputuskanAt: null, diputuskanOleh: null, catatanKeputusan: null }).where(eq(keluhanLayananTpu.id, keluhanId));
-      return { ok: false, reason: ulang.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid" };
-    }
-  } else {
-    await deps.db.update(pekerjaanLayananTpu).set({ status: "selesai" }).where(and(eq(pekerjaanLayananTpu.id, pekerjaanId), eq(pekerjaanLayananTpu.status, "keluhan")));
-  }
-  await deps.audit.staffWrite(deps.db, async (_tx, record) => {
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "layanan.putuskan_keluhan_tpu",
-      entity: { kind: "keluhan_layanan_tpu", id: keluhanId },
-      lokasiId: null,
-      before: { status: "terbuka" },
-      after: { status, pekerjaanId },
-      reason: catatan,
+  try {
+    return await deps.db.transaction(async (tx): Promise<PutuskanKeluhanTpuResult> => {
+      const diklaim = await tx
+        .update(keluhanLayananTpu)
+        .set({ status, diputuskanAt: now, diputuskanOleh: by.accountId, catatanKeputusan: catatan })
+        .where(and(eq(keluhanLayananTpu.id, keluhanId), eq(keluhanLayananTpu.status, "terbuka")))
+        .returning({ pekerjaanId: keluhanLayananTpu.pekerjaanId });
+      if (diklaim.length === 0) {
+        const [ada] = await tx.select({ id: keluhanLayananTpu.id }).from(keluhanLayananTpu).where(eq(keluhanLayananTpu.id, keluhanId));
+        return { ok: false, reason: ada ? "sudah_diputuskan" : "tidak_ditemukan" };
+      }
+      const { pekerjaanId } = diklaim[0];
+
+      if (keputusan === "kerjakan_ulang" && mitraJasaId) {
+        const ulang = await kerjaUlangDariKeluhanTpu({ ...deps, db: tx }, by, { pekerjaanId, mitraJasaId });
+        if (!ulang.ok) throw new KerjaUlangGagal(ulang.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid");
+      } else {
+        await tx.update(pekerjaanLayananTpu).set({ status: "selesai" }).where(and(eq(pekerjaanLayananTpu.id, pekerjaanId), eq(pekerjaanLayananTpu.status, "keluhan")));
+      }
+      await deps.audit.staffWrite(tx, async (_tx, record) => {
+        await record({
+          actor: { accountId: by.accountId, role: "admin_platform" },
+          action: "layanan.putuskan_keluhan_tpu",
+          entity: { kind: "keluhan_layanan_tpu", id: keluhanId },
+          lokasiId: null,
+          before: { status: "terbuka" },
+          after: { status, pekerjaanId },
+          reason: catatan,
+        });
+        return { ok: true as const };
+      });
+      return { ok: true };
     });
-    return { ok: true as const };
-  });
-  return { ok: true };
+  } catch (error) {
+    if (error instanceof KerjaUlangGagal) return { ok: false, reason: error.reason };
+    throw error;
+  }
 }
 
 export interface KeluhanTpuTerbuka {
@@ -108,4 +126,112 @@ export async function keluhanTpuTerbuka(deps: Pick<LayananDeps, "db">, by: Actor
   if (writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource())) return [];
   const rows = await deps.db.select().from(keluhanLayananTpu).where(eq(keluhanLayananTpu.status, "terbuka")).orderBy(asc(keluhanLayananTpu.diajukanAt));
   return rows.map((row) => ({ id: row.id, pekerjaanId: row.pekerjaanId, alasan: row.alasan, diajukanAt: row.diajukanAt }));
+}
+
+/** Admin Platform has this long, in daytime hours (06:00-18:00 WIB), to answer a Keluhan first (spec, Work Queues Tier 1). */
+export const JAM_RESPON_PERTAMA_KELUHAN_TPU = 4;
+
+export interface KeluhanTpuTerbukaAntrean {
+  id: string;
+  pekerjaanId: string;
+  nomor: string;
+  label: string;
+  tpuName: string;
+  diajukanAt: Date;
+  responPertamaDueAt: Date;
+}
+
+/** The Keluhan on TPU jobs waiting for a decision, oldest first, each with its first-response deadline: the Tier 1 Antrean row's source. */
+export async function keluhanTpuTerbukaAntrean(deps: Pick<LayananDeps, "db">): Promise<KeluhanTpuTerbukaAntrean[]> {
+  const rows = await deps.db
+    .select({ keluhan: keluhanLayananTpu, job: pekerjaanLayananTpu })
+    .from(keluhanLayananTpu)
+    .innerJoin(pekerjaanLayananTpu, eq(pekerjaanLayananTpu.id, keluhanLayananTpu.pekerjaanId))
+    .where(eq(keluhanLayananTpu.status, "terbuka"))
+    .orderBy(asc(keluhanLayananTpu.diajukanAt));
+  return rows.map(({ keluhan, job }) => ({
+    id: keluhan.id,
+    pekerjaanId: job.id,
+    nomor: job.nomor,
+    label: job.label,
+    tpuName: job.tpuName,
+    diajukanAt: keluhan.diajukanAt,
+    responPertamaDueAt: daytimeHoursDeadline(keluhan.diajukanAt, JAM_RESPON_PERTAMA_KELUHAN_TPU),
+  }));
+}
+
+export type KeluhanTpuUntukPlatformResult =
+  | {
+      ok: true;
+      keluhan: {
+        id: string;
+        pekerjaanId: string;
+        status: "terbuka" | "ditolak" | "kerjakan_ulang";
+        alasan: string;
+        diajukanAt: Date;
+        responPertamaDueAt: Date;
+        diputuskanAt: Date | null;
+        catatanKeputusan: string | null;
+      };
+      pekerjaan: {
+        id: string;
+        nomor: string;
+        label: string;
+        tpuName: string;
+        targetDate: string;
+        pemesanName: string;
+        pemesanPhone: string | null;
+        pemesanEmail: string | null;
+      };
+      /** What the Pemesan was shown, and when the window to complain ends. */
+      bukti: BuktiTpuTerbaca[];
+      ditunjukkanAt: Date | null;
+      jendelaBerakhirAt: Date | null;
+      /** The Mitra Jasa the picker offers for this job: who may be named for a redo. */
+      calon: MitraJasaTersedia[];
+    }
+  | WriteRefusal
+  | { ok: false; reason: "tidak_ditemukan" };
+
+/** One Keluhan on a TPU job, for the screen where Admin Platform decides it. */
+export async function keluhanTpuUntukPlatform(deps: LayananDeps, by: Actor, keluhanId: string): Promise<KeluhanTpuUntukPlatformResult> {
+  const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
+  if (refusal) return refusal;
+  if (!z.uuid().safeParse(keluhanId).success) return { ok: false, reason: "tidak_ditemukan" };
+  const [baris] = await deps.db
+    .select({ keluhan: keluhanLayananTpu, job: pekerjaanLayananTpu })
+    .from(keluhanLayananTpu)
+    .innerJoin(pekerjaanLayananTpu, eq(pekerjaanLayananTpu.id, keluhanLayananTpu.pekerjaanId))
+    .where(eq(keluhanLayananTpu.id, keluhanId));
+  if (!baris) return { ok: false, reason: "tidak_ditemukan" };
+  const { keluhan, job } = baris;
+  const bukti = (await buktiTpuPerPekerjaan(deps, [job.id])).get(job.id) ?? [];
+  const calon = await mitraJasaTersedia(deps, by, { tpuDkiId: job.tpuId, layananVariantId: job.layananVariantId, tanggal: job.targetDate });
+  return {
+    ok: true,
+    keluhan: {
+      id: keluhan.id,
+      pekerjaanId: job.id,
+      status: keluhan.status,
+      alasan: keluhan.alasan,
+      diajukanAt: keluhan.diajukanAt,
+      responPertamaDueAt: daytimeHoursDeadline(keluhan.diajukanAt, JAM_RESPON_PERTAMA_KELUHAN_TPU),
+      diputuskanAt: keluhan.diputuskanAt,
+      catatanKeputusan: keluhan.catatanKeputusan,
+    },
+    pekerjaan: {
+      id: job.id,
+      nomor: job.nomor,
+      label: job.label,
+      tpuName: job.tpuName,
+      targetDate: job.targetDate,
+      pemesanName: job.pemesanName,
+      pemesanPhone: job.pemesanPhone,
+      pemesanEmail: job.pemesanEmail,
+    },
+    bukti,
+    ditunjukkanAt: job.buktiDitunjukkanAt,
+    jendelaBerakhirAt: job.buktiDitunjukkanAt ? new Date(job.buktiDitunjukkanAt.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null,
+    calon,
+  };
 }

@@ -24,6 +24,7 @@ import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo
 import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencana-terlambat-row";
 import { pembatalanRefundRowType } from "./tier3-pembatalan-refund-row";
 import { keluhanRowType } from "./tier1-keluhan-row";
+import { keluhanTpuRowType } from "./tier1-keluhan-tpu-row";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -53,6 +54,7 @@ export const tier1RowTypes: Tier1RowType[] = [
   saatDukaDitolakRowType,
   konfirmasiTpuSaatDukaRowType,
   keluhanRowType,
+  keluhanTpuRowType,
   pekerjaanTpuTanpaMitraRowType,
 ];
 

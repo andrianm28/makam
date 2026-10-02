@@ -142,6 +142,7 @@ export interface QueuesModuleDeps {
     | "pekerjaanUntukStafTerbaru"
     | "pekerjaanTerlambat"
     | "keluhanTerbuka"
+    | "keluhanTpuTerbukaAntrean"
     | "kerjakanUlangUntukLokasi"
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
