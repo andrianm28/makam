@@ -267,4 +267,34 @@ describe("the message thread of a Pekerjaan Layanan at a DKI TPU", () => {
     const baca = await s.setup.layanan.bacaThreadStaf(s.admin, pekerjaanId);
     expect(baca.ok && baca.thread.pesan.map((pesan) => pesan.teks)).toEqual(["Saya sudah di lokasi.", "Terima kasih, Pak."]);
   });
+  it("becomes read-only when the TPU Keluhan window closes, 3×24 h after Admin Platform approves the proof", async () => {
+    const s = await pekerjaanTpuDiterima();
+    const pekerjaanId = s.job.id;
+    const tarif = await s.setup.tariffs.setTarifMitraJasa(s.admin, s.bunga.id, { amount: 150_000, effectiveOn: "2026-10-01", reason: null });
+    if (!tarif.ok) throw new Error(tarif.reason);
+    await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId, mitraJasaId: s.mitra.id });
+    await s.setup.layanan.jawabPenugasan(s.mitra.actor, { pekerjaanId, jawaban: "terima" });
+    s.setup.clock.set(wib("2026-10-05 10:00"));
+    const diambil = await s.setup.layanan.simpanBuktiTpu(s.mitra.actor, { pekerjaanId, kind: "foto_sesudah", takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
+    if (!diambil.ok) throw new Error(diambil.reason);
+    const kirim = await s.setup.layanan.kirimBuktiTpu(s.mitra.actor, { pekerjaanId });
+    if (!kirim.ok) throw new Error(kirim.reason);
+    const setuju = await s.setup.layanan.setujuiBuktiTpu(s.admin, { pekerjaanId });
+    if (!setuju.ok) throw new Error(setuju.reason);
+
+    // Inside the window the thread is open.
+    s.setup.clock.set(wib("2026-10-08 10:00"));
+    await s.setup.layanan.tutupJendelaKeluhan(s.setup.clock.now());
+    expect((await s.setup.layanan.kirimPesanStaf(s.mitra.actor, { pekerjaanId, teks: "Sudah selesai, Bu." })).ok).toBe(true);
+    expect((await s.setup.layanan.kirimPesanPemesan(s.pemesan, { pekerjaanId, teks: "Terima kasih." })).ok).toBe(true);
+
+    s.setup.clock.set(wib("2026-10-08 10:01"));
+    await s.setup.layanan.tutupJendelaKeluhan(s.setup.clock.now());
+    expect(await s.setup.layanan.kirimPesanPemesan(s.pemesan, { pekerjaanId, teks: "Satu lagi." })).toEqual({ ok: false, reason: "tertutup" });
+    expect(await s.setup.layanan.kirimPesanStaf(s.mitra.actor, { pekerjaanId, teks: "Sama-sama." })).toEqual({ ok: false, reason: "tertutup" });
+    expect(await s.setup.layanan.kirimPesanStaf(s.admin, { pekerjaanId, teks: "Dari Admin Platform." })).toEqual({ ok: false, reason: "tertutup" });
+    const baca = await s.setup.layanan.bacaThreadStaf(s.mitra.actor, pekerjaanId);
+    expect(baca.ok && baca.thread.tertutup).toBe(true);
+    expect(baca.ok && baca.thread.pesan.map((pesan) => pesan.teks)).toEqual(["Sudah selesai, Bu.", "Terima kasih."]);
+  });
 });
