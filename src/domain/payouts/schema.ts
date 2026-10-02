@@ -72,9 +72,9 @@ export type PencairanItemStatus = (typeof pencairanItemStatuses)[number];
 /**
  * Why an item was cancelled: a full refund to the Pelanggan, an amount a
  * partner's share or a refund has already taken in full, or a held Terencana
- * order released (which a later ticket, 59, sets).
+ * order released (which a later ticket, 59, sets), or a Mitra Jasa job redone by another Mitra Jasa (ticket 57).
  */
-export const pencairanItemBatalReasons = ["dikembalikan_penuh", "telah_ditanggung", "dilepas"] as const;
+export const pencairanItemBatalReasons = ["dikembalikan_penuh", "telah_ditanggung", "dilepas", "diganti_pelaksana"] as const;
 export type PencairanItemBatalReason = (typeof pencairanItemBatalReasons)[number];
 
 /** Where a Pencairan item's amount comes from, as the two rules that can lower it name it. */

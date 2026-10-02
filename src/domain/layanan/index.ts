@@ -46,6 +46,7 @@
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { SetHargaLayananInput } from "@/domain/tariffs";
+import type { WriteRefusal } from "@/domain/identity";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import type { MitraJasaStatus } from "./schema";
 import {
@@ -144,6 +145,28 @@ import {
 
 import { bacaThreadPemesan, bacaThreadStaf, kirimPesanPemesan, kirimPesanStaf, type BacaThreadResult, type KirimPesanResult } from "./thread";
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
+import {
+  batalkanPekerjaanTerlambatTpu,
+  batalkanPekerjaanTerlambatTpuOlehPemesan,
+  type BatalkanPekerjaanTerlambatTpuResult,
+} from "./batal-terlambat-tpu";
+import { kerjaUlangTpu, type KerjaUlangTpuResult } from "./kerja-ulang-tpu";
+import { jendelaKeluhanTpu, pekerjaanTpuMenungguVerifikasi, type PekerjaanTpuMenungguVerifikasi } from "./bukti-tpu-baca";
+import { tandaiTerlambatTpu } from "./terlambat-tpu";
+import {
+  ajukanKeluhanTpu,
+  keluhanTpuTerbuka,
+  keluhanTpuTerbukaAntrean,
+  keluhanTpuUntukPlatform,
+  putuskanKeluhanTpu,
+  sesuaikanPencairanKeluhanTpu,
+  type SesuaikanPencairanKeluhanTpuResult,
+  type AjukanKeluhanTpuResult,
+  type KeluhanTpuTerbuka,
+  type KeluhanTpuTerbukaAntrean,
+  type KeluhanTpuUntukPlatformResult,
+  type PutuskanKeluhanTpuResult,
+} from "./keluhan-tpu";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
@@ -176,6 +199,21 @@ import {
   type PesananTpuTerbaca,
   type PlacePesananLayananTpuResult,
 } from "./tpu";
+import {
+  buktiTpuSaya,
+  buktiTpuUntukStaf,
+  kirimBuktiTpu,
+  setujuiBuktiTpu,
+  simpanBuktiTpu,
+  tolakBuktiTpu,
+  tutupJendelaTpu,
+  type BuktiTpuMitraJasa,
+  type BuktiTpuStaf,
+  type KirimBuktiTpuResult,
+  type SetujuiBuktiTpuResult,
+  type SimpanBuktiTpuResult,
+  type TolakBuktiTpuResult,
+} from "./bukti-tpu";
 import {
   bacaPekerjaanTpu,
   jawabPenugasan,
@@ -322,6 +360,7 @@ export type {
 export { keluhanStatuses, type KeluhanStatus } from "./schema";
 export { batasBatal, bolehDibatalkan } from "./batal";
 export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
+export { BATAS_VERIFIKASI_BUKTI_JAM } from "./bukti-tpu-baca";
 export type {
   BacaPekerjaanTpuResult,
   JawabPenugasanResult,
@@ -639,6 +678,42 @@ export interface Layanan {
   pekerjaanTpuHariIniTanpaMitra(): Promise<PekerjaanTpuAntrean[]>;
   /** The Antrean's Tier 2 rows: jobs back in the queue after Tidak direspons, Ditolak or a release for reassignment. */
   pekerjaanTpuPerluTindakan(): Promise<PekerjaanTpuAntrean[]>;
+  /* ── Photo proof, approval and Mitra Jasa pay (ticket 57) ── */
+
+  /** The Mitra Jasa takes one shot of a TPU job's proof with the in-app camera; the first makes it Sedang Dikerjakan. */
+  simpanBuktiTpu(by: Actor, input: unknown): Promise<SimpanBuktiTpuResult>;
+  /** The Mitra Jasa sends the proof once every required shot is taken: Menunggu Verifikasi. */
+  kirimBuktiTpu(by: Actor, input: unknown): Promise<KirimBuktiTpuResult>;
+  /** What the Mitra Jasa's job screen shows of the proof: what is asked, what is taken, why it came back. */
+  buktiTpuSaya(by: Actor, pekerjaanId: string): Promise<BuktiTpuMitraJasa | null>;
+  /** Admin Platform reads the proof it has to decide on. */
+  buktiTpuUntukStaf(by: Actor, pekerjaanId: string): Promise<BuktiTpuStaf | null>;
+  /** Admin Platform approves: Selesai, proof shown to the Pemesan, Keluhan window opens, Pencairan by the pay rules. */
+  setujuiBuktiTpu(by: Actor, input: unknown): Promise<SetujuiBuktiTpuResult>;
+  /** Admin Platform rejects with a reason: back to Sedang Dikerjakan. */
+  tolakBuktiTpu(by: Actor, input: unknown): Promise<TolakBuktiTpuResult>;
+  /** Admin Platform has a finished job redone by the same or another Mitra Jasa. */
+  kerjaUlangTpu(by: Actor, input: unknown): Promise<KerjaUlangTpuResult>;
+  /** When a TPU job's Keluhan window opened, ends, and whether it is closed: the message thread turns read-only on it. Null for no such job. */
+  jendelaKeluhanTpu(pekerjaanId: string): Promise<{ dibukaAt: Date | null; berakhirAt: Date | null; ditutup: boolean } | null>;
+  /** The Pemesan files a Keluhan on a Selesai TPU job inside the window; the job becomes Keluhan and its Pencairan is held. */
+  ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
+  /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
+  putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
+  /** The Pemesan cancels a Terlambat TPU job: the whole Tagihan is refunded and the Mitra Jasa gets no Pencairan. */
+  batalkanPekerjaanTerlambatTpuOlehPemesan(pemesan: PemesanLayanan, input: unknown): Promise<BatalkanPekerjaanTerlambatTpuResult>;
+  /** Admin Platform does the same on the family's behalf, with a reason. */
+  batalkanPekerjaanTerlambatTpu(by: Actor, input: unknown): Promise<BatalkanPekerjaanTerlambatTpuResult | WriteRefusal>;
+  /** Admin Platform adjusts what the Keluhan's job pays its Mitra Jasa, with a note (story 158). */
+  sesuaikanPencairanKeluhanTpu(by: Actor, input: unknown): Promise<SesuaikanPencairanKeluhanTpuResult>;
+  /** The TPU Keluhan waiting for Admin Platform, oldest first. */
+  keluhanTpuTerbuka(by: Actor): Promise<KeluhanTpuTerbuka[]>;
+  /** One open or decided Keluhan on a TPU job as Admin Platform reads it to decide: the Pemesan's words, the proof they were shown, and the Mitra Jasa who could redo it. */
+  keluhanTpuUntukPlatform(by: Actor, keluhanId: string): Promise<KeluhanTpuUntukPlatformResult>;
+  /** The Keluhan on TPU jobs waiting for a decision, with their first-response deadline, for the Tier 1 Antrean row. */
+  keluhanTpuTerbukaAntrean(): Promise<KeluhanTpuTerbukaAntrean[]>;
+  /** The Antrean's Tier 2 "foto bukti" rows: proofs waiting for approval, oldest first. */
+  pekerjaanTpuMenungguVerifikasi(): Promise<PekerjaanTpuMenungguVerifikasi[]>;
   /* ── Keluhan and Penilaian (ticket 51) ── */
 
   /**
@@ -767,6 +842,23 @@ export function createLayanan(deps: LayananDeps): Layanan {
     tandaiTidakDirespons: (at) => tandaiTidakDirespons(deps.db, at),
     pekerjaanTpuHariIniTanpaMitra: () => pekerjaanTpuHariIniTanpaMitra(deps.db, now()),
     pekerjaanTpuPerluTindakan: () => pekerjaanTpuPerluTindakan(deps.db),
+    simpanBuktiTpu: (by, input) => simpanBuktiTpu(deps, by, input),
+    kirimBuktiTpu: (by, input) => kirimBuktiTpu(deps, by, input),
+    buktiTpuSaya: (by, pekerjaanId) => buktiTpuSaya(deps, by, pekerjaanId),
+    buktiTpuUntukStaf: (by, pekerjaanId) => buktiTpuUntukStaf(deps, by, pekerjaanId),
+    setujuiBuktiTpu: (by, input) => setujuiBuktiTpu(deps, by, input),
+    tolakBuktiTpu: (by, input) => tolakBuktiTpu(deps, by, input),
+    kerjaUlangTpu: (by, input) => kerjaUlangTpu(deps, by, input),
+    jendelaKeluhanTpu: (pekerjaanId) => jendelaKeluhanTpu(deps.db, pekerjaanId),
+    ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
+    putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
+    batalkanPekerjaanTerlambatTpuOlehPemesan: (pemesan, input) => batalkanPekerjaanTerlambatTpuOlehPemesan(deps, pemesan, input),
+    batalkanPekerjaanTerlambatTpu: (by, input) => batalkanPekerjaanTerlambatTpu(deps, by, input),
+    sesuaikanPencairanKeluhanTpu: (by, input) => sesuaikanPencairanKeluhanTpu(deps, by, input),
+    keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),
+    keluhanTpuUntukPlatform: (by, keluhanId) => keluhanTpuUntukPlatform(deps, by, keluhanId),
+    keluhanTpuTerbukaAntrean: () => keluhanTpuTerbukaAntrean(deps),
+    pekerjaanTpuMenungguVerifikasi: () => pekerjaanTpuMenungguVerifikasi(deps.db),
     ajukanKeluhan: (pemesan, input) => ajukanKeluhan(deps, pemesan, input),
     beriPenilaian: (pemesan, input) => beriPenilaian(deps, pemesan, input),
     putuskanKeluhan: (by, input) => putuskanKeluhan(deps, by, input),
@@ -775,7 +867,11 @@ export function createLayanan(deps: LayananDeps): Layanan {
     daftarPenilaian: (by) => daftarPenilaian(deps, by),
     keluhanTerbuka: () => keluhanTerbuka(deps),
     kerjakanUlangUntukLokasi: (by, lokasiId) => kerjakanUlangUntukLokasi(deps, by, lokasiId),
-    tutupJendelaKeluhan: (now) => tutupJendelaKeluhan(deps, now),
+    tutupJendelaKeluhan: async (now) => {
+      const lokasi = await tutupJendelaKeluhan(deps, now);
+      const tpu = await tutupJendelaTpu(deps, now);
+      return { ditutup: lokasi.ditutup + tpu.ditutup, pencairanJatuhTempo: lokasi.pencairanJatuhTempo + tpu.pencairanJatuhTempo };
+    },
   };
 }
 
@@ -785,4 +881,4 @@ export function createLayanan(deps: LayananDeps): Layanan {
  * finished. Idempotent — running it twice for the same `now` is harmless, and a
  * job that is already flagged keeps the moment it was first noticed.
  */
-export { tandaiTerlambat };
+export { tandaiTerlambat, tandaiTerlambatTpu };

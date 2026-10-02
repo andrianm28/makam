@@ -15,7 +15,7 @@ import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
-import { jadwalkanTertunda, tandaiTerlambat, type Layanan } from "@/domain/layanan";
+import { jadwalkanTertunda, tandaiTerlambat, tandaiTerlambatTpu, type Layanan } from "@/domain/layanan";
 import type { Notifications } from "@/domain/notifications";
 import { pengingatHakPakaiTick, type PengingatDeps } from "@/domain/perpanjangan";
 import type { Pemesanan } from "@/domain/pemesanan";
@@ -225,6 +225,7 @@ async function tutupJendelaKeluhanTick(ctx: SchedulerContext, now: Date): Promis
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
 async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
+  await tandaiTerlambatTpu(ctx.db, now);
 }
 
 /** The worker wrapper around the Layanan module's Paket cycle tick (idempotent there, as every tick is). */

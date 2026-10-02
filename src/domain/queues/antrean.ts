@@ -10,6 +10,7 @@ import { antreanResource, writeRefusal, type Actor } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import { antreanRowTypes } from "./registry";
 import { KELUHAN_ROW_TYPE } from "./tier1-keluhan-row";
+import { KELUHAN_TPU_ROW_TYPE } from "./tier1-keluhan-tpu-row";
 import type { AntreanRowDeps, AntreanTier } from "./row-types";
 import { antreanAmbil } from "./schema";
 
@@ -102,7 +103,7 @@ export async function antreanCounters(deps: QueuesAntreanDeps, by: Actor): Promi
     tagihanOverdue: 0,
     terlambatJobs: 0,
     // The Tier 1 Keluhan rows themselves are the count, as the Tier 3 Pencairan rows are for Pencairan due.
-    keluhanOpen: rows.filter((row) => row.type === KELUHAN_ROW_TYPE).length,
+    keluhanOpen: rows.filter((row) => row.type === KELUHAN_ROW_TYPE || row.type === KELUHAN_TPU_ROW_TYPE).length,
     pastDeadline: rows.filter((row) => row.pastDeadline).length,
   };
 }

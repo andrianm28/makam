@@ -85,10 +85,12 @@ export interface AntreanRowDeps {
     | "pekerjaanUntukStafTerbaru"
     | "pekerjaanTerlambat"
     | "keluhanTerbuka"
+    | "keluhanTpuTerbukaAntrean"
     | "kerjakanUlangUntukLokasi"
     // The TPU jobs' Tier 1 and Tier 2 rows (ticket 56).
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
+    | "pekerjaanTpuMenungguVerifikasi"
   >;
 }
 
@@ -122,7 +124,7 @@ export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pem
   /** The worker's Tier 1 rows read only the open confirmations; the IPTM filing row is Tier 3 and is not built there. */
   pengurusan: Pick<AntreanRowDeps["pengurusan"], "konfirmasiTpuTerbuka">;
   /** The Tier 1 "Keluhan" row (ticket 51) reads the Layanan module's list of Keluhan waiting for a decision; the TPU jobs' Tier 1 row (ticket 56) reads the jobs due today that no Mitra Jasa holds. */
-  layanan: Pick<AntreanRowDeps["layanan"], "keluhanTerbuka" | "pekerjaanTpuHariIniTanpaMitra">;
+  layanan: Pick<AntreanRowDeps["layanan"], "keluhanTerbuka" | "keluhanTpuTerbukaAntrean" | "pekerjaanTpuHariIniTanpaMitra">;
 };
 
 /**

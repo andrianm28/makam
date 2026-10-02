@@ -819,6 +819,23 @@ export const pekerjaanLayananTpu = pgTable(
     dijadwalkanAt: at("dijadwalkan_at"),
     dibatalkanAt: at("dibatalkan_at"),
     createdAt: at("created_at").notNull(),
+    /** When the Mitra Jasa took the first proof (Sedang Dikerjakan). Ticket 57. */
+    mulaiAt: at("mulai_at"),
+    /** When the proof was sent for approval; the 24 h Tier 2 deadline counts from it. Null while not Menunggu Verifikasi. */
+    buktiDikirimAt: at("bukti_dikirim_at"),
+    /** Why Admin Platform sent the proof back; kept until the next approval. */
+    buktiDitolakAlasan: text("bukti_ditolak_alasan"),
+    /** When Admin Platform approved the proof: it is shown to the Pemesan from here and the 3×24 h Keluhan window opens. */
+    buktiDitunjukkanAt: at("bukti_ditunjukkan_at"),
+    selesaiAt: at("selesai_at"),
+    /** Set by the window-close tick once the Keluhan window is over. */
+    jendelaDitutupAt: at("jendela_ditutup_at"),
+    /** The Payouts item this job's approval recorded (an id; no foreign key crosses a module). Null for an unpaid redo. */
+    pencairanItemId: uuid("pencairan_item_id"),
+    /** When Payouts was told the item is due. */
+    pencairanJatuhTempoAt: at("pencairan_jatuh_tempo_at"),
+    /** The job this one redoes after an upheld Keluhan (the original keeps its own row and its Pencairan). */
+    kerjaUlangDariId: uuid("kerja_ulang_dari_id"),
   },
   (table) => [
     uniqueIndex("pekerjaan_layanan_tpu_posisi_idx").on(table.nomor, table.posisi),
@@ -908,4 +925,53 @@ export const pekerjaanLayananPesanFoto = pgTable(
     contentType: text("content_type").notNull(),
   },
   (table) => [uniqueIndex("pekerjaan_layanan_pesan_foto_idx").on(table.pesanId, table.posisi)],
+);
+
+/**
+ * Owned by the Layanan module: one captured proof of a TPU job (ticket 57), kept in the
+ * private FileStore like a Lokasi job's. `taken_at` is the in-app camera's own moment; the
+ * required kinds are what the Layanan's `bukti` catalog setting asks for. Re-capturing a
+ * kind replaces it, which is how a Mitra Jasa answers a rejection.
+ */
+export const pekerjaanLayananTpuBukti = pgTable(
+  "pekerjaan_layanan_tpu_bukti",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayananTpu.id),
+    kind: text("kind", { enum: buktiPekerjaanValues }).notNull(),
+    fileKey: text("file_key").notNull(),
+    contentType: text("content_type").notNull(),
+    takenAt: at("taken_at").notNull(),
+    diunggahOleh: text("diunggah_oleh").notNull(),
+    createdAt: at("created_at").notNull(),
+    diperbaruiAt: at("diperbarui_at").notNull(),
+  },
+  (table) => [uniqueIndex("pekerjaan_layanan_tpu_bukti_idx").on(table.pekerjaanId, table.kind)],
+);
+
+export const keluhanTpuStatuses = ["terbuka", "ditolak", "kerjakan_ulang", "dana_kembali"] as const;
+export type KeluhanTpuStatus = (typeof keluhanTpuStatuses)[number];
+
+/**
+ * Owned by the Layanan module: the Pemesan's Keluhan on one finished TPU job (ticket 57). One per
+ * job, which is what makes "the window closes with no Keluhan" a plain fact. Admin Platform
+ * rejects it, has the job redone (`kerjaUlangTpu`) or has the Layanan refunded.
+ */
+export const keluhanLayananTpu = pgTable(
+  "keluhan_layanan_tpu",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayananTpu.id),
+    alasan: text("alasan").notNull(),
+    diajukanAt: at("diajukan_at").notNull(),
+    status: text("status", { enum: keluhanTpuStatuses }).notNull().default("terbuka"),
+    diputuskanAt: at("diputuskan_at"),
+    diputuskanOleh: text("diputuskan_oleh"),
+    catatanKeputusan: text("catatan_keputusan"),
+  },
+  (table) => [uniqueIndex("keluhan_layanan_tpu_pekerjaan_idx").on(table.pekerjaanId), index("keluhan_layanan_tpu_status_idx").on(table.status)],
 );

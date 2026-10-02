@@ -49,11 +49,17 @@ export const JENDELA_KELUHAN_JAM = 72;
 /** The first response to a Keluhan is due in this many **daytime** hours (06:00–18:00 WIB). */
 export const JAM_RESPON_PERTAMA_KELUHAN = 4;
 
-const JAM_MS = 60 * 60 * 1000;
+/** One hour in milliseconds: the one copy the Layanan module counts its windows with. */
+export const JAM_MS = 60 * 60 * 1000;
 
 /** The instant a Keluhan window that opened at `ditunjukkanPada` closes. */
 export function jendelaKeluhanBerakhir(ditunjukkanPada: Date): Date {
   return new Date(ditunjukkanPada.getTime() + JENDELA_KELUHAN_JAM * JAM_MS);
+}
+
+/** The same instant for a job whose proof may not have been shown yet: null while it has not been. */
+export function jendelaKeluhanBerakhirAt(ditunjukkanPada: Date | null): Date | null {
+  return ditunjukkanPada ? jendelaKeluhanBerakhir(ditunjukkanPada) : null;
 }
 
 /** When the proof of this job was last shown to its Pemesan, or null while none has been. */
