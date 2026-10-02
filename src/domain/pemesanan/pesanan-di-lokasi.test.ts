@@ -34,6 +34,8 @@ describe("the orders a Lokasi Mitra still has running", () => {
     expect(await setup.pemesanan.pesananBerjalanDiLokasi(fixture.lokasiMitra.id)).toEqual([
       { nomor: hasil.pemesanan.nomor, kind: "terencana", status: "diajukan", email: "keluarga@contoh.id" },
     ]);
+    // Only a paid (Aktif) Terencana order has a Pencairan to release; this one is still Diajukan.
+    expect(await setup.pemesanan.nomorTerencanaAktifDiLokasi(fixture.lokasiMitra.id)).toEqual([]);
     expect(await setup.pemesanan.pesananBerjalanDiLokasi("00000000-0000-4000-8000-000000000000")).toEqual([]);
   });
 });
