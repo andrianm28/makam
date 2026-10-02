@@ -1,6 +1,6 @@
 # Lokasi Mitra Ditangguhkan and Berhenti
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 32, 38, 54
 Spec: Domain modules > 3. Lokasi (Ditangguhkan, Berhenti); 9. Layanan (Berhenti cycles); 11. Payouts (On Berhenti); 16. Scheduler (Berhenti effective dates); stories 15, 106, 152
 
@@ -56,3 +56,4 @@ Admin Platform sets a Lokasi Mitra Ditangguhkan or Berhenti (with an effective d
 - 2026-10-02 — **Owner decision ("iya setuju semua" to the recommendation):** the pengelola's phone may be an office/landline number as well as a mobile; it is only shown to families, never messaged. Sentry must mask it in that format too.
 - 2026-10-02 — **Re-review of the landline follow-up (head ca0be0e): hard remaining no.** 2-digit (021, 022) and 3-digit (0251, 0274, 0411) area codes accepted; `normalisePhoneNumber` untouched; scrub masks the stored form with negatives for TGH numbers and amounts; red-first; Zod at the action. Ready to merge.
 - 2026-10-02 — **Builder (merge-gate fix):** `reads.test.ts` "a Ditangguhkan Lokasi is off the listings..." asserted that `tariffs.quote` refuses a Ditangguhkan Lokasi; that contradicted the spec ("Ditangguhkan blocks only a new Hak Pakai ... Perpanjangan, Layanan and Paket Layanan cycles ... and orders already in progress carry on", spec Lokasi Mitra > status) and this ticket's `dapatDiharga` fix. `quote` is the one internal pricing path (no actor) the carry-on actions use; a new Hak Pakai is kept out by `izinPesanan`. No code change: the test now asserts the listing-facing reads (`lokasiTariffs`, `lokasiPricing`, `jenisMakamTariffHistory`) show nothing for a Ditangguhkan Lokasi (ticket 24: "off lists and search") and `quote` still prices it; the spec line is quoted in the test. Spec gap for the owner: the spec does not say whether a Ditangguhkan Lokasi's still-up page shows prices; the public reads currently hide them.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding left after the fix passes, the main-into-branch merge review and the tariff-test re-review (entries above; the orchestrator also traced `saatDukaHarga`: its public callers gate on the Terverifikasi-only `publicLokasiMitra` first). Merge gate (migration renumbered to 0056, byte-identical, clean second db:generate): typecheck, lint, build, full suite 315 files / 2861 tests passed (1 skipped), exit 0. Open owner question: whether a Ditangguhkan Lokasi's still-up page shows prices (grilling round 3 Q10).
