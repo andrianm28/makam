@@ -251,9 +251,9 @@ export async function pengembalianTerbuka(deps: LayananDeps): Promise<Pengembali
 
 /**
  * A Pembatalan Terencana of the plot a Layanan order was placed for (owner decision, 2026-10-02): every job
- * of that order not yet done (Dijadwalkan; one still Menunggu Pembayaran has nothing paid) becomes Dibatalkan, and
+ * of that order not yet done (Dijadwalkan or Terlambat; one still Menunggu Pembayaran has nothing paid) becomes Dibatalkan, and
  * the lines to refund for them come back for the cancellation to ask of Refunds together with the Hak Pakai, in
- * its own transaction (`within`). A job already started or done keeps its price: it is not returned. The
+ * its own transaction (`within`). A job Sedang Dikerjakan or Selesai keeps its price: it is not returned. The
  * amounts are what was paid for each line, after any Harga Khusus. A Nomor Pemesanan with no Layanan answers none.
  */
 export async function batalkanLayananPetakDibatalkan(
@@ -267,7 +267,7 @@ export async function batalkanLayananPetakDibatalkan(
     .select({ job: pekerjaanLayanan, item: pesananLayananItem })
     .from(pekerjaanLayanan)
     .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
-    .where(and(eq(pekerjaanLayanan.pesananId, order.id), inArray(pekerjaanLayanan.status, ["menunggu_pembayaran", "dijadwalkan"])))
+    .where(and(eq(pekerjaanLayanan.pesananId, order.id), inArray(pekerjaanLayanan.status, ["menunggu_pembayaran", "dijadwalkan", "terlambat"])))
     .orderBy(pesananLayananItem.posisi);
   if (jobs.length === 0) return { dibatalkan: 0, baris: [] };
   const now = deps.clock.now();

@@ -76,4 +76,4 @@ Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment)
 ### Spec gaps and decisions for the owner (fix pass)
 
 - A Kavling Keluarga unit is refused for a Terencana Layanan order (`layanan_satu_petak`) although the spec only says "single plot".
-- "Not yet done" is read as Dijadwalkan (not started). A job Sedang Dikerjakan or Terlambat at the approval is not cancelled and its price is kept; the owner may want Terlambat released and refunded.
+- Owner decision (grilling round 2 Q7, 2026-10-02): on a Pembatalan Terencana, Layanan that are Dijadwalkan or Terlambat are cancelled and refunded; a job Sedang Dikerjakan carries on and is paid; a Selesai job is not refunded. Built test-first (red commit, then green). Reading by status: a job flagged Terlambat after it was started is cancelled too (the Terlambat flag replaces Sedang Dikerjakan in the status); the owner may want that case kept.
