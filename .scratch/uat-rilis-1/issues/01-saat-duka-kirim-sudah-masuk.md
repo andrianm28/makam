@@ -1,6 +1,6 @@
 # Saat Duka Kirim by a signed-in Pemesan does nothing visible
 
-Status: in-progress
+Status: resolved
 Blocked by: —
 Spec: spec.md (makam-v1), Public site — Pilih makam / Data & kirim
 
@@ -18,3 +18,4 @@ Found in the staging UAT on 2026-10-02. In the Saat Duka wizard at a Lokasi Mitr
 
 - 2026-10-02 — Filed from the UAT (orchestrator). Branch `fix/saat-duka-kirim-masuk`.
 - 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main 0ff5acb, branch at e2710c0). Standards: 0 hard, 0 judgement calls. Spec: all ACs met; weak spot — `draft.test.ts` tests the pure helper only, so the component wiring in `data-kirim.tsx` (router.push on selesai) is not covered (no component-test setup in this repo). No fix pass needed.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: Standards and Spec clean of hard violations after the fix pass and an item-by-item re-review (see the entries above); merge gate on the merged tree: typecheck, lint, build, full suite 282 files / 2588 tests passed (1 skipped), exit 0. Staging verification follows the deploy.

@@ -1,6 +1,6 @@
 # Opening the staff bell crashes the page
 
-Status: in-progress
+Status: resolved
 Blocked by: —
 Spec: spec.md (makam-v1), Notifications — Peringatan Staf (bell); ticket 97 (makam-v1-build)
 
@@ -17,3 +17,4 @@ Found in the staging UAT on 2026-10-02. Clicking the bell (Peringatan Staf) in t
 
 - 2026-10-02 — Filed from the UAT (orchestrator). Branch `fix/lonceng-menu-group`.
 - 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main 0ff5acb, branch at 864426f). Standards: 0 hard; judgement — guard test is file-level (does not prove the Label sits inside the Group), possible duplicated file walker in tests/tooling. Spec: ACs met (not verified at runtime); same weak spot: a file with one grouped menu and one bare Label would pass. Fix pass: make the guard check each `<DropdownMenuLabel` is enclosed by a `<DropdownMenuGroup>`.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: Standards and Spec clean of hard violations after the fix pass and an item-by-item re-review (see the entries above); merge gate on the merged tree: typecheck, lint, build, full suite 282 files / 2588 tests passed (1 skipped), exit 0. Staging verification follows the deploy.
