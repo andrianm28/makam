@@ -114,6 +114,7 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
       nomor: "A-01",
       almarhum: ["Hasan"],
       alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
+      hanyaBaca: false,
     });
   });
 
@@ -186,6 +187,17 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
     expect(kartu.nomor).toBe("A-K01");
     expect(kartu.alamat).toBe("/makam-keluarga?lokasi=lokasi-1&cari=nomor_kavling&nomor=A-K01");
     expect(kartu.petak).toEqual([{ nomorMakam: "A-01" }, { nomorMakam: "A-02" }]);
+  });
+
+  it("shows a Hak Pakai at a Berhenti Lokasi after the effective date as read-only: kept with its documents, no Perpanjang or Layanan", () => {
+    const berhenti = new Set(["lokasi-1"]);
+    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }], berhenti);
+
+    expect(kartu.hanyaBaca).toBe(true);
+    expect(kartu.dokumen).toEqual([{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
+    expect(kartu.pemakaman).toHaveLength(1);
+    expect(kartuMakamSaya(makamSaya(), nama, [], new Set(["lokasi-lain"])).hanyaBaca).toBe(false);
+    expect(kartuMakamSaya(makamSaya(), nama, []).hanyaBaca).toBe(false);
   });
 
   it("has no documents while none were handed in, rather than inventing one", () => {
