@@ -27,6 +27,7 @@ describe("the status vocabulary", () => {
       "Ditolak",
       "Dibatalkan",
       "Perlu Perbaikan",
+      "Diproses",
       "Disetujui",
     ]);
   });

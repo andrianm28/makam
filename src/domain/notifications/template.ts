@@ -539,6 +539,34 @@ export function hakPakaiBerakhirEmail(input: HakPakaiBerakhirEmailInput): { subj
   };
 }
 
+export interface IptmBerakhirEmailInput {
+  tpuName: string;
+  blokNomor: string;
+  pemegangHakName: string | null;
+  berlakuSampai: string;
+  /** 3 or 1: the months left when this reminder goes out. */
+  sisaBulan: 3 | 1;
+  tautan: string;
+}
+
+/** The IPTM expiry reminder (ticket 48): when the permit ends and where to renew it. */
+export function iptmBerakhirEmail(input: IptmBerakhirEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pengingat IPTM: makam ${input.blokNomor} di ${input.tpuName} berakhir ${input.sisaBulan} bulan lagi`,
+    body: [
+      input.pemegangHakName ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
+      "",
+      `IPTM makam ${input.blokNomor} di ${input.tpuName} berlaku sampai ${formatTanggal(input.berlakuSampai)}. Perpanjangan IPTM (3 tahun) dapat dipesan dari sekarang agar makam tidak dialihkan.`,
+      "",
+      `Perpanjang IPTM: ${input.tautan}`,
+      "IPTM baru biasanya terbit dalam 5 hari kerja setelah pembayaran.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface LayananPesananTerbitEmailInput {
   nomor: string;
   lokasiName: string;

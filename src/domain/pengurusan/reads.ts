@@ -17,7 +17,7 @@
 import { desc, eq } from "drizzle-orm";
 import type { PengurusanDeps } from "./deps";
 import { dokumenPengajuanKurang } from "./pengajuan-iptm";
-import { pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuStatus } from "./schema";
+import { pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuKind, type PengurusanTpuStatus } from "./schema";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak } from "./skema-pengurusan";
 
 /** One Saat Duka TPU order, as its own Pemesan reads it. */
@@ -25,7 +25,7 @@ export interface PengurusanOrder {
   /** The order's own id: what the Antrean row and the Ambil claim are keyed on, and what a family page looks its own order up by. */
   id: string;
   nomor: string;
-  kind: "saat_duka_tpu" | "pengurusan_iptm";
+  kind: PengurusanTpuKind;
   status: PengurusanTpuStatus;
   tpu: { id: string; name: string; address: string };
   pemesan: { name: string; email: string | null; phoneNumber: string | null };
@@ -76,6 +76,8 @@ export interface PengurusanOrder {
   iptm: { berlakuSampai: string } | null;
   /** The Makam TPU this order created or updated; null until IPTM Terbit. */
   makamTpuId: string | null;
+  /** A Perpanjangan TPU only: the expiry being renewed, and whether it came after the masa tenggang (the TPU is asked first). */
+  perpanjangan: { iptmBerakhirPada: string; iptmTercatatBerakhirPada: string | null; lewatMasaTenggang: boolean; cekTpuSelesaiPada: Date | null } | null;
 }
 
 type Row = typeof pengurusanTpu.$inferSelect;
@@ -88,7 +90,7 @@ function riwayatOf(row: Row): PengurusanOrder["riwayat"] {
     ["dimakamkan", row.dimakamkanPada],
     ["dokumen_lengkap", row.dokumenLengkapPada],
     // A filing-only order is billed the moment its documents pass, and is Diproses once that Tagihan is Lunas.
-    ["menunggu_pembayaran", row.kind === "pengurusan_iptm" ? row.dokumenLengkapPada : null],
+    ["menunggu_pembayaran", row.kind !== "saat_duka_tpu" ? row.dokumenLengkapPada : null],
     ["diproses", row.lunasPada],
     ["perlu_perbaikan", row.perbaikan ? new Date(row.perbaikan.pada) : null],
     ["iptm_diajukan", row.iptmDiajukanPada],
@@ -147,7 +149,7 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
   return {
     id: row.id,
     nomor: row.nomor,
-    kind: row.kind === "pengurusan_iptm" ? "pengurusan_iptm" : "saat_duka_tpu",
+    kind: row.kind,
     status: row.status,
     tpu: { id: row.tpuId, name: row.tpuName, address: row.tpuAddress },
     pemesan: { name: row.pemesanName, email: row.email, phoneNumber: row.phoneNumber },
@@ -181,9 +183,13 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
     pengajuan: {
       dimakamkanAt: row.dimakamkanPada,
       dokumenDueAt: row.dokumenDueAt,
-      kurang: row.dimakamkanPada ? dokumenPengajuanKurang(row) : [],
+      kurang: row.dimakamkanPada || row.kind === "perpanjangan_tpu" ? dokumenPengajuanKurang(row) : [],
     },
     iptm: row.iptmBerlakuSampai && row.iptmTerbitPada ? { berlakuSampai: row.iptmBerlakuSampai } : null,
     makamTpuId: row.makamTpuId,
+    perpanjangan:
+      row.kind === "perpanjangan_tpu" && row.iptmBerakhirPada
+        ? { iptmBerakhirPada: row.iptmBerakhirPada, iptmTercatatBerakhirPada: row.iptmTercatatBerakhirPada, lewatMasaTenggang: row.lewatMasaTenggang, cekTpuSelesaiPada: row.cekTpuSelesaiPada }
+        : null,
   };
 }

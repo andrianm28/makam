@@ -517,6 +517,11 @@ export interface Notifications {
    */
   pengingatHakPakaiBerakhir(input: PengingatHakPakaiBerakhirInput, within?: Database): Promise<PengingatHakPakaiBerakhirResult>;
   /**
+   * One reminder that a Makam TPU's IPTM is ending (3 months and 1 month before; ticket 48): an email to the Pemegang Hak
+   * with the Perpanjangan link, queued for 08:00-20:00 WIB. Announcing the same reminder twice sends it once.
+   */
+  pengingatIptmBerakhir(input: PengingatIptmBerakhirInput, within?: Database): Promise<PengingatIptmBerakhirResult>;
+  /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
    * and the pay-after Tagihan. One message per order, whatever runs twice.
@@ -962,6 +967,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async pengingatHakPakaiBerakhir(input, within) {
       return pengingatHakPakaiBerakhir(within ? { ...deps, db: within } : deps, input);
     },
+    async pengingatIptmBerakhir(input, within) {
+      return pengingatIptmBerakhir(within ? { ...deps, db: within } : deps, input);
+    },
     async buktiPerpanjanganTerbit(input, within) {
       return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
     },
@@ -1108,6 +1116,8 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
 }
 
 export { wakafStatusBerubahSchema, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
+import { pengingatIptmBerakhir, type PengingatIptmBerakhirInput, type PengingatIptmBerakhirResult } from "./pesan-iptm";
+export { pengingatIptmBerakhirSchema, type PengingatIptmBerakhirInput, type PengingatIptmBerakhirResult } from "./pesan-iptm";
 import { pengingatHakPakaiBerakhir, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
 export { pengingatHakPakaiBerakhirSchema, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
 export { dalamJamKirim } from "./acara";

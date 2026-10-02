@@ -96,6 +96,9 @@ export default async function AkunMakamPage() {
           <Link href={`/layanan/tpu?makam=${satu.id}`} className="text-small font-medium text-brand underline underline-offset-4">
             Pesan Layanan
           </Link>
+          <Link href={`/pesan-makam/perpanjang-iptm/${satu.id}`} className="text-small font-medium text-brand underline underline-offset-4">
+            Perpanjang IPTM
+          </Link>
         </li>
       ))}
       {kartu.map((satu) => (

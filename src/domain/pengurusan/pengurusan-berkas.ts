@@ -14,7 +14,7 @@
  * through its public function by an idempotent tick, never restated here. The Ambil surat pengantar Tugas is made by
  * that tick when the Tagihan is Lunas, unassigned; an Admin Platform assigns it from the Antrean.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { nilaiDibayarBaris, withinPaymentCap } from "@/domain/billing";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
@@ -22,7 +22,7 @@ import { addWorkingDays } from "@/domain/lokasi";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { buatTugasSistem } from "@/domain/fieldwork";
 import type { PengurusanDeps } from "./deps";
-import { hariKemudian } from "./aturan";
+import { hariKemudian, menungguPemeriksaan } from "./aturan";
 import { barisTagihan } from "./konfirmasi-saat-duka-tpu";
 import type { PeriksaDokumenResult } from "./pengajuan-iptm";
 import { pengurusanTpu } from "./schema";
@@ -45,7 +45,7 @@ export interface TagihanBerkas {
 }
 
 /** `n` working days on the Admin Platform calendar; calendar days while that calendar has no hours (the row must still exist). */
-async function tenggat(deps: Pick<PengurusanDeps, "lokasi">, dari: Date, n: number): Promise<Date> {
+export async function tenggat(deps: Pick<PengurusanDeps, "lokasi">, dari: Date, n: number): Promise<Date> {
   const hasil = addWorkingDays(await deps.lokasi.adminPlatformCalendar(), dari, n);
   return hasil.ok ? hasil.at : hariKemudian(dari, n);
 }
@@ -107,7 +107,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
         harga: baris.harga,
         adminPlatformAccountId: by.accountId,
       })
-      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "dimakamkan")))
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status)))
       .returning({ id: pengurusanTpu.id });
     if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
     await record({
@@ -115,7 +115,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
       action: "pengurusan.dokumen_lengkap",
       entity: { kind: "pengurusan_tpu", id: order.id },
       lokasiId: null,
-      before: { status: "dimakamkan" },
+      before: { status: order.status },
       after: { status: "menunggu_pembayaran", nomorTagihan: tagihan.tagihan.nomorTagihan },
       reason: null,
     });
@@ -136,7 +136,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
 // --------------------------------------------------- Lunas and the lapse (tick)
 
 /**
- * Follows the pay-first Tagihan of every Menunggu Pembayaran order: Lunas makes it Diproses (the moment it was seen
+ * Follows the pay-first Tagihan of every Menunggu Pembayaran filing-only or Perpanjangan TPU order: Lunas makes it Diproses (the moment it was seen
  * paid opens the 3-working-day filing) and, in that same transaction, makes the order's Ambil surat pengantar Tugas
  * Lapangan, unassigned, for an Admin Platform to hand to a Petugas (story 146); a Tagihan Billing has cancelled for
  * lapsing makes it Dibatalkan. Each order moves in one transaction, conditional on it still waiting, so running the
@@ -150,7 +150,7 @@ export async function pembayaranBerkasTick(
   const menunggu = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "menunggu_pembayaran")));
+    .where(and(ne(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "menunggu_pembayaran")));
   for (const order of menunggu) {
     if (!order.tagihanId) continue;
     const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
@@ -163,6 +163,8 @@ export async function pembayaranBerkasTick(
           .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "menunggu_pembayaran")))
           .returning({ id: pengurusanTpu.id });
         if (moved.length === 0) return;
+        // Only a filing-only order has a surat pengantar to fetch (story 146); a renewal is filed from its own documents.
+        if (order.kind !== "pengurusan_iptm") return;
         const tugas = await buatTugasSistem(
           { db: tx },
           {
@@ -207,7 +209,7 @@ export type TolakPtspResult =
   | { ok: true; status: "ditolak"; pengembalian: number }
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" | "dokumen_tidak_dikenal" }
-  /** A final rejection's full refund is for a filing-only order; a Saat Duka TPU one is not decided here. */
+  /** A final rejection's full refund is for filing-only work (a filing-only order or a Perpanjangan TPU); a Saat Duka TPU one is not decided here. */
   | { ok: false; reason: "bukan_pengurusan_berkas" }
   | { ok: false; reason: "pengembalian_tidak_terbit" };
 
@@ -224,44 +226,15 @@ export async function tolakPtsp(deps: PengurusanDeps, by: Actor, rawInput: unkno
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
   const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
-  if (!order || (order.kind !== "pengurusan_iptm" && order.kind !== "saat_duka_tpu")) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   if (order.status !== "iptm_diajukan") return { ok: false, reason: "status_tidak_sesuai" };
   const now = deps.clock.now();
 
   if (input.putusan === "perbaikan") {
-    const dikenal = new Set(order.dokumenPengajuan.map((dokumen) => dokumen.nama));
-    if (!input.dokumen.every((nama) => dikenal.has(nama))) return { ok: false, reason: "dokumen_tidak_dikenal" };
-    const lama = Object.entries(order.dokumenDiunggah ?? {}).filter(([nama]) => input.dokumen.includes(nama));
-    const sisa = Object.fromEntries(Object.entries(order.dokumenDiunggah ?? {}).filter(([nama]) => !input.dokumen.includes(nama)));
-    const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {
-      const moved = await tx
-        .update(pengurusanTpu)
-        .set({
-          status: "perlu_perbaikan",
-          alasan: input.alasan,
-          perbaikan: { alasan: input.alasan, dokumen: input.dokumen, pada: now.toISOString() },
-          dokumenDiunggah: sisa,
-        })
-        .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "iptm_diajukan")))
-        .returning({ id: pengurusanTpu.id });
-      if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
-      await record({
-        actor: { accountId: by.accountId, role: "admin_platform" },
-        action: "pengurusan.ptsp_perbaikan",
-        entity: { kind: "pengurusan_tpu", id: order.id },
-        lokasiId: null,
-        before: { status: "iptm_diajukan" },
-        after: { status: "perlu_perbaikan", dokumen: input.dokumen },
-        reason: input.alasan,
-      });
-      return { ok: true as const, status: "perlu_perbaikan" as const };
-    });
-    // Best effort, after the commit: the cleared files are no longer referenced, so a failed delete leaves only an orphan blob.
-    if (hasil.ok) for (const [, berkas] of lama) await deps.files.delete(berkas.key).catch(() => undefined);
-    return hasil;
+    return kembalikanKePerbaikan(deps, by, order, { aksi: "pengurusan.ptsp_perbaikan", alasan: input.alasan, dokumen: input.dokumen });
   }
 
-  if (order.kind !== "pengurusan_iptm") return { ok: false, reason: "bukan_pengurusan_berkas" };
+  if (order.kind === "saat_duka_tpu") return { ok: false, reason: "bukan_pengurusan_berkas" };
   return deps.audit.staffWrite<TolakPtspResult>(deps.db, async (tx, record) => {
     const moved = await tx
       .update(pengurusanTpu)
@@ -299,6 +272,51 @@ export async function tolakPtsp(deps: PengurusanDeps, by: Actor, rawInput: unkno
   });
 }
 
+/**
+ * Sends an order back to Perlu Perbaikan with the checklist documents to upload again and the reason: the cleared files
+ * are forgotten (a failed delete after the commit leaves only an orphan blob) and the Tagihan, if any, is untouched.
+ * Shared by the PTSP's fixable rejection (from IPTM Diajukan) and Admin Platform's own check before payment (from Diajukan).
+ */
+export async function kembalikanKePerbaikan(
+  deps: PengurusanDeps,
+  by: Actor,
+  order: Row,
+  perbaikan: { aksi: "pengurusan.ptsp_perbaikan" | "pengurusan.perbaikan_diminta"; alasan: string; dokumen: string[] },
+): Promise<{ ok: true; status: "perlu_perbaikan" } | { ok: false; reason: "status_tidak_sesuai" | "dokumen_tidak_dikenal" }> {
+  const now = deps.clock.now();
+  const dikenal = new Set(order.dokumenPengajuan.map((dokumen) => dokumen.nama));
+  if (!perbaikan.dokumen.every((nama) => dikenal.has(nama))) return { ok: false, reason: "dokumen_tidak_dikenal" };
+  const lama = Object.entries(order.dokumenDiunggah ?? {}).filter(([nama]) => perbaikan.dokumen.includes(nama));
+  const sisa = Object.fromEntries(Object.entries(order.dokumenDiunggah ?? {}).filter(([nama]) => !perbaikan.dokumen.includes(nama)));
+  const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const moved = await tx
+      .update(pengurusanTpu)
+      .set({
+        status: "perlu_perbaikan",
+        alasan: perbaikan.alasan,
+        perbaikan: { alasan: perbaikan.alasan, dokumen: perbaikan.dokumen, pada: now.toISOString() },
+        dokumenDiunggah: sisa,
+        berkasLengkapDiunggahPada: null,
+      })
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status)))
+      .returning({ id: pengurusanTpu.id });
+    if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: perbaikan.aksi,
+      entity: { kind: "pengurusan_tpu", id: order.id },
+      lokasiId: null,
+      before: { status: order.status },
+      after: { status: "perlu_perbaikan", dokumen: perbaikan.dokumen },
+      reason: perbaikan.alasan,
+    });
+    return { ok: true as const, status: "perlu_perbaikan" as const };
+  });
+  // Best effort, after the commit: the cleared files are no longer referenced, so a failed delete leaves only an orphan blob.
+  if (hasil.ok) for (const [, berkas] of lama) await deps.files.delete(berkas.key).catch(() => undefined);
+  return hasil;
+}
+
 // ------------------------------------------------------------ Tier 3 rows
 
 /** A filing-only order whose documents are all in, waiting for Admin Platform to check them. */
@@ -313,13 +331,14 @@ export interface PeriksaBerkasTerbuka {
   dueAt: Date;
 }
 
-/** Every Dimakamkan filing-only order with all its documents in, oldest first. No actor: the caller checks `antrean.lihat`. */
+/** Every filing-only or Perpanjangan TPU order with all its documents in and unchecked, oldest first. No actor: the caller checks `antrean.lihat`. */
 export async function periksaBerkasTerbuka(deps: Pick<PengurusanDeps, "db" | "lokasi">): Promise<PeriksaBerkasTerbuka[]> {
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "dimakamkan")));
-  const siap = rows.filter((row) => row.berkasLengkapDiunggahPada !== null);
+    .where(and(ne(pengurusanTpu.kind, "saat_duka_tpu"), inArray(pengurusanTpu.status, ["dimakamkan", "diajukan", "perlu_perbaikan"])));
+  // A Perpanjangan TPU past the masa tenggang is not checked until the TPU has been asked (its own Tier 3 row).
+  const siap = rows.filter((row) => menungguPemeriksaan(row) && row.berkasLengkapDiunggahPada !== null && (!row.lewatMasaTenggang || row.cekTpuSelesaiPada !== null));
   const hasil = await Promise.all(
     siap.map(async (row) => ({
       id: row.id,
@@ -349,7 +368,7 @@ export async function pengajuanBerkasTerbuka(deps: Pick<PengurusanDeps, "db" | "
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "diproses")));
+    .where(and(ne(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "diproses")));
   const hasil = await Promise.all(
     rows
       .filter((row) => row.lunasPada !== null)

@@ -68,6 +68,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "paket_siklus_dijeda",
       // A Hak Pakai's end reminders (ticket 42): they ask the family to extend, so they wait for the window.
       "hak_pakai_berakhir_pengingat",
+      // A Makam TPU's IPTM expiry reminders (ticket 48): they ask the Pemegang Hak to renew, so they wait for the window.
+      "iptm_berakhir_pengingat",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
       "lokasi_berhenti",

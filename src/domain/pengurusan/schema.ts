@@ -1,4 +1,5 @@
-import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { ItemHariHTpu } from "@/domain/layanan";
 import {
   jenisPenguburanValues,
@@ -215,6 +216,16 @@ export const pengurusanTpu = pgTable(
     suratPengantarTugasId: text("surat_pengantar_tugas_id"),
     perbaikan: jsonb("perbaikan").$type<PerbaikanPtsp>(),
     ditolakPada: at("ditolak_pada"),
+    /**
+     * The Perpanjangan TPU (ticket 48). `iptm_berakhir_pada` is the expiry of the IPTM being renewed, as the form
+     * gave it (read off the IPTM photo) and as Admin Platform may correct it; `lewat_masa_tenggang` says the request
+     * came after the masa tenggang, so the TPU is asked first and no Tagihan is issued until `cek_tpu_selesai_pada`.
+     */
+    iptmBerakhirPada: date("iptm_berakhir_pada", { mode: "string" }),
+    /** The expiry recorded on the Makam TPU when the order was placed; the earlier of it and `iptm_berakhir_pada` decides the masa tenggang. */
+    iptmTercatatBerakhirPada: date("iptm_tercatat_berakhir_pada", { mode: "string" }),
+    lewatMasaTenggang: boolean("lewat_masa_tenggang").notNull().default(false),
+    cekTpuSelesaiPada: at("cek_tpu_selesai_pada"),
   },
   (table) => [
     uniqueIndex("pengurusan_tpu_nomor_idx").on(table.nomor),
@@ -223,6 +234,10 @@ export const pengurusanTpu = pgTable(
     // The Tier 1 "Konfirmasi TPU Saat Duka" row reads the orders still waiting
     // for a confirmation, so the one column it filters on is indexed.
     index("pengurusan_tpu_status_idx").on(table.status),
+    // One open Perpanjangan TPU per Makam TPU: a second order would charge the Pemegang Hak twice.
+    uniqueIndex("pengurusan_tpu_perpanjangan_terbuka_idx")
+      .on(table.makamTpuId)
+      .where(sql`${table.kind} = 'perpanjangan_tpu' and ${table.status} not in ('ditolak', 'dibatalkan', 'iptm_terbit')`),
   ],
 );
 

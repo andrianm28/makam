@@ -1,0 +1,2 @@
+ALTER TABLE "pengurusan_tpu" ADD COLUMN "iptm_tercatat_berakhir_pada" date;--> statement-breakpoint
+CREATE UNIQUE INDEX "pengurusan_tpu_perpanjangan_terbuka_idx" ON "pengurusan_tpu" USING btree ("makam_tpu_id") WHERE "pengurusan_tpu"."kind" = 'perpanjangan_tpu' and "pengurusan_tpu"."status" not in ('ditolak', 'dibatalkan', 'iptm_terbit');

@@ -44,6 +44,8 @@ export const statusVocabulary = {
   dibatalkan: { label: "Dibatalkan", tone: "neutral" },
   // A manual Perpanjangan request the Admin Lokasi sent back for correction, and one it approved (`diajukan`, `ditolak` and `dibatalkan` are shared).
   perlu_perbaikan: { label: "Perlu Perbaikan", tone: "warning" },
+  // A Perpanjangan TPU or filing-only order that is paid and waiting to be filed (ticket 48).
+  diproses: { label: "Diproses", tone: "info" },
   disetujui: { label: "Disetujui", tone: "success" },
 } as const satisfies Record<string, { label: string; tone: StatusTone }>;
 

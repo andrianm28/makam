@@ -24,7 +24,7 @@ import { nilaiDibayarBaris } from "@/domain/billing";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
-import { hariKemudian, STATUS_BOLEH_DIBATALKAN, STATUS_MENERIMA_UNGGAHAN, STATUS_SUDAH_DIMAKAMKAN } from "./aturan";
+import { hariKemudian, menerimaUnggahan, menungguPemeriksaan, STATUS_BOLEH_DIBATALKAN, STATUS_MENERIMA_UNGGAHAN, STATUS_SUDAH_DIMAKAMKAN } from "./aturan";
 import { periksaDokumenBerkas, type TagihanBerkas } from "./pengurusan-berkas";
 import { makamTpu, pengurusanTpu, type DokumenDiunggah } from "./schema";
 
@@ -48,10 +48,10 @@ type Row = typeof pengurusanTpu.$inferSelect;
 /** What every step refuses for the same two reasons. */
 type Umum = { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
 
-/** A Saat Duka TPU order or a filing-only Pengurusan IPTM: the two kinds whose filing runs through this file's steps. */
+/** Any Pengurusan order: all three kinds file through this file's steps. */
 async function muat(deps: Pick<PengurusanDeps, "db">, nomor: string): Promise<Row | null> {
   const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
-  return order && (order.kind === "saat_duka_tpu" || order.kind === "pengurusan_iptm") ? order : null;
+  return order ?? null;
 }
 
 
@@ -141,7 +141,7 @@ export async function unggahDokumenPengajuan(
   const { nomor, nama, berkas } = parsed.data;
   const order = await muat(deps, nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (!STATUS_MENERIMA_UNGGAHAN.includes(order.status)) return { ok: false, reason: "status_tidak_sesuai" };
+  if (!menerimaUnggahan(order)) return { ok: false, reason: "status_tidak_sesuai" };
   if (!order.dokumenPengajuan.some((dokumen) => dokumen.nama === nama)) return { ok: false, reason: "dokumen_tidak_dikenal" };
 
   const key = `pengurusan/${order.id}/pengajuan/${crypto.randomUUID()}`;
@@ -149,7 +149,7 @@ export async function unggahDokumenPengajuan(
   const now = deps.clock.now();
   const hasil = await deps.db.transaction(async (tx) => {
     const [terkunci] = await tx.select().from(pengurusanTpu).where(eq(pengurusanTpu.id, order.id)).for("update");
-    if (!terkunci || !STATUS_MENERIMA_UNGGAHAN.includes(terkunci.status)) return null;
+    if (!terkunci || !menerimaUnggahan(terkunci)) return null;
     const lama = terkunci.dokumenDiunggah?.[nama];
     const diunggah: Record<string, DokumenDiunggah> = {
       ...(terkunci.dokumenDiunggah ?? {}),
@@ -157,7 +157,7 @@ export async function unggahDokumenPengajuan(
     };
     const kurang = dokumenKurang({ ...terkunci, dokumenDiunggah: diunggah });
     // The moment the last document arrives opens the 1-working-day check of a filing-only order (it is set once, at Dimakamkan).
-    const lengkapSekarang = kurang.length === 0 && terkunci.status === "dimakamkan" && !terkunci.berkasLengkapDiunggahPada;
+    const lengkapSekarang = kurang.length === 0 && menungguPemeriksaan(terkunci) && !terkunci.berkasLengkapDiunggahPada;
     await tx
       .update(pengurusanTpu)
       .set({ dokumenDiunggah: diunggah, ...(lengkapSekarang ? { berkasLengkapDiunggahPada: now } : {}) })
@@ -190,10 +190,11 @@ export interface SuratKuasa {
 }
 
 function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
-  // A filing-only order has no confirming staff member: the authority goes to the company alone.
-  const berkas = order.kind === "pengurusan_iptm";
+  // A filing-only order or a Perpanjangan TPU has no confirming staff member: the authority goes to the company alone.
+  const berkas = order.kind !== "saat_duka_tpu";
   if (!order.adminPlatformName && !berkas) return null;
-  if (order.status === "diajukan" || order.status === "dibatalkan" || order.status === "ditolak") return null;
+  // A Saat Duka TPU order has none before its confirmation; a Perpanjangan TPU needs it from Diajukan, the signed copy being one of its documents.
+  if ((order.status === "diajukan" && order.kind !== "perpanjangan_tpu") || order.status === "dibatalkan" || order.status === "ditolak") return null;
   return {
     nomor: order.nomor,
     penerimaKuasa: {
@@ -254,6 +255,8 @@ export type PeriksaDokumenResult =
   /** A filing-only order: the documents pass and the pay-first Tagihan is issued in the same step. */
   | { ok: true; status: "menunggu_pembayaran"; tagihan: TagihanBerkas }
   | { ok: false; reason: "tagihan_tidak_terbit" | "harga_tidak_tersedia" }
+  /** A Perpanjangan TPU past the masa tenggang: the TPU has not yet been asked (its Tier 3 check row is open). */
+  | { ok: false; reason: "cek_tpu_belum_selesai" }
   | WriteRefusal
   | Umum
   | { ok: false; reason: "dokumen_belum_lengkap"; kurang: string[] };
@@ -266,10 +269,11 @@ export async function periksaDokumen(deps: PengurusanDeps, by: Actor, rawInput: 
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const order = await muat(deps, parsed.data.nomor);
   if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (order.status !== "dimakamkan") return { ok: false, reason: "status_tidak_sesuai" };
+  if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
   const kurang = dokumenKurang(order);
   if (kurang.length > 0) return { ok: false, reason: "dokumen_belum_lengkap", kurang };
-  if (order.kind === "pengurusan_iptm") return periksaDokumenBerkas(deps, by, order);
+  if (order.lewatMasaTenggang && !order.cekTpuSelesaiPada) return { ok: false, reason: "cek_tpu_belum_selesai" };
+  if (order.kind !== "saat_duka_tpu") return periksaDokumenBerkas(deps, by, order);
 
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -316,7 +320,7 @@ export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unkn
   if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   // A Saat Duka TPU order is filed once its documents are checked; a filing-only one once its Tagihan is Lunas (Diproses);
   // either one again after a fixable PTSP rejection (Perlu Perbaikan), at no charge, once the documents asked for are in.
-  const dariStatus = order.kind === "pengurusan_iptm" ? "diproses" : "dokumen_lengkap";
+  const dariStatus = order.kind === "saat_duka_tpu" ? "dokumen_lengkap" : "diproses";
   if (order.status !== dariStatus && order.status !== "perlu_perbaikan") return { ok: false, reason: "status_tidak_sesuai" };
   const diajukanUlang = order.status === "perlu_perbaikan";
   if (diajukanUlang) {
@@ -639,7 +643,8 @@ export interface PerluTindakanBerkas {
   nomor: string;
   tpuName: string;
   kurang: string[];
-  dueAt: Date;
+  /** The 7-day window's end; null for a Perpanjangan TPU, whose uploads have no window. */
+  dueAt: Date | null;
   /** Past the 7-day window; never for an order in Perlu Perbaikan, which waits on a correction and not on the window. */
   terlambat: boolean;
   /** What the PTSP asked to be corrected; null while the documents are simply not all in. */
@@ -661,11 +666,11 @@ export async function perluTindakanBerkas(deps: PengurusanDeps, pemesan: { accou
       nomor: row.nomor,
       tpuName: row.tpuName,
       kurang,
-      dueAt: row.dokumenDueAt!,
-      terlambat: row.status === "dimakamkan" && row.dokumenDueAt!.getTime() < now.getTime(),
+      dueAt: row.dokumenDueAt,
+      terlambat: row.status === "dimakamkan" && row.dokumenDueAt !== null && row.dokumenDueAt.getTime() < now.getTime(),
       alasanPerbaikan: row.status === "perlu_perbaikan" ? (row.perbaikan?.alasan ?? row.alasan) : null,
     }))
-    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+    .sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
 }
 
 /** One order waiting to be filed on JakEVO: the Antrean's Tier 3 "IPTM filing" row (7 days from Dokumen Lengkap). */

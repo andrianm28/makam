@@ -67,6 +67,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ["/pesan-makam/saat-duka/**", "inti"],
   ["/pesan-makam/saat-duka/tpu/**", "tpu"],
   ["/pesan-makam/pengurusan-iptm/**", "tpu"],
+  ["/pesan-makam/perpanjang-iptm/**", "tpu"],
   ["/pesan-makam/terencana/**", "inti"],
   ["/pesanan/**", "inti"],
   ["/segera-hadir", "inti"],
@@ -139,6 +140,7 @@ export const petaTick: Readonly<Record<string, Fitur>> = {
   // Layanan Makam at a Lokasi Mitra is Rilis 1 (ADR 0006); the scorecard and the accept deadline are Mitra Jasa's.
   // The filing-only Pengurusan IPTM (ticket 47) is Rilis 3 with the other DKI TPU work.
   "pengurusan.pembayaran_berkas": "tpu",
+  "pengurusan.pengingat_iptm": "tpu",
   "layanan.tandai_terlambat": "inti",
   "layanan.jadwalkan_tertunda": "inti",
   "layanan.tutup_jendela_keluhan": "inti",

@@ -77,6 +77,11 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+export { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
+import { cekTpuTerbuka, koreksiIptmBerakhir, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";
+import type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult } from "./perpanjangan-tpu";
+export type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult };
+export { HARI_KERJA_CEK_TPU, koreksiIptmBerakhirSchema, mintaPerbaikanSchema, putuskanCekTpuSchema } from "./perpanjangan-tpu";
 export { pembayaranBerkasTick, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
 export type { PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
 export type { PengurusanOrder } from "./reads";
@@ -146,6 +151,19 @@ export interface Pengurusan {
    * Dimakamkan, its Nomor Pemesanan, the filing documents due in 7 days, and no Tagihan until Admin Platform has checked them.
    */
   placePengurusanIptm(input: PlacePengurusanIptmInput): Promise<PlacePengurusanIptmResult>;
+  /**
+   * Places a Perpanjangan TPU for the Pemegang Hak of a Makam TPU (ticket 48): Diajukan from 3 months before the IPTM's expiry,
+   * with the expiry the form gave, the filing documents to upload and no Tagihan.
+   */
+  placePerpanjanganTpu(input: PlacePerpanjanganTpuInput): Promise<PlacePerpanjanganTpuResult>;
+  /** Admin Platform's check finds a Perpanjangan TPU document that needs fixing, before any Tagihan: Perlu Perbaikan, no charge. Audited. */
+  mintaPerbaikan(by: Actor, input: unknown): Promise<MintaPerbaikanResult>;
+  /** The TPU's answer to a past-grace Perpanjangan TPU, recorded by Admin Platform: on to the document check, or Ditolak with the reason and no charge. Audited. */
+  putuskanCekTpu(by: Actor, input: unknown): Promise<PutuskanCekTpuResult>;
+  /** Admin Platform corrects the IPTM expiry date read off the photo, until a Tagihan is issued. Audited with the reason. */
+  koreksiIptmBerakhir(by: Actor, input: unknown): Promise<KoreksiIptmBerakhirResult>;
+  /** Every past-grace Perpanjangan TPU waiting for the TPU's answer: the Antrean's Tier 3 past-grace TPU check (1 working day). No actor: the caller checks `antrean.lihat`. */
+  cekTpuTerbuka(): Promise<CekTpuTerbuka[]>;
   /** Every filing-only order whose documents are all in and unchecked: the Antrean's Tier 3 document check (1 working day). No actor: the caller checks `antrean.lihat`. */
   periksaBerkasTerbuka(): Promise<PeriksaBerkasTerbuka[]>;
   /** Every paid filing-only order waiting to be filed: the Antrean's Tier 3 filing row (3 working days after Lunas). No actor: the caller checks `antrean.lihat`. */
@@ -237,6 +255,11 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     pilihanSaatDukaTpu: (query) => pilihanSaatDukaTpu(withAudit, query),
     daftarDokumen: (input) => daftarDokumen(input),
     placePengurusanIptm: (input) => placePengurusanIptm(withAudit, input),
+    placePerpanjanganTpu: (input) => placePerpanjanganTpu(withAudit, input),
+    mintaPerbaikan: (by, input) => mintaPerbaikan(withAudit, by, input),
+    putuskanCekTpu: (by, input) => putuskanCekTpu(withAudit, by, input),
+    koreksiIptmBerakhir: (by, input) => koreksiIptmBerakhir(withAudit, by, input),
+    cekTpuTerbuka: () => cekTpuTerbuka(withAudit),
     periksaBerkasTerbuka: () => periksaBerkasTerbuka(withAudit),
     pengajuanBerkasTerbuka: () => pengajuanBerkasTerbuka(withAudit),
     pembayaranBerkasTick: (now) => pembayaranBerkasTick(withAudit, now ?? deps.clock.now()),

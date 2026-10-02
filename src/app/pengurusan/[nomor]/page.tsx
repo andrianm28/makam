@@ -17,6 +17,7 @@ import { RekeningPengembalianForm } from "@/app/(site)/pesanan/[nomor]/rekening-
 import { isiRekeningPengembalianPengurusanAction } from "./pengajuan-actions";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
+import { PerpanjanganTpuPemesan } from "./perpanjangan-tpu-pemesan";
 
 /** The statuses from the confirmation on: the burial is agreed and the family follows the filing. */
 const SUDAH_DIKONFIRMASI: PengurusanTpuStatus[] = ["dikonfirmasi", "dimakamkan", "dokumen_lengkap", "iptm_diajukan", "iptm_terbit"];
@@ -43,6 +44,7 @@ export async function generateMetadata({ params }: PageProps<"/pengurusan/[nomor
 export default async function PengurusanPage({ params }: PageProps<"/pengurusan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
+  if (order.kind === "perpanjangan_tpu") return <PerpanjanganTpuPemesan order={order} scanUrl={await scanUrlOf(order)} />;
   const { operatorSettings, queues, layanan } = serverRuntime();
   const pengaturan = await operatorSettings.current();
   // The hari-H Layanan of a confirmed order are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56).
@@ -253,6 +255,12 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
   );
 }
 
+/** A short-lived link to the IPTM scan of an issued IPTM, for its own Pemesan. */
+async function scanUrlOf(order: PengurusanOrder): Promise<string | null> {
+  const actor = await currentActor();
+  return actor && order.status === "iptm_terbit" ? serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
+}
+
 /**
  * The order, for its own Pemesan only: a visitor with no session is sent to
  * Masuk (the Kode Masuk that placed the order is the one that signs them in), and
@@ -281,6 +289,9 @@ const BADGE: Partial<Record<PengurusanTpuStatus, StatusKey>> = {
   dikonfirmasi: "dikonfirmasi",
   dimakamkan: "dimakamkan",
   dokumen_lengkap: "dokumen_lengkap",
+  menunggu_pembayaran: "menunggu_pembayaran",
+  diproses: "diproses",
+  perlu_perbaikan: "perlu_perbaikan",
   iptm_diajukan: "iptm_diajukan",
   iptm_terbit: "iptm_terbit",
   ditolak: "ditolak",

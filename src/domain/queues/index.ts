@@ -129,7 +129,7 @@ export interface QueuesModuleDeps {
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
   payouts: Pick<Payouts, "pencairanJatuhTempo" | "pencairanDibayar" | "transferKeluar">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
-  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka" | "pengajuanIptmTerbuka" | "periksaBerkasTerbuka" | "pengajuanBerkasTerbuka">;
+  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka" | "pengajuanIptmTerbuka" | "periksaBerkasTerbuka" | "pengajuanBerkasTerbuka" | "cekTpuTerbuka">;
   /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */

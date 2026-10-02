@@ -24,6 +24,7 @@ export function schedulerContext(parts: {
   lokasi?: SchedulerContext["lokasi"];
   inventory?: SchedulerContext["inventory"];
   pengingatHakPakai?: SchedulerContext["pengingatHakPakai"];
+  pengingatIptm?: SchedulerContext["pengingatIptm"];
   queues?: SchedulerContext["queues"];
   pengurusan?: SchedulerContext["pengurusan"];
 }): SchedulerContext {
@@ -73,6 +74,13 @@ export function schedulerContext(parts: {
       billing: { tagihanBerlaku: async () => null },
       notifikasi: { pengingatHakPakaiBerakhir: async () => ({ ok: true as const }) },
       perpanjanganUrl: (hakPakaiId) => `https://makam.test/perpanjangan/${hakPakaiId}`,
+    },
+    // No Makam TPU is near its IPTM expiry until a test gives the reminders a real Pengurusan.
+    pengingatIptm: parts.pengingatIptm ?? {
+      db: parts.db,
+      identity: { accountOnRecord: async () => null },
+      notifikasi: { pengingatIptmBerakhir: async () => ({ ok: true as const }) },
+      tautan: (makamTpuId) => `https://makam.test/pesan-makam/perpanjang-iptm/${makamTpuId}`,
     },
     // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
     queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), barisMasihTerbukaBelumDiambil: async () => true, barisMasihTerbuka: async () => true, bertugasTick: async () => ({ dimatikan: 0 }) },

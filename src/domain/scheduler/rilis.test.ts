@@ -25,6 +25,14 @@ describe("Scheduled ticks by release (ADR 0006)", () => {
     await expect(tick!.tick({} as never, wib("2026-10-02 10:00"))).rejects.toThrow();
   });
 
+  it("the IPTM expiry reminder tick (Rilis 3, with the TPU work) sends nothing before it and runs at Rilis 3", async () => {
+    const rilis1 = ticksForRelease(scheduledTicks, 1).find((t) => t.name === "pengurusan.pengingat_iptm");
+    expect(rilis1).toBeDefined();
+    await expect(rilis1!.tick({} as never, wib("2026-10-02 10:00"))).resolves.toBeUndefined();
+    const rilis3 = ticksForRelease(scheduledTicks, 3).find((t) => t.name === "pengurusan.pengingat_iptm");
+    await expect(rilis3!.tick({} as never, wib("2026-10-02 10:00"))).rejects.toThrow();
+  });
+
   it("every tick keeps its name and cron, so the worker registers the same jobs at any release", () => {
     expect(ticksForRelease(scheduledTicks, 1).map(({ name, cron }) => ({ name, cron }))).toEqual(scheduledTicks.map(({ name, cron }) => ({ name, cron })));
   });
