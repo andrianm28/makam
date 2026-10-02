@@ -725,7 +725,16 @@ describe("a Tagihan holding several TPU jobs", () => {
 
     // The other job is untouched: it is done, approved, and its Mitra Jasa is paid in full.
     expect((await s.setup.layanan.buktiTpuSaya(mitraPembersihan.actor, akhir))?.status).toBe("dijadwalkan");
-    expect(tagihan!.status).toBe("lunas");
+    s.setup.clock.set(wib("2026-10-09 10:00"));
+    for (const kind of ["foto_sebelum", "foto_sesudah"] as const) {
+      const diambil = await ambil(s, mitraPembersihan, akhir, kind);
+      if (!diambil.ok) throw new Error(`shot refused: ${diambil.reason}`);
+    }
+    const kirim = await s.setup.layanan.kirimBuktiTpu(mitraPembersihan.actor, { pekerjaanId: akhir });
+    if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
+    await setujui(s, akhir);
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await pencairanSaya(s, mitraPembersihan)).toMatchObject([{ tarif: TARIF, status: "jatuh_tempo" }]);
   });
 
   it("a DKI TPU Tagihan carries no Biaya Layanan Platform, so only the job's price comes back", async () => {
