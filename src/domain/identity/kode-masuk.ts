@@ -107,7 +107,7 @@ export async function verifyKodeMasuk(
  * first name a person gives is theirs, and a later checkout never overwrites
  * it. What the Kontak Siaga's card says about a family member is then there.
  */
-async function nameAkun(deps: KodeMasukDeps, accountId: string, typed: string | undefined) {
+async function nameAkun(deps: { db: Database; clock: Clock }, accountId: string, typed: string | undefined) {
   const name = typed?.trim() ?? "";
   if (name === "") return;
   const [row] = await deps.db
@@ -116,6 +116,24 @@ async function nameAkun(deps: KodeMasukDeps, accountId: string, typed: string | 
     .where(eq(identityUser.id, accountId));
   if (!row || row.name !== "") return;
   await deps.db.update(identityUser).set({ name, updatedAt: deps.clock.now() }).where(eq(identityUser.id, accountId));
+}
+
+/**
+ * Dev seed only: fills an Akun's name when it still has none, the same rule a
+ * wizard's Kirim applies through `verifyKodeMasuk`, but without a Kode Masuk.
+ * A seed's second run over a fixture Akun must reproduce the mock's Kontak
+ * Siaga name without asking for another code inside the 60 s resend window.
+ * Never call this from app code (AGENTS.md's dev-seed exception).
+ */
+export async function nameAkunForSeed(
+  deps: { db: Database; clock: Clock },
+  input: { email: string; name: string },
+): Promise<{ ok: true } | { ok: false; reason: "akun_tidak_ada" }> {
+  const email = normaliseEmail(input.email);
+  const akun = email ? await akunOfVerifiedEmail(deps.db, email) : null;
+  if (!akun) return { ok: false, reason: "akun_tidak_ada" };
+  await nameAkun(deps, akun.id, input.name);
+  return { ok: true };
 }
 
 /** Creates the Akun of a just-proven email; when another login created it first, that Akun. */

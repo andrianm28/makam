@@ -150,9 +150,9 @@ async function seedLokasiMitra(modul: Modul, admin: Actor): Promise<{ exitCode: 
   if (!dibuat.ok) return { exitCode: 1, output: `Ditolak: Lokasi Mitra contoh tidak dibuat (${dibuat.reason}).` };
   const lokasiId = dibuat.lokasiMitra.id;
 
-  const adminLokasi = await masukSebagai(modul, ADMIN_LOKASI.email, () => lokasi.inviteAdminLokasi(admin, lokasiId, ADMIN_LOKASI));
+  const adminLokasi = await masukSebagai(modul, ADMIN_LOKASI.email, { role: "admin_lokasi", lokasiId }, () => lokasi.inviteAdminLokasi(admin, lokasiId, ADMIN_LOKASI));
   if (!adminLokasi.ok) return { exitCode: 1, output: `Ditolak: Admin Lokasi contoh tidak siap (${adminLokasi.reason}).` };
-  const petugas = await masukSebagai(modul, PETUGAS.email, () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" }));
+  const petugas = await masukSebagai(modul, PETUGAS.email, { role: "petugas_lapangan" }, () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan" }));
   if (!petugas.ok) return { exitCode: 1, output: `Ditolak: Petugas Lapangan contoh tidak siap (${petugas.reason}).` };
 
   const terbit = await terbitkan(modul, admin, lokasiId, adminLokasi.value, petugas.value);

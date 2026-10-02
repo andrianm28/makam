@@ -10,7 +10,7 @@
 import { FakeEmailSender } from "@/adapters/memory";
 import type { Database } from "@/db/client";
 import type { Fieldwork } from "@/domain/fieldwork";
-import type { Actor, Identity } from "@/domain/identity";
+import type { Actor, Identity, StaffRole } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi } from "@/domain/lokasi";
 import type { OperatorSettings } from "@/domain/operator-settings";
@@ -82,19 +82,70 @@ export async function masukDenganKodeMasuk(modul: Modul, email: string, name?: s
 }
 
 /**
+ * The Actor of an Akun that already holds `role`, built from identity's own
+ * reads (the same dev-seed shortcut as `adminPlatform`), or null when there is
+ * no such Akun or, for an Admin Lokasi, it is not linked to `lokasiId`. Lets a
+ * second seed run act without sending another Kode Masuk.
+ */
+export async function actorAkunYangAda(
+  identity: Identity,
+  email: string,
+  role: StaffRole,
+  lokasiId?: string,
+): Promise<Actor | null> {
+  const akun = (await identity.staffAccounts()).find(
+    (one) => one.email?.toLowerCase() === email.toLowerCase() && !one.deactivated && one.roles.includes(role),
+  );
+  if (!akun) return null;
+  let lokasiIds: string[] = [];
+  if (role === "admin_lokasi") {
+    if (!lokasiId) return null;
+    const admin = (await identity.adminLokasiOf(lokasiId)).some((one) => one.accountId === akun.accountId);
+    if (!admin) return null;
+    lokasiIds = [lokasiId];
+  }
+  return {
+    accountId: akun.accountId,
+    email: akun.email ?? "",
+    phoneNumber: akun.phoneNumber,
+    roles: akun.roles,
+    lokasiIds,
+    totp: "lolos",
+    sessionId: `dev-seed-${akun.accountId}`,
+  };
+}
+
+/**
  * Invites a fixture Akun through `invite` (the caller's own call into Lokasi's
  * `inviteAdminLokasi` or Identity's `inviteStaff`, whichever role this is),
- * then signs it in with its Kode Masuk, as a real Actor. `name` is threaded
- * straight through to `masukDenganKodeMasuk`.
+ * then signs it in with its Kode Masuk, as a real Actor. An Akun that already
+ * holds `peran.role` (or whose open Undangan Staf already exists) skips the
+ * invite; an Akun that already holds the role is acted as directly, and its
+ * name is filled when given and still empty, so a second seed run changes
+ * nothing and asks for no Kode Masuk inside the 60 s resend window. `name` is
+ * threaded straight through to `masukDenganKodeMasuk` for the first login.
  */
 export async function masukSebagai(
   modul: Modul,
   email: string,
+  peran: { role: StaffRole; lokasiId?: string },
   invite: () => Promise<{ ok: true } | { ok: false; reason: string }>,
   name?: string,
 ): Promise<{ ok: true; value: Actor } | Gagal> {
-  const invited = await invite();
-  if (!invited.ok) return { ok: false, reason: invited.reason };
+  const sudah = await actorAkunYangAda(modul.identity, email, peran.role, peran.lokasiId);
+  if (sudah) {
+    if (name && name.trim() !== "") {
+      const dinamai = await modul.identity.nameAccountForSeed({ email, name });
+      if (!dinamai.ok) return { ok: false, reason: dinamai.reason };
+    }
+    return { ok: true, value: sudah };
+  }
+  const invites = await modul.identity.openStaffInvites(peran.lokasiId ? { lokasiId: peran.lokasiId } : undefined);
+  const sudahDiundang = invites.some((one) => one.email.toLowerCase() === email.toLowerCase() && one.role === peran.role);
+  if (!sudahDiundang) {
+    const invited = await invite();
+    if (!invited.ok) return { ok: false, reason: invited.reason };
+  }
   return masukDenganKodeMasuk(modul, email, name);
 }
 

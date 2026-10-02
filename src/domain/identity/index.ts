@@ -28,6 +28,7 @@ import {
 import { normaliseEmail } from "./email-address";
 import { inviteStaff, openStaffInvites, type InviteStaffInput, type InviteStaffResult, type StaffInvite } from "./invites";
 import {
+  nameAkunForSeed,
   requestKodeMasuk,
   verifyKodeMasuk,
   type RequestKodeMasukResult,
@@ -175,6 +176,12 @@ export interface Identity {
    * for, which fills an Akun that has no name yet.
    */
   verifyKodeMasuk(input: { email: string; code: string; name?: string }): Promise<VerifyKodeMasukResult>;
+  /**
+   * Dev seed only (`nameAkunForSeed`): fills an Akun's name when it still has
+   * none, without a Kode Masuk, so a second seed run need not send another
+   * code inside the 60 s resend window. Never call from app code.
+   */
+  nameAccountForSeed(input: { email: string; name: string }): Promise<{ ok: true } | { ok: false; reason: "akun_tidak_ada" }>;
   /** The Akun whose Email Terverifikasi this is (any case), or null. */
   accountByEmail(email: string): Promise<Account | null>;
   /** The signed-in actor for a request's Cookie header, or null when not signed in. */
@@ -249,6 +256,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
   return {
     requestKodeMasuk: (input) => requestKodeMasuk(kodeMasuk, input),
     verifyKodeMasuk: (input) => verifyKodeMasuk(kodeMasuk, input),
+    nameAccountForSeed: (input) => nameAkunForSeed(kodeMasuk, input),
     accountByEmail: async (email) => {
       const normalised = normaliseEmail(email);
       return normalised ? akunOfVerifiedEmail(deps.db, normalised) : null;

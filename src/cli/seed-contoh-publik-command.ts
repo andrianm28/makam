@@ -52,7 +52,9 @@
  *   until its own holder sets it (Akun Saya profile) — so this command's own
  *   `masukSebagai` (`dev-seed-support.ts`) passes the mock's name the same
  *   way a wizard's Kirim would, filling the Akun's name at its first Kode
- *   Masuk login (`identity.verifyKodeMasuk`'s existing optional `name`). Its
+ *   Masuk login (`identity.verifyKodeMasuk`'s existing optional `name`), or
+ *   through `identity.nameAccountForSeed` when reconciling an Akun that
+ *   already holds the role (no second Kode Masuk to re-send). Its
  *   phone number is real (the invited Admin Lokasi's own).
  * - Every Jenis Makam's Tersedia count IS reproduced 1:1 with the mock's own
  *   `tersedia` (9-118 for most, down to the mock's small Kavling Keluarga
@@ -145,7 +147,6 @@ import {
   adminPlatform,
   BIAYA_LAYANAN_PLATFORM_CONTOH,
   isiPengaturanOperatorBilaKosong,
-  masukDenganKodeMasuk,
   masukSebagai,
   scanPerjanjian,
   type Gagal,
@@ -583,8 +584,11 @@ export async function seedContohPublikCommand(
 
 /** The one Petugas Lapangan every example Lokasi Mitra's Kunjungan Verifikasi and Cek Denah are done by (the role is not Lokasi-scoped). */
 async function undangPetugas(modul: Modul, admin: Actor, alasan: string): Promise<{ ok: true; value: Actor } | Gagal> {
-  return masukSebagai(modul, PETUGAS.email, () =>
-    modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan", reason: alasan }),
+  return masukSebagai(
+    modul,
+    PETUGAS.email,
+    { role: "petugas_lapangan" },
+    () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan", reason: alasan }),
   );
 }
 
@@ -593,6 +597,7 @@ async function undangAdminLokasi(modul: Modul, admin: Actor, lokasiId: string, s
   return masukSebagai(
     modul,
     spec.adminLokasiEmail,
+    { role: "admin_lokasi", lokasiId },
     () => modul.lokasi.inviteAdminLokasi(admin, lokasiId, { email: spec.adminLokasiEmail, phoneNumber: spec.adminLokasiPhone, reason: alasan }),
     spec.kontakSiagaName,
   );
@@ -898,7 +903,7 @@ async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string,
   }
   if (kurang === 0 && prototipeBelum === 0 && !perluNama && lama.length === 0) return { ok: true, berubah: tarifBeda.length };
 
-  const adminLokasi = await masukDenganKodeMasuk(modul, spec.adminLokasiEmail, spec.kontakSiagaName);
+  const adminLokasi = await undangAdminLokasi(modul, admin, lokasiId, spec, alasan);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
 
   // The older version's single-row Bloks go first, so the counts below are read without them.
