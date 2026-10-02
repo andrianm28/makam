@@ -46,7 +46,7 @@ export function masalahAksi(source: string): string[] {
   const fns = topLevel(code);
   const masalah: string[] = [];
   for (const [name, body] of fns) {
-    if (body.startsWith("export ") && !hasRelease(name, fns)) masalah.push(`${name}: no release`);
+    if (/^export (async function|const) /.test(body) && !hasRelease(name, fns)) masalah.push(`${name}: no release`);
   }
   for (const line of code.split("\n")) {
     if (!line.startsWith("export ")) continue;
