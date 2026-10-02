@@ -6,7 +6,7 @@ import { identityMessage, type IdentityRefusal } from "@/components/kode-masuk/s
 import { pemesananResource } from "@/domain/identity";
 import { tumpangMessage } from "@/lib/tumpang-labels";
 import { codeInput, emailInput } from "@/server/code-inputs";
-import { guarded } from "@/server/guard";
+import { gerbangAksi, guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import { masalahDariIssues, type KirimState } from "../saat-duka/draft";
@@ -23,6 +23,7 @@ const pesananPath = (nomor: string) => `/pesanan/${encodeURIComponent(nomor)}`;
 /** Kirim for a Pemesan already signed in; a visitor with no session opens the Kode Masuk step. */
 export async function ajukanTumpangAction(draft: unknown): Promise<KirimState> {
   const hasil = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: draftTumpangSchema,
@@ -42,6 +43,8 @@ const kodeMasukSchema = z.object({ email: emailInput, code: codeInput });
 
 /** The Kode Masuk step: a correct code finds or creates the Akun, logs it in and places the order in the same request. */
 export async function verifikasiKodeMasukDanAjukanTumpang(draft: unknown, _state: KirimState, formData: FormData): Promise<KirimState> {
+  // The login itself skips the guard, but the release gate still applies (ADR 0006).
+  gerbangAksi("perpanjangan_lanjutan");
   const parsedDraft = draftTumpangSchema.safeParse(draft);
   if (!parsedDraft.success) {
     const pesan = masalahDariIssues(parsedDraft.error.issues);

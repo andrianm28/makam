@@ -16,6 +16,7 @@ export type KonsenActionState = { status: "idle" } | { status: "gagal" | "berhas
  */
 export async function jawabKonsenAction(_previous: KonsenActionState, formData: FormData): Promise<KonsenActionState> {
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: jawabKonsenSchema,

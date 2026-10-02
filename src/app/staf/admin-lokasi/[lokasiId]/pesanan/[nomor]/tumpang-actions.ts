@@ -14,6 +14,7 @@ export type TumpangActionState = { status: "idle" } | { status: "gagal" | "berha
 export async function catatKonsenTumpangAction(_previous: TumpangActionState, formData: FormData): Promise<TumpangActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.konfirmasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: catatKonsenSchema,
@@ -30,6 +31,7 @@ export async function catatKonsenTumpangAction(_previous: TumpangActionState, fo
 export async function konfirmasiTumpangAction(_previous: TumpangActionState, formData: FormData): Promise<TumpangActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.konfirmasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: konfirmasiTumpangSchema,

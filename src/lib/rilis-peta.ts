@@ -6,9 +6,9 @@
  *
  * Ticket numbers are the spec's Release plan: Rilis 2 is 35, 39, 41, 42, 59 and 84,
  * Rilis 3 is 43-48, 55-57 and the TPU parts of 51-53 and 58; everything else,
- * Layanan Makam at a Lokasi Mitra (49-54) included, is Rilis 1. Tickets 35, 39 and
- * 84 have no route or tick of their own on `main` yet: when they land, their
- * routes join `perpanjangan_lanjutan` here, and the guard test
+ * Layanan Makam at a Lokasi Mitra (49-54) included, is Rilis 1. Ticket 35's "Makamkan di sini" routes are
+ * under `perpanjangan_lanjutan` here; tickets 39 and 84 have no route or tick of their own on `main` yet: when they land, their
+ * routes join it too, and the guard test
  * (`rilis-guard.test.ts`) fails until they do.
  */
 
@@ -44,6 +44,7 @@ export function terbukaDi(fitur: Fitur, rilis: Rilis): boolean {
 export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitur]> = [
   ["/", "inti"],
   ["/akun/**", "inti"],
+  ["/akun/persetujuan/**", "perpanjangan_lanjutan"],
   ["/akun/wakaf/**", "wakaf"],
   ["/cara-kami-bekerja", "inti"],
   ["/dokumen/**", "inti"],
@@ -61,6 +62,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ["/perpanjangan/[x]", "inti"],
   ["/perpanjangan/[x]/berkas/**", "perpanjangan_lanjutan"],
   ["/perpanjangan/permohonan/**", "perpanjangan_lanjutan"],
+  ["/pesan-makam/makamkan-di-sini/**", "perpanjangan_lanjutan"],
   ["/pesan-makam/saat-duka/**", "inti"],
   ["/pesan-makam/saat-duka/tpu/**", "tpu"],
   ["/pesan-makam/terencana/**", "inti"],
