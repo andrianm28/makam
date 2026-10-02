@@ -146,6 +146,7 @@ import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayanan
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   batalkanLayananCheckout,
+  batalkanPekerjaanTagihanLapse,
   gabungkanBaris,
   penawaranCheckout,
   siapkanCheckout,
@@ -599,6 +600,8 @@ export interface Layanan {
   tulisCheckout(input: TulisCheckoutInput, within?: Database): Promise<number>;
   /** Cancels the jobs not yet started and returns the rupiah kept for the ones that were, which the cancellation does not refund. */
   batalkanLayananCheckout(nomor: string, alasan: string, within?: Database): Promise<{ dibatalkan: number; ditahan: number }>;
+  /** Cancels the jobs still Menunggu Pembayaran of every order whose Tagihan lapsed (Dibatalkan); returns how many. Idempotent. */
+  batalkanPekerjaanTagihanLapse(now: Date): Promise<number>;
 
   /* ── Layanan at a DKI TPU, fulfilled by a Mitra Jasa (ticket 56) ── */
 
@@ -761,6 +764,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     gabungkanBaris,
     tulisCheckout: (input, within) => tulisCheckout(deps, input, within),
     batalkanLayananCheckout: (nomor, alasan, within) => batalkanLayananCheckout(deps, nomor, alasan, within),
+    batalkanPekerjaanTagihanLapse: (now) => batalkanPekerjaanTagihanLapse(deps, now),
     penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
     hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),
     placePesananLayananTpu: (pemesan, input, foto) => placePesananLayananTpu(deps, pemesan, input, foto ?? null),

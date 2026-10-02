@@ -219,3 +219,25 @@ export async function batalkanLayananCheckout(
     .where(and(eq(pekerjaanLayanan.pesananId, order.id), inArray(pekerjaanLayanan.status, ["sedang_dikerjakan", "terlambat", "selesai", "keluhan"])));
   return { dibatalkan: batal.length, ditahan: berjalan.reduce((jumlah, baris) => jumlah + Number(baris.amount), 0) };
 }
+
+/**
+ * The tick that closes the jobs of an order whose Tagihan lapsed (Dibatalkan, "batas pembayaran lewat", or
+ * replaced by nothing): a job still Menunggu Pembayaran then will never be paid, so it becomes Dibatalkan
+ * instead of lingering. Billing's own lapse tick makes the Tagihan Dibatalkan; this reads that state
+ * (`tagihanBerlaku`), so it needs no hand-over and is idempotent: a job already Dibatalkan is not matched
+ * again. Returns how many jobs it cancelled.
+ */
+export async function batalkanPekerjaanTagihanLapse(deps: LayananDeps, _now: Date): Promise<number> {
+  const menunggu = await deps.db
+    .selectDistinct({ nomor: pesananLayanan.nomor, tagihanId: pesananLayanan.tagihanId })
+    .from(pekerjaanLayanan)
+    .innerJoin(pesananLayanan, eq(pesananLayanan.id, pekerjaanLayanan.pesananId))
+    .where(and(eq(pekerjaanLayanan.status, "menunggu_pembayaran"), eq(pesananLayanan.status, "menunggu_pembayaran")));
+  let dibatalkan = 0;
+  for (const order of menunggu) {
+    const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
+    if (tagihan && tagihan.status !== "dibatalkan") continue;
+    dibatalkan += (await batalkanLayananCheckout(deps, order.nomor, "Tagihan lewat batas pembayaran")).dibatalkan;
+  }
+  return dibatalkan;
+}

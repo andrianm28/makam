@@ -51,7 +51,7 @@ export function schedulerContext(parts: {
     refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
     layanan:
       parts.layanan ??
-      ({ tinjauSkorTick: async () => {}, tandaiTidakDirespons: async () => 0, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }), paketSiklusTick: async () => ({ diterbitkan: 0 }) } satisfies SchedulerContext["layanan"]),
+      ({ tinjauSkorTick: async () => {}, tandaiTidakDirespons: async () => 0, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }), paketSiklusTick: async () => ({ diterbitkan: 0 }), batalkanPekerjaanTagihanLapse: async () => 0 } satisfies SchedulerContext["layanan"]),
     // No confirmed Terencana order is waiting until a test gives the tick a real Pemesanan.
     terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
     // A grave no tick but the Layanan release one reads: a test of another module's
