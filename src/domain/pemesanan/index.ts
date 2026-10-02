@@ -143,6 +143,24 @@ import {
   type PermintaanPembatalan,
   type PermintaanPembatalanStaf,
 } from "./reads-pembatalan-terencana";
+import {
+  ajukanGantiPemegangHak,
+  ajukanPengembalian,
+  ajukanUlangPermintaanHakPakai,
+  antreanPermintaanHakPakai,
+  batalkanPermintaanHakPakai,
+  mintaPerbaikanPermintaanHakPakai,
+  permintaanHakPakaiTerakhir,
+  setujuiPermintaanHakPakai,
+  tolakPermintaanHakPakai,
+  ubahCalonPenghuni,
+  type AjukanPermintaanResult,
+  type BarisAntreanPermintaanHakPakai,
+  type PermintaanHakPakai,
+  type SetujuiPermintaanHakPakaiResult,
+  type UbahCalonPenghuniResult,
+  type UbahPermintaanHakPakaiResult,
+} from "./permintaan-hak-pakai";
 
 export type {
   ChasingDijadwalkan,
@@ -225,6 +243,29 @@ export type { HitungPembatalan } from "./pembatalan-terencana-hitung";
 export type { BarisAntreanPembatalan, BarisPersetujuanRefundPembatalan, PermintaanPembatalan, PermintaanPembatalanStaf } from "./reads-pembatalan-terencana";
 export type { PermintaanPembatalanStatus } from "./schema";
 export { permintaanPembatalanStatuses } from "./schema";
+export type { PermintaanGantiSebab, PermintaanHakPakaiJenis, PermintaanHakPakaiStatus } from "./schema";
+export { permintaanGantiSebab, permintaanHakPakaiJenis, permintaanHakPakaiStatuses } from "./schema";
+export {
+  TENGGAT_PERMINTAAN_HAK_PAKAI_HARI_KERJA,
+  type AjukanPermintaanResult,
+  type BarisAntreanPermintaanHakPakai,
+  type PermintaanHakPakai,
+  type SebabPermintaanTerhalang,
+  type SetujuiPermintaanHakPakaiResult,
+  type UbahCalonPenghuniResult,
+  type UbahPermintaanHakPakaiResult,
+} from "./permintaan-hak-pakai";
+export {
+  ajukanGantiPemegangHakSchema,
+  ajukanPengembalianSchema,
+  ajukanUlangPermintaanHakPakaiSchema,
+  mintaPerbaikanPermintaanHakPakaiSchema,
+  permintaanHakPakaiIdSchema,
+  setujuiPermintaanHakPakaiSchema,
+  tolakPermintaanHakPakaiSchema,
+  ubahCalonPenghuniSchema,
+} from "./skema-permintaan-hak-pakai";
+export type { CalonPenghuniBerubah } from "./deps";
 export {
   ajukanPembatalanTerencanaSchema,
   ajukanUlangPembatalanTerencanaSchema,
@@ -450,6 +491,26 @@ export interface Pemesanan {
   pembatalanUntukPesanan(pemesan: { accountId: string }, nomor: string): Promise<PermintaanPembatalan[]>;
   /** True while a Pembatalan request of this Hak Pakai is open: what blocks a Ganti Pemegang Hak. */
   adaPembatalanTerbuka(hakPakaiId: string): Promise<boolean>;
+  /** "Kembalikan Hak Pakai": a Pengembalian request on an unused plot (ticket 39). */
+  ajukanPengembalian(pemesan: Pemesan, input: unknown): Promise<AjukanPermintaanResult>;
+  /** "Ajukan Ganti Pemegang Hak": the new holder, why, and any documents (ticket 39). */
+  ajukanGantiPemegangHak(pemesan: Pemesan, input: unknown): Promise<AjukanPermintaanResult>;
+  /** The Pemegang Hak files a Pengembalian / Ganti request the Lokasi sent back for a fix again (ticket 39). */
+  ajukanUlangPermintaanHakPakai(pemesan: Pemesan, input: unknown): Promise<UbahPermintaanHakPakaiResult>;
+  /** The Pemegang Hak withdraws its request before a decision (ticket 39). */
+  batalkanPermintaanHakPakai(pemesan: Pemesan, input: unknown): Promise<UbahPermintaanHakPakaiResult>;
+  /** The latest Pengembalian / Ganti request of a Hak Pakai (any state), for the Makam tab; null when none. */
+  permintaanHakPakaiTerakhir(hakPakaiId: string): Promise<PermintaanHakPakai | null>;
+  /** The Admin Lokasi approves: ends the Hak Pakai, or performs the Ganti and notes the offline fee (ticket 39). */
+  setujuiPermintaanHakPakai(by: Actor, input: unknown): Promise<SetujuiPermintaanHakPakaiResult>;
+  /** The Admin Lokasi declines, with the reason the family is told (ticket 39). */
+  tolakPermintaanHakPakai(by: Actor, input: unknown): Promise<UbahPermintaanHakPakaiResult>;
+  /** The Admin Lokasi sends the request back for a fix (ticket 39). */
+  mintaPerbaikanPermintaanHakPakai(by: Actor, input: unknown): Promise<UbahPermintaanHakPakaiResult>;
+  /** The Antrean Lokasi's Pengembalian / Ganti rows: every Diajukan request at that Lokasi Mitra, oldest first (ticket 39). */
+  antreanPermintaanHakPakai(lokasiId: string): Promise<BarisAntreanPermintaanHakPakai[]>;
+  /** The Pemegang Hak changes a plot's Calon Penghuni label freely; the Lokasi is notified (ticket 39). */
+  ubahCalonPenghuni(pemesan: Pemesan, input: unknown): Promise<UbahCalonPenghuniResult>;
   /**
    * True while a Lokasi Mitra Saat Duka Tagihan on this Hak Pakai is Lewat
    * Jatuh Tempo (spec, Billing > Chasing; ticket 29): blocks Perpanjangan and
@@ -530,6 +591,16 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     pembatalanUntukStaf: (by, nomor) => pembatalanUntukStaf(deps, by, nomor),
     pembatalanUntukPesanan: (pemesan, nomor) => pembatalanUntukPesanan(deps, pemesan, nomor),
     adaPembatalanTerbuka: (hakPakaiId) => adaPembatalanTerbuka(deps, hakPakaiId),
+    ajukanPengembalian: (pemesan, input) => ajukanPengembalian(deps, pemesan, input),
+    ajukanGantiPemegangHak: (pemesan, input) => ajukanGantiPemegangHak(deps, pemesan, input),
+    ajukanUlangPermintaanHakPakai: (pemesan, input) => ajukanUlangPermintaanHakPakai(deps, pemesan, input),
+    batalkanPermintaanHakPakai: (pemesan, input) => batalkanPermintaanHakPakai(deps, pemesan, input),
+    permintaanHakPakaiTerakhir: (hakPakaiId) => permintaanHakPakaiTerakhir(deps, hakPakaiId),
+    setujuiPermintaanHakPakai: (by, input) => setujuiPermintaanHakPakai(deps, by, input),
+    tolakPermintaanHakPakai: (by, input) => tolakPermintaanHakPakai(deps, by, input),
+    mintaPerbaikanPermintaanHakPakai: (by, input) => mintaPerbaikanPermintaanHakPakai(deps, by, input),
+    antreanPermintaanHakPakai: (lokasiId) => antreanPermintaanHakPakai(deps, lokasiId),
+    ubahCalonPenghuni: (pemesan, input) => ubahCalonPenghuni(deps, pemesan, input),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
     tagihanPenghalangOf: (hakPakaiId) => tagihanPenghalangOf(deps, hakPakaiId),
     nyatakanTidakTertagih: (by, input) => nyatakanTidakTertagih(deps, by, input),

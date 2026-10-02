@@ -47,21 +47,38 @@ export interface HakPakaiDetail extends HakPakaiRow {
   pemakaman: PemakamanRow[];
   /** True once a Ganti Pemegang Hak closed an earlier holder's row: the Hak Pakai has had a holder before this one. */
   pernahGantiPemegangHak: boolean;
+  /** The Nomor Makam / Nomor Kavling its plot is known by, or null for one recorded with no target (ticket 39). */
+  unitNomor: string | null;
 }
 
 async function hakPakaiDetailOf(db: InventoryDeps["db"], hakPakai: HakPakaiRow | null): Promise<HakPakaiDetail | null> {
   if (!hakPakai) return null;
-  const [pemegangHak, pemakaman, pernahGanti] = await Promise.all([
+  const [pemegangHak, pemakaman, pernahGanti, unitNomor] = await Promise.all([
     currentPemegangHak(db, hakPakai.id),
     pemakamanOfHakPakai(db, hakPakai.id),
     pernahGantiPemegangHak(db, hakPakai.id),
+    nomorUnitOf(db, hakPakai),
   ]);
   return {
     ...hakPakai,
     pemegangHak: pemegangHak ? { name: pemegangHak.name, phoneNumber: pemegangHak.phoneNumber, email: pemegangHak.email } : null,
     pemakaman,
     pernahGantiPemegangHak: pernahGanti,
+    unitNomor,
   };
+}
+
+/** The plot number a Hak Pakai is known by, reading the Petak or Kavling row it points at. */
+async function nomorUnitOf(db: InventoryDeps["db"], hakPakai: HakPakaiRow): Promise<string | null> {
+  if (hakPakai.petakId) {
+    const [petak] = await db.select({ nomorMakam: inventoryPetak.nomorMakam }).from(inventoryPetak).where(eq(inventoryPetak.id, hakPakai.petakId));
+    return petak?.nomorMakam ?? null;
+  }
+  if (hakPakai.kavlingId) {
+    const [kavling] = await db.select({ nomorKavling: inventoryKavling.nomorKavling }).from(inventoryKavling).where(eq(inventoryKavling.id, hakPakai.kavlingId));
+    return kavling?.nomorKavling ?? null;
+  }
+  return null;
 }
 
 /** A `inventory_hak_pakai` row as the module's own reads keep it. */

@@ -193,6 +193,12 @@ export type AuditAction =
   | "pembatalan_terencana.tolak"
   /** An Admin Lokasi sends a Pembatalan request back for a fix (ticket 38). */
   | "pembatalan_terencana.minta_perbaikan"
+  /** An Admin Lokasi approves a Pengembalian Hak Pakai (the right ends, the plot is Tersedia) or a Ganti Pemegang Hak (the holder history keeps the earlier one), ticket 39. */
+  | "permintaan_hak_pakai.setujui"
+  /** An Admin Lokasi declines a Pengembalian / Ganti Pemegang Hak request, with a reason (ticket 39). */
+  | "permintaan_hak_pakai.tolak"
+  /** An Admin Lokasi sends a Pengembalian / Ganti Pemegang Hak request back for a fix (ticket 39). */
+  | "permintaan_hak_pakai.minta_perbaikan"
   /** Admin Platform holds a Pencairan item out of the runs with a reason, or puts it back (ticket 32). */
   | "pencairan.tahan"
   /** Admin Platform overrides what a Pencairan item pays after a Keluhan, with a note (ticket 32). */

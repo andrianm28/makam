@@ -8,6 +8,9 @@ import type { inventoryHakPakaiStatuses } from "./schema";
 
 export type HakPakaiStatus = (typeof inventoryHakPakaiStatuses)[number];
 
+/** The `endReason` a Pengembalian Hak Pakai writes (spec, Inventory > Operasi; ticket 39). */
+export const PENGEMBALIAN_END_REASON = "Pengembalian";
+
 export type PetakStatus = "tersedia" | "dipesan" | "terisi" | "masa_berlaku_habis" | "tidak_tersedia";
 export type KavlingStatus = "tersedia" | "dipesan" | "terpakai_sebagian" | "penuh";
 
@@ -20,6 +23,12 @@ export type KavlingStatus = "tersedia" | "dipesan" | "terpakai_sebagian" | "penu
 export interface ActiveHakPakaiForStatus {
   status: HakPakaiStatus;
   pembongkaranAt: Date | null;
+  /**
+   * Why a Berakhir Hak Pakai ended. A Pengembalian ends one with **no
+   * Pemakaman** under it (spec, Inventory > Pengembalian Hak Pakai), so the
+   * plot is sellable again at once and needs no Pembongkaran.
+   */
+  endReason?: string | null;
 }
 
 /**
@@ -44,6 +53,9 @@ export function derivePetakStatus(input: { tidakTersediaReason: string | null; h
       // Pembongkaran is needed.
       return "tersedia";
     case "berakhir":
+      // A Pengembalian gave the plot back unused, so it is Tersedia at once; any other Berakhir
+      // (an ended, unpaid right over a grave) stays Terisi until a Pembongkaran is recorded.
+      if (hakPakai.endReason === PENGEMBALIAN_END_REASON) return "tersedia";
       return "terisi";
   }
 }
@@ -55,7 +67,10 @@ export function derivePetakStatus(input: { tidakTersediaReason: string | null; h
  */
 export function deriveKavlingStatus(input: { hakPakai: ActiveHakPakaiForStatus | null; totalPetak: number; petakWithPemakaman: number }): KavlingStatus {
   const { hakPakai, totalPetak, petakWithPemakaman } = input;
-  const released = !hakPakai || hakPakai.status === "dibatalkan" || (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt !== null);
+  const released =
+    !hakPakai ||
+    hakPakai.status === "dibatalkan" ||
+    (hakPakai.status === "berakhir" && (hakPakai.pembongkaranAt !== null || hakPakai.endReason === PENGEMBALIAN_END_REASON));
   if (released) return "tersedia";
   return totalPetak > 0 && petakWithPemakaman >= totalPetak ? "penuh" : "terpakai_sebagian";
 }

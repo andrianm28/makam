@@ -80,6 +80,12 @@ import {
   type HakPakaiMasaTenggang,
   type HakPakaiMenjelangAkhir,
 } from "./masa-berlaku";
+import {
+  kembalikanHakPakai,
+  ubahCalonPenghuni,
+  type KembalikanHakPakaiResult,
+  type UbahCalonPenghuniResult,
+} from "./pengembalian";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -102,6 +108,8 @@ export type { PemegangHakResult, RiwayatPemegangHak };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
 export type { AkhiriHakPakaiManualResult, CatatPembongkaranResult, HakPakaiMasaTenggang, HakPakaiMenjelangAkhir };
 export { akhiriHakPakaiManualSchema, catatPembongkaranSchema, kedaluwarsaTick } from "./masa-berlaku";
+export type { KembalikanHakPakaiResult, UbahCalonPenghuniResult } from "./pengembalian";
+export { PENGEMBALIAN_END_REASON } from "./status";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -266,6 +274,19 @@ export interface Inventory {
   hakPakaiMenjelangAkhir(now: Date, hari: number): Promise<HakPakaiMenjelangAkhir[]>;
   /** Scheduler tick: Aktif Hak Pakai past their end date become Kedaluwarsa; idempotent (ticket 42). */
   kedaluwarsaTick(now: Date): Promise<{ kedaluwarsa: number }>;
+  /**
+   * One Aktif Hak Pakai with no Pemakaman becomes Berakhir (reason Pengembalian) and its plot reads
+   * Tersedia again: what the Admin Lokasi's approval of a Pengembalian request does (spec, Inventory >
+   * Pengembalian Hak Pakai; ticket 39). No actor: the caller has already checked the request's Lokasi.
+   * No money is recorded: compensation is agreed directly with the Lokasi.
+   */
+  kembalikanHakPakai(input: { hakPakaiId: string }): Promise<KembalikanHakPakaiResult>;
+  /**
+   * The Pemegang Hak's own free change of a plot's Calon Penghuni label (or clearing it): no review,
+   * no history, no audit (spec, story 105; ticket 39). The caller checks the Akun is that holder and
+   * notifies the Lokasi itself.
+   */
+  ubahCalonPenghuni(input: { hakPakaiId: string; petakId?: string; label: string | null }): Promise<UbahCalonPenghuniResult>;
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
@@ -374,6 +395,8 @@ export function createInventory(deps: InventoryDeps): Inventory {
     hakPakaiMasaTenggang: (lokasiId) => hakPakaiMasaTenggang(deps, lokasiId),
     hakPakaiMenjelangAkhir: (now, hari) => hakPakaiMenjelangAkhir(deps, now, hari),
     kedaluwarsaTick: (now) => kedaluwarsaTick(deps, now),
+    kembalikanHakPakai: (input) => kembalikanHakPakai(deps, input),
+    ubahCalonPenghuni: (input) => ubahCalonPenghuni(deps, input),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),

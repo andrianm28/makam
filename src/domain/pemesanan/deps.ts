@@ -124,6 +124,11 @@ export interface PemesananNotifikasi {
    */
   pembatalanTerencana(tx: Database, input: PembatalanTerencanaInput): Promise<void>;
   /**
+   * The Pemegang Hak changed a plot's Calon Penghuni label, or cleared it (ticket 39). Sent at once to
+   * each of the Lokasi Mitra's Admin Lokasi as a Peringatan Staf; the module resolves who they are.
+   */
+  calonPenghuniBerubah(input: CalonPenghuniBerubah): Promise<void>;
+  /**
    * A pay-after Tagihan's overdue anchor just became known (`catatPemakaman`,
    * right after `billing.setOverdueAnchor` sets it): Chasing's four H+3/7/14/30
    * reminders are queued from here (spec, Billing > Chasing; ticket 29). Never
@@ -137,6 +142,17 @@ export interface PemesananNotifikasi {
    * data; ticket 29).
    */
   tidakTertagihDinyatakan(tx: Database, tagihan: TidakTertagihDinyatakan): Promise<void>;
+}
+
+/** A change of a Hak Pakai's Calon Penghuni label (ticket 39), as the Lokasi's Admin Lokasi are told about it. */
+export interface CalonPenghuniBerubah {
+  hakPakaiId: string;
+  lokasiId: string;
+  unitNomor: string | null;
+  /** The new label; null when the family cleared it. */
+  label: string | null;
+  /** Every Akun Staf that must see it: the Lokasi Mitra's Admin Lokasi. */
+  penerima: { accountId: string }[];
 }
 
 /** The Tagihan just declared Tidak Tertagih, as far as the Admin Lokasi push needs it. */
@@ -324,6 +340,8 @@ export interface PemesananDeps {
     | "adminPlatformCalendar"
     | "documentChecklistOf"
     | "kontakSiagaOf"
+    // A Ganti Pemegang Hak's sale-transfer rule and the fee the Lokasi collects offline (ticket 39).
+    | "aturanGantiPemegangHak"
   >;
   tariffs: Pick<Tariffs, "lokasiPricing" | "quote">;
   inventory: Pick<
@@ -347,6 +365,10 @@ export interface PemesananDeps {
     // The Terencana confirmation starts the payment hold; the payment turns the hold into Hak Pakai (ticket 37).
     | "mulaiTahanBayar"
     | "beriHakPakaiDariTahan"
+    // A Pengembalian / Ganti Pemegang Hak request's completion and the Calon Penghuni label (ticket 39).
+    | "kembalikanHakPakai"
+    | "gantiPemegangHak"
+    | "ubahCalonPenghuni"
     | "within"
   >;
   /**

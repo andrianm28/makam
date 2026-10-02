@@ -105,7 +105,7 @@ export async function hakPakaiByTarget(db: Database, lokasiId: string): Promise<
  * `pembongkaranAt` is when the Admin Lokasi recorded the Pembongkaran, if it did.
  */
 export function forStatus(hakPakai: HakPakaiRow | null): ActiveHakPakaiForStatus | null {
-  return hakPakai ? { status: hakPakai.status, pembongkaranAt: hakPakai.pembongkaranAt } : null;
+  return hakPakai ? { status: hakPakai.status, pembongkaranAt: hakPakai.pembongkaranAt, endReason: hakPakai.endReason } : null;
 }
 
 export interface PemegangHakRow {

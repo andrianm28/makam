@@ -14,13 +14,15 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import type { InventoryDeps } from "./deps";
 import { anggotaKavling, kavlingOf, petakOf } from "./cari-makam";
 import { pemakamanOfHakPakai, type HakPakaiRow, type PemakamanRow } from "./hak-pakai-reads";
-import { inventoryHakPakai, inventoryPemegangHak } from "./schema";
+import { inventoryCalonPenghuni, inventoryHakPakai, inventoryPemegangHak } from "./schema";
 import type { HakPakaiStatus } from "./status";
 
 /** One Petak Makam of the Akun's own unit, by its current Nomor Makam. */
 export interface PetakMakamSaya {
   petakId: string;
   nomorMakam: string;
+  /** The Calon Penghuni label of this Petak (per Petak, ticket 39), or null. */
+  calonPenghuni: string | null;
 }
 
 /** One Hak Pakai of the Akun's own Makam tab: a Petak Makam of its own, or a whole Kavling Keluarga. */
@@ -67,12 +69,13 @@ export async function makamKeluargaSaya(deps: InventoryDeps, input: { email: str
         ? await anggotaKavling(deps, hak.kavlingId)
         : [];
     if (petak.length === 0) continue;
+    const label = await deps.db.select().from(inventoryCalonPenghuni).where(eq(inventoryCalonPenghuni.hakPakaiId, hak.id));
     unit.push({
       hakPakaiId: hak.id,
       lokasiId: hak.lokasiId,
       kavlingId: hak.kavlingId,
       nomorKavling: hak.kavlingId ? ((await kavlingOf(deps, hak.lokasiId, hak.kavlingId))?.nomorKavling ?? null) : null,
-      petak: petak.map((satu) => ({ petakId: satu.id, nomorMakam: satu.nomorMakam })),
+      petak: petak.map((satu) => ({ petakId: satu.id, nomorMakam: satu.nomorMakam, calonPenghuni: label.find((baris) => baris.petakId === satu.id)?.label ?? null })),
       status: hak.status,
       tenureYears: hak.tenureYears,
       tanggalBerakhir: tanggalBerakhir(hak),

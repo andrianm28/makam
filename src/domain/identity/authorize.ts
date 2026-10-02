@@ -183,6 +183,8 @@ export type Action =
   | "pembatalan.ajukan"
   /** The Admin Lokasi of the Hak Pakai's own Lokasi Mitra approves, declines or sends back a Pembatalan request (ticket 38). */
   | "pembatalan.putuskan"
+  /** The Admin Lokasi of the Hak Pakai's own Lokasi Mitra answers a Pengembalian / Ganti Pemegang Hak request (ticket 39). */
+  | "permintaan_hak_pakai.putuskan"
   /** Read a Saat Duka TPU order (Admin Platform only: a TPU is the Operator's own work, never a partner's). */
   | "pengurusan.lihat_staf"
   /** Confirm a Saat Duka TPU order, or offer the family another TPU (Admin Platform only). */
@@ -614,6 +616,10 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "pembatalan.putuskan":
       // The Lokasi's own Admin Lokasi confirms there is no Pemakaman and answers; Admin Platform only approves
       // the refund that follows (`pengembalian.kelola`), never the Pembatalan itself.
+      return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "permintaan_hak_pakai.putuskan":
+      // A Pengembalian / Ganti Pemegang Hak request is that Lokasi Mitra's own to answer (ticket 39):
+      // the Admin Lokasi performs the Ganti and confirms there is no grave under a Pengembalian.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
     case "pemesanan.buat":
     case "pemesanan.lihat":

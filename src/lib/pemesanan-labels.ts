@@ -170,6 +170,36 @@ export function jatuhTempoLabel(jam: number | null): string {
 }
 
 /**
+ * The Peringatan Staf for a Calon Penghuni label the Pemegang Hak changed
+ * (ticket 39): no review, nothing to action, only a note that the plan for a
+ * plot moved. The push carries no personal data (Notifications refuses that),
+ * so it names the plot and the new label, never the family.
+ */
+export function stafCalonPenghuniBerubahAlert(input: {
+  lokasi: { id: string; name?: string };
+  unitNomor: string | null;
+  label: string | null;
+}): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  const plot = input.unitNomor ?? "satu petak";
+  const lokasi = input.lokasi.name ?? "lokasi ini";
+  return {
+    email: {
+      subject: "Calon Penghuni diubah",
+      text: [
+        `Pemegang Hak mengubah Calon Penghuni untuk ${plot} di ${lokasi}.`,
+        input.label ? `Calon Penghuni sekarang: ${input.label}.` : "Calon Penghuni dikosongkan.",
+        "Tidak perlu ditinjau; ini hanya pemberitahuan.",
+      ].join("\n"),
+    },
+    push: {
+      title: "Calon Penghuni diubah",
+      body: `${lokasi} · ${plot}`,
+      url: `/staf/admin-lokasi/${input.lokasi.id}`,
+    },
+  };
+}
+
+/**
  * The re-alert, one hour of the Lokasi's Jam Operasional after the new-order
  * alert went out: the same work, once more, for whoever was on duty then. The
  * push carries no personal data (Notifications refuses that), so the order is

@@ -188,6 +188,28 @@ export const inventoryHakPakai = pgTable(
 );
 
 /**
+ * Owned by the Inventory module: the Calon Penghuni label of one Petak under one Hak Pakai (spec,
+ * Inventory > Calon Penghuni: "per Petak"; ticket 39). It lives with the right, so a Petak given to a new
+ * Hak Pakai starts unlabelled. Written alongside the older `inventory_hak_pakai.calon_penghuni` until a
+ * later release's contract step drops that column.
+ */
+export const inventoryCalonPenghuni = pgTable(
+  "inventory_calon_penghuni",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hakPakaiId: uuid("hak_pakai_id")
+      .notNull()
+      .references(() => inventoryHakPakai.id),
+    petakId: uuid("petak_id")
+      .notNull()
+      .references(() => inventoryPetak.id),
+    label: text("label").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [uniqueIndex("inventory_calon_penghuni_hak_pakai_petak_idx").on(table.hakPakaiId, table.petakId)],
+);
+
+/**
  * Owned by the Inventory module: one holder of a Hak Pakai (the current one
  * has `end_at` null); a later ticket's Ganti Pemegang Hak closes the current
  * row and opens a new one, keeping the history. `name` / `phone_number` /
@@ -203,6 +225,13 @@ export const inventoryPemegangHak = pgTable(
     name: text("name"),
     phoneNumber: text("phone_number"),
     email: text("email"),
+    /**
+     * The documents the transfer rested on (a Ganti Pemegang Hak request's
+     * attachments, or an Admin Lokasi's own): keys in the private FileStore.
+     * Kept on the holder's row so the transfer record carries them; empty for
+     * a holder that never had one (ticket 39).
+     */
+    dokumen: jsonb("dokumen").$type<string[]>().notNull().default([]),
     startAt: at("start_at").notNull(),
     endAt: at("end_at"),
     createdByAccountId: text("created_by_account_id").notNull(),

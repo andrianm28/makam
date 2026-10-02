@@ -11,6 +11,7 @@ import { efekBuktiPembayaran } from "@/domain/notifications";
 import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
 import { efekBuktiPemesanan } from "@/domain/pemesanan";
 import type {
+  CalonPenghuniBerubah,
   PesananAlternatifDitawarkan,
   ChasingDijadwalkan,
   PemesananBuktiPemesanan,
@@ -72,6 +73,8 @@ export function pemesananOnTestDatabase(
   const terencanaBukti: TerencanaBuktiInput[] = [];
   /** What a Pembatalan's answers announced (ticket 38), for a test that reads the family message. */
   const pembatalanTerencana: PembatalanTerencanaInput[] = [];
+  /** Every Calon Penghuni label change the module announced (ticket 39). */
+  const calonPenghuni: CalonPenghuniBerubah[] = [];
   /** Every decline, alternative and cancellation the module announced, for a test that reads the family message. */
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
@@ -121,6 +124,9 @@ export function pemesananOnTestDatabase(
     },
     pembatalanTerencana: async (_tx, input) => {
       pembatalanTerencana.push(input);
+    },
+    calonPenghuniBerubah: async (input) => {
+      calonPenghuni.push(input);
     },
     tidakTertagihDinyatakan: async () => {},
     chasingDijadwalkan: async (input) => {
@@ -307,6 +313,7 @@ export function pemesananOnTestDatabase(
     terencanaBatasBayarLewat,
     terencanaBukti,
     pembatalanTerencana,
+    calonPenghuni,
     notifikasi: terkumpul,
     pengurusanDikonfirmasi,
     chasingDijadwalkan,
@@ -334,6 +341,7 @@ export type PemesananModul = Omit<
   | "terencanaBatasBayarLewat"
   | "terencanaBukti"
   | "pembatalanTerencana"
+  | "calonPenghuni"
   | "notifikasi"
   | "pengurusanDikonfirmasi"
   | "chasingDijadwalkan"
