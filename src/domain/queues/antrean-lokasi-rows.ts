@@ -12,7 +12,7 @@
  * (the failed-message row, whose call is logged in place).
  */
 import type { Actor } from "@/domain/identity";
-import { wib, wibDateOf } from "@/lib/time/jakarta";
+import { formatTanggal, wib, wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps } from "./row-types";
 
 /** The two groups the spec names (CONTEXT.md: "split into Mendesak and Lainnya"). */
@@ -148,7 +148,7 @@ export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
       label: "Hak Pakai dalam masa tenggang",
       subjectKind: "hak_pakai",
       subjectId: satu.hakPakaiId,
-      subjectLabel: `${satu.label} · berakhir ${satu.endDate}, masa tenggang sampai ${satu.masaTenggangBerakhir}`,
+      subjectLabel: `${satu.label} · berakhir ${formatTanggal(satu.endDate)}, masa tenggang sampai ${formatTanggal(satu.masaTenggangBerakhir)}`,
       href: `/staf/admin-lokasi/${lokasiId}/hak-pakai/${satu.hakPakaiId}`,
       deadline: null,
     }));

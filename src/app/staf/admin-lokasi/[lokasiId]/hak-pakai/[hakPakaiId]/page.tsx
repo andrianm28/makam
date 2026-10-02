@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { labelSatuanHakPakai } from "@/lib/hak-pakai-akhir-labels";
 import { formatTanggal, formatTanggalJam, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
@@ -30,7 +31,7 @@ export default async function HakPakaiLokasiPage({ params }: PageProps<"/staf/ad
   const [hak, rincian] = await Promise.all([inventory.hakPakaiById(parsed.data), inventory.hakPakaiUntukPerpanjangan(parsed.data)]);
   if (!hak || !rincian || hak.lokasiId !== current.id) notFound();
 
-  const unit = rincian.nomorKavling ? `Kavling ${rincian.nomorKavling}` : `Petak ${rincian.petakNomor.join(", ")}`;
+  const unit = labelSatuanHakPakai(rincian);
   const bisaAkhiri = hak.status === "aktif" || hak.status === "kedaluwarsa";
   const bisaBongkar = hak.status === "berakhir" && !hak.pembongkaranAt;
 

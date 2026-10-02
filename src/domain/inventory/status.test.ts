@@ -26,6 +26,20 @@ describe("deriving a Petak Makam's status", () => {
     expect(derivePetakStatus({ tidakTersediaReason: null, hakPakai: { status: "berakhir", pembongkaranAt: null } })).toBe("terisi");
   });
 
+  it("shows Tidak Tersedia once a Pembongkaran has emptied the plot and the Admin Lokasi marked it", () => {
+    const dibongkar = { status: "berakhir", pembongkaranAt: new Date("2026-11-01T00:00:00+07:00") } as const;
+    expect(derivePetakStatus({ tidakTersediaReason: "Tanah longsor", hakPakai: dibongkar })).toBe("tidak_tersedia");
+  });
+
+  it("keeps every other Hak Pakai state as it was when a Tidak Tersedia reason is on the Petak", () => {
+    const reason = "Tanah longsor";
+    expect(derivePetakStatus({ tidakTersediaReason: reason, hakPakai: null })).toBe("tidak_tersedia");
+    expect(derivePetakStatus({ tidakTersediaReason: reason, hakPakai: { status: "aktif", pembongkaranAt: null } })).toBe("terisi");
+    expect(derivePetakStatus({ tidakTersediaReason: reason, hakPakai: { status: "kedaluwarsa", pembongkaranAt: null } })).toBe("masa_berlaku_habis");
+    expect(derivePetakStatus({ tidakTersediaReason: reason, hakPakai: { status: "berakhir", pembongkaranAt: null } })).toBe("terisi");
+    expect(derivePetakStatus({ tidakTersediaReason: reason, hakPakai: { status: "dibatalkan", pembongkaranAt: null } })).toBe("tersedia");
+  });
+
   it("becomes Tersedia again once the Pembongkaran after a Berakhir Hak Pakai is recorded", () => {
     expect(derivePetakStatus({ tidakTersediaReason: null, hakPakai: { status: "berakhir", pembongkaranAt: new Date("2026-11-01T00:00:00+07:00") } })).toBe("tersedia");
   });

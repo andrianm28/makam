@@ -14,13 +14,13 @@
 import { and, eq, inArray, isNotNull, lt, lte } from "drizzle-orm";
 import { z } from "zod";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import { labelSatuanHakPakai } from "@/lib/hak-pakai-akhir-labels";
 import { addWibDateDays, addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
 import type { InventoryDeps } from "./deps";
 import { hakPakaiUntukPerpanjangan } from "./perpanjangan";
 import { akhiriHakPakai } from "./akhiri-hak-pakai";
 import { inventoryHakPakai } from "./schema";
 
-const dateOf = (instant: Date) => instant.toISOString().slice(0, 10);
 
 /**
  * Scheduler tick: every Aktif fixed-term Hak Pakai whose end date is before today (WIB) becomes
@@ -40,7 +40,7 @@ export async function kedaluwarsaTick(deps: Pick<InventoryDeps, "db">, now: Date
 /** A Kedaluwarsa Hak Pakai the Admin Lokasi has yet to decide on: the Antrean Lokasi's "Hak Pakai in masa tenggang" row. */
 export interface HakPakaiMasaTenggang {
   hakPakaiId: string;
-  /** "Petak A-1", or "Kavling K-1". */
+  /** The plot as named in text, "Petak Makam A-1" or "Kavling Keluarga K-1". */
   label: string;
   endDate: string;
   /** The last day a Perpanjangan is accepted. */
@@ -63,11 +63,11 @@ export async function hakPakaiMasaTenggang(deps: InventoryDeps, lokasiId: string
     .orderBy(inventoryHakPakai.endDate);
   const hasil: HakPakaiMasaTenggang[] = [];
   for (const row of rows) {
-    const endDate = dateOf(row.endDate!);
+    const endDate = wibDateOf(row.endDate!);
     const masaTenggangBerakhir = addWibDateMonths(endDate, aturan.masaTenggangMonths);
     if (hariIni > masaTenggangBerakhir) continue;
     const hak = await hakPakaiUntukPerpanjangan(deps, row.id);
-    const label = hak?.nomorKavling ? `Kavling ${hak.nomorKavling}` : `Petak ${(hak?.petakNomor ?? []).join(", ")}`;
+    const label = labelSatuanHakPakai({ nomorKavling: hak?.nomorKavling ?? null, petakNomor: hak?.petakNomor ?? [] });
     hasil.push({ hakPakaiId: row.id, label, endDate, masaTenggangBerakhir });
   }
   return hasil;
@@ -93,7 +93,7 @@ export async function hakPakaiMenjelangAkhir(deps: Pick<InventoryDeps, "db">, no
     .from(inventoryHakPakai)
     .where(and(inArray(inventoryHakPakai.status, ["aktif", "kedaluwarsa"]), isNotNull(inventoryHakPakai.endDate), lte(inventoryHakPakai.endDate, batas)))
     .orderBy(inventoryHakPakai.endDate);
-  return rows.map((row) => ({ hakPakaiId: row.id, lokasiId: row.lokasiId, status: row.status as "aktif" | "kedaluwarsa", endDate: dateOf(row.endDate!) }));
+  return rows.map((row) => ({ hakPakaiId: row.id, lokasiId: row.lokasiId, status: row.status as "aktif" | "kedaluwarsa", endDate: wibDateOf(row.endDate!) }));
 }
 
 export const akhiriHakPakaiManualSchema = z.object({ hakPakaiId: z.uuid(), alasan: z.string().trim().min(1).max(300) });
@@ -116,9 +116,14 @@ export async function akhiriHakPakaiManual(deps: InventoryDeps, by: Actor, lokas
   const parsed = akhiriHakPakaiManualSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const { hakPakaiId, alasan } = parsed.data;
-  const [hak] = await deps.db.select({ status: inventoryHakPakai.status }).from(inventoryHakPakai).where(and(eq(inventoryHakPakai.id, hakPakaiId), eq(inventoryHakPakai.lokasiId, lokasiId)));
-  if (!hak) return { ok: false, reason: "tidak_ditemukan" };
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    // The state the audit entry records as `before` is read in this transaction, with the row locked, so it is the state the write changed.
+    const [hak] = await tx
+      .select({ status: inventoryHakPakai.status })
+      .from(inventoryHakPakai)
+      .where(and(eq(inventoryHakPakai.id, hakPakaiId), eq(inventoryHakPakai.lokasiId, lokasiId)))
+      .for("update");
+    if (!hak) return { ok: false as const, reason: "tidak_ditemukan" as const };
     const hasil = await akhiriHakPakai({ db: tx }, { hakPakaiId, alasan });
     if (!hasil.ok) return { ok: false as const, reason: hasil.reason };
     await record({

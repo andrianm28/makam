@@ -22,7 +22,8 @@ export const pengingatHakPakaiBerakhirSchema = z.object({
   /** Names this reminder (end date and stage), so announcing it twice sends it once. */
   kunci: z.string().trim().min(1).max(100),
   lokasi: z.object({ id: z.uuid(), name: z.string().trim().min(1).max(200) }),
-  petakNomor: z.string().trim().min(1).max(300),
+  /** The plot as named in text (`labelSatuanHakPakai`). */
+  satuan: z.string().trim().min(1).max(300),
   pemegangHakName: z.string().trim().min(1).max(200).nullable(),
   /** The email recorded on the Hak Pakai; null when there is none. */
   email: z.email().max(320).nullable(),
@@ -51,7 +52,7 @@ export async function pengingatHakPakaiBerakhir(deps: PesanKeluargaDeps, input: 
   if (data.email) {
     const email = hakPakaiBerakhirEmail({
       lokasiName: data.lokasi.name,
-      petakNomor: data.petakNomor,
+      satuan: data.satuan,
       pemegangHakName: data.pemegangHakName,
       endDate: data.endDate,
       sisaHari: data.sisaHari,
@@ -75,10 +76,10 @@ export async function pengingatHakPakaiBerakhir(deps: PesanKeluargaDeps, input: 
       to: { accountId: admin.accountId },
       kind: "staf_hak_pakai_berakhir",
       email: {
-        subject: `Hak Pakai Petak ${data.petakNomor} ${judul}`,
-        text: `Hak Pakai Petak ${data.petakNomor} di ${data.lokasi.name} ${judul} (tanggal berakhir ${formatTanggal(data.endDate)}; Perpanjangan diterima sampai ${formatTanggal(data.masaTenggangBerakhir)}). Lihat Antrean Lokasi.`,
+        subject: `Hak Pakai ${data.satuan} ${judul}`,
+        text: `Hak Pakai ${data.satuan} di ${data.lokasi.name} ${judul} (tanggal berakhir ${formatTanggal(data.endDate)}; Perpanjangan diterima sampai ${formatTanggal(data.masaTenggangBerakhir)}). Perpanjangan: ${data.tautan}`,
       },
-      push: { title: "Hak Pakai segera berakhir", body: `Petak ${data.petakNomor} di ${data.lokasi.name} ${judul}.`, url: `/staf/admin-lokasi/${data.lokasi.id}/antrean` },
+      push: { title: "Hak Pakai segera berakhir", body: `${data.satuan} di ${data.lokasi.name} ${judul}.`, url: `/staf/admin-lokasi/${data.lokasi.id}/hak-pakai/${data.hakPakaiId}` },
       subject: { kind: "hak_pakai", id: data.hakPakaiId },
     });
   }
@@ -90,8 +91,8 @@ export async function pengingatHakPakaiBerakhir(deps: PesanKeluargaDeps, input: 
       lokasiId: data.lokasi.id,
       sebab: data.email ? "hak_pakai_berakhir" : "tanpa_email",
       perihal: data.email
-        ? `Hak Pakai Petak ${data.petakNomor} di ${data.lokasi.name} ${judul}: telepon Pemegang Hak, ingatkan Perpanjangan.`
-        : `Hak Pakai Petak ${data.petakNomor} di ${data.lokasi.name} ${judul} dan tidak ada email tercatat: telepon Pemegang Hak, ingatkan Perpanjangan.`,
+        ? `Hak Pakai ${data.satuan} di ${data.lokasi.name} ${judul}: telepon Pemegang Hak, ingatkan Perpanjangan.`
+        : `Hak Pakai ${data.satuan} di ${data.lokasi.name} ${judul} dan tidak ada email tercatat: telepon Pemegang Hak, ingatkan Perpanjangan.`,
     });
   }
   return { ok: true };

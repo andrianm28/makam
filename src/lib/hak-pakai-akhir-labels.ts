@@ -26,3 +26,8 @@ export function pembongkaranText(reason: string): string {
       return "Periksa lagi isian Anda.";
   }
 }
+
+/** How a Hak Pakai's plot is named in text: "Kavling Keluarga K-1" or "Petak Makam A-1, A-2" (CONTEXT.md terms). */
+export function labelSatuanHakPakai(hak: { nomorKavling: string | null; petakNomor: string[] }): string {
+  return hak.nomorKavling ? `Kavling Keluarga ${hak.nomorKavling}` : `Petak Makam ${hak.petakNomor.join(", ")}`;
+}

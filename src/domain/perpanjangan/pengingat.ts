@@ -16,13 +16,14 @@
  * every reminder after it (the Masa Tenggang's weeks) open the call row, the 60 and 30-day ones do not; a Hak Pakai
  * with no recorded email gets the row with any reminder. One open row per Hak Pakai, whoever opens it.
  */
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
 import type { Lokasi } from "@/domain/lokasi";
 import { dalamJamKirim, type Notifications } from "@/domain/notifications";
+import { labelSatuanHakPakai } from "@/lib/hak-pakai-akhir-labels";
 import { addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
 import { perpanjangan, perpanjanganPengingat } from "./schema";
 
@@ -76,28 +77,35 @@ export async function pengingatHakPakaiTick(deps: PengingatDeps, now: Date): Pro
     if (hariIni > masaTenggangBerakhir) continue;
     if (await sudahDipesan(deps, calon.hakPakaiId)) continue;
 
-    // Claim the due stage; an earlier stage the tick never saw (it ran late) is recorded without being announced.
-    for (const sebelum of jatuh.sebelumnya) await klaim(deps.db, calon.hakPakaiId, calon.endDate, sebelum, now);
-    if (!(await klaim(deps.db, calon.hakPakaiId, calon.endDate, jatuh.tahap, now))) continue;
-
     const hak = await deps.inventory.hakPakaiUntukPerpanjangan(calon.hakPakaiId);
     if (!hak) continue;
     const admin = await deps.identity.adminLokasiOf(calon.lokasiId);
-    const hasil = await deps.notifikasi.pengingatHakPakaiBerakhir({
-      hakPakaiId: calon.hakPakaiId,
-      kunci: `${calon.endDate}:${jatuh.tahap}`,
-      lokasi: { id: calon.lokasiId, name: aturan.name },
-      petakNomor: hak.nomorKavling ? `Kavling ${hak.nomorKavling}` : hak.petakNomor.join(", "),
-      pemegangHakName: hak.pemegangHak?.name ?? null,
-      email: hak.pemegangHak?.email ?? null,
-      endDate: calon.endDate,
-      sisaHari,
-      masaTenggangBerakhir,
-      tautan: deps.perpanjanganUrl(calon.hakPakaiId),
-      adminLokasi: admin.map((satu) => ({ accountId: satu.accountId })),
-      teleponPemesan: jatuh.dekat,
+    // Claim the due stage and announce it in one transaction: a failed announcement leaves no claim, so the next tick
+    // retries it. An earlier stage the tick never saw (it ran late) is recorded without being announced.
+    const terkirim = await deps.db.transaction(async (tx) => {
+      for (const sebelum of jatuh.sebelumnya) await klaim(tx, calon.hakPakaiId, calon.endDate, sebelum, now);
+      if (!(await klaim(tx, calon.hakPakaiId, calon.endDate, jatuh.tahap, now))) return false;
+      const hasil = await deps.notifikasi.pengingatHakPakaiBerakhir(
+        {
+          hakPakaiId: calon.hakPakaiId,
+          kunci: `${calon.endDate}:${jatuh.tahap}`,
+          lokasi: { id: calon.lokasiId, name: aturan.name },
+          satuan: labelSatuanHakPakai(hak),
+          pemegangHakName: hak.pemegangHak?.name ?? null,
+          email: hak.pemegangHak?.email ?? null,
+          endDate: calon.endDate,
+          sisaHari,
+          masaTenggangBerakhir,
+          tautan: deps.perpanjanganUrl(calon.hakPakaiId),
+          adminLokasi: admin.map((satu) => ({ accountId: satu.accountId })),
+          teleponPemesan: jatuh.dekat,
+        },
+        tx,
+      );
+      if (!hasil.ok) throw new Error(`pengingat Hak Pakai ${calon.hakPakaiId} ditolak: ${hasil.reason}`);
+      return true;
     });
-    if (hasil.ok) diumumkan += 1;
+    if (terkirim) diumumkan += 1;
   }
   return { diumumkan };
 }
@@ -116,7 +124,7 @@ async function sudahDipesan(deps: PengingatDeps, hakPakaiId: string): Promise<bo
   const rows = await deps.db
     .select({ tagihanId: perpanjangan.tagihanId, dibayarPada: perpanjangan.dibayarPada })
     .from(perpanjangan)
-    .where(and(eq(perpanjangan.hakPakaiId, hakPakaiId)));
+    .where(eq(perpanjangan.hakPakaiId, hakPakaiId));
   for (const row of rows) {
     if (row.dibayarPada) continue; // a paid one moved the end date already: it does not stop this schedule
     const tagihan = await deps.billing.tagihanBerlaku(row.tagihanId);
