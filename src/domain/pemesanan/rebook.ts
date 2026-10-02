@@ -72,7 +72,7 @@ export async function rebookPesanan(
   if (!alasan) return null;
   // The city is the declining Lokasi Mitra's own; a family that finds no other
   // Lokasi there is no worse off than one shown a list of a city they never chose.
-  const lokasi = await deps.lokasi.publicLokasiMitra(row.lokasiId);
+  const lokasi = await deps.lokasi.publicLokasiMitraTampil(row.lokasiId);
   return {
     nomor: row.nomor,
     banner: { lokasi: { id: row.lokasiId, name: row.lokasiName }, alasan },

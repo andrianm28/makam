@@ -162,7 +162,7 @@ async function umumkanTolak(
   // The city the list the family is sent back to is filtered by is the declining
   // Lokasi's own city: a family in a city with no other Lokasi Mitra would rather
   // see the whole list than an empty one.
-  const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
+  const lokasi = await deps.lokasi.publicLokasiMitraTampil(order.lokasiId);
   await deps.notifikasi.pesananDitolak({
     pemesananId: order.id,
     nomor: order.nomor,

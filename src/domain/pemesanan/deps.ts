@@ -310,6 +310,7 @@ export interface PemesananDeps {
     Lokasi,
     | "isTerverifikasi"
     | "publicLokasiMitra"
+    | "publicLokasiMitraTampil"
     | "publicLokasiMitraList"
     | "lokasiMitra"
     | "bukaSekarang"
