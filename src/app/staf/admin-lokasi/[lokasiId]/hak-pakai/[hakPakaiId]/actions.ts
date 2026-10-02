@@ -67,6 +67,7 @@ export async function ubahKontakPemegangHakAction(_previous: FormState, formData
   if (!(file instanceof File) || file.size === 0) return { status: "gagal", message: "Unggah hasil pemeriksaan KTP (JPEG, PNG atau PDF) sebelum mengubah kontak." };
   const ktp = { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "hak_pakai.ubah_pemegang",
     resource: () => lokasiMitraResource(lokasiId),
     schema: ubahKontakDenganKtpSchema,

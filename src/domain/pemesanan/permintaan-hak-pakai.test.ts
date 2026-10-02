@@ -183,6 +183,15 @@ describe("Perlu tindakan and documents", () => {
     const salah = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, { ...dasar, ktp: { body: new Uint8Array([9]), contentType: "image/png" } });
     expect(salah).toEqual({ ok: false, reason: "berkas_tidak_didukung" });
 
+    // A stored KTP check may only be one this Hak Pakai's own flow put there, never any other file in the private store.
+    const luar = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, { ...dasar, ktpKey: "pemesanan/orang-lain/ktp.png" });
+    expect(luar).toEqual({ ok: false, reason: "ktp_wajib" });
+    const milikSendiri = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, {
+      ...dasar,
+      ktpKey: `pemegang-hak-ktp/${f.hakPakaiId}/lama.png`,
+    });
+    expect(milikSendiri).toEqual({ ok: true });
+
     const ok = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, {
       ...dasar,
       ktp: { body: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0]), contentType: "image/png" },

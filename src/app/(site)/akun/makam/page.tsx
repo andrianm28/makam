@@ -7,6 +7,7 @@ import { documentPagePath } from "@/lib/document-links";
 import { kartuMakamSaya, type PengelolaLokasi } from "@/lib/makam-keluarga-content";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { currentActor } from "@/server/session";
+import { rilisTerbuka } from "@/lib/rilis";
 import { serverRuntime } from "@/server/runtime";
 import { CalonPenghuniForm } from "../../permintaan-hak-pakai/[hakPakaiId]/permintaan-forms";
 
@@ -27,6 +28,8 @@ export default async function AkunMakamPage() {
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
   const { inventory, lokasi, pemesanan, pengurusan } = serverRuntime();
+  // Pengembalian, Ganti Pemegang Hak and the Calon Penghuni label open with Rilis 2 (ADR 0006).
+  const permintaanTerbuka = rilisTerbuka("perpanjangan_lanjutan");
   const makamTpu = await pengurusan.makamTpuSaya({ accountId: actor.accountId });
 
   const [unit, cards] = await Promise.all([inventory.makamKeluargaSaya({ email: actor.email }), lokasi.publicLokasiMitraList()]);
@@ -126,12 +129,12 @@ export default async function AkunMakamPage() {
             </Link>
           ) : null}
 
-          {!satu.hanyaBaca && satu.status.key === "aktif" ? (
+          {permintaanTerbuka && !satu.hanyaBaca && satu.status.key === "aktif" ? (
             <Link href={`/permintaan-hak-pakai/${satu.hakPakaiId}`} className="text-small font-medium text-brand underline underline-offset-4" data-testid="tautan-permintaan-hak-pakai">
               Kembalikan Hak Pakai atau Ajukan Ganti Pemegang Hak
             </Link>
           ) : null}
-          {!satu.hanyaBaca && satu.status.key === "aktif" ? (
+          {permintaanTerbuka && !satu.hanyaBaca && satu.status.key === "aktif" ? (
             <div className="flex flex-col gap-3">
               {(unit.find((makam) => makam.hakPakaiId === satu.hakPakaiId)?.petak ?? []).map((petak) => (
                 <CalonPenghuniForm key={petak.petakId} hakPakaiId={satu.hakPakaiId} petakId={petak.petakId} nomor={petak.nomorMakam} label={petak.calonPenghuni} />

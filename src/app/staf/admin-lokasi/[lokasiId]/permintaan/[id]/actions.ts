@@ -21,6 +21,7 @@ export async function setujuiPermintaanAction(_previous: FormState, formData: Fo
   const id = String(formData.get("id") ?? "");
   const biaya = String(formData.get("biayaGantiOffline") ?? "").trim();
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: setujuiPermintaanHakPakaiSchema,
@@ -38,6 +39,7 @@ export async function tolakPermintaanAction(_previous: FormState, formData: Form
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const id = String(formData.get("id") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tolakPermintaanHakPakaiSchema,
@@ -55,6 +57,7 @@ export async function mintaPerbaikanPermintaanAction(_previous: FormState, formD
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const id = String(formData.get("id") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: mintaPerbaikanPermintaanHakPakaiSchema,

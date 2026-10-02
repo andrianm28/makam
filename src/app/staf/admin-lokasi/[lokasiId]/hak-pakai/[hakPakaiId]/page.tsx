@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { labelSatuanHakPakai } from "@/lib/hak-pakai-akhir-labels";
 import { formatTanggal, formatTanggalJam, wibDateOf } from "@/lib/time/jakarta";
+import { rilisTerbuka } from "@/lib/rilis";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
 import { AkhiriForm, PembongkaranForm, UbahKontakForm } from "./forms";
@@ -66,7 +67,7 @@ export default async function HakPakaiLokasiPage({ params }: PageProps<"/staf/ad
         </Card>
       ) : null}
 
-      {bisaAkhiri && hak.pemegangHak ? (
+      {rilisTerbuka("perpanjangan_lanjutan") && bisaAkhiri && hak.pemegangHak ? (
         <Card>
           <CardHeader>
             <CardTitle>Ubah kontak Pemegang Hak</CardTitle>

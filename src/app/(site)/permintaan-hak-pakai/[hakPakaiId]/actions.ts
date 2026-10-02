@@ -41,6 +41,7 @@ async function berkasDari(formData: FormData) {
 /** "Kembalikan Hak Pakai": an unused plot is given back; compensation is agreed directly with the Lokasi. */
 export async function ajukanPengembalianAction(_previous: PermintaanActionState, formData: FormData): Promise<PermintaanActionState> {
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanPengembalianSchema,
@@ -57,6 +58,7 @@ export async function ajukanPengembalianAction(_previous: PermintaanActionState,
 export async function ajukanGantiPemegangHakAction(_previous: PermintaanActionState, formData: FormData): Promise<PermintaanActionState> {
   const email = String(formData.get("email") ?? "").trim();
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanGantiPemegangHakSchema,
@@ -78,6 +80,7 @@ export async function ajukanGantiPemegangHakAction(_previous: PermintaanActionSt
 /** The Pemegang Hak files a request the Lokasi Mitra sent back for a fix again (Perlu Perbaikan ↺ Diajukan). */
 export async function ajukanUlangPermintaanAction(_previous: PermintaanActionState, formData: FormData): Promise<PermintaanActionState> {
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanUlangPermintaanHakPakaiSchema,
@@ -93,6 +96,7 @@ export async function ajukanUlangPermintaanAction(_previous: PermintaanActionSta
 /** The Pemegang Hak withdraws the request before a decision. */
 export async function batalkanPermintaanAction(_previous: PermintaanActionState, formData: FormData): Promise<PermintaanActionState> {
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: permintaanHakPakaiIdSchema,
@@ -109,6 +113,7 @@ export async function batalkanPermintaanAction(_previous: PermintaanActionState,
 export async function ubahCalonPenghuniAction(_previous: PermintaanActionState, formData: FormData): Promise<PermintaanActionState> {
   const label = String(formData.get("label") ?? "").trim();
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "permintaan_hak_pakai.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ubahCalonPenghuniSchema,

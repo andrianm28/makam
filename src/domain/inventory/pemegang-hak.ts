@@ -143,8 +143,13 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
   const kontak = kontakOf(input);
   if (!kontak.ok) return kontak;
 
-  if (!input.ktp && !input.ktpKey) return { ok: false, reason: "ktp_wajib" };
-  let ktpKey: string | null = input.ktpKey ?? null;
+  // A stored KTP check counts only when it is this Hak Pakai's own (an earlier upload) or a Perpanjangan request's own file.
+  const kunciDikenal =
+    input.ktpKey !== undefined &&
+    !input.ktpKey.includes("..") &&
+    (input.ktpKey.startsWith("perpanjangan-permohonan/") || input.ktpKey.startsWith(`pemegang-hak-ktp/${input.hakPakaiId}/`));
+  if (!input.ktp && !kunciDikenal) return { ok: false, reason: "ktp_wajib" };
+  let ktpKey: string | null = kunciDikenal ? (input.ktpKey ?? null) : null;
   let diunggah = false;
   if (input.ktp) {
     const extension = ekstensiUnggahan(input.ktp);
