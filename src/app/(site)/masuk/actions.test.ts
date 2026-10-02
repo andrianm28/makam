@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
+import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
+import { RELAY_PASSWORD, RELAY_USER, startTestSmtpRelay } from "../../../../tests/support/smtp-relay";
 import { EmailSendError } from "@/ports/email-sender";
 import { initialKodeMasukRequestState } from "@/components/kode-masuk/state";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
@@ -107,6 +109,36 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
       status: "terkirim",
     });
     expect(email.sent).toHaveLength(before + 1);
+  });
+
+  it("with the live SMTP adapter against a relay that refuses the recipient, Kirim says gagal kirim and nothing reaches the process", async () => {
+    const relay = await startTestSmtpRelay();
+    const stray: unknown[] = [];
+    const onStray = (error: unknown) => stray.push(error);
+    process.on("uncaughtException", onStray);
+    process.on("unhandledRejection", onStray);
+    try {
+      const live = new SmtpEmailSender(
+        { host: relay.host, port: relay.port, user: RELAY_USER, password: RELAY_PASSWORD, from: { address: "no-reply@makam.co.id", name: "Makam.co.id" } },
+        { trustedCertificate: relay.certificate },
+      );
+      const email = server.runtime().adapters.email as FakeEmailSender;
+      vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
+      relay.refuseNextRecipient();
+      browser.setHeader("x-real-ip", "203.0.113.70");
+
+      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.makam.invalid" }))).toMatchObject({
+        status: "gagal",
+        message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(stray).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onStray);
+      process.off("unhandledRejection", onStray);
+      vi.restoreAllMocks();
+      await relay.close();
+    }
   });
 
   it("the Kode Masuk to a new email creates the Akun, signs it in and lands on Akun Saya", async () => {
