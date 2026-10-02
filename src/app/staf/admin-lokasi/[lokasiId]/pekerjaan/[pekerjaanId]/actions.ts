@@ -35,6 +35,7 @@ const unggahSchema = z.object({
 export async function mulaiPekerjaanLokasi(_previous: PekerjaanActionState, formData: FormData): Promise<PekerjaanActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.kerjakan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: mulaiPekerjaanSchema,
@@ -59,6 +60,7 @@ export async function unggahBuktiLokasi(_previous: PekerjaanActionState, formDat
   if (!parsed.success) return { status: "gagal", message: pesan("input_tidak_valid") };
   const { lokasiId, kind, takenAt, file, pekerjaanId } = parsed.data;
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.kerjakan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: buktiPekerjaanSchema,
@@ -96,6 +98,7 @@ export async function selesaikanVerifikasiHakPakaiLokasi(_previous: PekerjaanAct
   if (!parsed.success) return { status: "gagal", message: pesan("input_tidak_valid") };
   const { lokasiId, petakId } = parsed.data;
   const result = await guarded({
+    fitur: "inti",
     action: "hak_pakai.selesaikan_verifikasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: z.object({ petakId: z.uuid() }),
@@ -112,6 +115,7 @@ export async function selesaikanVerifikasiHakPakaiLokasi(_previous: PekerjaanAct
 export async function selesaikanPekerjaanLokasi(_previous: PekerjaanActionState, formData: FormData): Promise<PekerjaanActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.kerjakan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: mulaiPekerjaanSchema,
@@ -146,6 +150,7 @@ function pesan(reason: string): string {
 export async function kirimPesanThreadLokasi(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat_staf",
     resource: () => lokasiMitraResource(lokasiId),
     schema: kirimPesanThreadSchema,

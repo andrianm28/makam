@@ -51,6 +51,7 @@ function hasil(value: Hasil, nomor: string, berhasil: string): FormState {
 export async function catatDimakamkanAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: catatDimakamkanSchema,
@@ -65,6 +66,7 @@ export async function catatDimakamkanAction(_previous: FormState, formData: Form
 export async function periksaDokumenAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: nomorPengurusanSchema,
@@ -85,6 +87,7 @@ export async function periksaDokumenAction(_previous: FormState, formData: FormD
 export async function ajukanIptmAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: ajukanIptmSchema,
@@ -99,6 +102,7 @@ export async function ajukanIptmAction(_previous: FormState, formData: FormData)
 export async function terbitkanIptmAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: terbitkanIptmSchema,
@@ -114,6 +118,7 @@ export async function tolakPtspAction(_previous: FormState, formData: FormData):
   const nomor = String(formData.get("nomor") ?? "");
   const putusan = formData.get("putusan");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: tolakPtspSchema,

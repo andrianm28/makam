@@ -762,6 +762,43 @@ the digest in the description. Promotion refuses any digest without a passed
 smoke test, so after a rollback or a fresh deploy you can either wait 15 minutes
 or start the workflow by hand.
 
+## Which release is open (`RILIS_TERBUKA`, ADR 0006)
+
+One image runs on staging and production, so what each one offers is a setting,
+not a build. `RILIS_TERBUKA` is a number, 1 to 3, in the host's env file
+(`/opt/makam-v1/staging/staging.env`, `/opt/makam-v1/prod/prod.env`), read by both
+`web` and `worker`:
+
+| Environment | Value | Why |
+|---|---|---|
+| production | `1` (also what an unset value means) | the release plan: Rilis 1 only |
+| staging | `3` | every release can be tested before it opens on production |
+| development, test, the CI e2e stack (`deploy/ci/e2e.env`) | unset, which means `3` | nothing existing changes |
+
+A feature above the number is closed everywhere: its public and Akun Saya pages
+show "Segera hadir", its staff pages and Server Actions answer 404, its menu
+items, tiles and Akun Saya tab are hidden, and its scheduled ticks stay
+registered but do nothing (the worker logs `skipped` once per tick at start).
+The features and their releases are in `src/lib/rilis-peta.ts` (`fiturRilis`):
+Rilis 2 is the Perpanjangan continued (berkas, Permohonan, the Hak Pakai
+reminders and expiry) and Lokasi Ditangguhkan / Berhenti; Rilis 3 is DKI TPU,
+Mitra Jasa and Wakaf Tanah. A value outside 1 to 3 stops the process at start.
+
+**Opening a release** is a host setting change plus a restart, never a new
+promotion:
+
+1. Edit the env file on the host: `RILIS_TERBUKA=2` (or `3`).
+2. Restart `web` and `worker` of that project so both read it, e.g.
+   `docker compose -p makam-prod -f docker-compose.prod.yml up -d --force-recreate web worker`
+   (use the same `--env-file` the deploy uses).
+3. Check: `docker compose -p makam-prod logs worker | grep "started (RILIS_TERBUKA="`
+   shows the new number, and a page of the newly opened feature no longer says
+   "Segera hadir".
+
+Opening Rilis 2 starts the Hak Pakai reminder emails to real Pemegang Hak: do it
+only after the Hak Pakai rows loaded from the old app have been checked (ticket 65).
+Closing a release again is the same change in reverse; rows already written stay.
+
 ## Promoting to production
 
 `.github/workflows/promote.yml` ("Promosikan ke produksi"), owner only, manual

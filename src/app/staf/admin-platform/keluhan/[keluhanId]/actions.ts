@@ -22,6 +22,7 @@ function revalidate(keluhanId: string): void {
 export async function putuskanKeluhanAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const keluhanId = String(formData.get("keluhanId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "keluhan.kelola",
     resource: () => keluhanLayananResource(),
     schema: putuskanKeluhanSchema,
@@ -38,6 +39,7 @@ export async function putuskanKeluhanAction(_previous: FormState, formData: Form
 export async function sesuaikanPencairanKeluhanAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const keluhanId = String(formData.get("keluhanId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "keluhan.kelola",
     resource: () => keluhanLayananResource(),
     schema: sesuaikanPencairanKeluhanSchema,

@@ -1,3 +1,4 @@
+import { rilisTerbuka } from "@/lib/rilis";
 import { notFound, redirect } from "next/navigation";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,7 +185,7 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
     <>
       <PublishGateChecklist lokasiId={lokasiMitra.id} />
 
-      {lokasiMitra.status === "belum_tayang" ? null : (
+      {lokasiMitra.status === "belum_tayang" || !rilisTerbuka("lokasi_ditangguhkan") ? null : (
         <Section
           id="status-kemitraan"
           title="Status kemitraan"

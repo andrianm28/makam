@@ -12,7 +12,7 @@ import { bytesOf } from "@/lib/files/base64";
 import { pengurusanMessage } from "@/lib/pengurusan-labels";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { codeInput, emailInput } from "@/server/code-inputs";
-import { guarded, GuardRejected } from "@/server/guard";
+import { gerbangAksi, guarded, GuardRejected } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import {
@@ -59,6 +59,8 @@ export async function verifikasiKodeMasukDanKirim(
   _state: KirimState,
   formData: FormData,
 ): Promise<KirimState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   return masukLaluKirim(draftSchema, draft, formData, kirim, pesananPath);
 }
 
@@ -75,6 +77,8 @@ const kotaSchema = z.object({
 
 /** Remembers the city the visitor filtered by, so the next visit starts there, and keeps the type chip it was filtered by. */
 export async function ingatKota(formData: FormData): Promise<void> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = kotaSchema.safeParse({
     kota: formData.get("kota"),
     kembali: formData.get("kembali"),
@@ -130,6 +134,7 @@ async function kirim(
  * Kode Masuk step under the form.
  */
 export async function kirimPengurusanTpu(draft: unknown): Promise<KirimState> {
+  gerbangAksi("tpu");
   return kirimTerpakai(draftTpuSchema, draft, pengurusanMessage, kirimTpu);
 }
 
@@ -159,6 +164,7 @@ async function kirimTerpakai<T extends NamaDanEmail>(
   ) => Promise<KirimState>,
 ): Promise<KirimState> {
   const hasil = await guarded({
+    fitur: "inti",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema,
@@ -188,6 +194,7 @@ export async function verifikasiKodeMasukDanKirimTpu(
   _state: KirimState,
   formData: FormData,
 ): Promise<KirimState> {
+  gerbangAksi("tpu");
   return masukLaluKirim(
     draftTpuSchema,
     draft,

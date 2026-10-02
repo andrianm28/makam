@@ -38,6 +38,7 @@ export type PesananActionState = { status: "idle" } | { status: "gagal"; message
 export async function konfirmasiPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.konfirmasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: konfirmasiSaatDukaSchema,
@@ -67,6 +68,7 @@ export async function konfirmasiPesanan(_previous: PesananActionState, formData:
 export async function tolakPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.tolak",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tolakSaatDukaSchema,
@@ -84,6 +86,7 @@ export async function tolakPesanan(_previous: PesananActionState, formData: Form
 export async function tawarkanAlternatifPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.tawarkan_alternatif",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tawarkanAlternatifSchema,
@@ -107,6 +110,7 @@ export async function tawarkanAlternatifPesanan(_previous: PesananActionState, f
 export async function batalkanPesanan(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.batalkan_untuk_pemesan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: batalkanSaatDukaSchema,
@@ -132,6 +136,7 @@ export async function catatPemakaman(_previous: PesananActionState, formData: Fo
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemakaman.catat",
     resource: () => lokasiMitraResource(lokasiId),
     schema: catatPemakamanOrderSchema,
@@ -160,6 +165,7 @@ export async function centangDokumen(_previous: PesananActionState, formData: Fo
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.centang_dokumen",
     resource: () => lokasiMitraResource(lokasiId),
     schema: centangDokumenSchema,
@@ -176,6 +182,7 @@ export async function centangDokumen(_previous: PesananActionState, formData: Fo
 export async function catatPanggilanLokasi(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "telepon_pemesan.catat_lokasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: catatPanggilanSchema,
@@ -209,6 +216,7 @@ export async function catatPembayaranLangsung(_previous: PesananActionState, for
   const nomor = String(formData.get("nomor") ?? "");
   const bukti = await buktiFromForm(formData);
   const result = await guarded({
+    fitur: "inti",
     action: "tagihan.catat_pembayaran_langsung",
     resource: () => lokasiMitraResource(lokasiId),
     schema: pembayaranLangsungSchema,

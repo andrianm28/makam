@@ -13,6 +13,7 @@ import { nonaktifkanStafSchema, undangStafSchema } from "./schema";
 /** Admin Platform sends an Undangan Staf. */
 export async function undangStaf(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "staf.undang",
     resource: () => stafResource(),
     schema: undangStafSchema,
@@ -57,6 +58,7 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
 /** Admin Platform deactivates an Akun Staf. */
 export async function nonaktifkanStaf(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "staf.nonaktifkan",
     resource: () => stafResource(),
     schema: nonaktifkanStafSchema,

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { rilisAktif } from "@/lib/rilis";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRightIcon, MessageCircleIcon } from "lucide-react";
@@ -6,7 +7,7 @@ import { CsLink } from "@/components/site/cs-link";
 import {
   homepageCsBand,
   homepageHero,
-  homepageTiles,
+  homepageTilesUntuk,
   homepageTilesIntro,
   homepageTrust,
   homepageTrustHeading,
@@ -79,7 +80,7 @@ export default async function BerandaPage() {
           </h2>
           <p className="mt-2 max-w-xl text-body-lg text-muted-foreground">{homepageTilesIntro.line}</p>
           <ul className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {homepageTiles.map((tile) => {
+            {homepageTilesUntuk(rilisAktif()).map((tile) => {
               const live = tile.href !== undefined;
               return (
                 <li key={tile.label} className="group relative flex overflow-hidden rounded-3xl border border-border bg-card shadow-xs sm:flex-col">

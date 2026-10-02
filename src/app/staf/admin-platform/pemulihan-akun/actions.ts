@@ -11,6 +11,7 @@ import { pulihkanAkunSchema } from "./schema";
 /** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check. */
 export async function pulihkanAkun(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.pemulihan",
     resource: () => stafResource(),
     schema: pulihkanAkunSchema,

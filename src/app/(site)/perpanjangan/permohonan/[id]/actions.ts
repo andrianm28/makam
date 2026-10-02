@@ -26,6 +26,7 @@ export async function perbaikiPermohonanAction(_previous: PermohonanActionState,
   }
   const id = idSchema.safeParse({ id: formData.get("permohonanId") });
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: perbaikiPermohonanSchema,
@@ -45,6 +46,7 @@ export async function perbaikiPermohonanAction(_previous: PermohonanActionState,
 export async function batalkanPermohonanAction(_previous: PermohonanActionState, formData: FormData): Promise<PermohonanActionState> {
   const id = idSchema.safeParse({ id: formData.get("permohonanId") });
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: batalkanPermohonanSchema,
@@ -60,6 +62,7 @@ export async function batalkanPermohonanAction(_previous: PermohonanActionState,
 /** Orders the Perpanjangan on an approved request, landing on its Tagihan (the same order step as the direct path). */
 export async function pesanDariPermohonanAction(_previous: PermohonanActionState, formData: FormData): Promise<PermohonanActionState> {
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: pesanDariPermohonanSchema.extend({ terms: z.coerce.number().int().min(1).max(100) }),

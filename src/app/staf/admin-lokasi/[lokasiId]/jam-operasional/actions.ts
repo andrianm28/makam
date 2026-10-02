@@ -40,6 +40,7 @@ async function operasionalWrite<S extends z.ZodType<{ lokasiId: string }>>(optio
 }): Promise<FormState> {
   const { input } = options;
   const result = await guarded({
+    fitur: "inti",
     action: "lokasi.atur_operasional",
     resource: () => lokasiMitraResource(typeof input.lokasiId === "string" ? input.lokasiId : ""),
     schema: options.schema,

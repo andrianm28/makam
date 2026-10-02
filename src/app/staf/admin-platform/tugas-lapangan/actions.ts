@@ -40,6 +40,7 @@ export async function buatTugasLapangan(_previous: FormState, formData: FormData
     assigneeAccountId: formData.get("assigneeAccountId"),
   };
   const result = await guarded({
+    fitur: "inti",
     action: "tugas_lapangan.buat",
     resource: () => semuaTugasLapanganResource(),
     schema: formSchema,
@@ -74,6 +75,7 @@ export async function buatTugasLapangan(_previous: FormState, formData: FormData
 /** Admin Platform hands an open Tugas Lapangan (typically the system-made, unassigned Ambil surat pengantar) to a Petugas Lapangan. */
 export async function tugaskanTugasLapanganAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "tugas_lapangan.buat",
     resource: () => semuaTugasLapanganResource(),
     schema: tugaskanTugasLapanganSchema,

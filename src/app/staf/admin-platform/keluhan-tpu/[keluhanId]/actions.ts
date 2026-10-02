@@ -20,6 +20,7 @@ export async function putuskanKeluhanTpuAction(_previous: FormState, formData: F
   const keluhanId = String(formData.get("keluhanId") ?? "");
   const mitraJasaId = String(formData.get("mitraJasaId") ?? "");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: putuskanKeluhanTpuSchema,
@@ -37,6 +38,7 @@ export async function putuskanKeluhanTpuAction(_previous: FormState, formData: F
 export async function sesuaikanPencairanKeluhanTpuAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const keluhanId = String(formData.get("keluhanId") ?? "");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: sesuaikanPencairanKeluhanSchema,

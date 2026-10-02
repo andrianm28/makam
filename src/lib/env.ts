@@ -17,6 +17,24 @@ export function usesInMemoryFakes(appEnv: AppEnvironment): boolean {
 
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
+/**
+ * The release this environment has opened (`RILIS_TERBUKA`, 1 to 3). Unset, development,
+ * test and staging open everything and every other value of APP_ENV (production,
+ * missing, unknown) opens Rilis 1, so a missing setting can never open more on
+ * production than the release plan allows.
+ */
+const rilisEnvSchema = z
+  .object({
+    // Any string: an unknown or missing APP_ENV must not throw, it must fail closed to Rilis 1.
+    APP_ENV: z.preprocess(emptyToUndefined, z.string().optional()),
+    RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(3).optional()),
+  })
+  .transform(({ APP_ENV, RILIS_TERBUKA }): 1 | 2 | 3 => {
+    if (RILIS_TERBUKA !== undefined) return RILIS_TERBUKA as 1 | 2 | 3;
+    // Only the environments that run fakes or sandboxes open everything by default; anything else (production, unset, unknown) opens Rilis 1.
+    return APP_ENV === "development" || APP_ENV === "test" || APP_ENV === "staging" ? 3 : 1;
+  });
+
 /** Where the image installs its headless Chromium (Debian's chromium-headless-shell), for the live PdfRenderer. */
 export const DEFAULT_CHROMIUM_PATH = "/usr/bin/chromium-headless-shell";
 
@@ -228,6 +246,8 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   ...smtpEnvShape,
   ...sumopodEnvShape,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  /** The release this environment has opened, 1 to 3 (ADR 0006); validated here so a bad value stops the process at start. */
+  RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(3).optional()),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
   /**
@@ -381,6 +401,20 @@ function parseEnv<S extends z.ZodType>(schema: S, source: EnvSource): z.infer<S>
 export function readRuntimeEnv(source: EnvSource = process.env): RuntimeEnv {
   return parseEnv(runtimeEnvSchema, source);
 }
+
+/** The release number this environment has opened (ADR 0006). Throws on a bad value. */
+export function readRilisEnv(source: EnvSource = process.env): 1 | 2 | 3 {
+  // Parsed once per distinct pair of settings, not on every request.
+  const key = `${source.APP_ENV ?? ""}|${source.RILIS_TERBUKA ?? ""}`;
+  let known = rilisCache.get(key);
+  if (known === undefined) {
+    known = parseEnv(rilisEnvSchema, source);
+    rilisCache.set(key, known);
+  }
+  return known;
+}
+
+const rilisCache = new Map<string, 1 | 2 | 3>();
 
 /** Reads and validates only the error-monitoring settings (web server Sentry). */
 export function readSentryEnv(source: EnvSource = process.env): SentryEnv {

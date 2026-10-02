@@ -51,6 +51,7 @@ export async function pesanPengurusanIptmAction(formData: FormData): Promise<voi
   const text = (name: string) => String(formData.get(name) ?? "");
   const lain = text("pemegangHakMode") === "lain";
   const hasil = await guarded({
+    fitur: "tpu",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: pesanSchema,

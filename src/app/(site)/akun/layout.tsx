@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { rilisTerbuka } from "@/lib/rilis";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/makam/page-header";
@@ -57,7 +58,7 @@ export default async function AkunSayaLayout({ children }: LayoutProps<"/akun">)
           { href: "/akun", label: "Profil" },
           { href: "/akun/pesanan", label: "Pesanan" },
           { href: "/akun/makam", label: "Makam Keluarga" },
-          { href: "/akun/wakaf", label: "Wakaf" },
+          ...(rilisTerbuka("wakaf") ? [{ href: "/akun/wakaf", label: "Wakaf" }] : []),
         ]}
       />
       {children}

@@ -1,3 +1,4 @@
+import { rilisAktif } from "@/lib/rilis";
 import Link from "next/link";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { StaffRole } from "@/domain/identity";
@@ -27,7 +28,7 @@ export async function StaffRoleHome({
 }) {
   await staffMenuActor(role);
   const label = staffRoleLabels[role];
-  const items = staffPages(role, { lokasiId });
+  const items = staffPages(role, { lokasiId, rilis: rilisAktif() });
 
   return (
     <>

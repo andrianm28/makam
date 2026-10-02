@@ -36,6 +36,7 @@ export async function catatPembayaranManualAction(_previous: FormState, formData
   const tagihanId = String(formData.get("tagihanId") ?? "");
   const bukti = await buktiFromForm(formData);
   const result = await guarded({
+    fitur: "inti",
     action: "tagihan.catat_pembayaran_manual",
     resource: () => tagihanResource(),
     schema: manualSchema,
@@ -81,6 +82,7 @@ const hargaKhususSchema = z.object({
 export async function tetapkanHargaKhususAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const tagihanId = String(formData.get("tagihanId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "tagihan.tetapkan_harga_khusus",
     resource: () => tagihanResource(),
     schema: hargaKhususSchema,
@@ -123,6 +125,7 @@ const batalkanSchema = z.object({ tagihanId: z.uuid() });
 export async function batalkanPembayaranLangsungAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const tagihanId = String(formData.get("tagihanId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pencairan.kelola",
     resource: () => pencairanResource(),
     schema: batalkanSchema,

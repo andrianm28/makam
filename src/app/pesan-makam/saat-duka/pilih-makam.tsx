@@ -17,6 +17,8 @@ export interface PilihMakamProps {
   grup: GrupView[];
   /** The TPU section: only the TPUs taking new plots, each at the TPU price. */
   tpu: TpuKartuView[];
+  /** False while DKI TPU is not open in this environment: no TPU section and no type chip (ADR 0006). */
+  tpuTerbuka: boolean;
   /** Every city with a Terverifikasi Lokasi Mitra, for the filter. */
   semuaKota: string[];
   /** The city the list is filtered to; null is "Semua kota". */
@@ -69,7 +71,7 @@ interface Baris {
  * carries on to the next step in its own URL, so the browser's back button
  * returns to the same choice.
  */
-export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
   const router = useRouter();
   const [terpilih, setTerpilih] = useState<Terpilih | null>(() => pilihanAwal(grup, tpu, jenis, awal));
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
@@ -95,7 +97,7 @@ export function PilihMakam({ grup, tpu, semuaKota, kota, jenis, kembali, dari, b
 
         {banner ? <BannerTolakSaatDuka banner={banner} /> : null}
 
-        <JenisFilter jenis={jenis} kembali={kembali} kota={kota} />
+        {tpuTerbuka ? <JenisFilter jenis={jenis} kembali={kembali} kota={kota} /> : null}
 
         <KotaFilter semuaKota={semuaKota} kota={kota} kembali={kembali} jenis={jenis} />
 
