@@ -67,4 +67,10 @@ describe("the Admin Lokasi's panel for a further burial (Makamkan di sini)", () 
   it("offers nothing to confirm once the order is past Diajukan", () => {
     expect(tumpangPanel(dasar, "dikonfirmasi")).toMatchObject({ bisaKonfirmasi: false, bisaCatatKonsen: false });
   });
+
+  it("lets the Lokasi Tolak while the order is Diajukan, whatever the consent or the checks say, so it does not hang", () => {
+    expect(tumpangPanel({ ...dasar, pemeriksaan: { ok: false, reason: "lapisan_penuh" } }, "diajukan").bisaTolak).toBe(true);
+    expect(tumpangPanel({ ...dasar, konsen: { state: "menunggu_pemegang", via: null, catatan: null } }, "diajukan").bisaTolak).toBe(true);
+    expect(tumpangPanel(dasar, "dikonfirmasi").bisaTolak).toBe(false);
+  });
 });

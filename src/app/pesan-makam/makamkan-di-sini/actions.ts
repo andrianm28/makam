@@ -9,7 +9,7 @@ import { codeInput, emailInput } from "@/server/code-inputs";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
-import type { KirimState, MasalahDraft } from "../saat-duka/draft";
+import { masalahDariIssues, type KirimState } from "../saat-duka/draft";
 import { draftTumpangSchema, type DraftTumpang } from "./draft";
 
 /*
@@ -32,7 +32,7 @@ export async function ajukanTumpangAction(draft: unknown): Promise<KirimState> {
   if (hasil.ok) return hasil.value;
   if (hasil.error === "belum_masuk") return { status: "perlu_kode_masuk" };
   if (hasil.error === "input_tidak_valid") {
-    const pesan = masalah(hasil.issues ?? []);
+    const pesan = masalahDariIssues(hasil.issues ?? []);
     return { status: "gagal", pesan, message: Object.values(pesan)[0] ?? "Periksa lagi isian Anda." };
   }
   return { status: "gagal", message: "Anda tidak berwenang memesan." };
@@ -44,7 +44,7 @@ const kodeMasukSchema = z.object({ email: emailInput, code: codeInput });
 export async function verifikasiKodeMasukDanAjukanTumpang(draft: unknown, _state: KirimState, formData: FormData): Promise<KirimState> {
   const parsedDraft = draftTumpangSchema.safeParse(draft);
   if (!parsedDraft.success) {
-    const pesan = masalah(parsedDraft.error.issues);
+    const pesan = masalahDariIssues(parsedDraft.error.issues);
     return { status: "gagal", pesan, message: Object.values(pesan)[0] ?? "Periksa lagi isian Anda." };
   }
   const parsedCode = kodeMasukSchema.safeParse({ email: formData.get("email"), code: formData.get("code") });
@@ -77,14 +77,4 @@ async function ajukan(pemesan: { accountId: string; email: string }, draft: Draf
   });
   if (!hasil.ok) return { status: "gagal", message: tumpangMessage(hasil.reason) };
   return { status: "selesai", nomor: hasil.pesanan.nomor };
-}
-
-/** One message per field, keyed by the field to fix, in the order the schema complained. */
-function masalah(issues: readonly z.core.$ZodIssue[]): MasalahDraft {
-  const satuPerField: Record<string, string> = {};
-  for (const issue of issues) {
-    const field = issue.path.join(".");
-    if (field !== "" && !(field in satuPerField)) satuPerField[field] = issue.message;
-  }
-  return satuPerField;
 }

@@ -38,21 +38,24 @@ export interface HakPakaiTumpang {
   /** The Calon Penghuni a Terencana plot was prepared for, or null. */
   calonPenghuni: string | null;
   pemegangHak: { name: string | null; phoneNumber: string | null; email: string | null } | null;
-  /** How many Pemakaman are recorded under this Hak Pakai. */
+  /** How many Pemakaman are recorded in the target Petak (the right's own, or the member Petak asked for). */
   layers: number;
-  /** The most recent recorded burial ("YYYY-MM-DD"), or null when none. */
+  /** The most recent burial in the target Petak ("YYYY-MM-DD"), or null when none. */
   terakhirPemakaman: string | null;
   /** The right has ended or been cancelled while the plot is not cleared: only a tumpang may still be sold. */
   released: boolean;
 }
 
 /** One Hak Pakai as "Makamkan di sini" reads it, or null when there is none at that id. */
-export async function hakPakaiUntukTumpang(deps: { db: Database }, hakPakaiId: string): Promise<HakPakaiTumpang | null> {
+export async function hakPakaiUntukTumpang(deps: { db: Database }, hakPakaiId: string, petakId?: string): Promise<HakPakaiTumpang | null> {
   const [row] = await deps.db.select().from(inventoryHakPakai).where(eq(inventoryHakPakai.id, hakPakaiId));
   if (!row) return null;
 
   const pemegangHak = await currentPemegangHak(deps.db, hakPakaiId);
-  const pemakaman = await pemakamanOfHakPakai(deps.db, hakPakaiId);
+  // A tumpang is further burials in the same Petak (CONTEXT.md): the layers and the last burial are the target Petak's
+  // own, the right's single Petak or the member Petak chosen in a Kavling Keluarga (none chosen yet: nothing counted).
+  const sasaran = row.petakId ?? petakId ?? null;
+  const pemakaman = (await pemakamanOfHakPakai(deps.db, hakPakaiId)).filter((satu) => satu.petakId === sasaran);
   const terakhir = pemakaman.length > 0 ? pemakaman[pemakaman.length - 1]!.date : null;
 
   let petak: TumpangPetak | null = null;

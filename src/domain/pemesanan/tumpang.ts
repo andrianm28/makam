@@ -316,7 +316,7 @@ export async function konfirmasiTumpang(deps: PemesananDeps, by: Actor, rawInput
   if (!order.hakPakaiId || !order.petakId) return { ok: false, reason: "petak_tidak_ditemukan" };
 
   const now = deps.clock.now();
-  const hakPakai = await deps.inventory.hakPakaiUntukTumpang(order.hakPakaiId);
+  const hakPakai = await deps.inventory.hakPakaiUntukTumpang(order.hakPakaiId, order.petakId ?? undefined);
   if (!hakPakai) return { ok: false, reason: "hak_pakai_tidak_ditemukan" };
   const profile = await deps.lokasi.publicLokasiMitra(order.lokasiId);
   if (!profile) return { ok: false, reason: "lokasi_tidak_terbuka" };
@@ -452,7 +452,7 @@ export async function tumpangUntukStaf(deps: PemesananDeps, row: typeof pemesana
   if (row.kind !== "tumpang" || !row.tumpangJenis || !row.konsenState) return null;
   let pemeriksaan: TumpangUntukStaf["pemeriksaan"] = { ok: true };
   if (row.hakPakaiId && row.tumpangJenis === "tumpang") {
-    const hak = await deps.inventory.hakPakaiUntukTumpang(row.hakPakaiId);
+    const hak = await deps.inventory.hakPakaiUntukTumpang(row.hakPakaiId, row.petakId ?? undefined);
     const profil = await deps.lokasi.publicLokasiMitra(row.lokasiId);
     if (hak && profil && hak.layers > 0) {
       const diperiksa = periksaBolehTumpang(

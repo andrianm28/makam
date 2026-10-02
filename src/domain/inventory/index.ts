@@ -194,7 +194,7 @@ export interface Inventory {
    * how many are buried there and when the last was, and whether the right was
    * released. No actor: it is the family's own tumpang request that reads it.
    */
-  hakPakaiUntukTumpang(hakPakaiId: string): Promise<HakPakaiTumpang | null>;
+  hakPakaiUntukTumpang(hakPakaiId: string, petakId?: string): Promise<HakPakaiTumpang | null>;
   /**
    * The Hak Pakai a Perpanjangan is about (ticket 40): status, its own term as
    * bought, end date, Perlu Verifikasi flag, Jenis Makam, Petak numbers and the
@@ -364,7 +364,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
-    hakPakaiUntukTumpang: (hakPakaiId) => hakPakaiUntukTumpang(deps, hakPakaiId),
+    hakPakaiUntukTumpang: (hakPakaiId, petakId) => hakPakaiUntukTumpang(deps, hakPakaiId, petakId),
     hakPakaiUntukPerpanjangan: (hakPakaiId) => hakPakaiUntukPerpanjangan(deps, hakPakaiId),
     perpanjangHakPakai: (input) => perpanjangHakPakai(deps, input),
     gantiPemegangHak: (by, lokasiId, input) => gantiPemegangHak(deps, by, lokasiId, input),

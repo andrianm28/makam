@@ -10,6 +10,7 @@ import { signInAsAdminLokasi } from "../../../../../../../tests/support/server-s
 import { hakPakaiDenganPemegang } from "../../../../../../../tests/support/tumpang";
 import type { PemesananSetup } from "../../../../../../../tests/support/pemesanan";
 import { catatKonsenTumpangAction, konfirmasiTumpangAction } from "./tumpang-actions";
+import { tolakPesanan } from "./actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => import("../../../../../../../tests/support/next-request"));
@@ -82,5 +83,11 @@ describe("catatKonsenTumpangAction and konfirmasiTumpangAction (Server Actions)"
     browser.reset();
     expect((await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "verbal", catatan: "x" }))).status).toBe("gagal");
     expect((await konfirmasiTumpangAction(idle, form({ lokasiId, nomor, pemakamanAt: "2026-10-02T10:00" }))).status).toBe("gagal");
+  });
+
+  it("the Admin Lokasi can Tolak a further burial with a reason off the fixed list", async () => {
+    const { f, lokasiId, nomor } = await permintaanTanpaEmail();
+    expect((await tolakPesanan(idle, form({ lokasiId, nomor, alasan: "di_luar_wilayah" }))).status).toBe("berhasil");
+    expect(await server.runtime().pemesanan.orderUntukStaf(f.lokasi.adminLokasi, nomor)).toMatchObject({ status: "ditolak" });
   });
 });

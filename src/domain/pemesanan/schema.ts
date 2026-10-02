@@ -19,15 +19,8 @@ export type PemesananKind = (typeof pemesananKinds)[number];
 export const pemesananStatuses = ["diajukan", "dikonfirmasi", "dimakamkan", "selesai", "ditolak", "dibatalkan"] as const;
 export type PemesananStatus = (typeof pemesananStatuses)[number];
 
-/**
- * The three requests "Makamkan di sini" can carry (spec, Pemesanan > Burial
- * under an existing Hak Pakai): a tumpang on an occupied plot, the next plot of
- * a Kavling Keluarga, or the burial of the Calon Penghuni a Terencana plot was
- * prepared for. All three run the same track; the difference is which checks
- * apply (a tumpang waits out the policy, an unused plot does not).
- */
-export const tumpangJenisKeys = ["tumpang", "kavling_berikutnya", "calon_penghuni"] as const;
-export type TumpangJenis = (typeof tumpangJenisKeys)[number];
+import { tumpangJenisKeys, type TumpangJenis } from "./skema-tumpang";
+export { tumpangJenisKeys, type TumpangJenis };
 
 /**
  * How the Pemegang Hak's consent to a further burial resolved (spec, Pemesanan >

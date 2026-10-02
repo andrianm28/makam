@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { tumpangJenisKeys } from "@/domain/pemesanan/schema";
+import { tumpangJenisKeys } from "@/domain/pemesanan/skema-tumpang";
 
 /**
  * What "Makamkan di sini" holds (ticket 35): only the Almarhum and the Pemesan, plus the address of the grave it
  * came from. The grave is chosen at the hub, so there is no plot to pick. On a client import graph: the one value
- * taken from the module is its schema file, never the barrel (AGENTS.md).
+ * taken from the module is its own small `skema-tumpang` file, never the barrel or the table file (AGENTS.md).
  */
 export const draftTumpangSchema = z.object({
   pemesanName: z.string().trim().min(1, "Tulis nama lengkap Anda.").max(200),

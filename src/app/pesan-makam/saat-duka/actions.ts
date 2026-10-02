@@ -24,6 +24,7 @@ import {
   type DraftSaatDuka,
   type DraftTpu,
   type KirimState,
+  masalahDariIssues,
   type MasalahDraft,
 } from "./draft";
 
@@ -172,7 +173,7 @@ async function kirimTerpakai<T extends NamaDanEmail>(
   if (hasil.ok) return hasil.value;
   if (hasil.error === "belum_masuk") return { status: "perlu_kode_masuk" };
   if (hasil.error === "input_tidak_valid") {
-    const pesan = masalah(hasil.issues ?? []);
+    const pesan = masalahDariIssues(hasil.issues ?? []);
     return { status: "gagal", pesan, message: isianMessage(pesan) };
   }
   return { status: "gagal", message: message(hasil.error) };
@@ -214,7 +215,7 @@ async function masukLaluKirim<T extends NamaDanEmail>(
 ): Promise<KirimState> {
   const parsedDraft = schema.safeParse(draft);
   if (!parsedDraft.success) {
-    const pesan = masalah(parsedDraft.error.issues);
+    const pesan = masalahDariIssues(parsedDraft.error.issues);
     return { status: "gagal", pesan, message: isianMessage(pesan) };
   }
   const parsedCode = kodeMasukSchema.safeParse({
@@ -286,20 +287,6 @@ async function kirimTpu(
 /** The Kode Masuk at Kirim, in the shape the Kode Masuk on Masuk uses. */
 const kodeMasukSchema = z.object({ email: emailInput, code: codeInput });
 
-/**
- * One message per field, keyed by the field that has to be fixed
- * (`pemegangHak.name` for a Pemegang Hak's own name), in the order the schema
- * complained: the first is the one to say under the button.
- */
-function masalah(issues: readonly z.core.$ZodIssue[]): MasalahDraft {
-  const satuPerField: Record<string, string> = {};
-  for (const issue of issues) {
-    const field = issue.path.join(".");
-    if (field !== "" && !(field in satuPerField))
-      satuPerField[field] = issue.message;
-  }
-  return satuPerField;
-}
 
 /** The first thing wrong with the draft, in the words the field itself would use. */
 function isianMessage(issues: MasalahDraft): string {

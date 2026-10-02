@@ -218,8 +218,8 @@ export async function catatPemakaman(
 }
 
 /** The layer a tumpang lays the Almarhum in: one above what the right already holds; undefined for any other order. */
-async function layerTumpang(deps: Pick<PemesananDeps, "inventory">, order: { kind: string; tumpangJenis: string | null; hakPakaiId: string | null }): Promise<number | undefined> {
+async function layerTumpang(deps: Pick<PemesananDeps, "inventory">, order: { kind: string; tumpangJenis: string | null; hakPakaiId: string | null; petakId: string | null }): Promise<number | undefined> {
   if (order.kind !== "tumpang" || order.tumpangJenis !== "tumpang" || !order.hakPakaiId) return undefined;
-  const hak = await deps.inventory.hakPakaiUntukTumpang(order.hakPakaiId);
+  const hak = await deps.inventory.hakPakaiUntukTumpang(order.hakPakaiId, order.petakId ?? undefined);
   return hak && hak.layers > 0 ? hak.layers + 1 : undefined;
 }

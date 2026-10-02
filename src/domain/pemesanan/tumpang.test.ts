@@ -278,7 +278,7 @@ describe("Makamkan di sini", () => {
     if (!dikonfirmasi.ok) throw new Error(`konfirmasiTumpang refused: ${dikonfirmasi.reason}`);
     setup.clock.set(wib("2026-10-03 11:00"));
     expect(await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor, tanggal: "2026-10-03" })).toMatchObject({ ok: true, pesanan: { petakNomor: anggota[1]!.nomorMakam } });
-    expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))?.layers).toBe(1);
+    expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId, anggota[1]!.id))?.layers).toBe(1);
   });
 
   it("counts a tumpang's layers and last burial for the target Petak, not for every Petak of the Kavling Keluarga", async () => {
@@ -324,6 +324,46 @@ describe("Makamkan di sini", () => {
     // The tumpang is laid one layer above what Petak B itself holds.
     setup.clock.set(wib("2026-10-03 11:00"));
     expect(await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: nomorB, tanggal: "2026-10-03" })).toMatchObject({ ok: true, pemakaman: { layer: 2 } });
+  });
+
+  it("alerts the Lokasi's Admin Lokasi (bell and email, a Peringatan Staf) when an heirship proof is logged, and not for a verbal consent", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id", "Rina Wulandari");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001" });
+    const satu = (await ajukan(setup, lokasi, hakPakaiId, pemesan)) as { pesanan: { nomor: string } };
+    const dua = (await ajukan(setup, lokasi, hakPakaiId, pemesan, "Almarhum Lain")) as { pesanan: { nomor: string } };
+    const peringatan = async () => {
+      await setup.notifications.kirimPeringatanStafTick();
+      return (await setup.notifications.pesanStaf(lokasi.adminLokasi.accountId)).filter((pesan) => pesan.template === "staf_ganti_pemegang_hak");
+    };
+
+    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: satu.pesanan.nomor, via: "verbal", catatan: "Lewat telepon." });
+    expect(await peringatan()).toEqual([]);
+
+    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: dua.pesanan.nomor, via: "ahli_waris", catatan: "Surat waris." });
+    const pesan = await peringatan();
+    expect(pesan.map((satu) => satu.channel)).toContain("email");
+    expect(pesan.find((satu) => satu.channel === "email")?.subject).toContain(dua.pesanan.nomor);
+    expect(JSON.stringify(await setup.notifications.staffAlerts(lokasi.adminLokasi))).toContain(`/staf/admin-lokasi/${lokasi.lokasiMitra.id}/pesanan/${dua.pesanan.nomor}`);
+  });
+
+  it("lets the Admin Lokasi Tolak a further burial with a reason off the fixed Saat Duka list, leaving the Hak Pakai whole", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id", "Rina Wulandari");
+    const { pemesan: pemegang } = await pemesanDenganEmail(setup, "pemegang@contoh.id", "Siti Aminah");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001", email: "pemegang@contoh.id" });
+    const placed = (await ajukan(setup, lokasi, hakPakaiId, pemesan)) as { pesanan: { nomor: string } };
+
+    const hasil = await setup.pemesanan.tolakSaatDuka(lokasi.adminLokasi, { nomor: placed.pesanan.nomor, alasan: "di_luar_wilayah" });
+    expect(hasil).toMatchObject({ ok: true, pesanan: { status: "ditolak" } });
+    expect(await setup.pemesanan.orderUntukStaf(lokasi.adminLokasi, placed.pesanan.nomor)).toMatchObject({ status: "ditolak", alasan: "Di luar wilayah pelayanan Lokasi Mitra ini" });
+    expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))?.status).toBe("aktif");
+    // The holder's pending request leaves Perlu tindakan with it.
+    expect(await setup.pemesanan.konsenMenungguSaya({ accountId: pemegang.accountId })).toEqual([]);
   });
 
   it("cancelling a further burial cancels only the order and its Tagihan, and never issues a Bukti Pemesanan", async () => {

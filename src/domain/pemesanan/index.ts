@@ -358,8 +358,9 @@ export interface Pemesanan {
   /**
    * "Makamkan di sini" (ticket 35): places a further burial under an existing Hak
    * Pakai, resolving the Pemegang Hak's consent as far as it can go without them.
-   * The returned `kode` is the one-time code the boundary must email to the holder
-   * when the state is `menunggu_email`.
+   * When the state is `menunggu_pemegang`, Notifications emails the holder an
+   * ordinary link to Akun Saya (no code of its own): they sign in with the usual
+   * Kode Masuk and answer under Perlu tindakan (`jawabKonsenTumpang`).
    */
   ajukanTumpang(input: AjukanTumpangInput): Promise<AjukanTumpangResult>;
   /**

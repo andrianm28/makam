@@ -123,3 +123,18 @@ export function tujuanSetelahKirim(hasil: KirimState): string | null {
 export function pengurusanPath(nomor: string): string {
   return `/pengurusan/${encodeURIComponent(nomor)}`;
 }
+
+/**
+ * One message per field, keyed by the field that has to be fixed
+ * (`pemegangHak.name` for a Pemegang Hak's own name), in the order the schema
+ * complained: the first is the one to say under the button.
+ */
+export function masalahDariIssues(issues: readonly z.core.$ZodIssue[]): MasalahDraft {
+  const satuPerField: Record<string, string> = {};
+  for (const issue of issues) {
+    const field = issue.path.join(".");
+    if (field !== "" && !(field in satuPerField))
+      satuPerField[field] = issue.message;
+  }
+  return satuPerField;
+}
