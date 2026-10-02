@@ -77,6 +77,7 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+export { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
 import { cekTpuTerbuka, koreksiIptmBerakhir, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";
 import type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult } from "./perpanjangan-tpu";
 export type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult };

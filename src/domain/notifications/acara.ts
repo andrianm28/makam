@@ -51,6 +51,8 @@ export const TEMPLATE_EMAIL = [
   "paket_siklus_dijeda",
   // A Hak Pakai nearing its end or in its Masa Tenggang: 60, 30 and 7 days before, then weekly (ticket 42).
   "hak_pakai_berakhir_pengingat",
+  // A Makam TPU's IPTM nearing its expiry: 3 months and 1 month before (ticket 48).
+  "iptm_berakhir_pengingat",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
   // A Lokasi Mitra's Berhenti decision, told to every family with an order or a Paket Layanan there (ticket 59).
@@ -110,6 +112,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   paket_siklus_dijeda: "pengingat",
   // Asks the family to extend or lose the grave, so it waits for the window like every reminder (ticket 42).
   hak_pakai_berakhir_pengingat: "pengingat",
+  // Asks the Pemegang Hak to renew the permit, so it waits for the window like every reminder (ticket 48).
+  iptm_berakhir_pengingat: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
   // News the family cannot wait on: its order or Paket ends on a date, so it goes at any hour (ticket 59).
