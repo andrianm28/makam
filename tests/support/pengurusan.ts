@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
-import { createPengurusan } from "@/domain/pengurusan";
+import { pemilikPesananDari } from "@/composition/refunds";
+import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import type { IptmTerbitInput, PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
@@ -21,7 +22,8 @@ function bangunPengurusan(db: Database) {
   /** Every IPTM handover the module announced. */
   const iptmDiumumkan: IptmTerbitInput[] = [];
   // Refunds is composed on the same Billing and Payouts, as the runtime does, so a cancelled paid order's request is a real one.
-  const { refunds } = refundsFor(setup, payoutsFor(setup).payouts);
+  const pengurusanRef: { current?: Pick<Pengurusan, "orderOf"> } = {};
+  const { refunds } = refundsFor(setup, payoutsFor(setup).payouts, pemilikPesananDari({ orderOf: async () => null, terencanaOf: async () => null }, pengurusanRef));
   const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
@@ -46,6 +48,7 @@ function bangunPengurusan(db: Database) {
       },
     },
   });
+  pengurusanRef.current = pengurusan;
   return { ...setup, pengurusan, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
 }
 

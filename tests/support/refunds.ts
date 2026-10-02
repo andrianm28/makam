@@ -9,6 +9,7 @@ import type { PublishSetup } from "./publish";
 export function refundsFor(
   setup: PublishSetup,
   payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">,
+  pemilikPesanan?: (nomorPemesanan: string, accountId: string) => Promise<boolean>,
 ): { refunds: Refunds } {
   const refunds = createRefunds({
     db: setup.db,
@@ -21,6 +22,7 @@ export function refundsFor(
     notifications: setup.notifications,
     operatorSettings: setup.operatorSettings,
     buktiUrl: (link) => `${TEST_PUBLIC_ORIGIN}/dokumen/${link}`,
+    pemilikPesanan,
   });
   return { refunds };
 }
