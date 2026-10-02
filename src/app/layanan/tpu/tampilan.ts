@@ -9,7 +9,7 @@ import { serverRuntime } from "@/server/runtime";
  * family is handed is exactly what the page has in hand.
  *
  * The grave is **described** here, not looked up: a DKI TPU has no Denah. (Ordering from a
- * Makam TPU record, which would prefill it, is ticket 46's.)
+ * Makam TPU record prefills it: the page reads `deskripsiMakamTpu`.)
  */
 
 export interface VarianTpuTawarkan {

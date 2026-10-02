@@ -63,7 +63,7 @@ export { dokumenKurang as dokumenPengajuanKurang };
 
 // ---------------------------------------------------------------- Dimakamkan
 
-const catatDimakamkanSchema = z.object({ nomor: nomorSchema });
+export const catatDimakamkanSchema = z.object({ nomor: nomorSchema });
 
 export type CatatDimakamkanResult =
   | { ok: true; status: "dimakamkan"; dokumenDueAt: Date }
@@ -114,7 +114,7 @@ export async function catatDimakamkan(deps: PengurusanDeps, by: Actor, rawInput:
 
 // ------------------------------------------------------------ Dokumen unggah
 
-const unggahSchema = z.object({
+export const unggahSchema = z.object({
   nomor: nomorSchema,
   nama: z.string().trim().min(1).max(200),
   berkas: berkasSchema,
@@ -250,7 +250,7 @@ export async function periksaDokumen(deps: PengurusanDeps, by: Actor, rawInput: 
   });
 }
 
-const ajukanIptmSchema = z.object({
+export const ajukanIptmSchema = z.object({
   nomor: nomorSchema,
   /** A Petugas Lapangan to collect the original documents (a Berkas IPTM Tugas Lapangan), when originals are needed. */
   berkasPetugasAccountId: z.string().trim().min(1).optional(),
@@ -309,7 +309,7 @@ export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unkn
 
 // ---------------------------------------------------------------- IPTM Terbit
 
-const terbitkanIptmSchema = z.object({
+export const terbitkanIptmSchema = z.object({
   nomor: nomorSchema,
   berkas: berkasSchema,
   /** The IPTM's expiry, "YYYY-MM-DD". */
@@ -443,7 +443,7 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
 
 // ------------------------------------------------------------- Pembatalan
 
-const batalkanSchema = z.object({ nomor: nomorSchema, alasan: z.string().trim().max(500).default("") });
+export const batalkanSchema = z.object({ nomor: nomorSchema, alasan: z.string().trim().max(500).default("") });
 
 export type BatalkanPengurusanResult =
   | {

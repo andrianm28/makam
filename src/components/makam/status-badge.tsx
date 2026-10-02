@@ -35,6 +35,10 @@ export const statusVocabulary = {
   diajukan: { label: "Diajukan", tone: "info" },
   dikonfirmasi: { label: "Dikonfirmasi", tone: "success" },
   dimakamkan: { label: "Dimakamkan", tone: "success" },
+  // The IPTM filing of a TPU order (ticket 46).
+  dokumen_lengkap: { label: "Dokumen Lengkap", tone: "info" },
+  iptm_diajukan: { label: "IPTM Diajukan", tone: "info" },
+  iptm_terbit: { label: "IPTM Terbit", tone: "success" },
   selesai: { label: "Selesai", tone: "success" },
   ditolak: { label: "Ditolak", tone: "warning" },
   dibatalkan: { label: "Dibatalkan", tone: "neutral" },

@@ -67,6 +67,13 @@ export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export type { PengurusanOrder } from "./reads";
+export {
+  ajukanIptmSchema,
+  batalkanSchema as batalkanPengurusanSchema,
+  catatDimakamkanSchema,
+  terbitkanIptmSchema,
+  unggahSchema as unggahDokumenPengajuanSchema,
+} from "./pengajuan-iptm";
 export { BERKAS_MAX_BYTES, HARI_BERKAS_PENGAJUAN, NAMA_OPERATOR_SURAT_KUASA } from "./pengajuan-iptm";
 export type {
   AjukanIptmResult,

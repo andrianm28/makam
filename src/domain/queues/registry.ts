@@ -14,6 +14,7 @@ import { konfirmasiLokasiTerlambatRowType } from "./tier1-konfirmasi-lokasi-terl
 import { saatDukaDitolakRowType } from "./tier1-saat-duka-ditolak-row";
 import { konfirmasiTpuSaatDukaRowType } from "./tier1-konfirmasi-tpu-saat-duka-row";
 import { ambilSuratPengantarRowType } from "./tier2-ambil-surat-pengantar-row";
+import { iptmFilingRowType } from "./tier3-iptm-row";
 import { setorRetribusiRowType } from "./tier3-setor-retribusi-row";
 import { mitraJasaOnboardingRowType, skorMitraJasaReviewRowType } from "./tier4-mitra-jasa-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
@@ -59,6 +60,7 @@ export const antreanRowTypes: AntreanRowType[] = [
   ...tier1RowTypes,
   ambilSuratPengantarRowType,
   setorRetribusiRowType,
+  iptmFilingRowType,
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
   pengembalianRowType,
