@@ -93,17 +93,20 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     ["the relay refuses the recipient", () => new EmailSendError("rejected", { code: "EENVELOPE", responseCode: 550 })],
     ["the relay cannot be reached", () => new EmailSendError("unavailable", { code: "ETIMEDOUT" })],
     ["the sender fails with something that is no EmailSendError", () => new TypeError("boom")],
-  ])("when %s, Kirim says gagal kirim, sends once with no automatic retry, and a resend after it goes out", async (_name, makeError) => {
+  ])("when %s, Kirim says gagal kirim, no Kode Masuk goes out later by itself, and a resend after it goes out", async (_name, makeError) => {
     const email = server.runtime().adapters.email as FakeEmailSender;
     const before = email.sent.length;
-    const send = vi.spyOn(email, "send").mockRejectedValueOnce(makeError());
+    const failing = vi.spyOn(email, "send").mockRejectedValueOnce(makeError());
     browser.setHeader("x-real-ip", "203.0.113.60");
+    try {
+      const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }));
+      expect(failed).toMatchObject({ status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." });
+    } finally {
+      failing.mockRestore();
+    }
 
-    const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }));
-    server.clock.advance({ minutes: 5 });
-
-    expect(failed).toMatchObject({ status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." });
-    expect(send).toHaveBeenCalledTimes(1);
+    // No retry on its own: a day later (past any retry window) still nothing has been sent.
+    server.clock.advance({ hours: 24 });
     expect(email.sent).toHaveLength(before);
     expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }))).toMatchObject({
       status: "terkirim",
@@ -114,6 +117,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
   it("with the live SMTP adapter against a relay that refuses the recipient, Kirim says gagal kirim and nothing reaches the process", async () => {
     const relay = await startTestSmtpRelay();
     const stray: unknown[] = [];
+    let send: { mockRestore(): void } | undefined;
     const onStray = (error: unknown) => stray.push(error);
     process.on("uncaughtException", onStray);
     process.on("unhandledRejection", onStray);
@@ -123,7 +127,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
         { trustedCertificate: relay.certificate },
       );
       const email = server.runtime().adapters.email as FakeEmailSender;
-      vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
+      send = vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
       relay.refuseNextRecipient();
       browser.setHeader("x-real-ip", "203.0.113.70");
 
@@ -131,13 +135,14 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
         status: "gagal",
         message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
       });
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // The relay's close resolves only once its SMTP session has ended, so nothing is still in flight when we look.
+      await relay.close();
+      await new Promise((resolve) => setImmediate(resolve));
       expect(stray).toEqual([]);
     } finally {
       process.off("uncaughtException", onStray);
       process.off("unhandledRejection", onStray);
-      vi.restoreAllMocks();
-      await relay.close();
+      send?.mockRestore();
     }
   });
 
