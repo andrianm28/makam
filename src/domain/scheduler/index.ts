@@ -15,7 +15,9 @@ import type { Database } from "@/db/client";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
+import { berhentiBerlakuTick as berhentiBerlaku, type BerhentiContext } from "./berhenti";
 import { jadwalkanTertunda, tandaiTerlambat, type Layanan } from "@/domain/layanan";
+import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
@@ -50,16 +52,18 @@ export interface SchedulerContext {
    * The Payouts module's own ticks: the Saat Duka Pencairan trigger (Lunas **and**
    * Pemakaman recorded, in either order) and the 60-day Potongan ageing (ticket 32).
    */
-  payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  payouts: Pick<Payouts, "tick" | "tickPotongan" | "potonganBerhenti" | "lepaskanTerencanaBerhenti">;
   /**
    * The Pemesanan module's own tick for a Pemesanan Terencana whose payment hold ran out unpaid
    * (ticket 37): the order becomes Dibatalkan and its plots are released.
    */
-  terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "pesananBerjalanDiLokasi">;
+  /** The Lokasi module's Berhenti effective dates that have come and are not yet settled (ticket 59). */
+  lokasi: BerhentiContext["lokasi"];
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */
   refunds: Pick<Refunds, "tick">;
   /** The Layanan module's own ticks: the monthly Mitra Jasa scorecard review row (ticket 55), the Keluhan window closing (ticket 51), the TPU accept deadline (ticket 56) and the Paket Layanan cycles (ticket 54). */
-  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick">;
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick" | "batalkanSisaBerhenti">;
   /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
   queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
@@ -132,6 +136,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tutup_jendela_keluhan", cron: "*/5 * * * *", tick: tutupJendelaKeluhanTick },
   // Layanan: each Paket Layanan subscription's next cycle is issued at H-7 (ticket 54).
   { name: "layanan.paket_siklus", cron: "11 * * * *", tick: paketSiklusTick },
+  // Lokasi: a Berhenti Lokasi Mitra's effective date has come: its unfinished Layanan are cancelled and refunded in full, its Potongan become offline requests, its held Terencana Pencairan are released (ticket 59).
+  { name: "lokasi.berhenti_berlaku", cron: "*/15 * * * *", tick: berhentiBerlakuTick },
   // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
   { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
   // Notifications: the Peringatan Staf a domain event queued directly are sent and retried, push + email (ticket 96).
@@ -247,4 +253,9 @@ async function kirimPeringatanAntreanTick(ctx: SchedulerContext): Promise<void> 
 /** The worker wrapper around Notifications' send tick for the direct staff alerts (idempotent there, as every tick is). */
 async function kirimPeringatanStafTick(ctx: SchedulerContext): Promise<void> {
   await ctx.notifications.kirimPeringatanStafTick(ctx.peringatanStafSubjek ? { subjekMasihPerlu: ctx.peringatanStafSubjek } : {});
+}
+
+/** The worker wrapper around the Berhenti effective-date tick (idempotent there, as every tick is). */
+async function berhentiBerlakuTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await berhentiBerlaku(ctx, now);
 }

@@ -98,6 +98,7 @@ import {
   type OrderTerencanaAntrean,
   type OrderTerencanaStaf,
 } from "./reads-terencana-staf";
+import { pesananBerjalanDiLokasi, type PesananBerjalan } from "./pesanan-di-lokasi";
 import {
   denahTerencana,
   kotaTerencana,
@@ -202,6 +203,7 @@ export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } fro
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
+export type { PesananBerjalan } from "./pesanan-di-lokasi";
 export { HARGA_BANDS } from "./terencana";
 export {
   konfirmasiTerencanaSchema,
@@ -381,6 +383,8 @@ export interface Pemesanan {
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
+  /** The orders a Lokasi Mitra still has running (ticket 59): who is told at its Berhenti decision, and which paid Terencana orders its Pencairan release names. */
+  pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]>;
   /**
    * The Lokasi Mitra's answer to a Pemesanan Terencana (ticket 37). `konfirmasiTerencana` starts
    * the payment hold (Lokasi policy, 24 h by default) and issues the pay-first Tagihan due when it
@@ -498,6 +502,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi(deps, lokasiId),
     konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
     tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
     tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),

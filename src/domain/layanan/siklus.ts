@@ -345,3 +345,16 @@ export async function bacaPesananPaket(deps: LayananDeps, pesananPaketId: string
     siklus,
   };
 }
+
+/**
+ * The families subscribed to a Paket Layanan at a Lokasi Mitra whose subscription still runs or is paused (ticket 59):
+ * those told when the Lokasi goes Berhenti. Oldest subscription first.
+ */
+export async function pelangganPaketDiLokasi(deps: Pick<LayananDeps, "db">, lokasiId: string): Promise<{ nomor: string; email: string }[]> {
+  if (!z.uuid().safeParse(lokasiId).success) return [];
+  return deps.db
+    .select({ nomor: pesananPaket.nomor, email: pesananPaket.pemesanEmail })
+    .from(pesananPaket)
+    .where(and(eq(pesananPaket.lokasiId, lokasiId), inArray(pesananPaket.status, ["aktif", "dijeda"])))
+    .orderBy(asc(pesananPaket.createdAt), asc(pesananPaket.nomor));
+}

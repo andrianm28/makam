@@ -46,6 +46,8 @@ export const TEMPLATE_EMAIL = [
   "paket_siklus_dijeda",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
+  // A Lokasi Mitra's Berhenti decision, told to every family with an order or a Paket Layanan there (ticket 59).
+  "lokasi_berhenti",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -90,6 +92,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   paket_siklus_dijeda: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
+  // News the family cannot wait on: its order or Paket ends on a date, so it goes at any hour (ticket 59).
+  lokasi_berhenti: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -127,6 +131,7 @@ export const TABEL_ACARA: Record<
   | "layanan_pekerjaan_selesai"
   | "paket_siklus_dijeda"
   | "pembatalan_terencana"
+  | "lokasi_berhenti"
   | "peringatan_staf",
   Acara
 > = {
@@ -259,6 +264,13 @@ export const TABEL_ACARA: Record<
    * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,
    * about the Lokasi Mitra's own work like the messages of the order itself.
    */
+  /** The Berhenti decision of a Lokasi Mitra, by email at any hour to each family with an order or Paket there (ticket 59). */
+  lokasi_berhenti: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "lokasi_berhenti",
+    waktu: WAKTU_TEMPLATE.lokasi_berhenti,
+  },
   pembatalan_terencana: {
     penerima: "email_pemesan",
     kanal: "email",

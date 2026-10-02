@@ -21,6 +21,7 @@ export function schedulerContext(parts: {
   refunds?: SchedulerContext["refunds"];
   layanan?: SchedulerContext["layanan"];
   terencana?: SchedulerContext["terencana"];
+  lokasi?: SchedulerContext["lokasi"];
   inventory?: SchedulerContext["inventory"];
   queues?: SchedulerContext["queues"];
 }): SchedulerContext {
@@ -45,15 +46,17 @@ export function schedulerContext(parts: {
       } satisfies SchedulerContext["pemesanan"]),
     // The Payouts ticks change nothing until a test gives them a real module: an
     // empty table is what an ageing tick and a trigger both find anyway.
-    payouts: parts.payouts ?? { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [] },
+    payouts: parts.payouts ?? { tick: async () => ({ items: 0, potongan: 0, dilewati: 0 }), tickPotongan: async () => [], potonganBerhenti: async () => [], lepaskanTerencanaBerhenti: async () => [] },
     // Refunds' own tick changes nothing until a test gives it a real module: an
     // empty Billing list is what the materialising tick finds anyway.
     refunds: parts.refunds ?? { tick: async () => ({ materialised: 0 }) },
     layanan:
       parts.layanan ??
-      ({ tinjauSkorTick: async () => {}, tandaiTidakDirespons: async () => 0, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }), paketSiklusTick: async () => ({ diterbitkan: 0 }) } satisfies SchedulerContext["layanan"]),
+      ({ tinjauSkorTick: async () => {}, tandaiTidakDirespons: async () => 0, tutupJendelaKeluhan: async () => ({ ditutup: 0, pencairanJatuhTempo: 0 }), paketSiklusTick: async () => ({ diterbitkan: 0 }), batalkanSisaBerhenti: async () => ({ dibatalkan: 0, tertunda: 0 }) } satisfies SchedulerContext["layanan"]),
     // No confirmed Terencana order is waiting until a test gives the tick a real Pemesanan.
-    terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
+    terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }), pesananBerjalanDiLokasi: async () => [] },
+    // No Berhenti Lokasi is waiting until a test gives the tick a real Lokasi module.
+    lokasi: parts.lokasi ?? { berhentiBerlakuBelumDiproses: async () => [], tandaiBerhentiDiproses: async () => {} },
     // A grave no tick but the Layanan release one reads: a test of another module's
     // tick is undisturbed by it, and a test of the release one passes the real read.
     inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
