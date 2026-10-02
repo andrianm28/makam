@@ -173,7 +173,7 @@ import {
   type UnggahBuktiResult,
   type MulaiPekerjaanResult,
 } from "./pekerjaan";
-import { batalkanPekerjaan, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
+import { batalkanLayananPetakDibatalkan, batalkanPekerjaan, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
 import {
   barisHariHTpu,
   hargaPesananTpu,
@@ -602,6 +602,11 @@ export interface Layanan {
   batalkanLayananCheckout(nomor: string, alasan: string, within?: Database): Promise<{ dibatalkan: number; ditahan: number }>;
   /** Cancels the jobs still Menunggu Pembayaran of every order whose Tagihan lapsed (Dibatalkan); returns how many. Idempotent. */
   batalkanPekerjaanTagihanLapse(now: Date): Promise<number>;
+  /**
+   * The plot's Layanan when a Pembatalan Terencana is approved: the jobs not yet done become Dibatalkan, and the lines to refund for
+   * them are returned (what was paid for each) for the cancellation to ask of Refunds in its own transaction. A job done or started is kept.
+   */
+  batalkanLayananPetakDibatalkan(nomor: string, within: Database): Promise<{ dibatalkan: number; baris: { label: string; amount: number; lokasiId: string | null }[] }>;
 
   /* ── Layanan at a DKI TPU, fulfilled by a Mitra Jasa (ticket 56) ── */
 
@@ -765,6 +770,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     tulisCheckout: (input, within) => tulisCheckout(deps, input, within),
     batalkanLayananCheckout: (nomor, alasan, within) => batalkanLayananCheckout(deps, nomor, alasan, within),
     batalkanPekerjaanTagihanLapse: () => batalkanPekerjaanTagihanLapse(deps),
+    batalkanLayananPetakDibatalkan: (nomor, within) => batalkanLayananPetakDibatalkan(deps, nomor, within),
     penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
     hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),
     placePesananLayananTpu: (pemesan, input, foto) => placePesananLayananTpu(deps, pemesan, input, foto ?? null),

@@ -86,9 +86,12 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
   const terakhir = lain.every((satu) => satu?.status === "dibatalkan");
 
   const now = deps.clock.now();
-  const kalender = row.jumlahRefund > 0 ? await deps.lokasi.adminPlatformCalendar() : null;
-  const tenggatRefund = kalender ? addWorkingDays(kalender, now, TENGGAT_PERSETUJUAN_REFUND_HARI_KERJA) : null;
-  if (tenggatRefund && !tenggatRefund.ok) throw new Error(`the Admin Platform calendar has no Hari Kerja ahead of ${now.toISOString()}`);
+  // Asked of the Admin Platform's calendar only once a refund is really due (the Hak Pakai's, or the plot's Layanan not yet done).
+  const tenggatUntuk = async () => {
+    const tenggat = addWorkingDays(await deps.lokasi.adminPlatformCalendar(), now, TENGGAT_PERSETUJUAN_REFUND_HARI_KERJA);
+    if (!tenggat.ok) throw new Error(`the Admin Platform calendar has no Hari Kerja ahead of ${now.toISOString()}`);
+    return tenggat.at;
+  };
   const unit = [{ nomor: nomorUnit(satuUnit), jenisMakamName: satuUnit.jenisMakamName }];
 
   return deps.audit.staffWrite<SetujuiPembatalanResult>(deps.db, async (tx, record) => {
@@ -111,22 +114,26 @@ export async function setujuiPembatalanTerencana(deps: PemesananDeps, by: Actor,
       if (dibatalkan.length === 0) return { ok: false, reason: "pesanan_tidak_aktif" };
     }
 
+    // The plot's Layanan not yet done end with it and come back with the Hak Pakai (owner decision, 2026-10-02); one already done is kept.
+    const layanan = deps.layanan ? await deps.layanan.batalkanLayananPetakDibatalkan(order.nomor, tx) : { dibatalkan: 0, baris: [] };
+    const jumlahLayanan = layanan.baris.reduce((jumlah, baris) => jumlah + baris.amount, 0);
+
     // The refund the family was shown, asked of Refunds in this same commit. The Tagihan is Dikembalikan penuh only when,
     // with this one, everything the fee rule returns has been refunded in full: Refunds decides that from the whole Tagihan.
     let pengembalian: { permintaanId: string } | null = null;
-    if (row.jumlahRefund > 0) {
+    if (row.jumlahRefund + jumlahLayanan > 0) {
       const tagihanBerlaku = order.tagihanId ? await deps.billing.within(tx).tagihanBerlaku(order.tagihanId) : null;
       if (!tagihanBerlaku) throw new Error("a paid Pemesanan Terencana has no Tagihan to refund");
-      const diminta = await deps.refunds.ajukanBaris(tagihanBerlaku.id, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: row.lines }, tx);
+      const diminta = await deps.refunds.ajukanBaris(tagihanBerlaku.id, { pihakBersalah: "pemesan", penuhBilaLengkap: row.persenRefund === 100, lines: [...row.lines, ...layanan.baris] }, tx);
       if (!diminta.ok) {
         return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       }
-      // Guarded by `jumlahRefund > 0`, so a refund really is due; a null id would mean a no-op request.
+      // Guarded by a refund being due, so a null id would mean a no-op request.
       if (diminta.permintaanId === null) return { ok: false, reason: "pengembalian_tidak_bisa_diajukan" };
       pengembalian = { permintaanId: diminta.permintaanId };
       await tx
         .update(permintaanPembatalanTerencana)
-        .set({ permintaanPengembalianId: diminta.permintaanId, persetujuanRefundTenggatPada: tenggatRefund?.ok ? tenggatRefund.at : null })
+        .set({ permintaanPengembalianId: diminta.permintaanId, persetujuanRefundTenggatPada: await tenggatUntuk() })
         .where(eq(permintaanPembatalanTerencana.id, row.id));
     }
 

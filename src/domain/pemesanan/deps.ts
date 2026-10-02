@@ -367,7 +367,7 @@ export interface PemesananDeps {
    * Layanan is composed after Pemesanan, so the runtime hands this through a lazy box. Optional: a process with none
    * refuses an order that asks for Layanan and cancels nothing.
    */
-  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout" | "batalkanLayananCheckout">;
+  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout" | "batalkanLayananCheckout" | "batalkanLayananPetakDibatalkan">;
   /**
    * Payouts' half of the Saat Duka trigger that only this module can write: a
    * recorded Pemakaman, told to Payouts inside the burial's own transaction

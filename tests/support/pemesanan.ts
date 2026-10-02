@@ -184,6 +184,7 @@ export function pemesananOnTestDatabase(
       gabungkanBaris: (...args) => layananLazy().gabungkanBaris(...args),
       tulisCheckout: (input, within) => layananLazy().tulisCheckout(input, within),
       batalkanLayananCheckout: (nomor, alasan, within) => layananLazy().batalkanLayananCheckout(nomor, alasan, within),
+      batalkanLayananPetakDibatalkan: (nomor, within) => layananLazy().batalkanLayananPetakDibatalkan(nomor, within),
     },
     db,
     clock: setup.clock,
