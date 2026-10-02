@@ -107,7 +107,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
         harga: baris.harga,
         adminPlatformAccountId: by.accountId,
       })
-      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "dimakamkan")))
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status)))
       .returning({ id: pengurusanTpu.id });
     if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
     await record({
@@ -115,7 +115,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
       action: "pengurusan.dokumen_lengkap",
       entity: { kind: "pengurusan_tpu", id: order.id },
       lokasiId: null,
-      before: { status: "dimakamkan" },
+      before: { status: order.status },
       after: { status: "menunggu_pembayaran", nomorTagihan: tagihan.tagihan.nomorTagihan },
       reason: null,
     });
