@@ -82,7 +82,7 @@ export async function layananDiLokasi(deps: LayananDeps, lokasiId: string, at: D
  * serves a Terverifikasi Lokasi Mitra only).
  */
 export async function penawaranLokasi(deps: LayananDeps, lokasiId: string, at: Date): Promise<LayananDiTempat[]> {
-  if (!(await deps.lokasi.isTerverifikasi(lokasiId))) return [];
+  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))) return [];
   return groupByLayanan(deps, await offerings(deps, { kind: "lokasi_mitra", lokasiId }, at));
 }
 

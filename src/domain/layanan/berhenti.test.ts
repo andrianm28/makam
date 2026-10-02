@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { layananOnTestDatabase, lokasiDenganLayanan, petakDenganHakPakai, pemesanLayanan, siapkanOperatorLayanan } from "../../../tests/support/layanan";
+import { layananOnTestDatabase, lokasiDenganLayanan, petakDenganHakPakai, pemesanLayanan, setLokasiMitraStatusForTest, siapkanOperatorLayanan } from "../../../tests/support/layanan";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -78,5 +78,18 @@ describe("a Pekerjaan Layanan still open when its Lokasi Mitra Berhenti takes ef
     const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
     expect(dibaca?.item[0].pekerjaan).not.toMatchObject({ status: "dibatalkan" });
     expect(lokasi.lokasiMitra.id).toBeTruthy();
+  });
+});
+
+describe("the Layanan a Ditangguhkan Lokasi Mitra offers", () => {
+  it("are still listed with their prices, since Layanan carry on while only a new Hak Pakai is stopped", async () => {
+    const setup = layananOnTestDatabase(db);
+    await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000 });
+    await setLokasiMitraStatusForTest(db, lokasi.lokasiMitra.id, "ditangguhkan");
+
+    const penawaran = await setup.layanan.penawaranLokasi(lokasi.lokasiMitra.id, setup.clock.now());
+
+    expect(penawaran).toHaveLength(1);
   });
 });
