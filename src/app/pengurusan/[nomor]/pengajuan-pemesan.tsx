@@ -27,7 +27,7 @@ const BOLEH_BATAL: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakam
  */
 export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; scanUrl: string | null }) {
   const { status, pengajuan } = order;
-  const unggah = status === "dimakamkan" || status === "perlu_perbaikan";
+  const unggah = status === "dimakamkan" || status === "perlu_perbaikan" || (order.kind === "perpanjangan_tpu" && status === "diajukan");
   return (
     <>
       <section className="flex flex-col gap-3" aria-label="Linimasa">
@@ -47,7 +47,7 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
           <h2 className="text-title-3 text-foreground">Berkas pengajuan IPTM</h2>
           {status === "perlu_perbaikan" && order.alasan ? (
             <p className="text-body font-medium text-foreground" role="alert">
-              PTSP meminta perbaikan: {order.alasan}. Unggah ulang dokumen di bawah; tidak ada biaya baru.
+              Perbaikan diminta: {order.alasan}. Unggah ulang dokumen di bawah; tidak ada biaya baru.
             </p>
           ) : null}
           {status === "dimakamkan" && pengajuan.dokumenDueAt ? (
@@ -112,7 +112,7 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
         <section className="flex flex-col gap-2" aria-label="Batalkan">
           <h2 className="text-title-3 text-foreground">Batalkan pengurusan</h2>
           <p className="text-small text-muted-foreground">
-            Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU.
+            Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan{order.kind === "perpanjangan_tpu" ? "." : "; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU."}
           </p>
           <BatalkanPengurusanForm nomor={order.nomor} />
         </section>
