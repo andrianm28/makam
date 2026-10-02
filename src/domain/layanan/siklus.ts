@@ -144,12 +144,14 @@ export async function berlanggananPaket(deps: LayananDeps, pemesan: PemesanLayan
  */
 export async function tickSiklusPaket(deps: LayananDeps, now: Date): Promise<{ diterbitkan: number }> {
   const aktif = await deps.db
-    .select({ id: pesananPaket.id, nextCycleDate: pesananPaket.nextCycleDate })
+    .select({ id: pesananPaket.id, nextCycleDate: pesananPaket.nextCycleDate, lokasiId: pesananPaket.lokasiId })
     .from(pesananPaket)
     .where(and(eq(pesananPaket.status, "aktif"), isNotNull(pesananPaket.nextCycleDate)));
   const due = aktif.filter((one) => one.nextCycleDate !== null && h7TelahTiba(one.nextCycleDate, now));
   let diterbitkan = 0;
   for (const satu of due) {
+    // From a Berhenti decision no further cycle is issued (spec, Lokasi > Berhenti; ticket 59).
+    if (!(await deps.lokasi.izinPesanan(satu.lokasiId, "siklus_paket")).diizinkan) continue;
     if (await terbitkanSiklus(deps, satu.id, now)) diterbitkan += 1;
   }
   return { diterbitkan };
