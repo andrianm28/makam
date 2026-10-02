@@ -1,6 +1,6 @@
 # Layanan at checkout: hari-H on Saat Duka, empty-plot on Terencana, Tambah Layanan on Perpanjangan
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 37, 40, 50
 Spec: Domain modules > 9. Layanan (Order: Saat Duka hari-H, Terencana empty-plot, Perpanjangan Tambah Layanan); 7. Perpanjangan; 6. Pemesanan (cancellation effects); 10. Billing (earliest-due rule, Tidak Tertagih loss); stories 23, 48
 
@@ -84,3 +84,4 @@ Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment)
 - 2026-10-02 — **Settled through the `grilling` skill (round 1 Q5, owner "ya setuju semua"):** a Pembatalan Terencana also cancels that plot's Layanan **not yet done**, and refunds them; a Layanan already done is not refunded (same rule as the owner's decision on ticket 46 gap 3).
 - 2026-10-02 — **Settled through the `grilling` skill (round 2 Q7, owner "iya setuju semua"):** on a Pembatalan Terencana, a plot's Layanan that are **Dijadwalkan or Terlambat** are cancelled and refunded; a job **Sedang Dikerjakan** carries on and is paid; a Selesai job is not refunded. Supersedes the builder's "Dijadwalkan only" reading.
 - 2026-10-02 — **Re-review of the Q7 follow-up (head eeee08d): hard remaining no.** Same transaction, one Refunds request, red-first, owner's rule recorded, consistent with the late-cancel rule (`batal.ts` already lets a Terlambat job be cancelled whatever its start). The reviewer marked item 1 BELUM because `menunggu_pembayaran` is also in the filter; the orchestrator read `batalkanLayananPetakDibatalkan` (not ran it): an unpaid job is cancelled with **no** refund line (`if (!dibayar || !tagihan) continue`), which is right, so it is not a finding. Ready to merge.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding left on either axis after the fix passes and re-reviews (entries above); merge gate on the merged tree (batch 4a, migration renumbered to 0055 with a statement-identical proof and a clean second db:generate): typecheck, lint, build, full suite 308 files / 2803 tests passed (1 skipped), exit 0.

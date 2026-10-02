@@ -1,6 +1,6 @@
 # Mitra Jasa photo proof, approval and pay rules
 
-Status: in-progress
+Status: resolved
 Blocked by: 51, 56
 Spec: Domain modules > 9. Layanan (TPU Menunggu Verifikasi, Mitra Jasa pay rules); 11. Payouts (Mitra Jasa Pencairan); 14. Work Queues (Tier 2 foto bukti approval); stories 91 (Menunggu Verifikasi), 92 (TPU), 157, 179, 181
 
@@ -73,3 +73,4 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
   - Verified: `src/domain/layanan` + `src/app/staf/mitra-jasa` 18 files, 230 tests green; typecheck 0; lint 0 errors (1 existing warning, `JENIS_BERKAS`); build 0.
 
 2026-10-02 builder (review fix): the Q6 test now uses two distinct Layanan (Bunga Tabur, Pembersihan Makam) and asserts the refund request names only the cancelled job's line and amount. A DKI TPU Tagihan can carry no Biaya Layanan Platform line (`quote()` adds it only for a Lokasi Mitra line; see `tpu-pricing.ts`), so the "plus the fee" half cannot occur; a test states that only the job's price comes back. No red: the code was already right.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding left on either axis after the fix passes and re-reviews (entries above); merge gate on the merged tree (batch 4a, migration renumbered to 0055 with a statement-identical proof and a clean second db:generate): typecheck, lint, build, full suite 308 files / 2803 tests passed (1 skipped), exit 0.
