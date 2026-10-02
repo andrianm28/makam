@@ -132,6 +132,30 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
 };
 
 /**
+ * "Hak Pakai dalam masa tenggang" (Lainnya): every Kedaluwarsa Hak Pakai of that Lokasi Mitra
+ * still inside its Masa Tenggang, so its Admin Lokasi decides whether to end it (story 130,
+ * ticket 42). It closes when a Perpanjangan is paid (the Hak Pakai is Aktif again), when the
+ * Admin Lokasi ends it, and when the Masa Tenggang is over. No deadline: the spec gives it none.
+ */
+export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
+  key: "hak_pakai_masa_tenggang",
+  grup: "lainnya",
+  label: "Hak Pakai dalam masa tenggang",
+  async rows(deps, _by, lokasiId) {
+    const hakPakai = await deps.inventory.hakPakaiMasaTenggang(lokasiId);
+    return hakPakai.map((satu) => ({
+      type: "hak_pakai_masa_tenggang",
+      label: "Hak Pakai dalam masa tenggang",
+      subjectKind: "hak_pakai",
+      subjectId: satu.hakPakaiId,
+      subjectLabel: `${satu.label} · berakhir ${satu.endDate}, masa tenggang sampai ${satu.masaTenggangBerakhir}`,
+      href: `/staf/admin-lokasi/${lokasiId}/denah`,
+      deadline: null,
+    }));
+  },
+};
+
+/**
  * "Catat Pemakaman" (Lainnya): every order of that Lokasi Mitra whose agreed
  * burial day has passed with no Pemakaman recorded, so the Hak Pakai's term has
  * not started and the family's Tagihan has no clock. The worker's prompt raises
@@ -348,6 +372,7 @@ export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   periksaDokumenPerpanjanganRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
+  hakPakaiMasaTenggangRowType,
   catatPemakamanRowType,
   layananHariIniRowType,
   layananAkanDatangRowType,

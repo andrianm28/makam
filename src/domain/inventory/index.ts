@@ -69,6 +69,17 @@ import {
   type BeriHakPakaiDariTahanResult,
 } from "./tahan-bayar";
 import { gantiPemegangHak, riwayatPemegangHak, ubahKontakPemegangHak, type PemegangHakResult, type RiwayatPemegangHak } from "./pemegang-hak";
+import {
+  akhiriHakPakaiManual,
+  catatPembongkaran,
+  hakPakaiMasaTenggang,
+  hakPakaiMenjelangAkhir,
+  kedaluwarsaTick,
+  type AkhiriHakPakaiManualResult,
+  type CatatPembongkaranResult,
+  type HakPakaiMasaTenggang,
+  type HakPakaiMenjelangAkhir,
+} from "./masa-berlaku";
 import type { HakPakaiStatus, KavlingStatus, PetakStatus } from "./status";
 
 export type { InventoryDeps } from "./deps";
@@ -89,6 +100,8 @@ export type { HakPakaiUntukPerpanjangan, LengkapiHakPakaiInput, LengkapiHakPakai
 export { lengkapiHakPakaiSchema };
 export type { PemegangHakResult, RiwayatPemegangHak };
 export type { AkhiriHakPakaiResult } from "./akhiri-hak-pakai";
+export type { AkhiriHakPakaiManualResult, CatatPembongkaranResult, HakPakaiMasaTenggang, HakPakaiMenjelangAkhir };
+export { akhiriHakPakaiManualSchema, catatPembongkaranSchema, kedaluwarsaTick } from "./masa-berlaku";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
 export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
@@ -243,6 +256,16 @@ export interface Inventory {
    * Tertagih. Ending is final, the same as `batalkanHakPakai`.
    */
   akhiriHakPakai(input: { hakPakaiId: string; alasan: string }): Promise<AkhiriHakPakaiResult>;
+  /** The Admin Lokasi of that Lokasi ends a Hak Pakai by hand: Berakhir with a reason, final, audited (ticket 42). The plot stays Terisi until a Pembongkaran. */
+  akhiriHakPakaiManual(by: Actor, lokasiId: string, input: unknown): Promise<AkhiriHakPakaiManualResult>;
+  /** The Admin Lokasi records a Berakhir Hak Pakai's Pembongkaran, which makes its plot Tersedia again; audited (ticket 42). */
+  catatPembongkaran(by: Actor, lokasiId: string, input: unknown): Promise<CatatPembongkaranResult>;
+  /** Every Kedaluwarsa Hak Pakai of that Lokasi still in its Masa Tenggang: the Antrean Lokasi's row (ticket 42). No actor. */
+  hakPakaiMasaTenggang(lokasiId: string): Promise<HakPakaiMasaTenggang[]>;
+  /** Aktif or Kedaluwarsa fixed-term Hak Pakai ending within `hari` days or already past, for the expiry reminders (ticket 42). No actor. */
+  hakPakaiMenjelangAkhir(now: Date, hari: number): Promise<HakPakaiMenjelangAkhir[]>;
+  /** Scheduler tick: Aktif Hak Pakai past their end date become Kedaluwarsa; idempotent (ticket 42). */
+  kedaluwarsaTick(now: Date): Promise<{ kedaluwarsa: number }>;
   /** The same functions inside an open transaction (a Pemesanan Makam's confirmation), committing or rolling back with it. */
   within(tx: Database): Inventory;
   /**
@@ -346,6 +369,11 @@ export function createInventory(deps: InventoryDeps): Inventory {
     beriHakPakai: (by, lokasiId, input) => beriHakPakai(deps, by, lokasiId, input),
     batalkanHakPakai: (input) => batalkanHakPakai(deps, input),
     akhiriHakPakai: (input) => akhiriHakPakai(deps, input),
+    akhiriHakPakaiManual: (by, lokasiId, input) => akhiriHakPakaiManual(deps, by, lokasiId, input),
+    catatPembongkaran: (by, lokasiId, input) => catatPembongkaran(deps, by, lokasiId, input),
+    hakPakaiMasaTenggang: (lokasiId) => hakPakaiMasaTenggang(deps, lokasiId),
+    hakPakaiMenjelangAkhir: (now, hari) => hakPakaiMenjelangAkhir(deps, now, hari),
+    kedaluwarsaTick: (now) => kedaluwarsaTick(deps, now),
     publicDenah: (lokasiId) => publicDenah(deps, lokasiId),
     tersediaUntukTerencana: (lokasiIds) => tersediaUntukTerencana(deps, lokasiIds),
     tahan: (input) => tahan(deps, input),

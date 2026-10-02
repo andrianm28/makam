@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_hak_pakai" ADD COLUMN "pembongkaran_at" timestamp with time zone;

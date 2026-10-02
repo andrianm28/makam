@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { ActiveHakPakaiForStatus, HakPakaiStatus } from "./status";
 import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
@@ -11,6 +11,7 @@ export interface HakPakaiRow {
   kavlingId: string | null;
   status: HakPakaiStatus;
   endReason: string | null;
+  pembongkaranAt: Date | null;
   tenureYears: number | null;
   startAt: Date;
   tenureStartAt: Date | null;
@@ -29,6 +30,7 @@ function toRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow {
     kavlingId: row.kavlingId,
     status: row.status,
     endReason: row.endReason,
+    pembongkaranAt: row.pembongkaranAt,
     tenureYears: row.tenureYears,
     startAt: row.startAt,
     tenureStartAt: row.tenureStartAt,
@@ -62,7 +64,7 @@ export async function currentHakPakaiOfKavling(db: Database, kavlingId: string):
  * A Dibatalkan Hak Pakai holds nothing (spec, Pemesanan > Saat Duka: cancelling
  * makes the Petak `Tersedia` at once), so a Petak whose right was given back is
  * free to be cleared, given to another family and sold again — which is the whole
- * point of cancelling. It is not the same question as `currentHakPakaiOfPetak`
+ * point of cancelling. A Hak Pakai whose plot has had its Pembongkaran (ticket 42) holds nothing either. It is not the same question as `currentHakPakaiOfPetak`
  * ("which Hak Pakai is on record here", which is what a staff read shows, cancelled
  * or not), so both exist and neither is used for the other's question.
  */
@@ -79,7 +81,7 @@ async function memegang(db: Database, diTarget: SQL<unknown>): Promise<HakPakaiR
   const rows = await db
     .select()
     .from(inventoryHakPakai)
-    .where(and(diTarget, ne(inventoryHakPakai.status, "dibatalkan")))
+    .where(and(diTarget, ne(inventoryHakPakai.status, "dibatalkan"), isNull(inventoryHakPakai.pembongkaranAt)))
     .orderBy(desc(inventoryHakPakai.startAt))
     .limit(1);
   return rows[0] ? toRow(rows[0]) : null;
@@ -100,10 +102,10 @@ export async function hakPakaiByTarget(db: Database, lokasiId: string): Promise<
 
 /**
  * `hakPakai` as `derivePetakStatus` / `deriveKavlingStatus` need it.
- * `pembongkaranAt` is always null: no ticket yet records a Pembongkaran.
+ * `pembongkaranAt` is when the Admin Lokasi recorded the Pembongkaran, if it did.
  */
 export function forStatus(hakPakai: HakPakaiRow | null): ActiveHakPakaiForStatus | null {
-  return hakPakai ? { status: hakPakai.status, pembongkaranAt: null } : null;
+  return hakPakai ? { status: hakPakai.status, pembongkaranAt: hakPakai.pembongkaranAt } : null;
 }
 
 export interface PemegangHakRow {

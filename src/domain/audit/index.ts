@@ -235,6 +235,8 @@ export type AuditAction =
   | "hak_pakai.akhiri_tidak_tertagih"
   /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact) before its Perpanjangan (ticket 40). */
   | "hak_pakai.lengkapi"
+  | "hak_pakai.akhiri"
+  | "hak_pakai.catat_pembongkaran"
   /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "tagihan.tidak_tertagih"
   /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */

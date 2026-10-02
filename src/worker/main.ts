@@ -160,6 +160,8 @@ async function main() {
       lokasi,
       identity,
       inventory,
+      billing,
+      perpanjanganUrl: urls.perpanjanganUrl,
       notifikasi,
       payouts,
       refunds,

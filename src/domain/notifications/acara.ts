@@ -44,6 +44,8 @@ export const TEMPLATE_EMAIL = [
   // A Paket Layanan cycle that cannot be issued because its total passes the
   // Rilis 1 QRIS cap: the Paket is paused and the Pemesan is told (ticket 54).
   "paket_siklus_dijeda",
+  // A Hak Pakai nearing its end or in its Masa Tenggang: 60, 30 and 7 days before, then weekly (ticket 42).
+  "hak_pakai_berakhir_pengingat",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
 ] as const;
@@ -88,6 +90,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   // A paused Paket asks the family to act for it to continue, so it waits for
   // the window like every other message the family must answer (ticket 54).
   paket_siklus_dijeda: "pengingat",
+  // Asks the family to extend or lose the grave, so it waits for the window like every reminder (ticket 42).
+  hak_pakai_berakhir_pengingat: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
 };

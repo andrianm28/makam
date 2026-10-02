@@ -484,6 +484,13 @@ export interface Notifications {
    */
   buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
   /**
+   * One reminder that a Hak Pakai is ending (60, 30, 7 days before, then weekly in the Masa Tenggang; ticket 42):
+   * an email to the recorded Pemegang Hak with the Perpanjangan link (08:00-20:00 WIB), a Peringatan Staf to each Admin
+   * Lokasi, and a Telepon Pemesan row when there is no recorded email or the Hak Pakai is nearing its end. Announcing
+   * the same reminder twice sends it once.
+   */
+  pengingatHakPakaiBerakhir(input: PengingatHakPakaiBerakhirInput, within?: Database): Promise<PengingatHakPakaiBerakhirResult>;
+  /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
    * and the pay-after Tagihan. One message per order, whatever runs twice.
@@ -900,6 +907,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pembatalanTerencana(within ? { ...deps, db: within } : deps, input);
     },
 
+    async pengingatHakPakaiBerakhir(input, within) {
+      return pengingatHakPakaiBerakhir(within ? { ...deps, db: within } : deps, input);
+    },
     async buktiPerpanjanganTerbit(input, within) {
       return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
     },
@@ -1042,4 +1052,7 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   return { ok: true, role };
 }
 
+import { pengingatHakPakaiBerakhir, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
+export { pengingatHakPakaiBerakhirSchema, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
+export { dalamJamKirim } from "./acara";
 export { buktiPerpanjanganTerbitSchema, type BuktiPerpanjanganTerbitInput, type BuktiPerpanjanganTerbitResult } from "./pesan-perpanjangan";

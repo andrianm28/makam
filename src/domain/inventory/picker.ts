@@ -134,7 +134,7 @@ function bisaTumpang(facts: PilihanFacts): boolean {
 
 /** A Hak Pakai that has ended (Berakhir) or been cancelled, so the plot underneath it is free again. */
 function isReleased(hakPakai: HakPakaiRow | null): boolean {
-  return hakPakai !== null && (hakPakai.status === "berakhir" || hakPakai.status === "dibatalkan");
+  return hakPakai !== null && hakPakai.pembongkaranAt === null && (hakPakai.status === "berakhir" || hakPakai.status === "dibatalkan");
 }
 
 interface PickerFacts {

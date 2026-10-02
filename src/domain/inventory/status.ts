@@ -14,8 +14,7 @@ export type KavlingStatus = "tersedia" | "dipesan" | "terpakai_sebagian" | "penu
 /**
  * The current Hak Pakai of a Petak or Kavling, as status derivation needs it.
  * `pembongkaranAt` is set once a Pembongkaran is recorded after a Berakhir
- * Hak Pakai (spec: the plot stays Terisi until then) — no later ticket builds
- * recording one yet, so every caller in this ticket passes `null`.
+ * Hak Pakai (spec: the plot stays Terisi until then; ticket 42 records it).
  */
 export interface ActiveHakPakaiForStatus {
   status: HakPakaiStatus;
@@ -30,7 +29,9 @@ export interface ActiveHakPakaiForStatus {
  */
 export function derivePetakStatus(input: { tidakTersediaReason: string | null; hakPakai: ActiveHakPakaiForStatus | null }): PetakStatus {
   const { hakPakai } = input;
-  if (!hakPakai) return input.tidakTersediaReason ? "tidak_tersedia" : "tersedia";
+  const bebas = !hakPakai || hakPakai.status === "dibatalkan" || (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt !== null);
+  if (bebas) return input.tidakTersediaReason ? "tidak_tersedia" : "tersedia";
+  if (!hakPakai) return "tersedia";
   switch (hakPakai.status) {
     case "aktif":
       return "terisi";
@@ -39,10 +40,10 @@ export function derivePetakStatus(input: { tidakTersediaReason: string | null; h
     case "dibatalkan":
       // Spec (Pemesanan > Saat Duka cancellation): cancelling makes the Hak Pakai
       // Dibatalkan and the Petak Tersedia at once — never buried under it, so no
-      // Pembongkaran is needed.
+      // Pembongkaran is needed (handled above, with a recorded Pembongkaran).
       return "tersedia";
     case "berakhir":
-      return hakPakai.pembongkaranAt ? "tersedia" : "terisi";
+      return "terisi";
   }
 }
 
