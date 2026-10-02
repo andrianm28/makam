@@ -152,3 +152,55 @@ describe("paying the Tagihan", () => {
     expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "iptm_diajukan" });
   });
 });
+
+describe("a request past the masa tenggang", () => {
+  /** The IPTM expired on 15 February 2027, its masa tenggang (3 months) ended on 15 May 2027; the request comes on Thursday 20 May 2027. */
+  async function lewatTenggang(setup: PengajuanSetup, dasar: Dasar) {
+    setup.clock.set(wib("2027-05-20 10:00"));
+    const hasil = await ajukan(setup, dasar, "2027-02-15");
+    if (!hasil.ok) throw new Error(`order refused: ${hasil.reason}`);
+    expect(hasil.pengurusan.lewatMasaTenggang).toBe(true);
+    await unggah(setup, dasar, hasil.pengurusan.nomor);
+    return hasil.pengurusan.nomor;
+  }
+
+  it("issues no Tagihan until the TPU check row is resolved, then goes on to the document check", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const nomor = await lewatTenggang(setup, dasar);
+
+    const tenggat = addWorkingDays(await setup.lokasi.adminPlatformCalendar(), wib("2027-05-20 10:00"), 1);
+    if (!tenggat.ok) throw new Error("calendar unavailable");
+    expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([expect.objectContaining({ nomor, dueAt: tenggat.at })]);
+    expect(await setup.pengurusan.periksaBerkasTerbuka()).toEqual([]);
+    expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toEqual({ ok: false, reason: "cek_tpu_belum_selesai" });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "diajukan", tagihan: null });
+
+    expect(await setup.pengurusan.putuskanCekTpu(dasar.admin, { nomor, putusan: "lanjut" })).toEqual({ ok: true, status: "diajukan" });
+    expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([]);
+    expect(await setup.pengurusan.periksaBerkasTerbuka()).toEqual([expect.objectContaining({ nomor })]);
+    expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "menunggu_pembayaran" });
+  });
+
+  it("closes the request as Ditolak with the reason and no charge when the TPU will not renew", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const nomor = await lewatTenggang(setup, dasar);
+
+    const hasil = await setup.pengurusan.putuskanCekTpu(dasar.admin, { nomor, putusan: "tolak", alasan: "TPU menyatakan makam sudah dialihkan" });
+    expect(hasil).toEqual({ ok: true, status: "ditolak" });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "ditolak", tagihan: null, alasan: "TPU menyatakan makam sudah dialihkan" });
+    expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([]);
+    expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toEqual({ ok: false, reason: "status_tidak_sesuai" });
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
+  });
+
+  it("asks nothing of the TPU when the request is inside the masa tenggang", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2027-05-15 10:00"));
+    const hasil = await ajukan(setup, dasar, "2027-02-15");
+    expect(hasil).toMatchObject({ ok: true, pengurusan: { lewatMasaTenggang: false } });
+    expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([]);
+  });
+});
