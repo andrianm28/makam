@@ -110,6 +110,7 @@ export function payoutsOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     layanan: layananHariHKosong,
     notifikasi: setup.notifications,
+    refunds: refundsMenunggu.refunds,
   });
   // Refunds (ticket 31) reads a Tagihan and numbers a Bukti through Billing and
   // nets through Payouts, so it is composed after both — a downstream module,

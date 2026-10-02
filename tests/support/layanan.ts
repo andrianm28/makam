@@ -142,7 +142,9 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds,
     layanan,
   });
   return { ...base, billing, layanan, notifikasi, payouts, refunds, pekerjaan, pengurusan, pengurusanDikonfirmasi };

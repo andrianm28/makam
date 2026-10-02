@@ -81,6 +81,7 @@ describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Ta
       fieldwork: queues.fieldwork,
       layanan: queues.layanan,
       notifikasi: queues.notifications,
+      refunds: queues.refunds,
     });
     const admin = await siapkanOperatorPemesanan(queues);
     const petugas = await signedInPetugasLapangan(queues, admin, "petugas.terbit@contoh.id");

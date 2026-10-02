@@ -77,7 +77,9 @@ export function queuesOnTestDatabase(db: Database) {
         dikonfirmasiTpu.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds: refundsMenunggu.refunds,
   });
   const perpanjangan = createPerpanjangan({
     db,

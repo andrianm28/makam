@@ -123,8 +123,10 @@ import {
   type BuktiPerpanjanganTerbitResult,
 } from "./pesan-perpanjangan";
 import {
+  iptmTerbit,
   pengurusanDikonfirmasi,
   pesanPengurusan,
+  type IptmTerbitInput,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
@@ -171,6 +173,8 @@ export {
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
 export {
+  iptmTerbitSchema,
+  type IptmTerbitInput,
   pengurusanDikonfirmasiSchema,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
@@ -489,6 +493,11 @@ export interface Notifications {
    * and the pay-after Tagihan. One message per order, whatever runs twice.
    */
   pengurusanDikonfirmasi(input: PengurusanDikonfirmasiInput): Promise<PesanPengurusanResult>;
+  /**
+   * Announces the IPTM at IPTM Terbit (ticket 46): the order page's link to the Pemesan and, at a
+   * different address, to the Pemegang Hak, whether or not the Tagihan is paid. One per order and template.
+   */
+  iptmTerbit(input: IptmTerbitInput): Promise<PesanPengurusanResult>;
   /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
@@ -859,6 +868,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async pengurusanDikonfirmasi(input) {
       return pengurusanDikonfirmasi(deps, input);
+    },
+    async iptmTerbit(input) {
+      return iptmTerbit(deps, input);
     },
     async pesanPengurusan(pengurusanId) {
       return pesanPengurusan(deps, pengurusanId);

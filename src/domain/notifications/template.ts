@@ -640,3 +640,39 @@ export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmail
     ].join("\n"),
   };
 }
+
+export interface IptmTerbitEmailInput {
+  nomor: string;
+  tpu: { name: string };
+  almarhumName: string;
+  /** The holder the message is addressed to, as named on the order. */
+  pemegangHakName: string;
+  berlakuSampai: string;
+  /** The order page, where the scan is read through a short-lived link. */
+  tautan: string;
+  /** Whether this copy goes to the Pemegang Hak rather than the Pemesan. */
+  untukPemegangHak: boolean;
+}
+
+/**
+ * The IPTM has been issued (transactional: any hour). The scan is handed over
+ * whether or not the Tagihan is paid, so the message says nothing about
+ * payment; the scan itself is opened from the order page's signed link.
+ */
+export function iptmTerbitEmail(input: IptmTerbitEmailInput): { subject: string; body: string } {
+  return {
+    subject: `IPTM terbit: ${input.almarhumName} di ${input.tpu.name}`,
+    body: [
+      input.untukPemegangHak ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
+      "",
+      `IPTM untuk makam ${input.almarhumName} di ${input.tpu.name} (pengurusan ${input.nomor}) sudah terbit.`,
+      `Berlaku sampai ${formatTanggal(input.berlakuSampai)}.`,
+      "Scan IPTM tersimpan di tab Makam akun Anda dan bisa dibuka dari halaman pengurusan.",
+      "",
+      `Buka scan IPTM: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

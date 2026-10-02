@@ -53,6 +53,9 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       // A Saat Duka TPU confirmation (ticket 45): transactional, like the two
       // Lokasi Mitra order messages, because the burial is already arranged.
       "pengurusan_dikonfirmasi",
+      // The IPTM scan handed over at IPTM Terbit (ticket 46): transactional.
+      "iptm_terbit",
+      "iptm_terbit_pemegang_hak",
       // A Bukti Pengembalian Dana issued (ticket 31): transactional, like a
       // Bukti Pembayaran — the money already moved, so it asks nothing.
       "pengembalian_terbit",

@@ -34,6 +34,31 @@ import {
 import { pilihanSaatDukaTpu, type KartuTpu, type PilihanSaatDukaTpuQuery } from "./pilihan";
 import { placeSaatDukaTpu, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 import { jawabTpuLain, tawarkanTpuLain, type JawabTpuLainResult, type TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
+import {
+  ajukanIptm,
+  batalkanPengurusan,
+  catatDimakamkan,
+  deskripsiMakamTpu,
+  iptmScanUrl,
+  makamTpuSaya,
+  pengajuanIptmTerbuka,
+  periksaDokumen,
+  perluTindakanBerkas,
+  suratKuasa,
+  suratKuasaUntukStaf,
+  terbitkanIptm,
+  unggahDokumenPengajuan,
+  type AjukanIptmResult,
+  type BatalkanPengurusanResult,
+  type CatatDimakamkanResult,
+  type MakamTpu,
+  type PengajuanIptmTerbuka,
+  type PeriksaDokumenResult,
+  type PerluTindakanBerkas,
+  type SuratKuasa,
+  type TerbitkanIptmResult,
+  type UnggahDokumenResult,
+} from "./pengajuan-iptm";
 import { orderForStaff, orderOf, pesananSaya, type PengurusanOrder } from "./reads";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan } from "./skema-pengurusan";
 
@@ -42,6 +67,19 @@ export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export type { PengurusanOrder } from "./reads";
+export { BERKAS_MAX_BYTES, HARI_BERKAS_PENGAJUAN, NAMA_OPERATOR_SURAT_KUASA } from "./pengajuan-iptm";
+export type {
+  AjukanIptmResult,
+  BatalkanPengurusanResult,
+  CatatDimakamkanResult,
+  MakamTpu,
+  PengajuanIptmTerbuka,
+  PeriksaDokumenResult,
+  PerluTindakanBerkas,
+  SuratKuasa,
+  TerbitkanIptmResult,
+  UnggahDokumenResult,
+} from "./pengajuan-iptm";
 export { konfirmasiTpuTerbuka } from "./konfirmasi-tpu-terbuka";
 export type { KonfirmasiTpu } from "./konfirmasi-tpu-terbuka";
 export type { KonfirmasiSaatDukaTpuResult } from "./konfirmasi-saat-duka-tpu";
@@ -115,6 +153,38 @@ export interface Pengurusan {
    * actor and records no Entri Audit.
    */
   jawabTpuLain(pemesan: { accountId: string }, input: unknown): Promise<JawabTpuLainResult>;
+  /**
+   * Admin Platform records the burial (Dimakamkan): starts the pay-after Tagihan's overdue clock and
+   * the 7-day window for the filing documents. Audited (ticket 46).
+   */
+  catatDimakamkan(by: Actor, input: unknown): Promise<CatatDimakamkanResult>;
+  /** The Pemesan uploads one filing document of the order's checklist (the signed Surat Kuasa is one), while it is Dimakamkan. */
+  unggahDokumenPengajuan(pemesan: { accountId: string }, input: unknown): Promise<UnggahDokumenResult>;
+  /** The Surat Kuasa to print and sign: PT JKP, the filing staff member and the Pemegang Hak; null when it is not the Pemesan's or not yet confirmed. */
+  suratKuasa(pemesan: { accountId: string }, nomor: string): Promise<SuratKuasa | null>;
+  /** The same page for Admin Platform. */
+  suratKuasaUntukStaf(by: Actor, nomor: string): Promise<SuratKuasa | null>;
+  /** Admin Platform checks the filing documents: Dokumen Lengkap, refused while one is missing. Audited. */
+  periksaDokumen(by: Actor, input: unknown): Promise<PeriksaDokumenResult>;
+  /** Admin Platform files on JakEVO: IPTM Diajukan, optionally with a Berkas IPTM Tugas Lapangan for the originals. Audited. */
+  ajukanIptm(by: Actor, input: unknown): Promise<AjukanIptmResult>;
+  /**
+   * Admin Platform uploads the IPTM scan and its expiry: IPTM Terbit, the Makam TPU created or updated,
+   * the scan sent to the Pemesan and the Pemegang Hak whatever the Tagihan's status. Audited.
+   */
+  terbitkanIptm(by: Actor, input: unknown): Promise<TerbitkanIptmResult>;
+  /** The Pemesan cancels before the IPTM is filed: an unpaid Tagihan is voided, a paid one gets a refund request (the Biaya Pengurusan kept from Dimakamkan on). */
+  batalkanPengurusan(pemesan: { accountId: string }, input: unknown): Promise<BatalkanPengurusanResult>;
+  /** The Akun's Makam TPU records (its Makam tab). */
+  makamTpuSaya(pemesan: { accountId: string }): Promise<MakamTpu[]>;
+  /** The grave of a Makam TPU, ready to prefill the TPU Layanan order's grave description. */
+  deskripsiMakamTpu(pemesan: { accountId: string }, makamTpuId: string): Promise<{ tpuId: string; blokNomor: string; almarhumName: string } | null>;
+  /** A short-lived link to the order's IPTM scan, for its own Pemesan. */
+  iptmScanUrl(pemesan: { accountId: string }, nomor: string): Promise<string | null>;
+  /** The Pemesan's Dimakamkan orders with filing documents still missing (Perlu tindakan). */
+  perluTindakanBerkas(pemesan: { accountId: string }): Promise<PerluTindakanBerkas[]>;
+  /** Every Dokumen Lengkap order waiting to be filed: the Antrean's Tier 3 "IPTM filing" row reads it. No actor: the caller checks `antrean.lihat`. */
+  pengajuanIptmTerbuka(): Promise<PengajuanIptmTerbuka[]>;
 }
 
 export function createPengurusan(deps: PengurusanDeps): Pengurusan {
@@ -130,5 +200,18 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     konfirmasiSaatDukaTpu: (by, input) => konfirmasiSaatDukaTpu(withAudit, by, input),
     tawarkanTpuLain: (by, input) => tawarkanTpuLain(withAudit, by, input),
     jawabTpuLain: (pemesan, input) => jawabTpuLain(withAudit, pemesan, input),
+    catatDimakamkan: (by, input) => catatDimakamkan(withAudit, by, input),
+    unggahDokumenPengajuan: (pemesan, input) => unggahDokumenPengajuan(withAudit, pemesan, input),
+    suratKuasa: (pemesan, nomor) => suratKuasa(withAudit, pemesan, nomor),
+    suratKuasaUntukStaf: (by, nomor) => suratKuasaUntukStaf(withAudit, by, nomor),
+    periksaDokumen: (by, input) => periksaDokumen(withAudit, by, input),
+    ajukanIptm: (by, input) => ajukanIptm(withAudit, by, input),
+    terbitkanIptm: (by, input) => terbitkanIptm(withAudit, by, input),
+    batalkanPengurusan: (pemesan, input) => batalkanPengurusan(withAudit, pemesan, input),
+    makamTpuSaya: (pemesan) => makamTpuSaya(withAudit, pemesan),
+    deskripsiMakamTpu: (pemesan, id) => deskripsiMakamTpu(withAudit, pemesan, id),
+    iptmScanUrl: (pemesan, nomor) => iptmScanUrl(withAudit, pemesan, nomor),
+    perluTindakanBerkas: (pemesan) => perluTindakanBerkas(withAudit, pemesan),
+    pengajuanIptmTerbuka: () => pengajuanIptmTerbuka(withAudit),
   };
 }

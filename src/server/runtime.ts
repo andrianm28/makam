@@ -249,6 +249,8 @@ export function serverRuntime(): ServerRuntime {
       fieldwork,
       layanan,
       notifikasi: notifications,
+      // A paid order cancelled before the IPTM is filed raises a refund request (ticket 46).
+      refunds,
     });
     // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),
     // so it is composed before the queue that runs that query.

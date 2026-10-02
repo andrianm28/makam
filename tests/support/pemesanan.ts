@@ -202,7 +202,9 @@ export function pemesananOnTestDatabase(
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds: refundsMenunggu.refunds,
   });
   const refunds = createRefunds({
     db,

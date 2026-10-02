@@ -80,6 +80,7 @@ export function perpanjanganOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     layanan: layananHariHKosong,
     notifikasi: setup.notifications,
+    refunds: refundsTertunda().refunds,
   });
   const perpanjangan = createPerpanjangan({
     db,

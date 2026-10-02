@@ -6,6 +6,7 @@ import type { Identity } from "@/domain/identity";
 import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
+import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
@@ -44,11 +45,17 @@ export interface PengurusanDeps {
   lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList">;
   tariffs: Pick<Tariffs, "quote">;
   /** For the Nomor Pemesanan series and the Tagihan, both taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku" | "setOverdueAnchor" | "batalkanTagihan">;
   identity: Pick<Identity, "accountByEmail" | "staffAccounts">;
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;
-  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit">;
+  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit" | "iptmTerbit">;
+  /**
+   * A paid order cancelled before the IPTM is filed becomes a refund request (ticket 46): the full
+   * amount before Dimakamkan, everything but the Biaya Pengurusan from then on. Refunds approves and
+   * transfers it; this module only raises it, inside the cancellation's own transaction.
+   */
+  refunds: Pick<Refunds, "ajukanBaris">;
   /**
    * The hari-H Layanan a Saat Duka TPU order may add (story 23, ticket 56): priced at
    * the DKI price for the Tagihan the confirmation issues, and scheduled as Pekerjaan
