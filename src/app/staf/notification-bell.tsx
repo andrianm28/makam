@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuLinkItem,
   DropdownMenuSeparator,
@@ -56,22 +57,24 @@ export function NotificationBell({ unread, latest }: { unread: number; latest: S
         ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Peringatan Staf</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {latest.length === 0 ? (
-          <p className="px-1.5 py-4 text-center text-small text-muted-foreground">Belum ada Peringatan Staf.</p>
-        ) : (
-          latest.map((alert) => (
-            <DropdownMenuLinkItem
-              key={alert.id}
-              render={<Link href={alert.url} />}
-              className="flex-col items-start gap-0.5 py-1.5 whitespace-normal"
-            >
-              <span className={cn("text-small", !alert.read && "font-semibold")}>{alert.title}</span>
-              <span className="text-caption text-muted-foreground">{alert.body}</span>
-            </DropdownMenuLinkItem>
-          ))
-        )}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Peringatan Staf</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {latest.length === 0 ? (
+            <p className="px-1.5 py-4 text-center text-small text-muted-foreground">Belum ada Peringatan Staf.</p>
+          ) : (
+            latest.map((alert) => (
+              <DropdownMenuLinkItem
+                key={alert.id}
+                render={<Link href={alert.url} />}
+                className="flex-col items-start gap-0.5 py-1.5 whitespace-normal"
+              >
+                <span className={cn("text-small", !alert.read && "font-semibold")}>{alert.title}</span>
+                <span className="text-caption text-muted-foreground">{alert.body}</span>
+              </DropdownMenuLinkItem>
+            ))
+          )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
