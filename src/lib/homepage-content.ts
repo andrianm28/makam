@@ -6,9 +6,9 @@
  *
  * The tile row is honest about the release. Perpanjang Makam and Layanan Makam
  * open the Makam keluarga hub with that action preselected (spec, Public site and
- * routing decisions), which is where each of them is arranged; Urus di TPU DKI and
- * Wakaf Tanah arrive in later releases, so their tiles name what the service is,
- * say "Segera hadir." and offer the CS — never a link to a page that is not there,
+ * routing decisions), which is where each of them is arranged; Wakaf Tanah opens its own
+ * page; Urus di TPU DKI arrives in a later release, so its tile names what the service is,
+ * says "Segera hadir." and offers the CS — never a link to a page that is not there,
  * and never a date (docs/design-system.md, voice and tone).
  */
 import type { LucideIcon } from "lucide-react";
@@ -95,6 +95,7 @@ export const homepageTiles: HomepageTile[] = [
   },
   {
     label: "Wakaf Tanah",
+    href: "/wakaf-tanah",
     summary: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir.",
     image: "/content/beranda-tile-wakaf.jpg",
     imageAlt: "Hamparan sawah hijau dengan rumah di kejauhan.",

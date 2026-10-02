@@ -39,7 +39,7 @@ const items: PublicMenuItem[] = [
   },
   { label: "Makam Keluarga", href: HUB_PATH, description: "Cari di mana makam keluarga Anda berada, lalu perpanjang, rawat atau urus berkasnya." },
   { label: "Layanan", description: SEGERA },
-  { label: "Wakaf Tanah", description: SEGERA },
+  { label: "Wakaf Tanah", href: "/wakaf-tanah", description: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir." },
   { label: "Daftar Lokasi", href: "/lokasi", description: "Lokasi Mitra yang sudah Terverifikasi, per kota dan fasilitas." },
 ];
 
