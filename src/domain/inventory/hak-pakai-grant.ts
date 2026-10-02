@@ -8,9 +8,10 @@
  * the tenure clock starts at the first Pemakaman's date, never at "now", so a
  * burial entered long after it happened still counts from the day it did.
  */
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Tenure } from "@/domain/tariffs";
-import { inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, type SyaratHakPakai } from "./schema";
+import { inventoryCalonPenghuni, inventoryHakPakai, inventoryPemakaman, inventoryPemegangHak, inventoryPetak, type SyaratHakPakai } from "./schema";
 import { addYears } from "./tenure";
 
 /** The Pemegang Hak a grant records: never the Almarhum, and never empty. */
@@ -74,6 +75,11 @@ export async function grantHakPakai(
     })
     .returning({ id: inventoryHakPakai.id });
 
+  // The label is per Petak (ticket 39): a Kavling Keluarga's order names its first Petak; the family labels the rest.
+  if (input.calonPenghuni) {
+    const petakId = input.petakId ?? (await petakPertamaKavling(tx, input.kavlingId));
+    if (petakId) await tx.insert(inventoryCalonPenghuni).values({ hakPakaiId: hakPakai.id, petakId, label: input.calonPenghuni, updatedAt: now });
+  }
   if (input.pemegangHak) {
     await tx.insert(inventoryPemegangHak).values({
       hakPakaiId: hakPakai.id,
@@ -102,4 +108,16 @@ export async function grantHakPakai(
 /** "YYYY-MM-DD" as a `Date` at that calendar day's UTC midnight: for `tenure_start_at` / `end_date`, which are dates, not instants — never re-derive a WIB instant from them. */
 function dateOnly(isoDate: string): Date {
   return new Date(`${isoDate}T00:00:00.000Z`);
+}
+
+/** The first numbered Petak of a Kavling Keluarga in reading order (row, then column); null for none. */
+async function petakPertamaKavling(tx: Database, kavlingId: string | null): Promise<string | null> {
+  if (!kavlingId) return null;
+  const [pertama] = await tx
+    .select({ id: inventoryPetak.id })
+    .from(inventoryPetak)
+    .where(and(eq(inventoryPetak.kavlingId, kavlingId), isNotNull(inventoryPetak.nomorMakam)))
+    .orderBy(asc(inventoryPetak.row), asc(inventoryPetak.col))
+    .limit(1);
+  return pertama?.id ?? null;
 }

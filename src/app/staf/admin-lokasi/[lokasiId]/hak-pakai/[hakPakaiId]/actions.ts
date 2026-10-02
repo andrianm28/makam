@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { lokasiMitraResource } from "@/domain/identity";
-import { akhiriHakPakaiManualSchema, catatPembongkaranSchema } from "@/domain/inventory";
+import { akhiriHakPakaiManualSchema, catatPembongkaranSchema, ubahKontakPemegangHakSchema } from "@/domain/inventory";
 import { akhiriHakPakaiText, pembongkaranText } from "@/lib/hak-pakai-akhir-labels";
+import { permintaanHakPakaiText } from "@/lib/permintaan-hak-pakai-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../../form-state";
@@ -49,4 +50,37 @@ export async function catatPembongkaranAction(_previous: FormState, formData: Fo
   segarkan(lokasiId, hakPakaiId);
   if (!result.value.ok) return { status: "gagal", message: pembongkaranText(result.value.reason) };
   return { status: "berhasil", message: "Pembongkaran tercatat. Petak Tersedia lagi." };
+}
+
+/** The KTP check the Admin Lokasi uploads is required: the change of a holder's contact rests on it. */
+const ubahKontakDenganKtpSchema = ubahKontakPemegangHakSchema.required({ ktp: true });
+
+/**
+ * The Admin Lokasi changes the Pemegang Hak's phone number and recorded email after checking the KTP and uploading
+ * that check (spec, Inventory; ADR 0004). The name and the history stay; the change is audited without the number.
+ */
+export async function ubahKontakPemegangHakAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const hakPakaiId = String(formData.get("hakPakaiId") ?? "");
+  const file = formData.get("ktp");
+  const email = String(formData.get("email") ?? "").trim();
+  if (!(file instanceof File) || file.size === 0) return { status: "gagal", message: "Unggah hasil pemeriksaan KTP (JPEG, PNG atau PDF) sebelum mengubah kontak." };
+  const ktp = { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
+  const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
+    action: "hak_pakai.ubah_pemegang",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: ubahKontakDenganKtpSchema,
+    input: { hakPakaiId, phoneNumber: formData.get("phoneNumber"), ...(email === "" ? {} : { email }), alasan: formData.get("alasan"), ktp },
+    run: (actor, data) => serverRuntime().inventory.ubahKontakPemegangHak(actor, lokasiId, data),
+  });
+  if (!result.ok) return { status: "gagal", message: result.error === "input_tidak_valid" ? permintaanHakPakaiText("input_tidak_valid") : guardMessage(result.error) };
+  segarkan(lokasiId, hakPakaiId);
+  if (!result.value.ok) {
+    const alasan = result.value.reason;
+    if (alasan === "nomor_telepon_tidak_valid") return { status: "gagal", message: "Nomor telepon tidak valid. Tulis nomor Indonesia, misalnya 0812 3456 7890." };
+    if (alasan === "email_tidak_valid") return { status: "gagal", message: "Email tidak valid." };
+    return { status: "gagal", message: permintaanHakPakaiText(alasan) };
+  }
+  return { status: "berhasil", message: "Kontak Pemegang Hak diubah. Tercatat di Log Audit." };
 }

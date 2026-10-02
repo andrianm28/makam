@@ -147,7 +147,7 @@ function makamSaya(over: Partial<MakamSaya> = {}): MakamSaya {
     lokasiId: "lokasi-1",
     kavlingId: null,
     nomorKavling: null,
-    petak: [{ petakId: "id-A-01", nomorMakam: "A-01" }],
+    petak: [{ petakId: "id-A-01", nomorMakam: "A-01", calonPenghuni: null }],
     status: "aktif",
     tenureYears: 5,
     tanggalBerakhir: "2031-10-02",
@@ -180,7 +180,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
 
   it("names a Kavling Keluarga by its own Nomor Kavling and looks it up as one whole, same as the shortcut row", () => {
     const kartu = kartuMakamSaya(
-      makamSaya({ kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [{ petakId: "id-A-01", nomorMakam: "A-01" }, { petakId: "id-A-02", nomorMakam: "A-02" }] }),
+      makamSaya({ kavlingId: "kavling-1", nomorKavling: "A-K01", petak: [{ petakId: "id-A-01", nomorMakam: "A-01", calonPenghuni: null }, { petakId: "id-A-02", nomorMakam: "A-02", calonPenghuni: null }] }),
       nama,
       [],
     );

@@ -143,3 +143,21 @@ export function perluTindakanDariBerkasTpu(daftar: readonly RingkasanBerkasTpu[]
     href: `/pengurusan/${satu.nomor}`,
   }));
 }
+
+/** One Pengembalian / Ganti Pemegang Hak request the Admin Lokasi sent back for a fix (Pemesanan's `permintaanHakPakaiPerluPerbaikan`, ticket 39). */
+export interface RingkasanPermintaanHakPakai {
+  id: string;
+  hakPakaiId: string;
+  jenis: "pengembalian" | "ganti_pemegang_hak";
+  unitNomor: string;
+}
+
+/** Each request sent back for a fix, linking to its page; it clears itself once the request is filed again. */
+export function perluTindakanDariPermintaanHakPakai(daftar: readonly RingkasanPermintaanHakPakai[]): PerluTindakanItem[] {
+  return daftar.map((satu) => ({
+    id: `permintaan-hak-pakai-perbaikan:${satu.id}`,
+    judul: `${satu.jenis === "pengembalian" ? "Pengembalian Hak Pakai" : "Ganti Pemegang Hak"} ${satu.unitNomor} perlu diperbaiki`,
+    deskripsi: "Lokasi Mitra meminta perbaikan. Buka permintaan untuk melihat catatannya.",
+    href: `/permintaan-hak-pakai/${satu.hakPakaiId}`,
+  }));
+}

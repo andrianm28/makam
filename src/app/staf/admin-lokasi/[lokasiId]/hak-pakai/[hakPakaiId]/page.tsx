@@ -6,9 +6,10 @@ import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { labelSatuanHakPakai } from "@/lib/hak-pakai-akhir-labels";
 import { formatTanggal, formatTanggalJam, wibDateOf } from "@/lib/time/jakarta";
+import { rilisTerbuka } from "@/lib/rilis";
 import { serverRuntime } from "@/server/runtime";
 import { adminLokasiScope } from "../../../scope";
-import { AkhiriForm, PembongkaranForm } from "./forms";
+import { AkhiriForm, PembongkaranForm, UbahKontakForm } from "./forms";
 
 export const metadata: Metadata = { title: "Hak Pakai · Area Staf" };
 
@@ -62,6 +63,18 @@ export default async function HakPakaiLokasiPage({ params }: PageProps<"/staf/ad
           </CardHeader>
           <CardContent>
             <AkhiriForm lokasiId={current.id} hakPakaiId={hak.id} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {rilisTerbuka("perpanjangan_lanjutan") && bisaAkhiri && hak.pemegangHak ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ubah kontak Pemegang Hak</CardTitle>
+            <CardDescription>Periksa KTP Pemegang Hak dan unggah hasilnya. Nama dan riwayat pemegang tidak berubah; perubahan tercatat di Log Audit.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UbahKontakForm lokasiId={current.id} hakPakaiId={hak.id} />
           </CardContent>
         </Card>
       ) : null}

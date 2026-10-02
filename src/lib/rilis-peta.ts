@@ -17,7 +17,7 @@ export type Rilis = 1 | 2 | 3;
 export const fiturRilis = {
   /** Everything the first release carries (ADR 0005 and ADR 0006 included). */
   inti: 1,
-  /** Perpanjangan continued: berkas and Permohonan, and the Hak Pakai reminders and expiry (41, 42; 35 and 39 when they land). */
+  /** Perpanjangan continued: berkas and Permohonan, and the Hak Pakai reminders and expiry (41, 42, 39; 35 when it lands). */
   perpanjangan_lanjutan: 2,
   /** Ditangguhkan / Berhenti of a Lokasi Mitra (59). */
   lokasi_ditangguhkan: 2,
@@ -61,6 +61,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ["/perpanjangan/[x]", "inti"],
   ["/perpanjangan/[x]/berkas/**", "perpanjangan_lanjutan"],
   ["/perpanjangan/permohonan/**", "perpanjangan_lanjutan"],
+  ["/permintaan-hak-pakai/**", "perpanjangan_lanjutan"],
   ["/pesan-makam/saat-duka/**", "inti"],
   ["/pesan-makam/saat-duka/tpu/**", "tpu"],
   ["/pesan-makam/pengurusan-iptm/**", "tpu"],
@@ -82,6 +83,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
     (area) => [`/staf/admin-lokasi/[x]/${area}/**`, "inti"] as const,
   ),
   ["/staf/admin-lokasi/[x]/perpanjangan/**", "perpanjangan_lanjutan"],
+  ["/staf/admin-lokasi/[x]/permintaan/**", "perpanjangan_lanjutan"],
   ["/staf/admin-platform", "inti"],
   ...[
     "antrean",

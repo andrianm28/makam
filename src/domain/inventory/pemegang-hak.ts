@@ -14,7 +14,9 @@
  * digits of the number and whether an email is recorded.
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { ekstensiUnggahan } from "@/lib/files/upload-check";
 import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { inventoryHakPakai, inventoryPemegangHak } from "./schema";
@@ -28,6 +30,8 @@ export const gantiPemegangHakSchema = z.object({
   hakPakaiId: z.uuid(),
   pemegangHak: kontakSchema.extend({ name: z.string().trim().min(1).max(200) }),
   alasan: z.string().trim().min(1).max(300),
+  /** The keys in the private FileStore the transfer rests on (a request's attachments); none by default. */
+  dokumen: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
 });
 export type GantiPemegangHakInput = z.infer<typeof gantiPemegangHakSchema>;
 
@@ -38,6 +42,10 @@ export const ubahKontakPemegangHakSchema = z.object({
   phoneNumber: z.string().trim().min(1).max(30),
   email: z.string().trim().max(320).optional(),
   alasan: z.string().trim().min(1).max(300),
+  /** The KTP check the Admin Lokasi did, as the file it uploaded (kept in the private FileStore; ticket 39). */
+  ktp: z.object({ body: z.instanceof(Uint8Array), contentType: z.string() }).optional(),
+  /** Or the key of a KTP check already in the private FileStore (a Perpanjangan request's own KTP); one of the two is required. */
+  ktpKey: z.string().trim().min(1).max(500).optional(),
 });
 export type UbahKontakPemegangHakInput = z.infer<typeof ubahKontakPemegangHakSchema>;
 
@@ -46,6 +54,10 @@ export type PemegangHakResult =
   | WriteRefusal
   | { ok: false; reason: "input_tidak_valid" | "hak_pakai_tidak_ditemukan" | "hak_pakai_sudah_berakhir" }
   | { ok: false; reason: "nomor_telepon_tidak_valid" | "email_tidak_valid" }
+  /** The KTP check file is not a JPEG, PNG or PDF, is empty or is too large; or the private FileStore is not available. */
+  | { ok: false; reason: "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" }
+  /** No KTP check was given: the contact never changes without one. */
+  | { ok: false; reason: "ktp_wajib" }
   /** A holder has to be named when none is on record. */
   | { ok: false; reason: "nama_wajib" };
 
@@ -102,6 +114,7 @@ export async function gantiPemegangHak(deps: InventoryDeps, by: Actor, lokasiId:
       name: input.pemegangHak.name,
       phoneNumber: kontak.phoneNumber,
       email: kontak.email,
+      dokumen: input.dokumen,
       startAt: now,
       createdByAccountId: by.accountId,
     });
@@ -130,8 +143,28 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
   const kontak = kontakOf(input);
   if (!kontak.ok) return kontak;
 
+  // A stored KTP check counts only when it is this Hak Pakai's own (an earlier upload) or a Perpanjangan request's own file.
+  const kunciDikenal =
+    input.ktpKey !== undefined &&
+    !input.ktpKey.includes("..") &&
+    (input.ktpKey.startsWith("perpanjangan-permohonan/") || input.ktpKey.startsWith(`pemegang-hak-ktp/${input.hakPakaiId}/`));
+  if (!input.ktp && !kunciDikenal) return { ok: false, reason: "ktp_wajib" };
+  let ktpKey: string | null = kunciDikenal ? (input.ktpKey ?? null) : null;
+  let diunggah = false;
+  if (input.ktp) {
+    const extension = ekstensiUnggahan(input.ktp);
+    if (!extension) return { ok: false, reason: "berkas_tidak_didukung" };
+    diunggah = true;
+    ktpKey = `pemegang-hak-ktp/${input.hakPakaiId}/${randomUUID()}.${extension}`;
+    try {
+      await deps.files.put({ key: ktpKey, body: input.ktp.body, contentType: input.ktp.contentType });
+    } catch {
+      return { ok: false, reason: "penyimpanan_belum_tersedia" };
+    }
+  }
+
   const now = deps.clock.now();
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+  const hasil = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [sekarang] = await tx
       .select()
       .from(inventoryPemegangHak)
@@ -160,25 +193,30 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
       entity: { kind: "hak_pakai", id: input.hakPakaiId },
       lokasiId,
       before: sekarang ? { telepon: akhirEmpat(sekarang.phoneNumber), emailTercatat: sekarang.email !== null } : null,
-      after: { telepon: akhirEmpat(kontak.phoneNumber), emailTercatat: kontak.email !== null },
+      after: { telepon: akhirEmpat(kontak.phoneNumber), emailTercatat: kontak.email !== null, berkasKtp: ktpKey },
       reason: input.alasan,
     });
     return { ok: true as const };
   });
+  // A refused write leaves no orphan KTP file behind.
+  if (!hasil.ok && diunggah && ktpKey) await deps.files.delete(ktpKey).catch(() => undefined);
+  return hasil;
 }
 
-/** One holder of a Hak Pakai in its history: the name and the dates, never the contact. */
+/** One holder of a Hak Pakai in its history: the name, the dates and the transfer's documents, never the contact. */
 export interface RiwayatPemegangHak {
   name: string | null;
   startAt: Date;
   /** Null for the current holder. */
   endAt: Date | null;
+  /** The documents the transfer rested on (FileStore keys); empty when none. */
+  dokumen: string[];
 }
 
 /** Every Pemegang Hak the Hak Pakai has had, oldest first. */
 export async function riwayatPemegangHak(deps: Pick<InventoryDeps, "db">, hakPakaiId: string): Promise<RiwayatPemegangHak[]> {
   return deps.db
-    .select({ name: inventoryPemegangHak.name, startAt: inventoryPemegangHak.startAt, endAt: inventoryPemegangHak.endAt })
+    .select({ name: inventoryPemegangHak.name, startAt: inventoryPemegangHak.startAt, endAt: inventoryPemegangHak.endAt, dokumen: inventoryPemegangHak.dokumen })
     .from(inventoryPemegangHak)
     .where(eq(inventoryPemegangHak.hakPakaiId, hakPakaiId))
     .orderBy(asc(inventoryPemegangHak.startAt));

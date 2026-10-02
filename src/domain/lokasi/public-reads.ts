@@ -101,6 +101,24 @@ export async function publicLokasiMitraTampil(
   return { ...toPublicLokasiMitra(row), pengelolaTelepon: row.pengelolaTelepon, pengelolaEmail: row.pengelolaEmail, status: row.status };
 }
 
+/** A Lokasi Mitra's own rules for a Ganti Pemegang Hak: whether a sale may transfer the right, and the fee it collects offline. */
+export interface AturanGantiPemegangHak {
+  saleTransfersAllowed: boolean;
+  gantiPemegangHakFee: number;
+}
+
+/**
+ * Those two rules, no actor: a Pemegang Hak's own request needs them before it is filed, and the
+ * family has no staff role to read them through. Null for an unknown id (an unlisted Lokasi Mitra
+ * still has its own rules; only a missing one has none).
+ */
+export async function aturanGantiPemegangHak(deps: { db: Database }, lokasiId: string): Promise<AturanGantiPemegangHak | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
+  if (!row) return null;
+  return { saleTransfersAllowed: row.flags.saleTransfersAllowed, gantiPemegangHakFee: row.policies.gantiPemegangHakFee };
+}
+
 /** Not example data: the one condition every public listing shares. */
 const bukanDataContoh = eq(lokasiMitraTable.dataContoh, false);
 

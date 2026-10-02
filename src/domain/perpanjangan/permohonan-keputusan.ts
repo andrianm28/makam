@@ -6,6 +6,7 @@
 import { and, eq } from "drizzle-orm";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { PerpanjanganDeps } from "./deps";
+import { berkasDari } from "./permohonan-berkas";
 import { MASA_BERLAKU_PERSETUJUAN_HARI, putuskanPermohonanSchema, setujuiPermohonanSchema } from "./permohonan-skema";
 import { perpanjanganPermohonan } from "./schema";
 
@@ -67,6 +68,7 @@ export async function setujuiPermohonan(deps: PerpanjanganDeps, by: Actor, rawIn
             phoneNumber: telepon,
             email: row.email,
             alasan: sebab,
+            ktpKey: berkasDari(row).find((satu) => satu.kunci === "ktp")?.fileKey,
           })
         : await inventory.gantiPemegangHak(by, row.lokasiId, {
             hakPakaiId: row.hakPakaiId,
