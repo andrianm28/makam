@@ -238,6 +238,12 @@ export type AuditAction =
   /** The PTSP rejected a filing: back to Perlu Perbaikan (fixable) or closed Ditolak and refunded (final) (ticket 47). */
   | "pengurusan.ptsp_perbaikan"
   | "pengurusan.ptsp_ditolak"
+  /** Admin Platform's check of a Perpanjangan TPU's documents found one to fix, before any Tagihan (ticket 48). */
+  | "pengurusan.perbaikan_diminta"
+  /** Admin Platform corrected the IPTM expiry date the Pemegang Hak read off the photo (ticket 48). */
+  | "pengurusan.iptm_berakhir_dikoreksi"
+  /** Admin Platform recorded the TPU's answer for a Perpanjangan TPU past the masa tenggang: go on, or Ditolak (ticket 48). */
+  | "pengurusan.cek_tpu"
   /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
   | "setor_retribusi.catat"
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */

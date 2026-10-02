@@ -639,7 +639,8 @@ export interface PerluTindakanBerkas {
   nomor: string;
   tpuName: string;
   kurang: string[];
-  dueAt: Date;
+  /** The 7-day window's end; null for a Perpanjangan TPU, whose uploads have no window. */
+  dueAt: Date | null;
   /** Past the 7-day window; never for an order in Perlu Perbaikan, which waits on a correction and not on the window. */
   terlambat: boolean;
   /** What the PTSP asked to be corrected; null while the documents are simply not all in. */
@@ -661,11 +662,11 @@ export async function perluTindakanBerkas(deps: PengurusanDeps, pemesan: { accou
       nomor: row.nomor,
       tpuName: row.tpuName,
       kurang,
-      dueAt: row.dokumenDueAt!,
-      terlambat: row.status === "dimakamkan" && row.dokumenDueAt!.getTime() < now.getTime(),
+      dueAt: row.dokumenDueAt,
+      terlambat: row.status === "dimakamkan" && row.dokumenDueAt !== null && row.dokumenDueAt.getTime() < now.getTime(),
       alasanPerbaikan: row.status === "perlu_perbaikan" ? (row.perbaikan?.alasan ?? row.alasan) : null,
     }))
-    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+    .sort((a, b) => (a.dueAt?.getTime() ?? Infinity) - (b.dueAt?.getTime() ?? Infinity));
 }
 
 /** One order waiting to be filed on JakEVO: the Antrean's Tier 3 "IPTM filing" row (7 days from Dokumen Lengkap). */

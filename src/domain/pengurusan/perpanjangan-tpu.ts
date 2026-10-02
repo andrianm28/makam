@@ -6,12 +6,15 @@
  * `pengurusan-berkas.ts`. This file holds the order's placing and what is particular to a renewal.
  */
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { refusable } from "@/db/unit-of-work";
 import { withinPaymentCap } from "@/domain/billing";
 import { addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
-import { BULAN_MASA_TENGGANG_TPU, BULAN_PERPANJANGAN_TPU_DIBUKA } from "./aturan";
+import { BULAN_MASA_TENGGANG_TPU, BULAN_PERPANJANGAN_TPU_DIBUKA, menungguPemeriksaan } from "./aturan";
 import { daftarDokumenPerpanjangan } from "./dokumen";
 import type { Pemesan, PengurusanDeps } from "./deps";
+import { kembalikanKePerbaikan } from "./pengurusan-berkas";
 import { pengurusanTpu, makamTpu } from "./schema";
 
 export interface PlacePerpanjanganTpuInput {
@@ -84,4 +87,32 @@ export async function placePerpanjanganTpu(deps: PengurusanDeps, input: PlacePer
     });
     return { ok: true as const, pengurusan: { nomor, status: "diajukan" as const, lewatMasaTenggang } };
   });
+}
+
+export const mintaPerbaikanSchema = z.object({
+  nomor: z.string().trim().regex(/^MKM-\d{4}-\d{6}$/),
+  /** What is wrong, in words the Pemegang Hak can act on. */
+  alasan: z.string().trim().min(1).max(500),
+  /** The checklist documents to upload again. */
+  dokumen: z.array(z.string().trim().min(1).max(200)).min(1).max(30),
+});
+
+export type MintaPerbaikanResult =
+  | { ok: true; status: "perlu_perbaikan" }
+  | WriteRefusal
+  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" | "dokumen_tidak_dikenal" };
+
+/**
+ * Admin Platform's document check finds one that needs fixing, before any Tagihan: the order goes to Perlu Perbaikan, the
+ * documents named are cleared for a new upload, and the check runs again once they are in. Audited.
+ */
+export async function mintaPerbaikan(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<MintaPerbaikanResult> {
+  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+  if (refusal) return refusal;
+  const parsed = mintaPerbaikanSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, parsed.data.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
+  return kembalikanKePerbaikan(deps, by, order, { aksi: "pengurusan.perbaikan_diminta", alasan: parsed.data.alasan, dokumen: parsed.data.dokumen });
 }

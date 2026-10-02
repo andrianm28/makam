@@ -77,7 +77,10 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
-import { placePerpanjanganTpu } from "./perpanjangan-tpu";
+import { mintaPerbaikan, placePerpanjanganTpu } from "./perpanjangan-tpu";
+export { mintaPerbaikanSchema } from "./perpanjangan-tpu";
+import type { MintaPerbaikanResult } from "./perpanjangan-tpu";
+export type { MintaPerbaikanResult };
 import type { PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult } from "./perpanjangan-tpu";
 export type { PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult };
 export { pembayaranBerkasTick, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
@@ -154,6 +157,8 @@ export interface Pengurusan {
    * with the expiry the form gave, the filing documents to upload and no Tagihan.
    */
   placePerpanjanganTpu(input: PlacePerpanjanganTpuInput): Promise<PlacePerpanjanganTpuResult>;
+  /** Admin Platform's check finds a Perpanjangan TPU document that needs fixing, before any Tagihan: Perlu Perbaikan, no charge. Audited. */
+  mintaPerbaikan(by: Actor, input: unknown): Promise<MintaPerbaikanResult>;
   /** Every filing-only order whose documents are all in and unchecked: the Antrean's Tier 3 document check (1 working day). No actor: the caller checks `antrean.lihat`. */
   periksaBerkasTerbuka(): Promise<PeriksaBerkasTerbuka[]>;
   /** Every paid filing-only order waiting to be filed: the Antrean's Tier 3 filing row (3 working days after Lunas). No actor: the caller checks `antrean.lihat`. */
@@ -246,6 +251,7 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     daftarDokumen: (input) => daftarDokumen(input),
     placePengurusanIptm: (input) => placePengurusanIptm(withAudit, input),
     placePerpanjanganTpu: (input) => placePerpanjanganTpu(withAudit, input),
+    mintaPerbaikan: (by, input) => mintaPerbaikan(withAudit, by, input),
     periksaBerkasTerbuka: () => periksaBerkasTerbuka(withAudit),
     pengajuanBerkasTerbuka: () => pengajuanBerkasTerbuka(withAudit),
     pembayaranBerkasTick: (now) => pembayaranBerkasTick(withAudit, now ?? deps.clock.now()),
