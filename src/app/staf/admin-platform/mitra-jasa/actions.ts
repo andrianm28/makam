@@ -100,6 +100,7 @@ export async function buatMitraJasa(_previous: FormState, formData: FormData): P
   const email = field(formData, "email");
   const nomorTelepon = field(formData, "nomorTelepon");
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.buat",
     resource: () => semuaMitraJasaResource(),
     schema: z.object({ email: z.string().trim().min(1), nomorTelepon: z.string().trim().min(1), profil: profilMitraJasaSchema }),
@@ -129,6 +130,7 @@ export async function buatMitraJasa(_previous: FormState, formData: FormData): P
 export async function simpanProfil(_previous: FormState, formData: FormData): Promise<FormState> {
   const mitraJasaId = idOf(formData);
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.ubah",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: profilMitraJasaSchema,
@@ -151,6 +153,7 @@ export async function simpanProfil(_previous: FormState, formData: FormData): Pr
 export async function simpanRekening(_previous: FormState, formData: FormData): Promise<FormState> {
   const mitraJasaId = idOf(formData);
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.ubah",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: rekeningMitraJasaSchema,
@@ -174,6 +177,7 @@ export async function unggahBerkas(_previous: FormState, formData: FormData): Pr
   const file = formData.get("file");
   const body = file instanceof File ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array();
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.ubah",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: berkasMitraJasaSchema,
@@ -195,6 +199,7 @@ export async function unggahBerkas(_previous: FormState, formData: FormData): Pr
 export async function simpanCoverage(_previous: FormState, formData: FormData): Promise<FormState> {
   const mitraJasaId = idOf(formData);
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.ubah",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: coverageMitraJasaSchema,
@@ -211,6 +216,7 @@ export async function simpanCoverage(_previous: FormState, formData: FormData): 
 export async function simpanStatus(_previous: FormState, formData: FormData): Promise<FormState> {
   const mitraJasaId = idOf(formData);
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.ubah",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: statusMitraJasaSchema,
@@ -236,6 +242,7 @@ export async function simpanStatus(_previous: FormState, formData: FormData): Pr
 export async function catatTinjauan(_previous: FormState, formData: FormData): Promise<FormState> {
   const mitraJasaId = idOf(formData);
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.tinjau_skor",
     resource: () => mitraJasaResource(mitraJasaId),
     schema: z.object({ mitraJasaId: z.string().uuid(), tinjauanId: z.string().uuid(), catatan: z.string().trim().max(500) }),
@@ -253,6 +260,7 @@ export async function catatTinjauan(_previous: FormState, formData: FormData): P
 /** A Mitra Jasa sets one of their own "Tidak tersedia" ranges. */
 export async function tambahTidakTersedia(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.tidak_tersedia",
     resource: (actor) => akunResource(actor.accountId),
     schema: tidakTersediaSchema,
@@ -268,6 +276,7 @@ export async function tambahTidakTersedia(_previous: FormState, formData: FormDa
 /** A Mitra Jasa takes one of their own ranges off. */
 export async function hapusTidakTersedia(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "mitra_jasa",
     action: "mitra_jasa.tidak_tersedia",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({ rangeId: z.string().uuid() }),

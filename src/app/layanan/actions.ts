@@ -6,7 +6,7 @@ import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-ma
 import { pesananLayananResource } from "@/domain/identity";
 import { placePesananLayananSchema } from "@/domain/layanan/pesanan-schema";
 import { layananOrderMessages } from "@/lib/layanan-labels";
-import { guarded } from "@/server/guard";
+import { guarded, gerbangAksi } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 
@@ -35,6 +35,8 @@ export type KirimLayananState =
  * nothing, and the price it shows is the public one.
  */
 export async function hargaPilihanLayanan(input: unknown): Promise<{ total: number; platformFee: number; parts: { label: string; amount: number }[] } | null> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   // The form's own state carries `inForceSince` too, which this read does not need to recompute.
   const parsed = z.object({ lokasiId: z.uuid(), layananVariantIds: z.array(z.uuid()).max(10) }).safeParse(input);
   if (!parsed.success || parsed.data.layananVariantIds.length === 0) return null;
@@ -45,6 +47,7 @@ export async function hargaPilihanLayanan(input: unknown): Promise<{ total: numb
 /** Kirim for a Pemesan already signed in; a visitor with no session is answered with "perlu_kode_masuk". */
 export async function kirimPesananLayanan(draft: unknown): Promise<KirimLayananState> {
   const hasil = await guarded({
+    fitur: "inti",
     action: "layanan.buat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: placePesananLayananSchema,
@@ -66,6 +69,8 @@ export async function verifikasiKodeMasukDanKirimLayanan(
   _state: KodeMasukVerifyState,
   formData: FormData,
 ): Promise<KodeMasukVerifyState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsedDraft = placePesananLayananSchema.safeParse(draft);
   if (!parsedDraft.success) return { status: "gagal", message: parsedDraft.error.issues[0]?.message ?? "Periksa lagi isian Anda." };
   const parsedCode = z

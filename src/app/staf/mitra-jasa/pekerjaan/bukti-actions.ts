@@ -42,6 +42,7 @@ const pesan = (reason: string): string => refusalMessage(reason, pesanRefusal);
 /** Saves one shot the in-app camera just took; `takenAt` is the camera's own moment. */
 export async function simpanBuktiTpu(_previous: FormState, formData: FormData): Promise<FormState> {
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.jawab",
     resource: (actor) => akunResource(actor.accountId),
     schema: unggahSchema,
@@ -63,6 +64,7 @@ export async function simpanBuktiTpu(_previous: FormState, formData: FormData): 
 /** Sends the proof for approval once every shot the Layanan asks for is in. */
 export async function kirimBuktiTpu(_previous: FormState, formData: FormData): Promise<FormState> {
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.jawab",
     resource: (actor) => akunResource(actor.accountId),
     schema: pekerjaanTpuIdSchema,
@@ -82,6 +84,7 @@ export async function kirimBuktiTpu(_previous: FormState, formData: FormData): P
  */
 export async function kirimPesanThreadMitraJasa(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.jawab",
     resource: (actor) => akunResource(actor.accountId),
     schema: kirimPesanThreadSchema,

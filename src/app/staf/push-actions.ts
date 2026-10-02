@@ -13,6 +13,7 @@ export type PushActionResult = { ok: true } | { ok: false; message: string };
 /** Turns push on for the browser the Akun Staf is using: stores its subscription as a Perangkat Push. */
 export async function aktifkanPush(subscription: unknown): Promise<PushActionResult> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.push",
     resource: (actor) => akunResource(actor.accountId),
     schema: pushSubscriptionSchema,
@@ -36,6 +37,7 @@ export async function aktifkanPush(subscription: unknown): Promise<PushActionRes
 /** Turns push off for the browser the Akun Staf is using. */
 export async function matikanPush(endpoint: unknown): Promise<PushActionResult> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.push",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({ endpoint: z.url().max(2048) }),

@@ -6,7 +6,7 @@ import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-ma
 import { pesananLayananResource } from "@/domain/identity";
 import { bytesOf } from "@/lib/files/base64";
 import { layananTpuOrderMessages } from "@/lib/layanan-tpu-labels";
-import { guarded } from "@/server/guard";
+import { gerbangAksi, guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import { draftTpuSchema } from "./draft";
@@ -33,6 +33,7 @@ export type KirimLayananTpuState =
 /** Kirim for a Pemesan already signed in; a visitor with no session is answered with "perlu_kode_masuk". */
 export async function kirimPesananLayananTpu(draft: unknown): Promise<KirimLayananTpuState> {
   const hasil = await guarded({
+    fitur: "tpu",
     action: "layanan.buat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: draftTpuSchema,
@@ -54,6 +55,7 @@ export async function verifikasiKodeMasukDanKirimLayananTpu(
   _state: KodeMasukVerifyState,
   formData: FormData,
 ): Promise<KodeMasukVerifyState> {
+  gerbangAksi("tpu");
   const parsedDraft = draftTpuSchema.safeParse(draft);
   if (!parsedDraft.success) return { status: "gagal", message: parsedDraft.error.issues[0]?.message ?? "Periksa lagi isian Anda." };
   const parsedCode = z

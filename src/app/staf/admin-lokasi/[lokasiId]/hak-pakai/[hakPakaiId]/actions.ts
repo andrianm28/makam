@@ -20,6 +20,7 @@ export async function akhiriHakPakaiAction(_previous: FormState, formData: FormD
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const hakPakaiId = String(formData.get("hakPakaiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "hak_pakai.akhiri",
     resource: () => lokasiMitraResource(lokasiId),
     schema: akhiriHakPakaiManualSchema,
@@ -37,6 +38,7 @@ export async function catatPembongkaranAction(_previous: FormState, formData: Fo
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const hakPakaiId = String(formData.get("hakPakaiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "hak_pakai.catat_pembongkaran",
     resource: () => lokasiMitraResource(lokasiId),
     schema: catatPembongkaranSchema,

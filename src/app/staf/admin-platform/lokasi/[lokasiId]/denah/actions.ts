@@ -34,6 +34,7 @@ const findPetakSchema = z.object({ lokasiId: z.uuid(), nomorMakam: z.string().tr
 /** Finds the Petak named `nomorMakam` (current or an earlier, renumbered one), so Admin Platform can confirm which one before renaming it. */
 export async function findPetakAction(input: z.input<typeof findPetakSchema>): Promise<{ ok: true; petakId: string; nomorMakam: string } | { ok: false; message: string }> {
   const result = await guarded({
+    fitur: "inti",
     action: "denah.lihat",
     resource: () => lokasiMitraResource(input.lokasiId),
     schema: findPetakSchema,
@@ -50,6 +51,7 @@ const renumberSchema = z.object({ lokasiId: z.uuid(), petakId: z.uuid(), nomorMa
 /** Admin Platform renumbers a Petak Makam; its old Nomor Makam is kept as a hidden alias (spec, story 169). */
 export async function renumberPetakAction(input: z.input<typeof renumberSchema>): Promise<RenumberActionResult> {
   const result = await guarded({
+    fitur: "inti",
     action: "petak.nomor_ulang",
     resource: () => lokasiMitraResource(input.lokasiId),
     schema: renumberSchema,

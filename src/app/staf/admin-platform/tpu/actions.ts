@@ -83,6 +83,7 @@ async function tpuWrite<S extends z.ZodType, R extends TpuResult>(options: {
   pages: (data: z.infer<S>) => string[];
 }): Promise<FormState> {
   const result = await guarded({
+    fitur: "tpu",
     action: options.action,
     resource: options.resource,
     schema: options.schema,

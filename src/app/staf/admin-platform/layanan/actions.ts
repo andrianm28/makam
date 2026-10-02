@@ -147,6 +147,7 @@ async function write<S extends z.ZodType, R extends LayananResult>(options: {
   pages: (data: z.infer<S>) => string[];
 }): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: options.action,
     resource: options.resource,
     schema: options.schema,

@@ -9,6 +9,7 @@ import { serverRuntime } from "@/server/runtime";
 /** Opening the bell: every Peringatan Staf of the signed-in Akun Staf is read. */
 export async function bacaPeringatanStaf(): Promise<{ ok: boolean }> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.peringatan",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({}),

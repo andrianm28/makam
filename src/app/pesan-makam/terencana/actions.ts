@@ -6,7 +6,7 @@ import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-ma
 import { pemesananResource } from "@/domain/identity";
 import { periksaPilihanTerencanaSchema } from "@/domain/pemesanan";
 import { pesanGuard, pesanKirim, pesanPeriksa } from "@/lib/terencana-pesan";
-import { guarded } from "@/server/guard";
+import { guarded, gerbangAksi } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import { draftSchema, type DraftTerencana, type KirimState } from "./draft";
@@ -30,6 +30,8 @@ import { terencanaPath } from "./tautan";
  * reads whether a plot is still free, which the public Denah already shows.
  */
 export async function lanjutPilihPetak(input: unknown): Promise<LanjutState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = periksaPilihanTerencanaSchema.safeParse(input);
   if (!parsed.success) return { status: "gagal", message: pesanPeriksa({ ok: false, reason: "tanpa_unit", nomor: null, sisa: [] }), sisa: [] };
   const hasil = await serverRuntime().pemesanan.periksaPilihanTerencana(parsed.data);
@@ -44,6 +46,7 @@ export type LanjutState =
 /** Kirim for a Pemesan already signed in; a visitor with no session is answered with "perlu_kode_masuk". */
 export async function kirimPesananTerencana(draft: unknown): Promise<KirimState> {
   const hasil = await guarded({
+    fitur: "inti",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: draftSchema,
@@ -65,6 +68,8 @@ export async function verifikasiKodeMasukDanKirimTerencana(
   _state: KodeMasukVerifyState,
   formData: FormData,
 ): Promise<KodeMasukVerifyState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsedDraft = draftSchema.safeParse(draft);
   if (!parsedDraft.success) return { status: "gagal", message: parsedDraft.error.issues[0]?.message ?? "Periksa lagi isian Anda." };
   const parsedCode = z

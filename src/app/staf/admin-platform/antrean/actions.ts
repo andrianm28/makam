@@ -19,6 +19,7 @@ const ambilSchema = z.object({
 /** Any Admin Platform takes (Ambil) an Antrean row, replacing any earlier claim (spec, story 141). */
 export async function ambilAntreanRow(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "antrean.ambil",
     resource: () => antreanResource(),
     schema: ambilSchema,
@@ -41,6 +42,7 @@ const lokasiIdSchema = z.object({ lokasiId: z.uuid() });
  */
 export async function konfirmasiSyaratTayangMasihTerpenuhi(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "lokasi.konfirmasi_syarat_tayang",
     resource: () => lokasiMitraResource(String(formData.get("lokasiId") ?? "")),
     schema: lokasiIdSchema,
@@ -63,6 +65,7 @@ const domainRefusalMessages: Record<string, string> = {
 /** Admin Platform adds a Catatan Internal on any Antrean row or order (CONTEXT.md); never shown to the Pemesan, Mitra Jasa or Admin Lokasi. */
 export async function tambahCatatanInternalAntrean(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "catatan_internal.tambah",
     resource: () => antreanResource(),
     schema: catatanInternalInputSchema,
@@ -96,6 +99,7 @@ const bertugasRefusalMessages: Record<string, string> = {
 /** The signed-in Admin Platform goes on duty (spec, story 142); refused without an active Perangkat Push (ADR 0004). */
 export async function aktifkanBertugas(): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "bertugas.ubah",
     resource: () => antreanResource(),
     schema: kosong,
@@ -126,6 +130,7 @@ function penangananDariForm(formData: FormData): unknown {
 /** The signed-in Admin Platform goes off duty; each row they hold is released or annotated first (spec, Work Queues). */
 export async function matikanBertugas(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "bertugas.ubah",
     resource: () => antreanResource(),
     schema: matikanBertugasInputSchema,

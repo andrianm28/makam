@@ -19,6 +19,7 @@ async function denahWrite<S extends z.ZodType<{ lokasiId: string; blokId: string
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
 }): Promise<DenahActionResult<Exclude<R, { ok: false }>>> {
   const result = await guarded({
+    fitur: "inti",
     action: "denah.ubah",
     resource: () => lokasiMitraResource((options.input as { lokasiId: string }).lokasiId),
     schema: options.schema,

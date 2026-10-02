@@ -26,6 +26,7 @@ export async function unggahDokumenAction(_previous: DokumenActionState, formDat
   const nama = String(formData.get("nama") ?? "");
 
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.unggah_dokumen",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: unggahDokumenSchema,
@@ -64,6 +65,7 @@ export async function jawabAlternatifAction(_previous: PesananActionState, formD
   const nomor = String(formData.get("nomor") ?? "");
   const terima = formData.get("terima") === "ya";
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: z.object({ nomor: z.string().trim().min(1) }),
@@ -86,6 +88,7 @@ export async function jawabAlternatifAction(_previous: PesananActionState, formD
 export async function batalkanPesananAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: batalkanSaatDukaSchema,
@@ -114,6 +117,7 @@ export async function batalkanPesananAction(_previous: PesananActionState, formD
 export async function tarikTerencanaAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: tarikTerencanaSchema,
@@ -137,6 +141,7 @@ const REKENING_GAGAL: Record<string, string> = {
 export async function isiRekeningPengembalianAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pengembalian.isi_rekening",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: z.object({ nomorPemesanan: z.string(), rekening: rekeningSchema }),

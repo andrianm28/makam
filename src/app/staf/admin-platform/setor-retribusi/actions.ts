@@ -35,6 +35,7 @@ const CATAT_GAGAL: Record<string, string> = {
 export async function catatSetorRetribusiAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const bukti = await buktiFromForm(formData);
   const result = await guarded({
+    fitur: "inti",
     action: "setor_retribusi.kelola",
     resource: () => setorRetribusiResource(),
     schema: catatSetorRetribusiSchema,
@@ -65,6 +66,7 @@ export async function catatSetorRetribusiAction(_previous: FormState, formData: 
  */
 export async function tugaskanSetorRetribusi(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "setor_retribusi.kelola",
     resource: () => setorRetribusiResource(),
     schema: newTugasLapanganSchema,
