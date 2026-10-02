@@ -66,4 +66,27 @@ describe("the Berhenti decision of a Lokasi Mitra", () => {
     expect(hasil).toEqual({ ok: false, reason: "tanggal_lampau" });
     expect(setup.email.sent.filter((surat) => surat.subject.includes("berhenti bermitra"))).toEqual([]);
   });
+
+  it("leaves the Lokasi not Berhenti when the family notices cannot be queued, so a rerun can still announce it", async () => {
+    const setup = layananOnTestDatabase(db);
+    await siapkanOperatorLayanan(setup);
+    const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000 });
+    const { actor: adminPlatform } = await adminPlatformOf(setup);
+    const deps = {
+      db: setup.db,
+      lokasi: setup.lokasi,
+      pemesanan: { pesananBerjalanDiLokasi: async () => [{ nomor: "MKM-2026-000777", kind: "terencana" as const, status: "aktif", email: "a@contoh.id" }] },
+      layanan: setup.layanan,
+    };
+
+    await expect(
+      hentikanLokasiMitra({ ...deps, notifications: { lokasiBerhenti: async () => { throw new Error("antrean gagal"); } } }, adminPlatform, lokasi.lokasiMitra.id, { berlakuOn: "2026-11-08" }),
+    ).rejects.toThrow("antrean gagal");
+    expect(await setup.lokasi.statusPesananOf(lokasi.lokasiMitra.id)).toMatchObject({ status: "terverifikasi" });
+
+    const ulang = await hentikanLokasiMitra({ ...deps, notifications: setup.notifications }, adminPlatform, lokasi.lokasiMitra.id, { berlakuOn: "2026-11-08" });
+    expect(ulang).toEqual({ ok: true, berlakuOn: "2026-11-08" });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(setup.email.sent.filter((surat) => surat.subject.includes("berhenti bermitra")).map((surat) => surat.to)).toEqual(["a@contoh.id"]);
+  });
 });
