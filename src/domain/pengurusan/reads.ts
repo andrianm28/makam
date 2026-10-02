@@ -77,7 +77,7 @@ export interface PengurusanOrder {
   /** The Makam TPU this order created or updated; null until IPTM Terbit. */
   makamTpuId: string | null;
   /** A Perpanjangan TPU only: the expiry being renewed, and whether it came after the masa tenggang (the TPU is asked first). */
-  perpanjangan: { iptmBerakhirPada: string; lewatMasaTenggang: boolean; cekTpuSelesaiPada: Date | null } | null;
+  perpanjangan: { iptmBerakhirPada: string; iptmTercatatBerakhirPada: string | null; lewatMasaTenggang: boolean; cekTpuSelesaiPada: Date | null } | null;
 }
 
 type Row = typeof pengurusanTpu.$inferSelect;
@@ -189,7 +189,7 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
     makamTpuId: row.makamTpuId,
     perpanjangan:
       row.kind === "perpanjangan_tpu" && row.iptmBerakhirPada
-        ? { iptmBerakhirPada: row.iptmBerakhirPada, lewatMasaTenggang: row.lewatMasaTenggang, cekTpuSelesaiPada: row.cekTpuSelesaiPada }
+        ? { iptmBerakhirPada: row.iptmBerakhirPada, iptmTercatatBerakhirPada: row.iptmTercatatBerakhirPada, lewatMasaTenggang: row.lewatMasaTenggang, cekTpuSelesaiPada: row.cekTpuSelesaiPada }
         : null,
   };
 }

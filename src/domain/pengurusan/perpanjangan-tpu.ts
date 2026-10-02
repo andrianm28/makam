@@ -5,13 +5,22 @@
  * share (uploads, the check, the Tagihan, filing, PTSP rejections, IPTM Terbit) live in `pengajuan-iptm.ts` and
  * `pengurusan-berkas.ts`. This file holds the order's placing and what is particular to a renewal.
  */
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, notInArray } from "drizzle-orm";
 import { z } from "zod";
-import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
+import {
+  pengurusanTpuResource,
+  writeRefusal,
+  type Actor,
+  type WriteRefusal,
+} from "@/domain/identity";
 import { refusable } from "@/db/unit-of-work";
 import { withinPaymentCap } from "@/domain/billing";
 import { addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
-import { BULAN_MASA_TENGGANG_TPU, BULAN_PERPANJANGAN_TPU_DIBUKA, menungguPemeriksaan } from "./aturan";
+import {
+  BULAN_MASA_TENGGANG_TPU,
+  BULAN_PERPANJANGAN_TPU_DIBUKA,
+  menungguPemeriksaan,
+} from "./aturan";
 import { daftarDokumenPerpanjangan } from "./dokumen";
 import type { Pemesan, PengurusanDeps } from "./deps";
 import { kembalikanKePerbaikan, tenggat } from "./pengurusan-berkas";
@@ -28,25 +37,82 @@ export interface PlacePerpanjanganTpuInput {
 }
 
 export type PlacePerpanjanganTpuResult =
-  | { ok: true; pengurusan: { nomor: string; status: "diajukan"; lewatMasaTenggang: boolean } }
-  | { ok: false; reason: "input_tidak_valid" | "makam_tpu_tidak_ditemukan" | "email_bukan_akun_ini" | "terlalu_awal" | "harga_tidak_tersedia" };
+  | {
+      ok: true;
+      pengurusan: {
+        nomor: string;
+        status: "diajukan";
+        lewatMasaTenggang: boolean;
+      };
+    }
+  | {
+      ok: false;
+      reason:
+        | "input_tidak_valid"
+        | "makam_tpu_tidak_ditemukan"
+        | "email_bukan_akun_ini"
+        | "terlalu_awal"
+        | "sudah_dipesan"
+        | "harga_tidak_tersedia";
+    };
 
-const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
+const nomorSchema = z
+  .string()
+  .trim()
+  .regex(/^MKM-\d{4}-\d{6}$/);
 const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Places a Perpanjangan TPU for the Pemegang Hak of a Makam TPU: Diajukan, its Nomor Pemesanan, the filing documents to upload and no Tagihan. */
-export async function placePerpanjanganTpu(deps: PengurusanDeps, input: PlacePerpanjanganTpuInput): Promise<PlacePerpanjanganTpuResult> {
+export async function placePerpanjanganTpu(
+  deps: PengurusanDeps,
+  input: PlacePerpanjanganTpuInput,
+): Promise<PlacePerpanjanganTpuResult> {
   const now = deps.clock.now();
   const nama = input.pemesanName.trim();
-  if (nama === "" || !TANGGAL.test(input.berlakuSampai) || Number.isNaN(Date.parse(input.berlakuSampai))) return { ok: false, reason: "input_tidak_valid" };
+  if (
+    nama === "" ||
+    !TANGGAL.test(input.berlakuSampai) ||
+    Number.isNaN(Date.parse(input.berlakuSampai))
+  )
+    return { ok: false, reason: "input_tidak_valid" };
   const akun = await deps.identity.accountByEmail(input.pemesan.email);
-  if (!akun || akun.id !== input.pemesan.accountId) return { ok: false, reason: "email_bukan_akun_ini" };
-  const [makam] = await deps.db.select().from(makamTpu).where(eq(makamTpu.id, input.makamTpuId));
-  if (!makam || makam.pemegangAccountId !== akun.id) return { ok: false, reason: "makam_tpu_tidak_ditemukan" };
+  if (!akun || akun.id !== input.pemesan.accountId)
+    return { ok: false, reason: "email_bukan_akun_ini" };
+  const [makam] = await deps.db
+    .select()
+    .from(makamTpu)
+    .where(eq(makamTpu.id, input.makamTpuId));
+  if (!makam || makam.pemegangAccountId !== akun.id)
+    return { ok: false, reason: "makam_tpu_tidak_ditemukan" };
 
   const hariIni = wibDateOf(now);
-  if (hariIni < addWibDateMonths(input.berlakuSampai, -BULAN_PERPANJANGAN_TPU_DIBUKA)) return { ok: false, reason: "terlalu_awal" };
-  const lewatMasaTenggang = hariIni > addWibDateMonths(input.berlakuSampai, BULAN_MASA_TENGGANG_TPU);
+  if (
+    hariIni <
+    addWibDateMonths(input.berlakuSampai, -BULAN_PERPANJANGAN_TPU_DIBUKA)
+  )
+    return { ok: false, reason: "terlalu_awal" };
+  const lewatMasaTenggang =
+    hariIni >
+    addWibDateMonths(
+      berakhirEfektif(input.berlakuSampai, makam.iptmBerlakuSampai),
+      BULAN_MASA_TENGGANG_TPU,
+    );
+  const terbuka = await deps.db
+    .select({ id: pengurusanTpu.id })
+    .from(pengurusanTpu)
+    .where(
+      and(
+        eq(pengurusanTpu.makamTpuId, makam.id),
+        eq(pengurusanTpu.kind, "perpanjangan_tpu"),
+        notInArray(pengurusanTpu.status, [
+          "ditolak",
+          "dibatalkan",
+          "iptm_terbit",
+        ]),
+      ),
+    )
+    .limit(1);
+  if (terbuka.length > 0) return { ok: false, reason: "sudah_dipesan" };
 
   const dikutip = await deps.tariffs.quote(
     [
@@ -55,43 +121,74 @@ export async function placePerpanjanganTpu(deps: PengurusanDeps, input: PlacePer
     ],
     now,
   );
-  if (!dikutip.ok || !withinPaymentCap(dikutip.total)) return { ok: false, reason: "harga_tidak_tersedia" };
+  if (!dikutip.ok || !withinPaymentCap(dikutip.total))
+    return { ok: false, reason: "harga_tidak_tersedia" };
   const tpu = await deps.lokasi.publicTpuDki(makam.tpuId);
   const almarhum = makam.almarhum[0]!;
   const dokumen = daftarDokumenPerpanjangan();
 
-  return refusable(deps.db, async (tx) => {
-    const nomor = await deps.billing.within(tx).nextNomorPemesanan();
-    await tx.insert(pengurusanTpu).values({
-      nomor,
-      kind: "perpanjangan_tpu",
-      status: "diajukan",
-      tpuId: makam.tpuId,
-      tpuName: makam.tpuName,
-      tpuAddress: tpu?.address ?? "",
-      pemesanAccountId: akun.id,
-      pemesanName: nama,
-      email: akun.email,
-      phoneNumber: input.phoneNumber.trim() || null,
-      almarhumName: almarhum.name,
-      tanggalWafat: almarhum.tanggalWafat || hariIni,
-      jenisPenguburan: "tumpang",
-      kelayakan: { ktpDki: true, wafatDiJakarta: true },
-      kuburan: { blokNomor: makam.blokNomor, nama: almarhum.name },
-      pemegangHak: makam.pemegangHak,
-      dokumenPemakaman: dokumen.pemakaman,
-      dokumenPengajuan: dokumen.pengajuan,
-      diajukanAt: now,
-      makamTpuId: makam.id,
-      iptmBerakhirPada: input.berlakuSampai,
-      lewatMasaTenggang,
+  try {
+    return await refusable(deps.db, async (tx) => {
+      const nomor = await deps.billing.within(tx).nextNomorPemesanan();
+      await tx.insert(pengurusanTpu).values({
+        nomor,
+        kind: "perpanjangan_tpu",
+        status: "diajukan",
+        tpuId: makam.tpuId,
+        tpuName: makam.tpuName,
+        tpuAddress: tpu?.address ?? "",
+        pemesanAccountId: akun.id,
+        pemesanName: nama,
+        email: akun.email,
+        phoneNumber: input.phoneNumber.trim() || null,
+        almarhumName: almarhum.name,
+        // The table needs a date of death; a renewal has no new burial, so the first Almarhum's, else the day of the request.
+        tanggalWafat: almarhum.tanggalWafat || hariIni,
+        jenisPenguburan: "tumpang",
+        kelayakan: { ktpDki: true, wafatDiJakarta: true },
+        kuburan: { blokNomor: makam.blokNomor, nama: almarhum.name },
+        pemegangHak: makam.pemegangHak,
+        dokumenPemakaman: dokumen.pemakaman,
+        dokumenPengajuan: dokumen.pengajuan,
+        diajukanAt: now,
+        makamTpuId: makam.id,
+        iptmBerakhirPada: input.berlakuSampai,
+        iptmTercatatBerakhirPada: makam.iptmBerlakuSampai,
+        lewatMasaTenggang,
+      });
+      return {
+        ok: true as const,
+        pengurusan: { nomor, status: "diajukan" as const, lewatMasaTenggang },
+      };
     });
-    return { ok: true as const, pengurusan: { nomor, status: "diajukan" as const, lewatMasaTenggang } };
-  });
+  } catch (error) {
+    // The partial unique index is the race-safe guard: a concurrent second order for the same Makam TPU loses here.
+    if (isUniqueViolation(error)) return { ok: false, reason: "sudah_dipesan" };
+    throw error;
+  }
+}
+
+/** The expiry the masa tenggang runs from: the earlier of the typed date and the one recorded on the Makam TPU, so a later typed date cannot skip the TPU check. */
+function berakhirEfektif(diketik: string, tercatat: string | null): string {
+  return tercatat && tercatat < diketik ? tercatat : diketik;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  for (
+    let e = error as { code?: string; cause?: unknown } | undefined;
+    e;
+    e = e.cause as typeof e
+  ) {
+    if (e.code === "23505") return true;
+  }
+  return false;
 }
 
 export const mintaPerbaikanSchema = z.object({
-  nomor: z.string().trim().regex(/^MKM-\d{4}-\d{6}$/),
+  nomor: z
+    .string()
+    .trim()
+    .regex(/^MKM-\d{4}-\d{6}$/),
   /** What is wrong, in words the Pemegang Hak can act on. */
   alasan: z.string().trim().min(1).max(500),
   /** The checklist documents to upload again. */
@@ -101,21 +198,45 @@ export const mintaPerbaikanSchema = z.object({
 export type MintaPerbaikanResult =
   | { ok: true; status: "perlu_perbaikan" }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" | "dokumen_tidak_dikenal" };
+  | {
+      ok: false;
+      reason:
+        | "input_tidak_valid"
+        | "pengurusan_tidak_ditemukan"
+        | "status_tidak_sesuai"
+        | "dokumen_tidak_dikenal";
+    };
 
 /**
  * Admin Platform's document check finds one that needs fixing, before any Tagihan: the order goes to Perlu Perbaikan, the
  * documents named are cleared for a new upload, and the check runs again once they are in. Audited.
  */
-export async function mintaPerbaikan(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<MintaPerbaikanResult> {
-  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+export async function mintaPerbaikan(
+  deps: PengurusanDeps,
+  by: Actor,
+  rawInput: unknown,
+): Promise<MintaPerbaikanResult> {
+  const refusal = writeRefusal(
+    by,
+    "pengurusan.konfirmasi",
+    pengurusanTpuResource(),
+  );
   if (refusal) return refusal;
   const parsed = mintaPerbaikanSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
-  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, parsed.data.nomor));
-  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
-  return kembalikanKePerbaikan(deps, by, order, { aksi: "pengurusan.perbaikan_diminta", alasan: parsed.data.alasan, dokumen: parsed.data.dokumen });
+  const [order] = await deps.db
+    .select()
+    .from(pengurusanTpu)
+    .where(eq(pengurusanTpu.nomor, parsed.data.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu")
+    return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!menungguPemeriksaan(order))
+    return { ok: false, reason: "status_tidak_sesuai" };
+  return kembalikanKePerbaikan(deps, by, order, {
+    aksi: "pengurusan.perbaikan_diminta",
+    alasan: parsed.data.alasan,
+    dokumen: parsed.data.dokumen,
+  });
 }
 
 /** Admin Platform's 1 working day to ask the TPU once a past-grace request is in (settled with ticket 48: the spec gives the row no figure). */
@@ -124,48 +245,97 @@ export const HARI_KERJA_CEK_TPU = 1;
 export const putuskanCekTpuSchema = z.discriminatedUnion("putusan", [
   z.object({ putusan: z.literal("lanjut"), nomor: nomorSchema }),
   /** The TPU will not renew: the reason is shown to the Pemegang Hak. */
-  z.object({ putusan: z.literal("tolak"), nomor: nomorSchema, alasan: z.string().trim().min(1).max(500) }),
+  z.object({
+    putusan: z.literal("tolak"),
+    nomor: nomorSchema,
+    alasan: z.string().trim().min(1).max(500),
+  }),
 ]);
 
 export type PutuskanCekTpuResult =
   | { ok: true; status: "diajukan" | "ditolak" }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
+  | {
+      ok: false;
+      reason:
+        | "input_tidak_valid"
+        | "pengurusan_tidak_ditemukan"
+        | "status_tidak_sesuai";
+    };
 
 /**
  * The answer of the TPU to a request past the masa tenggang, recorded by Admin Platform after asking it, without charge:
  * it goes on to the document check (and then the pay-first Tagihan), or the TPU won't renew and the request is closed
  * Ditolak with the reason, no Tagihan ever issued. Audited.
  */
-export async function putuskanCekTpu(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<PutuskanCekTpuResult> {
-  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+export async function putuskanCekTpu(
+  deps: PengurusanDeps,
+  by: Actor,
+  rawInput: unknown,
+): Promise<PutuskanCekTpuResult> {
+  const refusal = writeRefusal(
+    by,
+    "pengurusan.konfirmasi",
+    pengurusanTpuResource(),
+  );
   if (refusal) return refusal;
   const parsed = putuskanCekTpuSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
-  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
-  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (order.status !== "diajukan" || !order.lewatMasaTenggang || order.cekTpuSelesaiPada) return { ok: false, reason: "status_tidak_sesuai" };
+  const [order] = await deps.db
+    .select()
+    .from(pengurusanTpu)
+    .where(eq(pengurusanTpu.nomor, input.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu")
+    return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (
+    order.status !== "diajukan" ||
+    !order.lewatMasaTenggang ||
+    order.cekTpuSelesaiPada
+  )
+    return { ok: false, reason: "status_tidak_sesuai" };
   const now = deps.clock.now();
-  return deps.audit.staffWrite<PutuskanCekTpuResult>(deps.db, async (tx, record) => {
-    const hasil = await tx
-      .update(pengurusanTpu)
-      .set(input.putusan === "lanjut" ? { cekTpuSelesaiPada: now } : { cekTpuSelesaiPada: now, status: "ditolak", ditolakPada: now, alasan: input.alasan })
-      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "diajukan"), isNull(pengurusanTpu.cekTpuSelesaiPada)))
-      .returning({ id: pengurusanTpu.id });
-    if (hasil.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
-    const status = input.putusan === "lanjut" ? ("diajukan" as const) : ("ditolak" as const);
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "pengurusan.cek_tpu",
-      entity: { kind: "pengurusan_tpu", id: order.id },
-      lokasiId: null,
-      before: { status: "diajukan" },
-      after: { status, putusan: input.putusan },
-      reason: input.putusan === "tolak" ? input.alasan : null,
-    });
-    return { ok: true as const, status };
-  });
+  return deps.audit.staffWrite<PutuskanCekTpuResult>(
+    deps.db,
+    async (tx, record) => {
+      const hasil = await tx
+        .update(pengurusanTpu)
+        .set(
+          input.putusan === "lanjut"
+            ? { cekTpuSelesaiPada: now }
+            : {
+                cekTpuSelesaiPada: now,
+                status: "ditolak",
+                ditolakPada: now,
+                alasan: input.alasan,
+              },
+        )
+        .where(
+          and(
+            eq(pengurusanTpu.id, order.id),
+            eq(pengurusanTpu.status, "diajukan"),
+            isNull(pengurusanTpu.cekTpuSelesaiPada),
+          ),
+        )
+        .returning({ id: pengurusanTpu.id });
+      if (hasil.length === 0)
+        return { ok: false as const, reason: "status_tidak_sesuai" as const };
+      const status =
+        input.putusan === "lanjut"
+          ? ("diajukan" as const)
+          : ("ditolak" as const);
+      await record({
+        actor: { accountId: by.accountId, role: "admin_platform" },
+        action: "pengurusan.cek_tpu",
+        entity: { kind: "pengurusan_tpu", id: order.id },
+        lokasiId: null,
+        before: { status: "diajukan" },
+        after: { status, putusan: input.putusan },
+        reason: input.putusan === "tolak" ? input.alasan : null,
+      });
+      return { ok: true as const, status };
+    },
+  );
 }
 
 /** A Perpanjangan TPU past the masa tenggang whose TPU has not yet been asked. */
@@ -180,11 +350,20 @@ export interface CekTpuTerbuka {
 }
 
 /** Every past-grace request waiting for the TPU's answer, oldest first: the Antrean's Tier 3 past-grace TPU check. No actor: the caller checks `antrean.lihat`. */
-export async function cekTpuTerbuka(deps: Pick<PengurusanDeps, "db" | "lokasi">): Promise<CekTpuTerbuka[]> {
+export async function cekTpuTerbuka(
+  deps: Pick<PengurusanDeps, "db" | "lokasi">,
+): Promise<CekTpuTerbuka[]> {
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "perpanjangan_tpu"), eq(pengurusanTpu.status, "diajukan"), eq(pengurusanTpu.lewatMasaTenggang, true), isNull(pengurusanTpu.cekTpuSelesaiPada)));
+    .where(
+      and(
+        eq(pengurusanTpu.kind, "perpanjangan_tpu"),
+        eq(pengurusanTpu.status, "diajukan"),
+        eq(pengurusanTpu.lewatMasaTenggang, true),
+        isNull(pengurusanTpu.cekTpuSelesaiPada),
+      ),
+    );
   const hasil = await Promise.all(
     rows.map(async (row) => ({
       id: row.id,
@@ -208,39 +387,79 @@ export const koreksiIptmBerakhirSchema = z.object({
 export type KoreksiIptmBerakhirResult =
   | { ok: true; berlakuSampai: string }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
+  | {
+      ok: false;
+      reason:
+        | "input_tidak_valid"
+        | "pengurusan_tidak_ditemukan"
+        | "status_tidak_sesuai";
+    };
 
 /**
  * Admin Platform corrects the expiry date the Pemegang Hak read off the IPTM photo (spec: "read off the IPTM photo and
  * corrected by Admin Platform"), until a Tagihan has been issued. Whether the request is past the masa tenggang is read
  * again from the corrected date, as of the day it was placed. Audited with the reason.
  */
-export async function koreksiIptmBerakhir(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<KoreksiIptmBerakhirResult> {
-  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+export async function koreksiIptmBerakhir(
+  deps: PengurusanDeps,
+  by: Actor,
+  rawInput: unknown,
+): Promise<KoreksiIptmBerakhirResult> {
+  const refusal = writeRefusal(
+    by,
+    "pengurusan.konfirmasi",
+    pengurusanTpuResource(),
+  );
   if (refusal) return refusal;
   const parsed = koreksiIptmBerakhirSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const input = parsed.data;
-  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
-  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
-  const lewat = wibDateOf(order.diajukanAt) > addWibDateMonths(input.berlakuSampai, BULAN_MASA_TENGGANG_TPU);
-  return deps.audit.staffWrite<KoreksiIptmBerakhirResult>(deps.db, async (tx, record) => {
-    const hasil = await tx
-      .update(pengurusanTpu)
-      .set({ iptmBerakhirPada: input.berlakuSampai, lewatMasaTenggang: lewat, ...(lewat === order.lewatMasaTenggang ? {} : { cekTpuSelesaiPada: null }) })
-      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status), isNull(pengurusanTpu.tagihanId)))
-      .returning({ id: pengurusanTpu.id });
-    if (hasil.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "pengurusan.iptm_berakhir_dikoreksi",
-      entity: { kind: "pengurusan_tpu", id: order.id },
-      lokasiId: null,
-      before: { berlakuSampai: order.iptmBerakhirPada },
-      after: { berlakuSampai: input.berlakuSampai },
-      reason: input.alasan,
-    });
-    return { ok: true as const, berlakuSampai: input.berlakuSampai };
-  });
+  const [order] = await deps.db
+    .select()
+    .from(pengurusanTpu)
+    .where(eq(pengurusanTpu.nomor, input.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu")
+    return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (!menungguPemeriksaan(order))
+    return { ok: false, reason: "status_tidak_sesuai" };
+  const lewat =
+    wibDateOf(order.diajukanAt) >
+    addWibDateMonths(
+      berakhirEfektif(input.berlakuSampai, order.iptmTercatatBerakhirPada),
+      BULAN_MASA_TENGGANG_TPU,
+    );
+  return deps.audit.staffWrite<KoreksiIptmBerakhirResult>(
+    deps.db,
+    async (tx, record) => {
+      const hasil = await tx
+        .update(pengurusanTpu)
+        .set({
+          iptmBerakhirPada: input.berlakuSampai,
+          lewatMasaTenggang: lewat,
+          ...(lewat === order.lewatMasaTenggang
+            ? {}
+            : { cekTpuSelesaiPada: null }),
+        })
+        .where(
+          and(
+            eq(pengurusanTpu.id, order.id),
+            eq(pengurusanTpu.status, order.status),
+            isNull(pengurusanTpu.tagihanId),
+          ),
+        )
+        .returning({ id: pengurusanTpu.id });
+      if (hasil.length === 0)
+        return { ok: false as const, reason: "status_tidak_sesuai" as const };
+      await record({
+        actor: { accountId: by.accountId, role: "admin_platform" },
+        action: "pengurusan.iptm_berakhir_dikoreksi",
+        entity: { kind: "pengurusan_tpu", id: order.id },
+        lokasiId: null,
+        before: { berlakuSampai: order.iptmBerakhirPada },
+        after: { berlakuSampai: input.berlakuSampai },
+        reason: input.alasan,
+      });
+      return { ok: true as const, berlakuSampai: input.berlakuSampai };
+    },
+  );
 }

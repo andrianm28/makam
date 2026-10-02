@@ -33,23 +33,30 @@ function tahap(hariIni: string, berlakuSampai: string): 1 | 3 | null {
   return null;
 }
 
-export async function pengingatIptmTick(deps: PengingatIptmDeps, now: Date): Promise<{ diumumkan: number }> {
-  if (!dalamJamKirim(now)) return { diumumkan: 0 };
+export async function pengingatIptmTick(deps: PengingatIptmDeps, now: Date): Promise<{ diumumkan: number; dilewati: number }> {
+  if (!dalamJamKirim(now)) return { diumumkan: 0, dilewati: 0 };
   const hariIni = wibDateOf(now);
   const kandidat = await deps.db
     .select()
     .from(makamTpu)
     .where(and(gte(makamTpu.iptmBerlakuSampai, hariIni), lte(makamTpu.iptmBerlakuSampai, addWibDateMonths(hariIni, BULAN_PERPANJANGAN_TPU_DIBUKA))));
   let diumumkan = 0;
+  let dilewati = 0;
   for (const makam of kandidat) {
     const sisaBulan = tahap(hariIni, makam.iptmBerlakuSampai);
-    if (sisaBulan === null) continue;
+    if (sisaBulan === null) {
+      dilewati += 1;
+      continue;
+    }
     const dipesan = await deps.db
       .select({ id: pengurusanTpu.id })
       .from(pengurusanTpu)
       .where(and(eq(pengurusanTpu.makamTpuId, makam.id), eq(pengurusanTpu.kind, "perpanjangan_tpu"), notInArray(pengurusanTpu.status, ["ditolak", "dibatalkan"])))
       .limit(1);
-    if (dipesan.length > 0) continue;
+    if (dipesan.length > 0) {
+      dilewati += 1;
+      continue;
+    }
     const akun = makam.pemegangAccountId ? await deps.identity.accountOnRecord(makam.pemegangAccountId) : null;
     const hasil = await deps.notifikasi.pengingatIptmBerakhir({
       makamTpuId: makam.id,
@@ -65,5 +72,5 @@ export async function pengingatIptmTick(deps: PengingatIptmDeps, now: Date): Pro
     if (!hasil.ok) throw new Error(`pengingat IPTM ${makam.id} ditolak: ${hasil.reason}`);
     diumumkan += 1;
   }
-  return { diumumkan };
+  return { diumumkan, dilewati };
 }

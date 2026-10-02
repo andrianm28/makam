@@ -65,7 +65,7 @@ describe("requesting a Perpanjangan TPU", () => {
 });
 
 describe("a second Perpanjangan TPU for the same Makam TPU", () => {
-  it("is refused while one is open, so the Pemegang Hak is not charged twice, and allowed again once it is Ditolak", async () => {
+  it("is refused while one is open, so the Pemegang Hak is not charged twice", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await makamBerakhir(setup, "2027-02-15");
     setup.clock.set(wib("2026-12-20 10:00"));
@@ -318,7 +318,7 @@ describe("IPTM Terbit of a Perpanjangan TPU", () => {
 describe("correcting the IPTM expiry date", () => {
   it("lets Admin Platform correct the date read off the photo, audited with its reason, and re-reads the masa tenggang from it", async () => {
     const setup = pengajuanOnTestDatabase(db);
-    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const dasar = await makamBerakhir(setup, "2027-05-30");
     setup.clock.set(wib("2027-05-20 10:00"));
     const nomor = await pesananPada(setup, dasar, "2027-05-30");
     expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ perpanjangan: { iptmBerakhirPada: "2027-05-30", lewatMasaTenggang: false } });
