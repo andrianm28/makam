@@ -104,3 +104,83 @@ describe("Layanan chosen for an empty plot on a Pemesanan Terencana", () => {
     expect((await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan))?.item).toMatchObject([{ pekerjaan: { status: "dibatalkan" } }]);
   });
 });
+
+/** The Pemegang Hak (the Pemesan) asks to cancel the one plot and the Admin Lokasi approves; both must be accepted. */
+async function batalkanPetak(setup: PemesananSetup, dasar: Awaited<ReturnType<typeof dengan2Layanan>>) {
+  const order = await setup.pemesanan.terencanaUntukStaf(dasar.fixture.adminLokasi, dasar.nomor);
+  const ajukan = await setup.pemesanan.ajukanPembatalanTerencana(dasar.pemesan, { hakPakaiId: order!.unit[0].hakPakaiId!, catatan: "" });
+  if (!ajukan.ok) throw new Error(`ajukanPembatalanTerencana refused: ${ajukan.reason}`);
+  const setuju = await setup.pemesanan.setujuiPembatalanTerencana(dasar.fixture.adminLokasi, { id: ajukan.permintaan.id });
+  if (!setuju.ok) throw new Error(`setujuiPembatalanTerencana refused: ${setuju.reason}`);
+  return setuju;
+}
+
+const foto = () => new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
+
+/** An order for A-01 with a Pembersihan (Rp 400.000, 20 Oktober) and a Tabur Bunga (Rp 250.000, 22 Oktober), paid, inside a 30-day Masa Pembatalan. */
+async function dengan2Layanan(setup: PemesananSetup) {
+  const { actor: admin } = await adminPlatformOf(setup);
+  await siapkanOperatorPemesanan(setup);
+  const fixture = await terencanaLokasi(setup, admin, { masaPembatalanDays: 30, refundPercent: 40 });
+  const pembersihan = await tawarkanLayananDi(setup, fixture.lokasiMitra.id, { nama: "Pembersihan Makam", bisaHariH: false, adaDiPetakKosong: true, leadTimeDays: 3, amount: 400_000 });
+  const bunga = await tawarkanLayananDi(setup, fixture.lokasiMitra.id, { nama: "Tabur Bunga Petak", bisaHariH: false, adaDiPetakKosong: true, leadTimeDays: 3, amount: 250_000 });
+  const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id");
+  const id = await unitIds(setup, fixture, ["A-01"]);
+  const placed = await setup.pemesanan.placeTerencana({
+    ...dataPemesan,
+    pemesan,
+    lokasiId: fixture.lokasiMitra.id,
+    units: [{ petakId: id["A-01"] }],
+    layanan: [
+      { layananVariantId: pembersihan.varian.id, targetDate: "2026-10-20" },
+      { layananVariantId: bunga.varian.id, targetDate: "2026-10-22" },
+    ],
+  });
+  if (!placed.ok) throw new Error(`placeTerencana refused: ${placed.reason}`);
+  const nomor = placed.pemesanan.nomor;
+  const konfirmasi = await setup.pemesanan.konfirmasiTerencana(fixture.adminLokasi, { nomor });
+  if (!konfirmasi.ok) throw new Error(`konfirmasiTerencana refused: ${konfirmasi.reason}`);
+  const dibayar = await setup.billing.recordPayment(konfirmasi.tagihan.id, { method: QRIS, reference: null });
+  if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
+  return { fixture, pemesan, nomor, tagihanId: konfirmasi.tagihan.id };
+}
+
+describe("Pembatalan Terencana of a plot that has Layanan", () => {
+  it("cancels the plot's Layanan not yet done and refunds them with the Hak Pakai, in the one request", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await dengan2Layanan(setup);
+    const tagihan = await setup.billing.tagihan(dasar.tagihanId);
+    const hargaHakPakai = tagihan!.lines.find((line) => line.kind === "harga_hak_pakai")!.amount;
+
+    const hasil = await batalkanPetak(setup, dasar);
+
+    expect((await setup.layanan.pesananLayananOf(dasar.nomor, dasar.pemesan))?.item).toMatchObject([{ pekerjaan: { status: "dibatalkan" } }, { pekerjaan: { status: "dibatalkan" } }]);
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({
+      id: hasil.pengembalian?.permintaanId,
+      jumlah: hargaHakPakai + 400_000 + 250_000,
+      pihakBersalah: "pemesan",
+      biayaLayananPlatformDikembalikan: false,
+    });
+  });
+
+  it("does not refund a Layanan already done, and leaves it Selesai", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await dengan2Layanan(setup);
+    const tagihan = await setup.billing.tagihan(dasar.tagihanId);
+    const hargaHakPakai = tagihan!.lines.find((line) => line.kind === "harga_hak_pakai")!.amount;
+    // The Pembersihan is done on its day.
+    setup.clock.set(wib("2026-10-20 11:00"));
+    const kerja = (await setup.layanan.pesananLayananOf(dasar.nomor, dasar.pemesan))!.item.find((satu) => satu.targetDate === "2026-10-20")!.pekerjaan!;
+    for (const kind of ["foto_sebelum", "foto_sesudah"] as const) {
+      await setup.layanan.unggahBuktiPekerjaan(dasar.fixture.adminLokasi, { pekerjaanId: kerja.id, kind, takenAt: wib("2026-10-20 10:00"), file: { body: foto(), contentType: "image/jpeg" } });
+    }
+    expect((await setup.layanan.selesaikanPekerjaan(dasar.fixture.adminLokasi, { pekerjaanId: kerja.id })).ok).toBe(true);
+
+    await batalkanPetak(setup, dasar);
+
+    const item = (await setup.layanan.pesananLayananOf(dasar.nomor, dasar.pemesan))!.item;
+    expect(item.find((satu) => satu.targetDate === "2026-10-20")?.pekerjaan?.status).toBe("selesai");
+    expect(item.find((satu) => satu.targetDate === "2026-10-22")?.pekerjaan?.status).toBe("dibatalkan");
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ jumlah: hargaHakPakai + 250_000 });
+  });
+});
