@@ -168,6 +168,7 @@ async function main() {
       inventory,
       billing,
       perpanjanganUrl: urls.perpanjanganUrl,
+      perpanjanganTpuUrl: urls.perpanjanganTpuUrl,
       notifikasi,
       payouts,
       refunds,

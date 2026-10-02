@@ -15,7 +15,7 @@ import type { Database } from "@/db/client";
 import { rilisAktif } from "@/lib/rilis";
 import { fiturUntukTick, terbukaDi, type Rilis } from "@/lib/rilis-peta";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type Billing, type PaymentEffect } from "@/domain/billing";
-import { pembayaranBerkasTick } from "@/domain/pengurusan";
+import { pembayaranBerkasTick, pengingatIptmTick, type PengingatIptmDeps } from "@/domain/pengurusan";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
 import { berhentiBerlakuTick as berhentiBerlaku, type BerhentiContext } from "./berhenti";
@@ -76,6 +76,8 @@ export interface SchedulerContext {
   pengingatHakPakai: PengingatDeps;
   /** The filing-only Pengurusan IPTM tick (ticket 47): Billing's read of its pay-first Tagihan. */
   pengurusan: PengurusanTickContext;
+  /** The IPTM expiry reminders' own dependencies: the Akun's email, Notifications and the Perpanjangan IPTM link (ticket 48). */
+  pengingatIptm: PengingatIptmDeps;
 }
 
 /** What the filing-only Pengurusan IPTM tick reads: its own database and Billing's one public read of a Tagihan. */
@@ -129,6 +131,7 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "pemesanan.lewat_batas_bayar_terencana", cron: "* * * * *", tick: lewatBatasBayarTerencanaTick },
   // Pengurusan: a filing-only IPTM whose pay-first Tagihan is Lunas becomes Diproses, and one whose Tagihan lapsed becomes Dibatalkan (ticket 47).
   { name: "pengurusan.pembayaran_berkas", cron: "* * * * *", tick: pembayaranBerkasPengurusanTick },
+  { name: "pengurusan.pengingat_iptm", cron: "23 * * * *", tick: pengingatIptmBerakhirTick },
   // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32);
   // a paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa Pembatalan (ticket 37).
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
@@ -222,6 +225,11 @@ async function chasingEskalasiTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Pengurusan module's IPTM expiry reminders (idempotent there, as every tick is). */
+async function pengingatIptmBerakhirTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await pengingatIptmTick(ctx.pengingatIptm, now);
 }
 
 /** The worker wrapper around the Pengurusan module's filing-only payment follow-up (idempotent there, as every tick is). */

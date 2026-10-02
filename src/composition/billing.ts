@@ -103,6 +103,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
     pengurusanUrl: (nomor: string) => `${publicOrigin}/pengurusan/${nomor}`,
     /** A Hak Pakai's Perpanjangan page, the link of the end reminders (ticket 42). */
     perpanjanganUrl: (hakPakaiId: string) => `${publicOrigin}/perpanjangan/${hakPakaiId}`,
+    /** A Makam TPU's Perpanjangan IPTM page, the link of the IPTM expiry reminders (ticket 48). */
+    perpanjanganTpuUrl: (makamTpuId: string) => `${publicOrigin}/pesan-makam/perpanjang-iptm/${makamTpuId}`,
     /** An order Layanan's own page, where its Pemesan follows every job and its proof (ticket 50). */
     layananUrl: (nomor: string) => `${publicOrigin}/layanan/${nomor}`,
   };
