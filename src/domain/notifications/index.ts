@@ -95,6 +95,10 @@ import {
 import {
   pesananAlternatifDitawarkan,
   pesananDibatalkan,
+  tumpangMintaPersetujuan,
+  type TumpangMintaPersetujuanInput,
+  tumpangDitolak,
+  type TumpangDitolakInput,
   pesananBuktiPemesanan,
   pesananDiajukan,
   pesananDikonfirmasi,
@@ -267,6 +271,8 @@ export const staffAlertKinds = [
   "staf_saat_duka_belum_dikonfirmasi",
   /** A family submitted a new Pemesanan Terencana; one alert, no re-alert (ticket 97). */
   "staf_terencana_baru",
+  /** An heirship proof was logged for a further burial: record a Ganti Pemegang Hak (ticket 35, owner 2026-10-02). */
+  "staf_ganti_pemegang_hak",
   "staf_antrean_mendesak",
   "staf_antrean_eskalasi",
   "staf_tugas_lapangan_baru",
@@ -463,6 +469,10 @@ export interface Notifications {
   pesananAlternatifDitawarkan(input: PesananAlternatifDitawarkanInput): Promise<PesanPemesananResult>;
   /** A cancelled order: the Petak given back, the Tagihan cancelled and the money on its way back. */
   pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
+  /** The Pemegang Hak consent request for a further burial: an ordinary email with a link to Akun Saya (ticket 35). */
+  tumpangMintaPersetujuan(input: TumpangMintaPersetujuanInput): Promise<PesanPemesananResult>;
+  /** A further burial refused: its own message, no Pilih makam (ticket 35). */
+  tumpangDitolak(input: TumpangDitolakInput): Promise<PesanPemesananResult>;
   /**
    * Announces the Bukti Pemesanan of a paid order: the link to the document that
    * proves the right, by email (ADR 0004; ticket 25). An order with no email
@@ -903,6 +913,14 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananAlternatifDitawarkan(input) {
       return pesananAlternatifDitawarkan(deps, input);
+    },
+
+    async tumpangDitolak(input) {
+      return tumpangDitolak(deps, input);
+    },
+
+    async tumpangMintaPersetujuan(input) {
+      return tumpangMintaPersetujuan(deps, input);
     },
 
     async pesananDibatalkan(input) {

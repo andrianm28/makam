@@ -138,3 +138,63 @@ describe("the same order confirmed reaches the family's verified email", () => {
     ]);
   });
 });
+
+describe("the Pemegang Hak's consent request for a further burial (Makamkan di sini)", () => {
+  it("is an ordinary email with a link to Akun Saya and no code, logged on the order", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    setup.clock.set(wib("2026-10-01 22:00"));
+
+    const hasil = await setup.notifications.tumpangMintaPersetujuan({
+      pemesananId: PESANAN_ID,
+      nomor: "MKM-2026-000001",
+      email: "pemegang@contoh.id",
+      pemegangHakName: "Siti Aminah",
+      pemesanName: "Budi Santoso",
+      lokasi: LOKASI,
+      almarhum: { name: "Hasan Basri", tanggalWafat: "2026-09-30" },
+    });
+    expect(hasil).toEqual({ ok: true });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    const sent = setup.email.sent.filter((message) => message.to === "pemegang@contoh.id");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toContain("Hasan Basri");
+    expect(sent[0]?.text).toContain("/akun");
+    expect(sent[0]?.text).toContain("Setujui");
+    // No code of its own: it points at the usual Kode Masuk sign-in and carries no six-digit code besides the Nomor Pemesanan.
+    expect(sent[0]?.text.replace("MKM-2026-000001", "")).not.toMatch(/\b\d{6}\b/);
+    expect(await setup.notifications.pesanPemesanan(PESANAN_ID)).toEqual([
+      expect.objectContaining({ template: "tumpang_minta_persetujuan", channel: "email", status: "terkirim" }),
+    ]);
+  });
+});
+
+describe("a refused further burial reaches the family in its own words", () => {
+  it("says the Lokasi cannot carry it out, nothing is due and the Hak Pakai is untouched, with the Kontak Siaga to call and no Pilih makam link, and opens no call row", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const hasil = await setup.notifications.tumpangDitolak({
+      pemesananId: PESANAN_ID,
+      nomor: "MKM-2026-000001",
+      email: "keluarga@contoh.id",
+      pemesanName: "Rina",
+      lokasi: LOKASI,
+      alasan: "Pemegang Hak tidak menyetujui",
+      almarhum: { name: "Hasan Basri", tanggalWafat: "2026-09-30" },
+      kontakSiaga: { name: "Pak Ahmad", phoneNumber: "081200000009" },
+    });
+    expect(hasil).toEqual({ ok: true });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    const sent = setup.email.sent.filter((message) => message.to === "keluarga@contoh.id");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toContain("Pemegang Hak tidak menyetujui");
+    expect(sent[0]?.text).toContain("Hak Pakai");
+    expect(sent[0]?.text).toContain("tidak ada yang perlu dibayar");
+    expect(sent[0]?.text).toContain("Pak Ahmad");
+    expect(sent[0]?.text).toContain("081200000009");
+    expect(sent[0]?.text).not.toContain("Pilih makam");
+    expect(sent[0]?.text).not.toContain("saat-duka");
+    expect(await setup.notifications.pesanPemesanan(PESANAN_ID)).toEqual([expect.objectContaining({ template: "tumpang_ditolak", status: "terkirim" })]);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+  });
+});

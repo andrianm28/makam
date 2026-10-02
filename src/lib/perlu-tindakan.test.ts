@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perluTindakanDariBerkasTpu, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
+import { perluTindakanDariBerkasTpu, perluTindakanDariKonsen, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
 
 /** One order with nothing that needs the family, the baseline every test starts from and overrides. */
 function ringkasan(over: Partial<RingkasanTindakan> = {}): RingkasanTindakan {
@@ -111,5 +111,13 @@ describe("perluTindakanDariPermintaanHakPakai", () => {
       expect.objectContaining({ id: `permintaan-hak-pakai-perbaikan:${permintaan.id}`, href: `/permintaan-hak-pakai/${permintaan.hakPakaiId}`, judul: expect.stringContaining("Pengembalian Hak Pakai A-01") }),
       expect.objectContaining({ judul: expect.stringContaining("Ganti Pemegang Hak A-01") }),
     ]);
+  });
+});
+
+describe("Perlu tindakan: a further burial's consent request (ticket 35)", () => {
+  it("gives the Pemegang Hak one row per waiting request, pointing at its own answer page", () => {
+    const item = perluTindakanDariKonsen([{ nomor: "MKM-2026-000007", lokasiName: "TPU Al-Ikhlas", pemesanName: "Rina", almarhumName: "Budi" }]);
+    expect(item).toEqual([expect.objectContaining({ id: "konsen:MKM-2026-000007", href: "/akun/persetujuan/MKM-2026-000007" })]);
+    expect(perluTindakanDariKonsen([])).toEqual([]);
   });
 });

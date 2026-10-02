@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { rilisTerbuka } from "@/lib/rilis";
 import { CsLink } from "@/components/site/cs-link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTanggalPanjang } from "@/lib/format-tanggal";
@@ -235,6 +236,14 @@ function MakamDitemukan({ satu, aksiTerpilih, contact }: { satu: MakamTerbaca; a
           </p>
         ) : null}
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam ini" />
+        {rilisTerbuka("perpanjangan_lanjutan") ? (
+          <Link
+            href={`/pesan-makam/makamkan-di-sini/${satu.hakPakaiId}`}
+            className={aksiTerpilih === "tumpang" ? "font-medium text-brand underline underline-offset-4" : "text-body text-brand underline underline-offset-4"}
+          >
+            Makamkan di sini
+          </Link>
+        ) : null}
         <Link
           href={`/perpanjangan/${satu.hakPakaiId}`}
           className={aksiTerpilih === "perpanjang" ? "font-medium text-brand underline underline-offset-4" : "text-body text-brand underline underline-offset-4"}

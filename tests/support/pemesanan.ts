@@ -17,6 +17,8 @@ import type {
   PemesananBuktiPemesanan,
   PemesananDiajukan,
   PesananDibatalkan,
+  TumpangDitolak,
+  TumpangMintaPersetujuan,
   PemesananDikonfirmasi,
   PesananDitolak,
   PemesananNotifikasi,
@@ -79,6 +81,10 @@ export function pemesananOnTestDatabase(
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
   const dibatalkan: PesananDibatalkan[] = [];
+  /** Every consent request the Pemegang Hak was emailed for a further burial (ticket 35). */
+  const tumpangMinta: TumpangMintaPersetujuan[] = [];
+  /** Every refusal of a further burial the family was told about (ticket 35). */
+  const tumpangDitolak: TumpangDitolak[] = [];
   /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
   const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
   /** Every Chasing schedule the Pemesanan module announced, once a pay-after Tagihan's overdue anchor is known (ticket 29). */
@@ -89,6 +95,7 @@ export function pemesananOnTestDatabase(
       diumumkan.push(order);
     },
     peringatanStafSaatDuka: async () => {},
+    peringatanStafAhliWaris: async () => {},
     pesananBelumDikonfirmasi: async (order) => {
       diumumkan.push(order);
     },
@@ -103,6 +110,12 @@ export function pemesananOnTestDatabase(
     },
     pesananDibatalkan: async (hasil) => {
       dibatalkan.push(hasil);
+    },
+    tumpangDitolak: async (hasil) => {
+      tumpangDitolak.push(hasil);
+    },
+    tumpangMintaPersetujuan: async (hasil) => {
+      tumpangMinta.push(hasil);
     },
     pesananBuktiPemesanan: async (hasil) => {
       buktiPemesanan.push(hasil);
@@ -307,6 +320,8 @@ export function pemesananOnTestDatabase(
     ditolak,
     alternatif,
     dibatalkan,
+    tumpangMinta,
+    tumpangDitolak,
     terencana,
     terencanaDikonfirmasi,
     terencanaDitolak,
@@ -335,6 +350,8 @@ export type PemesananModul = Omit<
   | "ditolak"
   | "alternatif"
   | "dibatalkan"
+  | "tumpangMinta"
+  | "tumpangDitolak"
   | "terencana"
   | "terencanaDikonfirmasi"
   | "terencanaDitolak"

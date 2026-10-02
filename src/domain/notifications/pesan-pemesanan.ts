@@ -23,6 +23,8 @@ import {
   pesananDiajukanEmail,
   pesananDikonfirmasiEmail,
   pesananDitolakEmail,
+  tumpangMintaPersetujuanEmail,
+  tumpangDitolakEmail,
   layananPekerjaanSelesaiEmail,
   layananPesanBaruEmail,
   layananPesananTerbitEmail,
@@ -695,4 +697,90 @@ export async function pesanLayanan(deps: Pick<PesanKeluargaDeps, "db">, nomorPem
     attempts: row.attempts,
     sentAt: row.sentAt,
   }));
+}
+
+/** What it announces when a further burial needs the Pemegang Hak consent (ticket 35). */
+export const tumpangMintaPersetujuanSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  /** The Pemegang Hak recorded email, where the request goes. */
+  email: z.email().max(320),
+  pemegangHakName: z.string().trim().min(1).max(200),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  almarhum: almarhumSchema,
+});
+export type TumpangMintaPersetujuanInput = z.infer<typeof tumpangMintaPersetujuanSchema>;
+
+/**
+ * Emails the Pemegang Hak the consent request: an ordinary message with a link to
+ * Akun Saya, where they sign in with the usual Kode Masuk and answer under Perlu
+ * tindakan (no code of its own). A burial does not wait for a morning window.
+ */
+export async function tumpangMintaPersetujuan(deps: PesanKeluargaDeps, input: TumpangMintaPersetujuanInput): Promise<PesanPemesananResult> {
+  const parsed = tumpangMintaPersetujuanSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = tumpangMintaPersetujuanEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    pemegangHakName: data.pemegangHakName,
+    pemesanName: data.pemesanName,
+    almarhumName: data.almarhum.name,
+    tautan: new URL("/akun", deps.pesananUrl(data.nomor)).toString(),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "tumpang_minta_persetujuan",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** What it announces when a further burial was refused (ticket 35). */
+export const tumpangDitolakSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320).nullable(),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  /** The reason off the closed list, already worded by the Pemesanan module. */
+  alasan: z.string().trim().min(1).max(300),
+  almarhum: almarhumSchema,
+  kontakSiaga: z.object({ name: z.string().trim().max(200), phoneNumber: z.string().trim().max(30).nullable() }).nullable(),
+});
+export type TumpangDitolakInput = z.infer<typeof tumpangDitolakSchema>;
+
+/** Tells the family a further burial was refused, in its own wording; there is no call row, since nothing is to be re-offered. */
+export async function tumpangDitolak(deps: PesanKeluargaDeps, input: TumpangDitolakInput): Promise<PesanPemesananResult> {
+  const parsed = tumpangDitolakSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  if (!data.email) return { ok: true };
+  const now = deps.clock.now();
+  const email = tumpangDitolakEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    almarhumName: data.almarhum.name,
+    alasan: data.alasan,
+    tautan: deps.pesananUrl(data.nomor),
+    kontakSiaga: data.kontakSiaga,
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "tumpang_ditolak",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
 }

@@ -140,7 +140,8 @@ export async function batalkanUntukPemesan(
  * checking first.
  */
 function bolehDibatalkan(order: Order, alasan: string): { ok: false; reason: "pesanan_sudah_ditutup" | "alasan_wajib" } | null {
-  if (order.kind !== "saat_duka") return { ok: false, reason: "pesanan_sudah_ditutup" };
+  // A further burial runs the same track and is cancelled the same way (ticket 35).
+  if (order.kind !== "saat_duka" && order.kind !== "tumpang") return { ok: false, reason: "pesanan_sudah_ditutup" };
   if (order.status !== "diajukan" && order.status !== "dikonfirmasi") return { ok: false, reason: "pesanan_sudah_ditutup" };
   // A confirmed order has given the Lokasi a plot to hold and the family a bill to
   // pay, so it says why it is giving both back.
@@ -172,7 +173,8 @@ async function batalkanDenganAlasan(
 
   // The right and the bill go back first, so that a refusal in either leaves the
   // order itself still Dikonfirmasi and telling the truth about both.
-  if (order.hakPakaiId) {
+  // A further burial (ticket 35) was never given a right of its own: cancelling it leaves the Hak Pakai it is buried under whole.
+  if (order.hakPakaiId && order.kind !== "tumpang") {
     const hakPakai = await deps.inventory.within(tx).batalkanHakPakai({ hakPakaiId: order.hakPakaiId, alasan: alasanTertulis ?? "Pembatalan pesanan" });
     // A refusal here is the module's own reason, not a flattened one: a grave that
     // is dug, a right that is gone and a right that has already ended are three

@@ -19,6 +19,25 @@ export type PemesananKind = (typeof pemesananKinds)[number];
 export const pemesananStatuses = ["diajukan", "dikonfirmasi", "dimakamkan", "selesai", "ditolak", "dibatalkan"] as const;
 export type PemesananStatus = (typeof pemesananStatuses)[number];
 
+import { tumpangJenisKeys, type TumpangJenis } from "./skema-tumpang";
+export { tumpangJenisKeys, type TumpangJenis };
+
+/**
+ * How the Pemegang Hak's consent to a further burial resolved (spec, Pemesanan >
+ * Burial under an existing Hak Pakai): implicit when the logged-in Akun's Email
+ * Terverifikasi is the holder's recorded email (`implisit`), an emailed link to Setujui /
+ * Tolak under Perlu tindakan once the holder signs in (`menunggu_pemegang` → `disetujui` /
+ * `ditolak`), verbal consent logged by the Admin Lokasi, or heirship proof
+ * brought on the day. `menunggu_pemegang` is the only state an order sits in while
+ * it waits for the holder.
+ */
+export const konsenTumpangStates = ["implisit", "menunggu_pemegang", "menunggu_lokasi", "disetujui", "ditolak"] as const;
+export type KonsenTumpangState = (typeof konsenTumpangStates)[number];
+
+/** How a consent that was not implicit came to be: an email answer, verbal consent, or heirship proof. */
+export const konsenTumpangVias = ["implicit", "email", "verbal", "ahli_waris"] as const;
+export type KonsenTumpangVia = (typeof konsenTumpangVias)[number];
+
 /**
  * The Pemegang Hak the Pemesan named (CONTEXT.md): the Pemesan themselves by
  * default, else another relative with their own name, phone number and email
@@ -88,6 +107,32 @@ export const pemesananMakam = pgTable(
      * Null when none.
      */
     layananHariH: jsonb("layanan_hari_h").$type<{ layananVariantId: string; teks: string | null }[]>(),
+    /**
+     * A tumpang order (spec, Pemesanan > Burial under an existing Hak Pakai): the
+     * kind of request and the Nomor Pemesanan whose plot it uses when that plot is
+     * a Pemesanan Terencana's. `hak_pakai_id`, `petak_id` and `petak_nomor` are
+     * set at submission for a tumpang order (the grave is known up front), where a
+     * Saat Duka order learns them at confirmation. All null for a Saat Duka order.
+     */
+    tumpangJenis: text("tumpang_jenis", { enum: tumpangJenisKeys }),
+    pemesananIndukNomor: text("pemesanan_induk_nomor"),
+    /**
+     * The Pemegang Hak's consent to the burial, as columns rather than one jsonb
+     * so its dates keep their type. `konsen_state` is null for any order that is
+     * not a tumpang; `menunggu_pemegang` waits for the Pemegang Hak to answer under
+     * Perlu tindakan after signing in with the usual Kode Masuk (no code of its own),
+     * and every settled state carries how it was settled.
+     */
+    konsenState: text("konsen_state", { enum: konsenTumpangStates }),
+    konsenEmail: text("konsen_email"),
+    konsenVia: text("konsen_via", { enum: konsenTumpangVias }),
+    /** The Admin Lokasi's note on a verbal consent, or what the heirship proof was. */
+    konsenCatatan: text("konsen_catatan"),
+    /** The private FileStore key of the heirship proof brought on the day, when one was filed. */
+    konsenBuktiFileKey: text("konsen_bukti_file_key"),
+    /** Who recorded a verbal consent or heirship proof; null for an email answer. */
+    konsenOleh: text("konsen_oleh"),
+    konsenDiputuskanPada: at("konsen_diputuskan_pada"),
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /**
      * When the worker's re-alert went out: once 1 h of the Lokasi's Jam

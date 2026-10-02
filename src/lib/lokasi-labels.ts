@@ -92,6 +92,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "lokasi.aktifkan_terencana": "Pemesanan Terencana diaktifkan",
   "denah.pakai_petak": "Petak dipakai untuk pesanan",
   "pemesanan.konfirmasi_saat_duka": "Pesanan Saat Duka dikonfirmasi",
+  "pemesanan.konsen_tumpang": "Persetujuan Pemegang Hak dicatat",
+  "pemesanan.konfirmasi_tumpang": "Pemakaman di Hak Pakai yang ada dikonfirmasi",
   "pemesanan.konfirmasi_terencana": "Pesanan Terencana dikonfirmasi, petak ditahan untuk dibayar",
   "pemesanan.tolak_terencana": "Pesanan Terencana ditolak, petak dilepas",
   "pemesanan.centang_dokumen": "Dokumen ditandai sudah ada",

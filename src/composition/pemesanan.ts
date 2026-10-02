@@ -6,7 +6,7 @@
 import type { Database } from "@/db/client";
 import type { Notifications } from "@/domain/notifications";
 import { createPemesanan, type Pemesanan, type PemesananDeps, type PemesananNotifikasi } from "@/domain/pemesanan";
-import { stafCalonPenghuniBerubahAlert, stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
+import { stafCalonPenghuniBerubahAlert, stafGantiPemegangHakAlert, stafSaatDukaBelumDikonfirmasiAlert, stafSaatDukaBaruAlert, stafTerencanaBaruAlert } from "@/lib/pemesanan-labels";
 
 /**
  * The Pemesanan module, wired to the runtime's Notifications: a new order raises
@@ -36,9 +36,12 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       peringatanStafSaatDuka: async () => {},
       pesananBelumDikonfirmasi: async () => {},
       pesananDikonfirmasi: async () => {},
+      peringatanStafAhliWaris: async () => {},
       pesananDitolak: async () => {},
       pesananAlternatifDitawarkan: async () => {},
       pesananDibatalkan: async () => {},
+      tumpangMintaPersetujuan: async () => {},
+      tumpangDitolak: async () => {},
       pesananBuktiPemesanan: async () => {},
       terencanaDiajukan: async () => {},
       terencanaDikonfirmasi: async () => {},
@@ -70,6 +73,9 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     peringatanStafSaatDuka: async (tx, order) => {
       await kirimStaf(notifications, order, stafSaatDukaBaruAlert(order), "staf_saat_duka_baru", tx);
     },
+    peringatanStafAhliWaris: async (tx, order) => {
+      await kirimStaf(notifications, order, stafGantiPemegangHakAlert(order), "staf_ganti_pemegang_hak", tx);
+    },
     pesananBelumDikonfirmasi: async (order) => {
       await kirimStaf(notifications, order, stafSaatDukaBelumDikonfirmasiAlert(order), "staf_saat_duka_belum_dikonfirmasi");
     },
@@ -81,6 +87,12 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     },
     pesananAlternatifDitawarkan: async (hasil) => {
       await notifications.pesananAlternatifDitawarkan(hasil);
+    },
+    tumpangDitolak: async (hasil) => {
+      await notifications.tumpangDitolak(hasil);
+    },
+    tumpangMintaPersetujuan: async (hasil) => {
+      await notifications.tumpangMintaPersetujuan(hasil);
     },
     pesananDibatalkan: async (hasil) => {
       await notifications.pesananDibatalkan(hasil);
@@ -129,7 +141,7 @@ async function kirimStaf(
   notifications: Notifications,
   order: { id: string; penerima: { accountId: string }[] },
   alert: ReturnType<typeof stafSaatDukaBaruAlert> | ReturnType<typeof stafTerencanaBaruAlert>,
-  kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi" | "staf_terencana_baru",
+  kind: "staf_saat_duka_baru" | "staf_saat_duka_belum_dikonfirmasi" | "staf_terencana_baru" | "staf_ganti_pemegang_hak",
   within?: Database,
 ): Promise<void> {
   // The order is the subject a retried alert is asked about (ticket 96): a Pemesanan

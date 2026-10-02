@@ -3,7 +3,7 @@ import { cache } from "react";
 import type { PemesananOrder, PemesananTerencanaOrder } from "@/domain/pemesanan";
 import type { PengurusanOrder } from "@/domain/pengurusan";
 import { documentPagePath } from "@/lib/document-links";
-import { perluTindakanDariBerkasTpu, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type PerluTindakanItem, type RingkasanTindakan } from "@/lib/perlu-tindakan";
+import { perluTindakanDariBerkasTpu, perluTindakanDariKonsen, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type PerluTindakanItem, type RingkasanTindakan } from "@/lib/perlu-tindakan";
 import { serverRuntime } from "@/server/runtime";
 
 export interface PesananSaya {
@@ -20,13 +20,14 @@ export interface PesananSaya {
  */
 export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: PesananSaya; perluTindakan: PerluTindakanItem[] }> => {
   const { pemesanan, pengurusan, billing, perpanjangan } = serverRuntime();
-  const [daftarPemesanan, daftarTerencana, daftarPengurusan, daftarPermohonan, berkasTpu, daftarPermintaan] = await Promise.all([
+  const [daftarPemesanan, daftarTerencana, daftarPengurusan, daftarPermohonan, berkasTpu, daftarPermintaan, konsenMenunggu] = await Promise.all([
     pemesanan.pesananSaya({ accountId }),
     pemesanan.terencanaSaya({ accountId }),
     pengurusan.pesananSaya({ accountId }),
     perpanjangan.permohonanSaya({ accountId }),
     pengurusan.perluTindakanBerkas({ accountId }),
     pemesanan.permintaanHakPakaiPerluPerbaikan({ accountId }),
+    pemesanan.konsenMenungguSaya({ accountId }),
   ]);
 
   const ringkasanPemesanan: RingkasanTindakan[] = await Promise.all(
@@ -61,6 +62,6 @@ export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: 
 
   return {
     pesanan: { pemesanan: daftarPemesanan, terencana: daftarTerencana, pengurusan: daftarPengurusan },
-    perluTindakan: [...perluTindakanDariPesanan([...ringkasanPemesanan, ...ringkasanPengurusan]), ...perluTindakanDariPermohonan(daftarPermohonan), ...perluTindakanDariPermintaanHakPakai(daftarPermintaan), ...perluTindakanDariBerkasTpu(berkasTpu)],
+    perluTindakan: [...perluTindakanDariPesanan([...ringkasanPemesanan, ...ringkasanPengurusan]), ...perluTindakanDariPermohonan(daftarPermohonan), ...perluTindakanDariPermintaanHakPakai(daftarPermintaan), ...perluTindakanDariBerkasTpu(berkasTpu), ...perluTindakanDariKonsen(konsenMenunggu)],
   };
 });

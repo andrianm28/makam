@@ -70,6 +70,8 @@ export interface PemesananNotifikasi {
    * lose it.
    */
   peringatanStafSaatDuka(tx: Database, order: PemesananDiajukan): Promise<void>;
+  /** The Peringatan Staf (bell + email) an heirship proof raises, queued inside the consent's own transaction (ticket 35). */
+  peringatanStafAhliWaris(tx: Database, order: PemesananAhliWaris): Promise<void>;
   /**
    * The same order, still unconfirmed, now that 1 h of the Lokasi's Jam
    * Operasional has passed: the Lokasi's staff are alerted once more.
@@ -88,6 +90,10 @@ export interface PemesananNotifikasi {
   pesananAlternatifDitawarkan(hasil: PesananAlternatifDitawarkan): Promise<void>;
   /** A cancelled order, said to the family: what it gave back and what is on its way back. */
   pesananDibatalkan(hasil: PesananDibatalkan): Promise<void>;
+  /** The Pemegang Hak consent request for a further burial: an ordinary email with a link to Akun Saya, no code (ticket 35, owner 2026-10-02). */
+  tumpangMintaPersetujuan(hasil: TumpangMintaPersetujuan): Promise<void>;
+  /** A further burial refused by the Lokasi or the Pemegang Hak: its own wording, with the Kontak Siaga to call and no Pilih makam. */
+  tumpangDitolak(hasil: TumpangDitolak): Promise<void>;
   /**
    * The Bukti Pemesanan of a paid order: the link to the document that proves the
    * right (ADR 0004 — by email; an order with no email opens the call row, and
@@ -192,6 +198,16 @@ export interface TerencanaDiajukan {
   penerima: { accountId: string }[];
 }
 
+/** An heirship proof logged for a further burial, as the staff who must record a Ganti Pemegang Hak are told (ticket 35). */
+export interface PemesananAhliWaris {
+  id: string;
+  nomor: string;
+  lokasi: { id: string; name: string };
+  almarhumName: string;
+  /** Every Akun Staf that must see it: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
+  penerima: { accountId: string }[];
+}
+
 /** A new Pemesanan Makam as the staff who must confirm it are told about it. */
 export interface PemesananDiajukan {
   id: string;
@@ -289,6 +305,29 @@ export interface PesananAlternatifDitawarkan {
 }
 
 /** A cancelled Pemesanan Makam as its family is told about it: what was given back, and what is on its way. */
+/** A refused further burial, as its family is told. */
+export interface TumpangDitolak {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  alasan: string;
+  almarhum: { name: string; tanggalWafat: string };
+  kontakSiaga: { name: string; phoneNumber: string | null } | null;
+}
+
+/** What the Pemegang Hak consent request needs: who is asked, by whom, about whom, where. */
+export interface TumpangMintaPersetujuan {
+  pemesananId: string;
+  nomor: string;
+  email: string;
+  pemegangHakName: string;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  almarhum: { name: string; tanggalWafat: string };
+}
+
 export interface PesananDibatalkan {
   pemesananId: string;
   nomor: string;
@@ -357,6 +396,8 @@ export interface PemesananDeps {
     | "akhiriHakPakai"
     // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
     | "hakPakaiById"
+    // The Hak Pakai "Makamkan di sini" buries under, with its holder and its tumpang facts (ticket 35).
+    | "hakPakaiUntukTumpang"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"

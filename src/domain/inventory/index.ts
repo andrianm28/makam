@@ -61,6 +61,7 @@ import { ALASAN_HAPUS_BLOK_MAX, bolehHapusBlok, hapusBlok, type BolehHapusBlok, 
 import { addEdge, removeRowsOrCols, edges, type AddEdgeResult, type Edge, type RemoveRowsOrColsInput, type RemoveRowsOrColsResult } from "./resize";
 import { isValidPattern, kavlingPatternFrom, numberFromPattern } from "./numbering";
 import { publicDenah, tersediaUntukTerencana, type PublicDenah } from "./picker";
+import { hakPakaiUntukTumpang, type HakPakaiTumpang } from "./tumpang";
 import { lepasTahan, tahan, type LepasTahanResult, type TahanInput, type TahanResult } from "./hold";
 import {
   beriHakPakaiDariTahan,
@@ -113,8 +114,9 @@ export type { KembalikanHakPakaiResult, UbahCalonPenghuniResult } from "./pengem
 export { PENGEMBALIAN_END_REASON } from "./status";
 export type { BolehDitahanResult, LepasTahanResult, TahanInput, TahanResult, TahanUnit } from "./hold";
 export { bolehDitahan } from "./hold";
-export type { AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
-export { pilihanOf } from "./picker";
+export type { AlasanTumpang, AturanTumpang, PilihanFacts, PilihanStatus, PublicDenah, PublicDenahBlok, PublicDenahCell, PublicDenahKavling } from "./picker";
+export type { HakPakaiTumpang, TumpangPetak } from "./tumpang";
+export { pilihanOf, periksaBolehTumpang } from "./picker";
 export type { HasilCariMakam, MakamDitemukan, PetakDitemukan, PermintaanCariMakam, PermintaanDariIP } from "./cari-makam";
 export { CARI_MAKAM_ATTEMPT_KEPT_MS, CARI_MAKAM_JENDELA_MENIT, CARI_MAKAM_MAKS_PER_IP, KUNCI_HASIL_CARI_MAKAM, pruneCariMakamAttempts } from "./cari-makam";
 export type { MakamSaya, PetakMakamSaya } from "./makam-saya";
@@ -195,6 +197,13 @@ export interface Inventory {
    * the plot. Staff screens read a Hak Pakai through `asStaff`.
    */
   hakPakaiById(hakPakaiId: string): Promise<HakPakaiDetail | null>;
+  /**
+   * One Hak Pakai as "Makamkan di sini" reads it: its target (a Petak Makam, or a
+   * Kavling Keluarga with its member Petak), the Pemegang Hak the consent goes to,
+   * how many are buried there and when the last was, and whether the right was
+   * released. No actor: it is the family's own tumpang request that reads it.
+   */
+  hakPakaiUntukTumpang(hakPakaiId: string, petakId?: string): Promise<HakPakaiTumpang | null>;
   /**
    * The Hak Pakai a Perpanjangan is about (ticket 40): status, its own term as
    * bought, end date, Perlu Verifikasi flag, Jenis Makam, Petak numbers and the
@@ -377,6 +386,7 @@ export function createInventory(deps: InventoryDeps): Inventory {
     clearKavling: (by, lokasiId, kavlingId, input) => clearKavling(deps, by, lokasiId, kavlingId, input),
     catatPemakaman: (by, lokasiId, input) => catatPemakaman(deps, by, lokasiId, input),
     hakPakaiById: (hakPakaiId) => hakPakaiById(deps, hakPakaiId),
+    hakPakaiUntukTumpang: (hakPakaiId, petakId) => hakPakaiUntukTumpang(deps, hakPakaiId, petakId),
     hakPakaiUntukPerpanjangan: (hakPakaiId) => hakPakaiUntukPerpanjangan(deps, hakPakaiId),
     perpanjangHakPakai: (input) => perpanjangHakPakai(deps, input),
     gantiPemegangHak: (by, lokasiId, input) => gantiPemegangHak(deps, by, lokasiId, input),

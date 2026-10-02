@@ -162,6 +162,10 @@ async function umumkanTolak(
   // The city the list the family is sent back to is filtered by is the declining
   // Lokasi's own city: a family in a city with no other Lokasi Mitra would rather
   // see the whole list than an empty one.
+  if (order.kind === "tumpang") {
+    await umumkanTumpangDitolak(deps, order, ALASAN_TOLAK[alasan]);
+    return;
+  }
   const lokasi = await deps.lokasi.publicLokasiMitraTampil(order.lokasiId);
   await deps.notifikasi.pesananDitolak({
     pemesananId: order.id,
@@ -173,5 +177,27 @@ async function umumkanTolak(
     kota: lokasi?.city ?? null,
     almarhum: { name: order.almarhumName, tanggalWafat: order.tanggalWafat },
     pemesan: { name: order.pemesanName, phoneNumber: order.phoneNumber },
+  });
+}
+
+/**
+ * A further burial refused (ticket 35): the family hears it in its own words, not the Saat Duka "Pilih makam lain" ones,
+ * with the Lokasi's Kontak Siaga to call. Shared by the Lokasi's Tolak and the Pemegang Hak's.
+ */
+export async function umumkanTumpangDitolak(
+  deps: Pick<PemesananDeps, "lokasi" | "notifikasi">,
+  order: { id: string; nomor: string; email: string | null; pemesanName: string; lokasiId: string; lokasiName: string; almarhumName: string; tanggalWafat: string },
+  alasan: string,
+): Promise<void> {
+  const kontak = await deps.lokasi.kontakSiagaOf(order.lokasiId);
+  await deps.notifikasi.tumpangDitolak({
+    pemesananId: order.id,
+    nomor: order.nomor,
+    email: order.email,
+    pemesanName: order.pemesanName,
+    lokasi: { id: order.lokasiId, name: order.lokasiName },
+    alasan,
+    almarhum: { name: order.almarhumName, tanggalWafat: order.tanggalWafat },
+    kontakSiaga: kontak ? { name: kontak.name, phoneNumber: kontak.phoneNumber } : null,
   });
 }

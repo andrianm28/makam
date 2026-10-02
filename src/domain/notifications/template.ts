@@ -802,3 +802,70 @@ export function layananPesanBaruEmail(input: LayananPesanBaruEmailInput): { subj
     ].join("\n"),
   };
 }
+
+export interface TumpangMintaPersetujuanEmailInput {
+  nomor: string;
+  lokasiName: string;
+  pemegangHakName: string;
+  pemesanName: string;
+  almarhumName: string;
+  tautan: string;
+}
+
+/**
+ * The Pemegang Hak asked to consent to a further burial under their Hak Pakai (ticket 35).
+ * It carries a link and no code: they sign in to Akun Saya with the usual Kode Masuk and
+ * answer Setujui or Tolak under Perlu tindakan.
+ */
+export function tumpangMintaPersetujuanEmail(input: TumpangMintaPersetujuanEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Persetujuan Pemegang Hak: pemakaman di makam keluarga ${input.lokasiName}`,
+    body: [
+      `Yth. ${input.pemegangHakName},`,
+      "",
+      `${input.pemesanName} mengajukan pemakaman ${input.almarhumName} di makam yang Anda pegang haknya di ${input.lokasiName} (pesanan ${input.nomor}).`,
+      "Sebagai Pemegang Hak, persetujuan Anda diperlukan. Masuk ke Akun Saya dengan Kode Masuk yang dikirim ke email ini, lalu pilih Setujui atau Tolak di bagian Perlu tindakan.",
+      "",
+      `Buka Akun Saya: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface TumpangDitolakEmailInput {
+  nomor: string;
+  lokasiName: string;
+  almarhumName: string;
+  alasan: string;
+  tautan: string;
+  /** The Lokasi's Kontak Siaga, the person to call; null while none is picked. */
+  kontakSiaga: { name: string; phoneNumber: string | null } | null;
+}
+
+/**
+ * A further burial refused, by the Lokasi or by the Pemegang Hak (ticket 35). Not the Saat Duka refusal: there is no plot
+ * to choose elsewhere, the Hak Pakai is unaffected and nothing is due, so it names the reason and whom to call.
+ */
+export function tumpangDitolakEmail(input: TumpangDitolakEmailInput): { subject: string; body: string } {
+  const kontak = input.kontakSiaga
+    ? `Silakan hubungi ${input.kontakSiaga.name || `Admin ${input.lokasiName}`}${input.kontakSiaga.phoneNumber ? ` di ${input.kontakSiaga.phoneNumber}` : ""} untuk membicarakan langkah berikutnya.`
+    : `Silakan hubungi ${input.lokasiName} untuk membicarakan langkah berikutnya.`;
+  return {
+    subject: `Permintaan pemakaman ${input.nomor} tidak dapat dilaksanakan`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Permintaan pemakaman ${input.almarhumName} di makam yang sudah ada di ${input.lokasiName} tidak dapat dilaksanakan.`,
+      `Alasannya: ${input.alasan}.`,
+      "Hak Pakai makam itu tidak berubah, dan tidak ada yang perlu dibayar.",
+      kontak,
+      "",
+      `Detail pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

@@ -18,8 +18,11 @@ import {
   CentangDokumenForm,
   KonfirmasiForm,
   PembayaranLangsungForm,
+  TolakForm,
 } from "./pesanan-forms";
 import { TerencanaPesananView } from "./terencana-view";
+import { TumpangPanelView } from "./tumpang-forms";
+import { tumpangPanel } from "@/lib/tumpang-panel";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -52,7 +55,9 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
   // Another Lokasi Mitra's order is nothing found here, exactly as it is nowhere else in this area.
   if (order.lokasi.id !== current.id) notFound();
 
-  const menunggu = order.status === "diajukan";
+  const tumpang = order.tumpang ? tumpangPanel(order.tumpang, order.status) : null;
+  // A further burial has no plot to assign and no Jenis Makam to swap: its own panel replaces the Saat Duka confirmation.
+  const menunggu = order.status === "diajukan" && !tumpang;
   const petak = menunggu && order.jenisMakam
     ? await inventory.tersediaUntukJenisMakam(current.id, order.jenisMakam.id)
     : [];
@@ -134,6 +139,26 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
           </dl>
         </CardContent>
       </Card>
+
+      {tumpang ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pemakaman di Hak Pakai yang ada</CardTitle>
+            <CardDescription>
+              Tidak ada Hak Pakai baru. Persetujuan Pemegang Hak harus selesai, dan pemeriksaan tumpang lolos, sebelum Tagihan terbit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TumpangPanelView lokasiId={current.id} nomor={order.nomor} panel={tumpang} pemakamanAwal={rencana} />
+            {tumpang.bisaTolak ? (
+              <div className="mt-6 border-t pt-4">
+                <p className="mb-3 text-sm font-medium">Tolak permintaan ini</p>
+                <TolakForm lokasiId={current.id} nomor={order.nomor} alasan={alasanTolakLokasiKeys.map((key) => ({ key, label: ALASAN_TOLAK[key] }))} />
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {menunggu ? (
         <Card>
