@@ -29,6 +29,11 @@ describe("phone number scrubbing", () => {
     ["+62 (21) 1234 5678", "international +62, area code in parentheses"],
     ["62-21-1234-5678", "62 landline with dashes"],
     ["62 251 123456", "62 with a three-digit area code"],
+    ["021-1234567", "Jakarta landline, seven-digit number, dash"],
+    ["(021) 1234 5678", "area code in parentheses, number in two groups"],
+    ["+62 21 1234567", "international +62 landline, seven-digit number"],
+    ["+62 21 12345678", "the form the pengelola's landline is stored in"],
+    ["+62 251 123456", "the stored form with a three-digit area code"],
   ])("removes the landline %s (%s)", (phone) => {
     expect(scrubText(`Telepon kantor ${phone}, jam kerja`)).toBe("Telepon kantor [telepon], jam kerja");
   });
@@ -48,6 +53,10 @@ describe("phone number scrubbing", () => {
     ["1945-2026", "year range"],
     ["MKM-2026-000123", "Nomor Pemesanan"],
     ["MKM-2026-021234", "Nomor Pemesanan whose serial starts like an area code"],
+    ["TGH/2026/000001", "Tagihan number"],
+    ["TGH/2026/021234", "Tagihan number whose serial starts like an area code"],
+    ["Rp 2.101.234.567", "amount that looks like a +62 21 number"],
+    ["Rp 021.234.567", "amount with a leading zero"],
     ["2026-10-01T09:00:00.000Z", "ISO timestamp"],
     ["2026-10-01T09:00:00+07:00", "ISO timestamp with offset"],
     ["2026-10-01 09.30.15 WIB", "date and time with dots"],

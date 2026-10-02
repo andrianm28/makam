@@ -186,6 +186,29 @@ describe("the pengelola's phone and email of a Lokasi Mitra", () => {
     expect((await withProfile({ pengelolaEmail: "bukan-email" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
   });
 
+  it.each([
+    ["021-1234567", "+62 21 1234567"],
+    ["(021) 1234 5678", "+62 21 12345678"],
+    ["+62 21 1234 5678", "+62 21 12345678"],
+    ["0251-123456", "+62 251 123456"],
+  ])("Admin Platform records the pengelola's office landline %s as %s", async (typed, stored) => {
+    const { setup, admin, created, result } = await withProfile({ pengelolaTelepon: typed });
+
+    expect(result).toEqual({ ok: true });
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pengelolaTelepon: stored } });
+  });
+
+  it("a Berhenti Lokasi's public profile carries the pengelola's landline as stored", async () => {
+    const { setup, created } = await withProfile({ pengelolaTelepon: "(021) 5551234" });
+    await setLokasiMitraStatusForTest(db, created.id, "berhenti");
+
+    expect(await setup.lokasi.publicLokasiMitraTampil(created.id)).toMatchObject({ pengelolaTelepon: "+62 21 5551234" });
+  });
+
+  it.each(["021-123", "+1 212 555 0100", "021-ABC-1234"])("refuses %s: neither an Indonesian mobile nor an office landline", async (typed) => {
+    expect((await withProfile({ pengelolaTelepon: typed })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
+  });
+
   it("refuses a phone that is not an Indonesian mobile number", async () => {
     expect((await withProfile({ pengelolaTelepon: "123" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
   });
