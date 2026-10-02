@@ -281,6 +281,51 @@ describe("Makamkan di sini", () => {
     expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))?.layers).toBe(1);
   });
 
+  it("counts a tumpang's layers and last burial for the target Petak, not for every Petak of the Kavling Keluarga", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { actor: admin } = await adminPlatformOf(setup);
+    await siapkanOperatorPemesanan(setup);
+    const fixture = await terencanaLokasi(setup, admin, { masaPembatalanDays: 30 });
+    await izinkanTumpang(setup, { ...fixture, admin } as never, { minYears: 3, maxLayers: 3 });
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id", "Rina Wulandari");
+    const kavling = (await setup.inventory.publicDenah(fixture.lokasiMitra.id))!.bloks.flatMap((blok) => blok.kavling)[0]!;
+    const placed = await setup.pemesanan.placeTerencana({
+      pemesan,
+      pemesanName: "Rina Wulandari",
+      phoneNumber: "081234567890",
+      pemegangHak: { mode: "pemesan" },
+      calonPenghuni: { mode: "saya" },
+      lokasiId: fixture.lokasiMitra.id,
+      units: [{ kavlingId: kavling.id }],
+    });
+    if (!placed.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(placed)}`);
+    const konfirmasi = await setup.pemesanan.konfirmasiTerencana(fixture.adminLokasi, { nomor: placed.pemesanan.nomor });
+    if (!konfirmasi.ok) throw new Error("konfirmasiTerencana refused");
+    await setup.billing.recordPayment(konfirmasi.tagihan.id, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    const hakPakaiId = (await setup.pemesanan.terencanaUntukStaf(admin, placed.pemesanan.nomor))!.unit[0]!.hakPakaiId!;
+    const [petakA, petakB] = (await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))!.kavling!.petak;
+    // Petak A was used a fortnight ago; Petak B's only burial is long past the minimum years.
+    await setup.inventory.catatPemakaman(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId, petakId: petakA!.id, almarhumName: "Almarhum A", tanggal: "2026-09-15" });
+    await setup.inventory.catatPemakaman(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId, petakId: petakB!.id, almarhumName: "Almarhum B", tanggal: "2020-01-01" });
+
+    const minta = async (petakId: string, almarhumName: string) => {
+      const diajukan = await setup.pemesanan.ajukanTumpang({
+        pemesanAccountId: pemesan.accountId, pemesanEmail: pemesan.email, pemesanName: "Rina Wulandari", phoneNumber: "081234567890",
+        lokasiId: fixture.lokasiMitra.id, hakPakaiId, petakId, jenis: "tumpang", almarhumName, tanggalWafat: "2026-09-30",
+      });
+      if (!diajukan.ok) throw new Error(`ajukanTumpang refused: ${diajukan.reason}`);
+      return diajukan.pesanan.nomor;
+    };
+    const nomorA = await minta(petakA!.id, "Tumpang di A");
+    const nomorB = await minta(petakB!.id, "Tumpang di B");
+    expect(await setup.pemesanan.konfirmasiTumpang(fixture.adminLokasi, { nomor: nomorA, pemakamanAt: "2026-10-03T10:00" })).toEqual({ ok: false, reason: "masa_tunggu_belum_lewat" });
+    expect((await setup.pemesanan.orderUntukStaf(fixture.adminLokasi, nomorA))?.tumpang?.pemeriksaan).toEqual({ ok: false, reason: "masa_tunggu_belum_lewat" });
+    expect((await setup.pemesanan.konfirmasiTumpang(fixture.adminLokasi, { nomor: nomorB, pemakamanAt: "2026-10-03T10:00" })).ok).toBe(true);
+    // The tumpang is laid one layer above what Petak B itself holds.
+    setup.clock.set(wib("2026-10-03 11:00"));
+    expect(await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: nomorB, tanggal: "2026-10-03" })).toMatchObject({ ok: true, pemakaman: { layer: 2 } });
+  });
+
   it("cancelling a further burial cancels only the order and its Tagihan, and never issues a Bukti Pemesanan", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { lokasi, cells } = await lokasiDenganPetak(setup);
