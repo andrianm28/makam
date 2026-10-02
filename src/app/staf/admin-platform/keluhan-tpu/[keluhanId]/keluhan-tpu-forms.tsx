@@ -25,6 +25,12 @@ export function PutuskanKeluhanTpuForm({ keluhanId, calon }: { keluhanId: string
           </span>
         </label>
         <label className="flex items-start gap-2 text-body">
+          <input type="radio" name="keputusan" value="kembalikan_dana" className="mt-1" />
+          <span>
+            <strong>Kembalikan dana</strong>: harga layanan dikembalikan ke Pemesan lewat pengembalian dana. Pencairan Mitra Jasa tetap sebesar tarif penuh; turunkan lewat penyesuaian bila perlu.
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-body">
           <input type="radio" name="keputusan" value="tolak" className="mt-1" />
           <span>
             <strong>Tolak keluhan</strong>: pekerjaan dianggap selesai dan pencairan jatuh tempo setelah masa keluhan berakhir.

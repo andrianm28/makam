@@ -104,8 +104,14 @@ export const ajukanKeluhanTpuSchema = z.object({
 
 export const putuskanKeluhanTpuSchema = z.object({
   keluhanId: z.uuid(),
-  keputusan: z.enum(["tolak", "kerjakan_ulang"]),
+  keputusan: z.enum(["tolak", "kerjakan_ulang", "kembalikan_dana"]),
   catatan: z.string().trim().min(1, "Tulis catatan keputusan.").max(1000),
   /** Who redoes the job; required for `kerjakan_ulang`. */
   mitraJasaId: z.uuid().optional(),
+});
+
+/** Admin Platform cancels a Terlambat job on the family's behalf, with the reason. */
+export const batalkanPekerjaanTerlambatTpuSchema = z.object({
+  pekerjaanId: z.uuid(),
+  catatan: z.string().trim().min(1, "Tulis alasan pembatalan.").max(500),
 });

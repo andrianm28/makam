@@ -905,13 +905,13 @@ export const pekerjaanLayananTpuBukti = pgTable(
   (table) => [uniqueIndex("pekerjaan_layanan_tpu_bukti_idx").on(table.pekerjaanId, table.kind)],
 );
 
-export const keluhanTpuStatuses = ["terbuka", "ditolak", "kerjakan_ulang"] as const;
+export const keluhanTpuStatuses = ["terbuka", "ditolak", "kerjakan_ulang", "dana_kembali"] as const;
 export type KeluhanTpuStatus = (typeof keluhanTpuStatuses)[number];
 
 /**
  * Owned by the Layanan module: the Pemesan's Keluhan on one finished TPU job (ticket 57). One per
  * job, which is what makes "the window closes with no Keluhan" a plain fact. Admin Platform
- * rejects it or has the job redone (`kerjaUlangTpu`); a refund is not offered for a TPU job.
+ * rejects it, has the job redone (`kerjaUlangTpu`) or has the Layanan refunded.
  */
 export const keluhanLayananTpu = pgTable(
   "keluhan_layanan_tpu",

@@ -139,6 +139,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "layanan.kirim_bukti_tpu": "Bukti pekerjaan TPU dikirim untuk diverifikasi",
   "layanan.setujui_bukti_tpu": "Bukti pekerjaan TPU disetujui",
   "layanan.putuskan_keluhan_tpu": "Keluhan pekerjaan TPU diputuskan",
+  "layanan.batalkan_pekerjaan_terlambat_tpu": "Pekerjaan TPU terlambat dibatalkan",
   "layanan.tolak_bukti_tpu": "Bukti pekerjaan TPU ditolak",
   "layanan.lepas_penugasan_tpu": "Penugasan pekerjaan TPU dilepas",
   "layanan.putuskan_keluhan": "Keluhan Pekerjaan Layanan diputuskan",

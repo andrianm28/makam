@@ -46,6 +46,7 @@
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import type { SetHargaLayananInput } from "@/domain/tariffs";
+import type { WriteRefusal } from "@/domain/identity";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import type { MitraJasaStatus } from "./schema";
 import {
@@ -143,6 +144,11 @@ import {
 } from "./skor";
 
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
+import {
+  batalkanPekerjaanTerlambatTpu,
+  batalkanPekerjaanTerlambatTpuOlehPemesan,
+  type BatalkanPekerjaanTerlambatTpuResult,
+} from "./batal-terlambat-tpu";
 import { kerjaUlangTpu, type KerjaUlangTpuResult } from "./kerja-ulang-tpu";
 import { jendelaKeluhanTpu, pekerjaanTpuMenungguVerifikasi, type PekerjaanTpuMenungguVerifikasi } from "./bukti-tpu-baca";
 import { tandaiTerlambatTpu } from "./terlambat-tpu";
@@ -675,6 +681,10 @@ export interface Layanan {
   ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
   /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
   putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
+  /** The Pemesan cancels a Terlambat TPU job: the whole Tagihan is refunded and the Mitra Jasa gets no Pencairan. */
+  batalkanPekerjaanTerlambatTpuOlehPemesan(pemesan: PemesanLayanan, input: unknown): Promise<BatalkanPekerjaanTerlambatTpuResult>;
+  /** Admin Platform does the same on the family's behalf, with a reason. */
+  batalkanPekerjaanTerlambatTpu(by: Actor, input: unknown): Promise<BatalkanPekerjaanTerlambatTpuResult | WriteRefusal>;
   /** Admin Platform adjusts what the Keluhan's job pays its Mitra Jasa, with a note (story 158). */
   sesuaikanPencairanKeluhanTpu(by: Actor, input: unknown): Promise<SesuaikanPencairanKeluhanTpuResult>;
   /** The TPU Keluhan waiting for Admin Platform, oldest first. */
@@ -818,6 +828,8 @@ export function createLayanan(deps: LayananDeps): Layanan {
     jendelaKeluhanTpu: (pekerjaanId) => jendelaKeluhanTpu(deps.db, pekerjaanId),
     ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
     putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
+    batalkanPekerjaanTerlambatTpuOlehPemesan: (pemesan, input) => batalkanPekerjaanTerlambatTpuOlehPemesan(deps, pemesan, input),
+    batalkanPekerjaanTerlambatTpu: (by, input) => batalkanPekerjaanTerlambatTpu(deps, by, input),
     sesuaikanPencairanKeluhanTpu: (by, input) => sesuaikanPencairanKeluhanTpu(deps, by, input),
     keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),
     keluhanTpuUntukPlatform: (by, keluhanId) => keluhanTpuUntukPlatform(deps, by, keluhanId),

@@ -277,6 +277,7 @@ export type AuditAction =
   | "layanan.setujui_bukti_tpu"
   /** Admin Platform decides a Keluhan on a TPU job: rejected, or a redo by a Mitra Jasa it names (ticket 57). */
   | "layanan.putuskan_keluhan_tpu"
+  | "layanan.batalkan_pekerjaan_terlambat_tpu"
   /** Admin Platform sends the proof back with a reason: the job is Sedang Dikerjakan again (ticket 57). */
   | "layanan.tolak_bukti_tpu"
   /** Admin Platform takes a TPU job off the Mitra Jasa who holds it, so it can be given to another (ticket 56). */

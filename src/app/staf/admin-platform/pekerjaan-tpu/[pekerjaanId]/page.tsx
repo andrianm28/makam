@@ -7,7 +7,7 @@ import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { SetujuiBuktiForm, TolakBuktiForm } from "./bukti-forms";
+import { BatalkanTerlambatForm, SetujuiBuktiForm, TolakBuktiForm } from "./bukti-forms";
 import { LepasForm, TugaskanForm } from "./penugasan-forms";
 
 /**
@@ -98,6 +98,20 @@ export default async function PekerjaanTpuPage({ params }: PageProps<"/staf/admi
                 <TolakBuktiForm pekerjaanId={pekerjaan.id} />
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {pekerjaan.status === "terlambat" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pekerjaan terlambat</CardTitle>
+            <CardDescription>
+              Dibatalkan atas nama Pemesan: seluruh tagihan dikembalikan, termasuk Biaya Layanan Platform, dan Mitra Jasa tidak menerima pencairan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BatalkanTerlambatForm pekerjaanId={pekerjaan.id} />
           </CardContent>
         </Card>
       ) : null}

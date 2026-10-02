@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { pekerjaanTpuSemuaResource } from "@/domain/identity";
-import { lepasPenugasanSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema, tugaskanMitraJasaSchema } from "@/domain/layanan/tpu-skema";
-import { penugasanMessages } from "@/lib/layanan-tpu-labels";
+import { batalkanPekerjaanTerlambatTpuSchema, lepasPenugasanSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema, tugaskanMitraJasaSchema } from "@/domain/layanan/tpu-skema";
+import { batalkanPekerjaanTerlambatTpuMessages, penugasanMessages } from "@/lib/layanan-tpu-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../form-state";
@@ -99,4 +99,21 @@ export async function tolakBukti(_previous: FormState, formData: FormData): Prom
   revalidatePath(LIST);
   revalidatePath(`${LIST}/${pekerjaanId}`);
   return { status: "berhasil", message: "Bukti ditolak. Mitra Jasa diminta mengambil ulang." };
+}
+
+/** Admin Platform cancels a Terlambat job on the family's behalf: the whole Tagihan is refunded and the Mitra Jasa gets no Pencairan. */
+export async function batalkanPekerjaanTerlambat(_previous: FormState, formData: FormData): Promise<FormState> {
+  const pekerjaanId = field(formData, "pekerjaanId");
+  const hasil = await guarded({
+    action: "pekerjaan_tpu.kelola",
+    resource: () => pekerjaanTpuSemuaResource(),
+    schema: batalkanPekerjaanTerlambatTpuSchema,
+    input: { pekerjaanId, catatan: formData.get("catatan") },
+    run: (actor, data) => serverRuntime().layanan.batalkanPekerjaanTerlambatTpu(actor, data),
+  });
+  const gagal = !hasil.ok ? hasil.error : !hasil.value.ok ? hasil.value.reason : null;
+  revalidatePath(LIST);
+  revalidatePath(`${LIST}/${pekerjaanId}`);
+  if (gagal) return { status: "gagal", message: refusalMessage(gagal, batalkanPekerjaanTerlambatTpuMessages) };
+  return { status: "berhasil", message: "Pekerjaan dibatalkan dan pengembalian dana diajukan." };
 }

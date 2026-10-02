@@ -80,7 +80,7 @@ export default async function KeluhanTpuPage({ params }: PageProps<"/staf/admin-
           <CardTitle>Keputusan</CardTitle>
           <CardDescription>
             {keluhan.status === "terbuka"
-              ? "Tolak keluhan, atau minta pekerjaan dikerjakan ulang."
+              ? "Tolak keluhan, minta pekerjaan dikerjakan ulang, atau kembalikan dana."
               : `Keputusan: ${keluhanStatusLabels[keluhan.status]}${keluhan.diputuskanAt ? ` (${formatTanggalJam(keluhan.diputuskanAt)})` : ""}.`}
           </CardDescription>
         </CardHeader>

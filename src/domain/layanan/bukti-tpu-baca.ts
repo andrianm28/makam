@@ -92,7 +92,7 @@ export interface KeluhanTpuPemesan {
   /** The job is Selesai, has no Keluhan yet and the 3×24 h window since its proof was shown is still open. */
   bolehDiajukan: boolean;
   berakhirAt: Date | null;
-  diajukan: { status: "terbuka" | "ditolak" | "kerjakan_ulang"; alasan: string; diajukanAt: Date } | null;
+  diajukan: { status: "terbuka" | "ditolak" | "kerjakan_ulang" | "dana_kembali"; alasan: string; diajukanAt: Date } | null;
 }
 
 export async function keluhanTpuPerPekerjaan(

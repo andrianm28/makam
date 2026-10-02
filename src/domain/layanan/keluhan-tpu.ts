@@ -3,8 +3,9 @@
  * on a Selesai job inside the 3×24 h window that opened when Admin Platform approved the proof; the
  * job becomes Keluhan, which holds the Mitra Jasa's Pencairan (the window-close tick only looks at
  * Selesai jobs). Admin Platform then rejects it (the job is Selesai again and the tick releases the
- * Pencairan once the window is over) or has the job redone by a Mitra Jasa it names (`kerjaUlangDariKeluhanTpu`,
- * whose pay rules then apply). A refund is not offered here.
+ * Pencairan once the window is over), has the job redone by a Mitra Jasa it names (`kerjaUlangDariKeluhanTpu`,
+ * whose pay rules then apply) or refunds the Layanan (Refunds is asked for the job's line, as for a Lokasi's Keluhan;
+ * the Mitra Jasa's Pencairan is untouched).
  */
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -16,6 +17,7 @@ import { kerjaUlangDariKeluhanTpu } from "./kerja-ulang-tpu";
 import { mitraJasaTersedia, type MitraJasaTersedia } from "./penugasan";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { jendelaKeluhanBerakhirAt } from "./keluhan";
+import { mintaPengembalianTpu } from "./pengembalian-tpu";
 import { sesuaikanPencairanKeluhanSchema } from "./pesanan-schema";
 import { keluhanLayananTpu, pekerjaanLayananTpu } from "./schema";
 import { ajukanKeluhanTpuSchema, putuskanKeluhanTpuSchema } from "./tpu-skema";
@@ -51,11 +53,11 @@ export async function ajukanKeluhanTpu(deps: LayananDeps, pemesan: PemesanLayana
 export type PutuskanKeluhanTpuResult =
   | { ok: true }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "sudah_diputuskan" | "mitra_jasa_tidak_tersedia" };
+  | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "sudah_diputuskan" | "mitra_jasa_tidak_tersedia" | "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda" };
 
-/** A redo that could not be handed over: thrown inside the decision's transaction so that nothing of the decision is kept. */
-class KerjaUlangGagal extends Error {
-  constructor(readonly reason: "input_tidak_valid" | "mitra_jasa_tidak_tersedia") {
+/** A redo that could not be handed over, or a refund Refunds would not take: thrown inside the decision's transaction so that nothing of the decision is kept. */
+class KeputusanGagal extends Error {
+  constructor(readonly reason: "input_tidak_valid" | "mitra_jasa_tidak_tersedia" | "pengembalian_tidak_bisa_diajukan" | "pengembalian_tertunda") {
     super(reason);
   }
 }
@@ -73,7 +75,7 @@ export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput:
   const { keluhanId, keputusan, catatan, mitraJasaId } = parsed.data;
   if (keputusan === "kerjakan_ulang" && !mitraJasaId) return { ok: false, reason: "input_tidak_valid" };
   const now = deps.clock.now();
-  const status = keputusan === "tolak" ? ("ditolak" as const) : ("kerjakan_ulang" as const);
+  const status = keputusan === "tolak" ? ("ditolak" as const) : keputusan === "kerjakan_ulang" ? ("kerjakan_ulang" as const) : ("dana_kembali" as const);
 
   try {
     return await deps.db.transaction(async (tx): Promise<PutuskanKeluhanTpuResult> => {
@@ -90,8 +92,16 @@ export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput:
 
       if (keputusan === "kerjakan_ulang" && mitraJasaId) {
         const ulang = await kerjaUlangDariKeluhanTpu({ ...deps, db: tx }, by, { pekerjaanId, mitraJasaId });
-        if (!ulang.ok) throw new KerjaUlangGagal(ulang.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid");
+        if (!ulang.ok) throw new KeputusanGagal(ulang.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid");
       } else {
+        if (keputusan === "kembalikan_dana") {
+          const [job] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
+          const diminta = await mintaPengembalianTpu({ ...deps, db: tx }, tx, job);
+          // A refusal by Refunds throws, so the Keluhan stays exactly as it was.
+          if (!diminta.ok) throw new KeputusanGagal(diminta.reason);
+        }
+        // Rejected, or refunded: the work was done, so the job is Selesai again and the Mitra Jasa's Pencairan (at the full
+        // rate; Admin Platform lowers it through the override if it wants) falls due when the window is over.
         await tx.update(pekerjaanLayananTpu).set({ status: "selesai" }).where(and(eq(pekerjaanLayananTpu.id, pekerjaanId), eq(pekerjaanLayananTpu.status, "keluhan")));
       }
       await deps.audit.staffWrite(tx, async (_tx, record) => {
@@ -109,7 +119,7 @@ export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput:
       return { ok: true };
     });
   } catch (error) {
-    if (error instanceof KerjaUlangGagal) return { ok: false, reason: error.reason };
+    if (error instanceof KeputusanGagal) return { ok: false, reason: error.reason };
     throw error;
   }
 }
@@ -198,7 +208,7 @@ export type KeluhanTpuUntukPlatformResult =
       keluhan: {
         id: string;
         pekerjaanId: string;
-        status: "terbuka" | "ditolak" | "kerjakan_ulang";
+        status: "terbuka" | "ditolak" | "kerjakan_ulang" | "dana_kembali";
         alasan: string;
         diajukanAt: Date;
         responPertamaDueAt: Date;

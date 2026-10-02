@@ -415,8 +415,8 @@ describe("Cancelling a Terlambat TPU job", () => {
     const tagihan = await s.setup.billing.tagihan(tagihanId);
     const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
     expect(lain).toEqual([]);
-    // The whole Tagihan comes back, the Biaya Layanan Platform too: the lateness is the Mitra Jasa's.
-    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan", biayaLayananPlatformDikembalikan: true, jumlah: tagihan!.total });
+    // The whole Tagihan comes back (a DKI TPU Tagihan has no Biaya Layanan Platform line of its own): the lateness is the Mitra Jasa's.
+    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan", jumlah: tagihan!.total });
     await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
     expect(await pencairanSaya(s, mitra)).toEqual([]);
   }
@@ -591,7 +591,7 @@ describe("a Keluhan on a TPU job", () => {
     const tagihan = await s.setup.billing.tagihan(tagihanId);
     const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
     expect(lain).toEqual([]);
-    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan", biayaLayananPlatformDikembalikan: true });
+    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan" });
     expect(permintaan.lines).toEqual([{ label: tagihan!.lines[0].label, amount: tagihan!.lines[0].amount, lokasiId: null }]);
     // The work was done: the job is Selesai and the Mitra Jasa's full rate falls due once the window is over.
     expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId))?.status).toBe("selesai");

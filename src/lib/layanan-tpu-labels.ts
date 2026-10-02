@@ -96,6 +96,7 @@ export const keluhanTpuPenjelasan = {
   terbuka: "Keluhan Anda sudah kami terima. Tim kami akan menghubungi Anda dan memutuskan apakah pekerjaan dikerjakan ulang.",
   ditolak: "Keluhan Anda sudah kami periksa dan tidak dapat dilanjutkan. Pekerjaan tetap dianggap selesai.",
   kerjakan_ulang: "Pekerjaan akan dikerjakan ulang oleh Mitra Jasa. Bukti baru akan tampil di sini begitu disetujui.",
+  dana_kembali: "Keluhan Anda disetujui: harga layanan ini akan dikembalikan. Kami akan menghubungi Anda untuk pengembaliannya.",
 } as const;
 
 /** Why Admin Platform's decision on a Keluhan of a TPU job is refused (ticket 57). */
@@ -104,4 +105,15 @@ export const putuskanKeluhanTpuMessages: Record<string, string> = {
   tidak_ditemukan: "Keluhan ini tidak ditemukan.",
   sudah_diputuskan: "Keluhan ini sudah diputuskan.",
   mitra_jasa_tidak_tersedia: "Mitra Jasa itu tidak bisa mengerjakan ulang pekerjaan ini. Keluhan tetap terbuka: pilih yang lain.",
+  pengembalian_tidak_bisa_diajukan: "Pengembalian dana belum bisa diajukan untuk pesanan ini (belum lunas atau barisnya tidak ditemukan). Keluhan tetap terbuka.",
+  pengembalian_tertunda: "Masih ada permintaan pengembalian yang menunggu di tagihan ini. Selesaikan dulu, lalu putuskan keluhan ini.",
+};
+
+/** Why cancelling a Terlambat TPU job is refused (ticket 57). */
+export const batalkanPekerjaanTerlambatTpuMessages: Record<string, string> = {
+  input_tidak_valid: "Tulis alasan pembatalan.",
+  tidak_ditemukan: "Pekerjaan ini tidak ditemukan.",
+  bukan_terlambat: "Hanya pekerjaan yang sudah Terlambat yang bisa dibatalkan di sini.",
+  pengembalian_tidak_bisa_diajukan: "Pengembalian dana belum bisa diajukan untuk pesanan ini. Pekerjaan belum dibatalkan.",
+  pengembalian_tertunda: "Masih ada permintaan pengembalian yang menunggu di tagihan ini. Selesaikan dulu, lalu batalkan pekerjaan ini.",
 };
