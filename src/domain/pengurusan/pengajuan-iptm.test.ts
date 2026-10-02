@@ -211,7 +211,7 @@ describe("the Surat Kuasa as a PDF", () => {
 
     const url = await setup.pengurusan.suratKuasaPdfUrl(dasar.pemesan, dasar.nomor);
     expect(url).not.toBeNull();
-    expect(setup.pdf.rendered).toEqual([expect.objectContaining({ url: expect.stringContaining(`/pengurusan/${dasar.nomor}/surat-kuasa`) })]);
+    expect(setup.pdfSuratKuasa.rendered).toEqual([expect.objectContaining({ url: expect.stringContaining(`/pengurusan/${dasar.nomor}/surat-kuasa`) })]);
     const buka = setup.files.open(url!);
     expect(buka).toMatchObject({ contentType: "application/pdf" });
     expect(new TextDecoder().decode(buka!.body.slice(0, 5))).toBe("%PDF-");
@@ -219,11 +219,10 @@ describe("the Surat Kuasa as a PDF", () => {
     expect(setup.files.open(url!)).toBeNull();
   });
 
-  it("is read without an actor by the render page, for a confirmed order only", async () => {
+  it("is read without an actor by the render page, as the Pemesan reads it", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananDikonfirmasi(setup);
-    expect(await setup.pengurusan.suratKuasaUntukCetak(dasar.nomor)).toBeNull();
-    await dimakamkan(setup, dasar);
+    expect(await setup.pengurusan.suratKuasaUntukCetak("MKM-2026-999999")).toBeNull();
     expect(await setup.pengurusan.suratKuasaUntukCetak(dasar.nomor)).toEqual(await setup.pengurusan.suratKuasa(dasar.pemesan, dasar.nomor));
   });
 
@@ -235,7 +234,7 @@ describe("the Surat Kuasa as a PDF", () => {
 
     expect(await setup.pengurusan.suratKuasaPdfUrl(lain, dasar.nomor)).toBeNull();
     expect(await setup.pengurusan.suratKuasaPdfUrl(dasar.pemesan, "MKM-2026-999999")).toBeNull();
-    expect(setup.pdf.rendered).toEqual([]);
+    expect(setup.pdfSuratKuasa.rendered).toEqual([]);
   });
 });
 

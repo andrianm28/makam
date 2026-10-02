@@ -19,6 +19,7 @@ import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
+import { suratKuasaRenderPath } from "@/lib/surat-kuasa-link";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
@@ -242,6 +243,9 @@ export function serverRuntime(): ServerRuntime {
       db: database.db,
       clock: adapters.clock,
       files: adapters.files,
+      // The Surat Kuasa PDF (ticket 46): rendered from a page the renderer opens inside the container, on a signed link.
+      pdf: adapters.pdf,
+      suratKuasaPageUrl: (nomor, now) => `${env.documentPageOrigin}${suratKuasaRenderPath(env.AUTH_SECRET, nomor, now)}`,
       audit,
       lokasi,
       tariffs,

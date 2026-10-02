@@ -12,8 +12,19 @@ const idle: PesananActionState = { status: "idle" };
  * order reaches this page, and the account can be changed only until Admin
  * Platform approves the refund.
  */
-export function RekeningPengembalianForm({ nomor, jumlahLabel, rekeningTercatat }: { nomor: string; jumlahLabel: string; rekeningTercatat: string | null }) {
-  const [state, action, mengirim] = useActionState(isiRekeningPengembalianAction, idle);
+export function RekeningPengembalianForm({
+  nomor,
+  jumlahLabel,
+  rekeningTercatat,
+  simpan = isiRekeningPengembalianAction,
+}: {
+  nomor: string;
+  jumlahLabel: string;
+  rekeningTercatat: string | null;
+  /** The Server Action that saves it; a TPU order's page passes its own, which refreshes that page. */
+  simpan?: (previous: PesananActionState, formData: FormData) => Promise<PesananActionState>;
+}) {
+  const [state, action, mengirim] = useActionState(simpan, idle);
   return (
     <section className="flex flex-col gap-3" data-testid="rekening-pengembalian">
       <h2 className="text-title-3 text-foreground">Pengembalian dana</h2>

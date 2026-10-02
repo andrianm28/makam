@@ -10,7 +10,7 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
-import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "../../../tests/support/surat-kuasa";
 import { createPengurusan } from "@/domain/pengurusan";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf } from "../../../tests/support/inventory";
@@ -74,8 +74,7 @@ describe("a Saat Duka TPU order confirmed by the Admin Platform announces its Ta
       db,
       clock: queues.clock,
       files: queues.files,
-      pdf: new FakePdfRenderer(),
-      suratKuasaPageUrl: (nomor) => `http://render.test/${nomor}`,
+      ...suratKuasaDeps(),
       audit: queues.audit,
       lokasi: queues.lokasi,
       tariffs: queues.tariffs,

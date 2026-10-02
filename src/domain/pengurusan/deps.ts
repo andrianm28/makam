@@ -10,6 +10,7 @@ import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
+import type { PdfRenderer } from "@/ports/pdf-renderer";
 
 /**
  * Who is placing a Pengurusan order: an Akun's id with the email the wizard's
@@ -40,6 +41,10 @@ export interface PengurusanDeps {
   clock: Clock;
   /** The private bucket, for the IPTM photo a Tumpang is placed with. */
   files: FileStore;
+  /** Renders the Surat Kuasa page into the PDF the Pemesan prints and signs. */
+  pdf: PdfRenderer;
+  /** Where the PdfRenderer finds one order's Surat Kuasa page (a link signed for that order and `now`; the composition knows the origin and the secret). */
+  suratKuasaPageUrl: (nomor: string, now: Date) => string;
   /** Every staff write this module makes is recorded through it, in the same transaction. */
   audit: AuditLog;
   lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList">;

@@ -1,4 +1,5 @@
 import type { Database } from "@/db/client";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { createQueues } from "@/domain/queues";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
@@ -64,6 +65,7 @@ export function queuesOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,

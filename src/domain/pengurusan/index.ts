@@ -45,6 +45,8 @@ import {
   periksaDokumen,
   perluTindakanBerkas,
   suratKuasa,
+  suratKuasaPdfUrl,
+  suratKuasaUntukCetak,
   suratKuasaUntukStaf,
   terbitkanIptm,
   unggahDokumenPengajuan,
@@ -71,6 +73,7 @@ export {
   ajukanIptmSchema,
   batalkanSchema as batalkanPengurusanSchema,
   catatDimakamkanSchema,
+  nomorPengurusanSchema,
   terbitkanIptmSchema,
   unggahSchema as unggahDokumenPengajuanSchema,
 } from "./pengajuan-iptm";
@@ -169,6 +172,10 @@ export interface Pengurusan {
   unggahDokumenPengajuan(pemesan: { accountId: string }, input: unknown): Promise<UnggahDokumenResult>;
   /** The Surat Kuasa to print and sign: PT JKP, the filing staff member and the Pemegang Hak; null when it is not the Pemesan's or not yet confirmed. */
   suratKuasa(pemesan: { accountId: string }, nomor: string): Promise<SuratKuasa | null>;
+  /** The Surat Kuasa as a PDF through the PdfRenderer, kept in the private FileStore: a 5-minute signed URL for its own Pemesan, null otherwise. */
+  suratKuasaPdfUrl(pemesan: { accountId: string }, nomor: string): Promise<string | null>;
+  /** The Surat Kuasa for the PdfRenderer's page; no actor, so the caller must have verified the order's signed render link. */
+  suratKuasaUntukCetak(nomor: string): Promise<SuratKuasa | null>;
   /** The same page for Admin Platform. */
   suratKuasaUntukStaf(by: Actor, nomor: string): Promise<SuratKuasa | null>;
   /** Admin Platform checks the filing documents: Dokumen Lengkap, refused while one is missing. Audited. */
@@ -210,6 +217,8 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     catatDimakamkan: (by, input) => catatDimakamkan(withAudit, by, input),
     unggahDokumenPengajuan: (pemesan, input) => unggahDokumenPengajuan(withAudit, pemesan, input),
     suratKuasa: (pemesan, nomor) => suratKuasa(withAudit, pemesan, nomor),
+    suratKuasaPdfUrl: (pemesan, nomor) => suratKuasaPdfUrl(withAudit, pemesan, nomor),
+    suratKuasaUntukCetak: (nomor) => suratKuasaUntukCetak(withAudit, nomor),
     suratKuasaUntukStaf: (by, nomor) => suratKuasaUntukStaf(withAudit, by, nomor),
     periksaDokumen: (by, input) => periksaDokumen(withAudit, by, input),
     ajukanIptm: (by, input) => ajukanIptm(withAudit, by, input),

@@ -2,11 +2,11 @@ import type { Database } from "@/db/client";
 import { pemilikPesananDari } from "@/composition/refunds";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import type { IptmTerbitInput, PengurusanDikonfirmasiInput } from "@/domain/notifications";
-import { FakePdfRenderer } from "@/adapters/memory";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
 import { pemesanDenganEmail } from "./pemesanan";
 import { layananHariHKosong } from "./layanan-hari-h-kosong";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { payoutsFor } from "./payouts";
 import { refundsFor } from "./refunds";
 
@@ -25,13 +25,12 @@ function bangunPengurusan(db: Database) {
   // Refunds is composed on the same Billing and Payouts, as the runtime does, so a cancelled paid order's request is a real one.
   const pengurusanRef: { current?: Pick<Pengurusan, "orderOf"> } = {};
   const { refunds } = refundsFor(setup, payoutsFor(setup).payouts, pemilikPesananDari({ orderOf: async () => null, terencanaOf: async () => null }, pengurusanRef));
-  const pdf = new FakePdfRenderer();
+  const suratKuasa = suratKuasaDeps();
   const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
     files: setup.files,
-    pdf,
-    suratKuasaPageUrl: (nomor, sampai) => `http://render.test/pengurusan/${nomor}/surat-kuasa/render?sampai=${sampai.getTime()}`,
+    ...suratKuasa,
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -53,20 +52,21 @@ function bangunPengurusan(db: Database) {
     },
   });
   pengurusanRef.current = pengurusan;
-  return { ...setup, pengurusan, pdf, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
+  return { ...setup, pengurusan, pdfSuratKuasa: suratKuasa.pdf, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
 }
 
 /** The Pengurusan module on the test Postgres, as the confirmation's tests read it. */
 export function pengurusanOnTestDatabase(db: Database) {
-  const { refunds, iptmDiumumkan, ...tanpa } = bangunPengurusan(db);
+  const { refunds, iptmDiumumkan, pdfSuratKuasa, ...tanpa } = bangunPengurusan(db);
   void refunds;
   void iptmDiumumkan;
+  void pdfSuratKuasa;
   return tanpa;
 }
 
 /**
  * The same setup with what the filing's tests also read (ticket 46): the real Refunds module the module
- * raises a cancelled paid order's request in, and the IPTM handovers it announced.
+ * raises a cancelled paid order's request in, the IPTM handovers it announced and the PdfRenderer the Surat Kuasa went through.
  */
 export function pengajuanOnTestDatabase(db: Database) {
   return bangunPengurusan(db);

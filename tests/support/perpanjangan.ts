@@ -1,4 +1,5 @@
 import { composeLayanan } from "@/composition/layanan";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composePemesanan } from "@/composition/pemesanan";
 import { refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
@@ -72,6 +73,7 @@ export function perpanjanganOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,

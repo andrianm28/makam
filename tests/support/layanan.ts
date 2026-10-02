@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
 import type { Database } from "@/db/client";
 import { createBilling, type Billing } from "@/domain/billing";
@@ -130,6 +131,7 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
     db,
     clock: base.clock,
     files: base.files,
+    ...suratKuasaDeps(),
     audit: base.audit,
     lokasi: base.lokasi,
     tariffs: base.tariffs,

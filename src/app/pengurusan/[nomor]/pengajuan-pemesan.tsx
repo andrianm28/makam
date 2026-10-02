@@ -48,7 +48,11 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
             Surat Kuasa untuk PT Jaya Korpora Prima:{" "}
             <Link href={`/pengurusan/${order.nomor}/surat-kuasa`} className="font-medium text-brand underline underline-offset-4">
               buka dan cetak
-            </Link>
+            </Link>{" "}
+            atau{" "}
+            <a href={`/pengurusan/${order.nomor}/surat-kuasa/pdf`} className="font-medium text-brand underline underline-offset-4">
+              unduh PDF
+            </a>
             , tanda tangani Pemegang Hak, lalu unggah fotonya di bawah.
           </p>
           {unggah ? (

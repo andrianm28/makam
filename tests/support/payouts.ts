@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
@@ -99,6 +100,7 @@ export function payoutsOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,

@@ -13,6 +13,8 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { PekerjaanTpuDaftar } from "@/app/layanan/[nomor]/pekerjaan-tpu";
+import { RekeningPengembalianForm } from "@/app/(site)/pesanan/[nomor]/rekening-pengembalian-form";
+import { isiRekeningPengembalianPengurusanAction } from "./pengajuan-actions";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
 
@@ -48,6 +50,8 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
   const layananHariH = actor && order.status === "dikonfirmasi" ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
   const lanjut = SUDAH_DIKONFIRMASI.includes(order.status);
   const scanUrl = actor && order.status === "iptm_terbit" ? await serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
+  // A paid order cancelled before the IPTM was filed has a refund waiting for the Pemesan's rekening.
+  const pengembalian = actor && order.status === "dibatalkan" ? await serverRuntime().refunds.permintaanUntukPesanan(order.nomor) : null;
   const cs = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
   // The TPU window as it stood when this order was submitted: outside it the
   // family is waiting for the morning, and that is the case story 72 is about.
@@ -180,6 +184,21 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
       ) : null}
 
       <PengajuanPemesan order={order} scanUrl={scanUrl} />
+
+      {pengembalian ? (
+        pengembalian.status === "diajukan" ? (
+          <RekeningPengembalianForm
+            nomor={order.nomor}
+            jumlahLabel={formatRupiah(pengembalian.jumlah)}
+            rekeningTercatat={pengembalian.rekening ? `${pengembalian.rekening.bank} ****${pengembalian.rekening.nomor.slice(-4)}` : null}
+            simpan={isiRekeningPengembalianPengurusanAction}
+          />
+        ) : (
+          <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="rekening-pengembalian-terkunci">
+            Pengembalian dana {formatRupiah(pengembalian.jumlah)} sudah disetujui dan menunggu transfer. Untuk mengubah rekening, hubungi CS.
+          </p>
+        )
+      ) : null}
 
       {layananHariH ? (
         <section className="flex flex-col gap-3" aria-label="Layanan hari-H">

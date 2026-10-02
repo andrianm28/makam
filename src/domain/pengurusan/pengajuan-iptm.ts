@@ -63,7 +63,9 @@ export { dokumenKurang as dokumenPengajuanKurang };
 
 // ---------------------------------------------------------------- Dimakamkan
 
-export const catatDimakamkanSchema = z.object({ nomor: nomorSchema });
+/** A step that names only the order it acts on (Dokumen Lengkap, the Surat Kuasa). */
+export const nomorPengurusanSchema = z.object({ nomor: nomorSchema });
+export const catatDimakamkanSchema = nomorPengurusanSchema;
 
 export type CatatDimakamkanResult =
   | { ok: true; status: "dimakamkan"; dokumenDueAt: Date }
@@ -202,11 +204,36 @@ export async function suratKuasa(deps: PengurusanDeps, pemesan: { accountId: str
   return bangunSuratKuasa(order, deps.clock.now());
 }
 
+/**
+ * The Surat Kuasa for the page the PdfRenderer opens. No actor: headless Chromium has no session, so the
+ * caller (the render page) must have checked the signed, short-lived link made for this order.
+ */
+export async function suratKuasaUntukCetak(deps: PengurusanDeps, nomor: string): Promise<SuratKuasa | null> {
+  const order = await muat(deps, nomor);
+  return order ? bangunSuratKuasa(order, deps.clock.now()) : null;
+}
+
 /** The same page for Admin Platform (story 147). */
 export async function suratKuasaUntukStaf(deps: PengurusanDeps, by: Actor, nomor: string): Promise<SuratKuasa | null> {
   if (writeRefusal(by, "pengurusan.lihat_staf", pengurusanTpuResource())) return null;
   const order = await muat(deps, nomor);
   return order ? bangunSuratKuasa(order, deps.clock.now()) : null;
+}
+
+/**
+ * The Surat Kuasa as a PDF for the Pemesan to print and sign: the PdfRenderer renders the order's page,
+ * the PDF is kept in the private FileStore and handed over as a signed URL valid for 5 minutes (a family
+ * document is never an unguessable-but-permanent link). Null when it is not the Pemesan's or not yet confirmed.
+ */
+export async function suratKuasaPdfUrl(deps: PengurusanDeps, pemesan: { accountId: string }, nomor: string): Promise<string | null> {
+  const order = await muat(deps, nomor);
+  if (!order || order.pemesanAccountId !== pemesan.accountId) return null;
+  const now = deps.clock.now();
+  if (!bangunSuratKuasa(order, now)) return null;
+  const body = await deps.pdf.render({ url: deps.suratKuasaPageUrl(order.nomor, now) });
+  const key = `pengurusan/${order.id}/surat-kuasa/${crypto.randomUUID()}.pdf`;
+  await deps.files.put({ key, body, contentType: "application/pdf" });
+  return deps.files.signedUrl(key, { expiresInSeconds: 300 });
 }
 
 // ------------------------------------------------- Dokumen Lengkap, IPTM Diajukan
@@ -221,7 +248,7 @@ export type PeriksaDokumenResult =
 export async function periksaDokumen(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<PeriksaDokumenResult> {
   const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
   if (refusal) return refusal;
-  const parsed = catatDimakamkanSchema.safeParse(rawInput);
+  const parsed = nomorPengurusanSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const order = await muat(deps, parsed.data.nomor);
   if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
