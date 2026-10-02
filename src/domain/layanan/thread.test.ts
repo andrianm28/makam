@@ -82,6 +82,32 @@ describe("the Pekerjaan Layanan message thread", () => {
     expect((await setup.layanan.kirimPesanStaf(adminLain, { pekerjaanId, teks: "Halo" })).ok).toBe(false);
   });
 
+  it("lets an Admin Lokasi read and post only on jobs at their own Lokasi", async () => {
+    const { setup, lokasi, pemesan, pekerjaanId } = await pekerjaanDijadwalkan();
+    const lokasiLain = await lokasiDenganLayanan(setup, { nama: "Layanan Lain" });
+    const { actor: admin } = await adminPlatformOf(setup);
+    const adminLain = await signedInAdminLokasi(setup, admin, [lokasiLain.lokasiMitra.id], "084444444444");
+    const petakLain = await petakDenganHakPakai(setup, lokasiLain);
+    const orderLain = await setup.layanan.placePesananLayanan(pemesan, {
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      lokasiId: lokasiLain.lokasiMitra.id,
+      petakId: petakLain.petakId,
+      item: [{ layananVariantId: lokasiLain.varian.id, targetDate: "2026-10-20", teks: null }],
+    });
+    if (!orderLain.ok) throw new Error(`order refused: ${orderLain.reason}`);
+    const dibayar = await setup.billing.recordPayment(orderLain.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: setup.clock.now() });
+    if (!dibayar.ok) throw new Error("payment refused");
+    const pekerjaanLain = (await setup.layanan.pesananLayananOf(orderLain.pesanan.nomor, pemesan))?.item[0].pekerjaan?.id;
+    if (!pekerjaanLain) throw new Error("no job");
+
+    // The Admin Lokasi of the other Lokasi works on its own job and is refused on this one, and the other way round.
+    expect((await setup.layanan.kirimPesanStaf(adminLain, { pekerjaanId: pekerjaanLain, teks: "Siap." })).ok).toBe(true);
+    expect((await setup.layanan.kirimPesanStaf(adminLain, { pekerjaanId, teks: "Siap." })).ok).toBe(false);
+    expect((await setup.layanan.bacaThreadStaf(adminLain, pekerjaanId)).ok).toBe(false);
+    expect((await setup.layanan.kirimPesanStaf(lokasi.adminLokasi, { pekerjaanId, teks: "Siap." })).ok).toBe(true);
+  });
+
   it("lets Admin Platform read every thread and step in with a message", async () => {
     const { setup, lokasi, pemesan, pekerjaanId } = await pekerjaanDijadwalkan();
     await setup.layanan.kirimPesanPemesan(pemesan, { pekerjaanId, teks: "Tolong dilihat." });
