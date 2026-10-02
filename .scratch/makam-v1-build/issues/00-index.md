@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 78 resolved, 11 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 79 resolved, 10 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -61,7 +61,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-1
 | [55](55-mitra-jasa-onboarding-and-status.md) | Mitra Jasa onboarding, availability, status and scorecard | resolved | 43, 49 |
 | [56](56-tpu-layanan-order-and-mitra-jasa-assignment.md) | TPU Layanan order and Mitra Jasa assignment | resolved | 45, 50, 55 |
 | [57](57-mitra-jasa-proof-approval-and-pay.md) | Mitra Jasa photo proof, approval and pay rules | ready-for-agent | 51, 56 |
-| [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | ready-for-agent | 17, 27 |
+| [58](58-wakaf-tanah.md) | Wakaf Tanah: Pengajuan Wakaf, review and tracking | resolved | 17, 27 |
 | [59](59-lokasi-ditangguhkan-and-berhenti.md) | Lokasi Mitra Ditangguhkan and Berhenti | ready-for-agent | 32, 38, 54 |
 | [60](60-real-s3-filestore-adapter.md) | FileStore on the host disk for v1 (S3 adapter in v2) | resolved | — |
 | [61](61-real-sumopod-adapter.md) | Real SumoPod PaymentProvider adapter | resolved | 04, 19 |

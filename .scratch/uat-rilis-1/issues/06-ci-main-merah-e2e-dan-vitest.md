@@ -1,6 +1,6 @@
 # main CI went red twice on documentation-only commits
 
-Status: in-progress
+Status: resolved
 Blocked by: —
 Spec: AGENTS.md (Tests: E2E runs in CI on every main build; a failing test is never "flaky")
 
@@ -19,3 +19,5 @@ Spec: AGENTS.md (Tests: E2E runs in CI on every main build; a failing test is ne
 - 2026-10-02 — Filed by the orchestrator from a read-only diagnosis of the two runs.
 - 2026-10-02 — Builder, item 1 (E2E locator), branch `fix/e2e-nomor-dokumen`. Only `e2e/bukti-pemesanan.spec.ts:141` was loose: unanchored `getByText(/BPM\/.../)` also matched Next's route announcer (`role=alert`, outside `<main>`). Now `page.getByRole("main").getByText(/^BPM\/\d{4}\/\d{6}$/)`; the document page renders its body inside one `<main>`. Every other document-number locator in `e2e/` (TGH at lines 80, 96) is already anchored `^...$`, which the announcer's longer text cannot match, and line 136 is scoped to `bukti`. No app change. Not run: the local stack could not be built (`npm ci` fails inside Docker here), so the spec was not executed; lint and typecheck pass. Item 2 (Vitest) untouched.
 - 2026-10-02 — Two-axis review of item 1 (code-review skill, fixed point origin/main, branch fix/e2e-nomor-dokumen at c4e7f33). Standards: 0 hard; judgement — `saat-duka.spec.ts:73` (`/jatuh tempo … setelah pemakaman/`) is unanchored and unscoped, low risk. Spec: item 1 met — no document-number assertion in `e2e/` can still match the route announcer or a heading (142 scoped+anchored, 136 by testid, 80/96 anchored, 95 a link, `pembayaran.spec.ts:68` safe because the announcer carries the BPB number, not the TGH one); the document page has exactly one `<main>` (`src/app/dokumen/[link]/page.tsx:89–119`) and the announcer is appended to `<body>`. No fix pass. The spec could not be run here (the Docker build's `npm ci` fails in this container): proof is main CI's E2E job after the merge. Item 2: the Vitest failure is the same seed test as uat-rilis-1/05 (named in run 36970410673: `seed-contoh-publik-command.test.ts` "draws the prototype's own Denah …", `expected 1 to be +0`, 1 failed / 2581 passed); it is being root-caused under ticket 05.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding on either axis (entries above); merge gate on the merged tree: typecheck, lint, build, full suite 292 files / 2648 tests passed (1 skipped), exit 0.
+- 2026-10-02 — E2E item 1 is proven only by main CI after this push (run 342 failed on exactly this locator, `bukti-pemesanan.spec.ts:141`, strict mode: the route announcer, before this fix was on main).

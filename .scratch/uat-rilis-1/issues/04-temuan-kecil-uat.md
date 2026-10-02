@@ -1,6 +1,6 @@
 # Small findings from the Rilis 1 UAT
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: spec.md (makam-v1), the screens named below; CONTEXT.md for wording
 
@@ -35,3 +35,4 @@ Found in the staging UAT on 2026-10-02, each with a screenshot in the UAT run:
   7. Fixed: Saat Duka order page heading is "Pesanan terkirim" only while Diajukan, else "Pesanan Anda".
   8. Spec says "Online payment in v1 is QRIS only ... no Virtual Account" (Billing), so the Tagihan copy now reads "Bayar dengan QRIS." Spec gap for the owner: user story 35 still says "VA or QRIS".
   Verified: vitest berkas + pesanan-saya (13 passed), lint, typecheck clean.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding on either axis (entries above); merge gate on the merged tree: typecheck, lint, build, full suite 292 files / 2648 tests passed (1 skipped), exit 0.

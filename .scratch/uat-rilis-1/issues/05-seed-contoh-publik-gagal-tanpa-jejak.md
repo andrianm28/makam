@@ -1,6 +1,6 @@
 # seed-contoh-publik test failed once with no trace of why
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: AGENTS.md (Tests: read every count off a kept log); orchestration manual ("Flake" is not a root cause)
 
@@ -24,3 +24,4 @@ Make the failure diagnosable before guessing: when the seed command exits non-ze
 - 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main, branch at 7019245). Standards: 0 hard; judgement — the result type `{ exitCode; output }` written inline in `expectBerhasil` (possible Data Clump if the command exports one). Spec: AC 1 met (every success check uses the helper; the new test forces a real non-zero exit and asserts the command's own text); AC 2 open by design, so this ticket stays open after the merge. No fix pass.
 - 2026-10-02 — **Failure caught with the new message** (orchestrator, batch-2 merge gate, full suite 290/291 files, 2646 passed, 1 failed): test "runs on staging with the named allowance, and every write it makes says so in its reason" → `seed-contoh-publik keluar dengan kode 1: Ditolak: Pemakaman Bukit Sejuk tidak siap (admin lokasi: tunggu_kirim_ulang).` So the seed refuses because the Admin Lokasi invite/Kode Masuk resend cooldown is still running from an earlier test in the same file: timing-dependent (passes when the earlier send is older than the cooldown). AC 2 now has a cause; fix next (diagnosing-bugs, red test first).
 - 2026-10-02 — **Correction of the orchestrator's entry above:** the cause was not the Admin Lokasi resend cooldown. The builder found it is the per-IP 60 s limit (`claimIpRequest`, same reason string): `benchmarkingIp()` drew each of the seed's ~6 Kode Masuk requests a random IP from only 1000, all inside one FakeClock window, so a collision (~1.5%/run) was refused. My reading of the reason string was wrong; the builder reproduced it.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding on either axis (entries above); merge gate on the merged tree: typecheck, lint, build, full suite 292 files / 2648 tests passed (1 skipped), exit 0.
