@@ -16,6 +16,7 @@ import type {
   PemesananBuktiPemesanan,
   PemesananDiajukan,
   PesananDibatalkan,
+  TumpangMintaPersetujuan,
   PemesananDikonfirmasi,
   PesananDitolak,
   PemesananNotifikasi,
@@ -76,6 +77,8 @@ export function pemesananOnTestDatabase(
   const ditolak: PesananDitolak[] = [];
   const alternatif: PesananAlternatifDitawarkan[] = [];
   const dibatalkan: PesananDibatalkan[] = [];
+  /** Every consent request the Pemegang Hak was emailed for a further burial (ticket 35). */
+  const tumpangMinta: TumpangMintaPersetujuan[] = [];
   /** Every Saat Duka TPU confirmation the Pengurusan module announced. */
   const pengurusanDikonfirmasi: PengurusanDikonfirmasiInput[] = [];
   /** Every Chasing schedule the Pemesanan module announced, once a pay-after Tagihan's overdue anchor is known (ticket 29). */
@@ -100,6 +103,9 @@ export function pemesananOnTestDatabase(
     },
     pesananDibatalkan: async (hasil) => {
       dibatalkan.push(hasil);
+    },
+    tumpangMintaPersetujuan: async (hasil) => {
+      tumpangMinta.push(hasil);
     },
     pesananBuktiPemesanan: async (hasil) => {
       buktiPemesanan.push(hasil);
@@ -301,6 +307,7 @@ export function pemesananOnTestDatabase(
     ditolak,
     alternatif,
     dibatalkan,
+    tumpangMinta,
     terencana,
     terencanaDikonfirmasi,
     terencanaDitolak,
@@ -328,6 +335,7 @@ export type PemesananModul = Omit<
   | "ditolak"
   | "alternatif"
   | "dibatalkan"
+  | "tumpangMinta"
   | "terencana"
   | "terencanaDikonfirmasi"
   | "terencanaDitolak"

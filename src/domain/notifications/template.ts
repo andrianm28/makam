@@ -802,3 +802,34 @@ export function layananPesanBaruEmail(input: LayananPesanBaruEmailInput): { subj
     ].join("\n"),
   };
 }
+
+export interface TumpangMintaPersetujuanEmailInput {
+  nomor: string;
+  lokasiName: string;
+  pemegangHakName: string;
+  pemesanName: string;
+  almarhumName: string;
+  tautan: string;
+}
+
+/**
+ * The Pemegang Hak asked to consent to a further burial under their Hak Pakai (ticket 35).
+ * It carries a link and no code: they sign in to Akun Saya with the usual Kode Masuk and
+ * answer Setujui or Tolak under Perlu tindakan.
+ */
+export function tumpangMintaPersetujuanEmail(input: TumpangMintaPersetujuanEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Persetujuan Pemegang Hak: pemakaman di makam keluarga ${input.lokasiName}`,
+    body: [
+      `Yth. ${input.pemegangHakName},`,
+      "",
+      `${input.pemesanName} mengajukan pemakaman ${input.almarhumName} di makam yang Anda pegang haknya di ${input.lokasiName} (pesanan ${input.nomor}).`,
+      "Sebagai Pemegang Hak, persetujuan Anda diperlukan. Masuk ke Akun Saya dengan Kode Masuk yang dikirim ke email ini, lalu pilih Setujui atau Tolak di bagian Perlu tindakan.",
+      "",
+      `Buka Akun Saya: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

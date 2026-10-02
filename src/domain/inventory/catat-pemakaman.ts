@@ -28,6 +28,8 @@ export const catatPemakamanSchema = z.object({
   tanggal: z.iso.date(),
   /** Which layer of the plot the Almarhum is laid in; the first by default. */
   layer: z.number().int().min(1).max(20).optional(),
+  /** For a Kavling Keluarga, the member Petak the Almarhum is laid in; a single Petak's right ignores it. */
+  petakId: z.uuid().optional(),
 });
 export type CatatPemakamanInput = z.infer<typeof catatPemakamanSchema>;
 
@@ -74,7 +76,8 @@ export async function catatPemakaman(
     .from(inventoryHakPakai)
     .where(and(eq(inventoryHakPakai.id, input.hakPakaiId), eq(inventoryHakPakai.lokasiId, lokasiId)));
   if (!hakPakai) return { ok: false, reason: "hak_pakai_tidak_ditemukan" };
-  if (!hakPakai.petakId) return { ok: false, reason: "petak_tidak_ditemukan" };
+  const petakId = await targetPetakId(deps, hakPakai, input.petakId);
+  if (!petakId) return { ok: false, reason: "petak_tidak_ditemukan" };
   // The Clock's own day is the last day a burial may be recorded for: the form
   // takes the date that happened, never one still to come.
   if (input.tanggal > wibDateOf(now)) return { ok: false, reason: "tanggal_pemakaman_tidak_valid" };
@@ -84,7 +87,7 @@ export async function catatPemakaman(
       .insert(inventoryPemakaman)
       .values({
         lokasiId,
-        petakId: hakPakai.petakId!,
+        petakId: petakId,
         hakPakaiId: hakPakai.id,
         almarhumName: input.almarhumName,
         date: input.tanggal,
@@ -101,7 +104,7 @@ export async function catatPemakaman(
         .where(eq(inventoryHakPakai.id, hakPakai.id));
     }
     // A plot nobody has ever used becomes used the moment someone is buried in it.
-    await tx.update(inventoryPetak).set({ firstUsedAt: now }).where(eq(inventoryPetak.id, hakPakai.petakId!));
+    await tx.update(inventoryPetak).set({ firstUsedAt: now }).where(eq(inventoryPetak.id, petakId));
     await record({
       actor: { accountId: by.accountId, role: "admin_lokasi" },
       action: "pemakaman.catat",
@@ -146,4 +149,19 @@ function endDateColumn(tenureYears: number | null, mulai: string): Date | null {
 /** "YYYY-MM-DD" as a `Date` at that calendar day's UTC midnight: `tenure_start_at` and `end_date` are dates, not instants. */
 function dateOnly(isoDate: string): Date {
   return new Date(`${isoDate}T00:00:00.000Z`);
+}
+
+/** The Petak the burial goes in: the right's own Petak, or the chosen member Petak of its Kavling Keluarga. */
+async function targetPetakId(
+  deps: InventoryDeps,
+  hakPakai: { petakId: string | null; kavlingId: string | null },
+  chosen: string | undefined,
+): Promise<string | null> {
+  if (hakPakai.petakId) return hakPakai.petakId;
+  if (!hakPakai.kavlingId || !chosen) return null;
+  const [anggota] = await deps.db
+    .select({ id: inventoryPetak.id })
+    .from(inventoryPetak)
+    .where(and(eq(inventoryPetak.id, chosen), eq(inventoryPetak.kavlingId, hakPakai.kavlingId)));
+  return anggota?.id ?? null;
 }

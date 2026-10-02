@@ -139,3 +139,21 @@ export function perluTindakanDariBerkasTpu(daftar: readonly RingkasanBerkasTpu[]
     href: `/pengurusan/${satu.nomor}`,
   }));
 }
+
+/** One further burial waiting for this Akun, as the Pemegang Hak of the Hak Pakai, to answer Setujui or Tolak (ticket 35). */
+export interface RingkasanKonsen {
+  nomor: string;
+  lokasiName: string;
+  pemesanName: string;
+  almarhumName: string;
+}
+
+/** The consent requests the Pemegang Hak answers under Perlu tindakan; each clears the moment it is answered. */
+export function perluTindakanDariKonsen(daftar: readonly RingkasanKonsen[]): PerluTindakanItem[] {
+  return daftar.map((satu) => ({
+    id: `konsen:${satu.nomor}`,
+    judul: `Persetujuan pemakaman ${satu.almarhumName} di ${satu.lokasiName}`,
+    deskripsi: `${satu.pemesanName} meminta izin Anda sebagai Pemegang Hak. Pilih Setujui atau Tolak.`,
+    href: `/akun/persetujuan/${satu.nomor}`,
+  }));
+}

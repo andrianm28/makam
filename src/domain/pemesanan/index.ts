@@ -46,6 +46,22 @@ import { batalkanSaatDuka, batalkanUntukPemesan, type BatalkanSaatDukaInput, typ
 import { rebookPesanan, type RebookPesanan } from "./rebook";
 import { catatPemakaman, type CatatPemakamanOrderInput, type CatatPemakamanOrderResult } from "./catat-pemakaman";
 import {
+  ajukanTumpang,
+  catatKonsenTumpang,
+  konfirmasiTumpang,
+  jawabKonsenTumpang,
+  konsenMenungguSaya,
+  type AjukanTumpangInput,
+  type AjukanTumpangResult,
+  type CatatKonsenInput,
+  type CatatKonsenResult,
+  type JawabKonsenInput,
+  type JawabKonsenResult,
+  type KonfirmasiTumpangInput,
+  type KonsenMenunggu,
+  type KonfirmasiTumpangResult,
+} from "./tumpang";
+import {
   antreanCatatPemakaman,
   antreanKonfirmasi,
   ditolak as ditolakOf,
@@ -153,6 +169,7 @@ export type {
   PesananAlternatifDitawarkan,
   PemesananDiajukan,
   PesananDibatalkan,
+  TumpangMintaPersetujuan,
   PemesananDikonfirmasi,
   PesananDitolak,
   PemesananNotifikasi,
@@ -199,6 +216,9 @@ export type { LangkahOrder, PemesananOrder } from "./reads";
 export { PESANAN_SUBJECT_KINDS, timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
 export type { AkhiriHakPakaiTidakTertagihResult } from "./chasing";
+export { ajukanTumpangSchema, catatKonsenSchema, jawabKonsenSchema, konfirmasiTumpangSchema } from "./tumpang";
+export type { KonsenMenunggu, TumpangUntukStaf } from "./tumpang";
+export { tumpangJenisKeys } from "./schema";
 export { nyatakanTidakTertagihSchema, type NyatakanTidakTertagihInput, type NyatakanTidakTertagihResult };
 export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } from "./prompt-catat-pemakaman";
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
@@ -335,6 +355,25 @@ export interface Pemesanan {
    * clock at the recorded date, and the order Dimakamkan.
    */
   catatPemakaman(by: Actor, input: CatatPemakamanOrderInput): Promise<CatatPemakamanOrderResult>;
+  /**
+   * "Makamkan di sini" (ticket 35): places a further burial under an existing Hak
+   * Pakai, resolving the Pemegang Hak's consent as far as it can go without them.
+   * The returned `kode` is the one-time code the boundary must email to the holder
+   * when the state is `menunggu_email`.
+   */
+  ajukanTumpang(input: AjukanTumpangInput): Promise<AjukanTumpangResult>;
+  /**
+   * The Pemegang Hak's answer to the consent request (Setujui / Tolak), given signed in
+   * with the usual Kode Masuk; permitted only to the Akun whose Email Terverifikasi is
+   * the Hak Pakai's recorded holder email.
+   */
+  jawabKonsenTumpang(by: Pick<Actor, "accountId">, input: JawabKonsenInput): Promise<JawabKonsenResult>;
+  /** The consent requests waiting for this Akun's Pemegang Hak, for the Perlu tindakan strip. */
+  konsenMenungguSaya(who: { accountId: string }): Promise<KonsenMenunggu[]>;
+  /** The Admin Lokasi logs a verbal consent or heirship proof for a holder with no email (or one who answered verbally). */
+  catatKonsenTumpang(by: Actor, input: CatatKonsenInput): Promise<CatatKonsenResult>;
+  /** The Admin Lokasi confirms the burial: tumpang checks, then the pay-after Tagihan. No Hak Pakai is created. */
+  konfirmasiTumpang(by: Actor, input: KonfirmasiTumpangInput): Promise<KonfirmasiTumpangResult>;
   /**
    * One order as that Lokasi Mitra's staff read it, with the family's own
    * details and its documents; null for an order that is not theirs (an Admin
@@ -491,6 +530,11 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     batalkanUntukPemesan: (by, input) => batalkanUntukPemesan(deps, by, input),
     rebook: (nomor, pemesan) => rebookPesanan(deps, nomor, pemesan),
     catatPemakaman: (by, input) => catatPemakaman(deps, by, input),
+    ajukanTumpang: (input) => ajukanTumpang(deps, input),
+    jawabKonsenTumpang: (by, input) => jawabKonsenTumpang(deps, by, input),
+    konsenMenungguSaya: (who) => konsenMenungguSaya(deps, who),
+    catatKonsenTumpang: (by, input) => catatKonsenTumpang(deps, by, input),
+    konfirmasiTumpang: (by, input) => konfirmasiTumpang(deps, by, input),
     orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
     orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),
     antreanCatatPemakaman: (lokasiId) => antreanCatatPemakaman(deps, lokasiId),

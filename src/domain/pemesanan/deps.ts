@@ -88,6 +88,8 @@ export interface PemesananNotifikasi {
   pesananAlternatifDitawarkan(hasil: PesananAlternatifDitawarkan): Promise<void>;
   /** A cancelled order, said to the family: what it gave back and what is on its way back. */
   pesananDibatalkan(hasil: PesananDibatalkan): Promise<void>;
+  /** The Pemegang Hak consent request for a further burial: an ordinary email with a link to Akun Saya, no code (ticket 35, owner 2026-10-02). */
+  tumpangMintaPersetujuan(hasil: TumpangMintaPersetujuan): Promise<void>;
   /**
    * The Bukti Pemesanan of a paid order: the link to the document that proves the
    * right (ADR 0004 — by email; an order with no email opens the call row, and
@@ -273,6 +275,17 @@ export interface PesananAlternatifDitawarkan {
 }
 
 /** A cancelled Pemesanan Makam as its family is told about it: what was given back, and what is on its way. */
+/** What the Pemegang Hak consent request needs: who is asked, by whom, about whom, where. */
+export interface TumpangMintaPersetujuan {
+  pemesananId: string;
+  nomor: string;
+  email: string;
+  pemegangHakName: string;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  almarhum: { name: string; tanggalWafat: string };
+}
+
 export interface PesananDibatalkan {
   pemesananId: string;
   nomor: string;
@@ -339,6 +352,8 @@ export interface PemesananDeps {
     | "akhiriHakPakai"
     // The Hak Pakai a Bukti Pemesanan names and the term it prints (ticket 25).
     | "hakPakaiById"
+    // The Hak Pakai "Makamkan di sini" buries under, with its holder and its tumpang facts (ticket 35).
+    | "hakPakaiUntukTumpang"
     // The Terencana wizard's Denah and the hold that keeps a plot sold (spec, Inventory > Denah).
     | "publicDenah"
     | "tersediaUntukTerencana"

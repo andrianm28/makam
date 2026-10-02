@@ -57,6 +57,8 @@ export const TEMPLATE_EMAIL = [
   "lokasi_berhenti",
   // A Pengajuan Wakaf changed status (ticket 58): the Wakif hears each change by email, at any hour.
   "wakaf_status",
+  // The Pemegang Hak asked to answer a further burial under their Hak Pakai (ticket 35): a link to Akun Saya, no code of its own.
+  "tumpang_minta_persetujuan",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -111,6 +113,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   // News the family cannot wait on: its order or Paket ends on a date, so it goes at any hour (ticket 59).
   lokasi_berhenti: "transaksional",
   wakaf_status: "transaksional",
+  tumpang_minta_persetujuan: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -152,6 +155,7 @@ export const TABEL_ACARA: Record<
   | "pembatalan_terencana"
   | "lokasi_berhenti"
   | "wakaf_status"
+  | "tumpang_minta_persetujuan"
   | "peringatan_staf",
   Acara
 > = {
@@ -312,6 +316,12 @@ export const TABEL_ACARA: Record<
   },
   /** A Pengajuan Wakaf's status change (ticket 58): by email at any hour, to the Wakif. */
   wakaf_status: { penerima: "email_pemesan", kanal: "email", template: "wakaf_status", waktu: WAKTU_TEMPLATE.wakaf_status },
+  tumpang_minta_persetujuan: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "tumpang_minta_persetujuan",
+    waktu: WAKTU_TEMPLATE.tumpang_minta_persetujuan,
+  },
   /**
    * The staff events, one Peringatan Staf per kind (the module's
    * `staffAlertKinds`): by push to every Perangkat Push of the Akun Staf and

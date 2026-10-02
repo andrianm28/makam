@@ -23,6 +23,7 @@ import {
   pesananDiajukanEmail,
   pesananDikonfirmasiEmail,
   pesananDitolakEmail,
+  tumpangMintaPersetujuanEmail,
   layananPekerjaanSelesaiEmail,
   layananPesanBaruEmail,
   layananPesananTerbitEmail,
@@ -695,4 +696,48 @@ export async function pesanLayanan(deps: Pick<PesanKeluargaDeps, "db">, nomorPem
     attempts: row.attempts,
     sentAt: row.sentAt,
   }));
+}
+
+/** What it announces when a further burial needs the Pemegang Hak consent (ticket 35). */
+export const tumpangMintaPersetujuanSchema = z.object({
+  pemesananId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  /** The Pemegang Hak recorded email, where the request goes. */
+  email: z.email().max(320),
+  pemegangHakName: z.string().trim().min(1).max(200),
+  pemesanName: z.string().trim().min(1).max(200),
+  lokasi: lokasiSchema,
+  almarhum: almarhumSchema,
+});
+export type TumpangMintaPersetujuanInput = z.infer<typeof tumpangMintaPersetujuanSchema>;
+
+/**
+ * Emails the Pemegang Hak the consent request: an ordinary message with a link to
+ * Akun Saya, where they sign in with the usual Kode Masuk and answer under Perlu
+ * tindakan (no code of its own). A burial does not wait for a morning window.
+ */
+export async function tumpangMintaPersetujuan(deps: PesanKeluargaDeps, input: TumpangMintaPersetujuanInput): Promise<PesanPemesananResult> {
+  const parsed = tumpangMintaPersetujuanSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pemesanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = tumpangMintaPersetujuanEmail({
+    nomor: data.nomor,
+    lokasiName: data.lokasi.name,
+    pemegangHakName: data.pemegangHakName,
+    pemesanName: data.pemesanName,
+    almarhumName: data.almarhum.name,
+    tautan: new URL("/akun", deps.pesananUrl(data.nomor)).toString(),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "tumpang_minta_persetujuan",
+    pemesananId: data.pemesananId,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
 }

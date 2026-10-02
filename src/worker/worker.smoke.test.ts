@@ -58,6 +58,7 @@ describe("pg-boss wiring (smoke)", () => {
           pesananDitolak: async () => {},
           pesananAlternatifDitawarkan: async () => {},
           pesananDibatalkan: async () => {},
+          tumpangMintaPersetujuan: async () => {},
           pesananBuktiPemesanan: async () => {},
           terencanaDiajukan: async () => {},
           terencanaDikonfirmasi: async () => {},
