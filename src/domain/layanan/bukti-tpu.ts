@@ -26,7 +26,7 @@
  * hari-H Layanan on a Saat Duka Tagihan pays the Mitra Jasa when the Keluhan window closes
  * whether or not the family has paid, and a Tidak Tertagih Tagihan is the Operator's loss.
  */
-import { and, asc, desc, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { akunResource, pekerjaanTpuSemuaResource, writeRefusal } from "@/domain/identity";
@@ -47,6 +47,9 @@ import {
 import { kerjaUlangTpuSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema } from "./tpu-skema";
 import { buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
 import { tugaskanMitraJasa, type TugaskanMitraJasaResult } from "./penugasan-tpu";
+
+import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
+import { HARI_TERLAMBAT } from "./pekerjaan";
 
 const BUKTI_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
 const JAM_MS = 3_600_000;
@@ -297,6 +300,23 @@ export async function setujuiBuktiTpu(deps: LayananDeps, by: Actor, rawInput: un
       .update(pekerjaanLayananTpu)
       .set({ status: "selesai", selesaiAt: sekarang, buktiDitunjukkanAt: sekarang, buktiDitolakAlasan: null, pencairanItemId })
       .where(eq(pekerjaanLayananTpu.id, pekerjaanId));
+    // The Pemesan is told on this same transaction, with the proof by short-lived link; a Saat Duka order with no email has no one to tell.
+    if (job.pemesanEmail) {
+      const bukti = (await buktiTpuPerPekerjaan({ ...deps, db: tx }, [pekerjaanId])).get(pekerjaanId) ?? [];
+      if (bukti.length > 0) {
+        await deps.notifikasi.pekerjaanSelesai(tx, {
+          pekerjaanId,
+          nomor: job.nomor,
+          email: job.pemesanEmail,
+          pemesanName: job.pemesanName,
+          lokasi: { id: job.tpuId, name: job.tpuName },
+          petak: { nomor: job.makam.blokNomor },
+          label: job.label,
+          selesaiAt: sekarang,
+          bukti: bukti.map((satu) => ({ kind: satu.kind, url: satu.url })),
+        });
+      }
+    }
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
       action: "layanan.setujui_bukti_tpu",
@@ -379,7 +399,8 @@ export type KerjaUlangTpuResult =
  * handed to the chosen Mitra Jasa through the same picker rule as any assignment; the original goes to
  * Keluhan and keeps its Pencairan, which the redo's approval then releases or cancels.
  */
-export async function kerjaUlangTpu(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<KerjaUlangTpuResult> {
+export async function kerjaUlangTpu(deps: LayananDeps, by: Actor, rawInput: unknown, dariKeluhan = false): Promise<KerjaUlangTpuResult> {
+  const statusAsal = dariKeluhan ? "keluhan" : "selesai";
   const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
   if (refusal) return refusal;
   const parsed = kerjaUlangTpuSchema.safeParse(rawInput);
@@ -390,7 +411,7 @@ export async function kerjaUlangTpu(deps: LayananDeps, by: Actor, rawInput: unkn
   const dibuat = await deps.db.transaction(async (tx) => {
     const [asal] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
     if (!asal) return { ok: false as const, reason: "tidak_ditemukan" as const };
-    if (asal.status !== "selesai") return { ok: false as const, reason: "bukan_selesai" as const };
+    if (asal.status !== statusAsal) return { ok: false as const, reason: "bukan_selesai" as const };
     const [ada] = await tx.select({ id: pekerjaanLayananTpu.id }).from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.kerjaUlangDariId, pekerjaanId));
     if (ada) return { ok: false as const, reason: "sudah_dikerjakan_ulang" as const };
     const [urutan] = await tx
@@ -427,7 +448,7 @@ export async function kerjaUlangTpu(deps: LayananDeps, by: Actor, rawInput: unkn
     // Handing it over failed (the picker refused them): put the original back, and drop the unassigned redo.
     await deps.db.transaction(async (tx) => {
       await tx.delete(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, dibuat.id));
-      await tx.update(pekerjaanLayananTpu).set({ status: "selesai" }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
+      await tx.update(pekerjaanLayananTpu).set({ status: statusAsal }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
     });
     return { ok: false, reason: tugas.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid" };
   }
@@ -503,4 +524,20 @@ export async function pekerjaanTpuMenungguVerifikasi(db: Database): Promise<Peke
     dikirimAt: job.buktiDikirimAt as Date,
     batasVerifikasi: new Date((job.buktiDikirimAt as Date).getTime() + BATAS_VERIFIKASI_BUKTI_JAM * JAM_MS),
   }));
+}
+
+/**
+ * The worker's tick: a TPU job two days past its target date that has not been sent for approval
+ * is flagged Terlambat (spec, Pekerjaan Layanan). The flag changes no pay: a Terlambat job that
+ * is done after all is paid in full when its proof is approved. Idempotent: a flagged job is
+ * no longer in the states the tick looks at. Returns how many jobs it flagged.
+ */
+export async function tandaiTerlambatTpu(db: Database, now: Date): Promise<number> {
+  const batas = addWibDateDays(wibDateOf(now), -HARI_TERLAMBAT);
+  const ditandai = await db
+    .update(pekerjaanLayananTpu)
+    .set({ status: "terlambat" })
+    .where(and(inArray(pekerjaanLayananTpu.status, ["dijadwalkan", "sedang_dikerjakan"]), lte(pekerjaanLayananTpu.targetDate, batas)))
+    .returning({ id: pekerjaanLayananTpu.id });
+  return ditandai.length;
 }

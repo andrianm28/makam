@@ -4,6 +4,7 @@ import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { layananOnTestDatabase, type LayananSetup } from "../../../tests/support/layanan";
 import { mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
+import { tandaiTerlambatTpu } from "./bukti-tpu";
 
 /**
  * The photo proof of a TPU job, its approval, and the Mitra Jasa pay rules (spec, Layanan > Mitra Jasa;
@@ -184,6 +185,25 @@ describe("what the Pemesan sees of the proof", () => {
   });
 });
 
+describe("the Pemesan is told when the proof is approved", () => {
+  it("gets one message with the proof links on approval, and none while the proof is only sent or rejected", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, nomor } = await kerjaDiterima(s, mitra);
+    await kirimBunga(s, mitra, pekerjaanId);
+    await s.setup.layanan.tolakBuktiTpu(s.admin, { pekerjaanId, alasan: "Foto gelap" });
+    expect(s.setup.notifikasi.selesai).toEqual([]);
+
+    await ambil(s, mitra, pekerjaanId, "foto_sesudah");
+    await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
+    expect(s.setup.notifikasi.selesai).toEqual([]);
+    await setujui(s, pekerjaanId);
+    expect(s.setup.notifikasi.selesai).toMatchObject([
+      { pekerjaanId, nomor, email: "pemesan.tpu@contoh.id", label: "Layanan – Bunga Tabur (Reguler)", bukti: [expect.objectContaining({ kind: "foto_sesudah", url: expect.stringContaining("pekerjaan-layanan-tpu/") })] },
+    ]);
+  });
+});
+
 describe("approval opens the Keluhan window and the Mitra Jasa's Pencairan", () => {
   it("records the Pencairan at the Mitra Jasa rate, due only once the 3×24 h window since the approval has closed", async () => {
     const s = await siap();
@@ -340,5 +360,133 @@ describe("a hari-H Layanan on a Saat Duka TPU Tagihan", () => {
     await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-20 09:00"));
     expect((await s.setup.billing.tagihan(hasil.tagihan.id))?.status).not.toBe("lunas");
     expect(await pencairanSaya(s, mitra)).toMatchObject([{ status: "jatuh_tempo", tarif: TARIF }]);
+  });
+});
+
+describe("a TPU job two days past its target date with no proof is Terlambat", () => {
+  it("flags the job once, only after target + 2 days, and leaves a job with proof sent alone", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+
+    // Target 5 Oktober: on 7 Oktober it is two days past; the day before it is not.
+    expect(await tandaiTerlambatTpu(s.setup.db, wib("2026-10-06 23:00"))).toBe(0);
+    expect(await tandaiTerlambatTpu(s.setup.db, wib("2026-10-07 00:05"))).toBe(1);
+    expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId))?.status).toBe("terlambat");
+    // Idempotent.
+    expect(await tandaiTerlambatTpu(s.setup.db, wib("2026-10-07 00:10"))).toBe(0);
+
+    const lain = await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+    await kirimBunga(s, mitra, lain.pekerjaanId);
+    expect(await tandaiTerlambatTpu(s.setup.db, wib("2026-10-20 00:00"))).toBe(0);
+    expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, lain.pekerjaanId))?.status).toBe("menunggu_verifikasi");
+  });
+
+  it("pays the full rate when a Terlambat job is done after all", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    await kirimBunga(s, mitra, pekerjaanId);
+    await setujui(s, pekerjaanId);
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF, status: "belum_jatuh_tempo" }]);
+  });
+
+  it("pays nothing for a Terlambat job that is never done", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+    await tandaiTerlambatTpu(s.setup.db, wib("2026-10-08 09:00"));
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await pencairanSaya(s, mitra)).toEqual([]);
+  });
+});
+
+describe("a Keluhan on a TPU job", () => {
+  /** A job approved at 10:00 on 5 Oktober, so its Keluhan window is open until 8 Oktober 10:00. */
+  async function selesai(s: Siap, mitra: Mitra) {
+    const asal = await kerjaDiterima(s, mitra);
+    s.setup.clock.set(wib("2026-10-05 10:00"));
+    await kirimBunga(s, mitra, asal.pekerjaanId);
+    await setujui(s, asal.pekerjaanId);
+    return asal;
+  }
+  async function ajukan(s: Siap, pekerjaanId: string, waktu = wib("2026-10-06 09:00")) {
+    s.setup.clock.set(waktu);
+    return s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId, alasan: "Nisan masih kotor" });
+  }
+
+  it("is filed by the Pemesan inside the window, once, and holds the Mitra Jasa's Pencairan while it is open", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, nomor } = await selesai(s, mitra);
+
+    const diajukan = await ajukan(s, pekerjaanId);
+    expect(diajukan).toMatchObject({ ok: true });
+    expect((await s.setup.layanan.pesananTpuOf(nomor, s.pemesan))?.item[0].status).toBe("keluhan");
+    expect(await ajukan(s, pekerjaanId)).toEqual({ ok: false, reason: "sudah_ada" });
+    // The window passes with the Keluhan still open: the Pencairan does not become due.
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-20 10:00"));
+    expect((await pencairanSaya(s, mitra))[0].status).toBe("belum_jatuh_tempo");
+  });
+
+  it("is refused after the window and for somebody else's order", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    expect(await ajukan(s, pekerjaanId, wib("2026-10-08 10:01"))).toEqual({ ok: false, reason: "jendela_tertutup" });
+    const lain = { accountId: s.pemesan.accountId, email: "bukan@contoh.id" };
+    expect(await s.setup.layanan.ajukanKeluhanTpu(lain, { pekerjaanId, alasan: "x" })).toEqual({ ok: false, reason: "bukan_pemesan" });
+  });
+
+  it("is refused for a job whose proof Admin Platform has not approved", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await kerjaDiterima(s, mitra);
+    await kirimBunga(s, mitra, pekerjaanId);
+    expect(await ajukan(s, pekerjaanId)).toEqual({ ok: false, reason: "belum_selesai" });
+  });
+
+  it("rejected by Admin Platform: the job is Selesai again and its Pencairan falls due once the window is over", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    expect(await s.setup.layanan.putuskanKeluhanTpu(mitra.actor, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "x" })).toMatchObject({ ok: false, reason: "tidak_berwenang" });
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Foto bukti sudah jelas" })).toEqual({ ok: true });
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "lagi" })).toEqual({ ok: false, reason: "sudah_diputuskan" });
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-20 10:00"));
+    expect((await pencairanSaya(s, mitra))[0].status).toBe("jatuh_tempo");
+  });
+
+  it("upheld with a redo by another Mitra Jasa: the redo is paid at the normal rate and the original Pencairan is cancelled", async () => {
+    const s = await siap();
+    const a = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const b = await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "b@contoh.id" });
+    const { pekerjaanId } = await selesai(s, a);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    const putus = await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Ulangi", mitraJasaId: b.id });
+    expect(putus).toEqual({ ok: true });
+    const [ulang] = (await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).filter((satu) => satu.id !== pekerjaanId);
+    await s.setup.layanan.jawabPenugasan(b.actor, { pekerjaanId: ulang.id, jawaban: "terima" });
+    await kirimBunga(s, b, ulang.id);
+    await setujui(s, ulang.id);
+    expect(await pencairanSaya(s, a)).toMatchObject([{ status: "dibatalkan" }]);
+    expect(await pencairanSaya(s, b)).toMatchObject([{ status: "belum_jatuh_tempo", tarif: TARIF }]);
+  });
+
+  it("upheld with a redo, but no Mitra Jasa to do it: the Keluhan stays open", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Ulangi" })).toEqual({ ok: false, reason: "input_tidak_valid" });
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Tidak jadi" })).toEqual({ ok: true });
   });
 });

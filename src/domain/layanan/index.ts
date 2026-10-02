@@ -143,6 +143,7 @@ import {
 } from "./skor";
 
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
+import { ajukanKeluhanTpu, keluhanTpuTerbuka, putuskanKeluhanTpu, type AjukanKeluhanTpuResult, type KeluhanTpuTerbuka, type PutuskanKeluhanTpuResult } from "./keluhan-tpu";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
   pekerjaanTerlambat,
@@ -183,6 +184,7 @@ import {
   simpanBuktiTpu,
   tolakBuktiTpu,
   tutupJendelaTpu,
+  tandaiTerlambatTpu,
   type BuktiTpuMitraJasa,
   type BuktiTpuStaf,
   type KerjaUlangTpuResult,
@@ -656,6 +658,12 @@ export interface Layanan {
   tolakBuktiTpu(by: Actor, input: unknown): Promise<TolakBuktiTpuResult>;
   /** Admin Platform has a finished job redone by the same or another Mitra Jasa. */
   kerjaUlangTpu(by: Actor, input: unknown): Promise<KerjaUlangTpuResult>;
+  /** The Pemesan files a Keluhan on a Selesai TPU job inside the window; the job becomes Keluhan and its Pencairan is held. */
+  ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
+  /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
+  putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
+  /** The TPU Keluhan waiting for Admin Platform, oldest first. */
+  keluhanTpuTerbuka(by: Actor): Promise<KeluhanTpuTerbuka[]>;
   /** The Antrean's Tier 2 "foto bukti" rows: proofs waiting for approval, oldest first. */
   pekerjaanTpuMenungguVerifikasi(): Promise<PekerjaanTpuMenungguVerifikasi[]>;
   /* ── Keluhan and Penilaian (ticket 51) ── */
@@ -788,6 +796,9 @@ export function createLayanan(deps: LayananDeps): Layanan {
     setujuiBuktiTpu: (by, input) => setujuiBuktiTpu(deps, by, input),
     tolakBuktiTpu: (by, input) => tolakBuktiTpu(deps, by, input),
     kerjaUlangTpu: (by, input) => kerjaUlangTpu(deps, by, input),
+    ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
+    putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
+    keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),
     pekerjaanTpuMenungguVerifikasi: () => pekerjaanTpuMenungguVerifikasi(deps.db),
     ajukanKeluhan: (pemesan, input) => ajukanKeluhan(deps, pemesan, input),
     beriPenilaian: (pemesan, input) => beriPenilaian(deps, pemesan, input),
@@ -811,4 +822,4 @@ export function createLayanan(deps: LayananDeps): Layanan {
  * finished. Idempotent — running it twice for the same `now` is harmless, and a
  * job that is already flagged keeps the moment it was first noticed.
  */
-export { tandaiTerlambat };
+export { tandaiTerlambat, tandaiTerlambatTpu };

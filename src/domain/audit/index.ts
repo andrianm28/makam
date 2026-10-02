@@ -272,6 +272,7 @@ export type AuditAction =
   | "layanan.unggah_bukti_tpu"
   | "layanan.kirim_bukti_tpu"
   | "layanan.setujui_bukti_tpu"
+  | "layanan.putuskan_keluhan_tpu"
   | "layanan.tolak_bukti_tpu"
   /** Admin Platform takes a TPU job off the Mitra Jasa who holds it, so it can be given to another (ticket 56). */
   | "layanan.lepas_penugasan_tpu"

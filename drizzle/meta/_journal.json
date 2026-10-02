@@ -358,6 +358,13 @@
       "when": 1790922973001,
       "tag": "0050_material_corsair",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1790925473122,
+      "tag": "0051_unusual_silvermane",
+      "breakpoints": true
     }
   ]
 }

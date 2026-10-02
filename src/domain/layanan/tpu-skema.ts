@@ -96,3 +96,16 @@ export type TolakBuktiTpuInput = z.infer<typeof tolakBuktiTpuSchema>;
 
 /** Admin Platform has the Mitra Jasa (the same or another) redo a job after an upheld Keluhan. */
 export const kerjaUlangTpuSchema = z.object({ pekerjaanId: z.uuid(), mitraJasaId: z.uuid() });
+
+export const ajukanKeluhanTpuSchema = z.object({
+  pekerjaanId: z.uuid(),
+  alasan: z.string().trim().min(1, "Tulis keluhan Anda.").max(1000, "Keluhan terlalu panjang."),
+});
+
+export const putuskanKeluhanTpuSchema = z.object({
+  keluhanId: z.uuid(),
+  keputusan: z.enum(["tolak", "kerjakan_ulang"]),
+  catatan: z.string().trim().min(1, "Tulis catatan keputusan.").max(1000),
+  /** Who redoes the job; required for `kerjakan_ulang`. */
+  mitraJasaId: z.uuid().optional(),
+});
