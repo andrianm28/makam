@@ -485,7 +485,7 @@ export interface Notifications {
    */
   buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
   /** A Lokasi Mitra's Berhenti decision, emailed at once to each family named (ticket 59); one message per family, however often it is announced. */
-  lokasiBerhenti(input: LokasiBerhentiInput): Promise<LokasiBerhentiResult>;
+  lokasiBerhenti(input: LokasiBerhentiInput, within?: Database): Promise<LokasiBerhentiResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -903,8 +903,8 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pembatalanTerencana(within ? { ...deps, db: within } : deps, input);
     },
 
-    async lokasiBerhenti(input) {
-      return lokasiBerhenti(deps, input);
+    async lokasiBerhenti(input, within) {
+      return lokasiBerhenti(within ? { ...deps, db: within } : deps, input);
     },
 
     async buktiPerpanjanganTerbit(input, within) {

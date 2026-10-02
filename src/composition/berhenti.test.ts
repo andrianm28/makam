@@ -32,6 +32,7 @@ describe("the Berhenti decision of a Lokasi Mitra", () => {
 
     const hasil = await hentikanLokasiMitra(
       {
+        db: setup.db,
         lokasi: setup.lokasi,
         // The Terencana and Saat Duka orders are the Pemesanan module's own read, tested there.
         pemesanan: { pesananBerjalanDiLokasi: async () => [{ nomor: "MKM-2026-000777", kind: "terencana", status: "aktif", email: "terencana@contoh.id" }] },
@@ -57,7 +58,7 @@ describe("the Berhenti decision of a Lokasi Mitra", () => {
     const { actor: adminPlatform } = await adminPlatformOf(setup);
 
     const hasil = await hentikanLokasiMitra(
-      { lokasi: setup.lokasi, pemesanan: { pesananBerjalanDiLokasi: async () => [{ nomor: "MKM-2026-000777", kind: "terencana", status: "aktif", email: "a@contoh.id" }] }, layanan: setup.layanan, notifications: setup.notifications },
+      { db: setup.db, lokasi: setup.lokasi, pemesanan: { pesananBerjalanDiLokasi: async () => [{ nomor: "MKM-2026-000777", kind: "terencana", status: "aktif", email: "a@contoh.id" }] }, layanan: setup.layanan, notifications: setup.notifications },
       adminPlatform,
       lokasi.lokasiMitra.id,
       { berlakuOn: "2000-01-01" },

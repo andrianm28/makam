@@ -429,8 +429,8 @@ export async function hentikanLokasi(_previous: FormState, formData: FormData): 
     schema: hentikanSchema,
     input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan"), berlakuOn: formData.get("berlakuOn") ?? "" },
     run: (actor, data) => {
-      const { lokasi, pemesanan, layanan, notifications } = serverRuntime();
-      return hentikanLokasiMitra({ lokasi, pemesanan, layanan, notifications }, actor, data.lokasiId, { alasan: data.alasan, berlakuOn: data.berlakuOn });
+      const { database, lokasi, pemesanan, layanan, notifications } = serverRuntime();
+      return hentikanLokasiMitra({ db: database.db, lokasi, pemesanan, layanan, notifications }, actor, data.lokasiId, { alasan: data.alasan, berlakuOn: data.berlakuOn });
     },
     saved: (hasil) => `Lokasi Mitra ini Berhenti, berlaku ${hasil.berlakuOn}. Keluarga yang punya pesanan di sini sudah diberi tahu.`,
     invalidInput: "Tulis alasannya dan isi tanggal berlaku dengan benar (kosong = 30 hari dari sekarang).",

@@ -432,7 +432,8 @@ export interface Lokasi {
   /** Admin Platform reinstates a Ditangguhkan Lokasi, audited. */
   pulihkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
   /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
-  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string; alasan?: string }): Promise<HentikanResult>;
+  /** `within`: the caller's transaction, so the decision commits with what follows it (the family notices). */
+  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string; alasan?: string }, within?: Database): Promise<HentikanResult>;
   /** Whether a quote may price this Lokasi: listed, Ditangguhkan, or Berhenti before its effective date (carry-on actions price there). */
   dapatDiharga(lokasiId: string): Promise<boolean>;
   /** Every order entry point asks this first: may an order of this kind be taken at this Lokasi now. */
@@ -527,7 +528,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
     tangguhkan: (by, lokasiId, input) => tangguhkan(deps, by, lokasiId, input),
     pulihkan: (by, lokasiId, input) => pulihkan(deps, by, lokasiId, input),
-    hentikan: (by, lokasiId, input) => hentikan(deps, by, lokasiId, input),
+    hentikan: (by, lokasiId, input, within) => hentikan(within ? { ...deps, db: within } : deps, by, lokasiId, input),
     dapatDiharga: (lokasiId) => dapatDiharga(deps, lokasiId),
     izinPesanan: (lokasiId, jenis) => izinPesanan(deps, lokasiId, jenis),
     statusPesananOf: (lokasiId) => statusPesananOf(deps, lokasiId),
