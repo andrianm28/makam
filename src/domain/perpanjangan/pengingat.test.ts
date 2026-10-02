@@ -170,4 +170,24 @@ describe("the Hak Pakai end reminders", () => {
     expect(keHolder(setup)).toHaveLength(1);
     expect(await peringatanAdmin(setup, fixture)).toHaveLength(1);
   });
+
+  it("link the Admin Lokasi's alert to the Perpanjangan page and to the Hak Pakai's staff page", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    await tickPada(setup, "2026-08-16 10:00");
+    const tautan = `https://makam.test/perpanjangan/${fixture.hakPakaiId}`;
+    const keStaf = setup.email.sent.filter((pesan) => pesan.to !== PEMEGANG_HAK.email && pesan.text.includes("Hak Pakai"));
+    expect(keStaf.length).toBeGreaterThan(0);
+    for (const pesan of keStaf) expect(pesan.text).toContain(tautan);
+    const [peringatan] = await peringatanAdmin(setup, fixture);
+    expect(peringatan!.url).toBe(`/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${fixture.hakPakaiId}`);
+  });
+
+  it("name the plot in the glossary's terms in the messages", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    await hakPakaiSiap(setup);
+    await tickPada(setup, "2026-08-16 10:00");
+    expect(keHolder(setup)[0]!.subject).toMatch(/Petak Makam \S+ di /);
+    expect(setup.email.sent.map((pesan) => pesan.subject + pesan.text).join("\n")).not.toMatch(/Petak Petak|Petak Kavling/);
+  });
 });
