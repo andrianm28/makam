@@ -254,6 +254,18 @@ _Avoid_: Pengalihan, balik nama, transfer
 A filing-only Pengurusan for a family that buried at a DKI TPU on their own: the Operator files the new or tumpang IPTM, paid before the filing.
 _Avoid_: Urus izin, Pengurusan (alone, when meaning this order)
 
+**Perpanjangan TPU**:
+The renewal of the IPTM of a Makam TPU, ordered by its Pemegang Hak from 3 months before the IPTM expires: the Operator files it, paid before the filing. Only one can be open for a Makam TPU.
+_Avoid_: Perpanjangan IPTM (alone), Perpanjangan Makam (that is the Hak Pakai of a Lokasi Mitra)
+
+**Diproses**:
+The status of a paid filing-only Pengurusan (Pengurusan IPTM or Perpanjangan TPU) while the Operator files it with the PTSP, from Lunas until IPTM Diajukan.
+_Avoid_: Sedang diurus, dalam proses
+
+**Cek TPU lewat masa tenggang**:
+The question the Admin Platform puts to the TPU, without charge, when a Perpanjangan TPU comes after the masa tenggang counted from the earlier of the expiry the family typed and the one recorded on the Makam TPU; no Tagihan is issued until the TPU answers, and if it will not renew the request is Ditolak.
+_Avoid_: Verifikasi TPU, cek kadaluarsa
+
 **Perpanjangan Makam**:
 Extending a fixed-term Hak Pakai (at a Lokasi Mitra) or a TPU permit by one or more further terms.
 _Avoid_: Renewal, sewa ulang

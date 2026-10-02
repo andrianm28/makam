@@ -1,3 +1,4 @@
+import { tanggalBerakhir } from "@/lib/perpanjangan-tanggal";
 import type { PengurusanOrder } from "@/domain/pengurusan";
 import { StatusBadge, type StatusKey } from "@/components/makam/status-badge";
 import { formatRupiah } from "@/lib/rupiah";
@@ -55,7 +56,7 @@ export function PerpanjanganTpuPemesan({ order, scanUrl }: { order: PengurusanOr
           <Baris label="TPU" value={order.tpu.name} />
           {order.kuburan ? <Baris label="Makam" value={order.kuburan.blokNomor} /> : null}
           <Baris label="Almarhum" value={`${order.almarhum.name}${order.almarhum.tanggalWafat ? `, wafat ${formatTanggal(order.almarhum.tanggalWafat)}` : ""}`} />
-          {order.perpanjangan ? <Baris label="IPTM berakhir" value={formatTanggal(order.perpanjangan.iptmBerakhirPada)} /> : null}
+          {order.perpanjangan ? <Baris label="IPTM berakhir" value={tanggalBerakhir(order.perpanjangan)} /> : null}
           <Baris label="Pemegang Hak" value={order.pemegangHak.name} />
           <Baris label="Pemesan" value={`${order.pemesan.name}${order.pemesan.email ? ` · ${order.pemesan.email}` : ""}`} />
           {order.alasan ? <Baris label="Alasan" value={order.alasan} /> : null}

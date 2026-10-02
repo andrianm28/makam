@@ -139,7 +139,7 @@ export function perluTindakanDariBerkasTpu(daftar: readonly RingkasanBerkasTpu[]
     id: `berkas-tpu:${satu.nomor}`,
     judul: satu.alasanPerbaikan ? `Perbaiki berkas IPTM pesanan ${satu.nomor}` : `Berkas IPTM pesanan ${satu.nomor} belum lengkap`,
     deskripsi: satu.alasanPerbaikan
-      ? `Perbaikan diminta: ${satu.alasanPerbaikan}. Unggah ulang ${satu.kurang.join(", ")}; tidak ada biaya baru.`
+      ? `${satu.dueAt ? "PTSP meminta perbaikan" : "Perbaikan diminta"}: ${satu.alasanPerbaikan}. Unggah ulang ${satu.kurang.join(", ")}; tidak ada biaya baru.`
       : `${satu.tpuName}: belum ada ${satu.kurang.join(", ")}.${satu.terlambat ? " Batas 7 hari sudah lewat, segera unggah agar IPTM bisa diajukan." : satu.dueAt ? " Unggah dalam 7 hari sejak pemakaman." : " Unggah agar dokumen bisa diperiksa."}`,
     href: `/pengurusan/${satu.nomor}`,
   }));

@@ -1,3 +1,4 @@
+import { tanggalBerakhir } from "@/lib/perpanjangan-tanggal";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/makam/page-header";
@@ -100,7 +101,8 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
               label="Pemegang Hak"
               value={`${order.pemegangHak.name}${order.pemegangHak.phoneNumber ? ` · ${order.pemegangHak.phoneNumber}` : ""}`}
             />
-            <Baris label="Jenis pemakaman" value={order.jenisPenguburan === "tumpang" ? "Tumpang" : "Makam baru"} />
+            {order.kind !== "perpanjangan_tpu" ? <Baris label="Jenis pemakaman" value={order.jenisPenguburan === "tumpang" ? "Tumpang" : "Makam baru"} /> : null}
+            {order.perpanjangan ? <Baris label="IPTM berakhir (diketik / tercatat)" value={tanggalBerakhir(order.perpanjangan)} /> : null}
             {order.pemakamanAt ? <Baris label="Pemakaman disepakati" value={formatTanggalJam(order.pemakamanAt)} /> : null}
             {order.adminPlatform ? <Baris label="Ditangani Admin Platform" value={order.adminPlatform.name} /> : null}
             {order.tawaran ? <Baris label="TPU lain ditawarkan" value={`${order.tawaran.tpu.name} · ${order.tawaran.alasan}`} /> : null}
@@ -148,7 +150,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           tawaran={order.tawaran}
         />
       )}
-      {menungguCekTpu ? <CekTpuForm nomor={order.nomor} /> : null}
+      {menungguCekTpu ? <CekTpuForm nomor={order.nomor} tanggal={order.perpanjangan ? tanggalBerakhir(order.perpanjangan) : ""} /> : null}
       {sebelumTagihan && order.perpanjangan ? <KoreksiIptmBerakhirForm nomor={order.nomor} berlakuSampai={order.perpanjangan.iptmBerakhirPada} /> : null}
       {sebelumTagihan && !menungguCekTpu && order.pengajuan.kurang.length === 0 ? (
         <MintaPerbaikanForm nomor={order.nomor} dokumen={order.dokumen.pengajuan.map((dokumen) => dokumen.nama)} />

@@ -20,14 +20,14 @@ function Feedback({ state }: { state: FormState }) {
 }
 
 /** A request past the masa tenggang: the Operator has asked the TPU, without charge, and records its answer. */
-export function CekTpuForm({ nomor }: { nomor: string }) {
+export function CekTpuForm({ nomor, tanggal }: { nomor: string; tanggal: string }) {
   const [state, action, pending] = useActionState(putuskanCekTpuAction, idle);
   return (
     <Card>
       <CardHeader>
         <CardTitle>Cek TPU (lewat masa tenggang)</CardTitle>
         <CardDescription>
-          IPTM ini sudah lewat masa tenggang. Tanyakan dulu ke TPU, tanpa biaya. Tagihan baru terbit setelah dokumen diperiksa dan jawaban TPU dicatat.
+          IPTM ini sudah lewat masa tenggang ({tanggal}). Tanyakan dulu ke TPU, tanpa biaya. Tagihan baru terbit setelah dokumen diperiksa dan jawaban TPU dicatat.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -19,6 +19,7 @@ const GAGAL: Record<string, string> = {
   email_bukan_akun_ini: "Email akun Anda tidak cocok dengan pesanan ini. Masuk ulang lalu coba lagi.",
   makam_tpu_tidak_ditemukan: "Makam ini tidak ada di akun Anda.",
   terlalu_awal: "Perpanjangan baru bisa dipesan mulai 3 bulan sebelum IPTM berakhir.",
+  sudah_dipesan: "Perpanjangan IPTM untuk makam ini sudah Anda pesan dan masih berjalan. Buka pesanan itu di halaman Pesanan Saya.",
   harga_tidak_tersedia: "Harga belum bisa ditampilkan saat ini. Hubungi CS.",
 };
 
