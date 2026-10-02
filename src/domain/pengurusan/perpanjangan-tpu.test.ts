@@ -83,3 +83,25 @@ describe("the document check and the pay-first Tagihan", () => {
     expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "menunggu_pembayaran" });
   });
 });
+
+describe("Perlu Perbaikan before payment", () => {
+  it("sends a document needing a fix back to the Pemesan with no Tagihan, and the check runs again once it is uploaded", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    const nomor = await pesanan(setup, dasar);
+    await unggah(setup, dasar, nomor);
+    const buruk = (await setup.pengurusan.orderOf(nomor, dasar.pemesan))!.dokumen.pengajuan[2]!.nama;
+
+    const diminta = await setup.pengurusan.mintaPerbaikan(dasar.admin, { nomor, alasan: "Foto KTP buram", dokumen: [buruk] });
+    expect(diminta).toEqual({ ok: true, status: "perlu_perbaikan" });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "perlu_perbaikan", tagihan: null, alasan: "Foto KTP buram" });
+    expect(await setup.pengurusan.perluTindakanBerkas(dasar.pemesan)).toEqual([expect.objectContaining({ nomor, kurang: [buruk], alasanPerbaikan: "Foto KTP buram" })]);
+    expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toMatchObject({ ok: false, reason: "dokumen_belum_lengkap" });
+
+    await unggah(setup, dasar, nomor, buruk);
+    expect(await setup.pengurusan.perluTindakanBerkas(dasar.pemesan)).toEqual([]);
+    expect(await setup.pengurusan.periksaBerkasTerbuka()).toEqual([expect.objectContaining({ nomor })]);
+    expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "menunggu_pembayaran" });
+  });
+});
