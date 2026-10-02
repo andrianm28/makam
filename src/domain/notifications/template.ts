@@ -640,3 +640,40 @@ export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmail
     ].join("\n"),
   };
 }
+
+export interface WakafStatusEmailInput {
+  nomor: string;
+  labelStatus: string;
+  /** A date that goes with the status (the survey, the KUA ikrar), WIB date. */
+  tanggal: string | null;
+  /** Why (Ditolak, Dirujuk), or the pointer to the local KUA/BWI. */
+  alasan: string | null;
+  /** The note Admin Platform wrote to the Wakif with this change. */
+  catatan: string | null;
+}
+
+/**
+ * A Pengajuan Wakaf's status change (transactional: any hour). It says plainly that the Operator
+ * takes no land and no money; internal notes and the survey report are never in it.
+ */
+export function wakafStatusEmail(input: WakafStatusEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pengajuan Wakaf ${input.nomor}: ${input.labelStatus}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Status Pengajuan Wakaf ${input.nomor} sekarang: ${input.labelStatus}.`,
+      input.tanggal ? `Tanggal: ${formatTanggal(input.tanggal)}.` : null,
+      input.alasan ? `Keterangan: ${input.alasan}` : null,
+      input.catatan ? `Catatan dari kami: ${input.catatan}` : null,
+      "",
+      "Lihat perkembangannya di makam.co.id: Akun Saya, tab Wakaf.",
+      "Tanah diwakafkan langsung kepada Nazhir; makam.co.id tidak menerima tanah maupun uang apa pun.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ]
+      .filter((baris): baris is string => baris !== null)
+      .join("\n"),
+  };
+}

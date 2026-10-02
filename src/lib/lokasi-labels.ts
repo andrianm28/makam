@@ -137,6 +137,12 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "layanan.jawab_penugasan_tpu": "Penugasan pekerjaan TPU dijawab",
   "layanan.lepas_penugasan_tpu": "Penugasan pekerjaan TPU dilepas",
   "layanan.putuskan_keluhan": "Keluhan Pekerjaan Layanan diputuskan",
+  "wakaf.nazhir_tambah": "Nazhir ditambahkan",
+  "wakaf.nazhir_ubah": "Nazhir diubah",
+  "wakaf.nazhir_hapus": "Nazhir dihapus",
+  "wakaf.pindah_status": "Status Pengajuan Wakaf diubah",
+  "wakaf.cocokkan_nazhir": "Pengajuan Wakaf dicocokkan dengan Nazhir",
+  "wakaf.catatan": "Catatan Pengajuan Wakaf ditulis",
 };
 
 /** The role an Entri Audit's actor wrote under. */

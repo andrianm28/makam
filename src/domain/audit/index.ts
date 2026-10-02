@@ -282,7 +282,15 @@ export type AuditAction =
   /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
   | "hak_pakai.ubah_kontak_pemegang"
   /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
-  | "layanan.putuskan_keluhan";
+  | "layanan.putuskan_keluhan"
+  /** Admin Platform adds, changes or removes a Nazhir on the list (ticket 58). */
+  | "wakaf.nazhir_tambah"
+  | "wakaf.nazhir_ubah"
+  | "wakaf.nazhir_hapus"
+  /** Admin Platform moves a Pengajuan Wakaf to a new status, matches its Nazhir or writes a note (ticket 58). */
+  | "wakaf.pindah_status"
+  | "wakaf.cocokkan_nazhir"
+  | "wakaf.catatan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

@@ -63,6 +63,8 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "paket_siklus_dijeda",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
+      // A Pengajuan Wakaf's status change (ticket 58): transactional.
+      "wakaf_status",
     ]);
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
   });

@@ -14,6 +14,7 @@ import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
+import type { Wakaf } from "@/domain/wakaf";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
 
@@ -69,6 +70,8 @@ export interface AntreanRowDeps {
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo">;
+  /** The Antrean's Tier 3 "Pengajuan Wakaf" row reads the Wakaf module's own open Pengajuan (ticket 58); absent where none is composed. */
+  wakaf?: Pick<Wakaf, "pengajuanTerbuka">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
   /**
    * The Antrean Lokasi's three Layanan rows and the Tier 2 "Layanan terlambat"
