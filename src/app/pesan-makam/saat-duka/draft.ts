@@ -111,6 +111,11 @@ export function pesananPath(nomor: string): string {
   return `/pesanan/${encodeURIComponent(nomor)}`;
 }
 
+/** Where a placed order sends the family, or null when the screen stays (a refusal, or the Kode Masuk step). */
+export function tujuanSetelahKirim(hasil: KirimState): string | null {
+  return hasil.status === "selesai" ? pesananPath(hasil.nomor) : null;
+}
+
 /** The page one Pengurusan order is read on, the way a Saat Duka TPU submission lands there. */
 export function pengurusanPath(nomor: string): string {
   return `/pengurusan/${encodeURIComponent(nomor)}`;
