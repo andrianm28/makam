@@ -18,3 +18,4 @@ Make the failure diagnosable before guessing: when the seed command exits non-ze
 ## Comments
 
 - 2026-10-02 — Filed by the orchestrator; one re-run spent (passed).
+- 2026-10-02 — Builder: every `exitCode` check on the seed in `seed-contoh-publik-command.test.ts` now goes through `expectBerhasil(result)`, whose failure message carries the command's `output` (before: `expected 1 to be 0`; after: `seed-contoh-publik keluar dengan kode 1:` plus the command's lines). A new test proves it (red first, then green). AC 1 done; AC 2 stays open until the next failure. File: 10/10 passed, lint and typecheck clean.
