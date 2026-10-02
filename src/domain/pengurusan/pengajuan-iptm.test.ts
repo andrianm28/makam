@@ -219,6 +219,14 @@ describe("the Surat Kuasa as a PDF", () => {
     expect(setup.files.open(url!)).toBeNull();
   });
 
+  it("is read without an actor by the render page, for a confirmed order only", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    expect(await setup.pengurusan.suratKuasaUntukCetak(dasar.nomor)).toBeNull();
+    await dimakamkan(setup, dasar);
+    expect(await setup.pengurusan.suratKuasaUntukCetak(dasar.nomor)).toEqual(await setup.pengurusan.suratKuasa(dasar.pemesan, dasar.nomor));
+  });
+
   it("is only for the Pemesan of a confirmed order", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananDikonfirmasi(setup);
