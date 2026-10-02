@@ -3,6 +3,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi, LokasiFacility } from "@/domain/lokasi";
 import type {
   PembatalanTerencanaInput,
@@ -360,6 +361,13 @@ export interface PemesananDeps {
    * runtime reaches it through a lazy reference, as it reaches Payouts.
    */
   refunds: Pick<Refunds, "ajukanBaris" | "permintaan">;
+  /**
+   * Layanan at a checkout (ticket 53): the hari-H items of a Saat Duka order and the empty-plot items of a Terencana one are
+   * checked at submission, put on the Tagihan the confirmation issues and scheduled there; a cancellation closes them.
+   * Layanan is composed after Pemesanan, so the runtime hands this through a lazy box. Optional: a process with none
+   * refuses an order that asks for Layanan and cancels nothing.
+   */
+  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout" | "batalkanLayananCheckout">;
   /**
    * Payouts' half of the Saat Duka trigger that only this module can write: a
    * recorded Pemakaman, told to Payouts inside the burial's own transaction

@@ -65,7 +65,7 @@ export type BatalkanTagihanResult =
 export async function batalkanTagihan(
   deps: TagihanDeps,
   tagihanId: string,
-  input: { alasan: BatalkanTagihanAlasan; hanyaBelumDibayar?: boolean },
+  input: { alasan: BatalkanTagihanAlasan; hanyaBelumDibayar?: boolean; ditahan?: number },
   now: Date,
 ): Promise<BatalkanTagihanResult> {
   return refusable<BatalkanTagihanResult>(deps.db, async (tx) => {
@@ -77,7 +77,7 @@ export async function batalkanTagihan(
     if (input.hanyaBelumDibayar && row.status === "lunas") return { ok: false as const, reason: "tagihan_sudah_dibayar" as const };
 
     // What the family is given back: the paid total less the Operator's own fee.
-    const dibayar = row.paidAt === null ? null : await dikembalikan(tx, row);
+    const dibayar = row.paidAt === null ? null : await dikembalikan(tx, row, input.ditahan ?? 0);
     await tx
       .update(tagihan)
       .set({
@@ -101,16 +101,17 @@ export async function batalkanTagihan(
 
 /**
  * The whole rupiah to return on a paid Tagihan: its total less the sum of its
- * Biaya Layanan Platform lines, never below zero (a bill whose fee is its whole
+ * Biaya Layanan Platform lines and of whatever the order keeps (`ditahan`), never below zero (a bill whose fee is its whole
  * total gives nothing back, and says so by having no refund to ask for).
  */
-async function dikembalikan(tx: Database, row: typeof tagihan.$inferSelect): Promise<Rupiah | null> {
+async function dikembalikan(tx: Database, row: typeof tagihan.$inferSelect, ditahan: number): Promise<Rupiah | null> {
   const [platform] = await tx
     .select({ total: sum(tagihanLine.amount) })
     .from(tagihanLine)
     .where(and(eq(tagihanLine.tagihanId, row.id), eq(tagihanLine.kind, "biaya_layanan_platform")));
   const fee = Number(platform?.total ?? 0);
-  const kembali = row.total - fee;
+  // `ditahan` is what the order keeps: the price of a Layanan already Sedang Dikerjakan, which a cancellation does not refund.
+  const kembali = row.total - fee - ditahan;
   if (kembali <= 0) return null;
   if (kembali > RUPIAH_MAX) throw new Error("a refund cannot be larger than the Tagihan's own total");
   return rupiahFromDatabase(String(kembali));

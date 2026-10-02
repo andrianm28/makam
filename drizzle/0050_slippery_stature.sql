@@ -1,0 +1,1 @@
+ALTER TABLE "pemesanan_makam" ADD COLUMN "layanan_hari_h" jsonb;

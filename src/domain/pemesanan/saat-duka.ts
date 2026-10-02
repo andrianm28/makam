@@ -7,7 +7,7 @@
 import { refusable } from "@/db/unit-of-work";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
 import { foldKey } from "@/lib/fold-key";
-import { wib } from "@/lib/time/jakarta";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { pemesananMakam, type PemegangHak } from "./schema";
 import { JAM_KONFIRMASI_SAAT_DUKA, saatDukaHarga } from "./pilihan";
 import type { Pemesan, PemesananDeps } from "./deps";
@@ -37,6 +37,11 @@ export interface PlaceSaatDukaInput {
   /** A placement wish as typed; empty when the family has none. */
   keinginanPenempatan: string;
   pemegangHak: PemegangHakInput;
+  /**
+   * Hari-H Layanan for the burial day (story 23): the variant and the text it asks for. Only "bisa hari-H" items a Lokasi offers
+   * are accepted; they are billed pay-after on the Saat Duka Tagihan and scheduled at the confirmation (ticket 53).
+   */
+  layananHariH?: { layananVariantId: string; teks?: string | null }[];
 }
 
 export type PlaceSaatDukaResult =
@@ -52,7 +57,11 @@ export type PlaceSaatDukaResult =
   /** The Almarhum's name is missing. */
   | { ok: false; reason: "almarhum_kosong" }
   /** The named Pemegang Hak is the Almarhum, who can never hold the right. */
-  | { ok: false; reason: "pemegang_hak_almarhum" };
+  | { ok: false; reason: "pemegang_hak_almarhum" }
+  /** A hari-H Layanan this Lokasi does not offer for the burial day (not switched on, not "bisa hari-H", or with no price). */
+  | { ok: false; reason: "layanan_tidak_tersedia" }
+  /** A hari-H Layanan that asks for a text, left empty. */
+  | { ok: false; reason: "teks_kosong" };
 
 /**
  * Places one Pemesanan Saat Duka: Diajukan, with the Nomor Pemesanan the
@@ -86,6 +95,20 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
   const harga = await saatDukaHarga(deps, input.lokasiId, input.jenisMakamId, now);
   if (!kartu || !harga) return { ok: false, reason: "harga_tidak_tersedia" };
 
+  // Checked now so the family is refused early; priced again at the confirmation, at the day the Tagihan is issued.
+  const layananHariH = (input.layananHariH ?? []).map((satu) => ({ layananVariantId: satu.layananVariantId, teks: satu.teks?.trim() || null }));
+  if (layananHariH.length > 0) {
+    if (!deps.layanan) return { ok: false, reason: "layanan_tidak_tersedia" };
+    const siap = await deps.layanan.siapkanCheckout({
+      lokasiId: input.lokasiId,
+      mode: "hari_h",
+      items: layananHariH,
+      at: now,
+      hariPemakaman: wibDateOf(rencanaPemakamanAt(input.rencanaPemakamanAt) ?? now),
+    });
+    if (!siap.ok) return { ok: false, reason: siap.reason === "teks_kosong" ? "teks_kosong" : "layanan_tidak_tersedia" };
+  }
+
   const batas = await deps.lokasi.serviceHoursDeadline(input.lokasiId, JAM_KONFIRMASI_SAAT_DUKA, now);
   const konfirmasiDueAt = batas.ok ? batas.at : null;
   const rencana = rencanaPemakamanAt(input.rencanaPemakamanAt);
@@ -115,6 +138,7 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
         rencanaPemakamanAt: rencana,
         keinginanPenempatan: teksAtauKosong(input.keinginanPenempatan),
         pemegangHak: pemegangHak.value,
+        layananHariH: layananHariH.length > 0 ? layananHariH : null,
         konfirmasiDueAt,
         diajukanAt: now,
       })

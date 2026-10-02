@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { quoteLineLabel } from "@/lib/quote-line-label";
-import { wib } from "@/lib/time/jakarta";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { NewTagihanLine, Tagihan } from "@/domain/billing";
 import type { QuotedLine } from "@/domain/tariffs";
 import type { PemesananDeps } from "./deps";
@@ -54,6 +54,8 @@ export type KonfirmasiSaatDukaResult =
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** The Lokasi Mitra is not there any more, so its payment window cannot be read. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }
+  /** A hari-H Layanan the family added can no longer be offered for the burial day (switched off, no price, or no Layanan module). */
+  | { ok: false; reason: "layanan_tidak_tersedia" }
   /** An order always has a Pemegang Hak, so this never happens in practice. */
   | { ok: false; reason: "pemegang_hak_kosong" }
   /** A Tagihan could not be issued (no Pengaturan Operator, a total past a cap): nothing at all is written. */
@@ -89,10 +91,21 @@ export async function konfirmasiSaatDuka(
   if (!phoneNumber) return { ok: false, reason: "kontak_pemesan_kosong" };
   const paymentWindowHours = await deps.lokasi.saatDukaPaymentWindowHours(order.lokasiId);
   if (paymentWindowHours === null) return { ok: false, reason: "lokasi_tidak_terbuka" };
+  // The hari-H Layanan the family added (story 23, ticket 53): priced in the same quote, so the Tagihan carries one Biaya
+  // Layanan Platform, and dated on the burial day just agreed. They are checked again now, at the day the Tagihan is issued.
+  const hariH = order.layananHariH ?? [];
+  let layananSiap: Extract<Awaited<ReturnType<NonNullable<PemesananDeps["layanan"]>["siapkanCheckout"]>>, { ok: true }> | null = null;
+  if (hariH.length > 0) {
+    if (!deps.layanan) return { ok: false, reason: "layanan_tidak_tersedia" };
+    const siap = await deps.layanan.siapkanCheckout({ lokasiId: order.lokasiId, mode: "hari_h", items: hariH, at: now, hariPemakaman: wibDateOf(pemakamanAt) });
+    if (!siap.ok) return { ok: false, reason: "layanan_tidak_tersedia" };
+    layananSiap = siap;
+  }
   const harga = await deps.tariffs.quote(
     [
       { kind: "harga_hak_pakai", jenisMakamId: order.jenisMakamId },
       { kind: "biaya_pemakaman", lokasiId: order.lokasiId, tumpang: false },
+      ...(layananSiap?.quoteLines ?? []),
     ],
     now,
   );
@@ -107,7 +120,7 @@ export async function konfirmasiSaatDuka(
     });
     if (!hakPakai.ok) return hakPakai;
 
-    const baris = linesOf(harga.lines, order);
+    const baris = hariHBaris(deps, harga, layananSiap, order);
     if (!baris.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
     const tagihan = await deps.billing.within(tx).issueTagihan({
       moment: { kind: "saat_duka", burialAt: pemakamanAt, paymentWindowHours },
@@ -135,6 +148,32 @@ export async function konfirmasiSaatDuka(
       link: tagihan.tagihan.link,
     });
     if (!diumumkan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
+
+    // Their jobs are Dijadwalkan now, not when the family pays: the Tagihan is pay-after, so the Lokasi does not wait for money.
+    if (layananSiap && baris.layanan && deps.layanan) {
+      await deps.layanan.tulisCheckout(
+        {
+          mode: "hari_h",
+          nomor: order.nomor,
+          lokasiId: order.lokasiId,
+          petakId: input.petakId,
+          hakPakaiId: hakPakai.hakPakaiId,
+          lokasiName: order.lokasiName,
+          petakNomor: hakPakai.nomor,
+          pemesanName: order.pemesanName,
+          pemesanPhone: phoneNumber,
+          pemesanEmail: order.email ?? "",
+          pemesanAccountId: order.pemesanAccountId ?? "",
+          tagihanId: tagihan.tagihan.id,
+          total: tagihan.tagihan.total,
+          createdAt: now,
+          posisiAwal: baris.layanan.posisiAwal,
+          item: layananSiap.item,
+          perBaris: baris.layanan.perBaris,
+        },
+        tx,
+      );
+    }
 
     const moved = await tx
       .update(pemesananMakam)
@@ -254,4 +293,25 @@ export function linesOf(
     });
   }
   return { ok: true, lines };
+}
+
+/**
+ * The Tagihan lines of a confirmation: the quote's own lines, and — when the order carries hari-H Layanan — each of
+ * those as a `layanan` line, the shape Layanan hands back with where they sit among the lines.
+ */
+function hariHBaris(
+  deps: PemesananDeps,
+  harga: { lines: readonly QuotedLine[] },
+  layananSiap: { item: Parameters<NonNullable<PemesananDeps["layanan"]>["gabungkanBaris"]>[1] } | null,
+  order: { lokasiId: string; lokasiName: string },
+): { ok: true; lines: NewTagihanLine[]; layanan: { posisiAwal: number; perBaris: { label: string; amount: number }[] } | null } | { ok: false } {
+  if (!layananSiap || !deps.layanan) {
+    const biasa = linesOf(harga.lines, order);
+    return biasa.ok ? { ok: true, lines: biasa.lines, layanan: null } : { ok: false };
+  }
+  const gabungan = deps.layanan.gabungkanBaris(harga, layananSiap.item, { id: order.lokasiId, name: order.lokasiName }, (line) => {
+    const satu = linesOf([line], order);
+    return satu.ok ? satu.lines[0]! : null;
+  });
+  return gabungan.ok ? { ok: true, lines: gabungan.lines, layanan: { posisiAwal: gabungan.posisiAwal, perBaris: gabungan.perBaris } } : { ok: false };
 }

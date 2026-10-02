@@ -82,6 +82,12 @@ export const pemesananMakam = pgTable(
     /** A placement wish (e.g. near the family's other graves), free text. */
     keinginanPenempatan: text("keinginan_penempatan"),
     pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
+    /**
+     * The hari-H Layanan the family added at submission (story 23, ticket 53): variant and text only. Their date is the burial day
+     * and their price the day the Tagihan is issued, so the confirmation prices them, puts them on the Tagihan and schedules their jobs.
+     * Null when none.
+     */
+    layananHariH: jsonb("layanan_hari_h").$type<{ layananVariantId: string; teks: string | null }[]>(),
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /**
      * When the worker's re-alert went out: once 1 h of the Lokasi's Jam
