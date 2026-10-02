@@ -1,6 +1,6 @@
 # Production would expose Rilis 2/3 features: decide the release scope before promote
 
-Status: needs-info
+Status: ready-for-agent
 Spec: `.scratch/makam-v1/spec.md` "Release plan"; `docs/adr/0005-perpanjangan-in-rilis-1.md`; go-live checklist `go-live-rilis-1.md`.
 
 ## What happened
@@ -16,7 +16,22 @@ The release plan and ADR 0005 keep these out of Rilis 1. Production would theref
 
 ## What the owner decides (grilling)
 
-Release scope for the first production promote: widen Rilis 1 to what `main` holds, or build a release gate, or a mix. See `## Comments`.
+Release scope for the first production promote: widen Rilis 1 to what `main` holds, or build a release gate, or a mix. See `## What to build (ADR 0006)
+
+- `RILIS_TERBUKA` (1–3) in `src/lib/env.ts`, validated with Zod; production `1`, staging `3`; development and test default to `3` so nothing existing changes for tests and the e2e stack (`deploy/ci/e2e.env`).
+- One map, in one module, from each feature to the release that opens it (Rilis 1: everything in ADR 0005 plus Layanan Makam at a Lokasi Mitra, tickets 49–54; Rilis 2: 35, 39, 41, 42, 59, 84; Rilis 3: 43–48, 55–57 and the TPU parts of 51–53, 58), and one function `rilisTerbuka(fitur)` read through the environment, not scattered `if`s.
+- Closed feature: public and Akun Saya pages render a "Segera hadir" page; staff pages and Server Actions answer 404 (`notFound()`) before any domain call; menus, tiles, Akun Saya tabs and staff items show their "Segera hadir"/hidden state from the same map; scheduled ticks of a closed feature do not run (registered but skipped, logged once).
+- Tests: the map covers every feature route and tick (a guard test that fails when a new `page.tsx` under a gated area or a new tick has no release); production setting closes a Rilis 2 and a Rilis 3 route, action and tick; staging setting opens them; the ticket 42 reminder tick sends nothing at `1`.
+- Runbook: where the number is set on each host, and that opening a release is a host setting change plus a restart.
+
+## Acceptance criteria
+
+- [ ] With `RILIS_TERBUKA=1`, no Rilis 2/3 page, action or tick is reachable or runs; Rilis 1 (incl. Layanan at a Lokasi Mitra) is unchanged.
+- [ ] With `3`, everything is open (staging, development, test, e2e unchanged).
+- [ ] The guard test fails for an unmapped new route or tick.
+- [ ] Runbook updated.
+
+## Comments`.
 
 ## Comments
 

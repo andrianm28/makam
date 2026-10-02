@@ -12,3 +12,5 @@ Kept out of Rilis 1: the **manual KTP / heir / claim path** (`berkas`), the **Ha
 - Only **Urus di TPU DKI** and **Wakaf Tanah** tiles/menu items still show "Segera hadir"; **Perpanjang Makam** and **Layanan Makam** are live (the latter was already live in code, Rilis 2 in the spec — its tile is unchanged by this decision).
 - The "Perpanjangan" FAQ answer (which said the page did not exist) is corrected to describe the page.
 - Accepted risk: the OTP path ships before the expiry reminders (ticket 42), so nothing reminds a Pemegang Hak that a Hak Pakai is near its end; the reminder tick arrives in Rilis 2.
+
+- **Amended by ADR 0006 (2026-10-02):** Layanan Makam at a Lokasi Mitra (49–54) is Rilis 1; TPU Layanan and Mitra Jasa (55–57) are Rilis 3; a release number per environment now enforces the plan.
