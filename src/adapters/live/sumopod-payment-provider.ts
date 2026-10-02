@@ -38,6 +38,60 @@ const createPaymentResponseSchema = z.object({
   expires_at: z.iso.datetime({ offset: true }),
 });
 
+/**
+ * SumoPod's Managed Payment QRIS fee: 0.7% of the requested amount plus a flat
+ * Rp 300. Probed on the sandbox 2026-10-01 (request 50_000 → fee 650), and the
+ * payer is charged requested + fee.
+ */
+const SUMOPOD_QRIS_RATE = 0.007;
+const SUMOPOD_QRIS_FLAT_FEE_RUPIAH = 300;
+
+/** SumoPod's fee before it turns the fraction into whole rupiah (0.7% + Rp 300). */
+function exactSumopodFee(requestedRupiah: number): number {
+  return requestedRupiah * SUMOPOD_QRIS_RATE + SUMOPOD_QRIS_FLAT_FEE_RUPIAH;
+}
+
+/** What SumoPod charges the payer for `requestedRupiah`, under one way of making its fee whole. */
+function chargedAmount(requestedRupiah: number, rounding: (value: number) => number): number {
+  return requestedRupiah + rounding(exactSumopodFee(requestedRupiah));
+}
+
+/**
+ * The whole-rupiah amount to ask SumoPod for, so the payer is charged exactly
+ * `chargedRupiah` (a Tagihan's total): SumoPod adds its fee ON TOP of the
+ * request, so we invert `charged = requested + fee(requested)`, and the
+ * Operator nets `requested` (owner decision, 2026-10-01).
+ *
+ * The fee is monotonic in the requested amount, so a bounded search around the
+ * closed form `(chargedRupiah - 300) / 1.007` finds it. SumoPod's rounding of
+ * the fractional fee is unconfirmed (the 50_000 probe's fee was already
+ * whole); we first look for a requested amount that charges `chargedRupiah`
+ * under BOTH `Math.floor` and `Math.round` — its exact fee is below .5, so the
+ * result does not depend on the unconfirmed detail. If none exists we assume
+ * SumoPod rounds (Math.round) and use the exact amount. If that too is
+ * impossible we return the smallest requested amount whose charge is at least
+ * `chargedRupiah` (never below), so the Operator is never under-charged.
+ */
+function sumopodRequestedAmount(chargedRupiah: number): number {
+  const centred = Math.round((chargedRupiah - SUMOPOD_QRIS_FLAT_FEE_RUPIAH) / (1 + SUMOPOD_QRIS_RATE));
+  const first = Math.max(1, centred - 5);
+  const last = Math.max(6, centred + 5);
+  const candidates: number[] = [];
+  for (let requested = first; requested <= last; requested += 1) candidates.push(requested);
+
+  const robust = candidates.find(
+    (requested) =>
+      chargedAmount(requested, Math.floor) === chargedRupiah &&
+      chargedAmount(requested, Math.round) === chargedRupiah,
+  );
+  if (robust !== undefined) return robust;
+
+  const rounded = candidates.find((requested) => chargedAmount(requested, Math.round) === chargedRupiah);
+  if (rounded !== undefined) return rounded;
+
+  return candidates.find((requested) => chargedAmount(requested, Math.round) >= chargedRupiah) ?? 1;
+}
+
 /** SumoPod's `payment_method` is a category, not a bank (ticket 61 research); mapped to a Bukti-friendly label. */
 function channelLabel(paymentMethod: string | null | undefined): string | null {
   if (!paymentMethod) return null;
@@ -107,7 +161,8 @@ export class SumopodPaymentProvider implements PaymentProvider {
       headers: { "Content-Type": "application/json", "X-Api-Key": this.#apiKey },
       body: JSON.stringify({
         order_id: uniqueOrderId(request.reference),
-        amount: request.amountRupiah,
+        // SumoPod adds its fee on top of this, so send less than the Tagihan total: the payer is charged exactly it, the Operator nets the rest.
+        amount: sumopodRequestedAmount(request.amountRupiah),
         currency: "IDR",
         expires_in_hours: EXPIRES_IN_HOURS,
         // v1 takes QRIS only (Bank Indonesia's Rp 10 juta cap; no Virtual Account, decided 2026-09-26).

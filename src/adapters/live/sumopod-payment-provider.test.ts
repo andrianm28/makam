@@ -68,6 +68,15 @@ function respondCreated(service: StandInSumopod, overrides: Record<string, unkno
   };
 }
 
+/**
+ * SumoPod's QRIS fee, as the adapter must assume it: 0.7% of the requested
+ * amount rounded to whole rupiah, plus Rp 300 (probe 2026-10-01). SumoPod adds
+ * this ON TOP of the requested amount, so the payer is charged `R + fee(R)`.
+ */
+function sumopodFee(requestedRupiah: number): number {
+  return Math.round(requestedRupiah * 0.007) + 300;
+}
+
 function adapterFor(service: StandInSumopod, options: { webhookSecret?: string } = {}) {
   return new SumopodPaymentProvider({
     apiKey: API_KEY,
@@ -105,7 +114,8 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     expect(request.path).toBe("/api/v1/payments");
     expect(request.headers["x-api-key"]).toBe(API_KEY);
     expect(request.body).toMatchObject({
-      amount: 150_000,
+      // Rp 148_659 + SumoPod's fee of Rp 1_341 charges the payer exactly the Rp 150_000 Tagihan (Operator bears the fee).
+      amount: 148_659,
       currency: "IDR",
       expires_in_hours: 24,
       payment_method_type_code: "QRIS",
@@ -114,6 +124,19 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     });
     expect((request.body as { order_id: string }).order_id).toMatch(/^TGH-2026-000001-[0-9a-f]{8}$/);
   });
+
+  it.each([50_000, 100_000, 150_000, 1_000_000])(
+    "asks SumoPod for an amount whose charge is exactly the Rp %i Tagihan total; the Operator bears the fee",
+    async (total) => {
+      respondCreated(service);
+
+      await adapterFor(service).createPayment({ reference: "TGH-1", amountRupiah: total, description: "x" });
+
+      const sent = (service.requests[0].body as { amount: number }).amount;
+      expect(sent).toBeLessThan(total);
+      expect(sent + sumopodFee(sent)).toBe(total);
+    },
+  );
 
   it("gives every created payment a different order_id, even for the same Tagihan (re-created after expiry)", async () => {
     respondCreated(service);
