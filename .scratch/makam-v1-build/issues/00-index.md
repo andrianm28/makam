@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-01): 78 resolved, 11 ready-for-agent, 1 needs-triage, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 2 in-progress (72, 87).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 78 resolved, 11 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -399,6 +399,6 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [95](95-refund-after-harga-khusus.md) | Refunds of a Keluhan and a Layanan cancellation after a Harga Khusus are refused | resolved | — |
 | [96](96-staff-alerts-direct-retried.md) | Staff alerts sent directly through `sendStaffAlert` are still one-shot | resolved | — |
 | [97](97-terencana-peringatan-staf.md) | A new Pemesanan Terencana raises a Peringatan Staf to the Admin Lokasi | resolved | — |
-| [98](98-kirim-kode-masuk-galat-tak-tertangani.md) | Kirim may show the framework error page when the Kode Masuk cannot be sent | needs-triage | — |
+| [98](98-kirim-kode-masuk-galat-tak-tertangani.md) | Kirim may show the framework error page when the Kode Masuk cannot be sent | in-progress | — |
 | [94](94-payouts-items-due-tiebreaker.md) | Payouts `itemsDue` orders only by due time, so "oldest item first" can flake | resolved | — |
 | [99](99-tagihan-detail-404.md) | Admin Platform Tagihan detail always 404s | resolved | — |
