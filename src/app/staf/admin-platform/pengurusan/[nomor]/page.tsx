@@ -8,6 +8,7 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { ConfirmTpuForms } from "./konfirmasi-forms";
+import { CekTpuForm, KoreksiIptmBerakhirForm, MintaPerbaikanForm } from "./perpanjangan-forms";
 import { LangkahPengajuanForm, TolakPtspForm, type LangkahPengajuan } from "./pengajuan-forms";
 
 /** The one filing step each status is waiting on (spec, Pengurusan); none from IPTM Terbit or when the order ended. */
@@ -30,6 +31,16 @@ const LANGKAH_BERKAS: Partial<Record<string, LangkahPengajuan>> = {
 };
 
 /**
+ * A Perpanjangan TPU (ticket 48) is checked from Diajukan, and again after a correction asked for before any Tagihan;
+ * once paid (Diproses) it is filed, and refiled at no charge after a fixable PTSP rejection (Perlu Perbaikan with a Tagihan).
+ */
+function langkahPerpanjangan(order: { status: string; tagihan: unknown }): LangkahPengajuan | undefined {
+  if (order.status === "diajukan") return "periksa_dokumen";
+  if (order.status === "perlu_perbaikan") return order.tagihan ? "ajukan_iptm" : "periksa_dokumen";
+  return LANGKAH_BERKAS[order.status];
+}
+
+/**
  * Admin Platform's screen for one Saat Duka TPU order, the page the Antrean's
  * Tier 1 "Konfirmasi TPU Saat Duka" row links to (ticket 45). It shows what the
  * family is waiting on, and the two things Admin Platform has to supply: the
@@ -47,8 +58,11 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
     lokasi.publicTpuDkiList({}),
   ]);
   if (!order) notFound();
-  const berkas = order.kind === "pengurusan_iptm";
-  const langkah = (berkas ? LANGKAH_BERKAS : LANGKAH)[order.status];
+  const perpanjangan = order.kind === "perpanjangan_tpu";
+  const berkas = order.kind !== "saat_duka_tpu";
+  const sebelumTagihan = perpanjangan && !order.tagihan && (order.status === "diajukan" || order.status === "perlu_perbaikan");
+  const menungguCekTpu = sebelumTagihan && !!order.perpanjangan?.lewatMasaTenggang && !order.perpanjangan.cekTpuSelesaiPada;
+  const langkah = perpanjangan ? langkahPerpanjangan(order) : (berkas ? LANGKAH_BERKAS : LANGKAH)[order.status];
   const petugas = staffAccounts
     .filter((account) => account.roles.includes("petugas_lapangan") && !account.deactivated)
     .map((account) => ({ accountId: account.accountId, name: account.name || account.email || account.accountId }));
@@ -134,7 +148,12 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           tawaran={order.tawaran}
         />
       )}
-      {langkah ? (
+      {menungguCekTpu ? <CekTpuForm nomor={order.nomor} /> : null}
+      {sebelumTagihan && order.perpanjangan ? <KoreksiIptmBerakhirForm nomor={order.nomor} berlakuSampai={order.perpanjangan.iptmBerakhirPada} /> : null}
+      {sebelumTagihan && !menungguCekTpu && order.pengajuan.kurang.length === 0 ? (
+        <MintaPerbaikanForm nomor={order.nomor} dokumen={order.dokumen.pengajuan.map((dokumen) => dokumen.nama)} />
+      ) : null}
+      {langkah && !menungguCekTpu ? (
         <>
           <LangkahPengajuanForm
             nomor={order.nomor}
