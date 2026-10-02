@@ -98,6 +98,7 @@ async function kirim(
     units: draft.units,
     pemegangHak: draft.pemegangHak.mode === "pemesan" ? { mode: "pemesan", name: draft.pemesanName } : draft.pemegangHak,
     calonPenghuni: draft.calonPenghuni,
+    layanan: draft.layanan,
   });
   if (!hasil.ok) return { status: "gagal", message: pesanKirim(hasil) };
   return { status: "selesai", nomor: hasil.pemesanan.nomor };

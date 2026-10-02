@@ -764,7 +764,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     gabungkanBaris,
     tulisCheckout: (input, within) => tulisCheckout(deps, input, within),
     batalkanLayananCheckout: (nomor, alasan, within) => batalkanLayananCheckout(deps, nomor, alasan, within),
-    batalkanPekerjaanTagihanLapse: (now) => batalkanPekerjaanTagihanLapse(deps, now),
+    batalkanPekerjaanTagihanLapse: () => batalkanPekerjaanTagihanLapse(deps),
     penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
     hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),
     placePesananLayananTpu: (pemesan, input, foto) => placePesananLayananTpu(deps, pemesan, input, foto ?? null),

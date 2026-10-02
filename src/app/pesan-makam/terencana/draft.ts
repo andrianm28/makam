@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { terencanaCalonPenghuniSchema, terencanaPemegangHakSchema, terencanaUnitSchema, TERENCANA_MAKS_UNIT } from "@/domain/pemesanan/skema-terencana";
+import { terencanaCalonPenghuniSchema, terencanaLayananSchema, terencanaPemegangHakSchema, terencanaUnitSchema, TERENCANA_MAKS_UNIT } from "@/domain/pemesanan/skema-terencana";
 
 /**
  * What the Terencana wizard's "Data & kirim" screen holds, and what its Kirim hands
@@ -25,6 +25,8 @@ export const draftSchema = z.object({
   units: z.array(terencanaUnitSchema).min(1).max(TERENCANA_MAKS_UNIT),
   pemegangHak: terencanaPemegangHakSchema,
   calonPenghuni: terencanaCalonPenghuniSchema,
+  /** Layanan for the empty plot (ticket 53): one Petak Makam only, each on the date the family picks. */
+  layanan: terencanaLayananSchema.default([]),
 });
 
 export type DraftTerencana = z.infer<typeof draftSchema>;

@@ -34,7 +34,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { nextWorkingDayEnd } from "@/domain/lokasi";
 import { ALASAN_TOLAK, alasanTolakTerencanaSchema, type AlasanTolakTerencana } from "./alasan-tolak";
 import type { Pemesan, PemesananDeps } from "./deps";
-import { hariHBaris, linesOf } from "./konfirmasi-saat-duka";
+import { hariHBaris } from "./konfirmasi-saat-duka";
 import { pemesananTerencana, pemesananTerencanaUnit } from "./schema";
 import { nomorUnit, unitsOfOrder } from "./terencana-unit";
 

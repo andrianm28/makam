@@ -225,9 +225,9 @@ export async function batalkanLayananCheckout(
  * replaced by nothing): a job still Menunggu Pembayaran then will never be paid, so it becomes Dibatalkan
  * instead of lingering. Billing's own lapse tick makes the Tagihan Dibatalkan; this reads that state
  * (`tagihanBerlaku`), so it needs no hand-over and is idempotent: a job already Dibatalkan is not matched
- * again. Returns how many jobs it cancelled.
+ * again. Returns how many jobs it cancelled (it reads state, never the clock).
  */
-export async function batalkanPekerjaanTagihanLapse(deps: LayananDeps, _now: Date): Promise<number> {
+export async function batalkanPekerjaanTagihanLapse(deps: LayananDeps): Promise<number> {
   const menunggu = await deps.db
     .selectDistinct({ nomor: pesananLayanan.nomor, tagihanId: pesananLayanan.tagihanId })
     .from(pekerjaanLayanan)

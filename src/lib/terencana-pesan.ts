@@ -43,6 +43,14 @@ export function pesanKirim(hasil: Ditolak): string {
       return "Email ini bukan email akun yang sedang masuk. Masuk ulang dengan email yang sama.";
     case "telepon_tidak_valid":
       return "Nomor telepon tidak valid. Contoh: 0812 3456 7890.";
+    case "layanan_satu_petak":
+      return "Layanan untuk petak kosong hanya bisa dipesan bersama satu petak. Pilih satu petak saja, atau hapus layanannya.";
+    case "layanan_tidak_tersedia":
+      return "Layanan yang Anda pilih tidak tersedia lagi di lokasi ini. Pilih ulang layanannya.";
+    case "lead_time_melewati":
+      return "Tanggal layanan terlalu dekat dari hari ini. Pilih tanggal yang lebih jauh.";
+    case "teks_kosong":
+      return "Salah satu layanan meminta tulisan (misalnya nama). Isi dulu tulisannya.";
     default:
       return "Periksa lagi pilihan petak Anda.";
   }
