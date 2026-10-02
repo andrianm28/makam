@@ -7,7 +7,7 @@ import { penugasanMessages } from "@/lib/layanan-tpu-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../../form-state";
-import { guardMessage } from "../../../messages";
+import { guardMessage, refusalMessage } from "../../../messages";
 
 /*
  * Admin Platform's two steps on one TPU job (spec, Layanan > Mitra Jasa): hand it to a
@@ -65,9 +65,7 @@ const buktiMessages: Record<string, string> = {
   pelaksana_tidak_ada: "Tidak ada Mitra Jasa yang memegang pekerjaan ini.",
 };
 
-function buktiRefused(reason: string): FormState {
-  return { status: "gagal", message: reason === "tidak_berwenang" || reason === "perlu_totp" || reason === "belum_masuk" ? guardMessage(reason) : (buktiMessages[reason] ?? "Gagal. Coba lagi.") };
-}
+const buktiRefused = (reason: string): FormState => ({ status: "gagal", message: refusalMessage(reason, buktiMessages) });
 
 /** Admin Platform approves the proof: the job is Selesai, the Pemesan is shown the proof and the Keluhan window opens. */
 export async function setujuiBukti(_previous: FormState, formData: FormData): Promise<FormState> {

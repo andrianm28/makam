@@ -489,6 +489,77 @@ describe("a Keluhan on a TPU job", () => {
     expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Ulangi" })).toEqual({ ok: false, reason: "input_tidak_valid" });
     expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Tidak jadi" })).toEqual({ ok: true });
   });
+
+  it("a redo that cannot be handed over leaves the Keluhan undecided and the job in Keluhan, with no redo job left behind", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    const tidakAda = "00000000-0000-4000-8000-000000000000";
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Ulangi", mitraJasaId: tidakAda })).toEqual({
+      ok: false,
+      reason: "mitra_jasa_tidak_tersedia",
+    });
+    expect(await s.setup.layanan.keluhanTpuTerbuka(s.admin)).toMatchObject([{ id: diajukan.keluhanId }]);
+    expect(await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).toEqual([]);
+    // Still decidable, the other way.
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Tidak jadi" })).toEqual({ ok: true });
+  });
+
+  it("is read by the Pemesan on the order: the form is on offer inside the window, and the Keluhan and its answer afterwards", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, nomor } = await selesai(s, mitra);
+    const baca = async () => (await s.setup.layanan.pesananTpuOf(nomor, s.pemesan))?.item[0].keluhan;
+
+    s.setup.clock.set(wib("2026-10-06 09:00"));
+    expect(await baca()).toEqual({ bolehDiajukan: true, berakhirAt: wib("2026-10-08 10:00"), diajukan: null });
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(await baca()).toEqual({ bolehDiajukan: false, berakhirAt: wib("2026-10-08 10:00"), diajukan: { status: "terbuka", alasan: "Nisan masih kotor", diajukanAt: wib("2026-10-06 09:00") } });
+    await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Sudah bersih" });
+    expect((await baca())?.diajukan?.status).toBe("ditolak");
+  });
+
+  it("is read by Admin Platform with the proof the Pemesan was shown and the Mitra Jasa who could redo it", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const b = await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "b@contoh.id" });
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+
+    expect(await s.setup.layanan.keluhanTpuUntukPlatform(mitra.actor, diajukan.keluhanId)).toMatchObject({ ok: false });
+    const baca = await s.setup.layanan.keluhanTpuUntukPlatform(s.admin, diajukan.keluhanId);
+    if (!baca.ok) throw new Error(baca.reason);
+    expect(baca.keluhan).toMatchObject({ status: "terbuka", alasan: "Nisan masih kotor", pekerjaanId });
+    expect(baca.pekerjaan).toMatchObject({ nomor: expect.stringMatching(/^MKM-/), tpuName: expect.any(String) });
+    expect(baca.bukti.map((satu) => satu.kind)).toEqual(["foto_sesudah"]);
+    expect(baca.calon.map((satu) => satu.id).sort()).toEqual([mitra.id, b.id].sort());
+    expect(await s.setup.layanan.keluhanTpuUntukPlatform(s.admin, "00000000-0000-4000-8000-000000000000")).toEqual({ ok: false, reason: "tidak_ditemukan" });
+  });
+
+  it("is a Tier 1 Antrean row due at the first response, 4 daytime hours after it was filed, until Admin Platform decides it", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const baris = async () => {
+      const komposisi = queuesOnTestDatabase(db);
+      komposisi.clock.set(s.setup.clock.now());
+      return (await komposisi.queues.antrean(s.admin)).filter((satu) => satu.type === "keluhan_layanan_tpu");
+    };
+    expect(await baris()).toEqual([]);
+
+    // Filed at 17:00: 1 daytime hour that evening and 3 the next morning (06:00-09:00).
+    const diajukan = await ajukan(s, pekerjaanId, wib("2026-10-06 17:00"));
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(await baris()).toMatchObject([{ tier: 1, subjectKind: "keluhan_layanan_tpu", subjectId: diajukan.keluhanId, deadline: wib("2026-10-07 09:00") }]);
+
+    await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Sudah bersih" });
+    expect(await baris()).toEqual([]);
+  });
 });
 
 describe("the Keluhan window of a TPU job, as the message thread reads it", () => {
