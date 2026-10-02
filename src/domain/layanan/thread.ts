@@ -198,24 +198,27 @@ async function bacaThread(deps: LayananDeps, konteks: Konteks, peserta: Peserta)
         .orderBy(asc(pekerjaanLayananPesanFoto.posisi))
     : [];
   const pemegang = konteks.sumber === "tpu" ? await mitraJasaPemegang(deps, konteks.id) : null;
-  const namaMitra = pemegang ? namaDepanOf(pemegang.namaLengkap) : "Mitra Jasa";
+  const namaDepanMitra = pemegang ? namaDepanOf(pemegang.namaLengkap) : null;
   const labelDari = (dari: PesanPengirim, milikSaya: boolean) => {
     if (milikSaya) return "Anda";
     if (dari === "pemesan") return "Keluarga";
     if (dari === "admin_lokasi") return "Admin Lokasi";
     if (dari === "admin_platform") return "Admin Platform";
-    return peserta.peran === "pemesan" ? namaMitra : "Mitra Jasa";
+    return peserta.peran === "pemesan" && namaDepanMitra ? namaDepanMitra : "Mitra Jasa";
   };
   const pesan: PesanTerbaca[] = await Promise.all(
-    rows.map(async (row) => ({
-      id: row.id,
-      dari: row.pengirim,
-      label: labelDari(row.pengirim, row.pengirim === peserta.peran && row.pengirimAccountId === peserta.accountId),
-      milikSaya: row.pengirim === peserta.peran && row.pengirimAccountId === peserta.accountId,
-      teks: row.teks,
-      foto: await Promise.all(fotos.filter((foto) => foto.pesanId === row.id).map(async (foto) => ({ url: await buktiUrl(deps, foto.fileKey) }))),
-      at: row.createdAt,
-    })),
+    rows.map(async (row) => {
+      const milikSaya = row.pengirim === peserta.peran && row.pengirimAccountId === peserta.accountId;
+      return {
+        id: row.id,
+        dari: row.pengirim,
+        label: labelDari(row.pengirim, milikSaya),
+        milikSaya,
+        teks: row.teks,
+        foto: await Promise.all(fotos.filter((foto) => foto.pesanId === row.id).map(async (foto) => ({ url: await buktiUrl(deps, foto.fileKey) }))),
+        at: row.createdAt,
+      };
+    }),
   );
   return {
     pekerjaanId: konteks.id,
@@ -223,8 +226,8 @@ async function bacaThread(deps: LayananDeps, konteks: Konteks, peserta: Peserta)
     label: konteks.label,
     tertutup: konteks.tertutup,
     mitraJasa:
-      peserta.peran === "pemesan" && pemegang
-        ? { namaDepan: namaDepanOf(pemegang.namaLengkap), fotoUrl: pemegang.fotoFileKey ? await buktiUrl(deps, pemegang.fotoFileKey) : null }
+      peserta.peran === "pemesan" && pemegang && namaDepanMitra
+        ? { namaDepan: namaDepanMitra, fotoUrl: pemegang.fotoFileKey ? await buktiUrl(deps, pemegang.fotoFileKey) : null }
         : null,
     pesan,
   };
@@ -312,7 +315,7 @@ async function kirim(deps: LayananDeps, akses: Extract<AksesThreadResult, { ok: 
       const hasil = await tulis(tx);
       if (!hasil.ok) return hasil;
       await record({
-        actor: { accountId: by.accountId, role: peserta.peran === "mitra_jasa" ? "mitra_jasa" : peserta.peran },
+        actor: { accountId: by.accountId, role: peserta.peran },
         action: "layanan.kirim_pesan",
         entity: { kind: "pekerjaan_layanan", id: konteks.id },
         lokasiId: konteks.lokasi?.id ?? null,
