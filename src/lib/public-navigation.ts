@@ -9,7 +9,7 @@
  * opens the hub.
  */
 
-import { HUB_PATH } from "@/lib/makam-keluarga-content";
+import { HUB_PATH, tileKeHub } from "@/lib/makam-keluarga-content";
 import { terbukaDi, type Rilis } from "@/lib/rilis-peta";
 
 export interface PublicMenuItem {
@@ -50,8 +50,11 @@ export function publicMenu(options: { signedIn: boolean; /** The release the env
     ? { label: "Akun Saya", href: "/akun", description: "Email, nomor telepon dan pesanan Anda." }
     : { label: "Masuk", href: "/masuk", description: "Masuk dengan Kode Masuk, tanpa daftar." };
   const wakafTerbuka = terbukaDi("wakaf", options.rilis ?? 1);
+  const layananTerbuka = terbukaDi("inti", options.rilis ?? 1);
   const menu = items.map((item) =>
-    item.label === "Wakaf Tanah" && wakafTerbuka
+    item.label === "Layanan" && layananTerbuka
+      ? { label: item.label, href: tileKeHub.layanan, description: "Pesan perawatan dan layanan makam di Lokasi Mitra, dari Makam Keluarga." }
+      : item.label === "Wakaf Tanah" && wakafTerbuka
       ? { label: item.label, href: "/wakaf-tanah", description: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir." }
       : item,
   );

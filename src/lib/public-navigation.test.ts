@@ -33,9 +33,15 @@ describe("the public site menu", () => {
     // ship in later releases. A dead link is worse than an honest "Segera hadir", so
     // those items carry no href at all and never a release date (the brand's guardrails).
     const unbuilt = publicMenu({ signedIn: false }).filter((item) => !item.href);
-    expect(unbuilt.map((item) => item.label)).toEqual(["Layanan", "Wakaf Tanah"]);
+    expect(unbuilt.map((item) => item.label)).toEqual(["Wakaf Tanah"]);
     for (const item of unbuilt) expect(item.description).toBe("Segera hadir.");
     expect(publicMenu({ signedIn: false }).map((item) => item.description).join(" ")).not.toMatch(/\d{4}/);
+  });
+
+  it("links Layanan to the hub with the Layanan Makam action chosen at Rilis 1, the same place the Beranda tile opens", () => {
+    for (const rilis of [1, 2, 3] as const) {
+      expect(publicMenu({ signedIn: false, rilis }).find((item) => item.label === "Layanan")?.href).toBe("/makam-keluarga?aksi=layanan");
+    }
   });
 
   it("opens the Makam keluarga hub for the item that owns it", () => {
@@ -75,7 +81,7 @@ describe("the menu's links", () => {
       ...publicMenu({ signedIn: false }),
       ...publicMenu({ signedIn: true }),
     ]
-      .map((item) => item.href)
+      .map((item) => item.href?.split("?")[0])
       .filter((href): href is string => href !== undefined);
     for (const href of links) {
       expect(pageExists(href) || routeMenungguTiket.has(href), href).toBe(true);
