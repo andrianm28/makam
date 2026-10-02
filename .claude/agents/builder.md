@@ -13,3 +13,5 @@ Method: test first — read `.claude/skills/tdd/SKILL.md` once at the start and 
 Verify with `npx vitest run <your own paths>`, `npm run lint`, `npm run typecheck`, and `npm run build` at most once, then `rm -rf .next dist`. Never run the full suite. With no Docker, try a local Postgres through `TEST_DATABASE_URL`; if you cannot run tests, say so plainly, because the orchestrator runs them.
 
 Finish: commit, `git push -u origin <branch>`, a dated builder entry in the ticket's `## Comments` (what changed, decisions, spec gaps for the owner; never reword a requirement), the ticket's `Status:` untouched. Report at most 150 words with the head SHA and counts read off a whole log. End your turn only with nothing running.
+
+In a claude.ai/code Project thread (own VM, `session-start.sh` has already run `npm ci`): skip `npm run deps`, run tests with `npm test` (its own Postgres; check `docker info` first), and use the Skill tool for `tdd` if you have it. Never change `Status:` or `00-index.md`, never renumber migrations; commit and push often.
