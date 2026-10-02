@@ -12,8 +12,8 @@
  * tables: the Pemesanan module asks for it by the Hak Pakai's id, once it has
  * checked the caller is that Lokasi's own Admin Lokasi and that the Tagihan is
  * really Tidak Tertagih — both are the caller's own facts, not this module's.
- * Only an Aktif Hak Pakai can be ended, the same rule `batalkanHakPakai` keeps:
- * ending is final.
+ * Only an Aktif or a Kedaluwarsa Hak Pakai can be ended (a Kedaluwarsa one is exactly
+ * what the Admin Lokasi decides on in its masa tenggang, ticket 42); ending is final.
  */
 import { eq } from "drizzle-orm";
 import type { InventoryDeps } from "./deps";
@@ -25,14 +25,14 @@ export type AkhiriHakPakaiResult =
   /** The Hak Pakai has ended already (Kedaluwarsa, Berakhir or Dibatalkan): ending is final. */
   | { ok: false; reason: "hak_pakai_sudah_berakhir" };
 
-/** One Aktif Hak Pakai becomes Berakhir, with the reason kept on it as `endReason`. No instant is written (`batalkanHakPakai`'s own note applies here too): the order's own row and the Entri Audit its caller records are where a "when and why" lives. */
+/** One Aktif or Kedaluwarsa Hak Pakai becomes Berakhir, with the reason kept on it as `endReason`. No instant is written (`batalkanHakPakai`'s own note applies here too): the order's own row and the Entri Audit its caller records are where a "when and why" lives. */
 export async function akhiriHakPakai(
   deps: Pick<InventoryDeps, "db">,
   input: { hakPakaiId: string; alasan: string },
 ): Promise<AkhiriHakPakaiResult> {
   const [hakPakai] = await deps.db.select().from(inventoryHakPakai).where(eq(inventoryHakPakai.id, input.hakPakaiId));
   if (!hakPakai) return { ok: false, reason: "tidak_ditemukan" };
-  if (hakPakai.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
+  if (hakPakai.status !== "aktif" && hakPakai.status !== "kedaluwarsa") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
 
   const berakhir = await deps.db
     .update(inventoryHakPakai)

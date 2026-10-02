@@ -19,13 +19,14 @@ export const metadata: Metadata = {
  * Pemegang Hak email is this Akun's Email Terverifikasi — even one someone else
  * ordered — with its Lokasi, Petak / Kavling, status, end date, every Pemakaman
  * and its documents. "Ajukan Pembatalan" is here for a paid Terencana Hak Pakai that can still be given
- * back (ticket 38); Makam TPU items, active Paket and the other Pemegang Hak actions are this tab's
+ * back (ticket 38); Makam TPU cards (ticket 46: each links to Pesan Layanan prefilled with `?makam=<id>`), active Paket and the other Pemegang Hak actions are this tab's
  * later extension points (tickets 46, 54, 39).
  */
 export default async function AkunMakamPage() {
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
-  const { inventory, lokasi, pemesanan } = serverRuntime();
+  const { inventory, lokasi, pemesanan, pengurusan } = serverRuntime();
+  const makamTpu = await pengurusan.makamTpuSaya({ accountId: actor.accountId });
 
   const [unit, cards] = await Promise.all([inventory.makamKeluargaSaya({ email: actor.email }), lokasi.publicLokasiMitraList()]);
   const namaLokasi = new Map(cards.map((card) => [card.id, card.name]));
@@ -62,7 +63,7 @@ export default async function AkunMakamPage() {
     }),
   );
 
-  if (kartu.length === 0) {
+  if (kartu.length === 0 && makamTpu.length === 0) {
     return (
       <EmptyState
         icon={LandPlot}
@@ -79,6 +80,20 @@ export default async function AkunMakamPage() {
 
   return (
     <ul className="flex flex-col gap-4">
+      {makamTpu.map((satu) => (
+        <li key={satu.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4" data-testid="kartu-makam-tpu">
+          <div>
+            <p className="font-medium text-foreground">
+              {satu.tpu.name} · {satu.blokNomor}
+            </p>
+            <p className="text-small text-muted-foreground">Makam TPU · IPTM berlaku sampai {formatTanggal(satu.iptm.berlakuSampai)}</p>
+          </div>
+          <p className="text-small text-muted-foreground">{satu.almarhum.map((orang) => orang.name).join(", ")}</p>
+          <Link href={`/layanan/tpu?makam=${satu.id}`} className="text-small font-medium text-brand underline underline-offset-4">
+            Pesan Layanan
+          </Link>
+        </li>
+      ))}
       {kartu.map((satu) => (
         <li key={satu.hakPakaiId} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">

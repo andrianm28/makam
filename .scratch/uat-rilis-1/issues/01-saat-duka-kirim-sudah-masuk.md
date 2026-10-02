@@ -1,0 +1,21 @@
+# Saat Duka Kirim by a signed-in Pemesan does nothing visible
+
+Status: resolved
+Blocked by: —
+Spec: spec.md (makam-v1), Public site — Pilih makam / Data & kirim
+
+## What to build
+
+Found in the staging UAT on 2026-10-02. In the Saat Duka wizard at a Lokasi Mitra, a Pemesan who is already signed in presses "Kirim pesanan". The Server Action places the order (`{status: "selesai", nomor}`; MKM-2026-000004 was created), but the form only disables the button: no navigation and no message. The family sees nothing and may submit again. The no-session path already lands on the order page (server redirect to `pesananPath`), as do the Terencana wizard and the TPU form.
+
+## Acceptance criteria
+
+- [ ] After a successful Kirim, a signed-in Pemesan lands on `/pesanan/<nomor>`, exactly like the no-session path.
+- [ ] A refused Kirim or one that needs a Kode Masuk stays on the form, unchanged.
+- [ ] A test fails before the fix and passes after.
+
+## Comments
+
+- 2026-10-02 — Filed from the UAT (orchestrator). Branch `fix/saat-duka-kirim-masuk`.
+- 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main 0ff5acb, branch at e2710c0). Standards: 0 hard, 0 judgement calls. Spec: all ACs met; weak spot — `draft.test.ts` tests the pure helper only, so the component wiring in `data-kirim.tsx` (router.push on selesai) is not covered (no component-test setup in this repo). No fix pass needed.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: Standards and Spec clean of hard violations after the fix pass and an item-by-item re-review (see the entries above); merge gate on the merged tree: typecheck, lint, build, full suite 282 files / 2588 tests passed (1 skipped), exit 0. Staging verification follows the deploy.

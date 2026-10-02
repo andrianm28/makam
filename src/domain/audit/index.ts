@@ -213,6 +213,14 @@ export type AuditAction =
   | "pengurusan.konfirmasi_saat_duka_tpu"
   /** Admin Platform offers the family another TPU for a Saat Duka order (ticket 45). */
   | "pengurusan.tawarkan_tpu_lain"
+  /** Admin Platform records the burial of a Saat Duka TPU order, which starts the Tagihan's overdue clock and the 7-day filing window (ticket 46). */
+  | "pengurusan.catat_dimakamkan"
+  /** Admin Platform has checked the filing documents (ticket 46). */
+  | "pengurusan.dokumen_lengkap"
+  /** Admin Platform filed the IPTM on JakEVO (ticket 46). */
+  | "pengurusan.iptm_diajukan"
+  /** Admin Platform uploaded the IPTM scan and expiry; the Makam TPU was created or updated (ticket 46). */
+  | "pengurusan.iptm_terbit"
   /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
   | "setor_retribusi.catat"
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */
@@ -241,6 +249,8 @@ export type AuditAction =
   | "hak_pakai.akhiri_tidak_tertagih"
   /** The Admin Lokasi completes a Perlu Verifikasi Hak Pakai (end date, holder contact) before its Perpanjangan (ticket 40). */
   | "hak_pakai.lengkapi"
+  | "hak_pakai.akhiri"
+  | "hak_pakai.catat_pembongkaran"
   /** Admin Platform declares a chased Tagihan Tidak Tertagih (spec, Billing > Chasing; ticket 29). */
   | "tagihan.tidak_tertagih"
   /** A staff member adds a standalone note to a chased Tagihan's call log (ticket 29). */
@@ -269,12 +279,25 @@ export type AuditAction =
   | "layanan.mulai_pekerjaan"
   /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
   | "layanan.unggah_bukti"
+  /** A staff member or Mitra Jasa posts in a Pekerjaan Layanan's message thread (ticket 52). */
+  | "layanan.kirim_pesan"
   /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
   | "layanan.selesaikan_pekerjaan"
   /** Admin Platform hands a TPU job to one Mitra Jasa through the hard-filtered picker (ticket 56). */
   | "layanan.tugaskan_pekerjaan_tpu"
   /** A Mitra Jasa accepts or declines the TPU job assigned to them (ticket 56). */
   | "layanan.jawab_penugasan_tpu"
+  /** A Mitra Jasa saves one in-app camera shot of the proof of a TPU job (ticket 57). */
+  | "layanan.unggah_bukti_tpu"
+  /** A Mitra Jasa sends the proof of a TPU job for approval: the job is Menunggu Verifikasi (ticket 57). */
+  | "layanan.kirim_bukti_tpu"
+  /** Admin Platform approves the proof: the job is Selesai, the Pemesan is shown the proof and the Keluhan window opens (ticket 57). */
+  | "layanan.setujui_bukti_tpu"
+  /** Admin Platform decides a Keluhan on a TPU job: rejected, or a redo by a Mitra Jasa it names (ticket 57). */
+  | "layanan.putuskan_keluhan_tpu"
+  | "layanan.batalkan_pekerjaan_terlambat_tpu"
+  /** Admin Platform sends the proof back with a reason: the job is Sedang Dikerjakan again (ticket 57). */
+  | "layanan.tolak_bukti_tpu"
   /** Admin Platform takes a TPU job off the Mitra Jasa who holds it, so it can be given to another (ticket 56). */
   | "layanan.lepas_penugasan_tpu"
   /** An Admin Lokasi approves a manual Perpanjangan request (KTP, heir or claim); the approval stays valid 30 days (ticket 41). */
@@ -288,7 +311,15 @@ export type AuditAction =
   /** An Admin Lokasi changes the recorded phone number and email of a Pemegang Hak after a KTP check (ticket 41). */
   | "hak_pakai.ubah_kontak_pemegang"
   /** Admin Platform decides a Keluhan on a Pekerjaan Layanan: rejected, a redo, or a refund (ticket 51). */
-  | "layanan.putuskan_keluhan";
+  | "layanan.putuskan_keluhan"
+  /** Admin Platform adds, changes or removes a Nazhir on the list (ticket 58). */
+  | "wakaf.nazhir_tambah"
+  | "wakaf.nazhir_ubah"
+  | "wakaf.nazhir_hapus"
+  /** Admin Platform moves a Pengajuan Wakaf to a new status, matches its Nazhir or writes a note (ticket 58). */
+  | "wakaf.pindah_status"
+  | "wakaf.cocokkan_nazhir"
+  | "wakaf.catatan";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

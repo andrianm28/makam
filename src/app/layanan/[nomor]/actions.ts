@@ -2,10 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { pesananLayananResource } from "@/domain/identity";
-import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema } from "@/domain/layanan/pesanan-schema";
+import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema, kirimPesanThreadSchema } from "@/domain/layanan/pesanan-schema";
+import { ajukanKeluhanTpuSchema } from "@/domain/layanan/tpu-skema";
 import { keluhanMessages, layananBatalMessages, penilaianMessages } from "@/lib/layanan-labels";
+import { keluhanTpuMessages } from "@/lib/layanan-tpu-labels";
+import { pesanThreadMessages, type PesanThreadState } from "@/lib/thread-labels";
+import { inputPesanThread } from "@/server/thread-form";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
+import { refusalMessage } from "../../staf/messages";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type BatalActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -84,4 +89,44 @@ export async function beriPenilaianLayanan(_previous: PemesanActionState, formDa
   revalidatePath(`/layanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: penilaianMessages[result.value.reason] ?? "Pilih 1 sampai 5 bintang." };
   return { status: "berhasil", message: "Terima kasih. Penilaian Anda sudah kami terima." };
+}
+
+/**
+ * The Pemesan writes in the thread of one of their own jobs. Thin, in order: authenticate, check the role,
+ * validate with Zod, call the Layanan module — which decides who may write and whether the thread is still open.
+ */
+export async function kirimPesanThreadPemesan(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: kirimPesanThreadSchema,
+    input: await inputPesanThread(formData),
+    run: (actor, data) => serverRuntime().layanan.kirimPesanPemesan({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  if (!result.ok) return { status: "gagal", message: pesanThreadMessages[result.error] ?? "Periksa lagi isian Anda." };
+  revalidatePath(`/layanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: pesanThreadMessages[result.value.reason] ?? "Pesan gagal dikirim." };
+  return { status: "berhasil", message: "Pesan terkirim." };
+}
+
+/**
+ * The Pemesan files a Keluhan on one finished TPU job (ticket 57). Thin, in order: authenticate, check the role,
+ * validate with Zod, call the Layanan module, which decides whether the 3×24 h window since the approved proof is still open.
+ */
+export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: ajukanKeluhanTpuSchema,
+    input: { pekerjaanId: formData.get("pekerjaanId"), alasan: formData.get("alasan") },
+    run: (actor, data) => serverRuntime().layanan.ajukanKeluhanTpu({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  const gagal = !result.ok ? result.error : !result.value.ok ? result.value.reason : null;
+  revalidatePath(`/layanan/${nomor}`);
+  // A hari-H item of a Saat Duka order is read on the Pengurusan page too.
+  revalidatePath(`/pengurusan/${nomor}`);
+  if (gagal) return { status: "gagal", message: refusalMessage(gagal, keluhanTpuMessages) };
+  return { status: "berhasil", message: "Keluhan Anda sudah kami terima. Kami akan menghubungi Anda secepatnya." };
 }

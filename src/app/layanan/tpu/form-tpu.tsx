@@ -30,16 +30,19 @@ export function FormPesananTpu({
   sudahMasuk,
   mintaKodeMasuk,
   csContact,
+  awal,
 }: {
+  /** The grave of a Makam TPU the order was started from, to prefill the description (ticket 46). */
+  awal?: { tpuId: string; blokNomor: string; almarhumName: string } | null;
   tampilan: TampilanPesananTpu;
   sudahMasuk: boolean;
   mintaKodeMasuk: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
   csContact: CsContact | null;
 }) {
   const router = useRouter();
-  const [tpuId, setTpuId] = useState("");
-  const [blokNomor, setBlokNomor] = useState("");
-  const [almarhum, setAlmarhum] = useState("");
+  const [tpuId, setTpuId] = useState(awal?.tpuId ?? "");
+  const [blokNomor, setBlokNomor] = useState(awal?.blokNomor ?? "");
+  const [almarhum, setAlmarhum] = useState(awal?.almarhumName ?? "");
   const [keterangan, setKeterangan] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");

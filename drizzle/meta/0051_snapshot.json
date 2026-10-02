@@ -1,6 +1,6 @@
 {
-  "id": "7d14e522-394d-4b71-a4a0-040f38d80580",
-  "prevId": "b8518337-2c64-4730-b9f5-ad1ed3e6e372",
+  "id": "09aa5042-6543-4882-ad6e-ed62f63043c1",
+  "prevId": "6ab05db6-bd36-4b70-ab7e-83b6ddd64a76",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2591,6 +2591,12 @@
         "end_reason": {
           "name": "end_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pembongkaran_at": {
+          "name": "pembongkaran_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -6280,18 +6286,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "pengelola_telepon": {
-          "name": "pengelola_telepon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pengelola_email": {
-          "name": "pengelola_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "address": {
           "name": "address",
           "type": "text",
@@ -6428,24 +6422,6 @@
         "cek_denah_note": {
           "name": "cek_denah_note",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "berhenti_decided_at": {
-          "name": "berhenti_decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "berhenti_berlaku_on": {
-          "name": "berhenti_berlaku_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "berhenti_diproses_at": {
-          "name": "berhenti_diproses_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -9963,6 +9939,60 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.perpanjangan_pengingat": {
+      "name": "perpanjangan_pengingat",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "hak_pakai_id": {
+          "name": "hak_pakai_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tahap": {
+          "name": "tahap",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dicatat_pada": {
+          "name": "dicatat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "perpanjangan_pengingat_unik": {
+          "name": "perpanjangan_pengingat_unik",
+          "nullsNotDistinct": false,
+          "columns": [
+            "hak_pakai_id",
+            "end_date",
+            "tahap"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.perpanjangan_permohonan": {
       "name": "perpanjangan_permohonan",
       "schema": "",
@@ -11533,6 +11563,415 @@
           "value": "\"tariff_mitra_jasa_version\".\"amount\" between 0 and 100000000000"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.wakaf_catatan": {
+      "name": "wakaf_catatan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pengajuan_id": {
+          "name": "pengajuan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis": {
+          "name": "jenis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isi": {
+          "name": "isi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "penulis_account_id": {
+          "name": "penulis_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pada": {
+          "name": "pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "wakaf_catatan_pengajuan_idx": {
+          "name": "wakaf_catatan_pengajuan_idx",
+          "columns": [
+            {
+              "expression": "pengajuan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pada",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.wakaf_nazhir": {
+      "name": "wakaf_nazhir",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nama": {
+          "name": "nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis": {
+          "name": "jenis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kab_kota": {
+          "name": "kab_kota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kontak": {
+          "name": "kontak",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nomor_bwi": {
+          "name": "nomor_bwi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dibuat_pada": {
+          "name": "dibuat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diubah_pada": {
+          "name": "diubah_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.wakaf_pengajuan": {
+      "name": "wakaf_pengajuan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nomor": {
+          "name": "nomor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wakif_account_id": {
+          "name": "wakif_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wakif_email": {
+          "name": "wakif_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tujuan": {
+          "name": "tujuan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_keluarga": {
+          "name": "nama_keluarga",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wakif_nama": {
+          "name": "wakif_nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wakif_telepon": {
+          "name": "wakif_telepon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hubungan_dengan_tanah": {
+          "name": "hubungan_dengan_tanah",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kab_kota": {
+          "name": "kab_kota",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alamat": {
+          "name": "alamat",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pin_lat": {
+          "name": "pin_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pin_lng": {
+          "name": "pin_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "luas_m2": {
+          "name": "luas_m2",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jenis_bukti": {
+          "name": "jenis_bukti",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nazhir_id": {
+          "name": "nazhir_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nazhir_nama": {
+          "name": "nazhir_nama",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alasan": {
+          "name": "alasan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tanggal_survei": {
+          "name": "tanggal_survei",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tanggal_ikrar": {
+          "name": "tanggal_ikrar",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tugas_survei_id": {
+          "name": "tugas_survei_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "berkas": {
+          "name": "berkas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "diajukan_pada": {
+          "name": "diajukan_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenggat_pada": {
+          "name": "tenggat_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diubah_pada": {
+          "name": "diubah_pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "wakaf_pengajuan_wakif_idx": {
+          "name": "wakaf_pengajuan_wakif_idx",
+          "columns": [
+            {
+              "expression": "wakif_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "wakaf_pengajuan_status_idx": {
+          "name": "wakaf_pengajuan_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "wakaf_pengajuan_nomor_unique": {
+          "name": "wakaf_pengajuan_nomor_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nomor"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.wakaf_riwayat": {
+      "name": "wakaf_riwayat",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pengajuan_id": {
+          "name": "pengajuan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pada": {
+          "name": "pada",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tanggal": {
+          "name": "tanggal",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "wakaf_riwayat_pengajuan_idx": {
+          "name": "wakaf_riwayat_pengajuan_idx",
+          "columns": [
+            {
+              "expression": "pengajuan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pada",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     }
   },

@@ -119,3 +119,23 @@ export function perluTindakanDariPermohonan(daftar: readonly RingkasanPermohonan
   }
   return item;
 }
+
+/** One TPU order past Dimakamkan whose filing documents are not all in (Pengurusan's own `perluTindakanBerkas`, ticket 46). */
+export interface RingkasanBerkasTpu {
+  nomor: string;
+  tpuName: string;
+  kurang: readonly string[];
+  dueAt: Date;
+  /** Past the 7-day window. */
+  terlambat: boolean;
+}
+
+/** The item a TPU filing with missing documents adds to the strip; it clears when the last document is uploaded. */
+export function perluTindakanDariBerkasTpu(daftar: readonly RingkasanBerkasTpu[]): PerluTindakanItem[] {
+  return daftar.map((satu) => ({
+    id: `berkas-tpu:${satu.nomor}`,
+    judul: `Berkas IPTM pesanan ${satu.nomor} belum lengkap`,
+    deskripsi: `${satu.tpuName}: belum ada ${satu.kurang.join(", ")}.${satu.terlambat ? " Batas 7 hari sudah lewat, segera unggah agar IPTM bisa diajukan." : " Unggah dalam 7 hari sejak pemakaman."}`,
+    href: `/pengurusan/${satu.nomor}`,
+  }));
+}

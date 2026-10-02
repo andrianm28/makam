@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
+import { perluTindakanDariBerkasTpu, perluTindakanDariPermohonan, perluTindakanDariPesanan, type RingkasanTindakan } from "./perlu-tindakan";
 
 /** One order with nothing that needs the family, the baseline every test starts from and overrides. */
 function ringkasan(over: Partial<RingkasanTindakan> = {}): RingkasanTindakan {
@@ -79,5 +79,26 @@ describe("a manual Perpanjangan request in Perlu tindakan", () => {
     for (const status of ["disetujui", "ditolak", "dibatalkan"] as const) {
       expect(perluTindakanDariPermohonan([{ ...permohonan, status, dapatDipesan: false }])).toEqual([]);
     }
+  });
+});
+
+describe("a TPU filing in Perlu tindakan (ticket 46)", () => {
+  const dueAt = new Date("2026-10-09T16:59:59Z");
+
+  it("names the missing documents of an order past Dimakamkan and links to its page", () => {
+    const [item] = perluTindakanDariBerkasTpu([{ nomor: "TPU-2026-000001", tpuName: "TPU Karet Bivak", kurang: ["KTP Pemesan", "Surat kematian"], dueAt, terlambat: false }]);
+    expect(item).toMatchObject({ id: "berkas-tpu:TPU-2026-000001", href: "/pengurusan/TPU-2026-000001" });
+    expect(item!.judul).toContain("TPU-2026-000001");
+    expect(item!.deskripsi).toContain("KTP Pemesan");
+    expect(item!.deskripsi).toContain("Surat kematian");
+  });
+
+  it("says so when the 7-day window has passed", () => {
+    const [item] = perluTindakanDariBerkasTpu([{ nomor: "TPU-2026-000001", tpuName: "TPU Karet Bivak", kurang: ["KTP Pemesan"], dueAt, terlambat: true }]);
+    expect(item!.deskripsi).toContain("lewat");
+  });
+
+  it("has nothing for an order whose documents are all in", () => {
+    expect(perluTindakanDariBerkasTpu([])).toEqual([]);
   });
 });

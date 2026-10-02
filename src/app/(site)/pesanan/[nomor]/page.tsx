@@ -74,7 +74,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-title-1 text-foreground">Pesanan terkirim</h1>
+        <h1 className="text-title-1 text-foreground">{order.status === "diajukan" ? "Pesanan terkirim" : "Pesanan Anda"}</h1>
         <p className="text-body-lg text-muted-foreground">
           Nomor Pemesanan{" "}
           <span className="font-mono font-semibold text-foreground" data-testid="nomor-pemesanan">
@@ -171,7 +171,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         <section className="flex flex-col gap-3">
           <h2 className="text-title-3 text-foreground">Dokumen yang diminta</h2>
           <p className="text-small text-muted-foreground">
-            Dokumen boleh menyusul, bahkan setelah pemakaman. Yang tidak boleh delaying pemakaman adalah pembayaran, dan
+            Dokumen boleh menyusul, bahkan setelah pemakaman. Yang tidak boleh menunda pemakaman adalah pembayaran, dan
             Tagihan pun tidak menahannya.
           </p>
           <ul className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">

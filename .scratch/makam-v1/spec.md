@@ -78,7 +78,7 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 32. As a Pemesan whose order was declined, I want a link to other options in my city (by email and on my order page), with my data carried over and TPUs included, so that I can rebook in one tap.
 33. As a Pemesan whose order was declined, I want an Admin Platform staff member to phone me within 2 hours, so that I'm not left alone.
 34. As a Pemesan, I want to cancel myself before the burial (with a reason once it is confirmed), so that I can change plans. Nothing has been billed before confirmation; after confirmation the Tagihan is cancelled, and any payment already made is refunded except the Biaya Layanan Platform.
-35. As a Pemesan, I want to pay by VA or QRIS through a payment link that anyone in my family can use, so that whoever has the money can pay.
+35. As a Pemesan, I want to pay by QRIS through a payment link that anyone in my family can use, so that whoever has the money can pay. (Was "VA or QRIS"; v1 has no Virtual Account — see Billing; owner, 2026-10-02.)
 36. As a Pemesan, I want a Bukti Pembayaran and then a Bukti Pemesanan once paid, so that I have proof of both the money and the right.
 37. As a Pemesan, I want the order to show Dimakamkan once the burial is recorded and Selesai once paid, with the Tagihan status as a separate badge, so that I can follow both.
 38. As a Pemesan, I want Tagihan, Bukti Pembayaran and Bukti Pemesanan sent to my email, so that I have them outside the site. (Amended 2026-09-26, ADR 0004: email is now every family's channel, not an optional copy.)

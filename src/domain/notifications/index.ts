@@ -78,6 +78,7 @@ import {
 } from "./catatan-tagihan";
 
 export { tambahCatatanTagihanSchema, type CatatanTagihan, type TambahCatatanTagihanInput, type TambahCatatanTagihanResult };
+import { wakafStatusBerubah, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
 import {
   kirimPesanJatuhTempo,
   pengembalianTerbit,
@@ -100,11 +101,13 @@ import {
   pesananDitolak,
   pesanPemesanan,
   layananPekerjaanSelesai,
+  layananPesanBaru,
   layananPesananTerbit,
   layananTpuPesananTerbit,
   paketSiklusDijeda,
   pesanLayanan,
   type LayananPekerjaanSelesaiInput,
+  type LayananPesanBaruInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
   type PaketSiklusDijedaInput,
@@ -124,8 +127,10 @@ import {
   type BuktiPerpanjanganTerbitResult,
 } from "./pesan-perpanjangan";
 import {
+  iptmTerbit,
   pengurusanDikonfirmasi,
   pesanPengurusan,
+  type IptmTerbitInput,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
@@ -156,6 +161,7 @@ export {
 export {
   pesananBuktiPemesananSchema,
   layananPekerjaanSelesaiSchema,
+  layananPesanBaruSchema,
   layananPesananTerbitSchema,
   layananTpuPesananTerbitSchema,
   paketSiklusDijedaSchema,
@@ -172,6 +178,8 @@ export {
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
 export {
+  iptmTerbitSchema,
+  type IptmTerbitInput,
   pengurusanDikonfirmasiSchema,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
@@ -487,11 +495,28 @@ export interface Notifications {
   /** A Lokasi Mitra's Berhenti decision, emailed at once to each family named (ticket 59); one message per family, however often it is announced. */
   lokasiBerhenti(input: LokasiBerhentiInput, within?: Database): Promise<LokasiBerhentiResult>;
   /**
+   * Tells the Wakif that a Pengajuan Wakaf changed status (ticket 58), by email at any hour. One message
+   * per status change (`perubahanId`), whatever runs twice; the note to the Wakif, the date and the reason travel with it.
+   */
+  wakafStatusBerubah(input: WakafStatusBerubahInput, within?: Database): Promise<WakafStatusBerubahResult>;
+  /**
+   * One reminder that a Hak Pakai is ending (60, 30, 7 days before, then weekly in the Masa Tenggang; ticket 42):
+   * an email to the recorded Pemegang Hak with the Perpanjangan link (08:00-20:00 WIB), a Peringatan Staf to each Admin
+   * Lokasi, and a Telepon Pemesan row when there is no recorded email or the Hak Pakai is nearing its end. Announcing
+   * the same reminder twice sends it once.
+   */
+  pengingatHakPakaiBerakhir(input: PengingatHakPakaiBerakhirInput, within?: Database): Promise<PengingatHakPakaiBerakhirResult>;
+  /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
    * and the pay-after Tagihan. One message per order, whatever runs twice.
    */
   pengurusanDikonfirmasi(input: PengurusanDikonfirmasiInput): Promise<PesanPengurusanResult>;
+  /**
+   * Announces the IPTM at IPTM Terbit (ticket 46): the order page's link to the Pemesan and, at a
+   * different address, to the Pemegang Hak, whether or not the Tagihan is paid. One per order and template.
+   */
+  iptmTerbit(input: IptmTerbitInput): Promise<PesanPengurusanResult>;
   /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
@@ -500,6 +525,8 @@ export interface Notifications {
   layananTpuPesananTerbit(input: LayananTpuPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
   layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
+  /** Someone wrote in a job's thread: the Pemesan is sent a link to read and reply, never the text or a photo (ticket 52). */
+  layananPesanBaru(input: LayananPesanBaruInput, within?: Database): Promise<PesanLayananResult>;
   /**
    * A Paket Layanan cycle whose Tagihan would pass the Rilis 1 QRIS cap, so the
    * Paket was paused (ticket 54): the Pemesan hears why, queued on the
@@ -863,6 +890,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     async pengurusanDikonfirmasi(input) {
       return pengurusanDikonfirmasi(deps, input);
     },
+    async iptmTerbit(input) {
+      return iptmTerbit(deps, input);
+    },
     async pesanPengurusan(pengurusanId) {
       return pesanPengurusan(deps, pengurusanId);
     },
@@ -907,6 +937,13 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return lokasiBerhenti(within ? { ...deps, db: within } : deps, input);
     },
 
+    async wakafStatusBerubah(input, within) {
+      return wakafStatusBerubah(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async pengingatHakPakaiBerakhir(input, within) {
+      return pengingatHakPakaiBerakhir(within ? { ...deps, db: within } : deps, input);
+    },
     async buktiPerpanjanganTerbit(input, within) {
       return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
     },
@@ -919,6 +956,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async layananPekerjaanSelesai(input, within) {
       return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
+    },
+    async layananPesanBaru(input, within) {
+      return layananPesanBaru(within ? { ...deps, db: within } : deps, input);
     },
     async paketSiklusDijeda(input, within) {
       return paketSiklusDijeda(within ? { ...deps, db: within } : deps, input);
@@ -1049,4 +1089,8 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   return { ok: true, role };
 }
 
+export { wakafStatusBerubahSchema, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
+import { pengingatHakPakaiBerakhir, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
+export { pengingatHakPakaiBerakhirSchema, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";
+export { dalamJamKirim } from "./acara";
 export { buktiPerpanjanganTerbitSchema, type BuktiPerpanjanganTerbitInput, type BuktiPerpanjanganTerbitResult } from "./pesan-perpanjangan";

@@ -30,7 +30,9 @@ export interface ActiveHakPakaiForStatus {
  */
 export function derivePetakStatus(input: { tidakTersediaReason: string | null; hakPakai: ActiveHakPakaiForStatus | null }): PetakStatus {
   const { hakPakai } = input;
-  if (!hakPakai) return input.tidakTersediaReason ? "tidak_tersedia" : "tersedia";
+  // No Hak Pakai on the Petak, or one whose Pembongkaran is recorded (the plot is empty again): the Admin Lokasi's
+  // Tidak Tersedia mark shows (ticket 42: marking it after a Pembongkaran must hold).
+  if (!hakPakai || (hakPakai.status === "berakhir" && hakPakai.pembongkaranAt)) return input.tidakTersediaReason ? "tidak_tersedia" : "tersedia";
   switch (hakPakai.status) {
     case "aktif":
       return "terisi";
@@ -42,7 +44,7 @@ export function derivePetakStatus(input: { tidakTersediaReason: string | null; h
       // Pembongkaran is needed.
       return "tersedia";
     case "berakhir":
-      return hakPakai.pembongkaranAt ? "tersedia" : "terisi";
+      return "terisi";
   }
 }
 

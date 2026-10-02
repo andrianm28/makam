@@ -27,6 +27,7 @@ const SEBAB_LABEL = {
   // A Saat Duka Tagihan Lewat Jatuh Tempo (spec, Work Queues Tier 2; ticket 29): the
   // Tier 3 "Tagihan lewat jatuh tempo" row tracks the Tagihan itself, this one the call.
   tagihan_lewat_jatuh_tempo: "Tagihan lewat jatuh tempo, hubungi keluarga",
+  hak_pakai_berakhir: "Hak Pakai segera berakhir, telepon Pemegang Hak",
 } as const;
 
 export const teleponPemesanRowType: AntreanRowType = {

@@ -5,6 +5,7 @@ import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Pemesanan } from "@/domain/pemesanan";
+import type { Pengurusan } from "@/domain/pengurusan";
 import { createRefunds, type Refunds } from "@/domain/refunds";
 import type { Payouts } from "@/domain/payouts";
 import { documentPagePath } from "@/lib/document-links";
@@ -22,10 +23,16 @@ export function buktiPengembalianDanaUrl(env: Pick<RuntimeEnv, "APP_BASE_URL">) 
  * Whether an Akun placed an order, asked of Pemesanan's own reads (a Saat Duka order, or a Terencana one, which is
  * where a Pembatalan's refund waits for its bank account); none where nobody signs in (the worker).
  */
-export function pemilikPesananDari(pemesanan: Pick<Pemesanan, "orderOf" | "terencanaOf"> | undefined) {
+export function pemilikPesananDari(
+  pemesanan: Pick<Pemesanan, "orderOf" | "terencanaOf"> | undefined,
+  /** Pengurusan (a TPU order) is composed after Refunds, so it is reached through a reference filled once it exists. */
+  pengurusan?: { current?: Pick<Pengurusan, "orderOf"> },
+) {
   if (!pemesanan) return undefined;
   return async (nomorPemesanan: string, accountId: string) =>
-    (await pemesanan.orderOf(nomorPemesanan, { accountId })) !== null || (await pemesanan.terencanaOf(nomorPemesanan, { accountId })) !== null;
+    (await pemesanan.orderOf(nomorPemesanan, { accountId })) !== null ||
+    (await pemesanan.terencanaOf(nomorPemesanan, { accountId })) !== null ||
+    (pengurusan?.current ? (await pengurusan.current.orderOf(nomorPemesanan, { accountId })) !== null : false);
 }
 
 /**
@@ -64,6 +71,8 @@ export function composeRefunds(deps: {
   billing: Pick<Billing, "within" | "tagihan" | "tagihanMenungguPengembalian">;
   /** Who placed an order; the worker, which never handles a Pemesan's write, composes without it. */
   pemesanan?: Pick<Pemesanan, "orderOf" | "terencanaOf">;
+  /** Filled once Pengurusan exists; a TPU order's Pemesan enters the refund account like any other. */
+  pengurusan?: { current?: Pick<Pengurusan, "orderOf"> };
   payouts: Pick<Payouts, "batalkanPencairanTagihan" | "kurangiPencairanSebisanya" | "sudahDicairkanUntukTagihan" | "catatPotongan">;
   notifications: Pick<Notifications, "pengembalianTerbit">;
   operatorSettings: Pick<OperatorSettings, "current">;
@@ -80,7 +89,7 @@ export function composeRefunds(deps: {
     notifications: deps.notifications,
     operatorSettings: deps.operatorSettings,
     buktiUrl: buktiPengembalianDanaUrl(deps.env),
-    pemilikPesanan: pemilikPesananDari(deps.pemesanan),
+    pemilikPesanan: pemilikPesananDari(deps.pemesanan, deps.pengurusan),
     reportError: deps.reportError,
   });
 }

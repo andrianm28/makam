@@ -138,7 +138,8 @@ test("Saat Duka: a family orders, the Lokasi confirms and records the burial, th
   // The document itself, on its own unguessable link, in the Lokasi Mitra's name.
   await page.getByRole("link", { name: "Buka Bukti Pemesanan" }).click();
   await expect(page.getByRole("heading", { name: "Bukti Pemesanan" })).toBeVisible();
-  await expect(page.getByText(/BPM\/\d{4}\/\d{6}/)).toBeVisible();
+  // Scoped to <main>: Next's route announcer (role=alert, outside <main>) repeats the page title, number included.
+  await expect(page.getByRole("main").getByText(/^BPM\/\d{4}\/\d{6}$/)).toBeVisible();
   await expect(page.getByText("Pemegang Hak")).toBeVisible();
   await expect(page.getByText("Budi Santoso").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Petunjuk arah/ })).toBeVisible();

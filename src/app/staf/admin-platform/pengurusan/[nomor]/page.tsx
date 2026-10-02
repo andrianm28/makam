@@ -8,6 +8,15 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { ConfirmTpuForms } from "./konfirmasi-forms";
+import { LangkahPengajuanForm, type LangkahPengajuan } from "./pengajuan-forms";
+
+/** The one filing step each status is waiting on (spec, Pengurusan); none from IPTM Terbit or when the order ended. */
+const LANGKAH: Partial<Record<string, LangkahPengajuan>> = {
+  dikonfirmasi: "catat_dimakamkan",
+  dimakamkan: "periksa_dokumen",
+  dokumen_lengkap: "ajukan_iptm",
+  iptm_diajukan: "terbitkan_iptm",
+};
 
 /**
  * Admin Platform's screen for one Saat Duka TPU order, the page the Antrean's
@@ -27,6 +36,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
     lokasi.publicTpuDkiList({}),
   ]);
   if (!order) notFound();
+  const langkah = LANGKAH[order.status];
   const petugas = staffAccounts
     .filter((account) => account.roles.includes("petugas_lapangan") && !account.deactivated)
     .map((account) => ({ accountId: account.accountId, name: account.name || account.email || account.accountId }));
@@ -52,7 +62,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <StatusBadge status={order.status === "dikonfirmasi" ? "dikonfirmasi" : "diajukan"} />
+          <StatusBadge status={statusBadge(order.status)} />
           <dl className="grid gap-2 text-body sm:grid-cols-2">
             <Baris label="TPU" value={`${order.tpu.name} · ${order.tpu.address}`} />
             <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} />
@@ -82,7 +92,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
         </CardContent>
       </Card>
 
-      {order.status === "dikonfirmasi" ? (
+      {langkah || order.status === "iptm_terbit" ? (
         <Card>
           <CardHeader>
             <CardTitle>Sudah dikonfirmasi</CardTitle>
@@ -104,7 +114,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
             {order.catatanKonfirmasi ? <p className="text-body text-muted-foreground">{order.catatanKonfirmasi}</p> : null}
           </CardContent>
         </Card>
-      ) : (
+      ) : order.status === "dibatalkan" ? null : (
         <ConfirmTpuForms
           nomor={order.nomor}
           petugas={petugas}
@@ -112,8 +122,41 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           tawaran={order.tawaran}
         />
       )}
+      {langkah ? (
+        <>
+          <LangkahPengajuanForm
+            nomor={order.nomor}
+            langkah={langkah}
+            petugas={petugas}
+            perluBlokNomor={order.jenisPenguburan !== "tumpang"}
+          />
+          {order.status !== "dikonfirmasi" ? (
+            <p className="text-small text-muted-foreground">
+              Dokumen: {order.pengajuan.kurang.length > 0 ? `masih kurang ${order.pengajuan.kurang.join(", ")}` : "semua sudah diunggah"}.{" "}
+              <Link href={`/staf/admin-platform/pengurusan/${order.nomor}/surat-kuasa`} className="font-medium text-brand underline underline-offset-4">
+                Surat Kuasa
+              </Link>
+            </p>
+          ) : null}
+        </>
+      ) : null}
     </>
   );
+}
+
+function statusBadge(status: string): "diajukan" | "dikonfirmasi" | "dimakamkan" | "dokumen_lengkap" | "iptm_diajukan" | "iptm_terbit" | "dibatalkan" | "ditolak" {
+  switch (status) {
+    case "dikonfirmasi":
+    case "dimakamkan":
+    case "dokumen_lengkap":
+    case "iptm_diajukan":
+    case "iptm_terbit":
+    case "dibatalkan":
+    case "ditolak":
+      return status;
+    default:
+      return "diajukan";
+  }
 }
 
 function Baris({ label, value }: { label: string; value: string }) {

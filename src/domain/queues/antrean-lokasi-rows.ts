@@ -12,7 +12,7 @@
  * (the failed-message row, whose call is logged in place).
  */
 import type { Actor } from "@/domain/identity";
-import { wib, wibDateOf } from "@/lib/time/jakarta";
+import { formatTanggal, wib, wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps } from "./row-types";
 
 /** The two groups the spec names (CONTEXT.md: "split into Mendesak and Lainnya"). */
@@ -128,6 +128,30 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
         deadline: null,
       },
     ];
+  },
+};
+
+/**
+ * "Hak Pakai dalam masa tenggang" (Lainnya): every Kedaluwarsa Hak Pakai of that Lokasi Mitra
+ * still inside its Masa Tenggang, so its Admin Lokasi decides whether to end it (story 130,
+ * ticket 42). It closes when a Perpanjangan is paid (the Hak Pakai is Aktif again), when the
+ * Admin Lokasi ends it, and when the Masa Tenggang is over. No deadline: the spec gives it none.
+ */
+export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
+  key: "hak_pakai_masa_tenggang",
+  grup: "lainnya",
+  label: "Hak Pakai dalam masa tenggang",
+  async rows(deps, _by, lokasiId) {
+    const hakPakai = await deps.inventory.hakPakaiMasaTenggang(lokasiId);
+    return hakPakai.map((satu) => ({
+      type: "hak_pakai_masa_tenggang",
+      label: "Hak Pakai dalam masa tenggang",
+      subjectKind: "hak_pakai",
+      subjectId: satu.hakPakaiId,
+      subjectLabel: `${satu.label} · berakhir ${formatTanggal(satu.endDate)}, masa tenggang sampai ${formatTanggal(satu.masaTenggangBerakhir)}`,
+      href: `/staf/admin-lokasi/${lokasiId}/hak-pakai/${satu.hakPakaiId}`,
+      deadline: null,
+    }));
   },
 };
 
@@ -348,6 +372,7 @@ export const antreanLokasiRowTypes: AntreanLokasiRowType[] = [
   periksaDokumenPerpanjanganRowType,
   pesanLokasiGagalRowType,
   petakPerluVerifikasiRowType,
+  hakPakaiMasaTenggangRowType,
   catatPemakamanRowType,
   layananHariIniRowType,
   layananAkanDatangRowType,

@@ -27,6 +27,7 @@ import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
+import type { Wakaf } from "@/domain/wakaf";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
 import { ambilPengurus, ambilRow, type AmbilRowResult, type PengurusAmbil } from "./ambil";
@@ -122,15 +123,20 @@ export interface QueuesModuleDeps {
     | "persetujuanRefundPembatalan"
   >;
   /** The Antrean Lokasi's "Petak Perlu Verifikasi" row counts the Denah's own Petak. */
-  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi">;
+  inventory: Pick<Inventory, "jumlahPetakPerluVerifikasi" | "hakPakaiMasaTenggang">;
   /** The Antrean's Tier 3 Pencairan row reads the Payouts module's own query. */
   payouts: Pick<Payouts, "pencairanJatuhTempo" | "pencairanDibayar" | "transferKeluar">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
-  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka" | "pengajuanIptmTerbuka">;
   /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo" | "pengembalianDibayar" | "transferKeluar">;
+  /**
+   * The Antrean's Tier 3 "Pengajuan Wakaf" row reads the Wakaf module's own open Pengajuan (ticket 58).
+   * Optional so a fixture that composes no Wakaf has no such row; the runtime always passes it.
+   */
+  wakaf?: Pick<Wakaf, "pengajuanTerbuka">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */
   identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */
@@ -142,9 +148,11 @@ export interface QueuesModuleDeps {
     | "pekerjaanUntukStafTerbaru"
     | "pekerjaanTerlambat"
     | "keluhanTerbuka"
+    | "keluhanTpuTerbukaAntrean"
     | "kerjakanUlangUntukLokasi"
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
+    | "pekerjaanTpuMenungguVerifikasi"
   >;
 }
 

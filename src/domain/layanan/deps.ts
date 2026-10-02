@@ -116,6 +116,24 @@ export interface LayananNotifikasi {
    * the pause, so the pause and its Peringatan commit together.
    */
   paketSiklusDijeda(tx: Database, hasil: PaketSiklusDijeda): Promise<void>;
+  /**
+   * Someone wrote in a job's thread (ticket 52): the Pemesan is sent a link to read and reply.
+   * It carries no text, no photo and no name of what was written; queued on the message's own transaction.
+   */
+  pesanThreadBaru(tx: Database, hasil: PesanThreadBaru): Promise<void>;
+}
+
+/** A thread message as its Pemesan is told of it: that one exists, by role, and where to read it. */
+export interface PesanThreadBaru {
+  pekerjaanId: string;
+  nomor: string;
+  email: string;
+  label: string;
+  /** A Lokasi Mitra's own name, or null at a TPU. */
+  lokasi: { id: string; name: string } | null;
+  /** Where the job is, for the sentence: the Lokasi Mitra's or the TPU's name. */
+  tempat: string;
+  dari: "admin_lokasi" | "admin_platform" | "mitra_jasa";
 }
 
 /** A new order Layanan at a DKI TPU as its Pemesan is told about it. */
@@ -206,7 +224,7 @@ export interface LayananDeps {
    * the screens, and written through the Tariffs module — `within(tx)` so an
    * offering and its price commit or roll back together.
    */
-  tariffs: Pick<Tariffs, "quote" | "hargaLayananLokasi" | "hargaLayananLokasiSemua" | "within">;
+  tariffs: Pick<Tariffs, "quote" | "hargaLayananLokasi" | "hargaLayananLokasiSemua" | "within" | "mitraJasaRate">;
   /** A Mitra Jasa's jobs: the scorecard's numbers and the ones a suspension takes off. */
   pekerjaan: PekerjaanMitraJasaPort;
   /** A grave's Hak Pakai, which decides whether Layanan may be ordered for it at all. */
@@ -228,6 +246,6 @@ export interface LayananDeps {
    * may override what it pays after a Keluhan. Both are Payouts' public functions; this module
    * never reaches its tables.
    */
-  payouts: Pick<Payouts, "itemLayanan" | "jadikanLayananJatuhTempo" | "turunkanJumlahPencairan">;
+  payouts: Pick<Payouts, "itemLayanan" | "itemLayananById" | "jadikanLayananJatuhTempo" | "turunkanJumlahPencairan" | "catatItemLayananMitraJasa" | "batalkanItem" | "jadikanJatuhTempo">;
   notifikasi: LayananNotifikasi;
 }

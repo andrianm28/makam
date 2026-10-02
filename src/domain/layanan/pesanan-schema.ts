@@ -109,3 +109,16 @@ export const sesuaikanPencairanKeluhanSchema = z.object({
   catatan: z.string().trim().min(1, "Tulis catatan penyesuaian.").max(500, "Catatan terlalu panjang."),
 });
 export type SesuaikanPencairanKeluhanInput = z.infer<typeof sesuaikanPencairanKeluhanSchema>;
+
+/** A message in a Pekerjaan Layanan's thread: text and up to three photos, at least one of the two (ticket 52). */
+export const kirimPesanThreadSchema = z
+  .object({
+    pekerjaanId: z.uuid(),
+    teks: z.string().trim().max(1000, "Pesan terlalu panjang.").default(""),
+    foto: z
+      .array(z.object({ body: z.instanceof(Uint8Array), contentType: z.string().trim().min(1).max(120) }))
+      .max(3, "Paling banyak tiga foto.")
+      .default([]),
+  })
+  .refine((pesan) => pesan.teks.length > 0 || pesan.foto.length > 0, { message: "Tulis pesan atau lampirkan foto.", path: ["teks"] });
+export type KirimPesanThreadInput = z.input<typeof kirimPesanThreadSchema>;

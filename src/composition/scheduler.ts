@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import type { PaymentEffect } from "@/domain/billing";
+import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Layanan } from "@/domain/layanan";
 import type { Inventory } from "@/domain/inventory";
@@ -22,10 +23,14 @@ export function composeSchedulerContext(deps: {
   dokumenUrl: (link: string) => string;
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick">;
-  lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf" | "berhentiBerlakuBelumDiproses" | "tandaiBerhentiDiproses">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick" | "pengingatHakPakaiBerakhir">;
+  lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf" | "aturanPerpanjanganOf" | "berhentiBerlakuBelumDiproses" | "tandaiBerhentiDiproses">;
   identity: Pick<Identity, "adminLokasiOf">;
-  inventory: Pick<Inventory, "hakPakaiOfUnit">;
+  inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick" | "hakPakaiMenjelangAkhir" | "hakPakaiUntukPerpanjangan">;
+  /** The Hak Pakai end reminders stop for an ordered Perpanjangan whose Tagihan is still alive (ticket 42). */
+  billing: Pick<Billing, "tagihanBerlaku">;
+  /** A Hak Pakai's Perpanjangan page URL, the link in a reminder. */
+  perpanjanganUrl: (hakPakaiId: string) => string;
   notifikasi: PemesananNotifikasi;
   payouts: Pick<Payouts, "tick" | "tickPotongan" | "potonganBerhenti" | "lepaskanTerencanaBerhenti">;
   refunds: Pick<Refunds, "tick">;
@@ -51,5 +56,6 @@ export function composeSchedulerContext(deps: {
     terencana: deps.terencana,
     queues: deps.queues,
     inventory: deps.inventory,
+    pengingatHakPakai: { db: deps.db, inventory: deps.inventory, lokasi: deps.lokasi, identity: deps.identity, billing: deps.billing, notifikasi: deps.notifications, perpanjanganUrl: deps.perpanjanganUrl },
   };
 }

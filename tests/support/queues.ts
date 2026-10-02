@@ -1,4 +1,6 @@
 import type { Database } from "@/db/client";
+import { createWakaf } from "@/domain/wakaf";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { createQueues } from "@/domain/queues";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
@@ -64,6 +66,7 @@ export function queuesOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -77,7 +80,9 @@ export function queuesOnTestDatabase(db: Database) {
         dikonfirmasiTpu.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds: refundsMenunggu.refunds,
   });
   const perpanjangan = createPerpanjangan({
     db,
@@ -92,10 +97,20 @@ export function queuesOnTestDatabase(db: Database) {
     audit: setup.audit,
     notifikasi: setup.notifications,
   });
+  const wakaf = createWakaf({
+    db,
+    clock: setup.clock,
+    files: setup.files,
+    audit: setup.audit,
+    lokasi: setup.lokasi,
+    fieldwork: setup.fieldwork,
+    notifikasi: setup.notifications,
+  });
   const queues = createQueues({
     db,
     clock: setup.clock,
     audit: setup.audit,
+    wakaf,
     identity: setup.identity,
     lokasi: setup.lokasi,
     fieldwork: setup.fieldwork,
@@ -109,7 +124,7 @@ export function queuesOnTestDatabase(db: Database) {
     perpanjangan,
     refunds,
   });
-  return { ...setup, pemesanan, pengurusan, perpanjangan, payouts, refunds, layanan, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, pengurusan, perpanjangan, payouts, refunds, layanan, wakaf, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

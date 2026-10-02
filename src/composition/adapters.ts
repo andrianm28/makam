@@ -15,6 +15,7 @@ import {
   type SumopodSettings,
   type VapidKeys,
 } from "@/lib/env";
+import type { ReportError } from "@/lib/observability/report-error";
 import type { Adapters } from "@/ports";
 import type { EmailSender } from "@/ports/email-sender";
 import type { PaymentProvider } from "@/ports/payment-provider";
@@ -44,6 +45,8 @@ interface CommonAdapterOptions {
    * staging and production.
    */
   devFilesRoot?: string;
+  /** Where the live PdfRenderer reports a work directory it could not remove (scrubbed, tags only). */
+  reportError?: ReportError;
   /** Replace individual adapters, e.g. a test's FakeClock. */
   overrides?: Partial<Adapters>;
 }
@@ -95,7 +98,7 @@ export function createAdapters(options: AdapterOptions): Adapters {
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),
         webPush: new VapidWebPush({ ...requiredVapid(options), clock }),
         files: diskFiles(options.filesRoot ?? DEFAULT_FILES_ROOT),
-        pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH }),
+        pdf: new ChromiumPdfRenderer({ executablePath: options.chromiumPath ?? DEFAULT_CHROMIUM_PATH, reportError: options.reportError }),
       };
 
   const files =

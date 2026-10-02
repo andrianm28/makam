@@ -38,16 +38,25 @@ export const TEMPLATE_EMAIL = [
   "tagihan_pengingat_h30",
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
+  // The IPTM scan sent to the Pemesan and to the Pemegang Hak at IPTM Terbit (ticket 46), paid or not.
+  "iptm_terbit",
+  "iptm_terbit_pemegang_hak",
   "pengembalian_terbit",
   "layanan_pesanan_terbit",
   "layanan_pekerjaan_selesai",
+  // A new message in a Pekerjaan Layanan's thread: a link only, never the text or a photo (ticket 52).
+  "layanan_pesan_baru",
   // A Paket Layanan cycle that cannot be issued because its total passes the
   // Rilis 1 QRIS cap: the Paket is paused and the Pemesan is told (ticket 54).
   "paket_siklus_dijeda",
+  // A Hak Pakai nearing its end or in its Masa Tenggang: 60, 30 and 7 days before, then weekly (ticket 42).
+  "hak_pakai_berakhir_pengingat",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
   // A Lokasi Mitra's Berhenti decision, told to every family with an order or a Paket Layanan there (ticket 59).
   "lokasi_berhenti",
+  // A Pengajuan Wakaf changed status (ticket 58): the Wakif hears each change by email, at any hour.
+  "wakaf_status",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -82,18 +91,26 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_pengingat_h30: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
   pengurusan_dikonfirmasi: "transaksional",
+  // The permit is handed over whether or not the Tagihan is paid, and asks nothing (ticket 46).
+  iptm_terbit: "transaksional",
+  iptm_terbit_pemegang_hak: "transaksional",
   // A Bukti Pengembalian Dana asks nothing (the money is already on its way),
   // exactly like a Bukti Pembayaran (ticket 31).
   pengembalian_terbit: "transaksional",
   layanan_pesanan_terbit: "transaksional",
   layanan_pekerjaan_selesai: "transaksional",
+  // The family is told someone wrote to them, and the reply is theirs to give when they can: it never waits on a window it cannot meet.
+  layanan_pesan_baru: "transaksional",
   // A paused Paket asks the family to act for it to continue, so it waits for
   // the window like every other message the family must answer (ticket 54).
   paket_siklus_dijeda: "pengingat",
+  // Asks the family to extend or lose the grave, so it waits for the window like every reminder (ticket 42).
+  hak_pakai_berakhir_pengingat: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
   // News the family cannot wait on: its order or Paket ends on a date, so it goes at any hour (ticket 59).
   lokasi_berhenti: "transaksional",
+  wakaf_status: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -127,11 +144,14 @@ export const TABEL_ACARA: Record<
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
   | "pengurusan_dikonfirmasi"
+  | "iptm_terbit"
   | "layanan_pesanan_terbit"
   | "layanan_pekerjaan_selesai"
+  | "layanan_pesan_baru"
   | "paket_siklus_dijeda"
   | "pembatalan_terencana"
   | "lokasi_berhenti"
+  | "wakaf_status"
   | "peringatan_staf",
   Acara
 > = {
@@ -227,6 +247,13 @@ export const TABEL_ACARA: Record<
     template: "pengurusan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pengurusan_dikonfirmasi,
   },
+  /** The IPTM scan reaches the Pemesan by email at any hour (ticket 46); the Pemegang Hak's copy is the `iptm_terbit_pemegang_hak` template. */
+  iptm_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "iptm_terbit",
+    waktu: WAKTU_TEMPLATE.iptm_terbit,
+  },
   /**
    * An order Layanan reaches its Pemesan by email only (ADR 0004), at any hour:
    * the order and its Tagihan, and the finished job with the link to its photo
@@ -248,6 +275,12 @@ export const TABEL_ACARA: Record<
     template: "layanan_pekerjaan_selesai",
     waktu: WAKTU_TEMPLATE.layanan_pekerjaan_selesai,
   },
+  layanan_pesan_baru: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "layanan_pesan_baru",
+    waktu: WAKTU_TEMPLATE.layanan_pesan_baru,
+  },
   /**
    * A Paket Layanan cycle whose Tagihan Billing refused because its total passes
    * the Rilis 1 QRIS cap (ticket 54): the Paket is paused and the Pemesan hears
@@ -260,10 +293,6 @@ export const TABEL_ACARA: Record<
     template: "paket_siklus_dijeda",
     waktu: WAKTU_TEMPLATE.paket_siklus_dijeda,
   },
-  /**
-   * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,
-   * about the Lokasi Mitra's own work like the messages of the order itself.
-   */
   /** The Berhenti decision of a Lokasi Mitra, by email at any hour to each family with an order or Paket there (ticket 59). */
   lokasi_berhenti: {
     penerima: "email_pemesan",
@@ -271,12 +300,18 @@ export const TABEL_ACARA: Record<
     template: "lokasi_berhenti",
     waktu: WAKTU_TEMPLATE.lokasi_berhenti,
   },
+  /**
+   * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,
+   * about the Lokasi Mitra's own work like the messages of the order itself.
+   */
   pembatalan_terencana: {
     penerima: "email_pemesan",
     kanal: "email",
     template: "pembatalan_terencana",
     waktu: WAKTU_TEMPLATE.pembatalan_terencana,
   },
+  /** A Pengajuan Wakaf's status change (ticket 58): by email at any hour, to the Wakif. */
+  wakaf_status: { penerima: "email_pemesan", kanal: "email", template: "wakaf_status", waktu: WAKTU_TEMPLATE.wakaf_status },
   /**
    * The staff events, one Peringatan Staf per kind (the module's
    * `staffAlertKinds`): by push to every Perangkat Push of the Akun Staf and

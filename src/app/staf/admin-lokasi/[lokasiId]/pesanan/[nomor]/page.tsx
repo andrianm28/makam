@@ -203,7 +203,7 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
           <CardHeader>
             <CardTitle>Pembatalan atas nama keluarga</CardTitle>
             <CardDescription>
-              Untuk permintaan keluarga yang Anda terima lewat telepon. Alasan yang mereka apa pun tidak Anda ketik ulang.
+              Untuk permintaan keluarga yang Anda terima lewat telepon. Alasan apa pun yang mereka sebutkan tidak perlu Anda ketik ulang.
             </CardDescription>
           </CardHeader>
           <CardContent>

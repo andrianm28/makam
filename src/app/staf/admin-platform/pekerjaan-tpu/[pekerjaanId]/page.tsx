@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { alasanAntreLabels, pekerjaanTpuStatusLabels, penugasanHasilLabels } from "@/lib/layanan-tpu-labels";
+import { labelBuktiPekerjaan } from "@/lib/layanan-labels";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
+import { BatalkanTerlambatForm, SetujuiBuktiForm, TolakBuktiForm } from "./bukti-forms";
 import { LepasForm, TugaskanForm } from "./penugasan-forms";
 
 /**
@@ -22,6 +24,7 @@ export default async function PekerjaanTpuPage({ params }: PageProps<"/staf/admi
   if (!dibaca.ok) notFound();
   const { pekerjaan, calon } = dibaca;
   const dipegang = pekerjaan.penugasan;
+  const bukti = await serverRuntime().layanan.buktiTpuUntukStaf(actor, pekerjaanId);
 
   return (
     <>
@@ -62,6 +65,56 @@ export default async function PekerjaanTpuPage({ params }: PageProps<"/staf/admi
           <p className="text-muted-foreground">Pemesan: {pekerjaan.pemesanName}</p>
         </CardContent>
       </Card>
+
+      {bukti && bukti.bukti.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bukti pekerjaan</CardTitle>
+            <CardDescription>
+              {bukti.status === "menunggu_verifikasi" && bukti.batasVerifikasi
+                ? `Dikirim ${bukti.dikirimAt ? formatTanggalJam(bukti.dikirimAt) : ""}. Putuskan sebelum ${formatTanggalJam(bukti.batasVerifikasi)}. Pemesan baru melihatnya setelah disetujui.`
+                : "Foto yang diambil Mitra Jasa dengan kamera aplikasi."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <ul className="flex flex-wrap gap-3">
+              {bukti.bukti.map((satu) => (
+                <li key={`${satu.kind}-${satu.takenAt.toISOString()}`} className="flex flex-col gap-1 text-small text-muted-foreground">
+                  {satu.url && satu.kind === "video" ? (
+                    <video src={satu.url} controls playsInline className="max-h-64 rounded-lg" />
+                  ) : satu.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL of a private file
+                    <img src={satu.url} alt={labelBuktiPekerjaan(satu.kind)} className="max-h-64 w-auto rounded-lg border border-border object-cover" />
+                  ) : (
+                    <span>Berkas belum bisa dibuka.</span>
+                  )}
+                  {labelBuktiPekerjaan(satu.kind)} · {formatTanggalJam(satu.takenAt)}
+                </li>
+              ))}
+            </ul>
+            {bukti.status === "menunggu_verifikasi" ? (
+              <div className="flex flex-col gap-4">
+                <SetujuiBuktiForm pekerjaanId={pekerjaan.id} />
+                <TolakBuktiForm pekerjaanId={pekerjaan.id} />
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {pekerjaan.status === "terlambat" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pekerjaan terlambat</CardTitle>
+            <CardDescription>
+              Dibatalkan atas nama Pemesan: seluruh tagihan dikembalikan, termasuk Biaya Layanan Platform, dan Mitra Jasa tidak menerima pencairan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BatalkanTerlambatForm pekerjaanId={pekerjaan.id} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

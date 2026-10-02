@@ -13,3 +13,11 @@ export function guardMessage(error: GuardError): string {
       return "Periksa lagi isian Anda.";
   }
 }
+
+/** The message for a refusal from a guarded action or the domain call behind it: the guard's own wording for a guard reason, else the screen's table, else a general one. */
+export function refusalMessage(reason: string, table: Record<string, string>): string {
+  if (reason === "belum_masuk" || reason === "perlu_totp" || reason === "tidak_berwenang" || reason === "input_tidak_valid") {
+    return table[reason] ?? guardMessage(reason);
+  }
+  return table[reason] ?? "Gagal. Coba lagi.";
+}

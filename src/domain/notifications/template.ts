@@ -507,6 +507,38 @@ export function buktiPerpanjanganEmail(input: BuktiPerpanjanganEmailInput): { su
   };
 }
 
+export interface HakPakaiBerakhirEmailInput {
+  lokasiName: string;
+  /** The plot as named in text (`labelSatuanHakPakai`). */
+  satuan: string;
+  pemegangHakName: string | null;
+  endDate: string;
+  /** Days to the end date; zero or negative once it has passed. */
+  sisaHari: number;
+  masaTenggangBerakhir: string;
+  tautan: string;
+}
+
+/** The reminder that a Hak Pakai is ending (a reminder: it waits for 08:00-20:00 WIB), with the link to extend it. */
+export function hakPakaiBerakhirEmail(input: HakPakaiBerakhirEmailInput): { subject: string; body: string } {
+  const sudah = input.sisaHari <= 0;
+  return {
+    subject: `Pengingat Hak Pakai: ${input.satuan} di ${input.lokasiName} ${sudah ? "sudah melewati masa berlaku" : `berakhir ${input.sisaHari} hari lagi`}`,
+    body: [
+      input.pemegangHakName ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
+      "",
+      sudah
+        ? `Hak Pakai ${input.satuan} di ${input.lokasiName} berakhir pada ${formatTanggal(input.endDate)}. Perpanjangan masih kami terima sampai ${formatTanggal(input.masaTenggangBerakhir)}; sesudahnya pengelola dapat mengakhiri Hak Pakai ini.`
+        : `Hak Pakai ${input.satuan} di ${input.lokasiName} berakhir pada ${formatTanggal(input.endDate)}. Perpanjangan dapat dipesan dari sekarang.`,
+      "",
+      `Perpanjang Hak Pakai: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface LayananPesananTerbitEmailInput {
   nomor: string;
   lokasiName: string;
@@ -659,6 +691,111 @@ export function lokasiBerhentiEmail(input: LokasiBerhentiEmailInput): { subject:
       `Pemesanan Anda: ${input.nomor}.`,
       "Layanan atau paket yang belum selesai pada tanggal itu dibatalkan dan dikembalikan sepenuhnya, termasuk Biaya Layanan Platform. Paket berulang tidak membuat siklus baru lagi.",
       "Hak Pakai Anda tetap tercatat; Anda dapat melihatnya di Akun Saya beserta kontak pengelola makam.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface WakafStatusEmailInput {
+  nomor: string;
+  labelStatus: string;
+  /** A date that goes with the status (the survey, the KUA ikrar), WIB date. */
+  tanggal: string | null;
+  /** Why (Ditolak, Dirujuk), or the pointer to the local KUA/BWI. */
+  alasan: string | null;
+  /** The note Admin Platform wrote to the Wakif with this change. */
+  catatan: string | null;
+}
+
+/**
+ * A Pengajuan Wakaf's status change (transactional: any hour). It says plainly that the Operator
+ * takes no land and no money; internal notes and the survey report are never in it.
+ */
+export function wakafStatusEmail(input: WakafStatusEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pengajuan Wakaf ${input.nomor}: ${input.labelStatus}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Status Pengajuan Wakaf ${input.nomor} sekarang: ${input.labelStatus}.`,
+      input.tanggal ? `Tanggal: ${formatTanggal(input.tanggal)}.` : null,
+      input.alasan ? `Keterangan: ${input.alasan}` : null,
+      input.catatan ? `Catatan dari kami: ${input.catatan}` : null,
+      "",
+      "Lihat perkembangannya di makam.co.id: Akun Saya, tab Wakaf.",
+      "Tanah diwakafkan langsung kepada Nazhir; makam.co.id tidak menerima tanah maupun uang apa pun.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ]
+      .filter((baris): baris is string => baris !== null)
+      .join("\n"),
+  };
+}
+
+export interface IptmTerbitEmailInput {
+  nomor: string;
+  tpu: { name: string };
+  almarhumName: string;
+  /** The holder the message is addressed to, as named on the order. */
+  pemegangHakName: string;
+  berlakuSampai: string;
+  /** The order page, where the scan is read through a short-lived link. */
+  tautan: string;
+  /** Whether this copy goes to the Pemegang Hak rather than the Pemesan. */
+  untukPemegangHak: boolean;
+}
+
+/**
+ * The IPTM has been issued (transactional: any hour). The scan is handed over
+ * whether or not the Tagihan is paid, so the message says nothing about
+ * payment; the scan itself is opened from the order page's signed link.
+ */
+export function iptmTerbitEmail(input: IptmTerbitEmailInput): { subject: string; body: string } {
+  return {
+    subject: `IPTM terbit: ${input.almarhumName} di ${input.tpu.name}`,
+    body: [
+      input.untukPemegangHak ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
+      "",
+      `IPTM untuk makam ${input.almarhumName} di ${input.tpu.name} (pengurusan ${input.nomor}) sudah terbit.`,
+      `Berlaku sampai ${formatTanggal(input.berlakuSampai)}.`,
+      "Scan IPTM tersimpan di tab Makam akun Anda dan bisa dibuka dari halaman pengurusan.",
+      "",
+      `Buka scan IPTM: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
+export interface LayananPesanBaruEmailInput {
+  nomor: string;
+  label: string;
+  /** Where the job is: a Lokasi Mitra's name or a TPU's. */
+  tempat: string;
+  /** Who wrote, by role only ("Admin Lokasi", "Mitra Jasa", "Admin Platform"). */
+  dariPeran: string;
+  tautan: string;
+}
+
+/**
+ * A new message in a Pekerjaan Layanan's thread (transactional: any hour). It says that
+ * someone wrote and where to answer, and **nothing of the message**: not its text, not a
+ * photo, not a name. The family reads it, and replies, inside the app.
+ */
+export function layananPesanBaruEmail(input: LayananPesanBaruEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pesan baru untuk ${input.label}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Ada pesan baru dari ${input.dariPeran} tentang ${input.label} di ${input.tempat} (pesanan ${input.nomor}).`,
+      "Isi pesan dan foto hanya bisa dibaca di halaman pesanan Anda; balas juga dari sana.",
+      "",
+      `Baca dan balas: ${input.tautan}`,
       "",
       "Hormat kami,",
       "Tim makam.co.id",

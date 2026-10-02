@@ -16,6 +16,7 @@
  */
 import { desc, eq } from "drizzle-orm";
 import type { PengurusanDeps } from "./deps";
+import { dokumenPengajuanKurang } from "./pengajuan-iptm";
 import { pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuStatus } from "./schema";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak } from "./skema-pengurusan";
 
@@ -67,9 +68,31 @@ export interface PengurusanOrder {
   /** Why the order was cancelled, or a filing rejected; null while none. */
   alasan: string | null;
   diajukanAt: Date;
+  /** Every status the order has reached, oldest first, each with the moment it was reached (the timeline the Pemesan follows). */
+  riwayat: { status: PengurusanTpuStatus; pada: Date }[];
+  /** The filing (ticket 46): when the burial was recorded, when the documents are due and which are still missing; nulls before Dimakamkan. */
+  pengajuan: { dimakamkanAt: Date | null; dokumenDueAt: Date | null; kurang: string[] };
+  /** The IPTM issued, with its expiry; null until IPTM Terbit. The scan itself is read through `iptmScanUrl`. */
+  iptm: { berlakuSampai: string } | null;
+  /** The Makam TPU this order created or updated; null until IPTM Terbit. */
+  makamTpuId: string | null;
 }
 
 type Row = typeof pengurusanTpu.$inferSelect;
+
+/** The moments the order reached each status, in the order they happen: a status never reached is left out. */
+function riwayatOf(row: Row): PengurusanOrder["riwayat"] {
+  const langkah: [PengurusanTpuStatus, Date | null][] = [
+    ["diajukan", row.diajukanAt],
+    ["dikonfirmasi", row.dikonfirmasiPada],
+    ["dimakamkan", row.dimakamkanPada],
+    ["dokumen_lengkap", row.dokumenLengkapPada],
+    ["iptm_diajukan", row.iptmDiajukanPada],
+    ["iptm_terbit", row.iptmTerbitPada],
+    ["dibatalkan", row.dibatalkanPada],
+  ];
+  return langkah.flatMap(([status, pada]) => (pada ? [{ status, pada }] : []));
+}
 
 /**
  * One order of that Akun, by its Nomor Pemesanan, or null. Only a Saat Duka TPU
@@ -149,5 +172,13 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
         : null,
     alasan: row.alasan,
     diajukanAt: row.diajukanAt,
+    riwayat: riwayatOf(row),
+    pengajuan: {
+      dimakamkanAt: row.dimakamkanPada,
+      dokumenDueAt: row.dokumenDueAt,
+      kurang: row.dimakamkanPada ? dokumenPengajuanKurang(row) : [],
+    },
+    iptm: row.iptmBerlakuSampai && row.iptmTerbitPada ? { berlakuSampai: row.iptmBerlakuSampai } : null,
+    makamTpuId: row.makamTpuId,
   };
 }

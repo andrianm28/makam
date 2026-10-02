@@ -53,6 +53,13 @@ export interface KontakTpu {
   phoneNumber: string;
 }
 
+/** One filing document the Pemesan uploaded: the private FileStore key and when. */
+export interface DokumenDiunggah {
+  key: string;
+  contentType: string;
+  diunggahPada: string;
+}
+
 /** One price line as the confirmation shows it, kept on the order so the family reads the same figure later. */
 export interface HargaBaris {
   kind: string;
@@ -171,6 +178,24 @@ export const pengurusanTpu = pgTable(
     alasan: text("alasan"),
     diajukanAt: at("diajukan_at").notNull(),
     dikonfirmasiPada: at("dikonfirmasi_pada"),
+    /**
+     * The filing (ticket 46). `dimakamkan_pada` is the instant Admin Platform recorded the burial
+     * (it starts the pay-after clock and the 7-day filing window, `dokumen_due_at`); `dokumen_diunggah`
+     * holds the filing documents the Pemesan has uploaded, by the name the checklist gives them;
+     * the three later timestamps are the steps Dokumen Lengkap, IPTM Diajukan and IPTM Terbit.
+     */
+    dimakamkanPada: at("dimakamkan_pada"),
+    dokumenDueAt: at("dokumen_due_at"),
+    dokumenDiunggah: jsonb("dokumen_diunggah").$type<Record<string, DokumenDiunggah>>(),
+    dokumenLengkapPada: at("dokumen_lengkap_pada"),
+    iptmDiajukanPada: at("iptm_diajukan_pada"),
+    iptmTerbitPada: at("iptm_terbit_pada"),
+    /** The IPTM scan's FileStore key and its expiry, as uploaded at IPTM Terbit. */
+    iptmScanKey: text("iptm_scan_key"),
+    iptmBerlakuSampai: date("iptm_berlaku_sampai", { mode: "string" }),
+    /** The Makam TPU this order created or updated at IPTM Terbit. */
+    makamTpuId: text("makam_tpu_id"),
+    dibatalkanPada: at("dibatalkan_pada"),
   },
   (table) => [
     uniqueIndex("pengurusan_tpu_nomor_idx").on(table.nomor),
@@ -179,5 +204,46 @@ export const pengurusanTpu = pgTable(
     // The Tier 1 "Konfirmasi TPU Saat Duka" row reads the orders still waiting
     // for a confirmation, so the one column it filters on is indexed.
     index("pengurusan_tpu_status_idx").on(table.status),
+  ],
+);
+
+/** One IPTM of a Makam TPU, current or past: its scan, its expiry and the order that brought it. */
+export interface RiwayatIptm {
+  scanKey: string;
+  berlakuSampai: string;
+  /** ISO instant of IPTM Terbit. */
+  diterbitkanPada: string;
+  nomorPengurusan: string;
+}
+
+/**
+ * Owned by the Pengurusan module: the TPU counterpart of a Hak Pakai (spec, Pengurusan > Makam TPU;
+ * CONTEXT.md). One row per grave of a TPU, found by the TPU and the grave's blok/nomor (compared
+ * without case or surrounding space), so a Tumpang order updates the record that is there instead of
+ * creating a second one. `almarhum` lists every Almarhum buried in it; `pemegang_hak` is the holder
+ * with their phone number and, when known, email; `pemegang_account_id` is the Akun whose Makam tab
+ * shows it. `iptm_*` is the current permit and `riwayat_iptm` every one it has had, newest last.
+ */
+export const makamTpu = pgTable(
+  "makam_tpu",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tpuId: text("tpu_id").notNull(),
+    tpuName: text("tpu_name").notNull(),
+    blokNomor: text("blok_nomor").notNull(),
+    /** `blok_nomor` trimmed and lower-cased: what the one-record-per-grave rule is held on. */
+    blokNomorKunci: text("blok_nomor_kunci").notNull(),
+    almarhum: jsonb("almarhum").$type<{ name: string; tanggalWafat: string }[]>().notNull(),
+    pemegangHak: jsonb("pemegang_hak").$type<PemegangHak>().notNull(),
+    pemegangAccountId: text("pemegang_account_id"),
+    iptmScanKey: text("iptm_scan_key").notNull(),
+    iptmBerlakuSampai: date("iptm_berlaku_sampai", { mode: "string" }).notNull(),
+    riwayatIptm: jsonb("riwayat_iptm").$type<RiwayatIptm[]>().notNull(),
+    createdAt: at("created_at").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("makam_tpu_tpu_blok_idx").on(table.tpuId, table.blokNomorKunci),
+    index("makam_tpu_pemegang_idx").on(table.pemegangAccountId),
   ],
 );

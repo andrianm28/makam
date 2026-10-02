@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
 import type { Database } from "@/db/client";
 import { createBilling, type Billing } from "@/domain/billing";
@@ -10,6 +11,7 @@ import {
   type LayananNotifikasi,
   type NewLayanan,
   type PaketSiklusDijeda,
+  type PesanThreadBaru,
   type PekerjaanMitraJasa,
   type PekerjaanMitraJasaPort,
   type PekerjaanTpuDitugaskan,
@@ -54,13 +56,19 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
   pesananTpuDicatat: PesananTpuTerbit[];
   ditugaskan: PekerjaanTpuDitugaskan[];
   paketDijeda: PaketSiklusDijeda[];
+  pesanThread: PesanThreadBaru[];
 } {
   const pesananTerbit: PesananLayananTerb[] = [];
   const selesai: PekerjaanLayananSelesaiTerb[] = [];
   const pesananTpuDicatat: PesananTpuTerbit[] = [];
   const ditugaskan: PekerjaanTpuDitugaskan[] = [];
   const paketDijeda: PaketSiklusDijeda[] = [];
+  const pesanThread: PesanThreadBaru[] = [];
   return {
+    pesanThread,
+    pesanThreadBaru: async (_tx, hasil) => {
+      pesanThread.push(hasil);
+    },
     pesananTerbit,
     selesai,
     pesananTpuDicatat,
@@ -130,6 +138,7 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
     db,
     clock: base.clock,
     files: base.files,
+    ...suratKuasaDeps(),
     audit: base.audit,
     lokasi: base.lokasi,
     tariffs: base.tariffs,
@@ -142,7 +151,9 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds,
     layanan,
   });
   return { ...base, billing, layanan, notifikasi, payouts, refunds, pekerjaan, pengurusan, pengurusanDikonfirmasi };

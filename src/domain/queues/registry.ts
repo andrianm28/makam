@@ -1,4 +1,5 @@
 import type { AntreanRowType, Tier1RowType } from "./row-types";
+import { buktiTpuRowType } from "./tier2-bukti-tpu-row";
 import { layananTerlambatRowType } from "./tier2-layanan-terlambat-row";
 import {
   pekerjaanTpuDitolakRowType,
@@ -14,6 +15,7 @@ import { konfirmasiLokasiTerlambatRowType } from "./tier1-konfirmasi-lokasi-terl
 import { saatDukaDitolakRowType } from "./tier1-saat-duka-ditolak-row";
 import { konfirmasiTpuSaatDukaRowType } from "./tier1-konfirmasi-tpu-saat-duka-row";
 import { ambilSuratPengantarRowType } from "./tier2-ambil-surat-pengantar-row";
+import { iptmFilingRowType } from "./tier3-iptm-row";
 import { setorRetribusiRowType } from "./tier3-setor-retribusi-row";
 import { mitraJasaOnboardingRowType, skorMitraJasaReviewRowType } from "./tier4-mitra-jasa-row";
 import { tpuFlagStaleRowType } from "./tier4-tpu-row";
@@ -22,7 +24,9 @@ import { pengembalianRowType } from "./tier3-pengembalian-row";
 import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo-row";
 import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencana-terlambat-row";
 import { pembatalanRefundRowType } from "./tier3-pembatalan-refund-row";
+import { pengajuanWakafRowType } from "./tier3-pengajuan-wakaf-row";
 import { keluhanRowType } from "./tier1-keluhan-row";
+import { keluhanTpuRowType } from "./tier1-keluhan-tpu-row";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -52,6 +56,7 @@ export const tier1RowTypes: Tier1RowType[] = [
   saatDukaDitolakRowType,
   konfirmasiTpuSaatDukaRowType,
   keluhanRowType,
+  keluhanTpuRowType,
   pekerjaanTpuTanpaMitraRowType,
 ];
 
@@ -59,17 +64,20 @@ export const antreanRowTypes: AntreanRowType[] = [
   ...tier1RowTypes,
   ambilSuratPengantarRowType,
   setorRetribusiRowType,
+  iptmFilingRowType,
   pembayaranPerluDitinjauRowType,
   pencairanRowType,
   pengembalianRowType,
   konfirmasiTerencanaTerlambatRowType,
   pembatalanRefundRowType,
+  pengajuanWakafRowType,
   tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   layananTerlambatRowType,
   pekerjaanTpuTidakDiresponsRowType,
   pekerjaanTpuDitolakRowType,
   pekerjaanTpuPenugasanUlangRowType,
+  buktiTpuRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,
   otherTugasLapanganRowType,

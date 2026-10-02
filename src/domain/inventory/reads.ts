@@ -73,6 +73,7 @@ function toHakPakaiRow(row: typeof inventoryHakPakai.$inferSelect): HakPakaiRow 
     kavlingId: row.kavlingId,
     status: row.status,
     endReason: row.endReason,
+    pembongkaranAt: row.pembongkaranAt,
     tenureYears: row.tenureYears,
     startAt: row.startAt,
     tenureStartAt: row.tenureStartAt,

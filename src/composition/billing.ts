@@ -101,6 +101,8 @@ export function documentUrls(env: Pick<RuntimeEnv, "documentPageOrigin" | "APP_B
     pesananUlangUrl: (nomor: string) => `${publicOrigin}/pesan-makam/saat-duka?dari=${encodeURIComponent(nomor)}`,
     /** A Pengurusan order's own page, where a family follows a TPU filing (ticket 45). */
     pengurusanUrl: (nomor: string) => `${publicOrigin}/pengurusan/${nomor}`,
+    /** A Hak Pakai's Perpanjangan page, the link of the end reminders (ticket 42). */
+    perpanjanganUrl: (hakPakaiId: string) => `${publicOrigin}/perpanjangan/${hakPakaiId}`,
     /** An order Layanan's own page, where its Pemesan follows every job and its proof (ticket 50). */
     layananUrl: (nomor: string) => `${publicOrigin}/layanan/${nomor}`,
   };

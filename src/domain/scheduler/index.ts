@@ -16,9 +16,10 @@ import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFail
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
 import { berhentiBerlakuTick as berhentiBerlaku, type BerhentiContext } from "./berhenti";
-import { jadwalkanTertunda, tandaiTerlambat, type Layanan } from "@/domain/layanan";
+import { jadwalkanTertunda, tandaiTerlambat, tandaiTerlambatTpu, type Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
+import { pengingatHakPakaiTick, type PengingatDeps } from "@/domain/perpanjangan";
 import type { Pemesanan } from "@/domain/pemesanan";
 import { catatPemakamanTick, realertKonfirmasiSaatDukaTick } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
@@ -67,7 +68,9 @@ export interface SchedulerContext {
   /** The Antrean's own ticks: Tier 1 alerts and their escalation, and the Bertugas auto-off (ticket 28). */
   queues: QueuesTicks;
   /** A grave's Hak Pakai, which is what holds a job back until the Admin Lokasi completes it (ticket 50). */
-  inventory: Pick<Inventory, "hakPakaiOfUnit">;
+  inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick">;
+  /** The Hak Pakai end reminders' own dependencies: Inventory's candidates, Lokasi's Masa Tenggang, the Admin Lokasi, Billing's Tagihan and Notifications (ticket 42). */
+  pengingatHakPakai: PengingatDeps;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -138,6 +141,10 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.paket_siklus", cron: "11 * * * *", tick: paketSiklusTick },
   // Lokasi: a Berhenti Lokasi Mitra's effective date has come: its unfinished Layanan are cancelled and refunded in full, its Potongan become offline requests, its held Terencana Pencairan are released (ticket 59).
   { name: "lokasi.berhenti_berlaku", cron: "*/15 * * * *", tick: berhentiBerlakuTick },
+  // Inventory: an Aktif fixed-term Hak Pakai past its end date becomes Kedaluwarsa (ticket 42). Hourly: a day's end is a WIB clock time.
+  { name: "inventory.hak_pakai_kedaluwarsa", cron: "3 * * * *", tick: hakPakaiKedaluwarsaTick },
+  // Perpanjangan: the 60, 30 and 7-day reminders of a Hak Pakai's end and the weekly ones in its Masa Tenggang, within 08:00-20:00 WIB (ticket 42).
+  { name: "perpanjangan.pengingat_hak_pakai", cron: "17 * * * *", tick: pengingatHakPakaiBerakhirTick },
   // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
   { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },
   // Notifications: the Peringatan Staf a domain event queued directly are sent and retried, push + email (ticket 96).
@@ -147,6 +154,14 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   // Work Queues: a Bertugas ends at 18:00 WIB or 12 h after it began, claims and notes untouched (ticket 28).
   { name: "queues.bertugas_otomatis_mati", cron: "* * * * *", tick: bertugasOtomatisMatiTick },
 ];
+
+async function hakPakaiKedaluwarsaTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await ctx.inventory.kedaluwarsaTick(now);
+}
+
+async function pengingatHakPakaiBerakhirTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await pengingatHakPakaiTick(ctx.pengingatHakPakai, now);
+}
 
 async function pruneIpRequestsTick(ctx: { db: Database }, now: Date): Promise<void> {
   await pruneIpRequests(ctx, now);
@@ -216,6 +231,7 @@ async function tutupJendelaKeluhanTick(ctx: SchedulerContext, now: Date): Promis
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
 async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
+  await tandaiTerlambatTpu(ctx.db, now);
 }
 
 /** The worker wrapper around the Layanan module's Paket cycle tick (idempotent there, as every tick is). */

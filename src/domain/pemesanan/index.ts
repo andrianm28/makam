@@ -106,6 +106,7 @@ import {
   placeTerencana,
   pilihanTerencana,
   terencanaOf,
+  terencanaSaya,
   type DenahTerencana,
   type KartuTerencana,
   type PemesananTerencanaOrder,
@@ -387,6 +388,8 @@ export interface Pemesanan {
   pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]>;
   /** The Nomor Pemesanan of the paid, Aktif Pemesanan Terencana of a Lokasi Mitra: what its Berhenti releases the Pencairan of. */
   nomorTerencanaAktifDiLokasi(lokasiId: string): Promise<string[]>;
+  /** Every Pemesanan Terencana of that Akun, newest first: Akun Saya's Pesanan tab lists them with the Saat Duka orders. */
+  terencanaSaya(pemesan: { accountId: string }): Promise<PemesananTerencanaOrder[]>;
   /**
    * The Lokasi Mitra's answer to a Pemesanan Terencana (ticket 37). `konfirmasiTerencana` starts
    * the payment hold (Lokasi policy, 24 h by default) and issues the pay-first Tagihan due when it
@@ -506,6 +509,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
     pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi(deps, lokasiId),
     nomorTerencanaAktifDiLokasi: (lokasiId) => nomorTerencanaAktifDiLokasi(deps, lokasiId),
+    terencanaSaya: (pemesan) => terencanaSaya(deps, pemesan),
     konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
     tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
     tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),

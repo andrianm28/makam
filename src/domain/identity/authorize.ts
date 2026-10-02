@@ -261,7 +261,15 @@ export type Action =
    */
   | "perpanjangan.periksa"
   /** The Admin Lokasi of a Lokasi Mitra records a change of Pemegang Hak or of the holder's contact on one of its Hak Pakai (ticket 41). */
-  | "hak_pakai.ubah_pemegang";
+  | "hak_pakai.ubah_pemegang"
+  /**
+   * Review Pengajuan Wakaf and keep the Nazhir list (Admin Platform alone: Admin Lokasi, Petugas Lapangan and
+   * Mitra Jasa never see a Pengajuan Wakaf, and the Operator only facilitates; ticket 58).
+   */
+  | "wakaf.kelola"
+  /** The Admin Lokasi of a Lokasi Mitra ends one of its Hak Pakai by hand, or records the Pembongkaran of its plot (ticket 42). */
+  | "hak_pakai.akhiri"
+  | "hak_pakai.catat_pembongkaran";
 
 /** What the action is done to. */
 export type Resource =
@@ -304,7 +312,14 @@ export type Resource =
   /** The signed-in Akun's own order Layanan, whichever row of it is meant (the module checks the row). */
   | { kind: "pesanan_layanan"; accountId: string }
   /** Every TPU job (Admin Platform's hand assignment through the hard-filtered picker). */
-  | { kind: "pekerjaan_tpu_semua" };
+  | { kind: "pekerjaan_tpu_semua" }
+  /** Every Pengajuan Wakaf and the Nazhir list (Admin Platform alone). */
+  | { kind: "wakaf" };
+
+/** Every Pengajuan Wakaf and the Nazhir list. */
+export function wakafResource(): Resource {
+  return { kind: "wakaf" };
+}
 
 /** The Akun with this id, as the resource of an action. */
 export function akunResource(accountId: string): Resource {
@@ -729,9 +744,13 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "akun" && resource.accountId === actor.accountId && holds("mitra_jasa") ? allowed : denied;
     case "perpanjangan.periksa":
     case "hak_pakai.ubah_pemegang":
+    case "hak_pakai.akhiri":
+    case "hak_pakai.catat_pembongkaran":
       // The documents of a family and the record of who holds a grave belong to that Lokasi's own
       // Admin Lokasi and to no one else (spec, Perpanjangan: "documents checked by the Admin Lokasi";
       // story 124). Admin Platform chases a Lokasi by phone and never reviews for it.
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
+    case "wakaf.kelola":
+      return resource.kind === "wakaf" && holds("admin_platform") ? allowed : denied;
   }
 }

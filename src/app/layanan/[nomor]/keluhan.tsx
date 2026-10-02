@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { ajukanKeluhanLayanan, beriPenilaianLayanan, type PemesanActionState } from "./actions";
+import { ajukanKeluhanLayanan, ajukanKeluhanPekerjaanTpu, beriPenilaianLayanan, type PemesanActionState } from "./actions";
 
 const idle: PemesanActionState = { status: "idle" };
 
@@ -83,6 +83,34 @@ export function BeriPenilaian({ pekerjaanId, nomor }: { pekerjaanId: string; nom
       <p className="text-small text-muted-foreground">Penilaian hanya dibaca tim Makam.co.id, tidak oleh Lokasi Mitra.</p>
       <Button type="submit" variant="outline" size="sm" disabled={pending} className="self-start">
         {pending ? "Mengirim…" : "Kirim penilaian"}
+      </Button>
+      <Hasil state={state} />
+    </form>
+  );
+}
+
+/** The Pemesan's Keluhan on one finished TPU job: shown only while the 3×24 h window since the approved proof is open (the domain decides, the page passes its answer). */
+export function AjukanKeluhanTpu({ pekerjaanId, nomor, berakhirPada }: { pekerjaanId: string; nomor: string; berakhirPada: string }) {
+  const [state, formAction, pending] = useActionState(ajukanKeluhanPekerjaanTpu, idle);
+  return (
+    <form action={formAction} className="mt-3 flex flex-col gap-2 rounded-lg bg-muted p-3" data-testid="keluhan-tpu-form">
+      <input type="hidden" name="pekerjaanId" value={pekerjaanId} />
+      <input type="hidden" name="nomor" value={nomor} />
+      <label className="text-small font-medium" htmlFor={`keluhan-tpu-${pekerjaanId}`}>
+        Ada yang belum sesuai?
+      </label>
+      <p className="text-small text-muted-foreground">Ajukan keluhan sampai {berakhirPada}. Admin Platform akan memutuskan apakah pekerjaan dikerjakan ulang.</p>
+      <textarea
+        id={`keluhan-tpu-${pekerjaanId}`}
+        name="alasan"
+        rows={3}
+        maxLength={1000}
+        required
+        placeholder="Contoh: nisannya masih kotor di sisi kiri."
+        className="rounded-lg border border-input bg-background px-3 py-2 text-body"
+      />
+      <Button type="submit" variant="outline" size="sm" disabled={pending} className="self-start">
+        {pending ? "Mengirim…" : "Ajukan keluhan"}
       </Button>
       <Hasil state={state} />
     </form>

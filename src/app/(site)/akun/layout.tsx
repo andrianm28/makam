@@ -57,6 +57,7 @@ export default async function AkunSayaLayout({ children }: LayoutProps<"/akun">)
           { href: "/akun", label: "Profil" },
           { href: "/akun/pesanan", label: "Pesanan" },
           { href: "/akun/makam", label: "Makam Keluarga" },
+          { href: "/akun/wakaf", label: "Wakaf" },
         ]}
       />
       {children}

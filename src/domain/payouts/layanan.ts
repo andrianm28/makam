@@ -34,6 +34,13 @@ export async function itemLayananOf(db: Database, tagihanId: string, tagihanPosi
   return row ? { ...toBarisItem(row), status: row.status } : null;
 }
 
+/** One Layanan item by its id (a Mitra Jasa's job records the id on the job), or null when there is none. */
+export async function itemLayananById(db: Database, itemId: string): Promise<ItemLayanan | null> {
+  if (!z.uuid().safeParse(itemId).success) return null;
+  const [row] = await db.select().from(pencairanItem).where(and(eq(pencairanItem.id, itemId), eq(pencairanItem.kind, "layanan")));
+  return row ? { ...toBarisItem(row), status: row.status } : null;
+}
+
 export type LayananJatuhTempoResult =
   /** The item is now due, with the 2 Hari Kerja deadline stamped. */
   | { ok: true; hasil: "jatuh_tempo"; itemId: string }

@@ -1,4 +1,5 @@
 import { afterAll, inject } from "vitest";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
@@ -14,6 +15,7 @@ import { createInventory } from "@/domain/inventory";
 import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createWakaf } from "@/domain/wakaf";
 import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -96,6 +98,7 @@ export function testServerRuntime() {
       db: database.db,
       clock: adapters.clock,
       files: adapters.files,
+      ...suratKuasaDeps(),
       audit,
       lokasi,
       tariffs,
@@ -104,6 +107,7 @@ export function testServerRuntime() {
       fieldwork,
       layanan: layananHariHKosong,
       notifikasi: notifications,
+      refunds: refundsMenunggu.refunds,
     });
     const pemesanan = composePemesanan({
       db: database.db,
@@ -191,6 +195,16 @@ export function testServerRuntime() {
       audit,
       notifikasi: notifications,
     });
+    // Wakaf Tanah (ticket 58): the Pengajuan Wakaf, the Nazhir list and the Tier 3 row that reads them.
+    const wakaf = createWakaf({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      fieldwork,
+      notifikasi: notifications,
+    });
     holder.__makamRuntime = {
       env,
       database,
@@ -224,9 +238,11 @@ export function testServerRuntime() {
         pengurusan: pengursModule,
         perpanjangan,
         refunds,
+        wakaf,
       }),
       pengurusan: pengursModule,
       perpanjangan,
+      wakaf,
     };
   }
   afterAll(async () => {

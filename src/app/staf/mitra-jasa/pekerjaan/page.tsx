@@ -7,7 +7,9 @@ import { staffMenuActor } from "@/server/staff-area";
 import { penugasanHasilLabels } from "@/lib/layanan-tpu-labels";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { TidakTersediaForm } from "../../admin-platform/mitra-jasa/mitra-jasa-forms";
+import { AmbilBuktiTpu } from "./ambil-bukti-tpu";
 import { JawabForm } from "./jawab-form";
+import { KirimBuktiForm } from "./kirim-bukti-form";
 
 /**
  * Pekerjaan (Pekerjaan Layanan) is Mitra Jasa's home (spec, stories 176 and 178): the
@@ -21,6 +23,7 @@ export default async function PekerjaanPage() {
   const actor = await staffMenuActor("mitra_jasa");
   const { layanan } = serverRuntime();
   const [ranges, skor, saya] = await Promise.all([layanan.rentangTidakTersedia(actor), layanan.skorSaya(actor), layanan.pekerjaanTpuSaya(actor)]);
+  const bukti = new Map(await Promise.all(saya.aktif.map(async (satu) => [satu.id, await layanan.buktiTpuSaya(actor, satu.id)] as const)));
 
   return (
     <>
@@ -81,6 +84,7 @@ export default async function PekerjaanPage() {
                   ) : (
                     <p className="font-medium text-success-soft-foreground">{penugasanHasilLabels.diterima}. Kerjakan pada tanggal targetnya.</p>
                   )}
+                  {satu.penugasan.hasil === "diterima" ? <BuktiPekerjaan pekerjaanId={satu.id} bukti={bukti.get(satu.id) ?? null} /> : null}
                 </CardContent>
               </Card>
             </li>
@@ -132,5 +136,33 @@ export default async function PekerjaanPage() {
         </Card>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The proof of one accepted job: the shots the Layanan asks for, taken with the in-app
+ * camera, then Kirim. What is due and what is already in comes from the module; once the
+ * proof is sent or the job is done there is nothing left to take.
+ */
+function BuktiPekerjaan({ pekerjaanId, bukti }: { pekerjaanId: string; bukti: Awaited<ReturnType<ReturnType<typeof serverRuntime>["layanan"]["buktiTpuSaya"]>> }) {
+  if (!bukti) return null;
+  if (bukti.status === "menunggu_verifikasi") {
+    return <p className="rounded-lg bg-warning-soft p-3 text-warning-soft-foreground">Bukti sudah dikirim dan sedang diperiksa Admin Platform.</p>;
+  }
+  if (bukti.status === "selesai") return null;
+  const ada = new Set(bukti.terambil.map((satu) => satu.kind));
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="font-medium">Bukti pekerjaan</p>
+      {bukti.alasanDitolak ? (
+        <p role="alert" className="rounded-lg bg-destructive-soft p-3 text-destructive-soft-foreground">
+          Bukti ditolak: {bukti.alasanDitolak}. Ambil ulang, lalu kirim lagi.
+        </p>
+      ) : null}
+      {bukti.dibutuhkan.map((kind) => (
+        <AmbilBuktiTpu key={kind} pekerjaanId={pekerjaanId} kind={kind} sudahAda={ada.has(kind)} />
+      ))}
+      <KirimBuktiForm pekerjaanId={pekerjaanId} siap={bukti.dibutuhkan.every((kind) => ada.has(kind))} />
+    </div>
   );
 }

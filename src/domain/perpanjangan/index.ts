@@ -66,6 +66,7 @@ import {
 } from "./permohonan";
 import { perpanjangan } from "./schema";
 
+export { pengingatHakPakaiTick, tahapJatuhTempo, HARI_PENGINGAT, type PengingatDeps, type PengingatHasil } from "./pengingat";
 export { efekPerpanjangan, type EfekPerpanjanganDeps } from "./efek";
 export { bolehDiperpanjang, samarkanEmail, tambahBulan, BULAN_SEBELUM_BERAKHIR, type CatatanPerpanjangan, type FaktaHakPakai } from "./aturan";
 export { ajukanPerpanjanganSchema };

@@ -1,5 +1,8 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { chmod, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findChromium } from "../../../tests/support/chromium";
 import { ChromiumPdfRenderer } from "./chromium-pdf-renderer";
@@ -63,5 +66,37 @@ describe("ChromiumPdfRenderer", () => {
     const renderer = new ChromiumPdfRenderer({ executablePath: "/nonexistent/chromium" });
 
     await expect(renderer.render({ url: `${origin}/dokumen/contoh` })).rejects.toThrow(/Chromium/);
+  });
+
+  it("still hands out the PDF when a Chromium helper is writing into the profile while the work directory is removed", { timeout: 30_000 }, async () => {
+    // A stand-in Chromium: writes the PDF and exits, leaving a helper that
+    // keeps creating files in the profile for a while, as Chromium's do.
+    const dir = await mkdtemp(join(tmpdir(), "makam-fake-chromium-"));
+    const script = join(dir, "chromium");
+    await writeFile(
+      script,
+      `#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    --user-data-dir=*) profile="\${arg#--user-data-dir=}" ;;
+    --print-to-pdf=*) output="\${arg#--print-to-pdf=}" ;;
+  esac
+done
+mkdir -p "$profile/Default"
+printf '%%PDF-1.4 fake' > "$output"
+( i=0; while [ $i -lt 20000 ]; do : > "$profile/Default/late-$i"; i=$((i+1)); done ) >/dev/null 2>&1 &
+exit 0
+`,
+    );
+    await chmod(script, 0o755);
+    try {
+      const renderer = new ChromiumPdfRenderer({ executablePath: script });
+
+      const pdf = await renderer.render({ url: `${origin}/dokumen/contoh` });
+
+      expect(Buffer.from(pdf).toString("latin1").startsWith("%PDF-")).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
