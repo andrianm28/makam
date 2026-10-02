@@ -264,6 +264,8 @@ export function serverRuntime(): ServerRuntime {
       files: adapters.files,
       audit,
       notifikasi: notifications,
+      // The "Tambah Layanan" step of a Perpanjangan (ticket 53).
+      layanan,
     });
     globalForRuntime.__makamRuntime = {
       env,

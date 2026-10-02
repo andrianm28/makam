@@ -4,6 +4,7 @@
  * the shapes the reads return. No database here.
  */
 import { z } from "zod";
+import { itemCheckoutListSchema } from "@/domain/layanan/pesanan-schema";
 import type { CatatanPerpanjangan } from "./aturan";
 import { jalurManual, type JalurManual, type StatusPermohonan } from "./schema";
 
@@ -84,6 +85,8 @@ export const batalkanPermohonanSchema = z.object({ permohonanId: z.uuid() });
 export const pesanDariPermohonanSchema = z.object({
   permohonanId: z.uuid(),
   terms: z.number().int().min(1).max(100),
+  /** The optional "Tambah Layanan" step, as on the direct path (ticket 53). */
+  layanan: itemCheckoutListSchema.optional(),
 });
 export type PesanDariPermohonanInput = z.infer<typeof pesanDariPermohonanSchema>;
 

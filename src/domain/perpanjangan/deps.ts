@@ -3,6 +3,7 @@ import type { AuditLog } from "@/domain/audit";
 import type { Billing } from "@/domain/billing";
 import type { Identity } from "@/domain/identity";
 import type { Inventory } from "@/domain/inventory";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import type { Pemesanan } from "@/domain/pemesanan";
@@ -34,6 +35,11 @@ export interface PerpanjanganDeps {
   files: FileStore;
   /** Approving, rejecting or returning a manual request is a staff write: one Entri Audit each (ticket 41). */
   audit: AuditLog;
+  /**
+   * The optional "Tambah Layanan" step (ticket 53): the items are checked against the Lokasi's offer and the Perpanjangan's due date,
+   * priced in the Perpanjangan's own quote and written under the same Tagihan. Optional: a process without it refuses an order that adds Layanan.
+   */
+  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout">;
   /** Both take the transaction of the write they announce, so a message is queued with it and rolls back with it. */
   notifikasi: Pick<Notifications, "tagihanTerbit" | "buktiPerpanjanganTerbit">;
 }

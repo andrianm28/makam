@@ -42,6 +42,10 @@ export type AlasanPerpanjangan =
   | "terms_melebihi_batas"
   | "tagihan_terbuka"
   | "melebihi_batas_qris"
+  | "layanan_tidak_tersedia"
+  | "teks_kosong"
+  | "target_kosong"
+  | "lead_time_melewati"
   | "tanpa_email";
 
 export function alasanPerpanjanganText(alasan: AlasanPerpanjangan): string {
@@ -62,6 +66,14 @@ export function alasanPerpanjanganText(alasan: AlasanPerpanjangan): string {
       return "Jumlah masa yang dipilih melebihi batas Lokasi Mitra ini.";
     case "tagihan_terbuka":
       return "Perpanjangan ini sudah punya Tagihan yang belum dibayar. Bayar Tagihan itu, atau tunggu sampai batal dengan sendirinya.";
+    case "layanan_tidak_tersedia":
+      return "Layanan yang Anda tambahkan tidak tersedia di Lokasi Mitra ini. Hapus layanan itu lalu coba lagi.";
+    case "teks_kosong":
+      return "Isi tulisan yang diminta layanan yang Anda tambahkan.";
+    case "target_kosong":
+      return "Pilih tanggal pengerjaan untuk setiap layanan yang Anda tambahkan.";
+    case "lead_time_melewati":
+      return "Tanggal pengerjaan terlalu dekat: sebuah layanan butuh waktu persiapan setelah batas pembayaran Perpanjangan. Pilih tanggal yang lebih akhir.";
     case "tanpa_email":
       return "Hak Pakai ini tidak punya email tercatat. Silakan ajukan lewat jalur berkas: hubungi Admin Lokasi atau CS.";
   }

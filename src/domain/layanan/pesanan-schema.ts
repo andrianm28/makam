@@ -39,7 +39,7 @@ export type ItemPesananLayananInput = z.infer<typeof itemPesananLayananSchema>;
 export const itemCheckoutSchema = z.object({
   layananVariantId: z.uuid("Pilih layanan yang tersedia di Lokasi Mitra ini."),
   targetDate: z.iso.date("Tanggal target harus berformat tahun-bulan-hari.").optional(),
-  teks: z.string().trim().max(500).nullable().default(null),
+  teks: z.string().trim().max(500).nullish(),
 });
 export type ItemCheckoutInput = z.infer<typeof itemCheckoutSchema>;
 export const itemCheckoutListSchema = z.array(itemCheckoutSchema).max(10);

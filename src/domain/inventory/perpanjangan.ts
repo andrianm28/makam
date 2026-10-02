@@ -33,6 +33,8 @@ export interface HakPakaiUntukPerpanjangan {
   jenisMakamId: string | null;
   /** The one Petak, or every Petak of the Kavling Keluarga, by Nomor Makam. */
   petakNomor: string[];
+  /** The first of those Petak: the grave a Layanan added at the checkout is ordered for (ticket 53); null when none is on record. */
+  petakId: string | null;
   nomorKavling: string | null;
   /** The current Pemegang Hak; null while none is on record ("data menyusul"). */
   pemegangHak: { name: string | null; phoneNumber: string | null; email: string | null } | null;
@@ -68,6 +70,7 @@ export async function hakPakaiUntukPerpanjangan(deps: InventoryDeps, hakPakaiId:
     perluVerifikasi: hak.perluVerifikasi,
     jenisMakamId,
     petakNomor: petak.map((satu) => satu.nomorMakam),
+    petakId: petak[0]?.id ?? null,
     nomorKavling,
     pemegangHak: pemegang ? { name: pemegang.name, phoneNumber: pemegang.phoneNumber, email: pemegang.email } : null,
   };

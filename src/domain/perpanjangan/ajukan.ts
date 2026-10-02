@@ -11,7 +11,8 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { refusable } from "@/db/unit-of-work";
-import { withinPaymentCap, type IssueRefusal, type NewTagihanLine, type Tagihan } from "@/domain/billing";
+import { tagihanDue, withinPaymentCap, type IssueRefusal, type NewTagihanLine, type Tagihan } from "@/domain/billing";
+import { itemCheckoutListSchema } from "@/domain/layanan/pesanan-schema";
 import { normaliseEmail } from "@/domain/identity";
 import { addYears } from "@/domain/inventory";
 import type { QuotedLine } from "@/domain/tariffs";
@@ -191,15 +192,25 @@ export const ajukanPerpanjanganSchema = z.object({
   hakPakaiId: z.uuid(),
   terms: z.number().int().min(1).max(100),
   pemohon: z.object({ accountId: z.string().trim().min(1).max(200), email: z.string().trim().min(1).max(320) }),
+  /** The optional "Tambah Layanan" step: each item's variant, target date and text (ticket 53). */
+  layanan: itemCheckoutListSchema.optional(),
 });
 export type AjukanPerpanjanganInput = z.infer<typeof ajukanPerpanjanganSchema>;
 
 export type AjukanResult =
   | {
       ok: true;
-      perpanjangan: { id: string; terms: number; tagihan: { nomorTagihan: string; total: number; dueAt: Date; link: string } };
+      perpanjangan: {
+        id: string;
+        terms: number;
+        tagihan: { nomorTagihan: string; total: number; dueAt: Date; link: string };
+        /** The Nomor Pemesanan the added Layanan are ordered under; null when none were added. */
+        layananNomor: string | null;
+      };
     }
   | { ok: false; reason: "input_tidak_valid" | "harga_tidak_tersedia" | "kontak_pemegang_hak_kosong" | "tagihan_tidak_terbit" }
+  /** The added Layanan: not offered here, a text left empty, a date missing, or a date less than its lead time after the due date. */
+  | { ok: false; reason: "layanan_tidak_tersedia" | "teks_kosong" | "target_kosong" | "lead_time_melewati" }
   | { ok: false; reason: "tidak_boleh"; catatan: CatatanPerpanjangan }
   /** The asker is not the Pemegang Hak: the email is not the recorded one, or does not belong to that Akun. */
   | { ok: false; reason: "bukan_pemegang_hak" }
@@ -233,7 +244,7 @@ export async function ajukanPerpanjangan(deps: PerpanjanganDeps, rawInput: unkno
   const akun = await deps.identity.accountByEmail(email);
   if (!akun || akun.id !== input.pemohon.accountId) return { ok: false, reason: "bukan_pemegang_hak" };
 
-  return pesanTagihan(deps, { hak, aturan, akun, terms: input.terms, now, permohonanId: null });
+  return pesanTagihan(deps, { hak, aturan, akun, terms: input.terms, now, permohonanId: null, layanan: input.layanan });
 }
 
 /** The Hak Pakai and the Lokasi's rules a Perpanjangan is ordered on (what `fakta` returned). */
@@ -247,7 +258,7 @@ type DasarPesanan = Extract<Awaited<ReturnType<typeof fakta>>, { ok: true }>;
  */
 export async function pesanTagihan(
   deps: PerpanjanganDeps,
-  input: { hak: DasarPesanan["hak"]; aturan: DasarPesanan["aturan"]; akun: { id: string; email: string }; terms: number; now: Date; permohonanId: string | null },
+  input: { hak: DasarPesanan["hak"]; aturan: DasarPesanan["aturan"]; akun: { id: string; email: string }; terms: number; now: Date; permohonanId: string | null; layanan?: unknown[] },
 ): Promise<AjukanResult> {
   const { hak, aturan, akun, now } = input;
   if (input.terms > aturan.maxPerpanjanganTerms) return { ok: false, reason: "terms_melebihi_batas", maxTerms: aturan.maxPerpanjanganTerms };
@@ -256,17 +267,34 @@ export async function pesanTagihan(
   if (!nama || !telepon) return { ok: false, reason: "kontak_pemegang_hak_kosong" };
   if (!hak.jenisMakamId || hak.tenureYears === null) return { ok: false, reason: "harga_tidak_tersedia" };
 
+  // The Tagihan keeps the Perpanjangan's due date (3x24 h), so each added Layanan's date must be its lead time after it, never the reverse.
+  const batasBayar = tagihanDue({ kind: "perpanjangan" }, [], now).dueAt;
+  const tambahan = await siapkanLayanan(deps, hak, input.layanan ?? [], now, batasBayar);
+  if (!tambahan.ok) return tambahan;
+  // One quote for the Perpanjangan and the Layanan, so the Tagihan carries one Biaya Layanan Platform.
   const harga = await deps.tariffs.quote(
-    [{ kind: "perpanjangan", jenisMakamId: hak.jenisMakamId, tenure: { kind: "tahun", years: hak.tenureYears }, terms: input.terms }],
+    [
+      { kind: "perpanjangan", jenisMakamId: hak.jenisMakamId, tenure: { kind: "tahun", years: hak.tenureYears }, terms: input.terms },
+      ...(tambahan.siap?.quoteLines ?? []),
+    ],
     now,
   );
   if (!harga.ok) return { ok: false, reason: "harga_tidak_tersedia" };
-  const baris = barisTagihan(harga.lines, hak.lokasiId, aturan.name);
-  if (!baris) return { ok: false, reason: "tagihan_tidak_terbit" };
   const petakNomor = labelPetak(hak);
+  let baris: NewTagihanLine[] | null;
+  let perBaris: { label: string; amount: number }[] = [];
+  let posisiAwal = 0;
+  if (tambahan.siap && deps.layanan) {
+    const gabungan = deps.layanan.gabungkanBaris(harga, tambahan.siap.item, { id: hak.lokasiId, name: aturan.name }, (line) => barisTagihan([line], hak.lokasiId, aturan.name)?.[0] ?? null);
+    baris = gabungan.ok ? gabungan.lines : null;
+    if (gabungan.ok) ({ perBaris, posisiAwal } = gabungan);
+  } else {
+    baris = barisTagihan(harga.lines, hak.lokasiId, aturan.name);
+  }
+  if (!baris) return { ok: false, reason: "tagihan_tidak_terbit" };
 
   const hasil = await refusable<
-    | { ok: true; id: string; tagihan: Tagihan }
+    | { ok: true; id: string; tagihan: Tagihan; layananNomor: string | null }
     | { ok: false; reason: "tagihan_terbuka"; tagihanTerbuka: TagihanTerbuka }
     | { ok: false; reason: "melebihi_batas_qris" | "tagihan_tidak_terbit" }
   >(deps.db, async (tx) => {
@@ -274,10 +302,12 @@ export async function pesanTagihan(
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`perpanjangan.${hak.id}`}))`);
     const terbuka = await terbukaOf({ ...deps, db: tx, billing: deps.billing.within(tx) }, hak.id, now);
     if (terbuka) return { ok: false, reason: "tagihan_terbuka", tagihanTerbuka: terbuka };
+    // The Layanan are ordered under their own Nomor Pemesanan, which the Tagihan carries so a payment finds their jobs.
+    const layananNomor = tambahan.siap ? await deps.billing.within(tx).nextNomorPemesanan() : null;
     const tagihan = await deps.billing.within(tx).issueTagihan({
       moment: { kind: "perpanjangan" },
       addressee: { name: nama, phoneNumber: telepon, accountId: akun.id },
-      nomorPemesanan: null,
+      nomorPemesanan: layananNomor,
       placeName: aturan.name,
       lines: baris,
     });
@@ -299,13 +329,37 @@ export async function pesanTagihan(
         dibuatPada: now,
       })
       .returning({ id: perpanjangan.id });
+    if (tambahan.siap && layananNomor && deps.layanan) {
+      await deps.layanan.tulisCheckout(
+        {
+          mode: "perpanjangan",
+          nomor: layananNomor,
+          lokasiId: hak.lokasiId,
+          petakId: tambahan.petakId,
+          hakPakaiId: hak.id,
+          lokasiName: aturan.name,
+          petakNomor,
+          pemesanName: nama,
+          pemesanPhone: telepon,
+          pemesanEmail: akun.email,
+          pemesanAccountId: akun.id,
+          tagihanId: tagihan.tagihan.id,
+          total: tagihan.tagihan.total,
+          createdAt: now,
+          posisiAwal,
+          item: tambahan.siap.item,
+          perBaris,
+        },
+        tx,
+      );
+    }
     // The email is queued in this very transaction: a rolled-back order leaves no message behind.
     const diumumkan = await deps.notifikasi.tagihanTerbit(
       {
       tagihanId: tagihan.tagihan.id,
       momentKind: "perpanjangan",
       nomorTagihan: tagihan.tagihan.nomorTagihan,
-      nomorPemesanan: null,
+      nomorPemesanan: layananNomor,
       email: akun.email,
       perihal: `Perpanjangan Makam di ${aturan.name}`,
       total: tagihan.tagihan.total,
@@ -315,7 +369,7 @@ export async function pesanTagihan(
       tx,
     );
     if (!diumumkan.ok) throw new Error(`the Tagihan of Perpanjangan ${row.id} could not be announced: ${diumumkan.reason}`);
-    return { ok: true, id: row.id, tagihan: tagihan.tagihan };
+    return { ok: true, id: row.id, tagihan: tagihan.tagihan, layananNomor };
   });
   if (!hasil.ok) return hasil;
 
@@ -325,6 +379,7 @@ export async function pesanTagihan(
       id: hasil.id,
       terms: input.terms,
       tagihan: { nomorTagihan: hasil.tagihan.nomorTagihan, total: hasil.tagihan.total, dueAt: hasil.tagihan.dueAt, link: hasil.tagihan.link },
+      layananNomor: hasil.layananNomor,
     },
   };
 }
@@ -348,3 +403,24 @@ function barisTagihan(quoted: readonly QuotedLine[], lokasiId: string, lokasiNam
   return lines;
 }
 
+
+/**
+ * The "Tambah Layanan" items of a Perpanjangan, checked against the Lokasi's offer and counted from the Tagihan's due date;
+ * `siap` is null when none were added. The grave they are ordered for is the Hak Pakai's first Petak.
+ */
+async function siapkanLayanan(
+  deps: PerpanjanganDeps,
+  hak: DasarPesanan["hak"],
+  items: unknown[],
+  now: Date,
+  batasBayar: Date,
+): Promise<
+  | { ok: true; siap: (Extract<Awaited<ReturnType<NonNullable<PerpanjanganDeps["layanan"]>["siapkanCheckout"]>>, { ok: true }>) | null; petakId: string }
+  | { ok: false; reason: "layanan_tidak_tersedia" | "teks_kosong" | "target_kosong" | "lead_time_melewati" | "input_tidak_valid" }
+> {
+  if (items.length === 0) return { ok: true, siap: null, petakId: "" };
+  if (!deps.layanan || !hak.petakId) return { ok: false, reason: "layanan_tidak_tersedia" };
+  const siap = await deps.layanan.siapkanCheckout({ lokasiId: hak.lokasiId, mode: "perpanjangan", items, at: now, batasBayar });
+  if (!siap.ok) return { ok: false, reason: siap.reason };
+  return { ok: true, siap, petakId: hak.petakId };
+}

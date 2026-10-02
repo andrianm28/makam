@@ -610,7 +610,7 @@ export { logIn } from "./identity";
  * and that place's price from 1 Oktober 2026. Defaults to a hari-H item that also makes sense on an empty plot.
  */
 export async function tawarkanLayananDi(
-  setup: PemesananSetup,
+  setup: Parameters<typeof adminPlatformOf>[0] & { layanan: Layanan },
   lokasiId: string,
   options: { nama?: string; amount?: number; bisaHariH?: boolean; adaDiPetakKosong?: boolean; leadTimeDays?: number; teksLabel?: string | null } = {},
 ) {
