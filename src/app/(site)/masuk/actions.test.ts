@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
+import { EmailSendError } from "@/ports/email-sender";
 import { initialKodeMasukRequestState } from "@/components/kode-masuk/state";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { lastEmailCodeTo } from "../../../../tests/support/identity";
@@ -84,6 +85,28 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "sari@contoh.id" }))).toMatchObject({
       status: "terkirim",
     });
+  });
+
+  it.each([
+    ["the relay refuses the recipient", () => new EmailSendError("rejected", { code: "EENVELOPE", responseCode: 550 })],
+    ["the relay cannot be reached", () => new EmailSendError("unavailable", { code: "ETIMEDOUT" })],
+    ["the sender fails with something that is no EmailSendError", () => new TypeError("boom")],
+  ])("when %s, Kirim says gagal kirim, sends once with no automatic retry, and a resend after it goes out", async (_name, makeError) => {
+    const email = server.runtime().adapters.email as FakeEmailSender;
+    const before = email.sent.length;
+    const send = vi.spyOn(email, "send").mockRejectedValueOnce(makeError());
+    browser.setHeader("x-real-ip", "203.0.113.60");
+
+    const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }));
+    server.clock.advance({ minutes: 5 });
+
+    expect(failed).toMatchObject({ status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(email.sent).toHaveLength(before);
+    expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }))).toMatchObject({
+      status: "terkirim",
+    });
+    expect(email.sent).toHaveLength(before + 1);
   });
 
   it("the Kode Masuk to a new email creates the Akun, signs it in and lands on Akun Saya", async () => {
