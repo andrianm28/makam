@@ -4,6 +4,7 @@
  * Lokasi Mitra confirms (one Tagihan, one Biaya Layanan Platform), scheduled when that Tagihan is paid, and cancelled when the
  * order is withdrawn or its payment hold lapses. Through the modules' public functions only.
  */
+import { tandaiTerlambat } from "@/domain/layanan/pekerjaan";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
@@ -201,5 +202,27 @@ describe("Pembatalan Terencana of a plot that has Layanan", () => {
     expect(item.find((satu) => satu.targetDate === "2026-10-20")?.pekerjaan?.status).toBe("selesai");
     expect(item.find((satu) => satu.targetDate === "2026-10-22")?.pekerjaan?.status).toBe("dibatalkan");
     expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ jumlah: hargaHakPakai + 250_000 });
+  });
+
+  it("cancels and refunds a Terlambat Layanan on the plot with the Pembatalan Terencana, and keeps a Sedang Dikerjakan one unrefunded", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await dengan2Layanan(setup);
+    const tagihan = await setup.billing.tagihan(dasar.tagihanId);
+    const hargaHakPakai = tagihan!.lines.find((line) => line.kind === "harga_hak_pakai")!.amount;
+    // 23 Oktober: the Pembersihan (20 Oktober) is two days past with no proof, so Terlambat; the Tabur Bunga (22 Oktober) is started.
+    setup.clock.set(wib("2026-10-23 10:00"));
+    expect(await tandaiTerlambat(setup.db, setup.clock.now())).toBe(1);
+    const awal = (await setup.layanan.pesananLayananOf(dasar.nomor, dasar.pemesan))!.item;
+    const terlambat = awal.find((satu) => satu.targetDate === "2026-10-20")!.pekerjaan!;
+    const bunga = awal.find((satu) => satu.targetDate === "2026-10-22")!.pekerjaan!;
+    expect(terlambat.status).toBe("terlambat");
+    expect(await setup.layanan.mulaiPekerjaan(dasar.fixture.adminLokasi, { pekerjaanId: bunga.id })).toEqual({ ok: true, status: "sedang_dikerjakan" });
+
+    await batalkanPetak(setup, dasar);
+
+    const item = (await setup.layanan.pesananLayananOf(dasar.nomor, dasar.pemesan))!.item;
+    expect(item.find((satu) => satu.targetDate === "2026-10-20")?.pekerjaan?.status).toBe("dibatalkan");
+    expect(item.find((satu) => satu.targetDate === "2026-10-22")?.pekerjaan?.status).toBe("sedang_dikerjakan");
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ jumlah: hargaHakPakai + 400_000 });
   });
 });
