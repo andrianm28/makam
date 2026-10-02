@@ -203,6 +203,34 @@ describe("the Surat Kuasa", () => {
   });
 });
 
+describe("the Surat Kuasa as a PDF", () => {
+  it("is rendered by the PdfRenderer, kept in the private FileStore and handed over as a signed URL that expires after 5 minutes", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    await dimakamkan(setup, dasar);
+
+    const url = await setup.pengurusan.suratKuasaPdfUrl(dasar.pemesan, dasar.nomor);
+    expect(url).not.toBeNull();
+    expect(setup.pdf.rendered).toEqual([expect.objectContaining({ url: expect.stringContaining(`/pengurusan/${dasar.nomor}/surat-kuasa`) })]);
+    const buka = setup.files.open(url!);
+    expect(buka).toMatchObject({ contentType: "application/pdf" });
+    expect(new TextDecoder().decode(buka!.body.slice(0, 5))).toBe("%PDF-");
+    setup.clock.set(new Date(setup.clock.now().getTime() + 301_000));
+    expect(setup.files.open(url!)).toBeNull();
+  });
+
+  it("is only for the Pemesan of a confirmed order", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    await dimakamkan(setup, dasar);
+    const lain = (await pemesanDenganEmail(setup, "lain@contoh.id")).pemesan;
+
+    expect(await setup.pengurusan.suratKuasaPdfUrl(lain, dasar.nomor)).toBeNull();
+    expect(await setup.pengurusan.suratKuasaPdfUrl(dasar.pemesan, "MKM-2026-999999")).toBeNull();
+    expect(setup.pdf.rendered).toEqual([]);
+  });
+});
+
 describe("the filing documents", () => {
   it("become Dokumen Lengkap only once every document, the signed Surat Kuasa among them, is uploaded", async () => {
     const setup = pengajuanOnTestDatabase(db);
@@ -465,5 +493,24 @@ describe("cancelling a Saat Duka TPU order", () => {
     if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
     expect(terbit.bukti).toMatchObject({ amount: 250_000 });
     expect(await setup.refunds.buktiPengembalianDana(terbit.bukti.link)).not.toBeNull();
+  });
+
+  it("lets only the Pemesan of a cancelled paid TPU order enter the refund rekening, until Admin Platform approves it", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    const dibayar = await setup.billing.recordPayment(dasar.tagihanId, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
+    await setup.pengurusan.batalkanPengurusan(dasar.pemesan, { nomor: dasar.nomor });
+    const actorDari = (akun: typeof dasar.pemesan) => ({ ...akun, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], totp: "tidak_perlu" as const, sessionId: "sesi-uji" });
+    const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Siti" };
+
+    const lain = (await pemesanDenganEmail(setup, "lain@contoh.id")).pemesan;
+    expect(await setup.refunds.isiRekeningPemesan(actorDari(lain), { nomorPemesanan: dasar.nomor, rekening })).toMatchObject({ ok: false, reason: "tidak_ditemukan" });
+    expect(await setup.refunds.isiRekeningPemesan(actorDari(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening })).toMatchObject({ ok: true });
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ status: "diajukan", jumlah: 2_000_000, rekening: { nomor: "7123456789" } });
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: permintaan!.id });
+    expect(await setup.refunds.isiRekeningPemesan(actorDari(dasar.pemesan), { nomorPemesanan: dasar.nomor, rekening })).toMatchObject({ ok: false, reason: "terkunci" });
   });
 });

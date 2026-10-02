@@ -2,6 +2,7 @@ import type { Database } from "@/db/client";
 import { pemilikPesananDari } from "@/composition/refunds";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import type { IptmTerbitInput, PengurusanDikonfirmasiInput } from "@/domain/notifications";
+import { FakePdfRenderer } from "@/adapters/memory";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
 import { pemesanDenganEmail } from "./pemesanan";
@@ -24,10 +25,13 @@ function bangunPengurusan(db: Database) {
   // Refunds is composed on the same Billing and Payouts, as the runtime does, so a cancelled paid order's request is a real one.
   const pengurusanRef: { current?: Pick<Pengurusan, "orderOf"> } = {};
   const { refunds } = refundsFor(setup, payoutsFor(setup).payouts, pemilikPesananDari({ orderOf: async () => null, terencanaOf: async () => null }, pengurusanRef));
+  const pdf = new FakePdfRenderer();
   const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
     files: setup.files,
+    pdf,
+    suratKuasaPageUrl: (nomor, sampai) => `http://render.test/pengurusan/${nomor}/surat-kuasa/render?sampai=${sampai.getTime()}`,
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -49,7 +53,7 @@ function bangunPengurusan(db: Database) {
     },
   });
   pengurusanRef.current = pengurusan;
-  return { ...setup, pengurusan, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
+  return { ...setup, pengurusan, pdf, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
 }
 
 /** The Pengurusan module on the test Postgres, as the confirmation's tests read it. */
