@@ -353,6 +353,41 @@ describe("paying a confirmed Pemesanan Terencana makes it Aktif", () => {
     }
   });
 
+  it("puts a Kavling Keluarga order's Calon Penghuni label on its first Petak only, and the family labels the other Petak itself", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { fixture, pemesan } = await siap(setup);
+    const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
+    const kavling = denah?.bloks.flatMap((blok) => blok.kavling)[0];
+    if (!kavling) throw new Error("no Kavling Keluarga on the fixture's Denah");
+    const placed = await setup.pemesanan.placeTerencana({
+      ...dataPemesan,
+      pemesan,
+      calonPenghuni: { mode: "lain", name: "Bapak Hasan" },
+      lokasiId: fixture.lokasiMitra.id,
+      units: units({ kavling: kavling.id }),
+    });
+    if (!placed.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(placed)}`);
+    const konfirmasi = await setup.pemesanan.konfirmasiTerencana(fixture.adminLokasi, { nomor: placed.pemesanan.nomor });
+    if (!konfirmasi.ok) throw new Error(`confirmation refused: ${konfirmasi.reason}`);
+    await bayar(setup, konfirmasi.tagihan.id);
+
+    const [makam] = await setup.inventory.makamKeluargaSaya({ email: "keluarga@contoh.id" });
+    expect(makam.petak.map((petak) => [petak.nomorMakam, petak.calonPenghuni])).toEqual([
+      ["A-05", "Bapak Hasan"],
+      ["A-11", null],
+    ]);
+
+    const kedua = makam.petak[1];
+    const diubah = await setup.pemesanan.ubahCalonPenghuni(pemesan, { hakPakaiId: makam.hakPakaiId, petakId: kedua.petakId, label: "Ibu Hasan" });
+    expect(diubah).toEqual({ ok: true, calonPenghuni: "Ibu Hasan" });
+    const [sesudah] = await setup.inventory.makamKeluargaSaya({ email: "keluarga@contoh.id" });
+    expect(sesudah.petak.map((petak) => petak.calonPenghuni)).toEqual(["Bapak Hasan", "Ibu Hasan"]);
+    expect(setup.calonPenghuni.at(-1)).toMatchObject({ unitNomor: "A-11", label: "Ibu Hasan" });
+
+    const tanpaPetak = await setup.pemesanan.ubahCalonPenghuni(pemesan, { hakPakaiId: makam.hakPakaiId, label: "Siapa" });
+    expect(tanpaPetak).toEqual({ ok: false, reason: "petak_tidak_dikenal" });
+  });
+
   it("gives a whole Kavling Keluarga one Hak Pakai", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { fixture, pemesan } = await siap(setup);
