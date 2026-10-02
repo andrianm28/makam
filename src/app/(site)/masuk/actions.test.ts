@@ -1,6 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
+import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
+import { RELAY_PASSWORD, RELAY_USER, startTestSmtpRelay } from "../../../../tests/support/smtp-relay";
+import { EmailSendError } from "@/ports/email-sender";
 import { initialKodeMasukRequestState } from "@/components/kode-masuk/state";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { lastEmailCodeTo } from "../../../../tests/support/identity";
@@ -84,6 +87,63 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "sari@contoh.id" }))).toMatchObject({
       status: "terkirim",
     });
+  });
+
+  it.each([
+    ["the relay refuses the recipient", () => new EmailSendError("rejected", { code: "EENVELOPE", responseCode: 550 })],
+    ["the relay cannot be reached", () => new EmailSendError("unavailable", { code: "ETIMEDOUT" })],
+    ["the sender fails with something that is no EmailSendError", () => new TypeError("boom")],
+  ])("when %s, Kirim says gagal kirim, no Kode Masuk goes out later by itself, and a resend after it goes out", async (_name, makeError) => {
+    const email = server.runtime().adapters.email as FakeEmailSender;
+    const before = email.sent.length;
+    const failing = vi.spyOn(email, "send").mockRejectedValueOnce(makeError());
+    browser.setHeader("x-real-ip", "203.0.113.60");
+    try {
+      const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }));
+      expect(failed).toMatchObject({ status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." });
+    } finally {
+      failing.mockRestore();
+    }
+
+    // No retry on its own: a day later (past any retry window) still nothing has been sent.
+    server.clock.advance({ hours: 24 });
+    expect(email.sent).toHaveLength(before);
+    expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }))).toMatchObject({
+      status: "terkirim",
+    });
+    expect(email.sent).toHaveLength(before + 1);
+  });
+
+  it("with the live SMTP adapter against a relay that refuses the recipient, Kirim says gagal kirim and nothing reaches the process", async () => {
+    const relay = await startTestSmtpRelay();
+    const stray: unknown[] = [];
+    let send: { mockRestore(): void } | undefined;
+    const onStray = (error: unknown) => stray.push(error);
+    process.on("uncaughtException", onStray);
+    process.on("unhandledRejection", onStray);
+    try {
+      const live = new SmtpEmailSender(
+        { host: relay.host, port: relay.port, user: RELAY_USER, password: RELAY_PASSWORD, from: { address: "no-reply@makam.co.id", name: "Makam.co.id" } },
+        { trustedCertificate: relay.certificate },
+      );
+      const email = server.runtime().adapters.email as FakeEmailSender;
+      send = vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
+      relay.refuseNextRecipient();
+      browser.setHeader("x-real-ip", "203.0.113.70");
+
+      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.makam.invalid" }))).toMatchObject({
+        status: "gagal",
+        message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
+      });
+      // The relay's close resolves only once its SMTP session has ended, so nothing is still in flight when we look.
+      await relay.close();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(stray).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onStray);
+      process.off("unhandledRejection", onStray);
+      send?.mockRestore();
+    }
   });
 
   it("the Kode Masuk to a new email creates the Akun, signs it in and lands on Akun Saya", async () => {
