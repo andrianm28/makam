@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { PilihLayanan } from "@/components/layanan/pilih-layanan";
-import { itemDariPilihan, subtotalPilihan, type OpsiLayananView, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
+import { itemDariPilihan, subtotalPilihan, type OpsiTambahLayanan, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
 import { formatRupiah } from "@/lib/rupiah";
-
-export type OpsiTambahLayanan = OpsiLayananView & { tanggalPalingDini: string };
 
 /**
  * The optional "Tambah Layanan" step of a Perpanjangan (ticket 53): the Lokasi's Layanan for this grave, each

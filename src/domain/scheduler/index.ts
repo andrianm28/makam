@@ -130,9 +130,9 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "layanan.tandai_tidak_direspons", cron: "*/5 * * * *", tick: tidakDiresponsTick },
   // Layanan: a job's Keluhan window closes 3×24 h after its proof was shown, which makes its Pencairan due and closes its thread (ticket 51).
   { name: "layanan.tutup_jendela_keluhan", cron: "*/5 * * * *", tick: tutupJendelaKeluhanTick },
-  // Layanan: each Paket Layanan subscription's next cycle is issued at H-7 (ticket 54).
   // Layanan: the jobs of a lapsed (Dibatalkan) Tagihan are cancelled instead of lingering Menunggu Pembayaran (ticket 53).
   { name: "layanan.batalkan_tagihan_lapse", cron: "17 * * * *", tick: batalkanTagihanLapseTick },
+  // Layanan: each Paket Layanan subscription's next cycle is issued at H-7 (ticket 54).
   { name: "layanan.paket_siklus", cron: "11 * * * *", tick: paketSiklusTick },
   // Notifications: the Tier 1 alerts the Antrean queued are sent, push + email (ticket 28).
   { name: "notifications.kirim_peringatan_antrean", cron: "* * * * *", tick: kirimPeringatanAntreanTick },

@@ -9,7 +9,7 @@ import { csWhatsAppLink, type KodeMasukRequestState } from "@/components/kode-ma
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PilihLayanan } from "@/components/layanan/pilih-layanan";
-import type { OpsiTambahLayanan } from "@/components/layanan/tambah-layanan-perpanjangan";
+import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 import { formatTelepon } from "@/lib/format-telepon";
 import { itemDariPilihan, subtotalPilihan, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
 import { formatRupiah } from "@/lib/rupiah";
@@ -317,7 +317,7 @@ export function DataKirim({
         </div>
       ) : null}
 
-      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada />
+      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada layananTambahan={satuPetak ? subtotalPilihan(layananOpsi, pilihanLayanan) : 0} />
     </div>
   );
 }

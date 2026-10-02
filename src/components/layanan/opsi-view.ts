@@ -1,5 +1,5 @@
-import type { LayananUntukPesanan } from "@/domain/layanan";
-import type { OpsiTambahLayanan } from "./tambah-layanan-perpanjangan";
+import type { LayananUntukPesanan } from "@/domain/layanan/harga";
+import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 
 /** A Layanan the module offers, as the plain value a Client Component is handed (its price and lead time, no catalog internals). */
 export function opsiLayananView(grup: LayananUntukPesanan & { tanggalPalingDini: string }): OpsiTambahLayanan {

@@ -14,6 +14,9 @@ export interface OpsiLayananView {
   varian: { id: string; name: string; harga: number }[];
 }
 
+/** An Opsi plus the earliest date the family may pick for it (lead time after the Tagihan's due date). */
+export type OpsiTambahLayanan = OpsiLayananView & { tanggalPalingDini: string };
+
 /** What the family chose for one Layanan: a variant ("" = not ordered), the text it asks for, a target date. */
 export interface PilihanLayanan {
   varianId: string;

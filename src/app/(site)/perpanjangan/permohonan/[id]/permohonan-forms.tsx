@@ -3,7 +3,8 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TambahLayananPerpanjangan, type OpsiTambahLayanan } from "@/components/layanan/tambah-layanan-perpanjangan";
+import { TambahLayananPerpanjangan } from "@/components/layanan/tambah-layanan-perpanjangan";
+import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 import { batalkanPermohonanAction, perbaikiPermohonanAction, pesanDariPermohonanAction, type PermohonanActionState } from "./actions";
 
 const idle: PermohonanActionState = { status: "idle" };
