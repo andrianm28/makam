@@ -88,6 +88,13 @@ describe("email address scrubbing (email login, ticket 67)", () => {
     );
   });
 
+  it("masks the tanda and sampai of a Surat Kuasa render link, so the signed link never reaches Sentry", () => {
+    const hasil = scrubText("GET /pengurusan/MKM-2026-000001/surat-kuasa/render?sampai=1790000000000&tanda=AbC_d-9xYz0123456789abcdefABCDEFghijklmnop");
+    expect(hasil).not.toContain("AbC_d-9xYz");
+    expect(hasil).not.toContain("1790000000000");
+    expect(hasil).toContain("/pengurusan/MKM-2026-000001/surat-kuasa/render");
+  });
+
   it("leaves a text without an address alone", () => {
     expect(scrubText("EmailSender (SumoPod SMTP) has no live adapter @ web")).toBe(
       "EmailSender (SumoPod SMTP) has no live adapter @ web",

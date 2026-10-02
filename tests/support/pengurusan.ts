@@ -1,10 +1,14 @@
 import type { Database } from "@/db/client";
-import { createPengurusan } from "@/domain/pengurusan";
-import type { PengurusanDikonfirmasiInput } from "@/domain/notifications";
+import { pemilikPesananDari } from "@/composition/refunds";
+import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
+import type { IptmTerbitInput, PengurusanDikonfirmasiInput } from "@/domain/notifications";
 import { adminPlatformOf } from "./identity";
 import { publishOnTestDatabase } from "./publish";
 import { pemesanDenganEmail } from "./pemesanan";
 import { layananHariHKosong } from "./layanan-hari-h-kosong";
+import { suratKuasaDeps } from "./surat-kuasa";
+import { payoutsFor } from "./payouts";
+import { refundsFor } from "./refunds";
 
 /**
  * The Pengurusan module on the test Postgres: Lokasi (which owns the TPU list
@@ -12,14 +16,21 @@ import { layananHariHKosong } from "./layanan-hari-h-kosong";
  * it, sharing one fake Clock, FileStore, EmailSender and Audit Log. No Lokasi
  * Mitra and no plot: a TPU order needs none of them.
  */
-export function pengurusanOnTestDatabase(db: Database) {
+function bangunPengurusan(db: Database) {
   const setup = publishOnTestDatabase(db);
   /** Every Saat Duka TPU confirmation the module announced, for a test that reads the family message. */
   const diumumkan: PengurusanDikonfirmasiInput[] = [];
+  /** Every IPTM handover the module announced. */
+  const iptmDiumumkan: IptmTerbitInput[] = [];
+  // Refunds is composed on the same Billing and Payouts, as the runtime does, so a cancelled paid order's request is a real one.
+  const pengurusanRef: { current?: Pick<Pengurusan, "orderOf"> } = {};
+  const { refunds } = refundsFor(setup, payoutsFor(setup).payouts, pemilikPesananDari({ orderOf: async () => null, terencanaOf: async () => null }, pengurusanRef));
+  const suratKuasa = suratKuasaDeps();
   const pengurusan = createPengurusan({
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasa,
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -27,7 +38,12 @@ export function pengurusanOnTestDatabase(db: Database) {
     identity: setup.identity,
     fieldwork: setup.fieldwork,
     layanan: layananHariHKosong,
+    refunds,
     notifikasi: {
+      iptmTerbit: async (hasil) => {
+        iptmDiumumkan.push(hasil);
+        return { ok: true };
+      },
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
       pengurusanDikonfirmasi: async (hasil) => {
         diumumkan.push(hasil);
@@ -35,10 +51,29 @@ export function pengurusanOnTestDatabase(db: Database) {
       },
     },
   });
-  return { ...setup, pengurusan, pengurusanDikonfirmasi: diumumkan };
+  pengurusanRef.current = pengurusan;
+  return { ...setup, pengurusan, pdfSuratKuasa: suratKuasa.pdf, refunds, pengurusanDikonfirmasi: diumumkan, iptmDiumumkan };
+}
+
+/** The Pengurusan module on the test Postgres, as the confirmation's tests read it. */
+export function pengurusanOnTestDatabase(db: Database) {
+  const { refunds, iptmDiumumkan, pdfSuratKuasa, ...tanpa } = bangunPengurusan(db);
+  void refunds;
+  void iptmDiumumkan;
+  void pdfSuratKuasa;
+  return tanpa;
+}
+
+/**
+ * The same setup with what the filing's tests also read (ticket 46): the real Refunds module the module
+ * raises a cancelled paid order's request in, the IPTM handovers it announced and the PdfRenderer the Surat Kuasa went through.
+ */
+export function pengajuanOnTestDatabase(db: Database) {
+  return bangunPengurusan(db);
 }
 
 export type PengurusanSetup = ReturnType<typeof pengurusanOnTestDatabase>;
+export type PengajuanSetup = ReturnType<typeof pengajuanOnTestDatabase>;
 
 /** The one Admin Platform a setup's fixtures act as (the first seed is refused twice). */
 function adminPlatform(setup: PengurusanSetup) {

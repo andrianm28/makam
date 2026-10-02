@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { z } from "zod";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { CsLink } from "@/components/site/cs-link";
 import { serverRuntime } from "@/server/runtime";
@@ -22,8 +23,11 @@ export const metadata: Metadata = {
  * and orders Layanan for it at the DKI prices, pay first. A Mitra Jasa does the work.
  * Anyone may order for a grave somebody else holds, so nothing here asks whose it is.
  */
-export default async function PesanLayananTpuPage() {
+export default async function PesanLayananTpuPage({ searchParams }: PageProps<"/layanan/tpu">) {
   const actor = await currentActor();
+  // From a Makam TPU of the signed-in Akun the grave is described already; any other id finds nothing and the form stays empty.
+  const makam = z.uuid().safeParse((await searchParams).makam);
+  const awal = actor && makam.success ? await serverRuntime().pengurusan.deskripsiMakamTpu({ accountId: actor.accountId }, makam.data) : null;
   const pengaturan = await serverRuntime().operatorSettings.current();
   const tampilan = await tampilanPesananTpu(actor ? { nama: "", email: actor.email, telepon: actor.phoneNumber ?? "" } : null);
   const contact = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
@@ -44,7 +48,7 @@ export default async function PesanLayananTpuPage() {
       </header>
 
       {tampilan.layanan.length > 0 ? (
-        <FormPesananTpu tampilan={tampilan} sudahMasuk={actor !== null} mintaKodeMasuk={kirimKodeMasuk} csContact={contact} />
+        <FormPesananTpu tampilan={tampilan} sudahMasuk={actor !== null} mintaKodeMasuk={kirimKodeMasuk} csContact={contact} awal={awal} />
       ) : (
         <p className="rounded-lg bg-warning-soft p-3 text-body text-warning-soft-foreground">
           Layanan di TPU DKI belum tersedia. <CsLink contact={contact} className="underline" label="Tanya CS" />

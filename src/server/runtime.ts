@@ -19,6 +19,7 @@ import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
+import { suratKuasaRenderPath } from "@/lib/surat-kuasa-link";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createWakaf, type Wakaf } from "@/domain/wakaf";
 import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
@@ -133,6 +134,8 @@ export function serverRuntime(): ServerRuntime {
     const notifikasi = pemesananNotifikasiDari(notifications);
     // Refunds is composed after Pemesanan (it asks who placed an order), and an approved Pembatalan asks it for a refund: the lazy box filled below.
     const refundsMenunggu = refundsTertunda();
+    // Pengurusan is composed after Refunds yet owns the TPU orders whose Pemesan enters the refund account.
+    const pengurusanRef: { current?: Pengurusan } = {};
     const fieldwork = createFieldwork({
       db: database.db,
       clock: adapters.clock,
@@ -216,6 +219,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       operatorSettings,
       pemesanan,
+      pengurusan: pengurusanRef,
       reportError,
     });
     // The Layanan catalog, the prices a Lokasi Mitra offers and the order a family places for a grave:
@@ -242,6 +246,9 @@ export function serverRuntime(): ServerRuntime {
       db: database.db,
       clock: adapters.clock,
       files: adapters.files,
+      // The Surat Kuasa PDF (ticket 46): rendered from a page the renderer opens inside the container, on a signed link.
+      pdf: adapters.pdf,
+      suratKuasaPageUrl: (nomor, now) => `${env.documentPageOrigin}${suratKuasaRenderPath(env.AUTH_SECRET, nomor, now)}`,
       audit,
       lokasi,
       tariffs,
@@ -252,7 +259,10 @@ export function serverRuntime(): ServerRuntime {
       fieldwork,
       layanan,
       notifikasi: notifications,
+      // A paid order cancelled before the IPTM is filed raises a refund request (ticket 46).
+      refunds,
     });
+    pengurusanRef.current = pengurusan;
     // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),
     // so it is composed before the queue that runs that query.
     const perpanjangan = createPerpanjangan({

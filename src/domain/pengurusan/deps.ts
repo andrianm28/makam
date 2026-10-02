@@ -6,9 +6,11 @@ import type { Identity } from "@/domain/identity";
 import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
+import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
+import type { PdfRenderer } from "@/ports/pdf-renderer";
 
 /**
  * Who is placing a Pengurusan order: an Akun's id with the email the wizard's
@@ -39,21 +41,31 @@ export interface PengurusanDeps {
   clock: Clock;
   /** The private bucket, for the IPTM photo a Tumpang is placed with. */
   files: FileStore;
+  /** Renders the Surat Kuasa page into the PDF the Pemesan prints and signs. */
+  pdf: PdfRenderer;
+  /** Where the PdfRenderer finds one order's Surat Kuasa page (a link signed for that order and `now`; the composition knows the origin and the secret). */
+  suratKuasaPageUrl: (nomor: string, now: Date) => string;
   /** Every staff write this module makes is recorded through it, in the same transaction. */
   audit: AuditLog;
   lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList">;
   tariffs: Pick<Tariffs, "quote">;
   /** For the Nomor Pemesanan series and the Tagihan, both taken `within` the order's own transaction. */
-  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku">;
+  billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku" | "setOverdueAnchor" | "batalkanTagihan">;
   identity: Pick<Identity, "accountByEmail" | "staffAccounts">;
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;
-  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit">;
+  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit" | "iptmTerbit">;
+  /**
+   * A paid order cancelled before the IPTM is filed becomes a refund request (ticket 46): the full
+   * amount before Dimakamkan, everything but the Biaya Pengurusan from then on. Refunds approves and
+   * transfers it; this module only raises it, inside the cancellation's own transaction.
+   */
+  refunds: Pick<Refunds, "ajukanBaris">;
   /**
    * The hari-H Layanan a Saat Duka TPU order may add (story 23, ticket 56): priced at
    * the DKI price for the Tagihan the confirmation issues, and scheduled as Pekerjaan
    * Layanan inside that same transaction. Required: a missing wiring is a compile error,
    * never a runtime refusal of an order that named such items.
    */
-  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu">;
+  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu" | "pekerjaanTpuSelesaiUntukTagihan">;
 }

@@ -164,12 +164,14 @@ import {
   barisHariHTpu,
   hargaPesananTpu,
   jadwalkanHariHTpu,
+  pekerjaanTpuSelesaiUntukTagihan,
   penawaranTpuUntukPesanan,
   pesananTpuOf,
   placePesananLayananTpu,
   type BarisHariHTpuResult,
   type FotoMakamTpu,
   type JadwalkanHariHTpuInput,
+  type PekerjaanTpuSelesai,
   type PesananTpuTerbaca,
   type PlacePesananLayananTpuResult,
 } from "./tpu";
@@ -339,6 +341,7 @@ export type {
   FotoMakamTpu,
   JadwalkanHariHTpuInput,
   PekerjaanTpuPemesan,
+  PekerjaanTpuSelesai,
   PesananTpuTerbaca,
   PlacePesananLayananTpuResult,
 } from "./tpu";
@@ -602,6 +605,8 @@ export interface Layanan {
    * jobs and the Tagihan they are billed on commit together.
    */
   jadwalkanHariHTpu(input: JadwalkanHariHTpuInput, within?: Database): Promise<number>;
+  /** The hari-H jobs of one Tagihan that are already done (label and amount as billed); a cancellation refunds none of them. */
+  pekerjaanTpuSelesaiUntukTagihan(tagihanId: string, within?: Database): Promise<PekerjaanTpuSelesai[]>;
   /** Every Dijadwalkan TPU job with who holds it and what came before (Admin Platform). */
   pekerjaanTpuUntukStaf(by: Actor): Promise<PekerjaanTpuStaf[]>;
   /** One TPU job with the picker's candidates: Aktif Mitra Jasa covering the TPU and the Layanan and free on the date. */
@@ -734,6 +739,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     pesananTpuOf: (nomor, pemesan) => pesananTpuOf(deps, nomor, pemesan),
     barisHariHTpu: (items, at) => barisHariHTpu(deps, items, at ?? now()),
     jadwalkanHariHTpu: (input, within) => jadwalkanHariHTpu(within ? { ...deps, db: within } : deps, input),
+    pekerjaanTpuSelesaiUntukTagihan: (tagihanId, within) => pekerjaanTpuSelesaiUntukTagihan(deps, tagihanId, within),
     pekerjaanTpuUntukStaf: (by) => pekerjaanTpuUntukStaf(deps, by),
     bacaPekerjaanTpu: (by, pekerjaanId) => bacaPekerjaanTpu(deps, by, pekerjaanId),
     tugaskanMitraJasa: (by, input) => tugaskanMitraJasa(deps, by, input),

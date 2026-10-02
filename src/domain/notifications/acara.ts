@@ -38,6 +38,9 @@ export const TEMPLATE_EMAIL = [
   "tagihan_pengingat_h30",
   "bukti_pembayaran_terbit",
   "pengurusan_dikonfirmasi",
+  // The IPTM scan sent to the Pemesan and to the Pemegang Hak at IPTM Terbit (ticket 46), paid or not.
+  "iptm_terbit",
+  "iptm_terbit_pemegang_hak",
   "pengembalian_terbit",
   "layanan_pesanan_terbit",
   "layanan_pekerjaan_selesai",
@@ -84,6 +87,9 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   tagihan_pengingat_h30: "pengingat",
   bukti_pembayaran_terbit: "transaksional",
   pengurusan_dikonfirmasi: "transaksional",
+  // The permit is handed over whether or not the Tagihan is paid, and asks nothing (ticket 46).
+  iptm_terbit: "transaksional",
+  iptm_terbit_pemegang_hak: "transaksional",
   // A Bukti Pengembalian Dana asks nothing (the money is already on its way),
   // exactly like a Bukti Pembayaran (ticket 31).
   pengembalian_terbit: "transaksional",
@@ -130,6 +136,7 @@ export const TABEL_ACARA: Record<
   | "tagihan_pengingat"
   | "bukti_pembayaran_terbit"
   | "pengurusan_dikonfirmasi"
+  | "iptm_terbit"
   | "layanan_pesanan_terbit"
   | "layanan_pekerjaan_selesai"
   | "paket_siklus_dijeda"
@@ -229,6 +236,13 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "pengurusan_dikonfirmasi",
     waktu: WAKTU_TEMPLATE.pengurusan_dikonfirmasi,
+  },
+  /** The IPTM scan reaches the Pemesan by email at any hour (ticket 46); the Pemegang Hak's copy is the `iptm_terbit_pemegang_hak` template. */
+  iptm_terbit: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "iptm_terbit",
+    waktu: WAKTU_TEMPLATE.iptm_terbit,
   },
   /**
    * An order Layanan reaches its Pemesan by email only (ADR 0004), at any hour:

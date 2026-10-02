@@ -15,7 +15,7 @@ import { z } from "zod";
 import { queueFamilyEmail, type PesanKeluargaDeps, type PesanTercatat } from "./pesan-keluarga";
 import { notificationsMessage } from "./schema";
 import { bukaTeleponPemesan } from "./telepon-pemesan";
-import { pengurusanDikonfirmasiEmail } from "./template";
+import { iptmTerbitEmail, pengurusanDikonfirmasiEmail } from "./template";
 
 /** What the Pengurusan module announces when an Admin Platform confirms a TPU order. */
 export const pengurusanDikonfirmasiSchema = z.object({
@@ -125,4 +125,74 @@ export async function pesanPengurusan(deps: Pick<PesanKeluargaDeps, "db">, pengu
     attempts: row.attempts,
     sentAt: row.sentAt,
   }));
+}
+
+/** What the Pengurusan module announces when the IPTM is uploaded. */
+export const iptmTerbitSchema = z.object({
+  pengurusanId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  /** The Pemesan's Email Terverifikasi; null for an order with none. */
+  email: z.email().max(320).nullable(),
+  tpu: z.object({ name: z.string().trim().min(1).max(200) }),
+  almarhumName: z.string().trim().min(1).max(200),
+  pemegangHak: z.object({ name: z.string().trim().min(1).max(200), email: z.email().max(320).nullable() }),
+  berlakuSampai: z.iso.date(),
+});
+export type IptmTerbitInput = z.infer<typeof iptmTerbitSchema>;
+
+/**
+ * Sends the IPTM to the Pemesan and, when the Pemegang Hak has a different
+ * address on record, to the Pemegang Hak too (ticket 46). Never conditional on
+ * the Tagihan: the permit is not held hostage. One message per order and
+ * template, so a replay sends nothing twice; an order with no email gets a
+ * "Telepon Pemesan" row instead.
+ */
+export async function iptmTerbit(deps: PesanKeluargaDeps, input: IptmTerbitInput): Promise<PesanPengurusanResult> {
+  const parsed = iptmTerbitSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "pengurusan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  if (!data.email) {
+    await bukaTeleponPemesan(deps.db, now, {
+      subjectKind: "pengurusan",
+      subjectId: data.pengurusanId,
+      nomorPemesanan: data.nomor,
+      sebab: "tanpa_email",
+      perihal: `IPTM pengurusan ${data.nomor} di ${data.tpu.name} sudah terbit: kirim scan-nya ke keluarga.`,
+    });
+  }
+  const dasar = {
+    nomor: data.nomor,
+    tpu: data.tpu,
+    almarhumName: data.almarhumName,
+    pemegangHakName: data.pemegangHak.name,
+    berlakuSampai: data.berlakuSampai,
+    tautan: deps.pengurusanUrl(data.nomor),
+  };
+  if (data.email) {
+    const email = iptmTerbitEmail({ ...dasar, untukPemegangHak: false });
+    await queueFamilyEmail(deps.db, now, {
+      template: "iptm_terbit",
+      pemesananId: data.pengurusanId,
+      nomorPemesanan: data.nomor,
+      email: data.email,
+      subject: email.subject,
+      body: email.body,
+      sendAfter: now,
+    });
+  }
+  const alamatPemegang = data.pemegangHak.email;
+  if (alamatPemegang && alamatPemegang.toLowerCase() !== data.email?.toLowerCase()) {
+    const email = iptmTerbitEmail({ ...dasar, untukPemegangHak: true });
+    await queueFamilyEmail(deps.db, now, {
+      template: "iptm_terbit_pemegang_hak",
+      pemesananId: data.pengurusanId,
+      nomorPemesanan: data.nomor,
+      email: alamatPemegang,
+      subject: email.subject,
+      body: email.body,
+      sendAfter: now,
+    });
+  }
+  return { ok: true };
 }

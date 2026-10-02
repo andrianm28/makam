@@ -65,7 +65,7 @@ export interface AntreanRowDeps {
    */
   payouts: Pick<Payouts, "pencairanJatuhTempo">;
   /** The Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan module's own state. */
-  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka">;
+  pengurusan: Pick<Pengurusan, "konfirmasiTpuTerbuka" | "pengajuanIptmTerbuka">;
   /** The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module's own open requests (ticket 41). */
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
@@ -118,7 +118,9 @@ export interface AntreanRowType {
  * which alerts on Tier 1 rows and has no signed-in Admin Platform, can build it
  * without composing every neighbour the rest of the Antrean reads.
  */
-export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan" | "pengurusan"> & {
+export type Tier1RowDeps = Pick<AntreanRowDeps, "clock" | "notifications" | "pemesanan"> & {
+  /** The worker's Tier 1 rows read only the open confirmations; the IPTM filing row is Tier 3 and is not built there. */
+  pengurusan: Pick<AntreanRowDeps["pengurusan"], "konfirmasiTpuTerbuka">;
   /** The Tier 1 "Keluhan" row (ticket 51) reads the Layanan module's list of Keluhan waiting for a decision; the TPU jobs' Tier 1 row (ticket 56) reads the jobs due today that no Mitra Jasa holds. */
   layanan: Pick<AntreanRowDeps["layanan"], "keluhanTerbuka" | "pekerjaanTpuHariIniTanpaMitra">;
 };

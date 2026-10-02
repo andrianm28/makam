@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
@@ -99,6 +100,7 @@ export function payoutsOnTestDatabase(db: Database) {
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -110,6 +112,7 @@ export function payoutsOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     layanan: layananHariHKosong,
     notifikasi: setup.notifications,
+    refunds: refundsMenunggu.refunds,
   });
   // Refunds (ticket 31) reads a Tagihan and numbers a Bukti through Billing and
   // nets through Payouts, so it is composed after both — a downstream module,

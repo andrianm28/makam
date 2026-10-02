@@ -1,4 +1,5 @@
 import { afterAll, inject } from "vitest";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { FakeClock, type FakeEmailSender } from "@/adapters/memory";
 import { createAdapters } from "@/composition/adapters";
 import { billingOn, buktiPemesananEffect, composeBilling, documentUrls, paymentEffects, perpanjanganEffect, type BillingComposition } from "@/composition/billing";
@@ -97,6 +98,7 @@ export function testServerRuntime() {
       db: database.db,
       clock: adapters.clock,
       files: adapters.files,
+      ...suratKuasaDeps(),
       audit,
       lokasi,
       tariffs,
@@ -105,6 +107,7 @@ export function testServerRuntime() {
       fieldwork,
       layanan: layananHariHKosong,
       notifikasi: notifications,
+      refunds: refundsMenunggu.refunds,
     });
     const pemesanan = composePemesanan({
       db: database.db,

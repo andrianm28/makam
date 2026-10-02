@@ -1,4 +1,5 @@
 import { FakePdfRenderer } from "@/adapters/memory";
+import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
@@ -189,6 +190,7 @@ export function pemesananOnTestDatabase(
     db,
     clock: setup.clock,
     files: setup.files,
+    ...suratKuasaDeps(),
     audit: setup.audit,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
@@ -202,7 +204,9 @@ export function pemesananOnTestDatabase(
         pengurusanDikonfirmasi.push(hasil);
         return { ok: true };
       },
+      iptmTerbit: async () => ({ ok: true }),
     },
+    refunds: refundsMenunggu.refunds,
   });
   const refunds = createRefunds({
     db,

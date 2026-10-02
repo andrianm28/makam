@@ -207,6 +207,14 @@ export type AuditAction =
   | "pengurusan.konfirmasi_saat_duka_tpu"
   /** Admin Platform offers the family another TPU for a Saat Duka order (ticket 45). */
   | "pengurusan.tawarkan_tpu_lain"
+  /** Admin Platform records the burial of a Saat Duka TPU order, which starts the Tagihan's overdue clock and the 7-day filing window (ticket 46). */
+  | "pengurusan.catat_dimakamkan"
+  /** Admin Platform has checked the filing documents (ticket 46). */
+  | "pengurusan.dokumen_lengkap"
+  /** Admin Platform filed the IPTM on JakEVO (ticket 46). */
+  | "pengurusan.iptm_diajukan"
+  /** Admin Platform uploaded the IPTM scan and expiry; the Makam TPU was created or updated (ticket 46). */
+  | "pengurusan.iptm_terbit"
   /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
   | "setor_retribusi.catat"
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */

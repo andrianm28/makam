@@ -11,7 +11,9 @@ import {
   siapTpu,
 } from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
+import { eq, and } from "drizzle-orm";
 import { batasJawabPenugasan } from "./penugasan-tpu";
+import { pekerjaanLayananTpu } from "./schema";
 
 /**
  * Layanan at a DKI TPU, fulfilled by a Mitra Jasa (spec, Layanan; stories 23, 85,
@@ -627,5 +629,26 @@ describe("the Antrean's rows for TPU jobs", () => {
     const komposisi = queuesOnTestDatabase(db);
     komposisi.clock.set(wib("2026-10-05 07:00"));
     expect((await komposisi.queues.antrean(mitra.actor)).map((satu) => satu.type)).not.toContain("pekerjaan_tpu_tanpa_mitra");
+  });
+});
+
+describe("cancelling a paid Saat Duka TPU order that has hari-H Layanan", () => {
+  it("refunds only the Layanan not yet done: a hari-H Layanan already done stays paid for", async () => {
+    const s = await siap();
+    const { nomor, hasil } = await saatDukaTpuDikonfirmasi(s.setup, s, [{ layananVariantId: s.bunga.id, teks: "Mawar" }, { layananVariantId: s.bunga.id, teks: "Melati" }]);
+    const dibayar = await s.setup.billing.recordPayment(hasil.tagihan.id, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
+    // Nothing public finishes a TPU job yet (ticket 57), so the test finishes the Bunga Tabur job directly.
+    await db
+      .update(pekerjaanLayananTpu)
+      .set({ status: "selesai" })
+      .where(and(eq(pekerjaanLayananTpu.nomor, nomor), eq(pekerjaanLayananTpu.posisi, 0)));
+
+    const batal = await s.setup.pengurusan.batalkanPengurusan(s.pemesan, { nomor });
+    if (!batal.ok) throw new Error(`cancel refused: ${batal.reason}`);
+    expect(batal).toMatchObject({ ok: true, pengembalian: hasil.tagihan.total - HARGA_BUNGA_TABUR });
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    const jumlah = permintaan!.lines.map((baris) => baris.amount);
+    expect(jumlah.filter((nilai) => nilai === HARGA_BUNGA_TABUR)).toHaveLength(1);
   });
 });

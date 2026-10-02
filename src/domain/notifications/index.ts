@@ -124,8 +124,10 @@ import {
   type BuktiPerpanjanganTerbitResult,
 } from "./pesan-perpanjangan";
 import {
+  iptmTerbit,
   pengurusanDikonfirmasi,
   pesanPengurusan,
+  type IptmTerbitInput,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
 } from "./pesan-pengurusan";
@@ -172,6 +174,8 @@ export {
   type PesananDikonfirmasiInput,
 } from "./pesan-pemesanan";
 export {
+  iptmTerbitSchema,
+  type IptmTerbitInput,
   pengurusanDikonfirmasiSchema,
   type PengurusanDikonfirmasiInput,
   type PesanPengurusanResult,
@@ -489,6 +493,7 @@ export interface Notifications {
    * per status change (`perubahanId`), whatever runs twice; the note to the Wakif, the date and the reason travel with it.
    */
   wakafStatusBerubah(input: WakafStatusBerubahInput, within?: Database): Promise<WakafStatusBerubahResult>;
+  /**
    * One reminder that a Hak Pakai is ending (60, 30, 7 days before, then weekly in the Masa Tenggang; ticket 42):
    * an email to the recorded Pemegang Hak with the Perpanjangan link (08:00-20:00 WIB), a Peringatan Staf to each Admin
    * Lokasi, and a Telepon Pemesan row when there is no recorded email or the Hak Pakai is nearing its end. Announcing
@@ -501,6 +506,11 @@ export interface Notifications {
    * and the pay-after Tagihan. One message per order, whatever runs twice.
    */
   pengurusanDikonfirmasi(input: PengurusanDikonfirmasiInput): Promise<PesanPengurusanResult>;
+  /**
+   * Announces the IPTM at IPTM Terbit (ticket 46): the order page's link to the Pemesan and, at a
+   * different address, to the Pemegang Hak, whether or not the Tagihan is paid. One per order and template.
+   */
+  iptmTerbit(input: IptmTerbitInput): Promise<PesanPengurusanResult>;
   /** Every logged message about one Pengurusan order, oldest first: what its order page shows. */
   pesanPengurusan(pengurusanId: string): Promise<PesanTercatat[]>;
   /** An order Layanan and its pay-first Tagihan, as its Pemesan is told (the family must pay before the work). */
@@ -871,6 +881,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async pengurusanDikonfirmasi(input) {
       return pengurusanDikonfirmasi(deps, input);
+    },
+    async iptmTerbit(input) {
+      return iptmTerbit(deps, input);
     },
     async pesanPengurusan(pengurusanId) {
       return pesanPengurusan(deps, pengurusanId);
