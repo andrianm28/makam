@@ -173,7 +173,7 @@ function BuktiPekerjaan({ pekerjaanId, bukti }: { pekerjaanId: string; bukti: Aw
 
 /**
  * The message thread of one accepted job (story 180): the Mitra Jasa and the family write through the app, never by
- * contact details. It closes when the TPU Keluhan window closes; then it is read-only, with what was said.
+ * contact details. It closes when the window-close tick (`tutupJendelaKeluhan`) runs past the end of the TPU Keluhan window; then it is read-only, with what was said.
  */
 async function ThreadPekerjaan({ actor, pekerjaanId }: { actor: Awaited<ReturnType<typeof staffMenuActor>>; pekerjaanId: string }) {
   const hasil = await serverRuntime().layanan.bacaThreadStaf(actor, pekerjaanId);

@@ -71,3 +71,5 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
   - Process: tests 2 and 3 were green on arrival (the Refunds fee rule already gives that amount, and a DKI TPU Tagihan has no fee line), so they are pins, no red. Items 1 and the Mitra Jasa form are thin UI with no test seam; no browser or e2e run.
   - Spec gaps for the owner: none new. The thread closes on the tick (as at Lokasi), so a TPU thread stays open while a Keluhan is open past the window.
   - Verified: `src/domain/layanan` + `src/app/staf/mitra-jasa` 18 files, 230 tests green; typecheck 0; lint 0 errors (1 existing warning, `JENIS_BERKAS`); build 0.
+
+2026-10-02 builder (review fix): the Q6 test now uses two distinct Layanan (Bunga Tabur, Pembersihan Makam) and asserts the refund request names only the cancelled job's line and amount. A DKI TPU Tagihan can carry no Biaya Layanan Platform line (`quote()` adds it only for a Lokasi Mitra line; see `tpu-pricing.ts`), so the "plus the fee" half cannot occur; a test states that only the job's price comes back. No red: the code was already right.
