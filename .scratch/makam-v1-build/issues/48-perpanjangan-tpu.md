@@ -21,3 +21,7 @@ IPTM renewal for a Makam TPU. Reminders go to the Pemegang Hak 3 months and 1 mo
 ## Added (2026-09-25)
 
 - [ ] Optional email field on the order screen (copies of Tagihan / Bukti by email through SumoPod SMTP; SES dropped 2026-09-25), as in spec "Booking wizards".
+
+### 2026-10-02 builder (ticket 48, sonnet, claude.ai/code thread)
+
+- **Pilot thread facts** (2026-10-02): `nproc` = 4; `free -g` = 15 GB total, 11 GB free, no swap; the Skill tool loaded `tdd` (yes); Docker was up after the SessionStart hook (`docker info` OK).
