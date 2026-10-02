@@ -37,3 +37,4 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
   - Q2: on dana kembali the Mitra Jasa's Pencairan **stays at the full rate**; the Admin Platform may lower it with a note through the Pencairan override (gap C).
   - Q3: a late (Terlambat) TPU job may be cancelled by **the Pemesan or the Admin Platform** (on the family's behalf, audited, with a reason).
   - Q4: that cancellation refunds **the whole Tagihan, the Biaya Layanan Platform included** (as at a Lokasi Mitra); the Mitra Jasa gets **no Pencairan** (spec).
+- 2026-10-02 — **Follow-up owned here (from ticket 46's re-review):** once this ticket is on main, switch the setup in `src/domain/layanan/tpu.test.ts` (around line 641, ticket 46's "refund only Layanan not yet done" test) from the direct `db.update` that marks a TPU job Selesai to the public path `setujuiBuktiTpu`.
