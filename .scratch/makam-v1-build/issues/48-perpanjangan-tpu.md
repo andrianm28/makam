@@ -40,3 +40,11 @@ IPTM renewal for a Makam TPU. Reminders go to the Pemegang Hak 3 months and 1 mo
 - Reminders go to the Pemegang Hak's email, else the Akun's; none known → nothing sent (no Telepon Pemesan row). A new order after a Ditolak/Dibatalkan one resumes reminders; no guard against two open renewals of one Makam TPU.
 
 HANDOFF: domain complete and green; remaining: owner confirmation of the items above, optional e2e smoke, browser check of the new screens.
+
+### 2026-10-02 Fix pass (builder, sonnet, claude.ai/code thread)
+
+Test-first; `test(red)` commits before code. Items → commit: 1 double charge (`sudah_dipesan`, partial unique index in migration 0061, race test, Bahasa Indonesia refusal on the order screen) → red e7b172c, code e75a38d, screen text 8827b19; 2 past-grace bypass (earlier of typed and recorded expiry, snapshot column `iptm_tercatat_berakhir_pada`, both dates on the Admin Platform page and its TPU check row and on the Pemesan order page; `koreksiIptmBerakhir` uses the same rule) → e75a38d, 8827b19; 3 glossary (Perpanjangan TPU, Diproses, Cek TPU lewat masa tenggang) → 8827b19; 4 "PTSP meminta perbaikan" kept for Pengurusan IPTM, new wording only for Perpanjangan TPU → red 32e9178, 8827b19; 5 same-`now` reminder tick sends one message: Notifications' dedup on `kunci` already did it, test added, no fix needed → e7b172c; 6 burial-type line hidden for the kind on the Admin Platform page; the Pemesan page already returns early for the kind and no screen renders `kelayakan`, so nothing more to hide → 8827b19; 7 `tanggalWafat` fallback commented, email item struck, tick returns `dilewati` → e75a38d, 8827b19. Owner questions untouched. One existing test (expiry correction) now records the Makam TPU's expiry as 2027-05-30, since the earlier date rules.
+
+Verification: `npm run lint` 0 errors, `npm run typecheck` clean, full `npm test` read off a whole log: Test Files 332 passed (332), Tests 2983 passed | 1 skipped (2984), exit 0.
+
+HANDOFF: fix pass complete; remaining: owner answers (tumpang row, filing document list, 1-working-day check, Telepon Pemesan for reminders), browser check of the new screens.
