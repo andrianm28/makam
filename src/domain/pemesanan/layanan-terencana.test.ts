@@ -81,6 +81,25 @@ describe("Layanan chosen for an empty plot on a Pemesanan Terencana", () => {
     expect((await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan))?.item).toMatchObject([{ targetDate: "2026-10-20", pekerjaan: { status: "menunggu_pembayaran" } }]);
   });
 
+  it("makes the Tagihan due at the earliest of the hold expiry and the Layanan's lead-time rule", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await siap(setup);
+    // The Layanan rule is the earlier: a 4 Oktober target with a 3-day lead time is due the end of 1 Oktober, before the hold ends.
+    const cepat = await pesan(setup, dasar, ["A-01"], [{ layananVariantId: dasar.varian.id, targetDate: "2026-10-04" }]);
+    if (!cepat.ok) throw new Error(`placeTerencana refused: ${cepat.reason}`);
+    const dikonfirmasiCepat = await setup.pemesanan.konfirmasiTerencana(dasar.fixture.adminLokasi, { nomor: cepat.pemesanan.nomor });
+    if (!dikonfirmasiCepat.ok) throw new Error(`konfirmasiTerencana refused: ${dikonfirmasiCepat.reason}`);
+    expect(dikonfirmasiCepat.pesanan.tahanSampai.getTime()).toBeGreaterThan(wib("2026-10-01 23:59").getTime());
+    expect(dikonfirmasiCepat.tagihan.dueAt).toEqual(wib("2026-10-01 23:59"));
+
+    // The hold is the earlier when the Layanan is far off: due exactly when the hold ends.
+    const jauh = await pesan(setup, dasar, ["A-02"], [{ layananVariantId: dasar.varian.id, targetDate: "2026-12-20" }]);
+    if (!jauh.ok) throw new Error(`placeTerencana refused: ${jauh.reason}`);
+    const dikonfirmasiJauh = await setup.pemesanan.konfirmasiTerencana(dasar.fixture.adminLokasi, { nomor: jauh.pemesanan.nomor });
+    if (!dikonfirmasiJauh.ok) throw new Error(`konfirmasiTerencana refused: ${dikonfirmasiJauh.reason}`);
+    expect(dikonfirmasiJauh.tagihan.dueAt.getTime()).toBeLessThanOrEqual(dikonfirmasiJauh.pesanan.tahanSampai.getTime());
+  });
+
   it("has its Pekerjaan Layanan Dijadwalkan when the Tagihan is paid, and the order Aktif", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await dikonfirmasi(setup);

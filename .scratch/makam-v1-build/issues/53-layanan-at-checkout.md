@@ -66,3 +66,14 @@ Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment)
 ### Spec gaps and decisions for the owner (slice 3)
 - A Pembatalan Terencana (paid, refund per Hak Pakai) refunds only the Hak Pakai line and leaves that plot's Layanan jobs running; the family can cancel a job itself until H-1. Owner to decide whether approving the Pembatalan should cancel them.
 - The Layanan's date is checked at submission and again at the confirmation; a late confirmation refuses (`layanan_tidak_tersedia`) rather than moving the date.
+
+### Builder fix pass (2026-10-02)
+
+- Standards: `OpsiLayananView`/`OpsiTambahLayanan` now live in `@/lib/layanan-pilihan`; `opsi-view.ts` imports its type from `@/domain/layanan/harga` (the mapping is kept: it strips catalog internals before props reach the client); one `layananHariHSchema` in the Saat Duka `draft.ts`; the `layanan.batalkan_tagihan_lapse` entry sits above the ticket 54 comment again.
+- Spec: the Terencana Layanan total is a line and part of the total in `TotalBarTerencana`. Test "makes the Tagihan due at the earliest of the hold expiry and the Layanan's lead-time rule" (Layanan rule earlier, and hold earlier); it passed on first run (the rule already existed, so no red was possible).
+- Owner decision (grilling round 1 Q5): approving a Pembatalan Terencana (`setujuiPembatalanTerencana`) cancels the plot's Layanan not yet done through `layanan.batalkanLayananPetakDibatalkan` and asks Refunds for them in the same request as the Hak Pakai; a Layanan done is kept, not refunded. Red commit first, then green.
+
+### Spec gaps and decisions for the owner (fix pass)
+
+- A Kavling Keluarga unit is refused for a Terencana Layanan order (`layanan_satu_petak`) although the spec only says "single plot".
+- "Not yet done" is read as Dijadwalkan (not started). A job Sedang Dikerjakan or Terlambat at the approval is not cancelled and its price is kept; the owner may want Terlambat released and refunded.
