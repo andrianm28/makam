@@ -21,3 +21,24 @@ Add Layanan to the booking checkouts. Saat Duka checkout offers only "bisa hari-
 ## Notes
 
 Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment).
+
+## Comments
+
+### 2026-10-02 builder (ticket 53, first slice: domain + tests; UI and Terencana left)
+
+**Built (green, domain level):**
+- Layanan `checkout.ts`: `penawaranCheckout` (offer per checkout mode), `siapkanCheckout` (offered, mode flag, text, date rules: hari-H = burial day; Terencana = lead time from today; Perpanjangan = lead time after the Tagihan due date), `gabungkanBaris`, `tulisCheckout` (jobs under the owner's Nomor Pemesanan, Dijadwalkan at once for hari-H), `batalkanLayananCheckout`.
+- Saat Duka (Lokasi Mitra): `placeSaatDuka({ layananHariH })` checks early; `konfirmasiSaatDuka` prices them in the same quote (one Biaya Layanan Platform), keeps pay-after and the due date, Dijadwalkan at confirmation, target = burial day. Cancellation closes unstarted jobs; Billing `batalkanTagihan` takes `ditahan` so a job already Sedang Dikerjakan is not refunded. Tidak Tertagih: no Pencairan item unless the family pays later (test).
+- Perpanjangan: `ajukan`/`pesanDariPermohonan` take `layanan: [{ layananVariantId, targetDate, teks }]`; Tagihan keeps the 3x24 h due date, a too-early date is `lead_time_melewati`, nothing issued; payment schedules the jobs. Result carries `layananNomor`. Inventory `hakPakaiUntukPerpanjangan` now also returns `petakId`.
+- Migration `0050_slippery_stature.sql` (pemesanan_makam.layanan_hari_h, nullable).
+- Verified: lint 0, typecheck 0 errors (before the last runtime.ts lazy-box edit; rerun), vitest subset (pemesanan, perpanjangan, billing, pengurusan, layanan checkout/pesanan/tpu/batal) 51 files / 534 tests passed.
+
+**HANDOFF (next agent):**
+1. Terencana empty-plot, not started: single plot only; store items on `pemesanan_terencana`; at `konfirmasiTerencana` price in the same quote (`mode: "petak_kosong"`), `issueTagihan` takes the earliest due (Billing `tagihanDue` already does); `pesanan_layanan.hak_pakai_id` is NOT NULL and the Hak Pakai only exists at payment, so either write the order in `aktifkanTerencana` or make the column nullable (DROP NOT NULL is expand-safe). Also close the jobs when the hold lapses or a Pembatalan is approved.
+2. A lapsed (Dibatalkan) Perpanjangan Tagihan leaves its Layanan jobs in Menunggu Pembayaran; cancel them there.
+3. UI: Saat Duka wizard step for hari-H items (`data-kirim.tsx`/`draft.ts`, keep edits minimal, hotfix pending), Terencana picker step, Perpanjangan "Tambah Layanan" step, sticky total bar. Server Actions must pass the new inputs.
+4. Unverified: `src/worker/main.ts` and `tests/support/server-runtime.ts` compose Pemesanan without `layanan` (optional, so hari-H is refused there); no e2e.
+
+### Spec gaps and decisions for the owner
+- A hari-H item's price is taken when the Lokasi confirms (like the Petak), not at submission; the family's all-in total on "Data & kirim" therefore does not include it. Confirm shows nothing if the Layanan was switched off meanwhile: confirmation is refused with `layanan_tidak_tersedia`. Owner to decide whether the Lokasi should instead be allowed to confirm without it.
+- Terencana: the Layanan target date is checked at submission; if the Lokasi confirms later than the lead time allows, confirmation would have to refuse or move the date. Owner to decide.

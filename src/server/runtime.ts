@@ -101,6 +101,12 @@ export function serverRuntime(): ServerRuntime {
     // own Harga Khusus path (ticket 30) only ever *calls*
     // `kurangiPencairanPesanan` once a write happens, well after this module
     // has finished loading, so the closure over a not-yet-filled box is safe.
+    // Layanan is composed after Pemesanan (ticket 53): hari-H items reach it through this box, filled once it exists.
+    const layananRef: { current?: Layanan } = {};
+    const layananLazy = (): Layanan => {
+      if (!layananRef.current) throw new Error("Layanan is not composed yet: a checkout asked for it before startup finished");
+      return layananRef.current;
+    };
     const payoutsRef: { current?: Pick<Payouts, "pemakamanTercatat"> & { kurangiPencairanPesanan: NonNullable<BillingComposition["kurangiPencairanPesanan"]> } } = {};
     const billingComposition: BillingComposition = {
       env,
@@ -144,6 +150,12 @@ export function serverRuntime(): ServerRuntime {
     });
     // The wizard's own messages, and the Lokasi's when it confirms an order, go out through Notifications.
     const pemesanan = composePemesanan({
+      layanan: {
+        siapkanCheckout: (input) => layananLazy().siapkanCheckout(input),
+        gabungkanBaris: (...args) => layananLazy().gabungkanBaris(...args),
+        tulisCheckout: (input, within) => layananLazy().tulisCheckout(input, within),
+        batalkanLayananCheckout: (nomor, alasan, within) => layananLazy().batalkanLayananCheckout(nomor, alasan, within),
+      },
       db: database.db,
       clock: adapters.clock,
       reportError,
@@ -233,6 +245,7 @@ export function serverRuntime(): ServerRuntime {
       notifications,
       reportError,
     });
+    layananRef.current = layanan;
     // The Antrean's Tier 1 "Konfirmasi TPU Saat Duka" row reads the Pengurusan
     // module, so it is composed before the queue that runs its query.
     const pengurusan = createPengurusan({
