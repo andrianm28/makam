@@ -204,3 +204,46 @@ describe("a request past the masa tenggang", () => {
     expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([]);
   });
 });
+
+/** Paid, filed: IPTM Diajukan, the Tagihan Lunas on 21 December 2026. */
+async function sampaiDiajukan(setup: PengajuanSetup, dasar: Dasar) {
+  const { nomor, tagihan } = await sampaiMenungguPembayaran(setup, dasar);
+  setup.clock.set(wib("2026-12-21 09:00"));
+  await setup.billing.recordPayment(tagihan.id, QRIS);
+  await setup.pengurusan.pembayaranBerkasTick();
+  const diajukan = await setup.pengurusan.ajukanIptm(dasar.admin, { nomor });
+  if (!diajukan.ok) throw new Error(`IPTM Diajukan refused: ${diajukan.reason}`);
+  return { nomor, tagihan };
+}
+
+describe("a PTSP rejection of a Perpanjangan TPU", () => {
+  it("sends a fixable rejection back to Perlu Perbaikan, refiled at no charge and with no new Tagihan", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const { nomor, tagihan } = await sampaiDiajukan(setup, dasar);
+    const buruk = (await setup.pengurusan.orderOf(nomor, dasar.pemesan))!.dokumen.pengajuan[0]!.nama;
+
+    const ditolak = await setup.pengurusan.tolakPtsp(dasar.admin, { nomor, putusan: "perbaikan", alasan: "Scan IPTM tidak terbaca", dokumen: [buruk] });
+    expect(ditolak).toEqual({ ok: true, status: "perlu_perbaikan" });
+    expect(await setup.pengurusan.perluTindakanBerkas(dasar.pemesan)).toEqual([expect.objectContaining({ nomor, kurang: [buruk], alasanPerbaikan: "Scan IPTM tidak terbaca" })]);
+    expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor })).toMatchObject({ ok: false, reason: "dokumen_belum_lengkap" });
+
+    await unggah(setup, dasar, nomor, buruk);
+    expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "iptm_diajukan" });
+    const sesudah = await setup.pengurusan.orderOf(nomor, dasar.pemesan);
+    expect(sesudah!.tagihan!.id).toBe(tagihan.id);
+    expect((await setup.billing.tagihan(tagihan.id))!.status).toBe("lunas");
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
+  });
+
+  it("makes a final rejection Ditolak with the reason shown and refunds the whole Tagihan", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const { nomor } = await sampaiDiajukan(setup, dasar);
+
+    const ditolak = await setup.pengurusan.tolakPtsp(dasar.admin, { nomor, putusan: "final", alasan: "IPTM sudah dicabut oleh TPU" });
+    expect(ditolak).toMatchObject({ ok: true, status: "ditolak", pengembalian: 1_000_000 });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "ditolak", alasan: "IPTM sudah dicabut oleh TPU" });
+    expect(await setup.refunds.permintaanTerbuka()).toEqual([expect.objectContaining({ nomorPemesanan: nomor, jumlah: 1_000_000, status: "diajukan" })]);
+  });
+});
