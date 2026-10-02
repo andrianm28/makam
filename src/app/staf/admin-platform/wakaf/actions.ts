@@ -27,6 +27,7 @@ async function tulis<S extends z.ZodType>(options: {
   path?: string;
 }): Promise<FormState> {
   const hasil = await guarded({
+    fitur: "wakaf",
     action: "wakaf.kelola",
     resource: () => wakafResource(),
     schema: options.schema,

@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
 import type { LokasiMitraSummary } from "@/domain/lokasi";
+import { rilisAktif, type Rilis } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { staffRoleHome } from "@/lib/staff-area-path";
 import { staffPalette, type PaletteGroup } from "@/lib/staff-navigation";
@@ -50,6 +51,8 @@ export interface StaffShell {
    * those: what that role may open (an Admin Lokasi only its own Lokasi Mitra).
    */
   palette: Partial<Record<StaffRole, PaletteGroup[]>>;
+  /** The release this environment has opened (ADR 0006): the sidebar hides the items of a closed feature. */
+  rilis: Rilis;
   /** The Peringatan Staf bell: how many are unread, and the latest. */
   alerts: { unread: number; latest: StaffAlertEntry[] };
   /**
@@ -98,7 +101,8 @@ export async function staffShell(): Promise<StaffShell | null> {
     lokasiNames: Object.fromEntries(lokasiMitra.map((item) => [item.id, item.name])),
     blokNames: Object.fromEntries(bloksByLokasi.flat().map((blok) => [blok.id, blok.name])),
     adminLokasi: ownLokasi,
-    palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role))])),
+    palette: Object.fromEntries(held.map((role) => [role, staffPalette(role, lokasiOf(role), rilisAktif())])),
+    rilis: rilisAktif(),
     alerts: alerts.ok ? { unread: alerts.unread, latest: alerts.latest } : { unread: 0, latest: [] },
     tier1BelumDiambil,
   };

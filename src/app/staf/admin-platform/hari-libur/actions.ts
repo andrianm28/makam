@@ -31,6 +31,7 @@ async function hariLiburWrite<S extends z.ZodType, R extends AddHariLiburNasiona
   saved: string;
 }): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "hari_libur.ubah",
     resource: () => hariLiburNasionalResource(),
     schema: options.schema,

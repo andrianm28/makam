@@ -14,6 +14,7 @@ const PATH = "/staf/admin-platform/tagihan-lewat-jatuh-tempo";
 /** Admin Platform logs a Chasing call (spec, Billing > Chasing; ticket 29): the same "Telepon Pemesan" mechanism ticket 20 built. */
 export async function catatPanggilanTagihan(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "telepon_pemesan.catat",
     resource: () => antreanResource(),
     schema: catatPanggilanSchema,
@@ -46,6 +47,7 @@ const GAGAL_TIDAK_TERTAGIH: Record<string, string> = {
  */
 export async function nyatakanTidakTertagih(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "tagihan.nyatakan_tidak_tertagih",
     resource: () => antreanResource(),
     schema: nyatakanTidakTertagihSchema,
@@ -64,6 +66,7 @@ export async function nyatakanTidakTertagih(_previous: FormState, formData: Form
 /** Admin Platform adds a standalone note to a chased Tagihan's call log, closing no row. */
 export async function tambahCatatanTagihan(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "telepon_pemesan.catat",
     resource: () => antreanResource(),
     schema: tambahCatatanTagihanSchema,

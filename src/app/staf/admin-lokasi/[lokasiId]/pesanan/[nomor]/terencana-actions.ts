@@ -25,6 +25,7 @@ export async function konfirmasiTerencanaAction(_previous: PesananActionState, f
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.konfirmasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: konfirmasiTerencanaSchema,
@@ -50,6 +51,7 @@ export async function tolakTerencanaAction(_previous: PesananActionState, formDa
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pemesanan.tolak",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tolakTerencanaSchema,
@@ -80,6 +82,7 @@ export async function setujuiPembatalanTerencanaAction(_previous: PesananActionS
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: permintaanPembatalanTerencanaSchema,
@@ -102,6 +105,7 @@ export async function tolakPembatalanTerencanaAction(_previous: PesananActionSta
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tolakPembatalanTerencanaSchema,
@@ -119,6 +123,7 @@ export async function mintaPerbaikanPembatalanTerencanaAction(_previous: Pesanan
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.putuskan",
     resource: () => lokasiMitraResource(lokasiId),
     schema: mintaPerbaikanPembatalanTerencanaSchema,

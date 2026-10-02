@@ -6,7 +6,7 @@ import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-ma
 import { akunResource } from "@/domain/identity";
 import { PETUNJUK_DIRUJUK } from "@/domain/wakaf/skema";
 import { pesanWakaf } from "@/lib/wakaf-tampilan";
-import { guarded } from "@/server/guard";
+import { gerbangAksi, guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import type { DraftWakaf, KirimWakafState } from "./draft";
@@ -75,6 +75,7 @@ async function ajukan(wakif: { accountId: string; email: string }, draft: z.infe
 /** Kirim for a Wakif already signed in. */
 export async function ajukanWakafSaya(draft: DraftWakaf): Promise<KirimWakafState> {
   const hasil = await guarded({
+    fitur: "wakaf",
     action: "akun.lihat",
     resource: (actor) => akunResource(actor.accountId),
     schema: draftSchema,
@@ -93,6 +94,7 @@ export async function verifikasiKodeMasukDanAjukanWakaf(
   _state: KodeMasukVerifyState,
   formData: FormData,
 ): Promise<KodeMasukVerifyState> {
+  gerbangAksi("wakaf");
   const parsedDraft = draftSchema.safeParse(draft);
   if (!parsedDraft.success) return { status: "gagal", message: PERIKSA };
   const parsedCode = z

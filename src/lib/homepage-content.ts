@@ -14,11 +14,14 @@
 import type { LucideIcon } from "lucide-react";
 import { BadgeCheckIcon, HandHeartIcon, ReceiptTextIcon } from "lucide-react";
 import { tileKeHub } from "@/lib/makam-keluarga-content";
+import { terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
 
 export interface HomepageTile {
   label: string;
   /** Absent while the service is not in this release: the tile says "Segera hadir" and offers the CS instead. */
   href?: string;
+  /** The page the tile opens once its feature is in the open release (`homepageTilesUntuk`); the tile stays "Segera hadir" until then. */
+  hrefBilaTerbuka?: { fitur: Fitur; href: string };
   /** One line on what the service is, in the family's words. */
   summary: string;
   /** The tile's photograph (docs/brand/stock-photos.md) and its alt text, in Bahasa Indonesia. */
@@ -89,17 +92,27 @@ export const homepageTiles: HomepageTile[] = [
   },
   {
     label: "Urus di TPU DKI",
+    hrefBilaTerbuka: { fitur: "tpu", href: "/pengurusan-tpu" },
     summary: "Panduan gratis mengurus sendiri, atau kami bantu urus izinnya.",
     image: "/content/beranda-tile-tpu.jpg",
     imageAlt: "Pemakaman umum di Jakarta yang hijau dengan gedung di kejauhan.",
   },
   {
     label: "Wakaf Tanah",
+    hrefBilaTerbuka: { fitur: "wakaf", href: "/wakaf-tanah" },
     summary: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir.",
     image: "/content/beranda-tile-wakaf.jpg",
     imageAlt: "Hamparan sawah hijau dengan rumah di kejauhan.",
   },
 ];
+
+/** The tiles as the release `rilis` shows them: a tile whose feature is open links to its page, the rest say "Segera hadir" (ADR 0006). */
+export function homepageTilesUntuk(rilis: Rilis): HomepageTile[] {
+  return homepageTiles.map((tile) => {
+    const { hrefBilaTerbuka, ...rest } = tile;
+    return hrefBilaTerbuka && terbukaDi(hrefBilaTerbuka.fitur, rilis) ? { ...rest, href: hrefBilaTerbuka.href } : rest;
+  });
+}
 
 export interface HomepageTrustColumn {
   /** The brand's north star, one word per column (docs/design-system.md). */

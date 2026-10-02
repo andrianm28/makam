@@ -29,6 +29,7 @@ const KONFIRMASI_GAGAL: Record<string, string> = {
  */
 export async function konfirmasiPengurusan(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: konfirmasiSaatDukaTpuSchema,
@@ -59,6 +60,7 @@ export async function konfirmasiPengurusan(_previous: FormState, formData: FormD
 /** Admin Platform offers the family another TPU for the same burial. */
 export async function tawarkanTpuLain(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "tpu",
     action: "pengurusan.konfirmasi",
     resource: () => pengurusanTpuResource(),
     schema: tawarkanTpuLainSchema,

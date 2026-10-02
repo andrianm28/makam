@@ -69,6 +69,7 @@ export async function selesaikanTugas(_previous: FormState, formData: FormData):
   }
 
   const result = await guarded({
+    fitur: "inti",
     action: "tugas_lapangan.selesaikan",
     resource: () => tugasLapanganResource(id),
     schema: z.object({}),

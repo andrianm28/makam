@@ -40,6 +40,7 @@ export async function buatTugasLapangan(_previous: FormState, formData: FormData
     assigneeAccountId: formData.get("assigneeAccountId"),
   };
   const result = await guarded({
+    fitur: "inti",
     action: "tugas_lapangan.buat",
     resource: () => semuaTugasLapanganResource(),
     schema: formSchema,

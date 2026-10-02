@@ -30,6 +30,7 @@ const GAGAL: Partial<Record<Alasan, string>> = {
 export async function unggahDokumenAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: unggahDokumenPengajuanSchema,
@@ -46,6 +47,7 @@ export async function unggahDokumenAction(_previous: FormState, formData: FormDa
 export async function batalkanPengurusanAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: batalkanPengurusanSchema,
@@ -72,6 +74,7 @@ const REKENING_GAGAL: Record<string, string> = {
 export async function isiRekeningPengembalianPengurusanAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "tpu",
     action: "pengembalian.isi_rekening",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: z.object({ nomorPemesanan: z.string(), rekening: rekeningSchema }),

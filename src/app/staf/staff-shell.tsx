@@ -91,7 +91,7 @@ export function StaffShell({
     shell.roles.map((option) => option.role),
   );
   const current = shell.roles.find((option) => option.role === role) ?? shell.roles[0];
-  const menu = staffMenu(role, { lokasiId: role === page.role ? page.lokasiId : undefined });
+  const menu = staffMenu(role, { lokasiId: role === page.role ? page.lokasiId : undefined, rilis: shell.rilis });
   const roleLabel = current.label;
   const roleHome = current.href;
   // The palette offers the current role's own pages, same as the sidebar menu above.
@@ -114,7 +114,7 @@ export function StaffShell({
           >
             {children}
           </div>
-          {bottomNav ? <BottomNav items={bottomNavItems(role)} roleLabel={roleLabel} pathname={pathname} /> : null}
+          {bottomNav ? <BottomNav items={bottomNavItems(role, shell.rilis)} roleLabel={roleLabel} pathname={pathname} /> : null}
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>

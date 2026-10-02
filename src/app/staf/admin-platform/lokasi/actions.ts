@@ -19,6 +19,7 @@ import {
   type UploadAgreementResult,
 } from "@/domain/lokasi";
 import { hentikanLokasiMitra } from "@/composition/berhenti";
+import type { Fitur } from "@/lib/rilis";
 import { guarded } from "@/server/guard";
 import { phoneNumberInput } from "@/server/phone-number-input";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
@@ -84,9 +85,12 @@ async function lokasiWrite<S extends z.ZodType<{ lokasiId: string }>, R extends 
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
   saved: string | ((written: Extract<R, { ok: true }>) => string);
   invalidInput?: string;
+  /** The release the write belongs to (ADR 0006); closed, it answers 404. */
+  fitur?: Fitur;
 }): Promise<FormState> {
   const { input } = options;
   const result = await guarded({
+    fitur: options.fitur ?? "inti",
     action: options.action,
     resource: () => lokasiMitraResource(typeof input.lokasiId === "string" ? input.lokasiId : ""),
     schema: options.schema,
@@ -121,6 +125,7 @@ const createSchema = z.object({
 /** Admin Platform starts a Lokasi Mitra's onboarding record, then opens it. */
 export async function buatLokasiMitra(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "lokasi.buat",
     resource: () => semuaLokasiMitraResource(),
     schema: createSchema,
@@ -408,6 +413,7 @@ const ALASAN_WAJIB = "Tulis alasannya, untuk Audit Log.";
 /** Admin Platform sets a Terverifikasi Lokasi Mitra Ditangguhkan, with a reason: it takes no new Hak Pakai, the rest carries on. */
 export async function tangguhkanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
   return lokasiWrite({
+    fitur: "lokasi_ditangguhkan",
     action: "lokasi.ubah_status",
     schema: statusSchema,
     input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan") },
@@ -420,6 +426,7 @@ export async function tangguhkanLokasi(_previous: FormState, formData: FormData)
 /** Admin Platform reinstates a Ditangguhkan Lokasi Mitra, with a reason. */
 export async function pulihkanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
   return lokasiWrite({
+    fitur: "lokasi_ditangguhkan",
     action: "lokasi.ubah_status",
     schema: statusSchema,
     input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan") },
@@ -432,6 +439,7 @@ export async function pulihkanLokasi(_previous: FormState, formData: FormData): 
 /** Admin Platform ends the partnership (Berhenti) with a reason and an effective date (default 30 days on); the families are told. */
 export async function hentikanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
   return lokasiWrite({
+    fitur: "lokasi_ditangguhkan",
     action: "lokasi.ubah_status",
     schema: hentikanSchema,
     input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan"), berlakuOn: formData.get("berlakuOn") ?? "" },

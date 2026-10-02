@@ -96,6 +96,7 @@ async function tariffWrite<S extends z.ZodType, R extends TariffResult>(options:
   pages: (data: z.infer<S>) => string[];
 }): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "tarif.ubah",
     resource: () => options.resource,
     schema: options.schema,

@@ -1,5 +1,6 @@
 "use server";
 
+import { gerbangAksi } from "@/server/guard";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { documentLinkSchema } from "@/domain/billing";
@@ -17,6 +18,8 @@ const bayarSchema = z.object({ link: documentLinkSchema });
 
 /** Bayar: on to the PaymentProvider's payment page for the Tagihan (its Bukti Pembayaran once Lunas). */
 export async function bayarTagihan(formData: FormData): Promise<void> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = bayarSchema.safeParse({ link: formData.get("link") });
   if (!parsed.success) notFound();
   const result = await serverRuntime().billing.bayar(parsed.data.link);

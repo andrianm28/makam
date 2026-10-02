@@ -16,6 +16,7 @@ import { serverRuntime } from "@/server/runtime";
 export async function kirimPesanThreadPlatform(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
   const pekerjaanId = String(formData.get("pekerjaanId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "keluhan.kelola",
     resource: () => keluhanLayananResource(),
     schema: kirimPesanThreadSchema,

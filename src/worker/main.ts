@@ -19,7 +19,8 @@ import { createQueuesTicks } from "@/domain/queues";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
-import { scheduledTicks } from "@/domain/scheduler";
+import { scheduledTicks, ticksForRelease } from "@/domain/scheduler";
+import { rilisAktif } from "@/lib/rilis";
 import { readRuntimeEnv } from "@/lib/env";
 import type { ReportError } from "@/lib/observability/report-error";
 import { startWorker } from "./runtime";
@@ -147,6 +148,8 @@ async function main() {
     layanan,
   });
 
+  const rilis = rilisAktif();
+  const workerTicks = ticksForRelease(scheduledTicks, rilis);
   const worker = await startWorker({
     connectionString: env.DATABASE_URL,
     context: composeSchedulerContext({
@@ -182,13 +185,13 @@ async function main() {
       }),
     }),
     clock: adapters.clock,
-    ticks: scheduledTicks,
+    ticks: workerTicks,
     onError: (error, context) => {
       console.error("[worker] error", context.job ?? "", error);
       sentry.captureException(error, { tags: context.job ? { job: context.job } : undefined });
     },
   });
-  console.log(`[worker] started: ${scheduledTicks.map((t) => `${t.name} (${t.cron})`).join(", ")}`);
+  console.log(`[worker] started (RILIS_TERBUKA=${rilis}): ${scheduledTicks.map((t) => `${t.name} (${t.cron})`).join(", ")}`);
 
   let stopping = false;
   const shutdown = async (signal: string) => {
