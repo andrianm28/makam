@@ -9,5 +9,5 @@ export interface TariffDeps {
   /** Every tariff write records an Entri Audit here. */
   audit: AuditLog;
   /** A Lokasi Mitra is looked up through the Lokasi module, never its table: by a staff actor, or whether it is listed. */
-  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi">;
+  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "dapatDiharga">;
 }

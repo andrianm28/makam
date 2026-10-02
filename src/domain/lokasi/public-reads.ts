@@ -79,6 +79,22 @@ export async function publicLokasiMitra(deps: { db: Database }, lokasiId: string
   return toPublicLokasiMitra(row);
 }
 
+/**
+ * A Lokasi Mitra's public profile for a page that stays up after it stops taking new Hak Pakai (ticket 59): the
+ * Lokasi page ("sementara tidak menerima pesanan") and what a Hak Pakai Pemegang Hak still reads. Terverifikasi,
+ * Ditangguhkan or Berhenti, never Belum Tayang or example data; `status` says which. Null otherwise. Order entry
+ * points do not use this: they ask `izinPesanan`.
+ */
+export async function publicLokasiMitraTampil(
+  deps: { db: Database },
+  lokasiId: string,
+): Promise<(PublicLokasiMitra & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
+  if (!row || row.dataContoh || row.status === "belum_tayang") return null;
+  return { ...toPublicLokasiMitra(row), status: row.status };
+}
+
 /** Not example data: the one condition every public listing shares. */
 const bukanDataContoh = eq(lokasiMitraTable.dataContoh, false);
 

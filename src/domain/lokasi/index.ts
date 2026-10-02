@@ -108,6 +108,7 @@ import {
 } from "./publish";
 import {
   berhentiBerlakuBelumDiproses,
+  dapatDiharga,
   hentikan,
   izinPesanan,
   pulihkan,
@@ -139,6 +140,7 @@ import {
 } from "./tpu";
 import {
   publicLokasiMitra,
+  publicLokasiMitraTampil,
   publicLokasiMitraCities,
   publicLokasiMitraList,
   publicLokasiMakamCities,
@@ -431,6 +433,8 @@ export interface Lokasi {
   pulihkan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
   /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
   hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string }): Promise<HentikanResult>;
+  /** Whether a quote may price this Lokasi: listed, Ditangguhkan, or Berhenti before its effective date (carry-on actions price there). */
+  dapatDiharga(lokasiId: string): Promise<boolean>;
   /** Every order entry point asks this first: may an order of this kind be taken at this Lokasi now. */
   izinPesanan(lokasiId: string, jenis: JenisPesanan): Promise<IzinPesanan>;
   /** The status facts the rules read (Berhenti's effective date included); null for an unknown Lokasi. */
@@ -447,6 +451,8 @@ export interface Lokasi {
   activateTerencana(by: Actor, lokasiId: string, input: ActivateTerencanaInput): Promise<ActivateTerencanaResult>;
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
+  /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang or example data. */
+  publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
   /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city, one Lokasi Mitra, and facilities. */
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
@@ -522,12 +528,14 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     tangguhkan: (by, lokasiId) => tangguhkan(deps, by, lokasiId),
     pulihkan: (by, lokasiId) => pulihkan(deps, by, lokasiId),
     hentikan: (by, lokasiId, input) => hentikan(deps, by, lokasiId, input),
+    dapatDiharga: (lokasiId) => dapatDiharga(deps, lokasiId),
     izinPesanan: (lokasiId, jenis) => izinPesanan(deps, lokasiId, jenis),
     statusPesananOf: (lokasiId) => statusPesananOf(deps, lokasiId),
     berhentiBerlakuBelumDiproses: () => berhentiBerlakuBelumDiproses(deps),
     tandaiBerhentiDiproses: (lokasiId) => tandaiBerhentiDiproses(deps, lokasiId),
     activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
+    publicLokasiMitraTampil: (lokasiId) => publicLokasiMitraTampil(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
     publicLokasiMitraCities: () => publicLokasiMitraCities(deps),
     tpuDkiList: (by) => tpuDkiList(deps, by),

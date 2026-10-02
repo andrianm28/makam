@@ -212,7 +212,8 @@ export interface LayananUntukPesanan {
 
 /** The Layanan a Lokasi Mitra offers at `at`, in catalog order, with each variant's own price. */
 export async function penawaranUntukPesanan(deps: LayananDeps, lokasiId: string, at: Date): Promise<LayananUntukPesanan[]> {
-  if (!(await deps.lokasi.isTerverifikasi(lokasiId))) return [];
+  // Layanan is carry-on under an existing Hak Pakai, so a Ditangguhkan Lokasi still offers it (ticket 59).
+  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))) return [];
   const [semua, prices] = await Promise.all([katalog(deps.db), deps.tariffs.hargaLayananLokasiSemua(lokasiId, at)]);
   const ditawarkan = new Set((await penawaranOfLokasi(deps.db, lokasiId)).map((offer) => offer.layananVariantId));
   return semua

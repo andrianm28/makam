@@ -200,7 +200,7 @@ export interface LayananDeps {
   /** Every catalog, offering, Paket and staff write records an Entri Audit here. */
   audit: AuditLog;
   /** A Lokasi Mitra is looked up through the Lokasi module, never its table: by a staff actor, or whether it is listed. */
-  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "publicLokasiMitra" | "publicTpuDki">;
+  lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "izinPesanan" | "publicLokasiMitra" | "publicLokasiMitraTampil" | "publicTpuDki">;
   /**
    * Every price of a Layanan variant is a versioned tariff: quoted here, read for
    * the screens, and written through the Tariffs module — `within(tx)` so an

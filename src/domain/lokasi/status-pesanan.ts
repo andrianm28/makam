@@ -68,7 +68,7 @@ export async function tangguhkan(deps: LokasiDeps, by: Actor, lokasiId: string):
     (row) =>
       row.status !== "terverifikasi"
         ? ({ ok: false, reason: "status_tidak_cocok" } as const)
-        : { values: { status: "ditangguhkan" }, before: { status: row.status }, after: { status: "ditangguhkan" } },
+        : { values: { status: "ditangguhkan" as const }, before: { status: row.status }, after: { status: "ditangguhkan" } },
     "lokasi.ubah_status",
   );
 }
@@ -83,7 +83,7 @@ export async function pulihkan(deps: LokasiDeps, by: Actor, lokasiId: string): P
     (row) =>
       row.status !== "ditangguhkan"
         ? ({ ok: false, reason: "status_tidak_cocok" } as const)
-        : { values: { status: "terverifikasi" }, before: { status: row.status }, after: { status: "terverifikasi" } },
+        : { values: { status: "terverifikasi" as const }, before: { status: row.status }, after: { status: "terverifikasi" } },
     "lokasi.ubah_status",
   );
 }
@@ -140,4 +140,18 @@ export async function tandaiBerhentiDiproses(deps: LokasiDeps, lokasiId: string)
     .update(lokasiMitraTable)
     .set({ berhentiDiprosesAt: deps.clock.now() })
     .where(and(eq(lokasiMitraTable.id, lokasiId), eq(lokasiMitraTable.status, "berhenti"), isNull(lokasiMitraTable.berhentiDiprosesAt)));
+}
+
+/**
+ * Whether a quote may price this Lokasi: listed, or Ditangguhkan, or Berhenti before its effective date, because
+ * Perpanjangan and the rest of a Hak Pakai's carry-on actions price there (not example data). A new Hak Pakai is
+ * kept from Ditangguhkan and Berhenti by `izinPesanan` and by the listing, not by this.
+ */
+export async function dapatDiharga(deps: LokasiDeps, lokasiId: string): Promise<boolean> {
+  if (!isLokasiId(lokasiId)) return false;
+  const [row] = await deps.db.select({ dataContoh: lokasiMitraTable.dataContoh }).from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
+  if (!row || row.dataContoh) return false;
+  const facts = await statusPesananOf(deps, lokasiId);
+  if (!facts || facts.status === "belum_tayang") return false;
+  return izinPesananDari(facts, "lanjutan").diizinkan;
 }

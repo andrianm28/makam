@@ -19,6 +19,14 @@ export function publicVisibility(deps: TariffDeps): Visibility {
   return (lokasiId) => deps.lokasi.isTerverifikasi(lokasiId);
 }
 
+/**
+ * What a quote may price: also a Lokasi Mitra that is Ditangguhkan or Berhenti before its effective date, because
+ * Perpanjangan and the other carry-on actions under an existing Hak Pakai are priced there (ticket 59).
+ */
+export function quoteVisibility(deps: TariffDeps): Visibility {
+  return (lokasiId) => deps.lokasi.dapatDiharga(lokasiId);
+}
+
 export function staffVisibility(deps: TariffDeps, by: Actor): Visibility {
   return async (lokasiId) => (await deps.lokasi.lokasiMitra(by, lokasiId)).ok;
 }
@@ -68,7 +76,7 @@ export interface StaffTariffReads extends TariffReads {
   tariffsChecked(lokasiId: string): Promise<TariffsChecked | null>;
 }
 
-export function tariffReads(deps: TariffDeps, visibility: Visibility): StaffTariffReads {
+export function tariffReads(deps: TariffDeps, visibility: Visibility, quoting: Visibility = visibility): StaffTariffReads {
   const { db } = deps;
   return {
     lokasiTariffs: (lokasiId, at) => lokasiTariffs(db, remembered(visibility), lokasiId, at),
@@ -78,7 +86,7 @@ export function tariffReads(deps: TariffDeps, visibility: Visibility): StaffTari
       return jenisMakamVersions(db, jenisMakam.id);
     },
     biayaPemakamanHistory: async (lokasiId) => ((await visibility(lokasiId)) ? biayaPemakamanVersions(db, lokasiId) : []),
-    quote: (lines, at) => quote(db, remembered(visibility), lines, at),
+    quote: (lines, at) => quote(db, remembered(quoting), lines, at),
     lokasiPricing: (lokasiId, at) => lokasiPublicPricing(db, remembered(visibility), lokasiId, at),
     tpuPricing: (at) => tpuPublicPricing(db, remembered(visibility), at),
     tariffsChecked: async (lokasiId) => ((await visibility(lokasiId)) ? tariffsChecked(db, lokasiId) : null),

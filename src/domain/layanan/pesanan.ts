@@ -436,7 +436,8 @@ export type Tertulis =
  */
 export async function cekHakPakai(deps: LayananDeps, lokasiId: string, petakId: string): Promise<Tertulis> {
   if (!z.uuid().safeParse(lokasiId).success || !z.uuid().safeParse(petakId).success) return { ok: false, reason: "grave_tidak_ditemukan" };
-  if (!(await deps.lokasi.isTerverifikasi(lokasiId))) return { ok: false, reason: "lokasi_tidak_terbuka" };
+  // A Layanan order is carry-on under an existing Hak Pakai: a Ditangguhkan Lokasi takes it, a Berhenti one until its effective date (ticket 59).
+  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan) return { ok: false, reason: "lokasi_tidak_terbuka" };
   const hak = await deps.inventory.hakPakaiOfUnit({ petakId });
   if (!hak || hak.lokasiId !== lokasiId) return { ok: false, reason: "grave_tidak_ditemukan" };
   // Berakhir is the ticket's own rule, and the only one (AC 1 names no other).
@@ -457,7 +458,7 @@ export async function cekHakPakai(deps: LayananDeps, lokasiId: string, petakId: 
   // a recorded gap with its own tickets, not this rule's business.
   if (hak.status === "berakhir") return { ok: false, reason: "hak_pakai_berakhir" };
   if (hak.nomor === null) return { ok: false, reason: "grave_tidak_ditemukan" };
-  const lokasi = await deps.lokasi.publicLokasiMitra(lokasiId);
+  const lokasi = await deps.lokasi.publicLokasiMitraTampil(lokasiId);
   if (!lokasi) return { ok: false, reason: "lokasi_tidak_terbuka" };
   return { ok: true, hak, petak: { nomor: hak.nomor }, lokasi: { id: lokasiId, name: lokasi.name } };
 }
