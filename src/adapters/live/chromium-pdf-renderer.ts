@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { scrubbedError, type ReportError } from "@/lib/observability/report-error";
 import type { PdfRenderer, PdfRenderRequest } from "@/ports/pdf-renderer";
 
 export interface ChromiumPdfRendererOptions {
@@ -9,6 +10,8 @@ export interface ChromiumPdfRendererOptions {
   executablePath: string;
   /** How long one render may take before it is abandoned. Default 30 s. */
   timeoutMs?: number;
+  /** Where a work directory that could not be removed is reported; the render still succeeds. */
+  reportError?: ReportError;
 }
 
 /**
@@ -24,10 +27,12 @@ export interface ChromiumPdfRendererOptions {
 export class ChromiumPdfRenderer implements PdfRenderer {
   readonly #executablePath: string;
   readonly #timeoutMs: number;
+  readonly #reportError: ReportError | undefined;
 
   constructor(options: ChromiumPdfRendererOptions) {
     this.#executablePath = options.executablePath;
     this.#timeoutMs = options.timeoutMs ?? 30_000;
+    this.#reportError = options.reportError;
   }
 
   async render(request: PdfRenderRequest): Promise<Uint8Array> {
@@ -47,7 +52,21 @@ export class ChromiumPdfRenderer implements PdfRenderer {
       if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") throw new Error("PdfRenderer: Chromium wrote no PDF");
       return new Uint8Array(bytes);
     } finally {
-      await rm(workDir, { recursive: true, force: true });
+      await this.#removeWorkDir(workDir);
+    }
+  }
+
+  /**
+   * Chromium's helper processes may still write into the profile after the main
+   * process exits, so the removal is retried. A directory that stays behind is
+   * only litter in the temp dir: it is reported and never fails the render.
+   */
+  async #removeWorkDir(workDir: string): Promise<void> {
+    try {
+      await rm(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch (error) {
+      // The error message carries the temp path only (random name), nothing about the document.
+      this.#reportError?.(scrubbedError(error), { tags: { area: "pdf-renderer", step: "cleanup" } });
     }
   }
 
