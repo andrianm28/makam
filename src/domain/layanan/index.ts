@@ -185,6 +185,7 @@ import {
   tolakBuktiTpu,
   tutupJendelaTpu,
   tandaiTerlambatTpu,
+  jendelaKeluhanTpu,
   type BuktiTpuMitraJasa,
   type BuktiTpuStaf,
   type KerjaUlangTpuResult,
@@ -658,6 +659,8 @@ export interface Layanan {
   tolakBuktiTpu(by: Actor, input: unknown): Promise<TolakBuktiTpuResult>;
   /** Admin Platform has a finished job redone by the same or another Mitra Jasa. */
   kerjaUlangTpu(by: Actor, input: unknown): Promise<KerjaUlangTpuResult>;
+  /** When a TPU job's Keluhan window opened, ends, and whether it is closed: the message thread turns read-only on it. Null for no such job. */
+  jendelaKeluhanTpu(pekerjaanId: string): Promise<{ dibukaAt: Date | null; berakhirAt: Date | null; ditutup: boolean } | null>;
   /** The Pemesan files a Keluhan on a Selesai TPU job inside the window; the job becomes Keluhan and its Pencairan is held. */
   ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
   /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
@@ -796,6 +799,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     setujuiBuktiTpu: (by, input) => setujuiBuktiTpu(deps, by, input),
     tolakBuktiTpu: (by, input) => tolakBuktiTpu(deps, by, input),
     kerjaUlangTpu: (by, input) => kerjaUlangTpu(deps, by, input),
+    jendelaKeluhanTpu: (pekerjaanId) => jendelaKeluhanTpu(deps.db, pekerjaanId),
     ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
     putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
     keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),

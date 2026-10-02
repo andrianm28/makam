@@ -541,3 +541,16 @@ export async function tandaiTerlambatTpu(db: Database, now: Date): Promise<numbe
     .returning({ id: pekerjaanLayananTpu.id });
   return ditandai.length;
 }
+
+/**
+ * When the Keluhan window of a TPU job opened (Admin Platform approved the proof), when it ends, and whether the
+ * window-close tick has closed it: what the job's message thread reads to turn read-only. Null for no such job.
+ */
+export async function jendelaKeluhanTpu(db: Database, pekerjaanId: string): Promise<{ dibukaAt: Date | null; berakhirAt: Date | null; ditutup: boolean } | null> {
+  const [job] = await db
+    .select({ dibuka: pekerjaanLayananTpu.buktiDitunjukkanAt, ditutup: pekerjaanLayananTpu.jendelaDitutupAt })
+    .from(pekerjaanLayananTpu)
+    .where(eq(pekerjaanLayananTpu.id, pekerjaanId));
+  if (!job) return null;
+  return { dibukaAt: job.dibuka, berakhirAt: job.dibuka ? new Date(job.dibuka.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null, ditutup: job.ditutup !== null };
+}

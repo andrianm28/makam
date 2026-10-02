@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { pekerjaanTpuSemuaResource } from "@/domain/identity";
-import { lepasPenugasanSchema, tugaskanMitraJasaSchema } from "@/domain/layanan/tpu-skema";
+import { lepasPenugasanSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema, tugaskanMitraJasaSchema } from "@/domain/layanan/tpu-skema";
 import { penugasanMessages } from "@/lib/layanan-tpu-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
@@ -55,4 +55,50 @@ export async function lepasPenugasan(_previous: FormState, formData: FormData): 
   revalidatePath(LIST);
   revalidatePath(`${LIST}/${pekerjaanId}`);
   return { status: "berhasil", message: "Pekerjaan dilepas. Tugaskan ke Mitra Jasa lain." };
+}
+
+const buktiMessages: Record<string, string> = {
+  input_tidak_valid: "Periksa lagi isian Anda. Alasan penolakan wajib diisi.",
+  tidak_ditemukan: "Pekerjaan ini tidak ditemukan.",
+  bukan_menunggu_verifikasi: "Bukti pekerjaan ini tidak sedang menunggu pemeriksaan.",
+  tarif_belum_ada: "Tarif Mitra Jasa untuk layanan ini belum ditetapkan, jadi bukti belum bisa disetujui. Tetapkan tarifnya dulu.",
+  pelaksana_tidak_ada: "Tidak ada Mitra Jasa yang memegang pekerjaan ini.",
+};
+
+function buktiRefused(reason: string): FormState {
+  return { status: "gagal", message: reason === "tidak_berwenang" || reason === "perlu_totp" || reason === "belum_masuk" ? guardMessage(reason) : (buktiMessages[reason] ?? "Gagal. Coba lagi.") };
+}
+
+/** Admin Platform approves the proof: the job is Selesai, the Pemesan is shown the proof and the Keluhan window opens. */
+export async function setujuiBukti(_previous: FormState, formData: FormData): Promise<FormState> {
+  const pekerjaanId = field(formData, "pekerjaanId");
+  const hasil = await guarded({
+    action: "pekerjaan_tpu.kelola",
+    resource: () => pekerjaanTpuSemuaResource(),
+    schema: pekerjaanTpuIdSchema,
+    input: { pekerjaanId },
+    run: (actor, data) => serverRuntime().layanan.setujuiBuktiTpu(actor, data),
+  });
+  if (!hasil.ok) return buktiRefused(hasil.error);
+  if (!hasil.value.ok) return buktiRefused(hasil.value.reason);
+  revalidatePath(LIST);
+  revalidatePath(`${LIST}/${pekerjaanId}`);
+  return { status: "berhasil", message: "Bukti disetujui. Pemesan diberi tahu dan masa keluhan 3×24 jam dimulai." };
+}
+
+/** Admin Platform sends the proof back with the reason: the job returns to Sedang Dikerjakan. */
+export async function tolakBukti(_previous: FormState, formData: FormData): Promise<FormState> {
+  const pekerjaanId = field(formData, "pekerjaanId");
+  const hasil = await guarded({
+    action: "pekerjaan_tpu.kelola",
+    resource: () => pekerjaanTpuSemuaResource(),
+    schema: tolakBuktiTpuSchema,
+    input: { pekerjaanId, alasan: field(formData, "alasan") },
+    run: (actor, data) => serverRuntime().layanan.tolakBuktiTpu(actor, data),
+  });
+  if (!hasil.ok) return buktiRefused(hasil.error);
+  if (!hasil.value.ok) return buktiRefused(hasil.value.reason);
+  revalidatePath(LIST);
+  revalidatePath(`${LIST}/${pekerjaanId}`);
+  return { status: "berhasil", message: "Bukti ditolak. Mitra Jasa diminta mengambil ulang." };
 }

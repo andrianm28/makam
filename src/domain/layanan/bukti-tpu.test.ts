@@ -490,3 +490,20 @@ describe("a Keluhan on a TPU job", () => {
     expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Tidak jadi" })).toEqual({ ok: true });
   });
 });
+
+describe("the Keluhan window of a TPU job, as the message thread reads it", () => {
+  it("opens when the proof is approved, ends 3×24 h later, and is closed once the tick has run past it", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await kerjaDiterima(s, mitra);
+    await kirimBunga(s, mitra, pekerjaanId);
+    expect(await s.setup.layanan.jendelaKeluhanTpu(pekerjaanId)).toEqual({ dibukaAt: null, berakhirAt: null, ditutup: false });
+
+    s.setup.clock.set(wib("2026-10-05 10:00"));
+    await setujui(s, pekerjaanId);
+    expect(await s.setup.layanan.jendelaKeluhanTpu(pekerjaanId)).toEqual({ dibukaAt: wib("2026-10-05 10:00"), berakhirAt: wib("2026-10-08 10:00"), ditutup: false });
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-08 10:01"));
+    expect(await s.setup.layanan.jendelaKeluhanTpu(pekerjaanId)).toMatchObject({ ditutup: true });
+    expect(await s.setup.layanan.jendelaKeluhanTpu("00000000-0000-4000-8000-000000000000")).toBeNull();
+  });
+});
