@@ -16,6 +16,9 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   pengelolaName: text("pengelola_name").notNull(),
+  /** The pengelola's phone (+62) and email, shown to the family at a Berhenti Lokasi; null until recorded. */
+  pengelolaTelepon: text("pengelola_telepon"),
+  pengelolaEmail: text("pengelola_email"),
   address: text("address").notNull(),
   /** Kota or kabupaten, as typed (e.g. "Kota Jakarta Timur", "Kabupaten Bogor"). */
   city: text("city").notNull(),

@@ -148,6 +148,9 @@ const profileSchema = z.object({
   lokasiId,
   name: text(200),
   pengelolaName: text(200),
+  // Blank clears; the module normalises the phone to +62 and refuses a non-Indonesian-mobile number.
+  pengelolaTelepon: z.string().trim().max(30),
+  pengelolaEmail: z.string().trim().pipe(z.union([z.literal(""), z.email().max(200)])),
   address: text(500),
   city: text(120),
   pinLat: optionalCoordinate,
@@ -165,6 +168,8 @@ export async function simpanProfil(_previous: FormState, formData: FormData): Pr
       lokasiId: formData.get("lokasiId"),
       name: formData.get("name"),
       pengelolaName: formData.get("pengelolaName"),
+      pengelolaTelepon: formData.get("pengelolaTelepon") ?? "",
+      pengelolaEmail: formData.get("pengelolaEmail") ?? "",
       address: formData.get("address"),
       city: formData.get("city"),
       pinLat: formData.get("pinLat") ?? "",
@@ -176,6 +181,8 @@ export async function simpanProfil(_previous: FormState, formData: FormData): Pr
       serverRuntime().lokasi.updateProfile(actor, data.lokasiId, {
         name: data.name,
         pengelolaName: data.pengelolaName,
+        pengelolaTelepon: data.pengelolaTelepon,
+        pengelolaEmail: data.pengelolaEmail,
         address: data.address,
         city: data.city,
         pin: data.pinLat !== null && data.pinLng !== null ? { lat: data.pinLat, lng: data.pinLng } : null,

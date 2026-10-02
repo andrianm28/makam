@@ -4,7 +4,7 @@ import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
 import { signInAsAdminLokasi, signInAsAdminPlatform } from "../../../../../tests/support/server-sign-in";
-import { simpanKebijakan, simpanRekening, unggahPerjanjian } from "./actions";
+import { simpanKebijakan, simpanProfil, simpanRekening, unggahPerjanjian } from "./actions";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => import("../../../../../tests/support/next-request"));
@@ -88,6 +88,26 @@ describe("Lokasi Mitra Server Actions", () => {
 
     expect(await server.runtime().lokasi.lokasiMitra(admin, lokasiId)).toMatchObject({
       lokasiMitra: { bankAccount: { bankName: "BSI", accountNumber: "7123456789", accountHolder: "Yayasan Al-Ikhlas" } },
+    });
+  });
+
+  it("Simpan profil: Admin Platform records the pengelola's phone and email; a malformed email is refused with nothing changed", async () => {
+    const { admin, lokasiId } = await newLokasiMitra();
+    const typed = {
+      lokasiId,
+      name: "Makam Wakaf Al-Ikhlas",
+      pengelolaName: "Yayasan Al-Ikhlas",
+      address: "Jl. Raya Pondok Rangon No. 1",
+      city: "Kota Jakarta Timur",
+      pengelolaTelepon: "0812 3456 7890",
+      pengelolaEmail: "rahmat@example.com",
+    };
+
+    expect(await simpanProfil(idle, form(typed))).toEqual({ status: "berhasil", message: "Profil tersimpan." });
+    expect((await simpanProfil(idle, form({ ...typed, pengelolaEmail: "bukan-email", pengelolaTelepon: "" }))).status).toBe("gagal");
+
+    expect(await server.runtime().lokasi.lokasiMitra(admin, lokasiId)).toMatchObject({
+      lokasiMitra: { pengelolaTelepon: "+6281234567890", pengelolaEmail: "rahmat@example.com" },
     });
   });
 });

@@ -18,6 +18,7 @@
 
 // A type only, so it is erased: this module's values stay safe on a client
 // component's import graph, where a domain module's own code would not be.
+import { formatTelepon } from "@/lib/format-telepon";
 import type { MakamDitemukan, MakamSaya } from "@/domain/inventory";
 
 /** A Hak Pakai status as a family is told: the word, and what it means for them. */
@@ -231,13 +232,16 @@ export interface KartuMakamSaya {
   /** True once the Lokasi's Berhenti has taken effect: the record stays, with no Perpanjang, Layanan or other action (ticket 59). */
   hanyaBaca: boolean;
   /** Read-only cards only: who runs the Lokasi Mitra, for the family to reach it about the record (ticket 59). */
-  pengelola: { name: string; address: string } | null;
+  pengelola: { name: string; address: string; telepon: string | null; email: string | null } | null;
 }
 
 /** What the Lokasi Mitra holds of its pengelola. */
 export interface PengelolaLokasi {
   pengelolaName: string;
   address: string;
+  /** +62 form, as the Lokasi module holds it. */
+  telepon: string | null;
+  email: string | null;
 }
 
 /**
@@ -269,6 +273,11 @@ export function kartuMakamSaya(
     dokumen: [...dokumen],
     alamat: hubPath({ lokasiId: satu.lokasiId, cari, nomor }),
     hanyaBaca: pengelola !== undefined,
-    pengelola: pengelola ? { name: pengelola.pengelolaName, address: pengelola.address } : null,
+    pengelola: pengelola ? {
+          name: pengelola.pengelolaName,
+          address: pengelola.address,
+          telepon: pengelola.telepon === null ? null : formatTelepon(pengelola.telepon),
+          email: pengelola.email,
+        } : null,
   };
 }

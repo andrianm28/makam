@@ -148,6 +148,7 @@ import {
   publicVisitPhotoUrls,
   type LokasiMakamCard,
   type LokasiMakamQuery,
+  type PengelolaKontak,
   type PublicLokasiMitra,
   type PublicLokasiMitraCard,
   type PublicLokasiMitraQuery,
@@ -258,7 +259,7 @@ export {
   type TerencanaSwitchGate,
   type TerencanaSwitchKey,
 } from "./terencana";
-export type { PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
+export type { PengelolaKontak, PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
 export type { LokasiMakamCard, LokasiMakamKind, LokasiMakamQuery } from "./public-reads";
 
 export interface LokasiModuleDeps {
@@ -453,7 +454,7 @@ export interface Lokasi {
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
   /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang or example data. */
-  publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
+  publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
   /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city, one Lokasi Mitra, and facilities. */
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */

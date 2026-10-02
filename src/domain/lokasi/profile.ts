@@ -27,6 +27,9 @@ const requiredText = (max: number) => z.string().trim().min(1).max(max);
 export const lokasiProfileSchema = z.object({
   name: requiredText(200),
   pengelolaName: requiredText(200),
+  /** The pengelola's contact for the family at a Berhenti Lokasi; blank or absent clears it. The phone is normalised to +62 by the module. */
+  pengelolaTelepon: z.string().trim().max(30).optional(),
+  pengelolaEmail: z.string().trim().pipe(z.union([z.literal(""), z.email().max(200)])).optional(),
   address: requiredText(500),
   /** Kota or kabupaten. */
   city: requiredText(120),

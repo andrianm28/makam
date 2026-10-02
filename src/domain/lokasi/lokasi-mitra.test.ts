@@ -182,8 +182,11 @@ describe("the pengelola's phone and email of a Lokasi Mitra", () => {
     expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pengelolaTelepon: null, pengelolaEmail: null } });
   });
 
-  it("refuses a malformed email or a phone that is not an Indonesian mobile number", async () => {
+  it("refuses a malformed email", async () => {
     expect((await withProfile({ pengelolaEmail: "bukan-email" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
+  });
+
+  it("refuses a phone that is not an Indonesian mobile number", async () => {
     expect((await withProfile({ pengelolaTelepon: "123" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
   });
 

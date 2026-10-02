@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog, AuditSnapshot } from "@/domain/audit";
 import {
   lokasiMitraResource,
+  normalisePhoneNumber,
   semuaLokasiMitraResource,
   writeRefusal,
   type Action,
@@ -40,6 +41,9 @@ export interface LokasiMitra {
   id: string;
   name: string;
   pengelolaName: string;
+  /** +62 form; null until Admin Platform records it. */
+  pengelolaTelepon: string | null;
+  pengelolaEmail: string | null;
   address: string;
   city: string;
   pin: { lat: number; lng: number } | null;
@@ -257,11 +261,21 @@ export async function updateProfile(
 ): Promise<UpdateProfileResult> {
   const parsed = lokasiProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "profil_tidak_valid" };
-  const profile = parsed.data;
+  const telepon = parsed.data.pengelolaTelepon ?? "";
+  const phone = telepon === "" ? null : normalisePhoneNumber(telepon);
+  if (phone && !phone.ok) return { ok: false, reason: "profil_tidak_valid" };
+  const { pengelolaTelepon: _t, pengelolaEmail: _e, ...rest } = parsed.data;
+  const profile = {
+    ...rest,
+    pengelolaTelepon: phone?.ok ? phone.phoneNumber : null,
+    pengelolaEmail: parsed.data.pengelolaEmail || null,
+  };
   return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_profil", (row) => ({
     values: {
       name: profile.name,
       pengelolaName: profile.pengelolaName,
+      pengelolaTelepon: profile.pengelolaTelepon,
+      pengelolaEmail: profile.pengelolaEmail,
       address: profile.address,
       city: profile.city,
       pinLat: profile.pin?.lat ?? null,
@@ -272,6 +286,8 @@ export async function updateProfile(
     before: {
       name: row.name,
       pengelolaName: row.pengelolaName,
+      pengelolaTelepon: row.pengelolaTelepon,
+      pengelolaEmail: row.pengelolaEmail,
       address: row.address,
       city: row.city,
       pin: pinOf(row),
@@ -430,6 +446,8 @@ function toLokasiMitra(row: Row): LokasiMitra {
     id: row.id,
     name: row.name,
     pengelolaName: row.pengelolaName,
+    pengelolaTelepon: row.pengelolaTelepon,
+    pengelolaEmail: row.pengelolaEmail,
     address: row.address,
     city: row.city,
     pin: pinOf(row),
