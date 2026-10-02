@@ -25,9 +25,12 @@ export function schedulerContext(parts: {
   inventory?: SchedulerContext["inventory"];
   pengingatHakPakai?: SchedulerContext["pengingatHakPakai"];
   queues?: SchedulerContext["queues"];
+  pengurusan?: SchedulerContext["pengurusan"];
 }): SchedulerContext {
   return {
     db: parts.db,
+    // No filing-only Pengurusan order is waiting on a Tagihan until a test gives the tick Billing.
+    pengurusan: parts.pengurusan ?? { billing: { tagihanBerlaku: async () => null } },
     paymentEffects: parts.paymentEffects ?? [],
     reportError: parts.reportError ?? (() => {}),
     notifications: parts.notifications ?? {

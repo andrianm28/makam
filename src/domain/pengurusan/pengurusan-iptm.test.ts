@@ -6,10 +6,12 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { lapsePayFirstTagihanTick } from "@/domain/billing";
 import { addWorkingDays } from "@/domain/lokasi";
+import { scheduledTicks } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { pemesanDenganEmail, pengajuanOnTestDatabase, tpu, type PengajuanSetup } from "../../../tests/support/pengurusan";
 import { signedInPetugasLapangan } from "../../../tests/support/publish";
+import { schedulerContext } from "../../../tests/support/scheduler";
 import { siapkanOperatorPemesanan } from "../../../tests/support/pemesanan";
 
 const { db, close } = testDatabase();
@@ -191,6 +193,23 @@ describe("Pengurusan IPTM placed for a family that buried on its own", () => {
     const dasar = await pesananBerkas(setup);
     await sampaiMenungguPembayaran(setup, dasar);
     expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor: dasar.nomor })).toEqual({ ok: false, reason: "status_tidak_sesuai" });
+  });
+});
+
+describe("the worker's Pengurusan tick", () => {
+  it("makes a paid filing-only order Diproses and a lapsed one Dibatalkan, and registers as a scheduled tick", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    const tagihan = await sampaiMenungguPembayaran(setup, dasar);
+    const tick = scheduledTicks.find((satu) => satu.name === "pengurusan.pembayaran_berkas");
+    expect(tick).toBeDefined();
+    const ctx = schedulerContext({ db, pengurusan: { billing: setup.billing } });
+
+    await setup.billing.recordPayment(tagihan.id, QRIS);
+    await tick!.tick(ctx, wib("2026-10-02 15:00"));
+    await tick!.tick(ctx, wib("2026-10-02 15:01"));
+    expect(await setup.pengurusan.orderOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "diproses" });
+    expect((await setup.pengurusan.pengajuanBerkasTerbuka())[0]!.lunasPada).toEqual(wib("2026-10-02 15:00"));
   });
 });
 

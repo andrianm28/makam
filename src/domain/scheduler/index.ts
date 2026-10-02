@@ -12,7 +12,8 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
-import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
+import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type Billing, type PaymentEffect } from "@/domain/billing";
+import { pembayaranBerkasTick } from "@/domain/pengurusan";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
 import { berhentiBerlakuTick as berhentiBerlaku, type BerhentiContext } from "./berhenti";
@@ -71,6 +72,13 @@ export interface SchedulerContext {
   inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick">;
   /** The Hak Pakai end reminders' own dependencies: Inventory's candidates, Lokasi's Masa Tenggang, the Admin Lokasi, Billing's Tagihan and Notifications (ticket 42). */
   pengingatHakPakai: PengingatDeps;
+  /** The filing-only Pengurusan IPTM tick (ticket 47): Billing's read of its pay-first Tagihan. */
+  pengurusan: PengurusanTickContext;
+}
+
+/** What the filing-only Pengurusan IPTM tick reads: its own database and Billing's one public read of a Tagihan. */
+export interface PengurusanTickContext {
+  billing: Pick<Billing, "tagihanBerlaku">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -117,6 +125,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "pemesanan.realert_saat_duka", cron: "* * * * *", tick: realertSaatDukaTick },
   // Pemesanan: a confirmed Terencana order whose payment hold ended unpaid is cancelled and its plots released (ticket 37).
   { name: "pemesanan.lewat_batas_bayar_terencana", cron: "* * * * *", tick: lewatBatasBayarTerencanaTick },
+  // Pengurusan: a filing-only IPTM whose pay-first Tagihan is Lunas becomes Diproses, and one whose Tagihan lapsed becomes Dibatalkan (ticket 47).
+  { name: "pengurusan.pembayaran_berkas", cron: "* * * * *", tick: pembayaranBerkasPengurusanTick },
   // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32);
   // a paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa Pembatalan (ticket 37).
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
@@ -185,6 +195,11 @@ async function chasingEskalasiTick(ctx: SchedulerContext, now: Date): Promise<vo
 /** The worker wrapper around the Pemesanan module's re-alert tick (idempotent there, as every tick is). */
 async function realertSaatDukaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await realertKonfirmasiSaatDukaTick(ctx.pemesanan, now);
+}
+
+/** The worker wrapper around the Pengurusan module's filing-only payment follow-up (idempotent there, as every tick is). */
+async function pembayaranBerkasPengurusanTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await pembayaranBerkasTick({ db: ctx.db, billing: ctx.pengurusan.billing }, now);
 }
 
 /** The worker wrapper around the Pemesanan module's Terencana payment-hold lapse (idempotent there, as every tick is). */

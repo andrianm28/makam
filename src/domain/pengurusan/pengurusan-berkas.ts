@@ -140,7 +140,10 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
  * paid opens the 3-working-day filing); a Tagihan Billing has cancelled for lapsing makes it Dibatalkan. A write is
  * conditional on the order still waiting, so running it again, or two at once, changes nothing twice.
  */
-export async function pembayaranBerkasTick(deps: Pick<PengurusanDeps, "db" | "billing">, now: Date): Promise<void> {
+export async function pembayaranBerkasTick(
+  deps: { db: PengurusanDeps["db"]; billing: Pick<PengurusanDeps["billing"], "tagihanBerlaku"> },
+  now: Date,
+): Promise<void> {
   const menunggu = await deps.db
     .select()
     .from(pengurusanTpu)

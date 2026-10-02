@@ -80,7 +80,7 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
-export { buatSuratPengantarSchema, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
+export { pembayaranBerkasTick, buatSuratPengantarSchema, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
 export type { BuatSuratPengantarResult, PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
 export type { PengurusanOrder } from "./reads";
 export {

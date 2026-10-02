@@ -56,6 +56,7 @@ export function composeSchedulerContext(deps: {
     terencana: deps.terencana,
     queues: deps.queues,
     inventory: deps.inventory,
+    pengurusan: { billing: deps.billing },
     pengingatHakPakai: { db: deps.db, inventory: deps.inventory, lokasi: deps.lokasi, identity: deps.identity, billing: deps.billing, notifikasi: deps.notifications, perpanjanganUrl: deps.perpanjanganUrl },
   };
 }
