@@ -4,6 +4,8 @@
  * is agreed for Jumat 2 Oktober 10:00. Through the modules' public functions only.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { lewatJatuhTempoPayAfterTagihanTick } from "@/domain/billing";
+import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf } from "../../../tests/support/inventory";
 import {
@@ -75,5 +77,79 @@ describe("a Saat Duka order with hari-H Layanan", () => {
     const { varian } = await tawarkanLayananDi(setup, fixture.lokasiMitra.id, { bisaHariH: false, adaDiPetakKosong: true });
     const hasil = await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), layananHariH: [{ layananVariantId: varian.id, teks: null }] });
     expect(hasil).toEqual({ ok: false, reason: "layanan_tidak_tersedia" });
+  });
+});
+
+/** The confirmed order's Tagihan, paid when asked, and the Layanan job it holds. */
+async function terkonfirmasi(setup: PemesananSetup, options: { bayar?: boolean } = {}) {
+  const fixture = await pesananDenganLayanan(setup);
+  await konfirmasi(setup, fixture);
+  const tagihanId = (await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan))!.tagihanId!;
+  if (options.bayar) {
+    const bayar = await setup.billing.recordPayment(tagihanId, { method: { kind: "transfer_manual" }, reference: "TRF-1" });
+    if (!bayar.ok) throw new Error(`payment refused: ${bayar.reason}`);
+  }
+  const tagihan = (await setup.billing.tagihan(tagihanId))!;
+  const platform = tagihan.lines.find((line) => line.kind === "biaya_layanan_platform")!.amount;
+  return { ...fixture, tagihan, tagihanId, platform };
+}
+
+describe("cancelling a Saat Duka order with hari-H Layanan", () => {
+  it("makes the hari-H jobs Dibatalkan and refunds a paid Tagihan except the Biaya Layanan Platform", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await terkonfirmasi(setup, { bayar: true });
+
+    const hasil = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga berubah rencana" });
+
+    expect(hasil).toMatchObject({ ok: true, tagihan: { dibatalkan: true, jumlahDikembalikan: fixture.tagihan.total - fixture.platform } });
+    const pesanan = await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan);
+    expect(pesanan?.item).toMatchObject([{ pekerjaan: { status: "dibatalkan" } }]);
+  });
+
+  it("keeps the price of a hari-H job already Sedang Dikerjakan out of the refund", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await terkonfirmasi(setup, { bayar: true });
+    const sebelum = await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan);
+    const mulai = await setup.layanan.mulaiPekerjaan(fixture.adminLokasi, { pekerjaanId: sebelum!.item[0]!.pekerjaan!.id });
+    expect(mulai).toEqual({ ok: true, status: "sedang_dikerjakan" });
+
+    const hasil = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga berubah rencana" });
+
+    expect(hasil).toMatchObject({ ok: true, tagihan: { jumlahDikembalikan: fixture.tagihan.total - fixture.platform - 150_000 } });
+    expect((await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan))?.item).toMatchObject([{ pekerjaan: { status: "sedang_dikerjakan" } }]);
+  });
+
+  it("cancels the jobs of an unpaid order too, with nothing to refund", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await terkonfirmasi(setup);
+    const hasil = await setup.pemesanan.batalkanSaatDuka(fixture.pemesan, { nomor: fixture.nomor, alasan: "Keluarga berubah rencana" });
+    expect(hasil).toMatchObject({ ok: true, tagihan: { jumlahDikembalikan: 0 } });
+    expect((await setup.layanan.pesananLayananOf(fixture.nomor, fixture.pemesan))?.item).toMatchObject([{ pekerjaan: { status: "dibatalkan" } }]);
+  });
+});
+
+describe("a hari-H Layanan on a Saat Duka Tagihan that becomes Tidak Tertagih", () => {
+  it("is lost by its fulfiller like the Petak tariff: no Pencairan, unless the family pays later", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const fixture = await terkonfirmasi(setup);
+    const posisi = fixture.tagihan.lines.findIndex((line) => line.kind === "layanan");
+    setup.clock.set(wib("2026-10-06 08:00"));
+    expect((await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" })).ok).toBe(true);
+    await lewatJatuhTempoPayAfterTagihanTick({ db }, wib("2026-10-09 08:00"));
+    setup.clock.set(wib("2026-10-10 08:00"));
+    await setup.notifications.chasingEskalasiTick(setup.clock.now());
+    const [panggilan] = await setup.notifications.teleponPemesanTerbuka();
+    expect((await setup.notifications.catatPanggilan(fixture.admin, { teleponId: panggilan!.id, hasil: "menolak" })).ok).toBe(true);
+    setup.clock.set(wib("2026-11-08 08:00"));
+    expect(await setup.pemesanan.nyatakanTidakTertagih(fixture.admin, { tagihanId: fixture.tagihanId })).toMatchObject({ ok: true, tagihan: { status: "tidak_tertagih" } });
+
+    await setup.payouts.tick(setup.clock.now());
+    expect(await setup.payouts.itemLayanan(fixture.tagihanId, posisi)).toBeNull();
+
+    // The Tagihan stays payable afterwards; only then is the work paid for.
+    const bayar = await setup.billing.recordPayment(fixture.tagihanId, { method: { kind: "transfer_manual" }, reference: "TRF-2" });
+    expect(bayar.ok).toBe(true);
+    await setup.payouts.tick(setup.clock.now());
+    expect(await setup.payouts.itemLayanan(fixture.tagihanId, posisi)).not.toBeNull();
   });
 });

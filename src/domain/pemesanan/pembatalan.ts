@@ -23,8 +23,7 @@
  * Admin Lokasi of that order's Lokasi Mitra may record the cancellation for them.
  *
  * What is **not** here, and why: no cancellation fee (spec: "No cancellation
- * fee", and the order never carried one), and the hari-H Layanan refund, which is
- * ticket 53's own rule.
+ * fee", and the order never carried one).
  */
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -186,11 +185,16 @@ async function batalkanDenganAlasan(
     }
     petak = order.petakNomor ? { nomor: order.petakNomor } : null;
   }
+  // The hari-H Layanan go with the order (ticket 53): a job not yet started is Dibatalkan and refunded with the rest,
+  // one already Sedang Dikerjakan goes on, and its price stays with the order instead of being given back.
+  const layanan = order.layananHariH && order.layananHariH.length > 0 && deps.layanan
+    ? await deps.layanan.batalkanLayananCheckout(order.nomor, alasanTertulis ?? "Pembatalan pesanan", tx)
+    : { dibatalkan: 0, ditahan: 0 };
   if (order.tagihanId) {
     // A Harga Khusus reissues the Tagihan under a new id: the one in force is cancelled, never the replaced one (ticket 93).
     const berlaku = await deps.billing.within(tx).tagihanBerlaku(order.tagihanId);
     if (!berlaku) return { ok: false, reason: "tagihan_tidak_terbit" };
-    const tagihanDibatalkan = await deps.billing.within(tx).batalkanTagihan(berlaku.id, { alasan: "pemesanan_dibatalkan" });
+    const tagihanDibatalkan = await deps.billing.within(tx).batalkanTagihan(berlaku.id, { alasan: "pemesanan_dibatalkan", ditahan: layanan.ditahan });
     if (!tagihanDibatalkan.ok) {
       return { ok: false, reason: tagihanDibatalkan.reason === "tagihan_sudah_dibatalkan" ? "tagihan_sudah_dibatalkan" : "tagihan_tidak_terbit" };
     }
