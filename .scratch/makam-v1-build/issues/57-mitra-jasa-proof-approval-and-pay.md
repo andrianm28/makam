@@ -1,6 +1,6 @@
 # Mitra Jasa photo proof, approval and pay rules
 
-Status: ready-for-agent
+Status: in-progress
 Blocked by: 51, 56
 Spec: Domain modules > 9. Layanan (TPU Menunggu Verifikasi, Mitra Jasa pay rules); 11. Payouts (Mitra Jasa Pencairan); 14. Work Queues (Tier 2 foto bukti approval); stories 91 (Menunggu Verifikasi), 92 (TPU), 157, 179, 181
 
@@ -66,3 +66,4 @@ The Mitra Jasa takes before/after photos (video for the Laporan) in the app with
   - **Spec: 0 hard, 4 findings.** A delivered; returning the job to Selesai after dana kembali matches the Lokasi path (the window tick releases the Pencairan). Latent: with the fault on `mitra_jasa`, `ajukanBaris` would also refund a Biaya Layanan Platform line if a TPU Tagihan ever carried one — pin "no fee line" with a test or a note. B: the Admin Platform path is delivered; **the Pemesan's cancel entry (action + form) is not** — recorded follow-up, ticket stays open. B's amount refunds this job's line only, which equals "the whole Tagihan" only for a one-job Tagihan — owner question (grilling round 2). C cannot touch a paid-out Pencairan, is capped at the rate, needs a note; Rp 0 is refused by Payouts' own rule ("cancel instead"), which stands.
   - **Slice 5 (open):** the Pemesan cancel form for B; B's multi-job amount per the owner's answer, with a test; the fee-line pin for A; ticket 52's thread on the Mitra Jasa job page once 52 is on main; switch ticket 46's test seeding to `setujuiBuktiTpu`.
 - 2026-10-02 — **Settled through the `grilling` skill (round 2 Q6, owner "iya setuju semua" to the recommended answer):** when one late (Terlambat) job is cancelled from a Tagihan that holds several jobs, the family gets back **that job's price plus the Biaya Layanan Platform**; the other jobs carry on and stay paid. For a one-job Tagihan this equals the whole Tagihan (round 1 Q4).
+- 2026-10-02 — Slices 1–4 merged to main by the orchestrator with batch 3 (Two-axis review entries above, no hard finding; gate 301 files / 2757 tests passed). Status in-progress: slice 5 remains (Pemesan cancel form for a late TPU job, the multi-job amount per grilling Q6, the fee-line pin, ticket 52's thread on the Mitra Jasa job page, the switch of ticket 46's test seeding to `setujuiBuktiTpu`).

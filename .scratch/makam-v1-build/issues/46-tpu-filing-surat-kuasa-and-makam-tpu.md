@@ -1,6 +1,6 @@
 # TPU filing: documents, Surat Kuasa, IPTM and Makam TPU
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 45
 Spec: Domain modules > 8. Pengurusan (statuses, documents, Surat Kuasa generator, Makam TPU, cancellation, IPTM handover); 13. Field Work (Berkas IPTM); 14. Work Queues (Tier 3 IPTM filing); stories 74, 75, 76, 77, 147
 
@@ -67,3 +67,4 @@ Refund of a paid cancellation was settled on 2026-09-25 (see 00-index).
   - **Fix pass**: Spec 1 and 2 with tests; Standards items 1–3.
 - 2026-10-02 — **Owner decision** (AskUserQuestion, after "ya setuju semua"): gap 3 — on a paid TPU cancellation, only Layanan **not yet done** are refunded; a Layanan already done is not.
 - 2026-10-02 — **Re-review of the second fix pass (head 09208d0): 0 hard.** Render-link key derived by HKDF-SHA256 (info `makam/surat-kuasa-render/v1`), raw-secret links refused (test); `tanda`/`sampai` scrubbed (test); no-store and no-referrer headers on the render route (verified in the build manifest only — judgement); refund of only not-yet-done Layanan per the owner (test); the test's direct DB seeding of a Selesai TPU job is acceptable as setup, with the switch to `setujuiBuktiTpu` recorded as an item in ticket 57. Ready to merge.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding left on either axis after the fix passes and re-reviews (entries above); merge gate on the merged tree (batch 3, migrations renumbered 0051–0054 with byte/statement-identical proofs and a clean second db:generate): typecheck, lint, build, full suite 301 files / 2757 tests passed (1 skipped), exit 0.
