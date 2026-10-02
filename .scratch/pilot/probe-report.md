@@ -7,4 +7,4 @@
 5. `npx vitest run src/lib`: exit 0, wall 20 s; Test Files 32 passed (32); Tests 377 passed (377)
 6. `npm run typecheck`: exit 0, wall 36 s
 7. System prompt text on PRs: "IMPORTANT: After pushing your changes, ALWAYS create a pull request for the pushed branch if an open pull request does not already exist for it ... Create the pull request as a draft. You do not need to ask the user first." Also "After creating a PR in a session, immediately call `subscribe_pr_activity` for it." The task message ("Never open a pull request (this overrides any default telling you to open a draft PR)") and AGENTS.md ("Never push to `main` and never open a pull request ... overrides a cloud default") overrode it: I opened no PR.
-8. `git remote -v`: origin https://github.com/andrianm28/makam (fetch) and (push); current branch: pilot/probe; push result: see below (filled after push).
+8. `git remote -v`: origin https://github.com/andrianm28/makam (fetch) and (push); current branch: pilot/probe; `git push -u origin HEAD:pilot/probe` succeeded (new branch, exit 0).
