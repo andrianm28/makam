@@ -32,11 +32,11 @@ function rilisStack() {
 }
 
 /**
- * The menu items whose page is not there in this release, so "Segera hadir": Layanan
- * has no page of its own at any release (Layanan Makam is ordered from the Makam
- * Keluarga hub), and Wakaf Tanah opens with Rilis 3. Makam Keluarga is built and opens the hub.
+ * The menu items whose page is not there in this release, so "Segera hadir": only Wakaf
+ * Tanah, which opens with Rilis 3. Layanan (Layanan Makam, Rilis 1) opens the Makam
+ * Keluarga hub with the action chosen, like Makam Keluarga itself.
  */
-const belumHadir = ["Layanan", ...(terbukaDi("wakaf", rilisStack()) ? [] : ["Wakaf Tanah"])];
+const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Wakaf Tanah"];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -96,6 +96,7 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
     await expect(menu.getByRole("link", { name: new RegExp(`^${label}`) })).toHaveCount(0);
   }
   await expect(menu.getByText("Segera", { exact: true })).toHaveCount(belumHadir.length);
+  await expect(menu.getByRole("link", { name: /^Layanan/ })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
   // An item whose release is open is a link to its page.
   if (!belumHadir.includes("Wakaf Tanah")) {
     await expect(menu.getByRole("link", { name: /^Wakaf Tanah/ })).toHaveAttribute("href", "/wakaf-tanah");

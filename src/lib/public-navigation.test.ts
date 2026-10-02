@@ -81,7 +81,7 @@ describe("the menu's links", () => {
       ...publicMenu({ signedIn: false }),
       ...publicMenu({ signedIn: true }),
     ]
-      .map((item) => item.href)
+      .map((item) => item.href?.split("?")[0])
       .filter((href): href is string => href !== undefined);
     for (const href of links) {
       expect(pageExists(href) || routeMenungguTiket.has(href), href).toBe(true);
