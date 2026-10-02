@@ -902,4 +902,23 @@ describe("a Pemesan still inside the Masa Pembatalan when the Lokasi Mitra's Ber
     expect(permintaan).toMatchObject({ status: "diajukan", dalamMasaPembatalan: true, persenRefund: 100, jumlahRefund: 2_500_000 });
     expect(await barisRefund(setup, dasar.admin)).toHaveLength(1);
   });
+
+  it("blocks a Ganti Pemegang Hak while a Pembatalan of that Hak Pakai is open, at filing and again at approval", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup, { nomorPetak: ["A-01", "A-02"] });
+    const baru = { pemegangBaru: { name: "Bapak Hasan", phoneNumber: "081322223333" }, sebab: "waris" } as const;
+
+    // A request already in flight, then a Pembatalan opened: the approval refuses.
+    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(dasar.pemegang, { ...baru, hakPakaiId: dasar.hakPakaiIds[0] });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    await ajukan(setup, dasar, "", 0);
+    const setuju = await setup.pemesanan.setujuiPermintaanHakPakai(dasar.fixture.adminLokasi, { id: diajukan.permintaan.id });
+    expect(setuju).toEqual({ ok: false, reason: "pembatalan_terbuka" });
+
+    // The other Hak Pakai of the order has no Pembatalan, so it is not blocked; the first one is.
+    const terhalang = await setup.pemesanan.ajukanGantiPemegangHak(dasar.pemegang, { ...baru, hakPakaiId: dasar.hakPakaiIds[0] });
+    expect(terhalang).toMatchObject({ ok: false });
+    const bebas = await setup.pemesanan.ajukanGantiPemegangHak(dasar.pemegang, { ...baru, hakPakaiId: dasar.hakPakaiIds[1] });
+    expect(bebas.ok).toBe(true);
+  });
 });
