@@ -17,3 +17,4 @@ Spec: AGENTS.md (Tests: E2E runs in CI on every main build; a failing test is ne
 ## Comments
 
 - 2026-10-02 — Filed by the orchestrator from a read-only diagnosis of the two runs.
+- 2026-10-02 — Builder, item 1 (E2E locator), branch `fix/e2e-nomor-dokumen`. Only `e2e/bukti-pemesanan.spec.ts:141` was loose: unanchored `getByText(/BPM\/.../)` also matched Next's route announcer (`role=alert`, outside `<main>`). Now `page.getByRole("main").getByText(/^BPM\/\d{4}\/\d{6}$/)`; the document page renders its body inside one `<main>`. Every other document-number locator in `e2e/` (TGH at lines 80, 96) is already anchored `^...$`, which the announcer's longer text cannot match, and line 136 is scoped to `bukti`. No app change. Not run: the local stack could not be built (`npm ci` fails inside Docker here), so the spec was not executed; lint and typecheck pass. Item 2 (Vitest) untouched.
