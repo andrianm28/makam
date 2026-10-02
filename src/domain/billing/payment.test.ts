@@ -50,6 +50,17 @@ describe("Bayar", () => {
     expect(bayar).toEqual({ ok: true, paymentUrl: created.paymentUrl });
   });
 
+  it("when the PaymentProvider fails, Bayar refuses with penyedia_gagal and leaves the Tagihan unchanged", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup);
+    setup.payments.failWith = new Error("provider down");
+
+    const bayar = await setup.billing.bayar(tagihan.link);
+
+    expect(bayar).toEqual({ ok: false, reason: "penyedia_gagal" });
+    expect(await setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "belum_dibayar", dueAt: tagihan.dueAt });
+  });
+
   it("Bayar again while the provider's link is valid reuses the same payment", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);

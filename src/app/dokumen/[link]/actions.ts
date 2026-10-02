@@ -23,6 +23,8 @@ export async function bayarTagihan(formData: FormData): Promise<void> {
   if (result.ok) redirect(result.paymentUrl);
   if (result.reason === "sudah_lunas") redirect(documentPagePath(result.buktiLink));
   if (result.reason === "tidak_ditemukan") notFound();
+  // The provider failed: back to the Tagihan's page, where the payer may retry.
+  if (result.reason === "penyedia_gagal") redirect(`${documentPagePath(parsed.data.link)}?bayar=gagal`);
   // Dibatalkan: the Tagihan's own page says why it can no longer be paid.
   redirect(documentPagePath(parsed.data.link));
 }

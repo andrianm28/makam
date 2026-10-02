@@ -60,6 +60,17 @@ describe("Bayar (Server Action)", () => {
     expect(to).toBe(payments.created.at(-1)?.paymentUrl);
   });
 
+  it("when the PaymentProvider fails, the payer is sent back to the Tagihan's page to try again", async () => {
+    const tagihan = await issuedTagihan();
+    const payments = server.runtime().adapters.payments as FakePaymentProvider;
+    payments.failWith = new Error("provider down");
+    try {
+      expect(await redirectedTo(tagihan.link)).toBe(`/dokumen/${encodeURIComponent(tagihan.link)}?bayar=gagal`);
+    } finally {
+      payments.failWith = undefined;
+    }
+  });
+
   it("a Lunas Tagihan sends the payer to its Bukti Pembayaran instead", async () => {
     const tagihan = await issuedTagihan();
     const paid = await server.runtime().billing.recordPayment(tagihan.id, { method: { kind: "tunai" }, reference: null });
