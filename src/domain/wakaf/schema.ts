@@ -112,12 +112,13 @@ export const wakafRiwayat = pgTable(
   (table) => [index("wakaf_riwayat_pengajuan_idx").on(table.pengajuanId, table.pada)],
 );
 
-export const jenisCatatanWakaf = ["wakif", "internal"] as const;
+export const jenisCatatanWakaf = ["wakif", "internal", "pembatalan"] as const;
 export type JenisCatatanWakaf = (typeof jenisCatatanWakaf)[number];
 
 /**
  * Notes on a Pengajuan: `wakif` notes are written to the Wakif and shown in the Wakaf tab;
- * `internal` notes stay with Admin Platform (spec, Wakaf). Separate kinds in one table, so a read
+ * `internal` notes stay with Admin Platform (spec, Wakaf); `pembatalan` is the Wakif's own reason for cancelling,
+ * which Admin Platform reads and which is not a note written to the Wakif. Separate kinds in one table, so a read
  * for a Wakif can never forget the filter: it asks for `wakif` only, by name.
  */
 export const wakafCatatan = pgTable(

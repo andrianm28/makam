@@ -101,7 +101,7 @@ export default async function PengajuanWakafPage({ params }: PageProps<"/staf/ad
           {pengajuan.catatan.map((catatan) => (
             <li key={catatan.id} className="rounded-lg border bg-card px-3 py-2">
               <span className="text-small font-semibold text-muted-foreground">
-                {catatan.jenis === "internal" ? "Internal" : "Untuk Wakif"} · {formatTanggalJam(catatan.pada)}
+                {labelJenisCatatan[catatan.jenis]} · {formatTanggalJam(catatan.pada)}
               </span>
               <p>{catatan.isi}</p>
             </li>
@@ -112,6 +112,8 @@ export default async function PengajuanWakafPage({ params }: PageProps<"/staf/ad
     </>
   );
 }
+
+const labelJenisCatatan = { internal: "Internal", wakif: "Untuk Wakif", pembatalan: "Alasan pembatalan dari Wakif" } as const;
 
 function Baris({ label, children }: { label: string; children: React.ReactNode }) {
   return (

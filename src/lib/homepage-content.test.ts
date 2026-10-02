@@ -38,7 +38,7 @@ describe("the Beranda's tile row", () => {
     ]);
   });
 
-  it("opens the Makam keluarga hub with the action preselected, opens the Wakaf Tanah page, and leaves the one that is not there yet alone", () => {
+  it("opens the Makam keluarga hub with the action preselected, and leaves the two that are not there yet alone", () => {
     // Perpanjang Makam and Layanan Makam are arranged at the hub (spec, Public site and
     // routing decisions), so their tiles open it with that action chosen; Urus di TPU DKI
     // and Wakaf Tanah are still later releases and say so, with no link to a page that is
@@ -46,8 +46,9 @@ describe("the Beranda's tile row", () => {
     const byLabel = new Map(homepageTiles.map((tile) => [tile.label, tile]));
     expect(byLabel.get("Perpanjang Makam")?.href).toBe("/makam-keluarga?aksi=perpanjang");
     expect(byLabel.get("Layanan Makam")?.href).toBe("/makam-keluarga?aksi=layanan");
-    expect(byLabel.get("Wakaf Tanah")?.href).toBe("/wakaf-tanah");
-    expect(byLabel.get("Urus di TPU DKI")?.href).toBeUndefined();
+    for (const label of ["Urus di TPU DKI", "Wakaf Tanah"]) {
+      expect(byLabel.get(label)?.href, label).toBeUndefined();
+    }
     expect(homepageTiles.map((tile) => tile.summary).join(" ")).not.toMatch(/\d{4}/);
   });
 

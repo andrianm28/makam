@@ -95,7 +95,7 @@ export async function batalkanWakaf(deps: WakafDeps, wakif: Wakif, raw: unknown)
     if (!statusBisaDibatalkan.includes(row.status)) return { ok: false as const, reason: "tidak_dapat_dibatalkan" as const };
     await tx.update(wakafPengajuan).set({ status: "dibatalkan", tenggatPada: null, diubahPada: now }).where(eq(wakafPengajuan.id, row.id));
     if (parsed.data.alasan) {
-      await tx.insert(wakafCatatan).values({ pengajuanId: row.id, jenis: "wakif", isi: `Dibatalkan oleh Wakif: ${parsed.data.alasan}`, penulisAccountId: wakif.accountId, pada: now });
+      await tx.insert(wakafCatatan).values({ pengajuanId: row.id, jenis: "pembatalan", isi: `Dibatalkan oleh Wakif: ${parsed.data.alasan}`, penulisAccountId: wakif.accountId, pada: now });
     }
     await catatPerubahanStatus(deps, tx, { id: row.id, nomor: row.nomor, wakifEmail: row.wakifEmail }, "dibatalkan", { tanggal: null, alasan: null, catatan: null }, now);
     return { ok: true as const };

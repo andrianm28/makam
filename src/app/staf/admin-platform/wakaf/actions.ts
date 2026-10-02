@@ -15,23 +15,7 @@ import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-
-/** Words for every reason the Wakaf module can refuse a staff write. */
-const pesanDomain: Record<string, string> = {
-  tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
-  input_tidak_valid: guardMessage("input_tidak_valid"),
-  pengajuan_tidak_ditemukan: "Pengajuan Wakaf ini tidak ditemukan.",
-  nazhir_tidak_ditemukan: "Nazhir ini tidak ditemukan.",
-  transisi_tidak_valid: "Status itu tidak bisa dipilih dari status sekarang.",
-  tanggal_wajib: "Isi tanggalnya: tanggal survei untuk Survei Dijadwalkan, tanggal ikrar untuk Menunggu Ikrar.",
-  petugas_wajib: "Pilih Petugas Lapangan yang melakukan survei.",
-  petugas_tidak_valid: "Akun yang dipilih bukan Petugas Lapangan aktif.",
-  alasan_wajib: "Isi alasannya; Wakif akan membacanya.",
-  hasil_wajib: "Unggah scan AIW atau sertipikat untuk menyelesaikan Pengajuan.",
-  berkas_tidak_didukung: "Berkas harus PDF, JPG atau PNG, paling besar 8 MB.",
-  penyimpanan_belum_tersedia: "Penyimpanan berkas belum tersedia. Coba lagi nanti.",
-};
+import { berkasDariFile, pathPengajuanWakaf, pesanWakaf } from "@/lib/wakaf-tampilan";
 
 type Hasil = { ok: true } | { ok: false; reason: string };
 
@@ -50,7 +34,7 @@ async function tulis<S extends z.ZodType>(options: {
     run: options.run,
   });
   if (!hasil.ok) return { status: "gagal", message: guardMessage(hasil.error) };
-  if (!hasil.value.ok) return { status: "gagal", message: pesanDomain[hasil.value.reason] ?? guardMessage("input_tidak_valid") };
+  if (!hasil.value.ok) return { status: "gagal", message: pesanWakaf(hasil.value.reason) };
   revalidatePath("/staf/admin-platform/wakaf");
   if (options.path) revalidatePath(options.path);
   return { status: "berhasil", message: options.disimpan };
@@ -102,10 +86,7 @@ export async function hapusNazhirDaftar(_sebelumnya: FormState, formData: FormDa
 /** Admin Platform moves a Pengajuan to its next status; the date, reason, Petugas or scan the status needs ride along. */
 export async function pindahStatusPengajuan(_sebelumnya: FormState, formData: FormData): Promise<FormState> {
   const berkas = formData.get("hasil");
-  const hasil =
-    berkas instanceof File && berkas.size > 0
-      ? { kunci: "lainnya", body: new Uint8Array(await berkas.arrayBuffer()), contentType: berkas.type }
-      : undefined;
+  const hasil = berkas instanceof File && berkas.size > 0 ? await berkasDariFile(berkas) : undefined;
   const pengajuanId = formData.get("pengajuanId");
   return tulis({
     schema: pindahStatusSchema,
@@ -120,7 +101,7 @@ export async function pindahStatusPengajuan(_sebelumnya: FormState, formData: Fo
     },
     run: (actor, data) => serverRuntime().wakaf.pindahStatus(actor, data),
     disimpan: "Status diperbarui.",
-    path: `/staf/admin-platform/wakaf/${String(pengajuanId)}`,
+    path: pathPengajuanWakaf(String(pengajuanId)),
   });
 }
 
@@ -132,7 +113,7 @@ export async function tulisCatatanPengajuan(_sebelumnya: FormState, formData: Fo
     input: { pengajuanId, jenis: formData.get("jenis"), isi: formData.get("isi") },
     run: (actor, data) => serverRuntime().wakaf.tulisCatatan(actor, data),
     disimpan: "Catatan disimpan.",
-    path: `/staf/admin-platform/wakaf/${String(pengajuanId)}`,
+    path: pathPengajuanWakaf(String(pengajuanId)),
   });
 }
 
@@ -144,6 +125,6 @@ export async function cocokkanNazhirPengajuan(_sebelumnya: FormState, formData: 
     input: { pengajuanId, nazhirId: formData.get("nazhirId") },
     run: (actor, data) => serverRuntime().wakaf.cocokkanNazhir(actor, data),
     disimpan: "Nazhir dicocokkan.",
-    path: `/staf/admin-platform/wakaf/${String(pengajuanId)}`,
+    path: pathPengajuanWakaf(String(pengajuanId)),
   });
 }

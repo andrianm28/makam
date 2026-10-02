@@ -5,6 +5,7 @@ import { z } from "zod";
 import { identityMessage, type KodeMasukVerifyState } from "@/components/kode-masuk/state";
 import { akunResource } from "@/domain/identity";
 import { PETUNJUK_DIRUJUK } from "@/domain/wakaf/skema";
+import { pesanWakaf } from "@/lib/wakaf-tampilan";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
@@ -37,14 +38,6 @@ const draftSchema = z.object({
 
 const PERIKSA = "Periksa lagi isian Anda.";
 
-const pesanDomain: Record<string, string> = {
-  input_tidak_valid: PERIKSA,
-  nomor_telepon_tidak_valid: "Nomor telepon tidak valid. Tulis nomor Indonesia, misalnya 0812 3456 7890.",
-  nazhir_tidak_ditemukan: "Nazhir yang dipilih tidak ada lagi di daftar. Pilih yang lain.",
-  berkas_tidak_didukung: "Berkas harus PDF, JPG atau PNG, paling besar 8 MB.",
-  penyimpanan_belum_tersedia: "Penyimpanan berkas belum tersedia. Coba lagi nanti.",
-};
-
 function angka(teks: string): number | null {
   const bersih = teks.trim().replace(",", ".");
   if (bersih === "") return null;
@@ -74,7 +67,7 @@ function keInput(draft: z.infer<typeof draftSchema>): Record<string, unknown> {
 
 async function ajukan(wakif: { accountId: string; email: string }, draft: z.infer<typeof draftSchema>): Promise<Exclude<KirimWakafState, { status: "idle" | "perlu_kode_masuk" }>> {
   const hasil = await serverRuntime().wakaf.ajukanWakaf(wakif, keInput(draft));
-  if (!hasil.ok) return { status: "gagal", message: pesanDomain[hasil.reason] ?? PERIKSA };
+  if (!hasil.ok) return { status: "gagal", message: pesanWakaf(hasil.reason) };
   if (hasil.status === "dirujuk") return { status: "dirujuk", nomor: hasil.nomor, petunjuk: PETUNJUK_DIRUJUK };
   return { status: "selesai", nomor: hasil.nomor };
 }
