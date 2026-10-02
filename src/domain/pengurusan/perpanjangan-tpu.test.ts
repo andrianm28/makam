@@ -64,6 +64,36 @@ describe("requesting a Perpanjangan TPU", () => {
   });
 });
 
+describe("a second Perpanjangan TPU for the same Makam TPU", () => {
+  it("is refused while one is open, so the Pemegang Hak is not charged twice, and allowed again once it is Ditolak", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    const nomor = await pesanan(setup, dasar);
+    expect(await ajukan(setup, dasar, "2027-02-15")).toEqual({ ok: false, reason: "sudah_dipesan" });
+
+  });
+
+  it("is allowed again once the earlier one was closed Ditolak", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2027-05-20 10:00"));
+    const nomor = await pesananPada(setup, dasar, "2027-02-15");
+    expect(await ajukan(setup, dasar, "2027-02-15")).toEqual({ ok: false, reason: "sudah_dipesan" });
+    await setup.pengurusan.putuskanCekTpu(dasar.admin, { nomor, putusan: "tolak", alasan: "TPU tidak memperpanjang" });
+    expect(await ajukan(setup, dasar, "2027-02-15")).toMatchObject({ ok: true });
+  });
+
+  it("lets only one of two simultaneous orders through", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    const hasil = await Promise.all([ajukan(setup, dasar, "2027-02-15"), ajukan(setup, dasar, "2027-02-15")]);
+    expect(hasil.filter((h) => h.ok)).toHaveLength(1);
+    expect(hasil.filter((h) => !h.ok)).toEqual([{ ok: false, reason: "sudah_dipesan" }]);
+  });
+});
+
 describe("the document check and the pay-first Tagihan", () => {
   it("issues no Tagihan before the check and, once the documents pass, a pay-first Tagihan for the filing-only Biaya Pengurusan due 3×24 h later", async () => {
     const setup = pengajuanOnTestDatabase(db);
@@ -195,6 +225,19 @@ describe("a request past the masa tenggang", () => {
     expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([]);
     expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toEqual({ ok: false, reason: "status_tidak_sesuai" });
     expect(await setup.refunds.permintaanTerbuka()).toEqual([]);
+  });
+
+  it("cannot skip the TPU check by typing a later expiry date than the Makam TPU's recorded one, and shows both dates", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2027-05-20 10:00"));
+    const hasil = await ajukan(setup, dasar, "2027-08-15");
+    if (!hasil.ok) throw new Error(`order refused: ${hasil.reason}`);
+    expect(hasil.pengurusan.lewatMasaTenggang).toBe(true);
+    expect(await setup.pengurusan.orderOf(hasil.pengurusan.nomor, dasar.pemesan)).toMatchObject({
+      perpanjangan: { iptmBerakhirPada: "2027-08-15", iptmTercatatBerakhirPada: "2027-02-15", lewatMasaTenggang: true },
+    });
+    expect(await setup.pengurusan.cekTpuTerbuka()).toHaveLength(1);
   });
 
   it("asks nothing of the TPU when the request is inside the masa tenggang", async () => {
@@ -340,6 +383,18 @@ describe("the IPTM expiry reminders", () => {
     expect(keHolder(setup)).toHaveLength(2);
   });
 
+  it("send one message when the tick runs twice at the same moment", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-11-15 10:00"));
+    const pertama = await pengingatIptmTick(deps(setup), setup.clock.now());
+    const kedua = await pengingatIptmTick(deps(setup), setup.clock.now());
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(keHolder(setup)).toHaveLength(1);
+    expect(pertama).toMatchObject({ diumumkan: 1 });
+    expect(kedua).toMatchObject({ diumumkan: 1 });
+  });
+
   it("stop once a Perpanjangan TPU is ordered for the IPTM", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await makamBerakhir(setup, "2027-02-15");
@@ -350,6 +405,7 @@ describe("the IPTM expiry reminders", () => {
     await pesanan(setup, dasar);
     await tickPada(setup, "2027-01-15 10:00");
     expect(keHolder(setup)).toHaveLength(1);
+    expect(await pengingatIptmTick(deps(setup), setup.clock.now())).toEqual({ diumumkan: 0, dilewati: 1 });
   });
 });
 
