@@ -31,6 +31,19 @@ export const itemPesananLayananSchema = z.object({
 });
 export type ItemPesananLayananInput = z.infer<typeof itemPesananLayananSchema>;
 
+/**
+ * One Layanan a Pemesan adds at a booking checkout (Saat Duka hari-H, Terencana empty-plot, Perpanjangan
+ * "Tambah Layanan", ticket 53). The target date is the family's own only where it picks one: a hari-H item's date
+ * is the burial day, set when the order is confirmed, so it carries none.
+ */
+export const itemCheckoutSchema = z.object({
+  layananVariantId: z.uuid("Pilih layanan yang tersedia di Lokasi Mitra ini."),
+  targetDate: z.iso.date("Tanggal target harus berformat tahun-bulan-hari.").optional(),
+  teks: z.string().trim().max(500).nullable().default(null),
+});
+export type ItemCheckoutInput = z.infer<typeof itemCheckoutSchema>;
+export const itemCheckoutListSchema = z.array(itemCheckoutSchema).max(10);
+
 /** The whole of the Layanan checkout: one grave, one or more Layanan, and who is paying for it. */
 export const placePesananLayananSchema = z.object({
   /** The Petak Makam the Layanan are for, as the Makam keluarga hub's lookup named it. */

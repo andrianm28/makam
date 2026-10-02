@@ -303,6 +303,13 @@ export interface KepalaPesananLayanan {
   /** Set when this order is one cycle of a Paket Layanan (ticket 54). */
   pesananPaketId?: string | null;
   siklus?: string | null;
+  /**
+   * The status the jobs are written in. Default Menunggu Pembayaran (pay-first); a hari-H order's jobs are
+   * Dijadwalkan at once, because their Tagihan is pay-after (ticket 53).
+   */
+  statusPekerjaan?: "menunggu_pembayaran" | "dijadwalkan";
+  /** The index of the first item among the Tagihan's lines (the jobs' Pencairan is read by line position); default 0. */
+  posisiAwal?: number;
 }
 
 /**
@@ -347,7 +354,7 @@ export async function tulisPesananLayanan(
       .insert(pesananLayananItem)
       .values({
         pesananId: order.id,
-        posisi,
+        posisi: (kepala.posisiAwal ?? 0) + posisi,
         layananId: satu.varian.layananId,
         layananVariantId: satu.varian.id,
         label: satu.label,
@@ -362,8 +369,9 @@ export async function tulisPesananLayanan(
       pesananItemId: ditambahkan.id,
       lokasiId: kepala.lokasiId,
       petakId: kepala.petakId,
-      status: "menunggu_pembayaran",
+      status: kepala.statusPekerjaan ?? "menunggu_pembayaran",
       targetDate: satu.targetDate,
+      dijadwalkanAt: kepala.statusPekerjaan === "dijadwalkan" ? kepala.createdAt : null,
       createdAt: kepala.createdAt,
     });
   }

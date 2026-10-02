@@ -368,7 +368,15 @@ function wibTanggal(instant: Date): string {
  */
 export async function lokasiDenganLayanan(
   setup: LayananSetup,
-  options: { amount?: number; leadTimeDays?: number; jenis?: NewLayanan["jenis"]; nama?: string; teksLabel?: string | null } = {},
+  options: {
+    amount?: number;
+    leadTimeDays?: number;
+    jenis?: NewLayanan["jenis"];
+    nama?: string;
+    teksLabel?: string | null;
+    bisaHariH?: boolean;
+    adaDiPetakKosong?: boolean;
+  } = {},
 ) {
   // The setup's one Admin Platform: a second seed would be refused, so every
   // helper here reads that one rather than creating its own.
@@ -380,6 +388,8 @@ export async function lokasiDenganLayanan(
     ...(options.leadTimeDays === undefined ? {} : { leadTimeDays: options.leadTimeDays }),
     ...(options.nama === undefined ? {} : { name: options.nama }),
     ...(options.teksLabel === undefined ? {} : { teksLabel: options.teksLabel }),
+    ...(options.bisaHariH === undefined ? {} : { bisaHariH: options.bisaHariH }),
+    ...(options.adaDiPetakKosong === undefined ? {} : { adaDiPetakKosong: options.adaDiPetakKosong }),
   });
   const dasar = await terverifikasiLokasiDenganPetak(setup, admin);
   const ditawarkan = await setup.layanan.tawarkanLayanan(admin, dasar.lokasiMitra.id, varian.id, {

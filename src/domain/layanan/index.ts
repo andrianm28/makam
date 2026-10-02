@@ -145,6 +145,19 @@ import {
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
+  batalkanLayananCheckout,
+  gabungkanBaris,
+  penawaranCheckout,
+  siapkanCheckout,
+  tulisCheckout,
+  type GabungkanBarisResult,
+  type ItemCheckout,
+  type ModeCheckout,
+  type SiapkanCheckoutInput,
+  type SiapkanCheckoutResult,
+  type TulisCheckoutInput,
+} from "./checkout";
+import {
   pekerjaanTerlambat,
   pekerjaanUntukStaf,
   pekerjaanUntukStafTerbaru,
@@ -298,6 +311,8 @@ export type { SkorMitraJasa, TinjauanMitraJasa } from "./skor";
 export type { MitraJasaTersedia } from "./penugasan";
 export { HARI_TERLAMBAT, batasTerlambat, jendelaKerja, sudahLewatBatas } from "./pekerjaan";
 export type { KeluhanUntukStaf, PekerjaanUntukStaf, TerlambatTerbaca } from "./pekerjaan";
+export type { GabungkanBarisResult, ItemCheckout, ModeCheckout, SiapkanCheckoutInput, SiapkanCheckoutResult, TulisCheckoutInput };
+export { itemCheckoutSchema, itemCheckoutListSchema, type ItemCheckoutInput } from "./pesanan-schema";
 export { JENDELA_TARGET_HARI, jendelaTarget, targetPalingDini } from "./pesanan";
 export type { AlasanTolakPesanan, PesananLayananOrder, PesananLayananItemTerbaca, PlacePesananLayananResult } from "./pesanan";
 export { JAM_RESPON_PERTAMA_KELUHAN, JENDELA_KELUHAN_JAM, jendelaKeluhanBerakhir } from "./keluhan";
@@ -572,6 +587,19 @@ export interface Layanan {
   /** Every job currently Terlambat, oldest target date first (the Tier 2 row's list). */
   pekerjaanTerlambat(): Promise<TerlambatTerbaca[]>;
 
+  /* ── Layanan at a booking checkout (ticket 53) ── */
+
+  /** The Layanan a Lokasi Mitra offers at one booking checkout (hari-H, empty plot, Perpanjangan), each variant at its own price alone. */
+  penawaranCheckout(lokasiId: string, mode: ModeCheckout): Promise<LayananUntukPesanan[]>;
+  /** Checks a checkout's items against the offer, the date rules and the text each asks for; returns them with the quote lines to price them by. */
+  siapkanCheckout(input: Omit<SiapkanCheckoutInput, "at"> & { at?: Date }): Promise<SiapkanCheckoutResult>;
+  /** Shapes the owner's quote (its own lines and these Layanan, one Biaya Layanan Platform) into Tagihan lines. */
+  gabungkanBaris: typeof gabungkanBaris;
+  /** Writes the order and its jobs under the owner's Nomor Pemesanan, on the owner's transaction (`within`). Returns the jobs written. */
+  tulisCheckout(input: TulisCheckoutInput, within?: Database): Promise<number>;
+  /** Cancels the jobs not yet started and returns the rupiah kept for the ones that were, which the cancellation does not refund. */
+  batalkanLayananCheckout(nomor: string, alasan: string, within?: Database): Promise<{ dibatalkan: number; ditahan: number }>;
+
   /* ── Layanan at a DKI TPU, fulfilled by a Mitra Jasa (ticket 56) ── */
 
   /**
@@ -728,6 +756,11 @@ export function createLayanan(deps: LayananDeps): Layanan {
     selesaikanPekerjaan: (by, input) => selesaikanPekerjaan(deps, by, input),
     pekerjaanTerlambat: () => pekerjaanTerlambat(deps),
 
+    penawaranCheckout: (lokasiId, mode) => penawaranCheckout(deps, lokasiId, mode, now()),
+    siapkanCheckout: (input) => siapkanCheckout(deps, { ...input, at: input.at ?? now() }),
+    gabungkanBaris,
+    tulisCheckout: (input, within) => tulisCheckout(deps, input, within),
+    batalkanLayananCheckout: (nomor, alasan, within) => batalkanLayananCheckout(deps, nomor, alasan, within),
     penawaranTpuUntukPesanan: (options) => penawaranTpuUntukPesanan(deps, now(), options),
     hargaPesananTpu: (ids) => hargaPesananTpu(deps, ids, now()),
     placePesananLayananTpu: (pemesan, input, foto) => placePesananLayananTpu(deps, pemesan, input, foto ?? null),
