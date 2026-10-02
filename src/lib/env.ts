@@ -17,6 +17,18 @@ export function usesInMemoryFakes(appEnv: AppEnvironment): boolean {
 
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
+/**
+ * The release this environment has opened (`RILIS_TERBUKA`, 1 to 3). Unset, production
+ * opens Rilis 1 and every other environment opens everything, so a missing
+ * setting can never open more on production than the release plan allows.
+ */
+const rilisEnvSchema = z
+  .object({
+    APP_ENV: z.enum(appEnvironments).default("development"),
+    RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(3).optional()),
+  })
+  .transform(({ APP_ENV, RILIS_TERBUKA }) => (RILIS_TERBUKA ?? (APP_ENV === "production" ? 1 : 3)) as 1 | 2 | 3);
+
 /** Where the image installs its headless Chromium (Debian's chromium-headless-shell), for the live PdfRenderer. */
 export const DEFAULT_CHROMIUM_PATH = "/usr/bin/chromium-headless-shell";
 
@@ -228,6 +240,8 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   ...smtpEnvShape,
   ...sumopodEnvShape,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  /** The release this environment has opened, 1 to 3 (ADR 0006); validated here so a bad value stops the process at start. */
+  RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(3).optional()),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
   /**
@@ -380,6 +394,11 @@ function parseEnv<S extends z.ZodType>(schema: S, source: EnvSource): z.infer<S>
 /** Reads and validates the server-side environment. Throws on a bad value. */
 export function readRuntimeEnv(source: EnvSource = process.env): RuntimeEnv {
   return parseEnv(runtimeEnvSchema, source);
+}
+
+/** The release number this environment has opened (ADR 0006). Throws on a bad value. */
+export function readRilisEnv(source: EnvSource = process.env): 1 | 2 | 3 {
+  return parseEnv(rilisEnvSchema, source);
 }
 
 /** Reads and validates only the error-monitoring settings (web server Sentry). */

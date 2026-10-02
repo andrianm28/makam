@@ -10,6 +10,7 @@
  */
 
 import { HUB_PATH } from "@/lib/makam-keluarga-content";
+import { terbukaDi } from "@/lib/rilis-peta";
 
 export interface PublicMenuItem {
   /** What the item is called in the top bar, the drawer and the footer's sitemap. */
@@ -44,11 +45,17 @@ const items: PublicMenuItem[] = [
 ];
 
 /** The top bar's and the drawer's items in order, ending in Masuk or Akun Saya. */
-export function publicMenu(options: { signedIn: boolean }): PublicMenuItem[] {
+export function publicMenu(options: { signedIn: boolean; /** The release the environment has opened (ADR 0006); Wakaf Tanah links once it is open. */ rilis?: number }): PublicMenuItem[] {
   const account: PublicMenuItem = options.signedIn
     ? { label: "Akun Saya", href: "/akun", description: "Email, nomor telepon dan pesanan Anda." }
     : { label: "Masuk", href: "/masuk", description: "Masuk dengan Kode Masuk, tanpa daftar." };
-  return [...items, account];
+  const wakafTerbuka = terbukaDi("wakaf", options.rilis ?? 1);
+  const menu = items.map((item) =>
+    item.label === "Wakaf Tanah" && wakafTerbuka
+      ? { label: item.label, href: "/wakaf-tanah", description: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir." }
+      : item,
+  );
+  return [...menu, account];
 }
 
 /** The account entry (Masuk or Akun Saya), which the top bar shows as its own button. */

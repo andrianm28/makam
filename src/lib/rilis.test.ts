@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fiturUntukRute, fiturUntukTick, terbukaDi } from "./rilis-peta";
 import { rilisAktif, rilisTerbuka } from "./rilis";
@@ -61,5 +63,11 @@ describe("Rilis terbuka (ADR 0006)", () => {
     expect(fiturUntukTick("lokasi.berhenti_berlaku")).toBe("lokasi_ditangguhkan");
     expect(fiturUntukTick("billing.lapse_pay_first_tagihan")).toBe("inti");
     expect(fiturUntukTick("tick.baru")).toBeUndefined();
+  });
+
+  it("the CI e2e stack opens every release", () => {
+    const env = readFileSync(join(__dirname, "..", "..", "deploy", "ci", "e2e.env"), "utf8");
+    const line = env.split("\n").find((row) => row.startsWith("RILIS_TERBUKA="));
+    expect(line).toBe("RILIS_TERBUKA=3");
   });
 });

@@ -12,7 +12,7 @@ import { bytesOf } from "@/lib/files/base64";
 import { pengurusanMessage } from "@/lib/pengurusan-labels";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { codeInput, emailInput } from "@/server/code-inputs";
-import { guarded, GuardRejected } from "@/server/guard";
+import { gerbangAksi, guarded, GuardRejected } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 import {
@@ -130,6 +130,7 @@ async function kirim(
  * Kode Masuk step under the form.
  */
 export async function kirimPengurusanTpu(draft: unknown): Promise<KirimState> {
+  gerbangAksi("tpu");
   return kirimTerpakai(draftTpuSchema, draft, pengurusanMessage, kirimTpu);
 }
 
@@ -188,6 +189,7 @@ export async function verifikasiKodeMasukDanKirimTpu(
   _state: KirimState,
   formData: FormData,
 ): Promise<KirimState> {
+  gerbangAksi("tpu");
   return masukLaluKirim(
     draftTpuSchema,
     draft,

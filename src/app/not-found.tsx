@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { rilisAktif } from "@/lib/rilis";
 import { SiteFrame } from "@/components/site/site-frame";
 import { NotFoundMessage } from "@/components/makam/not-found-message";
 import { publicMenu } from "@/lib/public-navigation";
@@ -31,7 +32,7 @@ export default async function HalamanTidakDitemukan() {
 
   return (
     <SiteFrame
-      items={publicMenu({ signedIn: actor !== null })}
+      items={publicMenu({ signedIn: actor !== null, rilis: rilisAktif() })}
       contact={settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null}
       legalName={settings?.legalName ?? null}
     >

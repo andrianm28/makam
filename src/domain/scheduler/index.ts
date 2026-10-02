@@ -12,6 +12,8 @@
  * Owns table: scheduler_heartbeat.
  */
 import type { Database } from "@/db/client";
+import { rilisAktif } from "@/lib/rilis";
+import { fiturUntukTick, terbukaDi } from "@/lib/rilis-peta";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
@@ -157,6 +159,29 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   { name: "queues.bertugas_otomatis_mati", cron: "* * * * *", tick: bertugasOtomatisMatiTick },
 ];
 
+/**
+ * The ticks the worker registers for an environment that has opened release
+ * `rilis` (ADR 0006): every tick keeps its name and cron, but one of a closed
+ * feature does nothing when it fires and says so once (never reading its
+ * context, so a closed feature sends no message and touches no row).
+ */
+export function ticksForRelease(ticks: readonly ScheduledTick[], rilis: number, log: (message: string) => void = console.log): ScheduledTick[] {
+  return ticks.map((scheduled) => {
+    const fitur = fiturUntukTick(scheduled.name);
+    // A tick with no release is refused by the guard test; at run time it is treated as open.
+    if (!fitur || terbukaDi(fitur, rilis)) return scheduled;
+    let said = false;
+    return {
+      ...scheduled,
+      tick: async () => {
+        if (said) return;
+        said = true;
+        log(`[worker] ${scheduled.name} skipped: ${fitur} is not open at RILIS_TERBUKA=${rilis}`);
+      },
+    };
+  });
+}
+
 async function hakPakaiKedaluwarsaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.inventory.kedaluwarsaTick(now);
 }
@@ -233,7 +258,8 @@ async function tutupJendelaKeluhanTick(ctx: SchedulerContext, now: Date): Promis
 /** The worker wrapper around the Layanan module's Terlambat tick (idempotent there, as every tick is). */
 async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
-  await tandaiTerlambatTpu(ctx.db, now);
+  // The TPU jobs are Mitra Jasa's, a Rilis 3 feature (ADR 0006).
+  if (terbukaDi("mitra_jasa", rilisAktif())) await tandaiTerlambatTpu(ctx.db, now);
 }
 
 /** The worker wrapper around the Layanan module's lapsed-Tagihan tick (idempotent there, as every tick is). */

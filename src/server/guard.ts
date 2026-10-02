@@ -1,7 +1,18 @@
 import "server-only";
+import { notFound } from "next/navigation";
 import type { z } from "zod";
 import { authorize, type Action, type Actor, type Resource } from "@/domain/identity";
+import { rilisTerbuka, type Fitur } from "@/lib/rilis";
 import { currentActor } from "./session";
+
+/**
+ * A closed feature's Server Action answers 404 before anything else: no actor read,
+ * no domain call (ADR 0006). `guarded()` does it first when given `fitur`; an
+ * action that does not go through `guarded()` calls it itself.
+ */
+export function gerbangAksi(fitur: Fitur): void {
+  if (!rilisTerbuka(fitur)) notFound();
+}
 
 export type GuardError = "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid";
 
@@ -30,12 +41,15 @@ export class GuardRejected extends Error {
  * A caller who is not signed in is rejected before anything else happens.
  */
 export async function guarded<S extends z.ZodType, R>(options: {
+  /** The feature (release) this action belongs to; closed, the action answers 404 before step 1. Omitted: Rilis 1. */
+  fitur?: Fitur;
   action: Action;
   resource: (actor: Actor) => Resource;
   schema: S;
   input: unknown;
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
 }): Promise<Guarded<R>> {
+  if (options.fitur) gerbangAksi(options.fitur);
   const actor = await currentActor();
   if (!actor) return { ok: false, error: "belum_masuk" };
 

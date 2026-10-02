@@ -26,6 +26,7 @@ export async function ajukanPermohonanAction(_previous: BerkasActionState, formD
   const berkas = (await Promise.all(daftar.map((satu) => fileOf(formData, `berkas_${satu.kunci}`, satu.kunci)))).filter((satu) => satu !== null);
   const catatan = String(formData.get("catatan") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanPermohonanSchema,

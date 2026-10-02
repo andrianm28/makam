@@ -28,6 +28,7 @@ async function wakifTulis<S extends z.ZodType>(options: {
   disimpan: string;
 }): Promise<FormState> {
   const hasil = await guarded({
+    fitur: "wakaf",
     action: "akun.lihat",
     resource: (actor: Actor) => akunResource(actor.accountId),
     schema: options.schema,
