@@ -169,6 +169,7 @@ export type {
   PesananAlternatifDitawarkan,
   PemesananDiajukan,
   PesananDibatalkan,
+  PemesananAhliWaris,
   TumpangMintaPersetujuan,
   PemesananDikonfirmasi,
   PesananDitolak,

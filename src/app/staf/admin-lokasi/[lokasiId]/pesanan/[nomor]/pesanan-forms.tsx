@@ -248,7 +248,7 @@ function TawarkanAlternatifForm({
 }
 
 /** The Tolak: a reason off the fixed list, and nothing else to write. */
-function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: string; alasan: { key: AlasanTolakLokasi; label: string }[] }) {
+export function TolakForm({ lokasiId, nomor, alasan }: { lokasiId: string; nomor: string; alasan: { key: AlasanTolakLokasi; label: string }[] }) {
   const [state, action, pending] = useActionState(tolakPesanan, idle);
   return (
     <form action={action} className="flex flex-col gap-4">

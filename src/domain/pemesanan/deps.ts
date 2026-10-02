@@ -70,6 +70,8 @@ export interface PemesananNotifikasi {
    * lose it.
    */
   peringatanStafSaatDuka(tx: Database, order: PemesananDiajukan): Promise<void>;
+  /** The Peringatan Staf (bell + email) an heirship proof raises, queued inside the consent's own transaction (ticket 35). */
+  peringatanStafAhliWaris(tx: Database, order: PemesananAhliWaris): Promise<void>;
   /**
    * The same order, still unconfirmed, now that 1 h of the Lokasi's Jam
    * Operasional has passed: the Lokasi's staff are alerted once more.
@@ -175,6 +177,16 @@ export interface TerencanaDiajukan {
   /** The Pemesan to call back, and the number to call. */
   pemesan: { name: string; phoneNumber: string | null };
   /** Every Akun Staf that must see this order: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
+  penerima: { accountId: string }[];
+}
+
+/** An heirship proof logged for a further burial, as the staff who must record a Ganti Pemegang Hak are told (ticket 35). */
+export interface PemesananAhliWaris {
+  id: string;
+  nomor: string;
+  lokasi: { id: string; name: string };
+  almarhumName: string;
+  /** Every Akun Staf that must see it: the Lokasi Mitra's Admin Lokasi and its Kontak Siaga. */
   penerima: { accountId: string }[];
 }
 

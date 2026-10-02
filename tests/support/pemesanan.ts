@@ -89,6 +89,7 @@ export function pemesananOnTestDatabase(
       diumumkan.push(order);
     },
     peringatanStafSaatDuka: async () => {},
+    peringatanStafAhliWaris: async () => {},
     pesananBelumDikonfirmasi: async (order) => {
       diumumkan.push(order);
     },

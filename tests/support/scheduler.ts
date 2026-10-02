@@ -85,6 +85,7 @@ const DIAMDIAM: PemesananNotifikasi = {
   tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
   pesananDiajukan: async () => {},
   peringatanStafSaatDuka: async () => {},
+  peringatanStafAhliWaris: async () => {},
   pesananBelumDikonfirmasi: async () => {},
   pesananDikonfirmasi: async () => {},
   pesananDitolak: async () => {},

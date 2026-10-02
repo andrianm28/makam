@@ -18,6 +18,7 @@ import {
   CentangDokumenForm,
   KonfirmasiForm,
   PembayaranLangsungForm,
+  TolakForm,
 } from "./pesanan-forms";
 import { TerencanaPesananView } from "./terencana-view";
 import { TumpangPanelView } from "./tumpang-forms";
@@ -149,6 +150,12 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
           </CardHeader>
           <CardContent>
             <TumpangPanelView lokasiId={current.id} nomor={order.nomor} panel={tumpang} pemakamanAwal={rencana} />
+            {tumpang.bisaTolak ? (
+              <div className="mt-6 border-t pt-4">
+                <p className="mb-3 text-sm font-medium">Tolak permintaan ini</p>
+                <TolakForm lokasiId={current.id} nomor={order.nomor} alasan={alasanTolakLokasiKeys.map((key) => ({ key, label: ALASAN_TOLAK[key] }))} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

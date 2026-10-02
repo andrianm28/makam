@@ -11,6 +11,8 @@ export interface TumpangPanel {
   konsenLabel: string;
   bisaCatatKonsen: boolean;
   bisaKonfirmasi: boolean;
+  /** The Lokasi may Tolak an Diajukan further burial (reason off the fixed list), so one failing the checks does not hang. */
+  bisaTolak: boolean;
   /** Why confirming is blocked, shown beside the disabled button; null when it is allowed (or past Diajukan). */
   blokKonfirmasi: string | null;
   /** The warning banner: earlier Tagihan under the same Hak Pakai that are still unpaid. */
@@ -45,6 +47,7 @@ export function tumpangPanel(tumpang: TumpangUntukStaf, status: PemesananStatus)
     konsenLabel,
     bisaCatatKonsen: terbuka && (konsen.state === "menunggu_pemegang" || konsen.state === "menunggu_lokasi"),
     bisaKonfirmasi: terbuka && blok === null,
+    bisaTolak: terbuka,
     blokKonfirmasi: blok,
     peringatan: tumpang.tagihanSebelumnyaBelumLunas.map((satu) => `Tagihan ${satu.nomorTagihan} untuk pesanan ${satu.nomorPesanan} di Hak Pakai ini belum lunas.`),
     pengingatGanti: tumpang.gantiPemegangHakDiingatkan ? "Catat Ganti Pemegang Hak ke ahli waris yang membawa bukti ini." : null,

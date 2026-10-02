@@ -269,6 +269,8 @@ export const staffAlertKinds = [
   "staf_saat_duka_belum_dikonfirmasi",
   /** A family submitted a new Pemesanan Terencana; one alert, no re-alert (ticket 97). */
   "staf_terencana_baru",
+  /** An heirship proof was logged for a further burial: record a Ganti Pemegang Hak (ticket 35, owner 2026-10-02). */
+  "staf_ganti_pemegang_hak",
   "staf_antrean_mendesak",
   "staf_antrean_eskalasi",
   "staf_tugas_lapangan_baru",

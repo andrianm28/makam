@@ -1,5 +1,5 @@
 import type { WorkingTimeResult } from "@/domain/lokasi";
-import type { PemesananDiajukan, TerencanaDiajukan } from "@/domain/pemesanan";
+import type { PemesananAhliWaris, PemesananDiajukan, TerencanaDiajukan } from "@/domain/pemesanan";
 import type { Tenure } from "@/domain/tariffs";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import type { PushNotification } from "@/ports/web-push";
@@ -130,6 +130,30 @@ export function stafTerencanaBaruAlert(
     push: {
       title: "Pesan Terencana baru",
       body: `${order.lokasi.name} · ${order.nomor} · ${jumlah}`,
+      url: `/staf/admin-lokasi/${order.lokasi.id}/pesanan/${order.nomor}`,
+    },
+  };
+}
+
+/**
+ * The Peringatan Staf an heirship proof raises (ticket 35, owner Q16): the Admin Lokasi is reminded to record a Ganti Pemegang Hak
+ * to the heir who brought the proof. The push carries no personal data; `url` is the order's page in the staff area.
+ */
+export function stafGantiPemegangHakAlert(
+  order: PemesananAhliWaris,
+): { email: { subject: string; text: string }; push: PushNotification & { url: string } } {
+  return {
+    email: {
+      subject: `Catat Ganti Pemegang Hak: bukti ahli waris pada pesanan ${order.nomor}`,
+      text: [
+        `Bukti ahli waris dicatat untuk pemakaman ${order.almarhumName} di ${order.lokasi.name} (pesanan ${order.nomor}).`,
+        "Catat Ganti Pemegang Hak ke ahli waris yang membawa bukti ini.",
+        `Buka pesanan ${order.nomor} di aplikasi staf.`,
+      ].join("\n"),
+    },
+    push: {
+      title: "Catat Ganti Pemegang Hak",
+      body: `${order.lokasi.name} · ${order.nomor}`,
       url: `/staf/admin-lokasi/${order.lokasi.id}/pesanan/${order.nomor}`,
     },
   };

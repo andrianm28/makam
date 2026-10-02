@@ -21,6 +21,7 @@ import { periksaBolehTumpang } from "@/domain/inventory";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { foldKey } from "@/lib/fold-key";
 import { linesOf } from "./konfirmasi-saat-duka";
+import { penerimaOf } from "./saat-duka";
 import { tagihanPerluDibayar, type NewTagihanLine, type Tagihan } from "@/domain/billing";
 import type { PemesananDeps } from "./deps";
 import { pemesananMakam, pemesananTerencana, pemesananTerencanaUnit, tumpangJenisKeys } from "./schema";
@@ -252,17 +253,44 @@ export async function catatKonsenTumpang(deps: PemesananDeps, by: Actor, rawInpu
   const refusal = writeRefusal(by, "pemesanan.konfirmasi", lokasiMitraResource(order.lokasiId));
   if (refusal) return refusal;
   if (order.status !== "diajukan" || order.konsenState === "disetujui" || order.konsenState === "ditolak") return { ok: false, reason: "konsen_sudah_diputuskan" };
-  await deps.db
-    .update(pemesananMakam)
-    .set({
-      konsenState: "disetujui",
-      konsenVia: parsed.data.via,
-      konsenCatatan: parsed.data.catatan,
-      konsenBuktiFileKey: parsed.data.buktiFileKey ?? null,
-      konsenOleh: by.accountId,
-      konsenDiputuskanPada: deps.clock.now(),
-    })
-    .where(eq(pemesananMakam.id, order.id));
+  const penerima = parsed.data.via === "ahli_waris" ? await penerimaOf(deps, order.lokasiId) : [];
+  const now = deps.clock.now();
+  const dicatat = await deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const moved = await tx
+      .update(pemesananMakam)
+      .set({
+        konsenState: "disetujui",
+        konsenVia: parsed.data.via,
+        konsenCatatan: parsed.data.catatan,
+        konsenBuktiFileKey: parsed.data.buktiFileKey ?? null,
+        konsenOleh: by.accountId,
+        konsenDiputuskanPada: now,
+      })
+      .where(and(eq(pemesananMakam.id, order.id), inArray(pemesananMakam.konsenState, ["menunggu_pemegang", "menunggu_lokasi"])))
+      .returning({ id: pemesananMakam.id });
+    if (moved.length === 0) return { ok: false as const, reason: "konsen_sudah_diputuskan" as const };
+    await record({
+      actor: { accountId: by.accountId, role: "admin_lokasi" },
+      action: "pemesanan.konsen_tumpang",
+      entity: { kind: "pemesanan_makam", id: order.id },
+      lokasiId: order.lokasiId,
+      before: { konsen: order.konsenState },
+      after: { konsen: "disetujui", via: parsed.data.via },
+      reason: parsed.data.catatan,
+    });
+    // An heirship proof asks the Admin Lokasi to record a Ganti Pemegang Hak: a Peringatan Staf (bell + email), queued with the consent.
+    if (parsed.data.via === "ahli_waris") {
+      await deps.notifikasi.peringatanStafAhliWaris(tx, {
+        id: order.id,
+        nomor: order.nomor,
+        lokasi: { id: order.lokasiId, name: order.lokasiName },
+        almarhumName: order.almarhumName,
+        penerima,
+      });
+    }
+    return { ok: true as const };
+  });
+  if (!dicatat.ok) return dicatat;
   return { ok: true, pesanan: { nomor: order.nomor } };
 }
 
