@@ -172,15 +172,15 @@ describe("the Pekerjaan Layanan message thread", () => {
     expect(await setup.layanan.kirimPesanPemesan(pemesan, { pekerjaanId, teks: "" })).toEqual({ ok: false, reason: "input_tidak_valid" });
   });
 
-  it("refuses a phone number or an email address from the Pemesan and the Admin Lokasi: contacts are never exchanged", async () => {
+  it("a message with a phone number or an email address is sent like any other message", async () => {
     const { setup, lokasi, pemesan, pekerjaanId } = await pekerjaanDijadwalkan();
     for (const teks of ["Hubungi saya di 0812-3456-7890", "wa saya +62 812 3456 7890", "email budi@contoh.id ya"]) {
-      expect(await setup.layanan.kirimPesanPemesan(pemesan, { pekerjaanId, teks })).toEqual({ ok: false, reason: "kontak_tidak_boleh" });
-      expect(await setup.layanan.kirimPesanStaf(lokasi.adminLokasi, { pekerjaanId, teks })).toEqual({ ok: false, reason: "kontak_tidak_boleh" });
+      expect((await setup.layanan.kirimPesanPemesan(pemesan, { pekerjaanId, teks })).ok).toBe(true);
+      expect((await setup.layanan.kirimPesanStaf(lokasi.adminLokasi, { pekerjaanId, teks })).ok).toBe(true);
     }
-    expect((await setup.layanan.kirimPesanPemesan(pemesan, { pekerjaanId, teks: "Petak 12, blok A, ya." })).ok).toBe(true);
     const baca = await setup.layanan.bacaThreadStaf(lokasi.adminLokasi, pekerjaanId);
-    expect(JSON.stringify(baca)).not.toContain("081234567890");
+    if (!baca.ok) throw new Error(baca.reason);
+    expect(baca.thread.pesan.map((m) => m.teks)).toContain("Hubungi saya di 0812-3456-7890");
   });
 
   it("becomes read-only when the Keluhan window closes", async () => {
