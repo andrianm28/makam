@@ -90,7 +90,7 @@ export function ProfileForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nama Lokasi Mitra" name="name" required defaultValue={lokasiMitra.name} maxLength={200} />
         <Field label="Nama pengelola" name="pengelolaName" required defaultValue={lokasiMitra.pengelolaName} maxLength={200} />
-        <Field label="Telepon pengelola (nomor HP)" name="pengelolaTelepon" type="tel" defaultValue={lokasiMitra.pengelolaTelepon ?? ""} maxLength={30} />
+        <Field label="Telepon pengelola (kantor atau HP)" name="pengelolaTelepon" type="tel" defaultValue={lokasiMitra.pengelolaTelepon ?? ""} maxLength={30} />
         <Field label="Email pengelola" name="pengelolaEmail" type="email" defaultValue={lokasiMitra.pengelolaEmail ?? ""} maxLength={200} />
         <Field label="Alamat" name="address" required defaultValue={lokasiMitra.address} maxLength={500} />
         <Field label="Kota / kabupaten" name="city" required defaultValue={lokasiMitra.city} maxLength={120} />

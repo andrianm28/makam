@@ -3,13 +3,13 @@ import type { Database } from "@/db/client";
 import type { AuditAction, AuditLog, AuditSnapshot } from "@/domain/audit";
 import {
   lokasiMitraResource,
-  normalisePhoneNumber,
   semuaLokasiMitraResource,
   writeRefusal,
   type Action,
   type Actor,
   type WriteRefusal,
 } from "@/domain/identity";
+import { parseTeleponKantorAtauHp } from "./telepon-kantor";
 import type { Clock } from "@/ports/clock";
 import {
   DEFAULT_FLAGS,
@@ -262,12 +262,12 @@ export async function updateProfile(
   const parsed = lokasiProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "profil_tidak_valid" };
   const telepon = parsed.data.pengelolaTelepon ?? "";
-  const phone = telepon === "" ? null : normalisePhoneNumber(telepon);
+  const phone = telepon === "" ? null : parseTeleponKantorAtauHp(telepon);
   if (phone && !phone.ok) return { ok: false, reason: "profil_tidak_valid" };
   const { pengelolaTelepon: _t, pengelolaEmail: _e, ...rest } = parsed.data;
   const profile = {
     ...rest,
-    pengelolaTelepon: phone?.ok ? phone.phoneNumber : null,
+    pengelolaTelepon: phone?.ok ? phone.telepon : null,
     pengelolaEmail: parsed.data.pengelolaEmail || null,
   };
   return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_profil", (row) => ({
