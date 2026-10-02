@@ -29,11 +29,6 @@ export type KirimLayananState =
   | { status: "selesai"; nomor: string }
   | { status: "gagal"; message: string };
 
-export const initialKirimLayanan: KirimLayananState = { status: "idle" };
-
-/** The one schema the form and this action share, from the Layanan module's own Zod-only file. */
-export const draftLayananSchema = placePesananLayananSchema;
-
 /**
  * The running all-in price of the chosen set, recomputed on every change so the
  * screen and the Tagihan are one number. No auth and no role: it changes
@@ -52,7 +47,7 @@ export async function kirimPesananLayanan(draft: unknown): Promise<KirimLayananS
   const hasil = await guarded({
     action: "layanan.buat",
     resource: (actor) => pesananLayananResource(actor.accountId),
-    schema: draftLayananSchema,
+    schema: placePesananLayananSchema,
     input: draft,
     run: (actor, data) => kirim({ accountId: actor.accountId, email: actor.email }, data),
   });
@@ -71,7 +66,7 @@ export async function verifikasiKodeMasukDanKirimLayanan(
   _state: KodeMasukVerifyState,
   formData: FormData,
 ): Promise<KodeMasukVerifyState> {
-  const parsedDraft = draftLayananSchema.safeParse(draft);
+  const parsedDraft = placePesananLayananSchema.safeParse(draft);
   if (!parsedDraft.success) return { status: "gagal", message: parsedDraft.error.issues[0]?.message ?? "Periksa lagi isian Anda." };
   const parsedCode = z
     .object({ email: z.email(), code: z.string().regex(/^\d{6}$/, "Masukkan 6 angka Kode Masuk dari email Anda.") })
