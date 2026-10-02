@@ -44,6 +44,17 @@ describe("Lokasi Mitra Ditangguhkan", () => {
     expect(await setup.lokasi.izinPesanan(lokasi.id, "hak_pakai_baru")).toEqual({ diizinkan: true });
   });
 
+  it("records the reason Admin Platform gives in the audit entry of each decision", async () => {
+    const { setup, admin, lokasi } = await terverifikasi();
+
+    await setup.lokasi.tangguhkan(admin, lokasi.id, { alasan: "Perjanjian sedang ditinjau" });
+    expect((await setup.audit.entriesForLokasi(lokasi.id)).at(-1)).toMatchObject({ after: { status: "ditangguhkan", alasan: "Perjanjian sedang ditinjau" } });
+    await setup.lokasi.pulihkan(admin, lokasi.id, { alasan: "Perjanjian beres" });
+    expect((await setup.audit.entriesForLokasi(lokasi.id)).at(-1)).toMatchObject({ after: { status: "terverifikasi", alasan: "Perjanjian beres" } });
+    await setup.lokasi.hentikan(admin, lokasi.id, { alasan: "Pengelola mundur" });
+    expect((await setup.audit.entriesForLokasi(lokasi.id)).at(-1)).toMatchObject({ after: { status: "berhenti", alasan: "Pengelola mundur" } });
+  });
+
   it("a Lokasi Belum Tayang is untouched by the status rules", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

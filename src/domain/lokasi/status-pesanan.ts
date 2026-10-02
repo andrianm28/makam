@@ -58,8 +58,14 @@ export async function izinPesanan(deps: LokasiDeps, lokasiId: string, jenis: Jen
   return facts ? izinPesananDari(facts, jenis) : { diizinkan: true };
 }
 
-/** Admin Platform sets a Terverifikasi Lokasi Mitra Ditangguhkan. Audited. */
-export async function tangguhkan(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<UbahStatusResult> {
+/** The reason Admin Platform gave, as it goes into the audit entry (nothing when none was given). */
+function alasanDari(input: { alasan?: string }): { alasan?: string } {
+  const alasan = input.alasan?.trim();
+  return alasan ? { alasan } : {};
+}
+
+/** Admin Platform sets a Terverifikasi Lokasi Mitra Ditangguhkan, with a reason. Audited. */
+export async function tangguhkan(deps: LokasiDeps, by: Actor, lokasiId: string, input: { alasan?: string } = {}): Promise<UbahStatusResult> {
   return writeLokasiMitra(
     deps,
     by,
@@ -68,13 +74,13 @@ export async function tangguhkan(deps: LokasiDeps, by: Actor, lokasiId: string):
     (row) =>
       row.status !== "terverifikasi"
         ? ({ ok: false, reason: "status_tidak_cocok" } as const)
-        : { values: { status: "ditangguhkan" as const }, before: { status: row.status }, after: { status: "ditangguhkan" } },
+        : { values: { status: "ditangguhkan" as const }, before: { status: row.status }, after: { status: "ditangguhkan", ...alasanDari(input) } },
     "lokasi.ubah_status",
   );
 }
 
 /** Admin Platform reinstates a Ditangguhkan Lokasi Mitra (Berhenti is final). Audited. */
-export async function pulihkan(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<UbahStatusResult> {
+export async function pulihkan(deps: LokasiDeps, by: Actor, lokasiId: string, input: { alasan?: string } = {}): Promise<UbahStatusResult> {
   return writeLokasiMitra(
     deps,
     by,
@@ -83,7 +89,7 @@ export async function pulihkan(deps: LokasiDeps, by: Actor, lokasiId: string): P
     (row) =>
       row.status !== "ditangguhkan"
         ? ({ ok: false, reason: "status_tidak_cocok" } as const)
-        : { values: { status: "terverifikasi" as const }, before: { status: row.status }, after: { status: "terverifikasi" } },
+        : { values: { status: "terverifikasi" as const }, before: { status: row.status }, after: { status: "terverifikasi", ...alasanDari(input) } },
     "lokasi.ubah_status",
   );
 }
@@ -93,7 +99,7 @@ export async function pulihkan(deps: LokasiDeps, by: Actor, lokasiId: string): P
  * 30 days after the decision, never in the past). Audited. Everything that follows (no Paket cycles, the leftovers
  * at the date) reads this state; see `izinPesanan` and `berhentiBerlakuBelumDiproses`.
  */
-export async function hentikan(deps: LokasiDeps, by: Actor, lokasiId: string, input: { berlakuOn?: string }): Promise<HentikanResult> {
+export async function hentikan(deps: LokasiDeps, by: Actor, lokasiId: string, input: { berlakuOn?: string; alasan?: string }): Promise<HentikanResult> {
   const now = deps.clock.now();
   const today = wibDateOf(now);
   const berlakuOn = input.berlakuOn ?? addWibDateDays(today, BERHENTI_DEFAULT_DAYS);
@@ -108,7 +114,7 @@ export async function hentikan(deps: LokasiDeps, by: Actor, lokasiId: string, in
       return {
         values: { status: "berhenti", berhentiDecidedAt: now, berhentiBerlakuOn: berlakuOn },
         before: { status: row.status },
-        after: { status: "berhenti", berlakuOn },
+        after: { status: "berhenti", berlakuOn, ...alasanDari(input) },
       };
     },
     "lokasi.ubah_status",

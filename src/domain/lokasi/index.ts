@@ -428,11 +428,11 @@ export interface Lokasi {
    */
   recordPublishGateMasihTerpenuhi(by: Actor, lokasiId: string): Promise<WriteResult>;
   /** Admin Platform sets a Terverifikasi Lokasi Ditangguhkan (ticket 59), audited. */
-  tangguhkan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
+  tangguhkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
   /** Admin Platform reinstates a Ditangguhkan Lokasi, audited. */
-  pulihkan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
+  pulihkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
   /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
-  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string }): Promise<HentikanResult>;
+  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string; alasan?: string }): Promise<HentikanResult>;
   /** Whether a quote may price this Lokasi: listed, Ditangguhkan, or Berhenti before its effective date (carry-on actions price there). */
   dapatDiharga(lokasiId: string): Promise<boolean>;
   /** Every order entry point asks this first: may an order of this kind be taken at this Lokasi now. */
@@ -525,8 +525,8 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
-    tangguhkan: (by, lokasiId) => tangguhkan(deps, by, lokasiId),
-    pulihkan: (by, lokasiId) => pulihkan(deps, by, lokasiId),
+    tangguhkan: (by, lokasiId, input) => tangguhkan(deps, by, lokasiId, input),
+    pulihkan: (by, lokasiId, input) => pulihkan(deps, by, lokasiId, input),
     hentikan: (by, lokasiId, input) => hentikan(deps, by, lokasiId, input),
     dapatDiharga: (lokasiId) => dapatDiharga(deps, lokasiId),
     izinPesanan: (lokasiId, jenis) => izinPesanan(deps, lokasiId, jenis),
