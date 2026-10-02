@@ -204,4 +204,3 @@ function unggahMessage(reason: string): string {
   }
 }
 
-export { JENIS_BERKAS };

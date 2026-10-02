@@ -29,10 +29,8 @@ export type KirimLayananState =
   | { status: "selesai"; nomor: string }
   | { status: "gagal"; message: string };
 
-export const initialKirimLayanan: KirimLayananState = { status: "idle" };
-
 /** The one schema the form and this action share, from the Layanan module's own Zod-only file. */
-export const draftLayananSchema = placePesananLayananSchema;
+const draftLayananSchema = placePesananLayananSchema;
 
 /**
  * The running all-in price of the chosen set, recomputed on every change so the
