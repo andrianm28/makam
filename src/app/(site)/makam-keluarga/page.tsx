@@ -236,6 +236,12 @@ function MakamDitemukan({ satu, aksiTerpilih, contact }: { satu: MakamTerbaca; a
         ) : null}
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam ini" />
         <Link
+          href={`/pesan-makam/makamkan-di-sini/${satu.hakPakaiId}`}
+          className={aksiTerpilih === "tumpang" ? "font-medium text-brand underline underline-offset-4" : "text-body text-brand underline underline-offset-4"}
+        >
+          Makamkan di sini
+        </Link>
+        <Link
           href={`/perpanjangan/${satu.hakPakaiId}`}
           className={aksiTerpilih === "perpanjang" ? "font-medium text-brand underline underline-offset-4" : "text-body text-brand underline underline-offset-4"}
         >
