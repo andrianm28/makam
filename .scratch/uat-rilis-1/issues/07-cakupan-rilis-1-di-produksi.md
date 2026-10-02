@@ -1,6 +1,6 @@
 # Production would expose Rilis 2/3 features: decide the release scope before promote
 
-Status: needs-triage
+Status: needs-info
 Spec: `.scratch/makam-v1/spec.md` "Release plan"; `docs/adr/0005-perpanjangan-in-rilis-1.md`; go-live checklist `go-live-rilis-1.md`.
 
 ## What happened
@@ -21,3 +21,8 @@ Release scope for the first production promote: widen Rilis 1 to what `main` hol
 ## Comments
 
 - 2026-10-02 — Filed by the orchestrator from the audit; owner decision pending (grilling round 3).
+- 2026-10-02 — **Settled through the `grilling` skill (round 3, owner "ya setuju semua" to the recommended answers):**
+  - Q8: **build a release gate per environment before the first production promote.** One setting per environment (staging opens everything, production only Rilis 1) closes the Rilis 2/3 routes, menu items, Akun Saya tabs, staff items and scheduled ticks; Rilis 2 and 3 later open by changing the setting, not by a new promote. Production must match the release plan and ADR 0005.
+  - Q9: on staging, ticket 42's reminder tick keeps running; the owner's test addresses receive the reminders (a test of the email and the Telepon Pemesan row).
+  - Q10: a Ditangguhkan Lokasi's still-up page keeps its prices hidden (ticket 59, as built).
+  - Design details of the gate go to grilling round 4; the decision is recorded as an ADR through `domain-modeling` once round 4 settles.
