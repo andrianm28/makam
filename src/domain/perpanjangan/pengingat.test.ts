@@ -157,4 +157,17 @@ describe("the Hak Pakai end reminders", () => {
     // The Admin Lokasi still hears of it.
     expect(await peringatanAdmin(setup, fixture)).toHaveLength(1);
   });
+
+  it("lose no reminder when announcing it fails: the next tick sends it exactly once", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await hakPakaiSiap(setup);
+    setup.clock.set(wib("2026-08-16 10:00"));
+    const gagal: PengingatDeps = { ...deps(setup), notifikasi: { pengingatHakPakaiBerakhir: async () => { throw new Error("antrean gagal"); } } };
+    await expect(pengingatHakPakaiTick(gagal, setup.clock.now())).rejects.toThrow("antrean gagal");
+
+    await tickPada(setup, "2026-08-16 11:00");
+    await tickPada(setup, "2026-08-16 12:00");
+    expect(keHolder(setup)).toHaveLength(1);
+    expect(await peringatanAdmin(setup, fixture)).toHaveLength(1);
+  });
 });
