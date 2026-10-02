@@ -152,22 +152,24 @@ describe("Pengurusan IPTM placed for a family that buried on its own", () => {
     expect(await setup.pengurusan.orderOf(dasar.nomor, dasar.pemesan)).toMatchObject({ status: "dibatalkan" });
   });
 
-  it("creates the Ambil surat pengantar Tugas only once the Tagihan is Lunas", async () => {
+  it("creates the Ambil surat pengantar Tugas by itself, unassigned and once, when the Tagihan becomes Lunas", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananBerkas(setup);
     const tagihan = await sampaiMenungguPembayaran(setup, dasar);
-    const minta = () => setup.pengurusan.buatSuratPengantar(dasar.admin, { nomor: dasar.nomor, petugasAccountId: dasar.petugas.accountId });
-    expect(await minta()).toEqual({ ok: false, reason: "belum_lunas" });
+    await setup.pengurusan.pembayaranBerkasTick();
     expect(await setup.fieldwork.ambilSuratPengantarTerbuka()).toEqual([]);
 
     const dibayar = await setup.billing.recordPayment(tagihan.id, QRIS);
     if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
-    const dibuat = await minta();
-    expect(dibuat).toMatchObject({ ok: true });
-    expect(await setup.fieldwork.ambilSuratPengantarTerbuka()).toEqual([
-      expect.objectContaining({ assigneeAccountId: dasar.petugas.accountId, subject: expect.stringContaining(dasar.nomor) }),
-    ]);
-    expect(await minta()).toEqual({ ok: false, reason: "sudah_dibuat" });
+    await setup.pengurusan.pembayaranBerkasTick();
+    await setup.pengurusan.pembayaranBerkasTick();
+    const terbuka = await setup.fieldwork.ambilSuratPengantarTerbuka();
+    expect(terbuka).toEqual([expect.objectContaining({ assigneeAccountId: "", subject: expect.stringContaining(dasar.nomor) })]);
+
+    const ditugaskan = await setup.fieldwork.tugaskanTugasLapangan(dasar.admin, { id: terbuka[0]!.id, assigneeAccountId: dasar.petugas.accountId });
+    expect(ditugaskan).toMatchObject({ ok: true });
+    expect((await setup.fieldwork.tugasSaya(dasar.petugas)).map((tugas) => tugas.id)).toEqual([terbuka[0]!.id]);
+    expect(await setup.fieldwork.tugaskanTugasLapangan(dasar.petugas, { id: terbuka[0]!.id, assigneeAccountId: dasar.petugas.accountId })).toMatchObject({ ok: false, reason: "tidak_berwenang" });
   });
 
   it("lists the filing on the Admin Platform calendar, 3 working days after Lunas, and closes it at IPTM Diajukan", async () => {
