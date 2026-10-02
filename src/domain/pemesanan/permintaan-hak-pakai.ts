@@ -21,7 +21,9 @@
  *   Lokasi's Admin Lokasi is notified.
  */
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
 import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { addWorkingDays } from "@/domain/lokasi";
 import { isBlockedByOverdueTagihan } from "./chasing";
@@ -160,7 +162,9 @@ async function tenggatJawaban(deps: Pick<PemesananDeps, "lokasi">, lokasiId: str
 export type AjukanPermintaanResult =
   | { ok: true; permintaan: PermintaanHakPakai }
   | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" }
-  | { ok: false; reason: SebabPermintaanTerhalang };
+  | { ok: false; reason: SebabPermintaanTerhalang }
+  /** An attached document is not a JPEG, PNG or PDF, is empty or is too large; or the private FileStore is not available. */
+  | { ok: false; reason: "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" };
 
 /** Why a Ganti request is blocked on this Hak Pakai, or null. */
 async function sebabGanti(deps: PemesananDeps, hakPakai: { id: string; lokasiId: string; status: string }, sebab: PermintaanGantiSebab): Promise<SebabPermintaanTerhalang | null> {
@@ -210,6 +214,67 @@ export async function ajukanPengembalian(deps: PemesananDeps, pemesan: Pemesan, 
   return { ok: true, permintaan: toPermintaan(dibuat) };
 }
 
+const BERKAS_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "application/pdf"];
+const BERKAS_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Checks every attached document (type, content, size) and stores it privately; stores nothing when one is refused. */
+async function simpanBerkas(
+  deps: Pick<PemesananDeps, "files">,
+  hakPakaiId: string,
+  berkas: readonly { body: Uint8Array; contentType: string }[],
+): Promise<{ ok: true; kunci: string[] } | { ok: false; reason: "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" }> {
+  const ekstensi = berkas.map((satu) => (satu.body.byteLength > BERKAS_MAX_BYTES ? null : documentExtension(satu, BERKAS_TYPES)));
+  if (ekstensi.some((satu) => satu === null)) return { ok: false, reason: "berkas_tidak_didukung" };
+  const kunci: string[] = [];
+  for (const [indeks, satu] of berkas.entries()) {
+    const key = `permintaan-hak-pakai/${hakPakaiId}/${randomUUID()}.${ekstensi[indeks]}`;
+    try {
+      await deps.files.put({ key, body: satu.body, contentType: satu.contentType });
+    } catch {
+      await Promise.all(kunci.map((dibuat) => deps.files.delete(dibuat).catch(() => undefined)));
+      return { ok: false, reason: "penyimpanan_belum_tersedia" };
+    }
+    kunci.push(key);
+  }
+  return { ok: true, kunci };
+}
+
+const URL_DOKUMEN_DETIK = 300;
+
+/** A request as the Admin Lokasi of its Lokasi reads it: the requester's documents as short-lived signed URLs. */
+export interface PermintaanHakPakaiUntukStaf extends PermintaanHakPakai {
+  dokumen: { kunci: string; url: string }[];
+  /** The Lokasi's own Ganti rules, for the approval form. */
+  aturan: { saleTransfersAllowed: boolean; gantiPemegangHakFee: number } | null;
+}
+
+/** One request for its Lokasi's Admin Lokasi (any status); null for anyone else or an unknown id. */
+export async function permintaanHakPakaiUntukStaf(deps: PemesananDeps, by: Actor, id: string): Promise<PermintaanHakPakaiUntukStaf | null> {
+  if (!z.uuid().safeParse(id).success) return null;
+  const [row] = await deps.db.select().from(pemesananPermintaanHakPakai).where(eq(pemesananPermintaanHakPakai.id, id));
+  if (!row) return null;
+  if (writeRefusal(by, "permintaan_hak_pakai.putuskan", lokasiMitraResource(row.lokasiId))) return null;
+  const dokumen: { kunci: string; url: string }[] = [];
+  for (const kunci of row.dokumen) {
+    try {
+      dokumen.push({ kunci, url: await deps.files.signedUrl(kunci, { expiresInSeconds: URL_DOKUMEN_DETIK }) });
+    } catch {
+      // A file that cannot be served is left out; the request itself still reads.
+    }
+  }
+  return { ...toPermintaan(row), dokumen, aturan: await deps.lokasi.aturanGantiPemegangHak(row.lokasiId) };
+}
+
+/** The requests this Akun filed that the Admin Lokasi sent back for a fix: its Perlu tindakan (newest first). */
+export async function permintaanHakPakaiPerluPerbaikan(deps: Pick<PemesananDeps, "db">, pemesan: { accountId: string }): Promise<PermintaanHakPakai[]> {
+  const rows = await deps.db
+    .select()
+    .from(pemesananPermintaanHakPakai)
+    .where(and(eq(pemesananPermintaanHakPakai.pemohonAccountId, pemesan.accountId), eq(pemesananPermintaanHakPakai.status, "perlu_perbaikan")))
+    .orderBy(desc(pemesananPermintaanHakPakai.diajukanPada));
+  return rows.map(toPermintaan);
+}
+
 /**
  * "Ajukan Ganti Pemegang Hak": the new holder and why, with any documents. A sale is refused where the
  * Lokasi forbids it; inheritance is always allowed. Blocked while a Pembatalan is open or a Saat Duka
@@ -229,6 +294,9 @@ export async function ajukanGantiPemegangHak(deps: PemesananDeps, pemesan: Pemes
     email = normaliseEmail(parsed.data.pemegangBaru.email);
     if (!email) return { ok: false, reason: "input_tidak_valid" };
   }
+  const disimpan = await simpanBerkas(deps, hakPakai.id, parsed.data.berkas);
+  if (!disimpan.ok) return disimpan;
+  const dokumen = [...parsed.data.dokumen, ...disimpan.kunci];
   const now = deps.clock.now();
   const [dibuat] = await deps.db
     .insert(pemesananPermintaanHakPakai)
@@ -245,14 +313,17 @@ export async function ajukanGantiPemegangHak(deps: PemesananDeps, pemesan: Pemes
       pemegangBaruPhone: phone.phoneNumber,
       pemegangBaruEmail: email,
       sebab: parsed.data.sebab,
-      dokumen: parsed.data.dokumen,
+      dokumen,
       putaran: 0,
       diajukanPada: now,
       tenggatPada: await tenggatJawaban(deps, hakPakai.lokasiId, now),
     })
     .onConflictDoNothing()
     .returning();
-  if (!dibuat) return { ok: false, reason: "sudah_ada_permintaan" };
+  if (!dibuat) {
+    await Promise.all(disimpan.kunci.map((kunci) => deps.files.delete(kunci).catch(() => undefined)));
+    return { ok: false, reason: "sudah_ada_permintaan" };
+  }
   return { ok: true, permintaan: toPermintaan(dibuat) };
 }
 

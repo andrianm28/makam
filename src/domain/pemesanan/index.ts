@@ -148,6 +148,9 @@ import {
   ajukanPengembalian,
   ajukanUlangPermintaanHakPakai,
   antreanPermintaanHakPakai,
+  permintaanHakPakaiPerluPerbaikan,
+  permintaanHakPakaiUntukStaf,
+  type PermintaanHakPakaiUntukStaf,
   batalkanPermintaanHakPakai,
   mintaPerbaikanPermintaanHakPakai,
   permintaanHakPakaiTerakhir,
@@ -509,6 +512,10 @@ export interface Pemesanan {
   mintaPerbaikanPermintaanHakPakai(by: Actor, input: unknown): Promise<UbahPermintaanHakPakaiResult>;
   /** The Antrean Lokasi's Pengembalian / Ganti rows: every Diajukan request at that Lokasi Mitra, oldest first (ticket 39). */
   antreanPermintaanHakPakai(lokasiId: string): Promise<BarisAntreanPermintaanHakPakai[]>;
+  /** The requests this Akun filed that were sent back for a fix (its Perlu tindakan). */
+  permintaanHakPakaiPerluPerbaikan(pemesan: { accountId: string }): Promise<PermintaanHakPakai[]>;
+  /** One request for its Lokasi's Admin Lokasi, with its documents as signed URLs; null for anyone else. */
+  permintaanHakPakaiUntukStaf(by: Actor, id: string): Promise<PermintaanHakPakaiUntukStaf | null>;
   /** The Pemegang Hak changes a plot's Calon Penghuni label freely; the Lokasi is notified (ticket 39). */
   ubahCalonPenghuni(pemesan: Pemesan, input: unknown): Promise<UbahCalonPenghuniResult>;
   /**
@@ -600,6 +607,8 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     tolakPermintaanHakPakai: (by, input) => tolakPermintaanHakPakai(deps, by, input),
     mintaPerbaikanPermintaanHakPakai: (by, input) => mintaPerbaikanPermintaanHakPakai(deps, by, input),
     antreanPermintaanHakPakai: (lokasiId) => antreanPermintaanHakPakai(deps, lokasiId),
+    permintaanHakPakaiPerluPerbaikan: (pemesan) => permintaanHakPakaiPerluPerbaikan(deps, pemesan),
+    permintaanHakPakaiUntukStaf: (by, id) => permintaanHakPakaiUntukStaf(deps, by, id),
     ubahCalonPenghuni: (pemesan, input) => ubahCalonPenghuni(deps, pemesan, input),
     isBlockedByOverdueTagihan: (hakPakaiId) => isBlockedByOverdueTagihan(deps, hakPakaiId),
     tagihanPenghalangOf: (hakPakaiId) => tagihanPenghalangOf(deps, hakPakaiId),

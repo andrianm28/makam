@@ -25,6 +25,8 @@ export const ajukanGantiPemegangHakSchema = z.object({
   }),
   sebab: z.enum(["jual", "waris"]),
   dokumen: z.array(z.string().trim().min(1).max(500)).max(20).default([]),
+  /** Documents attached now (waris letter, sale deed...): checked and stored privately by the module, their keys joined to `dokumen`. */
+  berkas: z.array(z.object({ body: z.instanceof(Uint8Array), contentType: z.string() })).max(5).default([]),
   catatan: z.string().trim().max(CATATAN_MAKS).default(""),
 });
 export type AjukanGantiPemegangHakInput = z.input<typeof ajukanGantiPemegangHakSchema>;

@@ -139,7 +139,7 @@ describe("Perlu tindakan and documents", () => {
 
     await setup.pemesanan.mintaPerbaikanPermintaanHakPakai(f.lokasi.adminLokasi, { id: diajukan.permintaan.id, catatan: "Lengkapi" });
     expect(await setup.pemesanan.permintaanHakPakaiPerluPerbaikan(f.pemegang)).toEqual([expect.objectContaining({ id: diajukan.permintaan.id, unitNomor: "A-01" })]);
-    expect(await setup.pemesanan.permintaanHakPakaiPerluPerbaikan({ accountId: "akun-lain", email: "lain@contoh.id" })).toHaveLength(0);
+    expect(await setup.pemesanan.permintaanHakPakaiPerluPerbaikan({ accountId: "akun-lain" })).toHaveLength(0);
 
     await setup.pemesanan.ajukanUlangPermintaanHakPakai(f.pemegang, { id: diajukan.permintaan.id });
     expect(await setup.pemesanan.permintaanHakPakaiPerluPerbaikan(f.pemegang)).toHaveLength(0);
@@ -148,20 +148,6 @@ describe("Perlu tindakan and documents", () => {
   it("keeps a Ganti request's attached documents in the private FileStore and shows them to that Lokasi's Admin Lokasi only", async () => {
     const setup = pemesananOnTestDatabase(db);
     const f = await fixture(setup);
-    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(f.pemegang, {
-      hakPakaiId: f.hakPakaiId,
-      pemegangBaru: { name: "Bapak Hasan", phoneNumber: "081322223333" },
-      sebab: "waris",
-      berkas: [{ body: PDF, contentType: "application/pdf" }],
-    });
-    if (!diajukan.ok) throw new Error(diajukan.reason);
-    expect(setup.files.stored.size).toBe(1);
-
-    const staf = await setup.pemesanan.permintaanHakPakaiUntukStaf(f.lokasi.adminLokasi, diajukan.permintaan.id);
-    expect(staf?.dokumen).toHaveLength(1);
-    expect(staf?.dokumen[0].url).toEqual(expect.any(String));
-    expect(await setup.pemesanan.permintaanHakPakaiUntukStaf(f.pemegang as never, diajukan.permintaan.id)).toBeNull();
-
     const bukanPdf = await setup.pemesanan.ajukanGantiPemegangHak(f.pemegang, {
       hakPakaiId: f.hakPakaiId,
       pemegangBaru: { name: "Bapak Hasan", phoneNumber: "081322223333" },
@@ -169,22 +155,37 @@ describe("Perlu tindakan and documents", () => {
       berkas: [{ body: new Uint8Array([1, 2, 3]), contentType: "application/pdf" }],
     });
     expect(bukanPdf).toEqual({ ok: false, reason: "berkas_tidak_didukung" });
+    const sebelum = setup.files.stored.size;
+    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(f.pemegang, {
+      hakPakaiId: f.hakPakaiId,
+      pemegangBaru: { name: "Bapak Hasan", phoneNumber: "081322223333" },
+      sebab: "waris",
+      berkas: [{ body: PDF, contentType: "application/pdf" }],
+    });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(setup.files.stored.size).toBe(sebelum + 1);
+
+    const staf = await setup.pemesanan.permintaanHakPakaiUntukStaf(f.lokasi.adminLokasi, diajukan.permintaan.id);
+    expect(staf?.dokumen).toHaveLength(1);
+    expect(staf?.dokumen[0].url).toEqual(expect.any(String));
+    expect(await setup.pemesanan.permintaanHakPakaiUntukStaf(f.admin, diajukan.permintaan.id)).toBeNull();
   });
 
-  it("lets the Admin Lokasi change the holder's contact only with a KTP check uploaded, and keeps that file", async () => {
+  it("lets the Admin Lokasi change the holder's contact after a KTP check file is uploaded (a file that is not a KTP image or PDF is refused), and keeps that file", async () => {
     const setup = pemesananOnTestDatabase(db);
     const f = await fixture(setup);
     const dasar = { hakPakaiId: f.hakPakaiId, phoneNumber: "081200001111", alasan: "KTP diperiksa" };
+    const sebelum = setup.files.stored.size;
 
-    const tanpa = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, { ...dasar, ktp: { body: new Uint8Array([9]), contentType: "image/png" } });
-    expect(tanpa).toEqual({ ok: false, reason: "berkas_tidak_didukung" });
+    const salah = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, { ...dasar, ktp: { body: new Uint8Array([9]), contentType: "image/png" } });
+    expect(salah).toEqual({ ok: false, reason: "berkas_tidak_didukung" });
 
     const ok = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, {
       ...dasar,
       ktp: { body: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0]), contentType: "image/png" },
     });
     expect(ok).toEqual({ ok: true });
-    expect(setup.files.stored.size).toBe(1);
+    expect(setup.files.stored.size).toBe(sebelum + 1);
   });
 });
 
