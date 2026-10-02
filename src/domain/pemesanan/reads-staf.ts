@@ -281,15 +281,15 @@ async function toOrderStaf(deps: Pick<PemesananDeps, "db" | "lokasi">, row: Row)
  * with its file and its tick, then any item the order holds that the checklist no
  * longer names.
  */
-export async function dokumenOf(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
+async function dokumenOf(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
   const [rows, checklist] = await Promise.all([
     deps.db.select().from(pemesananBerkas).where(eq(pemesananBerkas.pemesananId, pemesananId)).orderBy(pemesananBerkas.dibuatPada, pemesananBerkas.nama),
     deps.lokasi.documentChecklistOf(lokasiId),
   ]);
-  const punya = new Map(rows.map((row) => [row.nama, row]));
-  const names = [...checklist, ...rows.map((row) => row.nama).filter((nama) => !checklist.includes(nama))];
-  return names.map((nama) => {
-    const row = punya.get(nama);
+  const barisPerNama = new Map(rows.map((row) => [row.nama, row]));
+  const daftarNama = [...checklist, ...rows.map((row) => row.nama).filter((nama) => !checklist.includes(nama))];
+  return daftarNama.map((nama) => {
+    const row = barisPerNama.get(nama);
     return {
       nama,
       diunggah: row?.diunggahPada ? { at: row.diunggahPada, oleh: row.diunggahOleh ?? "" } : null,

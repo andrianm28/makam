@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** Every status an order on this tab may carry: a Pemesanan Makam (Saat Duka or Terencana) or a Pengurusan order. */
+type StatusPesanan = PemesananTerencanaStatus | PengurusanTpuStatus;
+
 /**
  * Every status either order kind may carry, mapped to the shared vocabulary or
  * `null` for a Pengurusan status that carries no badge yet — its own order page
@@ -36,23 +39,23 @@ const BADGE = {
   perlu_perbaikan: null,
   iptm_diajukan: null,
   iptm_terbit: null,
-} satisfies Record<PemesananTerencanaStatus | PengurusanTpuStatus, StatusKey | null>;
+} satisfies Record<StatusPesanan, StatusKey | null>;
 
 interface BarisPesanan {
   nomor: string;
   href: string;
-  status: PemesananTerencanaStatus | PengurusanTpuStatus;
+  status: StatusPesanan;
   judul: string;
   diajukanAt: Date;
 }
 
 /**
  * Akun Saya's Pesanan tab (spec, story 100): every order on the Akun, newest
- * first — both a Pemesanan Makam at a Lokasi Mitra and a Pengurusan order at a
+ * first — a Pemesanan Makam at a Lokasi Mitra (Saat Duka and Terencana) and a Pengurusan order at a
  * TPU, one Nomor Pemesanan series, one list. "Including CS-submitted orders
  * attached by Nomor Pemesanan" needs no separate branch here: once an order's
- * `pemesanAccountId` names this Akun, by whatever route, `pesananSaya` already
- * lists it.
+ * `pemesanAccountId` names this Akun, by whatever route, `pesananSaya` or
+ * `terencanaSaya` already lists it.
  */
 export default async function AkunPesananPage() {
   const actor = await currentActor();
@@ -120,11 +123,11 @@ export default async function AkunPesananPage() {
 }
 
 /**
- * The shared vocabulary covers every Pemesanan status outright; a Pengurusan
+ * The shared vocabulary covers every Pemesanan status outright, Terencana's Aktif included; a Pengurusan
  * order's further statuses (dokumen lengkap, IPTM diajukan, …) are ticket
  * 46/47's own slice and carry no badge here yet, same as the order page itself.
  */
-function BadgePesanan({ status }: { status: PemesananTerencanaStatus | PengurusanTpuStatus }) {
+function BadgePesanan({ status }: { status: StatusPesanan }) {
   const key = BADGE[status];
   return key ? <StatusBadge status={key} /> : null;
 }

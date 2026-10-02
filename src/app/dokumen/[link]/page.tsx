@@ -227,7 +227,7 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianD
   );
 }
 
-/** Bayar: on to the payment page (Virtual Account or QRIS). Never printed. */
+/** Bayar: on to the payment page (QRIS). Never printed. */
 function BayarForm({ link, total }: { link: string; total: number }) {
   return (
     <form action={bayarTagihan} className="flex flex-col gap-2 print:hidden sm:items-start">
