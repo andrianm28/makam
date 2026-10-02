@@ -11,18 +11,27 @@ const isAsyncFunction = (node: ts.Node | undefined): boolean =>
 const hasModifier = (node: ts.Node, kind: ts.SyntaxKind) =>
   ts.canHaveModifiers(node) && !!ts.getModifiers(node)?.some((modifier) => modifier.kind === kind);
 
+function startsWithUseServer(source: ts.SourceFile): boolean {
+  const firstStatement = source.statements[0];
+  return (
+    !!firstStatement &&
+    ts.isExpressionStatement(firstStatement) &&
+    ts.isStringLiteral(firstStatement.expression) &&
+    firstStatement.expression.text === "use server"
+  );
+}
+
+const readSource = (file: string) => ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+
+const trackedSourceFiles = () =>
+  execFileSync("git", ["ls-files", "src"], { encoding: "utf8" })
+    .split("\n")
+    .filter((path) => /\.(ts|tsx)$/.test(path));
+
 /** Runtime exports of a "use server" file that Next.js rejects (E352). */
 function nonFunctionExports(file: string): string[] {
-  const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
-  const firstStatement = source.statements[0];
-  if (
-    !firstStatement ||
-    !ts.isExpressionStatement(firstStatement) ||
-    !ts.isStringLiteral(firstStatement.expression) ||
-    firstStatement.expression.text !== "use server"
-  ) {
-    return [];
-  }
+  const source = readSource(file);
+  if (!startsWithUseServer(source)) return [];
   const asyncFunctionNames = new Set<string>();
   for (const statement of source.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name && hasModifier(statement, ts.SyntaxKind.AsyncKeyword)) {
@@ -64,11 +73,16 @@ function nonFunctionExports(file: string): string[] {
 }
 
 describe("Server Action files", () => {
+  it("the scan covers the known Server Action files", () => {
+    const serverActionFiles = trackedSourceFiles().filter((path) => startsWithUseServer(readSource(path)));
+    expect(serverActionFiles.length).toBeGreaterThan(0);
+    expect(serverActionFiles).toContain("src/app/(site)/pesanan/[nomor]/actions.ts");
+  });
+
   it('a "use server" file exports only async functions (Next.js E352)', () => {
-    const files = execFileSync("git", ["ls-files", "src"], { encoding: "utf8" })
-      .split("\node")
-      .filter((path) => /\.(ts|tsx)$/.test(path));
-    const offenders = files.flatMap((path) => nonFunctionExports(path).map((offence) => `${path}: ${offence}`));
+    const offenders = trackedSourceFiles().flatMap((path) =>
+      nonFunctionExports(path).map((offence) => `${path}: ${offence}`),
+    );
     expect(offenders).toEqual([]);
   });
 });
