@@ -1,0 +1,57 @@
+"use client";
+
+import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
+import { ServerResult, idleFormState } from "../../../form-feedback";
+import { putuskanKeluhanTpuAction } from "./actions";
+
+const labelClass = "flex flex-col gap-1 text-sm font-medium";
+
+/**
+ * The two decisions of a Keluhan on a TPU job, one form: reject it, or have the job redone by the Mitra Jasa
+ * named here (the picker's list, the same Mitra Jasa or another). The note is read by staff only.
+ */
+export function PutuskanKeluhanTpuForm({ keluhanId, calon }: { keluhanId: string; calon: { id: string; namaLengkap: string }[] }) {
+  const [state, action, mengirim] = useActionState(putuskanKeluhanTpuAction, idleFormState);
+  return (
+    <form action={action} className="flex flex-col gap-3" noValidate>
+      <input type="hidden" name="keluhanId" value={keluhanId} />
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">Keputusan</legend>
+        <label className="flex items-start gap-2 text-body">
+          <input type="radio" name="keputusan" value="kerjakan_ulang" className="mt-1" />
+          <span>
+            <strong>Kerjakan ulang</strong>: pekerjaan diberikan lagi ke Mitra Jasa yang dipilih di bawah. Mitra Jasa yang sama tidak dibayar lagi; Mitra Jasa lain dibayar tarif biasa.
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-body">
+          <input type="radio" name="keputusan" value="tolak" className="mt-1" />
+          <span>
+            <strong>Tolak keluhan</strong>: pekerjaan dianggap selesai dan pencairan jatuh tempo setelah masa keluhan berakhir.
+          </span>
+        </label>
+      </fieldset>
+      <label className={labelClass}>
+        Mitra Jasa untuk pengerjaan ulang
+        <select name="mitraJasaId" defaultValue="" className="h-10 rounded-lg border border-input bg-background px-3">
+          <option value="">Tidak ada (hanya untuk menolak)</option>
+          {calon.map((satu) => (
+            <option key={satu.id} value={satu.id}>
+              {satu.namaLengkap}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={labelClass}>
+        Catatan keputusan
+        <textarea name="catatan" rows={3} maxLength={1000} className="rounded-lg border border-input bg-background px-3 py-2" />
+      </label>
+      <div>
+        <Button type="submit" disabled={mengirim}>
+          {mengirim ? "Menyimpan…" : "Simpan keputusan"}
+        </Button>
+      </div>
+      <ServerResult state={state} />
+    </form>
+  );
+}

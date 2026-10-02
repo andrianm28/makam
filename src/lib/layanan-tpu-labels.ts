@@ -77,3 +77,31 @@ export const alasanAntreLabels = {
   tidak_direspons: "Tidak direspons sampai batas waktu",
   dilepas: "Perlu penugasan ulang",
 } as const;
+
+/** Why the Pemesan's Keluhan on a TPU job is refused, saying what to do next (ticket 57). */
+export const keluhanTpuMessages: Record<string, string> = {
+  input_tidak_valid: "Tulis keluhan Anda dengan singkat.",
+  bukan_pemesan: "Email ini bukan email akun Anda, jadi keluhan tidak bisa diajukan.",
+  tidak_ditemukan: "Pesanan ini tidak ada di akun Anda.",
+  belum_selesai: "Pekerjaan ini belum selesai, jadi belum ada yang bisa dikeluhkan.",
+  jendela_tertutup: "Batas 3×24 jam untuk mengajukan keluhan sudah lewat. Hubungi kami bila masih ada yang mengganjal.",
+  sudah_ada: "Keluhan untuk pekerjaan ini sudah pernah diajukan.",
+  belum_masuk: "Masuk dulu untuk mengajukan keluhan.",
+  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
+  tidak_berwenang: "Anda tidak berwenang melakukan ini.",
+};
+
+/** What a Keluhan on a TPU job means to the Pemesan, so the order page says what happens next. */
+export const keluhanTpuPenjelasan = {
+  terbuka: "Keluhan Anda sudah kami terima. Tim kami akan menghubungi Anda dan memutuskan apakah pekerjaan dikerjakan ulang.",
+  ditolak: "Keluhan Anda sudah kami periksa dan tidak dapat dilanjutkan. Pekerjaan tetap dianggap selesai.",
+  kerjakan_ulang: "Pekerjaan akan dikerjakan ulang oleh Mitra Jasa. Bukti baru akan tampil di sini begitu disetujui.",
+} as const;
+
+/** Why Admin Platform's decision on a Keluhan of a TPU job is refused (ticket 57). */
+export const putuskanKeluhanTpuMessages: Record<string, string> = {
+  input_tidak_valid: "Pilih keputusan dan tulis catatannya. Untuk kerjakan ulang, pilih juga Mitra Jasa-nya.",
+  tidak_ditemukan: "Keluhan ini tidak ditemukan.",
+  sudah_diputuskan: "Keluhan ini sudah diputuskan.",
+  mitra_jasa_tidak_tersedia: "Mitra Jasa itu tidak bisa mengerjakan ulang pekerjaan ini. Keluhan tetap terbuka: pilih yang lain.",
+};

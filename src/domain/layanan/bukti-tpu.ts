@@ -26,7 +26,7 @@
  * hari-H Layanan on a Saat Duka Tagihan pays the Mitra Jasa when the Keluhan window closes
  * whether or not the family has paid, and a Tidak Tertagih Tagihan is the Operator's loss.
  */
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { akunResource, pekerjaanTpuSemuaResource, writeRefusal } from "@/domain/identity";
@@ -44,12 +44,9 @@ import {
   pekerjaanLayananTpuBukti,
   pekerjaanLayananTpuPenugasan,
 } from "./schema";
-import { kerjaUlangTpuSchema, pekerjaanTpuIdSchema, tolakBuktiTpuSchema } from "./tpu-skema";
+import { pekerjaanTpuIdSchema, tolakBuktiTpuSchema } from "./tpu-skema";
 import { BATAS_VERIFIKASI_BUKTI_JAM, buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
-import { tugaskanMitraJasa, type TugaskanMitraJasaResult } from "./penugasan-tpu";
 
-import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
-import { HARI_TERLAMBAT } from "./pekerjaan";
 
 const BUKTI_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
 const JAM_MS = 3_600_000;
@@ -361,7 +358,7 @@ export async function tolakBuktiTpu(deps: LayananDeps, by: Actor, rawInput: unkn
   });
 }
 
-/* ── who did the job, and the redo ── */
+/* ── who did the job ── */
 
 interface Pelaksana {
   id: string;
