@@ -28,3 +28,4 @@ Spec: Domain modules > 6. Pemesanan (burial under an existing Hak Pakai, consent
 ## Comments
 
 - 2026-09-26 — ADR 0004: consent is by the recorded email of the Pemegang Hak, not the WhatsApp number (What to build and criteria updated). Data & kirim follows ticket 22 (required email, Kode Masuk at Kirim).
+- 2026-10-02 — **Settled through the `grilling` skill (round 5 Q14, owner "ya setuju semua"):** the Pemegang Hak's email consent uses **no new code**: Notifications sends an ordinary email with a link; the Pemegang Hak signs in with the usual Kode Masuk and answers Setujui / Tolak under Perlu tindakan in Akun Saya. No new secret and no exception to the AGENTS.md messaging rule. Spec line ~395 clarified accordingly. Branch `ticket-35` is 218 commits behind main: rebuild on current main, reusing its code.
