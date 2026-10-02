@@ -680,3 +680,70 @@ describe("the Keluhan window of a TPU job, as the message thread reads it", () =
     expect(await s.setup.layanan.jendelaKeluhanTpu("00000000-0000-4000-8000-000000000000")).toBeNull();
   });
 });
+
+describe("a Tagihan holding several TPU jobs", () => {
+  /** One paid order of two Bunga Tabur: the first due 2026-10-05, the second 2026-10-10. Both are handed to `mitra`. */
+  async function duaPekerjaan(s: Siap, mitra: Mitra) {
+    const dipesan = await s.setup.layanan.placePesananLayananTpu(
+      s.pemesan,
+      orderTpu(s, [
+        { layananVariantId: s.bunga.id, targetDate: "2026-10-05" },
+        { layananVariantId: s.bunga.id, targetDate: "2026-10-10" },
+      ]),
+    );
+    if (!dipesan.ok) throw new Error(`order refused: ${dipesan.reason}`);
+    await bayar(s.setup, dipesan.tagihan.id);
+    const jobs = await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin);
+    const awal = jobs.find((job) => job.targetDate === "2026-10-05");
+    const akhir = jobs.find((job) => job.targetDate === "2026-10-10");
+    if (!awal || !akhir) throw new Error("jobs missing");
+    await diterima(s, mitra, awal.id);
+    await diterima(s, mitra, akhir.id);
+    return { awal: awal.id, akhir: akhir.id, tagihanId: dipesan.tagihan.id };
+  }
+
+  it("cancelling one Terlambat job refunds that job's price plus the Biaya Layanan Platform when the Tagihan carries one; the other job carries on and stays paid", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { awal, akhir, tagihanId } = await duaPekerjaan(s, mitra);
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId: awal })).toEqual({ ok: true });
+
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const harga = tagihan!.lines.filter((baris) => baris.kind === "layanan")[0].amount;
+    const biaya = tagihan!.lines.filter((baris) => baris.kind === "biaya_layanan_platform").reduce((sum, baris) => sum + baris.amount, 0);
+    const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
+    expect(lain).toEqual([]);
+    expect(permintaan.jumlah).toBe(harga + biaya);
+    expect(permintaan.jumlah).toBeLessThan(tagihan!.total);
+
+    // The other job is untouched: it is done, approved, and its Mitra Jasa is paid in full.
+    expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, akhir))?.status).toBe("dijadwalkan");
+    s.setup.clock.set(wib("2026-10-09 10:00"));
+    await kirimBunga(s, mitra, akhir);
+    await setujui(s, akhir);
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF, status: "jatuh_tempo" }]);
+  });
+
+  it("a TPU Keluhan decided dana kembali refunds the job's price only, never a Biaya Layanan Platform line", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { awal, tagihanId } = await duaPekerjaan(s, mitra);
+    s.setup.clock.set(wib("2026-10-05 10:00"));
+    await kirimBunga(s, mitra, awal);
+    await setujui(s, awal);
+    s.setup.clock.set(wib("2026-10-06 09:00"));
+    const diajukan = await s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId: awal, alasan: "Nisan masih kotor" });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kembalikan_dana", catatan: "Tidak bersih" })).toEqual({ ok: true });
+
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const harga = tagihan!.lines.filter((baris) => baris.kind === "layanan")[0].amount;
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan.lines.map((baris) => baris.label)).toEqual([tagihan!.lines.find((baris) => baris.kind === "layanan")!.label]);
+    expect(permintaan.jumlah).toBe(harga);
+    expect(permintaan.biayaLayananPlatformDikembalikan).toBe(false);
+  });
+});
