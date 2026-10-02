@@ -5,7 +5,7 @@
  * share (uploads, the check, the Tagihan, filing, PTSP rejections, IPTM Terbit) live in `pengajuan-iptm.ts` and
  * `pengurusan-berkas.ts`. This file holds the order's placing and what is particular to a renewal.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { refusable } from "@/db/unit-of-work";
@@ -14,7 +14,7 @@ import { addWibDateMonths, wibDateOf } from "@/lib/time/jakarta";
 import { BULAN_MASA_TENGGANG_TPU, BULAN_PERPANJANGAN_TPU_DIBUKA, menungguPemeriksaan } from "./aturan";
 import { daftarDokumenPerpanjangan } from "./dokumen";
 import type { Pemesan, PengurusanDeps } from "./deps";
-import { kembalikanKePerbaikan } from "./pengurusan-berkas";
+import { kembalikanKePerbaikan, tenggat } from "./pengurusan-berkas";
 import { pengurusanTpu, makamTpu } from "./schema";
 
 export interface PlacePerpanjanganTpuInput {
@@ -31,6 +31,7 @@ export type PlacePerpanjanganTpuResult =
   | { ok: true; pengurusan: { nomor: string; status: "diajukan"; lewatMasaTenggang: boolean } }
   | { ok: false; reason: "input_tidak_valid" | "makam_tpu_tidak_ditemukan" | "email_bukan_akun_ini" | "terlalu_awal" | "harga_tidak_tersedia" };
 
+const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Places a Perpanjangan TPU for the Pemegang Hak of a Makam TPU: Diajukan, its Nomor Pemesanan, the filing documents to upload and no Tagihan. */
@@ -115,4 +116,84 @@ export async function mintaPerbaikan(deps: PengurusanDeps, by: Actor, rawInput: 
   if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
   return kembalikanKePerbaikan(deps, by, order, { aksi: "pengurusan.perbaikan_diminta", alasan: parsed.data.alasan, dokumen: parsed.data.dokumen });
+}
+
+/** Admin Platform's 1 working day to ask the TPU once a past-grace request is in (settled with ticket 48: the spec gives the row no figure). */
+export const HARI_KERJA_CEK_TPU = 1;
+
+export const putuskanCekTpuSchema = z.discriminatedUnion("putusan", [
+  z.object({ putusan: z.literal("lanjut"), nomor: nomorSchema }),
+  /** The TPU will not renew: the reason is shown to the Pemegang Hak. */
+  z.object({ putusan: z.literal("tolak"), nomor: nomorSchema, alasan: z.string().trim().min(1).max(500) }),
+]);
+
+export type PutuskanCekTpuResult =
+  | { ok: true; status: "diajukan" | "ditolak" }
+  | WriteRefusal
+  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
+
+/**
+ * The answer of the TPU to a request past the masa tenggang, recorded by Admin Platform after asking it, without charge:
+ * it goes on to the document check (and then the pay-first Tagihan), or the TPU won't renew and the request is closed
+ * Ditolak with the reason, no Tagihan ever issued. Audited.
+ */
+export async function putuskanCekTpu(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<PutuskanCekTpuResult> {
+  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
+  if (refusal) return refusal;
+  const parsed = putuskanCekTpuSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const input = parsed.data;
+  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
+  if (!order || order.kind !== "perpanjangan_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
+  if (order.status !== "diajukan" || !order.lewatMasaTenggang || order.cekTpuSelesaiPada) return { ok: false, reason: "status_tidak_sesuai" };
+  const now = deps.clock.now();
+  return deps.audit.staffWrite<PutuskanCekTpuResult>(deps.db, async (tx, record) => {
+    const hasil = await tx
+      .update(pengurusanTpu)
+      .set(input.putusan === "lanjut" ? { cekTpuSelesaiPada: now } : { cekTpuSelesaiPada: now, status: "ditolak", ditolakPada: now, alasan: input.alasan })
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "diajukan"), isNull(pengurusanTpu.cekTpuSelesaiPada)))
+      .returning({ id: pengurusanTpu.id });
+    if (hasil.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
+    const status = input.putusan === "lanjut" ? ("diajukan" as const) : ("ditolak" as const);
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "pengurusan.cek_tpu",
+      entity: { kind: "pengurusan_tpu", id: order.id },
+      lokasiId: null,
+      before: { status: "diajukan" },
+      after: { status, putusan: input.putusan },
+      reason: input.putusan === "tolak" ? input.alasan : null,
+    });
+    return { ok: true as const, status };
+  });
+}
+
+/** A Perpanjangan TPU past the masa tenggang whose TPU has not yet been asked. */
+export interface CekTpuTerbuka {
+  id: string;
+  nomor: string;
+  tpuName: string;
+  almarhumName: string;
+  diajukanAt: Date;
+  /** 1 working day after the request, on the Admin Platform calendar. */
+  dueAt: Date;
+}
+
+/** Every past-grace request waiting for the TPU's answer, oldest first: the Antrean's Tier 3 past-grace TPU check. No actor: the caller checks `antrean.lihat`. */
+export async function cekTpuTerbuka(deps: Pick<PengurusanDeps, "db" | "lokasi">): Promise<CekTpuTerbuka[]> {
+  const rows = await deps.db
+    .select()
+    .from(pengurusanTpu)
+    .where(and(eq(pengurusanTpu.kind, "perpanjangan_tpu"), eq(pengurusanTpu.status, "diajukan"), eq(pengurusanTpu.lewatMasaTenggang, true), isNull(pengurusanTpu.cekTpuSelesaiPada)));
+  const hasil = await Promise.all(
+    rows.map(async (row) => ({
+      id: row.id,
+      nomor: row.nomor,
+      tpuName: row.tpuName,
+      almarhumName: row.almarhumName,
+      diajukanAt: row.diajukanAt,
+      dueAt: await tenggat(deps, row.diajukanAt, HARI_KERJA_CEK_TPU),
+    })),
+  );
+  return hasil.sort((a, b) => a.diajukanAt.getTime() - b.diajukanAt.getTime());
 }

@@ -45,7 +45,7 @@ export interface TagihanBerkas {
 }
 
 /** `n` working days on the Admin Platform calendar; calendar days while that calendar has no hours (the row must still exist). */
-async function tenggat(deps: Pick<PengurusanDeps, "lokasi">, dari: Date, n: number): Promise<Date> {
+export async function tenggat(deps: Pick<PengurusanDeps, "lokasi">, dari: Date, n: number): Promise<Date> {
   const hasil = addWorkingDays(await deps.lokasi.adminPlatformCalendar(), dari, n);
   return hasil.ok ? hasil.at : hariKemudian(dari, n);
 }

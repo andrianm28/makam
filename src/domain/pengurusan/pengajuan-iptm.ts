@@ -254,6 +254,8 @@ export type PeriksaDokumenResult =
   /** A filing-only order: the documents pass and the pay-first Tagihan is issued in the same step. */
   | { ok: true; status: "menunggu_pembayaran"; tagihan: TagihanBerkas }
   | { ok: false; reason: "tagihan_tidak_terbit" | "harga_tidak_tersedia" }
+  /** A Perpanjangan TPU past the masa tenggang: the TPU has not yet been asked (its Tier 3 check row is open). */
+  | { ok: false; reason: "cek_tpu_belum_selesai" }
   | WriteRefusal
   | Umum
   | { ok: false; reason: "dokumen_belum_lengkap"; kurang: string[] };
@@ -269,6 +271,7 @@ export async function periksaDokumen(deps: PengurusanDeps, by: Actor, rawInput: 
   if (!menungguPemeriksaan(order)) return { ok: false, reason: "status_tidak_sesuai" };
   const kurang = dokumenKurang(order);
   if (kurang.length > 0) return { ok: false, reason: "dokumen_belum_lengkap", kurang };
+  if (order.lewatMasaTenggang && !order.cekTpuSelesaiPada) return { ok: false, reason: "cek_tpu_belum_selesai" };
   if (order.kind !== "saat_duka_tpu") return periksaDokumenBerkas(deps, by, order);
 
   const now = deps.clock.now();
