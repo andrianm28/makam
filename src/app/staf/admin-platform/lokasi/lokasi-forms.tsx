@@ -9,6 +9,9 @@ import type { FormState } from "../../form-state";
 import {
   aktifkanTerencana,
   buatLokasiMitra,
+  hentikanLokasi,
+  pulihkanLokasi,
+  tangguhkanLokasi,
   lepasAdminLokasi,
   simpanDokumen,
   simpanKebijakan,
@@ -350,5 +353,76 @@ export function ActivateTerencanaForm({ lokasiId, ready }: { lokasiId: string; r
       <Submit pending={pending || !ready}>Aktifkan Pemesanan Terencana</Submit>
       <Feedback state={state} />
     </form>
+  );
+}
+
+/**
+ * Admin Platform's status decisions on a listed Lokasi Mitra (ticket 59), each with a reason for the Audit Log:
+ * Tangguhkan (no new Hak Pakai; the rest carries on), Pulihkan (a Ditangguhkan one) and Berhenti (the partnership
+ * ends on a date; unfinished Layanan are refunded then, and the families are told now).
+ */
+export function StatusLokasiForms({ lokasiId, status, berlakuOn }: { lokasiId: string; status: LokasiMitra["status"]; berlakuOn: string | null }) {
+  const [tangguhkanState, tangguhkanAction, tangguhkanPending] = useActionState(tangguhkanLokasi, idle);
+  const [pulihkanState, pulihkanAction, pulihkanPending] = useActionState(pulihkanLokasi, idle);
+  const [hentikanState, hentikanAction, hentikanPending] = useActionState(hentikanLokasi, idle);
+  if (status === "belum_tayang") return null;
+  if (status === "berhenti") {
+    return <p className="text-sm text-muted-foreground">Berhenti{berlakuOn ? `, berlaku ${berlakuOn}` : ""}. Keputusan ini tidak bisa dibatalkan.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-start gap-2">
+        {status === "terverifikasi" ? (
+          <>
+            <form id="tangguhkan-lokasi" action={tangguhkanAction}>
+              <input type="hidden" name="lokasiId" value={lokasiId} />
+            </form>
+            <ConfirmDialog
+              formId="tangguhkan-lokasi"
+              pending={tangguhkanPending}
+              confirmLabel="Tangguhkan"
+              title="Tangguhkan Lokasi Mitra ini?"
+              description="Lokasi tidak menerima pesanan baru (Hak Pakai baru). Pemakaman di Hak Pakai yang ada, Perpanjangan, Layanan, Paket dan pesanan yang sedang berjalan tetap dilayani."
+              reason={{ name: "alasan", label: "Alasan", placeholder: "Alasan penangguhan, untuk Audit Log" }}
+              trigger={<Button type="button" variant="outline" size="sm">Tangguhkan</Button>}
+            />
+          </>
+        ) : (
+          <>
+            <form id="pulihkan-lokasi" action={pulihkanAction}>
+              <input type="hidden" name="lokasiId" value={lokasiId} />
+            </form>
+            <ConfirmDialog
+              formId="pulihkan-lokasi"
+              pending={pulihkanPending}
+              confirmLabel="Pulihkan"
+              title="Pulihkan Lokasi Mitra ini?"
+              description="Lokasi kembali Terverifikasi dan menerima pesanan baru."
+              reason={{ name: "alasan", label: "Alasan", placeholder: "Alasan pemulihan, untuk Audit Log" }}
+              trigger={<Button type="button" variant="outline" size="sm">Pulihkan</Button>}
+            />
+          </>
+        )}
+      </div>
+      <Feedback state={status === "terverifikasi" ? tangguhkanState : pulihkanState} />
+      <form id="hentikan-lokasi" action={hentikanAction} className="flex flex-col items-start gap-2">
+        <input type="hidden" name="lokasiId" value={lokasiId} />
+        <label className={labelClass}>
+          Tanggal berlaku Berhenti (kosong = 30 hari dari sekarang)
+          <input type="date" name="berlakuOn" className={inputClass} />
+        </label>
+      </form>
+      <ConfirmDialog
+        formId="hentikan-lokasi"
+        pending={hentikanPending}
+        variant="destructive"
+        confirmLabel="Berhentikan"
+        title="Hentikan kemitraan dengan Lokasi Mitra ini?"
+        description="Pada tanggal berlaku, Layanan yang belum selesai dibatalkan dan dikembalikan sepenuhnya; siklus Paket berhenti sekarang. Keluarga yang punya pesanan di sini diberi tahu sekarang. Tidak bisa dibatalkan."
+        reason={{ name: "alasan", label: "Alasan", placeholder: "Alasan berhenti, untuk Audit Log" }}
+        trigger={<Button type="button" variant="destructive" size="sm">Berhenti</Button>}
+      />
+      <Feedback state={hentikanState} />
+    </div>
   );
 }

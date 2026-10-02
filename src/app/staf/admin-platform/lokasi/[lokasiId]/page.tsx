@@ -21,6 +21,7 @@ import {
   PoliciesForm,
   ProfileForm,
   PublishForm,
+  StatusLokasiForms,
 } from "../lokasi-forms";
 import { MintaKunjunganUlangForm } from "./minta-kunjungan-ulang-form";
 
@@ -173,6 +174,7 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
     redirect("/staf");
   }
   const lokasiMitra = read.lokasiMitra;
+  const statusPesanan = await lokasi.statusPesananOf(lokasiMitra.id);
   const staffAccounts = await serverRuntime().identity.staffAccounts();
   const petugas = staffAccounts
     .filter((account) => account.roles.includes("petugas_lapangan") && !account.deactivated)
@@ -181,6 +183,16 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
   return (
     <>
       <PublishGateChecklist lokasiId={lokasiMitra.id} />
+
+      {lokasiMitra.status === "belum_tayang" ? null : (
+        <Section
+          id="status-kemitraan"
+          title="Status kemitraan"
+          description="Tangguhkan (tidak menerima pesanan baru), pulihkan, atau akhiri kemitraan (Berhenti). Setiap keputusan memakai alasan dan masuk Audit Log."
+        >
+          <StatusLokasiForms lokasiId={lokasiMitra.id} status={lokasiMitra.status} berlakuOn={statusPesanan?.berlakuOn ?? null} />
+        </Section>
+      )}
 
       <Section
         id="kunjungan-verifikasi"

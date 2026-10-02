@@ -9,6 +9,8 @@ import {
   type ActivateTerencanaResult,
   type ChangeBankAccountResult,
   type CreateLokasiMitraResult,
+  type HentikanResult,
+  type UbahStatusResult,
   type InviteAdminLokasiResult,
   type PublishLokasiMitraResult,
   type RemoveAdminLokasiFromLokasiResult,
@@ -16,6 +18,7 @@ import {
   type UpdateProfileResult,
   type UploadAgreementResult,
 } from "@/domain/lokasi";
+import { hentikanLokasiMitra } from "@/composition/berhenti";
 import { guarded } from "@/server/guard";
 import { phoneNumberInput } from "@/server/phone-number-input";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
@@ -36,6 +39,8 @@ type LokasiRefusal = Refused<
   | RemoveAdminLokasiFromLokasiResult
   | PublishLokasiMitraResult
   | ActivateTerencanaResult
+  | UbahStatusResult
+  | HentikanResult
 >;
 
 /** What each refusal says on screen, in Bahasa Indonesia: the one map every Lokasi form uses. */
@@ -59,6 +64,8 @@ const refusalMessages: Record<LokasiRefusal, string> = {
   bukan_admin_lokasi_di_sini: "Akun ini bukan Admin Lokasi di Lokasi Mitra ini.",
   gerbang_belum_terpenuhi: "Belum bisa: syarat di atas belum semuanya terpenuhi.",
   status_tidak_bisa_diterbitkan: "Lokasi Mitra ini sudah tidak Belum Tayang: statusnya tidak bisa diterbitkan lewat sini.",
+  status_tidak_cocok: "Status Lokasi Mitra ini sudah berubah: muat ulang halaman ini.",
+  tanggal_lampau: "Tanggal berlaku Berhenti tidak boleh sudah lewat.",
   data_contoh_tidak_bisa_diterbitkan:
     "Lokasi Mitra ini ditandai sebagai data contoh, jadi tidak pernah bisa diterbitkan.",
 };
@@ -380,5 +387,52 @@ export async function lepasAdminLokasi(_previous: FormState, formData: FormData)
     run: (actor, data) =>
       serverRuntime().lokasi.removeAdminLokasi(actor, data.lokasiId, { accountId: data.accountId, reason: data.reason }),
     saved: "Admin Lokasi dilepas dari Lokasi Mitra ini.",
+  });
+}
+
+const statusSchema = z.object({ lokasiId, alasan: text(500) });
+const hentikanSchema = z.object({
+  lokasiId,
+  alasan: text(500),
+  berlakuOn: z.union([z.literal(""), z.iso.date()]).transform((value) => (value === "" ? undefined : value)),
+});
+const ALASAN_WAJIB = "Tulis alasannya, untuk Audit Log.";
+
+/** Admin Platform sets a Terverifikasi Lokasi Mitra Ditangguhkan, with a reason: it takes no new Hak Pakai, the rest carries on. */
+export async function tangguhkanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.ubah_status",
+    schema: statusSchema,
+    input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan") },
+    run: (actor, data) => serverRuntime().lokasi.tangguhkan(actor, data.lokasiId, { alasan: data.alasan }),
+    saved: "Lokasi Mitra ini Ditangguhkan: tidak menerima pesanan baru, pekerjaan yang berjalan dilanjutkan.",
+    invalidInput: ALASAN_WAJIB,
+  });
+}
+
+/** Admin Platform reinstates a Ditangguhkan Lokasi Mitra, with a reason. */
+export async function pulihkanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.ubah_status",
+    schema: statusSchema,
+    input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan") },
+    run: (actor, data) => serverRuntime().lokasi.pulihkan(actor, data.lokasiId, { alasan: data.alasan }),
+    saved: "Lokasi Mitra ini dipulihkan: kembali Terverifikasi.",
+    invalidInput: ALASAN_WAJIB,
+  });
+}
+
+/** Admin Platform ends the partnership (Berhenti) with a reason and an effective date (default 30 days on); the families are told. */
+export async function hentikanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.ubah_status",
+    schema: hentikanSchema,
+    input: { lokasiId: formData.get("lokasiId"), alasan: formData.get("alasan"), berlakuOn: formData.get("berlakuOn") ?? "" },
+    run: (actor, data) => {
+      const { lokasi, pemesanan, layanan, notifications } = serverRuntime();
+      return hentikanLokasiMitra({ lokasi, pemesanan, layanan, notifications }, actor, data.lokasiId, { alasan: data.alasan, berlakuOn: data.berlakuOn });
+    },
+    saved: (hasil) => `Lokasi Mitra ini Berhenti, berlaku ${hasil.berlakuOn}. Keluarga yang punya pesanan di sini sudah diberi tahu.`,
+    invalidInput: "Tulis alasannya dan isi tanggal berlaku dengan benar (kosong = 30 hari dari sekarang).",
   });
 }
