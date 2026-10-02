@@ -295,6 +295,8 @@ export const pemesananTerencana = pgTable(
     konfirmasiDueAt: at("konfirmasi_due_at"),
     /** The Tagihan issued when the Lokasi Mitra confirmed; null until then. Nothing is billed at submission. */
     tagihanId: text("tagihan_id"),
+    /** The Layanan the family added for the empty plot (ticket 53): checked at submission, priced and written when the Lokasi confirms. Null when none. */
+    layanan: jsonb("layanan").$type<{ layananVariantId: string; targetDate: string; teks: string | null }[]>(),
     /** Why the Lokasi Mitra declined, or why the order was cancelled; null while none. */
     alasan: text("alasan"),
     /**

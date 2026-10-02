@@ -34,7 +34,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { nextWorkingDayEnd } from "@/domain/lokasi";
 import { ALASAN_TOLAK, alasanTolakTerencanaSchema, type AlasanTolakTerencana } from "./alasan-tolak";
 import type { Pemesan, PemesananDeps } from "./deps";
-import { linesOf } from "./konfirmasi-saat-duka";
+import { hariHBaris, linesOf } from "./konfirmasi-saat-duka";
 import { pemesananTerencana, pemesananTerencanaUnit } from "./schema";
 import { nomorUnit, unitsOfOrder } from "./terencana-unit";
 
@@ -72,7 +72,9 @@ export type KonfirmasiTerencanaResult =
   /** The Lokasi Mitra is not there any more, so its hold policy cannot be read. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }
   /** A Tagihan could not be issued (no Pengaturan Operator, a total past a cap): nothing at all is written. */
-  | { ok: false; reason: "tagihan_tidak_terbit" };
+  | { ok: false; reason: "tagihan_tidak_terbit" }
+  /** A Layanan the family added can no longer be offered for the empty plot (switched off, no price, its date now too close, or no Layanan module). */
+  | { ok: false; reason: "layanan_tidak_tersedia" };
 
 /**
  * When the Lokasi Mitra must answer a Terencana order placed at `now`: the end of its
@@ -110,14 +112,25 @@ export async function konfirmasiTerencana(deps: PemesananDeps, by: Actor, rawInp
   if (holdHours === null) return { ok: false, reason: "lokasi_tidak_terbuka" };
   const tahanSampai = new Date(now.getTime() + holdHours * 3_600_000);
 
+  // The Layanan the family added for the empty plot (ticket 53): checked again now, at the day the Tagihan is issued, and priced in
+  // the same quote, so the Tagihan carries one Biaya Layanan Platform.
+  const layananDipilih = order.layanan ?? [];
+  let layananSiap: Extract<Awaited<ReturnType<NonNullable<PemesananDeps["layanan"]>["siapkanCheckout"]>>, { ok: true }> | null = null;
+  if (layananDipilih.length > 0) {
+    if (!deps.layanan || units.length !== 1 || !units[0].petakId) return { ok: false, reason: "layanan_tidak_tersedia" };
+    const siap = await deps.layanan.siapkanCheckout({ lokasiId: order.lokasiId, mode: "petak_kosong", items: layananDipilih, at: now });
+    if (!siap.ok) return { ok: false, reason: "layanan_tidak_tersedia" };
+    layananSiap = siap;
+  }
+
   // Priced now, as any confirmation is: the Tagihan carries the Harga Hak Pakai in force today.
   const harga = await deps.tariffs.quote(
-    units.map((unit) => ({ kind: "harga_hak_pakai" as const, jenisMakamId: unit.jenisMakamId })),
+    [...units.map((unit) => ({ kind: "harga_hak_pakai" as const, jenisMakamId: unit.jenisMakamId })), ...(layananSiap?.quoteLines ?? [])],
     now,
   );
   if (!harga.ok) return { ok: false, reason: "harga_tidak_tersedia" };
   if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_qris", total: harga.total };
-  const baris = linesOf(harga.lines, order);
+  const baris = hariHBaris(deps, harga, layananSiap, order);
   if (!baris.ok) return { ok: false, reason: "tagihan_tidak_terbit" };
   // One Harga Hak Pakai line per plot, in the order the plots were picked; the Biaya Layanan Platform line follows them.
   const lines = baris.lines.map((line, index) =>
@@ -147,6 +160,31 @@ export async function konfirmasiTerencana(deps: PemesananDeps, by: Actor, rawInp
     });
     if (!tagihan.ok) return { ok: false as const, reason: "tagihan_tidak_terbit" as const };
     await tx.update(pemesananTerencana).set({ tagihanId: tagihan.tagihan.id }).where(eq(pemesananTerencana.id, order.id));
+    // Their jobs wait for the payment (the Tagihan is pay-first); the order carries no Hak Pakai yet, only the held Petak.
+    if (layananSiap && baris.layanan && deps.layanan) {
+      await deps.layanan.tulisCheckout(
+        {
+          mode: "petak_kosong",
+          nomor: order.nomor,
+          lokasiId: order.lokasiId,
+          petakId: units[0].petakId!,
+          hakPakaiId: null,
+          lokasiName: order.lokasiName,
+          petakNomor: nomorUnit(units[0]),
+          pemesanName: order.pemesanName,
+          pemesanPhone: order.phoneNumber,
+          pemesanEmail: order.email,
+          pemesanAccountId: order.pemesanAccountId,
+          tagihanId: tagihan.tagihan.id,
+          total: tagihan.tagihan.total,
+          createdAt: now,
+          posisiAwal: baris.layanan.posisiAwal,
+          item: layananSiap.item,
+          perBaris: baris.layanan.perBaris,
+        },
+        tx,
+      );
+    }
 
     // Announced in the transaction that issues the Tagihan, exactly as a Saat Duka confirmation does (ticket 89): this
     // records where the Tagihan's messages go and schedules the one reminder about 4 h before the hold ends. The
@@ -318,6 +356,7 @@ export async function tarikTerencana(deps: PemesananDeps, pemesan: Pemesan, rawI
       // The order changed since it was read (a confirmation landed): roll back and read it again.
       if (moved.length === 0) return { ok: false as const, reason: "berubah" as const };
       await deps.inventory.within(tx).lepasTahan(order.nomor);
+      await deps.layanan?.batalkanLayananCheckout(order.nomor, "Pesanan ditarik sebelum dibayar", tx);
       return { ok: true as const, pesanan: { nomor: order.nomor, status: "dibatalkan" as const }, tagihan: nomorTagihan ? { nomorTagihan } : null };
     });
     if (hasil.ok || hasil.reason !== "berubah") return hasil as TarikTerencanaResult;
@@ -386,6 +425,7 @@ export async function lewatBatasBayarTerencana(deps: PemesananDeps, now: Date): 
         .returning({ id: pemesananTerencana.id });
       if (moved.length === 0) return { ok: false };
       await deps.inventory.within(tx).lepasTahan(order.nomor);
+      await deps.layanan?.batalkanLayananCheckout(order.nomor, "Batas pembayaran lewat", tx);
       await deps.notifikasi.terencanaBatasBayarLewat(tx, {
         pemesananId: order.id,
         nomor: order.nomor,

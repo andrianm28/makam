@@ -358,6 +358,13 @@
       "when": 1790923965451,
       "tag": "0050_slippery_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1790928492532,
+      "tag": "0051_serious_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

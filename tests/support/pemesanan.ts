@@ -7,6 +7,7 @@ import type { Database } from "@/db/client";
 import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { efekBuktiPembayaran } from "@/domain/notifications";
+import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
 import { efekBuktiPemesanan } from "@/domain/pemesanan";
 import type {
   PesananAlternatifDitawarkan,
@@ -155,6 +156,8 @@ export function pemesananOnTestDatabase(
       // The Lunas half of the Pencairan trigger, as the runtime registers it (ticket 32), so a test of a paid
       // Pemesanan Terencana's Pencairan (ticket 37) pays through the real module.
       efekPencairanSaatLunas(),
+      // As the runtime registers it: the payment of a Tagihan with Layanan on it schedules their jobs (ticket 53).
+      efekJadwalkanPekerjaan({ db, inventory: setup.inventory }),
       efekBuktiPemesanan({
         clock: setup.clock,
         billingOn: (tx) => createBilling({ ...deps, db: tx }),

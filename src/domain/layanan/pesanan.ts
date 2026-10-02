@@ -290,7 +290,8 @@ export interface KepalaPesananLayanan {
   nomor: string;
   lokasiId: string;
   petakId: string;
-  hakPakaiId: string;
+  /** Null for a Layanan chosen with an empty plot (Terencana): its Hak Pakai only exists once the order is paid. */
+  hakPakaiId: string | null;
   lokasiName: string;
   petakNomor: string;
   pemesanName: string;

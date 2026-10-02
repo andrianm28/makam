@@ -299,7 +299,7 @@ export function linesOf(
  * The Tagihan lines of a confirmation: the quote's own lines, and — when the order carries hari-H Layanan — each of
  * those as a `layanan` line, the shape Layanan hands back with where they sit among the lines.
  */
-function hariHBaris(
+export function hariHBaris(
   deps: PemesananDeps,
   harga: { lines: readonly QuotedLine[] },
   layananSiap: { item: Parameters<NonNullable<PemesananDeps["layanan"]>["gabungkanBaris"]>[1] } | null,

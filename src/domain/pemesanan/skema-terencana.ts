@@ -55,5 +55,10 @@ export const placeTerencanaSchema = z.object({
   units: z.array(terencanaUnitSchema).min(1).max(TERENCANA_MAKS_UNIT),
   pemegangHak: terencanaPemegangHakSchema,
   calonPenghuni: terencanaCalonPenghuniSchema,
+  /** Layanan for the empty plot (ticket 53): one Petak Makam only, each on a date the Pemesan picks. */
+  layanan: z
+    .array(z.object({ layananVariantId: z.uuid(), targetDate: z.iso.date(), teks: z.string().trim().max(500).nullish() }))
+    .max(10)
+    .default([]),
 });
 export type PlaceTerencanaInput = z.infer<typeof placeTerencanaSchema>;
