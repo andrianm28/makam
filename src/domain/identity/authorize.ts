@@ -126,6 +126,8 @@ export type Action =
   | "lokasi.aktifkan_terencana"
   /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17's Tier 4 "publish-gate check" row). */
   | "lokasi.konfirmasi_syarat_tayang"
+  /** Admin Platform sets a Lokasi Mitra Ditangguhkan, Berhenti, or reinstates it (ticket 59; Admin Platform only). */
+  | "lokasi.ubah_status"
   /** Open the Antrean, its counter strip and a row's Catatan Internal thread (Admin Platform only). */
   | "antrean.lihat"
   /** Ambil an Antrean row: a soft claim, visible to all and takeable by anyone (Admin Platform only). */
@@ -532,6 +534,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.terbitkan":
     case "lokasi.aktifkan_terencana":
     case "lokasi.konfirmasi_syarat_tayang":
+    case "lokasi.ubah_status":
       return resource.kind === "lokasi_mitra" && holds("admin_platform") ? allowed : denied;
     case "tarif.ubah":
       // Only Admin Platform enters tariffs (spec, Identity & Access); an Admin Lokasi only reads them.

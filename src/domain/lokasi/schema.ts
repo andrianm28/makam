@@ -68,6 +68,14 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
    */
   cekDenahAt: at("cek_denah_at"),
   cekDenahNote: text("cek_denah_note"),
+  /**
+   * Berhenti (ticket 59): when Admin Platform decided it, the WIB date from
+   * which no order of any kind is taken, and when the effective-date tick
+   * finished its leftovers. All null unless the status is Berhenti.
+   */
+  berhentiDecidedAt: at("berhenti_decided_at"),
+  berhentiBerlakuOn: date("berhenti_berlaku_on", { mode: "string" }),
+  berhentiDiprosesAt: at("berhenti_diproses_at"),
   /** Set once, when the publish gate first admits this Lokasi Mitra (Belum Tayang → Terverifikasi, ticket 16). Null before. */
   publishedAt: at("published_at"),
   /**

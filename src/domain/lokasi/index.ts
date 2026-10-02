@@ -106,6 +106,20 @@ import {
   type PublishInput,
   type PublishLokasiMitraResult,
 } from "./publish";
+import {
+  berhentiBerlakuBelumDiproses,
+  hentikan,
+  izinPesanan,
+  pulihkan,
+  statusPesananOf,
+  tandaiBerhentiDiproses,
+  tangguhkan,
+  type HentikanResult,
+  type IzinPesanan,
+  type JenisPesanan,
+  type StatusPesanan,
+  type UbahStatusResult,
+} from "./status-pesanan";
 import { activateTerencana, type ActivateTerencanaInput, type ActivateTerencanaResult } from "./terencana";
 import {
   createTpuDki,
@@ -221,6 +235,7 @@ export type {
   RecordCekDenahResult,
   RecordKunjunganVerifikasiResult,
 } from "./kunjungan";
+export type { HentikanResult, IzinPesanan, JenisPesanan, StatusPesanan, UbahStatusResult } from "./status-pesanan";
 export type { PublishInput, PublishLokasiMitraResult } from "./publish";
 export type { TandaiDataContohInput, TandaiDataContohResult } from "./data-contoh";
 export {
@@ -410,6 +425,20 @@ export interface Lokasi {
    * audited.
    */
   recordPublishGateMasihTerpenuhi(by: Actor, lokasiId: string): Promise<WriteResult>;
+  /** Admin Platform sets a Terverifikasi Lokasi Ditangguhkan (ticket 59), audited. */
+  tangguhkan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
+  /** Admin Platform reinstates a Ditangguhkan Lokasi, audited. */
+  pulihkan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
+  /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
+  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string }): Promise<HentikanResult>;
+  /** Every order entry point asks this first: may an order of this kind be taken at this Lokasi now. */
+  izinPesanan(lokasiId: string, jenis: JenisPesanan): Promise<IzinPesanan>;
+  /** The status facts the rules read (Berhenti's effective date included); null for an unknown Lokasi. */
+  statusPesananOf(lokasiId: string): Promise<StatusPesanan | null>;
+  /** Berhenti Lokasi whose effective date has come and whose leftovers are not yet settled. */
+  berhentiBerlakuBelumDiproses(): Promise<string[]>;
+  /** Marks a Berhenti Lokasi's leftovers settled; idempotent. */
+  tandaiBerhentiDiproses(lokasiId: string): Promise<void>;
   /**
    * Admin Platform switches "Pemesanan Terencana aktif" on, only once every
    * Petak is cleared and a Cek Denah is done. `input.hasPetakPerluVerifikasi`
@@ -490,6 +519,13 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
+    tangguhkan: (by, lokasiId) => tangguhkan(deps, by, lokasiId),
+    pulihkan: (by, lokasiId) => pulihkan(deps, by, lokasiId),
+    hentikan: (by, lokasiId, input) => hentikan(deps, by, lokasiId, input),
+    izinPesanan: (lokasiId, jenis) => izinPesanan(deps, lokasiId, jenis),
+    statusPesananOf: (lokasiId) => statusPesananOf(deps, lokasiId),
+    berhentiBerlakuBelumDiproses: () => berhentiBerlakuBelumDiproses(deps),
+    tandaiBerhentiDiproses: (lokasiId) => tandaiBerhentiDiproses(deps, lokasiId),
     activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),

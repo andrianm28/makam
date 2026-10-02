@@ -173,6 +173,12 @@ export type AuditAction =
   | "lokasi.aktifkan_terencana"
   /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17). */
   | "lokasi.konfirmasi_syarat_tayang"
+  /** Admin Platform sets a Lokasi Mitra Ditangguhkan (ticket 59). */
+  | "lokasi.tangguhkan"
+  /** Admin Platform reinstates a Ditangguhkan Lokasi Mitra (ticket 59). */
+  | "lokasi.pulihkan"
+  /** Admin Platform sets a Lokasi Mitra Berhenti with an effective date (ticket 59). */
+  | "lokasi.hentikan"
   /** An Admin Lokasi confirms a Saat Duka order: the Petak it assigned, the Hak Pakai and the Tagihan issued with it (ticket 23). */
   | "pemesanan.konfirmasi_saat_duka"
   /** An Admin Lokasi confirms a Pemesanan Terencana: the payment hold that starts and the pay-first Tagihan issued with it (ticket 37). */
