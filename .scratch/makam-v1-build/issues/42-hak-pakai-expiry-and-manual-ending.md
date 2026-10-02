@@ -23,3 +23,4 @@ The end of a fixed-term Hak Pakai. Reminders go to the Pemegang Hak and the Admi
 ## Comments
 
 - 2026-09-26 — ADR 0004: reminders go by email; a Hak Pakai nearing its end gets a "Telepon Pemesan" call row (criterion added). When exactly the row appears (e.g. at the 7-day reminder) is not fixed by ADR 0004; settle it while building.
+- 2026-10-02 — Owner decision 2026-10-02 ("ya setuju semua" to the orchestrator's list of open questions; small concrete choices put to the owner directly, recorded here as settled): the builder's decisions are **accepted** — Kedaluwarsa starts the day after the end date; the Telepon Pemesan row opens from the 7-day reminder on, or with any reminder when there is no recorded email.
