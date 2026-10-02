@@ -194,6 +194,7 @@ export function DenahEditor({
           <div className="lg:hidden">
             <DetailPanel
               blokName={blok.name}
+              lokasiId={lokasiId}
               cell={focused}
               kavlingOf={focusedKavling}
               jenisMakamName={focused?.jenisMakamId ? jenisMakamById.get(focused.jenisMakamId)?.name : undefined}
@@ -228,6 +229,7 @@ export function DenahEditor({
           <div className="hidden lg:block">
             <DetailPanel
               blokName={blok.name}
+              lokasiId={lokasiId}
               cell={focused}
               kavlingOf={focusedKavling}
               jenisMakamName={focused?.jenisMakamId ? jenisMakamById.get(focused.jenisMakamId)?.name : undefined}

@@ -141,7 +141,7 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     await setup.inventory.kedaluwarsaTick(setup.clock.now());
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toEqual([
-      expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: diisi.hakPakaiId, deadline: null }),
+      expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: diisi.hakPakaiId, deadline: null, href: `/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${diisi.hakPakaiId}` }),
     ]);
     expect(lain[0]?.subjectLabel).toContain("2026-10-01");
 

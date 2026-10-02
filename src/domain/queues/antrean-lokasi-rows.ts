@@ -149,7 +149,7 @@ export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
       subjectKind: "hak_pakai",
       subjectId: satu.hakPakaiId,
       subjectLabel: `${satu.label} · berakhir ${satu.endDate}, masa tenggang sampai ${satu.masaTenggangBerakhir}`,
-      href: `/staf/admin-lokasi/${lokasiId}/denah`,
+      href: `/staf/admin-lokasi/${lokasiId}/hak-pakai/${satu.hakPakaiId}`,
       deadline: null,
     }));
   },

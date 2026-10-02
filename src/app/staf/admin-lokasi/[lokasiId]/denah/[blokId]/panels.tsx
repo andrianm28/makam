@@ -10,6 +10,7 @@
  * and kavling the grid already has, the same counts `ringkasan()` computed in
  * the prototype).
  */
+import Link from "next/link";
 import { useState } from "react";
 import { Lock, LogIn, Route, ScanLine, Square, TreePine, Trash2, X } from "lucide-react";
 import type { DenahCell, DenahKavling } from "@/domain/inventory/reads";
@@ -53,6 +54,7 @@ function shortLabel(nomorMakam: string | null, blokName: string): string {
 
 export function DetailPanel({
   blokName,
+  lokasiId,
   cell,
   kavlingOf,
   jenisMakamName,
@@ -64,6 +66,7 @@ export function DetailPanel({
   pending,
 }: {
   blokName: string;
+  lokasiId: string;
   cell: DenahCell | null;
   kavlingOf?: DenahKavling;
   jenisMakamName?: string;
@@ -134,6 +137,12 @@ export function DetailPanel({
             Bersihkan {kavlingOf ? "Kavling Keluarga" : "Petak"}
           </button>
         </div>
+      ) : null}
+
+      {!kavlingOf && (cell.status === "terisi" || cell.status === "masa_berlaku_habis") ? (
+        <Link href={`/staf/admin-lokasi/${lokasiId}/petak/${cell.id}`} className="self-start text-small font-semibold underline">
+          Lihat Hak Pakai
+        </Link>
       ) : null}
 
       {cell.usedForever ? (
