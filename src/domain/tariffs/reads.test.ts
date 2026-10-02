@@ -83,12 +83,18 @@ describe("public tariff reads (no actor) serve only a Terverifikasi Lokasi Mitra
     });
   });
 
-  it("a Ditangguhkan Lokasi is off the listings, so off the public reads too", async () => {
+  it("a Ditangguhkan Lokasi is off the listings: the public tariff reads show nothing, yet a quote still prices it for the carry-on actions", async () => {
+    // Spec (Lokasi Mitra, status): "Ditangguhkan blocks only a new Hak Pakai ... Burials under an existing Hak Pakai,
+    // Perpanjangan, Layanan and Paket Layanan cycles ... and orders already in progress carry on" (they need quotes);
+    // ticket 24: "off lists and search", the page stays up. A new Hak Pakai is kept out by izinPesanan, not by the quote.
     const setup = tariffsOnTestDatabase(db);
     const { lokasiMitra, jenisMakam } = await belumTayangWithTariffs(setup);
     await setLokasiMitraStatusForTest(db, lokasiMitra.id, "ditangguhkan");
 
-    expect(await setup.tariffs.quote(saatDuka(jenisMakam.id, lokasiMitra.id), at)).toEqual({ ok: false, reason: "tidak_ditemukan" });
+    expect((await setup.tariffs.lokasiTariffs(lokasiMitra.id, at)).jenisMakam).toEqual([]);
+    expect((await setup.tariffs.lokasiPricing(lokasiMitra.id, at)).jenisMakam).toEqual([]);
+    expect(await setup.tariffs.jenisMakamTariffHistory(jenisMakam.id)).toEqual([]);
+    expect(await setup.tariffs.quote(saatDuka(jenisMakam.id, lokasiMitra.id), at)).toMatchObject({ ok: true, total: 9_650_000 });
   });
 });
 
