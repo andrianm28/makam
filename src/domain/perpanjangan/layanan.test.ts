@@ -3,6 +3,7 @@
  * ticket 53). The fake Clock sits at Kamis 1 Oktober 2026 09:00 WIB, so a Perpanjangan ordered now is due Minggu 4 Oktober 09:00.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { lapsePayFirstTagihanTick } from "@/domain/billing";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { tawarkanLayananDi } from "../../../tests/support/pemesanan";
@@ -82,5 +83,41 @@ describe("Tambah Layanan at a Perpanjangan checkout", () => {
     if (!tawaran.ok) throw new Error("no offer");
     expect(tawaran.batasBayar).toEqual(wib("2026-10-04 09:00"));
     expect(tawaran.opsi).toMatchObject([{ layanan: { name: "Pembersihan Makam" }, tanggalPalingDini: "2026-10-07", varian: [{ harga: 400_000 }] }]);
+  });
+});
+
+describe("the Layanan of a Perpanjangan whose Tagihan lapses", () => {
+  it("has its Pekerjaan Layanan Dibatalkan once the Tagihan is Dibatalkan, and a second tick changes nothing", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await siap(setup);
+    const hasil = await setup.perpanjangan.ajukan({
+      hakPakaiId: fixture.hakPakaiId,
+      terms: 1,
+      pemohon: fixture.pemohon,
+      layanan: [{ layananVariantId: fixture.varian.id, targetDate: "2026-10-07" }],
+    });
+    if (!hasil.ok || !hasil.perpanjangan.layananNomor) throw new Error("ajukan refused");
+    const nomor = hasil.perpanjangan.layananNomor;
+
+    setup.clock.set(wib("2026-10-04 10:00"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+    expect(await setup.layanan.batalkanPekerjaanTagihanLapse(setup.clock.now())).toBe(1);
+    expect((await setup.layanan.pesananLayananOf(nomor, fixture.pemohon))?.item).toMatchObject([{ pekerjaan: { status: "dibatalkan" } }]);
+    expect(await setup.layanan.batalkanPekerjaanTagihanLapse(setup.clock.now())).toBe(0);
+  });
+
+  it("leaves the jobs of a Tagihan still open alone", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await siap(setup);
+    const hasil = await setup.perpanjangan.ajukan({
+      hakPakaiId: fixture.hakPakaiId,
+      terms: 1,
+      pemohon: fixture.pemohon,
+      layanan: [{ layananVariantId: fixture.varian.id, targetDate: "2026-10-07" }],
+    });
+    if (!hasil.ok || !hasil.perpanjangan.layananNomor) throw new Error("ajukan refused");
+
+    expect(await setup.layanan.batalkanPekerjaanTagihanLapse(setup.clock.now())).toBe(0);
+    expect((await setup.layanan.pesananLayananOf(hasil.perpanjangan.layananNomor, fixture.pemohon))?.item).toMatchObject([{ pekerjaan: { status: "menunggu_pembayaran" } }]);
   });
 });
