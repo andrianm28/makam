@@ -191,15 +191,31 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
   });
 
   it("shows a Hak Pakai at a Berhenti Lokasi after the effective date as read-only: kept with its documents, no Perpanjang or Layanan", () => {
-    const berhenti = new Map([["lokasi-1", { pengelolaName: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi" }]]);
+    const berhenti = new Map([["lokasi-1", { pengelolaName: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi", telepon: "+6281234567890", email: "rahmat@example.com" }]]);
     const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }], berhenti);
 
     expect(kartu.hanyaBaca).toBe(true);
-    expect(kartu.pengelola).toEqual({ name: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi" });
+    expect(kartu.pengelola).toEqual({
+      name: "Pak Haji Rahmat",
+      address: "Jl. Pemakaman No. 1, Bekasi",
+      telepon: "0812-3456-7890",
+      email: "rahmat@example.com",
+    });
     expect(kartu.dokumen).toEqual([{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
     expect(kartu.pemakaman).toHaveLength(1);
-    expect(kartuMakamSaya(makamSaya(), nama, [], new Map([["lokasi-lain", { pengelolaName: "X", address: "Y" }]])).hanyaBaca).toBe(false);
+    expect(kartuMakamSaya(makamSaya(), nama, [], new Map([["lokasi-lain", { pengelolaName: "X", address: "Y", telepon: null, email: null }]])).hanyaBaca).toBe(false);
     expect(kartuMakamSaya(makamSaya(), nama, []).hanyaBaca).toBe(false);
+  });
+
+  it("shows no phone or email for a pengelola whose Lokasi Mitra holds none, only the name and address", () => {
+    const berhenti = new Map([["lokasi-1", { pengelolaName: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1", telepon: null, email: null }]]);
+
+    expect(kartuMakamSaya(makamSaya(), nama, [], berhenti).pengelola).toEqual({
+      name: "Pak Haji Rahmat",
+      address: "Jl. Pemakaman No. 1",
+      telepon: null,
+      email: null,
+    });
   });
 
   it("has no documents while none were handed in, rather than inventing one", () => {
