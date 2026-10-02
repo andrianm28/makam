@@ -23,3 +23,4 @@ The other Pemegang Hak requests and holder changes. From the Makam tab: "Kembali
 ## Comments
 
 - 2026-09-26 — ADR 0004: the new Pemegang Hak is recorded with a phone and, when known, an email (the Makam tab matches by email); the Admin Lokasi's KTP-checked change covers the recorded email as well as the phone.
+- 2026-10-02 — **Settled through the `grilling` skill (round 5 Q15, owner "ya setuju semua"):** the Calon Penghuni label is **per Petak** (spec line ~377). A Terencana order for a Kavling Keluarga puts its label on the **first Petak** of the Kavling; the family labels the other Petak from Akun Saya at any time (story 105). Resolves the branch's SPEC 3. Branch `ticket-39` is 218 commits behind main: rebuild on current main, reusing its code; the label move is an expand/contract migration.
