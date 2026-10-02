@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "../progress";
 import { Field, Fieldset, Pilihan } from "../form";
 import { kirimPesanan, verifikasiKodeMasukDanKirim } from "../actions";
-import { initialKirimState, type DraftSaatDuka, type KirimState, type MasalahDraft } from "../draft";
+import { initialKirimState, tujuanSetelahKirim, type DraftSaatDuka, type KirimState, type MasalahDraft } from "../draft";
 import type { KartuView } from "../tampilan";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
@@ -67,7 +67,14 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
 
-  const kirimPesananSekarang = () => kirim(async () => setHasil(await kirimPesanan(draftLengkap(isi, pemegangHak))));
+  const kirimPesananSekarang = () =>
+    kirim(async () => {
+      const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak));
+      setHasil(hasilKirim);
+      // A signed-in Pemesan has no Kode Masuk step to carry the redirect, so the screen carries it.
+      const tujuan = tujuanSetelahKirim(hasilKirim);
+      if (tujuan) router.push(tujuan);
+    });
   const kodeMasukTerbuka = hasil.status === "perlu_kode_masuk";
   const sudahDikirim = hasil.status === "selesai";
   /** What each field has to fix, from the draft the Server Action refused (docs/design-system.md). */
