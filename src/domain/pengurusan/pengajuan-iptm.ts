@@ -190,10 +190,11 @@ export interface SuratKuasa {
 }
 
 function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
-  // A filing-only order has no confirming staff member: the authority goes to the company alone.
-  const berkas = order.kind === "pengurusan_iptm";
+  // A filing-only order or a Perpanjangan TPU has no confirming staff member: the authority goes to the company alone.
+  const berkas = order.kind !== "saat_duka_tpu";
   if (!order.adminPlatformName && !berkas) return null;
-  if (order.status === "diajukan" || order.status === "dibatalkan" || order.status === "ditolak") return null;
+  // A Saat Duka TPU order has none before its confirmation; a Perpanjangan TPU needs it from Diajukan, the signed copy being one of its documents.
+  if ((order.status === "diajukan" && order.kind !== "perpanjangan_tpu") || order.status === "dibatalkan" || order.status === "ditolak") return null;
   return {
     nomor: order.nomor,
     penerimaKuasa: {
