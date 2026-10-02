@@ -16,6 +16,7 @@ import {
   tpu,
   type PengajuanSetup,
 } from "../../../tests/support/pengurusan";
+import { buktiTransfer } from "../../../tests/support/refunds";
 import { signedInPetugasLapangan } from "../../../tests/support/publish";
 import { siapkanOperatorPemesanan } from "../../../tests/support/pemesanan";
 
@@ -437,5 +438,32 @@ describe("cancelling a Saat Duka TPU order", () => {
     const [permintaan] = await setup.refunds.permintaanTerbuka();
     expect(permintaan).toMatchObject({ nomorPemesanan: dasar.nomor, jumlah: 250_000 });
     expect(permintaan!.lines.map((baris) => baris.label)).not.toContain("Biaya Pengurusan");
+  });
+
+  it("sends a refund raised after Dimakamkan, without the Biaya Pengurusan, through approval to a Bukti Pengembalian Dana", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    const dibayar = await setup.billing.recordPayment(dasar.tagihanId, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
+    if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
+    await dimakamkan(setup, dasar);
+    await setup.pengurusan.batalkanPengurusan(dasar.pemesan, { nomor: dasar.nomor });
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    const pemesanActor = { ...dasar.pemesan, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], totp: "tidak_perlu" as const, sessionId: "sesi-uji" };
+    const isi = await setup.refunds.isiRekeningPemesan(pemesanActor, {
+      nomorPemesanan: dasar.nomor,
+      rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Siti" },
+    });
+    expect(isi).toMatchObject({ ok: true });
+
+    const setuju = await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: permintaan!.id });
+    if (!setuju.ok) throw new Error(`approval refused: ${setuju.reason}`);
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(dasar.admin, {
+      permintaanId: permintaan!.id,
+      ditransferPada: "2026-10-02",
+      bukti: buktiTransfer,
+    });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(terbit.bukti).toMatchObject({ amount: 250_000 });
+    expect(await setup.refunds.buktiPengembalianDana(terbit.bukti.link)).not.toBeNull();
   });
 });
