@@ -104,3 +104,11 @@ Builder spec gaps, judged:
 - Spec: 3 findings (0 blocking, 2 should-fix, 1 nit). Worst: two open renewals of one Makam TPU can both be paid, and the typed expiry date can bypass the past-grace TPU check.
 - TDD: every domain behaviour has its red commit first; only the UI commits and the pin commit have none.
 - Not blocking merge, but both Spec should-fix items need a fix pass before release.
+
+### Re-review (2026-10-02, reviewer thread, haiku)
+
+`npx vitest run src/domain/pengurusan`: Test Files 10 passed (10), Tests 80 passed (80), exit 0.
+
+Per-item verdict: (1) BLOCKING double charge — NOT FIXED. No check for `sudah_dipesan` refusal; no partial unique index in migration 0061. (2) BLOCKING past-grace bypass — NOT FIXED. No column `iptm_tercatat_berakhir_pada`; past-grace from typed expiry only. (3) CONTEXT.md glossary — NOT FIXED. No entries added. (4) PTSP meminta perbaikan — FIXED. Wording kept via `perbaikan` field. (5) Reminder dedup test — PARTLY FIXED. Logic exists, explicit test missing. (6) Burial type hidden — PARTLY FIXED. Pemesan yes, Admin Platform no (line 103 shows unconditionally). (7) tanggalWafat comment/email/dilewati — PARTLY FIXED. Only email struck (ADR 0004); no comment on tanggalWafat; returns diumumkan not dilewati.
+
+Head: 6670c10 (before fix pass). Review entry: both Spec should-fix items from the review (double charge, past-grace bypass) remain unfixed.
