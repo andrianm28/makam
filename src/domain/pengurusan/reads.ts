@@ -25,7 +25,7 @@ export interface PengurusanOrder {
   /** The order's own id: what the Antrean row and the Ambil claim are keyed on, and what a family page looks its own order up by. */
   id: string;
   nomor: string;
-  kind: "saat_duka_tpu";
+  kind: "saat_duka_tpu" | "pengurusan_iptm";
   status: PengurusanTpuStatus;
   tpu: { id: string; name: string; address: string };
   pemesan: { name: string; email: string | null; phoneNumber: string | null };
@@ -87,8 +87,13 @@ function riwayatOf(row: Row): PengurusanOrder["riwayat"] {
     ["dikonfirmasi", row.dikonfirmasiPada],
     ["dimakamkan", row.dimakamkanPada],
     ["dokumen_lengkap", row.dokumenLengkapPada],
+    // A filing-only order is billed the moment its documents pass, and is Diproses once that Tagihan is Lunas.
+    ["menunggu_pembayaran", row.kind === "pengurusan_iptm" ? row.dokumenLengkapPada : null],
+    ["diproses", row.lunasPada],
+    ["perlu_perbaikan", row.perbaikan ? new Date(row.perbaikan.pada) : null],
     ["iptm_diajukan", row.iptmDiajukanPada],
     ["iptm_terbit", row.iptmTerbitPada],
+    ["ditolak", row.ditolakPada],
     ["dibatalkan", row.dibatalkanPada],
   ];
   return langkah.flatMap(([status, pada]) => (pada ? [{ status, pada }] : []));
@@ -142,7 +147,7 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
   return {
     id: row.id,
     nomor: row.nomor,
-    kind: "saat_duka_tpu",
+    kind: row.kind === "pengurusan_iptm" ? "pengurusan_iptm" : "saat_duka_tpu",
     status: row.status,
     tpu: { id: row.tpuId, name: row.tpuName, address: row.tpuAddress },
     pemesan: { name: row.pemesanName, email: row.email, phoneNumber: row.phoneNumber },

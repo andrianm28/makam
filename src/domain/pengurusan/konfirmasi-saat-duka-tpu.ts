@@ -347,7 +347,7 @@ export async function konfirmasiSaatDukaTpu(
  * and the total it will show. A line this flow cannot charge refuses the whole
  * confirmation rather than being dropped from it.
  */
-function barisTagihan(
+export function barisTagihan(
   quoted: readonly QuotedLine[],
 ): { ok: true; lines: NewTagihanLine[]; harga: HargaBaris[]; total: number } | { ok: false; reason: "baris_tidak_bisa_ditagih" } {
   const lines: NewTagihanLine[] = [];

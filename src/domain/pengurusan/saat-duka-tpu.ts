@@ -24,6 +24,7 @@ import { documentExtension } from "@/lib/files/document-type";
 import { foldKey } from "@/lib/fold-key";
 import { daftarDokumen } from "./dokumen";
 import { JAM_KONFIRMASI_TPU } from "./pilihan";
+import { HARI_BERKAS_PENGAJUAN } from "./pengajuan-iptm";
 import { pengurusanTpu } from "./schema";
 import type { Pemesan, PengurusanDeps } from "./deps";
 import { FOTO_IPTM_MAX_BYTES } from "./skema-pengurusan";
@@ -106,6 +107,40 @@ const FOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] 
  * sets attached, and no Tagihan at all.
  */
 export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDukaTpuInput): Promise<PlaceSaatDukaTpuResult> {
+  const hasil = await tempatkan(deps, input, "saat_duka_tpu");
+  if (!hasil.ok) return hasil;
+  return { ok: true, pengurusan: { nomor: hasil.pengurusan.nomor, status: "diajukan", konfirmasiDueAt: hasil.pengurusan.konfirmasiDueAt! } };
+}
+
+/** What a filing-only Pengurusan IPTM asks for: the same facts, without the hari-H Layanan a burial may carry. */
+export type PlacePengurusanIptmInput = Omit<PlaceSaatDukaTpuInput, "layananHariH">;
+
+export type PlacePengurusanIptmResult =
+  /** Dimakamkan from the first moment: the burial already happened, and the filing documents are due 7 days after the order. */
+  | { ok: true; pengurusan: { nomor: string; status: "dimakamkan"; dokumenDueAt: Date } }
+  | Exclude<PlaceSaatDukaTpuResult, { ok: true } | { reason: "tpu_tidak_menerima_makam_baru" | "layanan_tidak_tersedia" | "teks_kosong" }>;
+
+/**
+ * Places a filing-only Pengurusan IPTM ("Sudah dimakamkan? Kami urus IPTM-nya", ticket 47): the order starts
+ * Dimakamkan with its Nomor Pemesanan and the 7-day window for the filing documents, and bills nothing: the
+ * pay-first Tagihan is issued only once Admin Platform has checked the documents. A TPU that has stopped taking
+ * new plots still takes the filing, because the family already buried there.
+ */
+export async function placePengurusanIptm(deps: PengurusanDeps, input: PlacePengurusanIptmInput): Promise<PlacePengurusanIptmResult> {
+  const hasil = await tempatkan(deps, input, "pengurusan_iptm");
+  if (!hasil.ok) return hasil as Exclude<typeof hasil, { ok: true }> & PlacePengurusanIptmResult;
+  return { ok: true, pengurusan: { nomor: hasil.pengurusan.nomor, status: "dimakamkan", dokumenDueAt: hasil.pengurusan.dokumenDueAt! } };
+}
+
+async function tempatkan(
+  deps: PengurusanDeps,
+  input: PlaceSaatDukaTpuInput,
+  macam: "saat_duka_tpu" | "pengurusan_iptm",
+): Promise<
+  | { ok: true; pengurusan: { nomor: string; konfirmasiDueAt: Date | null; dokumenDueAt: Date | null } }
+  | Exclude<PlaceSaatDukaTpuResult, { ok: true }>
+> {
+  const berkas = macam === "pengurusan_iptm";
   const now = deps.clock.now();
   const pemesanName = input.pemesanName.trim();
   if (pemesanName === "") return { ok: false, reason: "pemesan_kosong" };
@@ -123,7 +158,7 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
   // A TPU that is not taking new plots holds no plot to give, so the wizard never
   // listed it and it takes no new order: the flag is checked again here because
   // it can have been turned off between the card and the submission.
-  if (!tpu.newPlot) return { ok: false, reason: "tpu_tidak_menerima_makam_baru" };
+  if (!berkas && !tpu.newPlot) return { ok: false, reason: "tpu_tidak_menerima_makam_baru" };
 
   // "KTP DKI?" and "Meninggal di Jakarta?": a family with neither cannot be buried
   // at a DKI TPU through us, and a Lokasi Mitra is open to them.
@@ -138,7 +173,7 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
 
   const quoted = await deps.tariffs.quote(
     [
-      { kind: "biaya_pengurusan", pengurusan: "pemakaman" },
+      { kind: "biaya_pengurusan", pengurusan: berkas ? "berkas" : "pemakaman" },
       { kind: "retribusi_pemda", retribusi: "iptm" },
     ],
     now,
@@ -172,7 +207,8 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
   }
 
   const dokumen = daftarDokumen({ jenis: input.jenis, kelayakan: input.kelayakan });
-  const konfirmasiDueAt = batasTpu(now);
+  const konfirmasiDueAt = berkas ? null : batasTpu(now);
+  const dokumenDueAt = berkas ? new Date(now.getTime() + HARI_BERKAS_PENGAJUAN * 24 * 60 * 60 * 1000) : null;
   const phoneNumber = phoneOf(input.phoneNumber);
   const placed = await refusable(deps.db, async (tx) => {
     // The Nomor Pemesanan is taken inside this transaction, so a rolled-back order gives its number back.
@@ -181,8 +217,8 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
       .insert(pengurusanTpu)
       .values({
         nomor,
-        kind: "saat_duka_tpu",
-        status: "diajukan",
+        kind: macam,
+        status: berkas ? "dimakamkan" : "diajukan",
         tpuId: tpu.id,
         tpuName: tpu.name,
         tpuAddress: tpu.address,
@@ -202,9 +238,10 @@ export async function placeSaatDukaTpu(deps: PengurusanDeps, input: PlaceSaatDuk
         layananHariH: hariH.length > 0 ? hariH : null,
         konfirmasiDueAt,
         diajukanAt: now,
+        ...(berkas ? { dimakamkanPada: now, dokumenDueAt } : {}),
       })
       .returning({ nomor: pengurusanTpu.nomor });
-    return { ok: true as const, pengurusan: { nomor: row.nomor, status: "diajukan" as const, konfirmasiDueAt } };
+    return { ok: true as const, pengurusan: { nomor: row.nomor, konfirmasiDueAt, dokumenDueAt } };
   });
   if (!placed.ok) {
     if (fotoIptmKey) await deps.files.delete(fotoIptmKey).catch(() => undefined);

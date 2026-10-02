@@ -47,7 +47,7 @@ export interface PengurusanDeps {
   suratKuasaPageUrl: (nomor: string, now: Date) => string;
   /** Every staff write this module makes is recorded through it, in the same transaction. */
   audit: AuditLog;
-  lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList">;
+  lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList" | "adminPlatformCalendar">;
   tariffs: Pick<Tariffs, "quote">;
   /** For the Nomor Pemesanan series and the Tagihan, both taken `within` the order's own transaction. */
   billing: Pick<Billing, "within" | "tagihan" | "tagihanBerlaku" | "setOverdueAnchor" | "batalkanTagihan">;

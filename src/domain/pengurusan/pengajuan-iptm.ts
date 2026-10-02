@@ -17,13 +17,14 @@
  * everything before Dimakamkan, everything but the Biaya Pengurusan from then on,
  * because by then the Operator has arranged the burial with the TPU.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { refusable } from "@/db/unit-of-work";
 import { nilaiDibayarBaris } from "@/domain/billing";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
+import { periksaDokumenBerkas, type TagihanBerkas } from "./pengurusan-berkas";
 import { makamTpu, pengurusanTpu, type DokumenDiunggah, type PengurusanTpuStatus } from "./schema";
 
 /** The filing documents are due this many days after the burial is recorded. */
@@ -46,9 +47,10 @@ type Row = typeof pengurusanTpu.$inferSelect;
 /** What every step refuses for the same two reasons. */
 type Umum = { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" };
 
+/** A Saat Duka TPU order or a filing-only Pengurusan IPTM: the two kinds whose filing runs through this file's steps. */
 async function muat(deps: Pick<PengurusanDeps, "db">, nomor: string): Promise<Row | null> {
   const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
-  return order && order.kind === "saat_duka_tpu" ? order : null;
+  return order && (order.kind === "saat_duka_tpu" || order.kind === "pengurusan_iptm") ? order : null;
 }
 
 const hariKemudian = (dari: Date, hari: number) => new Date(dari.getTime() + hari * 24 * 60 * 60 * 1000);
@@ -139,7 +141,7 @@ export async function unggahDokumenPengajuan(
   const { nomor, nama, berkas } = parsed.data;
   const order = await muat(deps, nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (order.status !== "dimakamkan") return { ok: false, reason: "status_tidak_sesuai" };
+  if (order.status !== "dimakamkan" && order.status !== "perlu_perbaikan") return { ok: false, reason: "status_tidak_sesuai" };
   if (!order.dokumenPengajuan.some((dokumen) => dokumen.nama === nama)) return { ok: false, reason: "dokumen_tidak_dikenal" };
 
   const key = `pengurusan/${order.id}/pengajuan/${crypto.randomUUID()}`;
@@ -147,14 +149,20 @@ export async function unggahDokumenPengajuan(
   const now = deps.clock.now();
   const hasil = await deps.db.transaction(async (tx) => {
     const [terkunci] = await tx.select().from(pengurusanTpu).where(eq(pengurusanTpu.id, order.id)).for("update");
-    if (!terkunci || terkunci.status !== "dimakamkan") return null;
+    if (!terkunci || (terkunci.status !== "dimakamkan" && terkunci.status !== "perlu_perbaikan")) return null;
     const lama = terkunci.dokumenDiunggah?.[nama];
     const diunggah: Record<string, DokumenDiunggah> = {
       ...(terkunci.dokumenDiunggah ?? {}),
       [nama]: { key, contentType: berkas.contentType, diunggahPada: now.toISOString() },
     };
-    await tx.update(pengurusanTpu).set({ dokumenDiunggah: diunggah }).where(eq(pengurusanTpu.id, order.id));
-    return { lama, kurang: dokumenKurang({ ...terkunci, dokumenDiunggah: diunggah }) };
+    const kurang = dokumenKurang({ ...terkunci, dokumenDiunggah: diunggah });
+    // The moment the last document arrives opens the 1-working-day check of a filing-only order (it is set once, at Dimakamkan).
+    const lengkapSekarang = kurang.length === 0 && terkunci.status === "dimakamkan" && !terkunci.berkasLengkapDiunggahPada;
+    await tx
+      .update(pengurusanTpu)
+      .set({ dokumenDiunggah: diunggah, ...(lengkapSekarang ? { berkasLengkapDiunggahPada: now } : {}) })
+      .where(eq(pengurusanTpu.id, order.id));
+    return { lama, kurang };
   });
   if (!hasil) {
     await deps.files.delete(key).catch(() => undefined);
@@ -181,13 +189,15 @@ export interface SuratKuasa {
 }
 
 function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
-  if (!order.adminPlatformName) return null;
+  // A filing-only order has no confirming staff member: the authority goes to the company alone.
+  const berkas = order.kind === "pengurusan_iptm";
+  if (!order.adminPlatformName && !berkas) return null;
   if (order.status === "diajukan" || order.status === "dibatalkan" || order.status === "ditolak") return null;
   return {
     nomor: order.nomor,
     penerimaKuasa: {
       perusahaan: NAMA_OPERATOR_SURAT_KUASA,
-      wakil: { name: order.adminPlatformName, phoneNumber: order.adminPlatformPhoneNumber },
+      wakil: { name: order.adminPlatformName ?? NAMA_OPERATOR_SURAT_KUASA, phoneNumber: order.adminPlatformPhoneNumber },
     },
     pemberiKuasa: { name: order.pemegangHak.name, phoneNumber: order.pemegangHak.phoneNumber, email: order.pemegangHak.email },
     tpu: { name: order.tpuName, address: order.tpuAddress },
@@ -240,6 +250,9 @@ export async function suratKuasaPdfUrl(deps: PengurusanDeps, pemesan: { accountI
 
 export type PeriksaDokumenResult =
   | { ok: true; status: "dokumen_lengkap" }
+  /** A filing-only order: the documents pass and the pay-first Tagihan is issued in the same step. */
+  | { ok: true; status: "menunggu_pembayaran"; tagihan: TagihanBerkas }
+  | { ok: false; reason: "tagihan_tidak_terbit" | "harga_tidak_tersedia" }
   | WriteRefusal
   | Umum
   | { ok: false; reason: "dokumen_belum_lengkap"; kurang: string[] };
@@ -255,6 +268,7 @@ export async function periksaDokumen(deps: PengurusanDeps, by: Actor, rawInput: 
   if (order.status !== "dimakamkan") return { ok: false, reason: "status_tidak_sesuai" };
   const kurang = dokumenKurang(order);
   if (kurang.length > 0) return { ok: false, reason: "dokumen_belum_lengkap", kurang };
+  if (order.kind === "pengurusan_iptm") return periksaDokumenBerkas(deps, by, order);
 
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
@@ -287,7 +301,9 @@ export type AjukanIptmResult =
   | { ok: true; status: "iptm_diajukan"; berkasTugasId: string | null }
   | WriteRefusal
   | Umum
-  | { ok: false; reason: "bukan_petugas_lapangan" };
+  | { ok: false; reason: "bukan_petugas_lapangan" }
+  /** A refiling after a fixable PTSP rejection, while a document it asked for is still missing. */
+  | { ok: false; reason: "dokumen_belum_lengkap"; kurang: string[] };
 
 /** Admin Platform has filed on JakEVO: IPTM Diajukan, with an optional Berkas IPTM Tugas Lapangan for the originals. */
 export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<AjukanIptmResult> {
@@ -297,14 +313,22 @@ export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unkn
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
   const order = await muat(deps, parsed.data.nomor);
   if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (order.status !== "dokumen_lengkap") return { ok: false, reason: "status_tidak_sesuai" };
+  // A Saat Duka TPU order is filed once its documents are checked; a filing-only one once its Tagihan is Lunas (Diproses);
+  // either one again after a fixable PTSP rejection (Perlu Perbaikan), at no charge, once the documents asked for are in.
+  const dariStatus = order.kind === "pengurusan_iptm" ? "diproses" : "dokumen_lengkap";
+  if (order.status !== dariStatus && order.status !== "perlu_perbaikan") return { ok: false, reason: "status_tidak_sesuai" };
+  const diajukanUlang = order.status === "perlu_perbaikan";
+  if (diajukanUlang) {
+    const kurang = dokumenKurang(order);
+    if (kurang.length > 0) return { ok: false, reason: "dokumen_belum_lengkap", kurang };
+  }
 
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const moved = await tx
       .update(pengurusanTpu)
-      .set({ status: "iptm_diajukan", iptmDiajukanPada: now })
-      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "dokumen_lengkap")))
+      .set({ status: "iptm_diajukan", iptmDiajukanPada: now, ...(diajukanUlang ? { perbaikan: null, alasan: null } : {}) })
+      .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, order.status)))
       .returning({ id: pengurusanTpu.id });
     if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
     let berkasTugasId: string | null = null;
@@ -326,7 +350,7 @@ export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unkn
       action: "pengurusan.iptm_diajukan",
       entity: { kind: "pengurusan_tpu", id: order.id },
       lokasiId: null,
-      before: { status: "dokumen_lengkap" },
+      before: { status: order.status },
       after: { status: "iptm_diajukan", berkasTugasId },
       reason: null,
     });
@@ -486,9 +510,9 @@ export type BatalkanPengurusanResult =
   | { ok: false; reason: "sudah_diajukan" }
   | { ok: false; reason: "tagihan_tidak_dibatalkan" | "pengembalian_tidak_terbit" };
 
-const BOLEH_DIBATALKAN: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap"];
+const BOLEH_DIBATALKAN: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 /** From these on the Operator has arranged the burial with the TPU. */
-const SUDAH_DIMAKAMKAN: PengurusanTpuStatus[] = ["dimakamkan", "dokumen_lengkap"];
+const SUDAH_DIMAKAMKAN: PengurusanTpuStatus[] = ["dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 
 /**
  * The Pemesan cancels before the IPTM is filed. The order, the Tagihan and the refund request all
@@ -618,15 +642,19 @@ export interface PerluTindakanBerkas {
   tpuName: string;
   kurang: string[];
   dueAt: Date;
-  /** Past the 7-day window. */
+  /** Past the 7-day window; never for an order in Perlu Perbaikan, which waits on a correction and not on the window. */
   terlambat: boolean;
+  /** What the PTSP asked to be corrected; null while the documents are simply not all in. */
+  alasanPerbaikan: string | null;
 }
 
 export async function perluTindakanBerkas(deps: PengurusanDeps, pemesan: { accountId: string }): Promise<PerluTindakanBerkas[]> {
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId), eq(pengurusanTpu.status, "dimakamkan")));
+    .where(
+      and(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId), inArray(pengurusanTpu.status, ["dimakamkan", "perlu_perbaikan"])),
+    );
   const now = deps.clock.now();
   return rows
     .map((row) => ({ row, kurang: dokumenKurang(row) }))
@@ -636,7 +664,8 @@ export async function perluTindakanBerkas(deps: PengurusanDeps, pemesan: { accou
       tpuName: row.tpuName,
       kurang,
       dueAt: row.dokumenDueAt!,
-      terlambat: row.dokumenDueAt!.getTime() < now.getTime(),
+      terlambat: row.status === "dimakamkan" && row.dokumenDueAt!.getTime() < now.getTime(),
+      alasanPerbaikan: row.status === "perlu_perbaikan" ? (row.perbaikan?.alasan ?? row.alasan) : null,
     }))
     .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 }

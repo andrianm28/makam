@@ -23,7 +23,7 @@ const QRIS = { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, referen
 async function pesananBerkas(setup: PengajuanSetup) {
   const admin = await siapkanOperatorPemesanan(setup as never);
   const petugas = await signedInPetugasLapangan(setup, admin, "petugas.pengantar@contoh.id");
-  setup.clock.set(wib("2026-10-02 10:00"));
+  setup.clock.set(wib("2026-10-01 10:00"));
   const masuk = (key: Parameters<typeof setup.tariffs.setGlobalTariff>[1]["key"], amount: number) =>
     setup.tariffs.setGlobalTariff(admin, { key, amount, effectiveOn: "2026-10-01", reason: null });
   await masuk("biaya_pengurusan_pemakaman", 1_750_000);
@@ -32,6 +32,7 @@ async function pesananBerkas(setup: PengajuanSetup) {
   await masuk("biaya_layanan_platform", 150_001);
   const tpuDki = await tpu(setup);
   const pemesan = (await pemesanDenganEmail(setup, "pemesan@contoh.id")).pemesan;
+  setup.clock.set(wib("2026-10-02 10:00"));
   const placed = await setup.pengurusan.placePengurusanIptm({
     pemesan,
     pemesanName: "Budi Santoso",

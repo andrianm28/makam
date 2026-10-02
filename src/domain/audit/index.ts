@@ -221,6 +221,11 @@ export type AuditAction =
   | "pengurusan.iptm_diajukan"
   /** Admin Platform uploaded the IPTM scan and expiry; the Makam TPU was created or updated (ticket 46). */
   | "pengurusan.iptm_terbit"
+  /** Admin Platform made the Ambil surat pengantar Tugas of a paid Pengurusan IPTM (ticket 47). */
+  | "pengurusan.surat_pengantar_dibuat"
+  /** The PTSP rejected a filing: back to Perlu Perbaikan (fixable) or closed Ditolak and refunded (final) (ticket 47). */
+  | "pengurusan.ptsp_perbaikan"
+  | "pengurusan.ptsp_ditolak"
   /** A payment to the Pemda is recorded on a Retribusi Pemda line: by an Admin Platform, or by the Petugas Lapangan who paid it in person (ticket 45). */
   | "setor_retribusi.catat"
   /** An Admin Lokasi records a Pemakaman on one of its Lokasi Mitra's plots, starting the Hak Pakai's tenure clock (ticket 25). */

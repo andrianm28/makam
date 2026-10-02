@@ -32,7 +32,19 @@ import {
   type KonfirmasiSaatDukaTpuResult,
 } from "./konfirmasi-saat-duka-tpu";
 import { pilihanSaatDukaTpu, type KartuTpu, type PilihanSaatDukaTpuQuery } from "./pilihan";
-import { placeSaatDukaTpu, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+import { placePengurusanIptm, placeSaatDukaTpu, type PlacePengurusanIptmInput, type PlacePengurusanIptmResult, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+import {
+  buatSuratPengantar,
+  pembayaranBerkasTick,
+  pengajuanBerkasTerbuka,
+  periksaBerkasTerbuka,
+  tolakPtsp,
+  type BuatSuratPengantarResult,
+  type PengajuanBerkasTerbuka,
+  type PeriksaBerkasTerbuka,
+  type TagihanBerkas,
+  type TolakPtspResult,
+} from "./pengurusan-berkas";
 import { jawabTpuLain, tawarkanTpuLain, type JawabTpuLainResult, type TawarkanTpuLainResult } from "./tawarkan-tpu-lain";
 import {
   ajukanIptm,
@@ -67,7 +79,9 @@ import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan } from ".
 export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
-export type { FotoIptm, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
+export { buatSuratPengantarSchema, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
+export type { BuatSuratPengantarResult, PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
 export type { PengurusanOrder } from "./reads";
 export {
   ajukanIptmSchema,
@@ -130,6 +144,27 @@ export interface Pengurusan {
    * document sets attached, and no Tagihan.
    */
   placeSaatDukaTpu(input: PlaceSaatDukaTpuInput): Promise<PlaceSaatDukaTpuResult>;
+  /**
+   * Places a filing-only Pengurusan IPTM for a proven email ("Sudah dimakamkan? Kami urus IPTM-nya", ticket 47):
+   * Dimakamkan, its Nomor Pemesanan, the filing documents due in 7 days, and no Tagihan until Admin Platform has checked them.
+   */
+  placePengurusanIptm(input: PlacePengurusanIptmInput): Promise<PlacePengurusanIptmResult>;
+  /** Every filing-only order whose documents are all in and unchecked: the Antrean's Tier 3 document check (1 working day). No actor: the caller checks `antrean.lihat`. */
+  periksaBerkasTerbuka(): Promise<PeriksaBerkasTerbuka[]>;
+  /** Every paid filing-only order waiting to be filed: the Antrean's Tier 3 filing row (3 working days after Lunas). No actor: the caller checks `antrean.lihat`. */
+  pengajuanBerkasTerbuka(): Promise<PengajuanBerkasTerbuka[]>;
+  /**
+   * Follows the pay-first Tagihan of every Menunggu Pembayaran filing-only order: Lunas makes it Diproses, a lapsed
+   * (Dibatalkan) Tagihan makes the order Dibatalkan. Idempotent; the worker's tick (`now` defaults to the Clock).
+   */
+  pembayaranBerkasTick(now?: Date): Promise<void>;
+  /** Admin Platform makes the Ambil surat pengantar Tugas of a filing-only order: only once its Tagihan is Lunas, and once. Audited. */
+  buatSuratPengantar(by: Actor, input: unknown): Promise<BuatSuratPengantarResult>;
+  /**
+   * Admin Platform records the PTSP's answer to a filing: a fixable rejection goes back to Perlu Perbaikan (refiled at
+   * no charge), a final one is Ditolak with the reason and refunds the whole Tagihan. Audited.
+   */
+  tolakPtsp(by: Actor, input: unknown): Promise<TolakPtspResult>;
   /** One Pengurusan order of that Akun, by its Nomor Pemesanan, or null. */
   orderOf(nomor: string, pemesan: { accountId: string }): Promise<PengurusanOrder | null>;
   /** The same order as Admin Platform reads it, by its Nomor Pemesanan, or null. */
@@ -206,6 +241,12 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
   return {
     pilihanSaatDukaTpu: (query) => pilihanSaatDukaTpu(withAudit, query),
     daftarDokumen: (input) => daftarDokumen(input),
+    placePengurusanIptm: (input) => placePengurusanIptm(withAudit, input),
+    periksaBerkasTerbuka: () => periksaBerkasTerbuka(withAudit),
+    pengajuanBerkasTerbuka: () => pengajuanBerkasTerbuka(withAudit),
+    pembayaranBerkasTick: (now) => pembayaranBerkasTick(withAudit, now ?? deps.clock.now()),
+    buatSuratPengantar: (by, input) => buatSuratPengantar(withAudit, by, input),
+    tolakPtsp: (by, input) => tolakPtsp(withAudit, by, input),
     placeSaatDukaTpu: (input) => placeSaatDukaTpu(withAudit, input),
     orderOf: (nomor, pemesan) => orderOf(withAudit, pemesan, nomor),
     orderForStaff: (by, nomor) => orderForStaff(withAudit, nomor),

@@ -53,6 +53,13 @@ export interface KontakTpu {
   phoneNumber: string;
 }
 
+/** A fixable PTSP rejection: what to correct, which documents were cleared for a new upload, and when. */
+export interface PerbaikanPtsp {
+  alasan: string;
+  dokumen: string[];
+  pada: string;
+}
+
 /** One filing document the Pemesan uploaded: the private FileStore key and when. */
 export interface DokumenDiunggah {
   key: string;
@@ -196,6 +203,18 @@ export const pengurusanTpu = pgTable(
     /** The Makam TPU this order created or updated at IPTM Terbit. */
     makamTpuId: text("makam_tpu_id"),
     dibatalkanPada: at("dibatalkan_pada"),
+    /**
+     * The filing-only Pengurusan IPTM (ticket 47). `berkas_lengkap_diunggah_pada` is when the last filing
+     * document came in (it opens the 1-working-day document check); `lunas_pada` is when the pay-first Tagihan
+     * was seen paid (it opens the 3-working-day filing); `surat_pengantar_tugas_id` is the Ambil surat pengantar
+     * Tugas Lapangan made once it was Lunas. `perbaikan` is the fixable PTSP rejection the Pemesan is asked
+     * to correct, and `ditolak_pada` the moment a final one closed the order (its reason is `alasan`).
+     */
+    berkasLengkapDiunggahPada: at("berkas_lengkap_diunggah_pada"),
+    lunasPada: at("lunas_pada"),
+    suratPengantarTugasId: text("surat_pengantar_tugas_id"),
+    perbaikan: jsonb("perbaikan").$type<PerbaikanPtsp>(),
+    ditolakPada: at("ditolak_pada"),
   },
   (table) => [
     uniqueIndex("pengurusan_tpu_nomor_idx").on(table.nomor),
