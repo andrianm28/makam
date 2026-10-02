@@ -26,6 +26,8 @@ import { serverRuntime } from "@/server/runtime";
 import { bayarTagihan } from "./actions";
 
 const paramsSchema = z.object({ link: documentLinkSchema });
+/** Bayar's own note to the page: `?bayar=gagal` after the PaymentProvider refused the click. */
+const querySchema = z.object({ bayar: z.literal("gagal").optional() });
 
 type Document =
   | BillingDocument
@@ -76,10 +78,11 @@ export async function generateMetadata({ params }: PageProps<"/dokumen/[link]">)
  * link may read it (and pay, for a Tagihan). Plain and print-friendly, since
  * "Unduh PDF" prints this very page.
  */
-export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]">) {
+export default async function DokumenPage({ params, searchParams }: PageProps<"/dokumen/[link]">) {
   const found = await documentOf(params);
   if (!found) notFound();
   const { link, document } = found;
+  const bayarGagal = querySchema.catch({}).parse(await searchParams).bayar === "gagal";
 
   return (
     // The brand sans (Plus Jakarta Sans, loaded by the root layout), so the page and its PDF read the same everywhere.
@@ -97,6 +100,7 @@ export default async function DokumenPage({ params }: PageProps<"/dokumen/[link]
             tagihan={document.tagihan}
             notPayableBecause={document.notPayableBecause}
             buktiLink={document.buktiLink}
+            bayarGagal={bayarGagal}
           />
         ) : document.type === "bukti_pembayaran" ? (
           <BuktiView bukti={document.bukti} />
@@ -121,11 +125,13 @@ function TagihanView({
   tagihan,
   notPayableBecause,
   buktiLink,
+  bayarGagal,
 }: {
   link: string;
   tagihan: Tagihan;
   notPayableBecause: NotPayable | null;
   buktiLink: string | null;
+  bayarGagal: boolean;
 }) {
   return (
     <>
@@ -162,6 +168,11 @@ function TagihanView({
         ]}
       />
       <Lines lines={tagihan.lines} total={tagihan.total} totalLabel="Total tagihan" />
+      {bayarGagal ? (
+        <p role="alert" className="rounded-lg border border-dashed px-4 py-3 print:hidden">
+          Pembayaran sedang tidak bisa dimulai, coba lagi.
+        </p>
+      ) : null}
       {notPayableBecause === null ? <BayarForm link={link} total={tagihan.total} /> : null}
       {buktiLink ? (
         <div className="print:hidden">

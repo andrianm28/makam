@@ -38,6 +38,8 @@ export interface RecordedPayment extends CreatePaymentRequest, CreatedPayment {}
  */
 export class FakePaymentProvider implements PaymentProvider {
   readonly created: RecordedPayment[] = [];
+  /** When set, `createPayment` throws it instead of creating a payment (a test's failing provider). */
+  failWith?: Error;
   readonly #clock: Clock;
   readonly #secret: string;
 
@@ -47,6 +49,7 @@ export class FakePaymentProvider implements PaymentProvider {
   }
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatedPayment> {
+    if (this.failWith) throw this.failWith;
     const providerPaymentId = `fakepay_${randomUUID()}`;
     const payment: CreatedPayment = {
       providerPaymentId,

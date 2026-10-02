@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import type { OperatorSettings } from "@/domain/operator-settings";
-import { InvalidWebhookError, type PaymentEvent, type PaymentProvider, type WebhookRequest } from "@/ports/payment-provider";
+import { InvalidWebhookError, type CreatedPayment, type PaymentEvent, type PaymentProvider, type WebhookRequest } from "@/ports/payment-provider";
 import { buktiById, type BuktiPembayaran } from "./documents";
 import type { Rupiah } from "@/lib/rupiah";
 import {
@@ -32,7 +32,9 @@ export type BayarResult =
   /** A Dibatalkan Tagihan (lapsed or replaced), or a pay-first one past its due date, can no longer be paid. */
   | { ok: false; reason: "tagihan_dibatalkan" | "batas_pembayaran_lewat" }
   /** The Tagihan's total is above the QRIS payment cap (Rp 10.000.000): v1 has no way to pay it. */
-  | { ok: false; reason: "melebihi_batas_qris" };
+  | { ok: false; reason: "melebihi_batas_qris" }
+  /** The PaymentProvider could not be reached or refused: nothing changed, the payer may try again. */
+  | { ok: false; reason: "penyedia_gagal" };
 
 /**
  * A provider link is reused only while it has at least this long left, so a
@@ -77,12 +79,19 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
       .limit(1);
     if (valid) return { ok: true, paymentUrl: valid.paymentUrl };
 
-    const created = await deps.payments.createPayment({
-      reference: row.nomor,
-      amountRupiah: row.total,
-      description: `Tagihan ${row.nomor} · Makam.co.id`,
-      returnUrl: deps.publicDocumentUrl(row.link),
-    });
+    let created: CreatedPayment;
+    try {
+      created = await deps.payments.createPayment({
+        reference: row.nomor,
+        amountRupiah: row.total,
+        description: `Tagihan ${row.nomor} · Makam.co.id`,
+        returnUrl: deps.publicDocumentUrl(row.link),
+      });
+    } catch {
+      // The provider is down or refused (bad key, HTTP error, network): the
+      // payer gets an honest refusal to retry, never the framework error page.
+      return { ok: false, reason: "penyedia_gagal" };
+    }
     await tx.insert(providerPayment).values({
       tagihanId: row.id,
       providerPaymentId: created.providerPaymentId,
