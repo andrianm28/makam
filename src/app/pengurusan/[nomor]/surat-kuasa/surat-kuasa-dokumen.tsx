@@ -4,7 +4,7 @@ import type { SuratKuasa } from "@/domain/pengurusan";
 /** The Surat Kuasa the Pemegang Hak signs: the print page and the page the PdfRenderer opens show the same text. */
 export function SuratKuasaDokumen({ surat }: { surat: SuratKuasa }) {
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 bg-white px-8 py-10 text-black print:p-0">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 bg-background px-8 py-10 text-foreground print:p-0">
       <style>{"@page { size: A4; margin: 20mm; }"}</style>
       <h1 className="text-center text-title-2 font-semibold uppercase">Surat Kuasa</h1>
       <p>Yang bertanda tangan di bawah ini:</p>
