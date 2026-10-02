@@ -8,6 +8,7 @@ import { keluhanMessages, layananBatalMessages, penilaianMessages } from "@/lib/
 import { keluhanTpuMessages } from "@/lib/layanan-tpu-labels";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
+import { refusalMessage } from "../../staf/messages";
 
 /** What a Server Action's form state carries back to the screen (the design system's inline errors). */
 export type BatalActionState = { status: "idle" } | { status: "gagal"; message: string } | { status: "berhasil"; message: string };
@@ -101,10 +102,10 @@ export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, f
     input: { pekerjaanId: formData.get("pekerjaanId"), alasan: formData.get("alasan") },
     run: (actor, data) => serverRuntime().layanan.ajukanKeluhanTpu({ accountId: actor.accountId, email: actor.email }, data),
   });
-  if (!result.ok) return { status: "gagal", message: keluhanTpuMessages[result.error] ?? "Periksa lagi isian Anda." };
+  const gagal = !result.ok ? result.error : !result.value.ok ? result.value.reason : null;
   revalidatePath(`/layanan/${nomor}`);
   // A hari-H item of a Saat Duka order is read on the Pengurusan page too.
   revalidatePath(`/pengurusan/${nomor}`);
-  if (!result.value.ok) return { status: "gagal", message: keluhanTpuMessages[result.value.reason] ?? "Periksa lagi isian Anda." };
+  if (gagal) return { status: "gagal", message: refusalMessage(gagal, keluhanTpuMessages) };
   return { status: "berhasil", message: "Keluhan Anda sudah kami terima. Kami akan menghubungi Anda secepatnya." };
 }

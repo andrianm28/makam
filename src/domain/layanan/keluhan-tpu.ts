@@ -15,11 +15,10 @@ import { buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
 import { kerjaUlangDariKeluhanTpu } from "./kerja-ulang-tpu";
 import { mitraJasaTersedia, type MitraJasaTersedia } from "./penugasan";
 import type { LayananDeps, PemesanLayanan } from "./deps";
-import { JENDELA_KELUHAN_JAM } from "./keluhan";
+import { jendelaKeluhanBerakhirAt } from "./keluhan";
+import { sesuaikanPencairanKeluhanSchema } from "./pesanan-schema";
 import { keluhanLayananTpu, pekerjaanLayananTpu } from "./schema";
 import { ajukanKeluhanTpuSchema, putuskanKeluhanTpuSchema } from "./tpu-skema";
-
-const JAM_MS = 3_600_000;
 
 export type AjukanKeluhanTpuResult =
   | { ok: true; keluhanId: string }
@@ -40,8 +39,9 @@ export async function ajukanKeluhanTpu(deps: LayananDeps, pemesan: PemesanLayana
     if (!job || job.pemesanAccountId !== pemesan.accountId) return { ok: false as const, reason: "tidak_ditemukan" as const };
     const [ada] = await tx.select({ id: keluhanLayananTpu.id }).from(keluhanLayananTpu).where(eq(keluhanLayananTpu.pekerjaanId, pekerjaanId));
     if (ada) return { ok: false as const, reason: "sudah_ada" as const };
-    if (job.status !== "selesai" || !job.buktiDitunjukkanAt) return { ok: false as const, reason: "belum_selesai" as const };
-    if (now.getTime() > job.buktiDitunjukkanAt.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) return { ok: false as const, reason: "jendela_tertutup" as const };
+    const berakhir = jendelaKeluhanBerakhirAt(job.buktiDitunjukkanAt);
+    if (job.status !== "selesai" || !berakhir) return { ok: false as const, reason: "belum_selesai" as const };
+    if (now.getTime() > berakhir.getTime()) return { ok: false as const, reason: "jendela_tertutup" as const };
     const [ditulis] = await tx.insert(keluhanLayananTpu).values({ pekerjaanId, alasan, diajukanAt: now }).returning({ id: keluhanLayananTpu.id });
     await tx.update(pekerjaanLayananTpu).set({ status: "keluhan" }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
     return { ok: true as const, keluhanId: ditulis.id };
@@ -112,6 +112,38 @@ export async function putuskanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput:
     if (error instanceof KerjaUlangGagal) return { ok: false, reason: error.reason };
     throw error;
   }
+}
+
+export type SesuaikanPencairanKeluhanTpuResult =
+  | { ok: true; jumlah: number; jumlahAwal: number }
+  | WriteRefusal
+  | {
+      ok: false;
+      reason: "input_tidak_valid" | "tidak_ditemukan" | "keluhan_belum_diputuskan" | "pencairan_belum_ada" | "melebihi_tarif" | "sudah_dicairkan";
+    };
+
+/**
+ * Admin Platform adjusts what the job pays its Mitra Jasa after a Keluhan (e.g. half), with a mandatory note (spec,
+ * Layanan > Keluhan outcome; story 158). Allowed once the Keluhan is decided (rejected or redone). The Keluhan is
+ * locked, the item is read and Payouts' own audited write is on the same transaction; the ceiling (never above what
+ * the Mitra Jasa rate issued) is Payouts' rule.
+ */
+export async function sesuaikanPencairanKeluhanTpu(deps: LayananDeps, by: Actor, rawInput: unknown): Promise<SesuaikanPencairanKeluhanTpuResult> {
+  const refusal = writeRefusal(by, "pekerjaan_tpu.kelola", pekerjaanTpuSemuaResource());
+  if (refusal) return refusal;
+  const parsed = sesuaikanPencairanKeluhanSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const { keluhanId, amount, catatan } = parsed.data;
+  return deps.db.transaction(async (tx): Promise<SesuaikanPencairanKeluhanTpuResult> => {
+    const [keluhan] = await tx.select().from(keluhanLayananTpu).where(eq(keluhanLayananTpu.id, keluhanId)).for("update");
+    if (!keluhan) return { ok: false, reason: "tidak_ditemukan" };
+    if (keluhan.status === "terbuka") return { ok: false, reason: "keluhan_belum_diputuskan" };
+    const [job] = await tx.select({ pencairanItemId: pekerjaanLayananTpu.pencairanItemId }).from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, keluhan.pekerjaanId));
+    if (!job?.pencairanItemId) return { ok: false, reason: "pencairan_belum_ada" };
+    const hasil = await deps.payouts.turunkanJumlahPencairan(by, { itemId: job.pencairanItemId, amount, catatan }, tx);
+    if (hasil.ok) return { ok: true, jumlah: hasil.item.amount, jumlahAwal: hasil.item.amountAwal };
+    return hasil;
+  });
 }
 
 export interface KeluhanTpuTerbuka {
@@ -187,6 +219,8 @@ export type KeluhanTpuUntukPlatformResult =
       bukti: BuktiTpuTerbaca[];
       ditunjukkanAt: Date | null;
       jendelaBerakhirAt: Date | null;
+      /** The job's Pencairan item: what it pays and whether an override is still possible; null while it has not been recorded. */
+      pencairan: { itemId: string; status: string; amount: number; amountAwal: number; catatan: string | null } | null;
       /** The Mitra Jasa the picker offers for this job: who may be named for a redo. */
       calon: MitraJasaTersedia[];
     }
@@ -206,6 +240,7 @@ export async function keluhanTpuUntukPlatform(deps: LayananDeps, by: Actor, kelu
   if (!baris) return { ok: false, reason: "tidak_ditemukan" };
   const { keluhan, job } = baris;
   const bukti = (await buktiTpuPerPekerjaan(deps, [job.id])).get(job.id) ?? [];
+  const item = job.pencairanItemId ? await deps.payouts.itemLayananById(job.pencairanItemId) : null;
   const calon = await mitraJasaTersedia(deps, by, { tpuDkiId: job.tpuId, layananVariantId: job.layananVariantId, tanggal: job.targetDate });
   return {
     ok: true,
@@ -231,7 +266,8 @@ export async function keluhanTpuUntukPlatform(deps: LayananDeps, by: Actor, kelu
     },
     bukti,
     ditunjukkanAt: job.buktiDitunjukkanAt,
-    jendelaBerakhirAt: job.buktiDitunjukkanAt ? new Date(job.buktiDitunjukkanAt.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null,
+    jendelaBerakhirAt: jendelaKeluhanBerakhirAt(job.buktiDitunjukkanAt),
+    pencairan: item ? { itemId: item.id, status: item.status, amount: item.amount, amountAwal: item.amountAwal, catatan: item.catatanPenyesuaian } : null,
     calon,
   };
 }

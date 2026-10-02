@@ -33,50 +33,53 @@ async function kerjaUlang(deps: LayananDeps, by: Actor, rawInput: unknown, statu
   const { pekerjaanId, mitraJasaId } = parsed.data;
   const sekarang = deps.clock.now();
 
-  const dibuat = await deps.db.transaction(async (tx) => {
-    const [asal] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
-    if (!asal) return { ok: false as const, reason: "tidak_ditemukan" as const };
-    if (asal.status !== statusAsal) return { ok: false as const, reason: "bukan_selesai" as const };
-    const [ada] = await tx.select({ id: pekerjaanLayananTpu.id }).from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.kerjaUlangDariId, pekerjaanId));
-    if (ada) return { ok: false as const, reason: "sudah_dikerjakan_ulang" as const };
-    const [urutan] = await tx
-      .select({ maks: sql<number>`coalesce(max(${pekerjaanLayananTpu.posisi}), 0)` })
-      .from(pekerjaanLayananTpu)
-      .where(eq(pekerjaanLayananTpu.nomor, asal.nomor));
-    const salinan: Omit<typeof asal, "id"> & { id?: string } = { ...asal };
-    delete salinan.id;
-    const [baru] = await tx
-      .insert(pekerjaanLayananTpu)
-      .values({
-        ...salinan,
-        posisi: urutan.maks + 1,
-        status: "dijadwalkan",
-        dijadwalkanAt: sekarang,
-        createdAt: sekarang,
-        mulaiAt: null,
-        buktiDikirimAt: null,
-        buktiDitolakAlasan: null,
-        buktiDitunjukkanAt: null,
-        selesaiAt: null,
-        jendelaDitutupAt: null,
-        pencairanItemId: null,
-        pencairanJatuhTempoAt: null,
-        kerjaUlangDariId: pekerjaanId,
-      })
-      .returning({ id: pekerjaanLayananTpu.id });
-    await tx.update(pekerjaanLayananTpu).set({ status: "keluhan" }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
-    return { ok: true as const, id: baru.id };
-  });
-  if (!dibuat.ok) return dibuat;
-  const tugas = await tugaskanMitraJasa(deps, by, { pekerjaanId: dibuat.id, mitraJasaId });
-  if (!tugas.ok) {
-    // Handing it over failed (the picker refused them): put the original back, and drop the unassigned redo.
-    await deps.db.transaction(async (tx) => {
-      await tx.delete(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, dibuat.id));
-      await tx.update(pekerjaanLayananTpu).set({ status: statusAsal }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
+  try {
+    // One transaction: a hand-over the picker refuses rolls back the redo row and the original's Keluhan status with it.
+    return await deps.db.transaction(async (tx): Promise<KerjaUlangTpuResult> => {
+      const [asal] = await tx.select().from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.id, pekerjaanId)).for("update");
+      if (!asal) return { ok: false, reason: "tidak_ditemukan" };
+      if (asal.status !== statusAsal) return { ok: false, reason: "bukan_selesai" };
+      const [ada] = await tx.select({ id: pekerjaanLayananTpu.id }).from(pekerjaanLayananTpu).where(eq(pekerjaanLayananTpu.kerjaUlangDariId, pekerjaanId));
+      if (ada) return { ok: false, reason: "sudah_dikerjakan_ulang" };
+      const [urutan] = await tx
+        .select({ maks: sql<number>`coalesce(max(${pekerjaanLayananTpu.posisi}), 0)` })
+        .from(pekerjaanLayananTpu)
+        .where(eq(pekerjaanLayananTpu.nomor, asal.nomor));
+      const salinan: Omit<typeof asal, "id"> & { id?: string } = { ...asal };
+      delete salinan.id;
+      const [baru] = await tx
+        .insert(pekerjaanLayananTpu)
+        .values({
+          ...salinan,
+          posisi: urutan.maks + 1,
+          status: "dijadwalkan",
+          dijadwalkanAt: sekarang,
+          createdAt: sekarang,
+          mulaiAt: null,
+          buktiDikirimAt: null,
+          buktiDitolakAlasan: null,
+          buktiDitunjukkanAt: null,
+          selesaiAt: null,
+          jendelaDitutupAt: null,
+          pencairanItemId: null,
+          pencairanJatuhTempoAt: null,
+          kerjaUlangDariId: pekerjaanId,
+        })
+        .returning({ id: pekerjaanLayananTpu.id });
+      await tx.update(pekerjaanLayananTpu).set({ status: "keluhan" }).where(eq(pekerjaanLayananTpu.id, pekerjaanId));
+      const tugas = await tugaskanMitraJasa({ ...deps, db: tx }, by, { pekerjaanId: baru.id, mitraJasaId });
+      if (!tugas.ok) throw new KerjaUlangGagal(tugas.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid");
+      return { ok: true, pekerjaanId: baru.id, penugasan: tugas };
     });
-    return { ok: false, reason: tugas.reason === "mitra_jasa_tidak_tersedia" ? "mitra_jasa_tidak_tersedia" : "input_tidak_valid" };
+  } catch (error) {
+    if (error instanceof KerjaUlangGagal) return { ok: false, reason: error.reason };
+    throw error;
   }
-  return { ok: true, pekerjaanId: dibuat.id, penugasan: tugas };
 }
 
+/** The picker refused the Mitra Jasa: thrown inside the transaction so that nothing of the redo is kept. */
+class KerjaUlangGagal extends Error {
+  constructor(readonly reason: "input_tidak_valid" | "mitra_jasa_tidak_tersedia") {
+    super(reason);
+  }
+}

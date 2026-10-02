@@ -4,10 +4,8 @@ import type { Database } from "@/db/client";
 import type { LayananDeps } from "./deps";
 import { BUKTI_URL_SECONDS } from "./bukti";
 import type { BuktiPekerjaan } from "./pesanan-schema";
-import { JENDELA_KELUHAN_JAM } from "./keluhan";
+import { JAM_MS, jendelaKeluhanBerakhirAt } from "./keluhan";
 import { keluhanLayananTpu, pekerjaanLayananTpu, pekerjaanLayananTpuBukti } from "./schema";
-
-const JAM_MS = 3_600_000;
 
 /** How long Admin Platform has to decide a proof once it is sent (Work Queues Tier 2, 24 h). */
 export const BATAS_VERIFIKASI_BUKTI_JAM = 24;
@@ -85,7 +83,7 @@ export async function jendelaKeluhanTpu(db: Database, pekerjaanId: string): Prom
     .from(pekerjaanLayananTpu)
     .where(eq(pekerjaanLayananTpu.id, pekerjaanId));
   if (!job) return null;
-  return { dibukaAt: job.dibuka, berakhirAt: job.dibuka ? new Date(job.dibuka.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null, ditutup: job.ditutup !== null };
+  return { dibukaAt: job.dibuka, berakhirAt: jendelaKeluhanBerakhirAt(job.dibuka), ditutup: job.ditutup !== null };
 }
 
 
@@ -106,7 +104,7 @@ export async function keluhanTpuPerPekerjaan(
   const keluhanOf = new Map(diajukan.map((row) => [row.pekerjaanId, row] as const));
   return new Map(
     jobs.map((job) => {
-      const berakhirAt = job.buktiDitunjukkanAt ? new Date(job.buktiDitunjukkanAt.getTime() + JENDELA_KELUHAN_JAM * JAM_MS) : null;
+      const berakhirAt = jendelaKeluhanBerakhirAt(job.buktiDitunjukkanAt);
       const ada = keluhanOf.get(job.id);
       return [
         job.id,

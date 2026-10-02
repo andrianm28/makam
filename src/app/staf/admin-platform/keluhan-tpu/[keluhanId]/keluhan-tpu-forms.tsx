@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { ServerResult, idleFormState } from "../../../form-feedback";
-import { putuskanKeluhanTpuAction } from "./actions";
+import { putuskanKeluhanTpuAction, sesuaikanPencairanKeluhanTpuAction } from "./actions";
 
 const labelClass = "flex flex-col gap-1 text-sm font-medium";
 
@@ -52,6 +52,32 @@ export function PutuskanKeluhanTpuForm({ keluhanId, calon }: { keluhanId: string
         </Button>
       </div>
       <ServerResult state={state} />
+    </form>
+  );
+}
+
+/** Admin Platform's override of what the job pays the Mitra Jasa: a new amount, never above the rate, with a note. */
+export function SesuaikanPencairanTpuForm({ keluhanId, tarif }: { keluhanId: string; tarif: number }) {
+  const [state, action, mengirim] = useActionState(sesuaikanPencairanKeluhanTpuAction, idleFormState);
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-2" noValidate>
+      <input type="hidden" name="keluhanId" value={keluhanId} />
+      <label className={labelClass}>
+        Jumlah baru (Rupiah)
+        <input name="amount" type="number" min={1} max={tarif} step={1} required className="rounded-lg border border-border px-3 py-2 text-body font-normal" />
+      </label>
+      <label className={labelClass}>
+        Catatan penyesuaian
+        <input name="catatan" required maxLength={500} placeholder="Contoh: setengah karena bersih sebagian." className="rounded-lg border border-border px-3 py-2 text-body font-normal" />
+      </label>
+      <div className="sm:col-span-2">
+        <Button type="submit" variant="secondary" disabled={mengirim}>
+          {mengirim ? "Menyimpan…" : "Sesuaikan pencairan"}
+        </Button>
+      </div>
+      <div className="sm:col-span-2">
+        <ServerResult state={state} />
+      </div>
     </form>
   );
 }

@@ -34,7 +34,7 @@ import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import type { PdfRenderer } from "@/ports/pdf-renderer";
 import { sudahDicairkanUntukTagihan, type BarisPencairan } from "./baca";
-import { itemLayananOf, jadikanLayananJatuhTempo, type ItemLayanan, type LayananJatuhTempoResult } from "./layanan";
+import { itemLayananById, itemLayananOf, jadikanLayananJatuhTempo, type ItemLayanan, type LayananJatuhTempoResult } from "./layanan";
 import {
   batalkanPencairanTagihan,
   catatItemLayananMitraJasa,
@@ -243,6 +243,8 @@ export interface Payouts {
    * it to make the item due and so that Admin Platform can override what it pays after a Keluhan.
    */
   itemLayanan(tagihanId: string, tagihanPosisi: number, within?: Database): Promise<ItemLayanan | null>;
+  /** The same item by its id, for a job that recorded the id (a Mitra Jasa's TPU job, ticket 57). */
+  itemLayananById(itemId: string): Promise<ItemLayanan | null>;
   /**
    * The Layanan trigger (ticket 51): makes one Layanan line's item due when its job's Keluhan
    * window closes with no Keluhan, a Keluhan is rejected, or the redo proof is shown. The Layanan
@@ -316,6 +318,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     sudahDicairkanUntukTagihan: (tagihanId) => sudahDicairkanUntukTagihan(deps.db, tagihanId),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),
     itemLayanan: (tagihanId, posisi, within) => itemLayananOf(within ?? deps.db, tagihanId, posisi),
+    itemLayananById: (itemId) => itemLayananById(deps.db, itemId),
     jadikanLayananJatuhTempo: (tx, input) =>
       jadikanLayananJatuhTempo(tx, input, {
         now: deps.clock.now(),

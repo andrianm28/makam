@@ -152,6 +152,8 @@ import {
   keluhanTpuTerbukaAntrean,
   keluhanTpuUntukPlatform,
   putuskanKeluhanTpu,
+  sesuaikanPencairanKeluhanTpu,
+  type SesuaikanPencairanKeluhanTpuResult,
   type AjukanKeluhanTpuResult,
   type KeluhanTpuTerbuka,
   type KeluhanTpuTerbukaAntrean,
@@ -673,6 +675,8 @@ export interface Layanan {
   ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
   /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
   putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
+  /** Admin Platform adjusts what the Keluhan's job pays its Mitra Jasa, with a note (story 158). */
+  sesuaikanPencairanKeluhanTpu(by: Actor, input: unknown): Promise<SesuaikanPencairanKeluhanTpuResult>;
   /** The TPU Keluhan waiting for Admin Platform, oldest first. */
   keluhanTpuTerbuka(by: Actor): Promise<KeluhanTpuTerbuka[]>;
   /** One open or decided Keluhan on a TPU job as Admin Platform reads it to decide: the Pemesan's words, the proof they were shown, and the Mitra Jasa who could redo it. */
@@ -814,6 +818,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     jendelaKeluhanTpu: (pekerjaanId) => jendelaKeluhanTpu(deps.db, pekerjaanId),
     ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
     putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
+    sesuaikanPencairanKeluhanTpu: (by, input) => sesuaikanPencairanKeluhanTpu(deps, by, input),
     keluhanTpuTerbuka: (by) => keluhanTpuTerbuka(deps, by),
     keluhanTpuUntukPlatform: (by, keluhanId) => keluhanTpuUntukPlatform(deps, by, keluhanId),
     keluhanTpuTerbukaAntrean: () => keluhanTpuTerbukaAntrean(deps),

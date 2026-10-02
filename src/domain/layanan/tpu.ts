@@ -544,6 +544,8 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
     total: jobs.reduce((jumlah, job) => jumlah + job.amount, 0),
     item: await Promise.all(
       jobs.map(async (job) => {
+        const keluhan = keluhanOf.get(job.id);
+        if (!keluhan) throw new Error(`no Keluhan read for job ${job.id}`);
         const mitra = mitraOf.get(job.id);
         return {
           id: job.id,
@@ -557,7 +559,7 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
             ? { namaDepan: namaDepan(mitra.namaLengkap), fotoUrl: await fotoUrl(deps, mitra.fotoFileKey) }
             : null,
           bukti: buktiOf.get(job.id) ?? [],
-          keluhan: keluhanOf.get(job.id) as KeluhanTpuPemesan,
+          keluhan,
         };
       }),
     ),

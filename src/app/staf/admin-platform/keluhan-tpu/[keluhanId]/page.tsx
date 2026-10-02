@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/makam/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { keluhanStatusLabels, labelBuktiPekerjaan } from "@/lib/layanan-labels";
+import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { PutuskanKeluhanTpuForm } from "./keluhan-tpu-forms";
+import { PutuskanKeluhanTpuForm, SesuaikanPencairanTpuForm } from "./keluhan-tpu-forms";
 
 export const metadata: Metadata = {
   title: "Keluhan pekerjaan TPU | Makam.co.id",
@@ -24,7 +25,7 @@ export default async function KeluhanTpuPage({ params }: PageProps<"/staf/admin-
   const { keluhanId } = await params;
   const hasil = await serverRuntime().layanan.keluhanTpuUntukPlatform(actor, keluhanId);
   if (!hasil.ok) notFound();
-  const { keluhan, pekerjaan, bukti, ditunjukkanAt, jendelaBerakhirAt, calon } = hasil;
+  const { keluhan, pekerjaan, bukti, ditunjukkanAt, jendelaBerakhirAt, calon, pencairan } = hasil;
 
   return (
     <>
@@ -91,6 +92,26 @@ export default async function KeluhanTpuPage({ params }: PageProps<"/staf/admin-
           ) : null}
         </CardContent>
       </Card>
+
+      {keluhan.status !== "terbuka" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pencairan Mitra Jasa untuk pekerjaan ini</CardTitle>
+            <CardDescription>
+              {pencairan
+                ? `Dibayarkan ${formatRupiah(pencairan.amount)} dari tarif ${formatRupiah(pencairan.amountAwal)}${pencairan.catatan ? `; catatan penyesuaian: ${pencairan.catatan}` : ""}.`
+                : "Pencairan untuk pekerjaan ini belum tercatat, jadi belum bisa disesuaikan."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pencairan && (pencairan.status === "belum_jatuh_tempo" || pencairan.status === "jatuh_tempo") ? (
+              <SesuaikanPencairanTpuForm keluhanId={keluhan.id} tarif={pencairan.amountAwal} />
+            ) : pencairan ? (
+              <p className="text-body text-muted-foreground">Pencairan ini sudah {pencairan.status === "dicairkan" ? "ditransfer" : "dibatalkan"}, jadi tidak bisa disesuaikan.</p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
     </>
   );
 }

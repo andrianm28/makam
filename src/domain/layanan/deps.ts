@@ -228,6 +228,6 @@ export interface LayananDeps {
    * may override what it pays after a Keluhan. Both are Payouts' public functions; this module
    * never reaches its tables.
    */
-  payouts: Pick<Payouts, "itemLayanan" | "jadikanLayananJatuhTempo" | "turunkanJumlahPencairan" | "catatItemLayananMitraJasa" | "batalkanItem" | "jadikanJatuhTempo">;
+  payouts: Pick<Payouts, "itemLayanan" | "itemLayananById" | "jadikanLayananJatuhTempo" | "turunkanJumlahPencairan" | "catatItemLayananMitraJasa" | "batalkanItem" | "jadikanJatuhTempo">;
   notifikasi: LayananNotifikasi;
 }
