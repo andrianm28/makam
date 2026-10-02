@@ -11,7 +11,7 @@ const TEKS: Record<string, string> = {
   masa_tunggu_belum_lewat: "Masa tunggu sejak pemakaman terakhir belum lewat.",
   hak_pakai_tidak_ditemukan: "Hak Pakai tidak ditemukan.",
   petak_tidak_ditemukan: "Pilih petak yang termasuk dalam Kavling Keluarga ini.",
-  email_bukan_akun_ini: "Email tidak cocok dengan akun yang masuk.",
+  email_bukan_akun_ini: "Email ini bukan email akun Anda. Kirim ulang dengan email lain.",
   kontak_pemesan_kosong: "Nomor telepon Pemesan belum ada.",
   harga_tidak_tersedia: "Harga belum tersedia.",
   pesanan_sudah_dikonfirmasi: "Pesanan sudah dikonfirmasi.",
