@@ -31,6 +31,10 @@ const seed = (
   contoh?: Parameters<typeof seedContohPublikCommand>[2],
 ) => seedContohPublikCommand(argv, source, contoh, { clock: clock() });
 
+/** A seed that exits non-zero fails with the command's own output in the message, not only `expected 1 to be 0`. */
+const expectBerhasil = (result: { exitCode: number; output: string }) =>
+  expect(result.exitCode, `seed-contoh-publik keluar dengan kode ${result.exitCode}:\n${result.output}`).toBe(0);
+
 /** A temporary directory for the "staging" tests' live FileStore; removed after the suite. */
 const sementara: string[] = [];
 afterAll(() => {
@@ -67,6 +71,12 @@ const stagingEnv = () =>
   }) as Record<string, string>;
 
 describe("seed-contoh-publik (development and test stacks only)", () => {
+  it("shows what the command wrote when a seed exits non-zero, not only the exit code", async () => {
+    // No Admin Platform yet: the seed refuses with exit code 1 and says why.
+    const refused = await seed();
+    expect(() => expectBerhasil(refused)).toThrow("belum ada Admin Platform");
+  });
+
   it("gives the public listing the prototype's five example Lokasi Mitra, Terverifikasi", async () => {
     // The mock's real Tersedia counts (9-118) mean a lot more sequential clearPetak calls than a small
     // fixture Denah would; this and the other tests below that seed all five give it more room than the
@@ -75,7 +85,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
     const result = await seed();
 
-    expect(result.exitCode).toBe(0);
+    expectBerhasil(result);
 
     // Read back the way the public site itself does: the Lokasi module's own listing query.
     const setup = publishOnTestDatabase(db);
@@ -201,7 +211,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     async () => {
       await seedAdmin();
       const result = await seed();
-      expect(result.exitCode).toBe(0);
+      expectBerhasil(result);
 
       await expectSamaDenganMock();
     },
@@ -212,7 +222,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     "draws the prototype's own Denah for Wakaf Al-Ikhlas and Hijau Asri, then tops each Jenis Makam up in tidy rectangular Bloks",
     async () => {
       await seedAdmin();
-      expect((await seed()).exitCode).toBe(0);
+      expectBerhasil(await seed());
 
       const setup = publishOnTestDatabase(db);
       const listed = await setup.lokasi.publicLokasiMitraList();
@@ -292,7 +302,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
         ),
       }));
       const first = await seed([], env(), lama);
-      expect(first.exitCode).toBe(0);
+      expectBerhasil(first);
 
       const listed = await setup.lokasi.publicLokasiMitraList();
       const wakaf = listed.find((one) => one.name === "Pemakaman Wakaf Al-Ikhlas")!;
@@ -325,7 +335,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       // A newer run comes long after the older one; here the same Admin Lokasi's Kode Masuk resend window (60 s) must pass.
       await new Promise((resolve) => setTimeout(resolve, 61_000));
       const second = await seed();
-      expect(second.exitCode, second.output).toBe(0);
+      expectBerhasil(second);
       expect(second.output).toContain("disamakan dengan contoh");
       // The price is brought to the mock's as a new tariff version effective today; the old version stays.
       expect(await hargaStandarHijau(hijauAsriLama.id)).toBe(9_000_000);
@@ -347,7 +357,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
       const afterSecond = await setup.inventory.tersediaPerJenisMakam(wakaf.id);
       const bloksAfterSecond = (await setup.inventory.publicDenah(wakaf.id))?.bloks.map((blok) => blok.name);
       const third = await seed();
-      expect(third.exitCode).toBe(0);
+      expectBerhasil(third);
       expect(third.output).toContain("seed-contoh-publik tidak mengubah apa pun");
       expect(await setup.inventory.tersediaPerJenisMakam(wakaf.id)).toEqual(afterSecond);
       expect((await setup.inventory.publicDenah(wakaf.id))?.bloks.map((blok) => blok.name)).toEqual(bloksAfterSecond);
@@ -363,7 +373,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
       const second = await seed();
 
-      expect(second.exitCode).toBe(0);
+      expectBerhasil(second);
       expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
 
       const setup = publishOnTestDatabase(db);
@@ -402,7 +412,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
       const result = await seed(["--izinkan-staging"], staging);
 
-      expect(result.exitCode).toBe(0);
+      expectBerhasil(result);
       expect(result.output).toContain("5 Lokasi Mitra contoh terbit");
 
       const setup = publishOnTestDatabase(db);
@@ -433,7 +443,7 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
 
       const second = await seed(["--izinkan-staging"], staging);
 
-      expect(second.exitCode).toBe(0);
+      expectBerhasil(second);
       expect(second.output).toContain("seed-contoh-publik tidak mengubah apa pun");
       const setup = publishOnTestDatabase(db);
       expect(await setup.lokasi.publicLokasiMitraList()).toHaveLength(5);
