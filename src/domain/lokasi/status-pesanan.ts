@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import type { Actor } from "@/domain/identity";
 import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
-import { isLokasiId, writeLokasiMitra, type LokasiDeps, type WriteResult } from "./lokasi-mitra";
+import { isLokasiId, writeLokasiMitra, type LokasiDeps, type LokasiMitraStatus, type WriteResult } from "./lokasi-mitra";
 import { lokasiMitra as lokasiMitraTable } from "./schema";
 
 /** Days from the decision to a Berhenti's effective date unless Admin Platform picks one (spec, Lokasi). */
@@ -19,7 +19,7 @@ export type JenisPesanan = "hak_pakai_baru" | "lanjutan" | "siklus_paket";
 export type IzinPesanan = { diizinkan: true } | { diizinkan: false; alasan: "ditangguhkan" | "berhenti" };
 
 export interface StatusPesanan {
-  status: "belum_tayang" | "terverifikasi" | "ditangguhkan" | "berhenti";
+  status: LokasiMitraStatus;
   /** Berhenti only: the WIB date from which no order of any kind is taken. */
   berlakuOn: string | null;
   /** Berhenti only: whether that date has come. */
@@ -27,7 +27,7 @@ export interface StatusPesanan {
 }
 
 export type UbahStatusResult = WriteResult | { ok: false; reason: "status_tidak_cocok" };
-export type HentikanResult = ({ ok: true; berlakuOn: string } | Exclude<UbahStatusResult, { ok: true }>) | { ok: false; reason: "tanggal_lampau" };
+export type HentikanResult = { ok: true; berlakuOn: string } | Exclude<UbahStatusResult, { ok: true }> | { ok: false; reason: "tanggal_lampau" };
 
 /** The pure rule: may an order of this kind be taken, given the Lokasi's status and the day. */
 export function izinPesananDari(facts: StatusPesanan, jenis: JenisPesanan): IzinPesanan {

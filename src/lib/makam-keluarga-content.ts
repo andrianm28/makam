@@ -192,7 +192,6 @@ export function barisMakamSaya(
 ): BarisMakamSaya {
   const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
   const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
-  const pengelola = lokasiBerhenti.get(satu.lokasiId);
   return {
     lokasiId: satu.lokasiId,
     namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",

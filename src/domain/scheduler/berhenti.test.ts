@@ -38,7 +38,7 @@ function berhentiTick() {
 }
 
 function konteks(setup: Awaited<ReturnType<typeof lokasiBerhenti>>["setup"], terencana: string[] = []) {
-  return { db: setup.db, lokasi: setup.lokasi, layanan: setup.layanan, payouts: setup.payouts, terencana: { pesananBerjalanDiLokasi: async () => terencana.map((nomor) => ({ nomor, kind: "terencana", status: "aktif", email: null })) } } as never;
+  return { db: setup.db, lokasi: setup.lokasi, layanan: setup.layanan, payouts: setup.payouts, terencana: { nomorTerencanaAktifDiLokasi: async () => terencana } } as never;
 }
 
 describe("Berhenti effective-date tick", () => {

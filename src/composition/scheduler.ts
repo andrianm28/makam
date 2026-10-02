@@ -31,7 +31,7 @@ export function composeSchedulerContext(deps: {
   refunds: Pick<Refunds, "tick">;
   layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick" | "batalkanSisaBerhenti">;
   /** The Pemesanan module, for the Terencana payment-hold lapse (ticket 37). */
-  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "pesananBerjalanDiLokasi">;
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "nomorTerencanaAktifDiLokasi">;
   /** The Antrean's Tier 1 alert tick and the Bertugas auto-off (ticket 28), from `createQueuesTicks`. */
   queues: QueuesTicks;
   /** Whether a queued direct Peringatan Staf's subject still needs it (ticket 96), answered by the raising module. */

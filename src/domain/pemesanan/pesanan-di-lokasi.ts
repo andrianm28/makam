@@ -15,6 +15,16 @@ export interface PesananBerjalan {
   email: string | null;
 }
 
+/** The Nomor Pemesanan of the Pemesanan Terencana a Lokasi has paid and Aktif: the ones whose held Pencairan a Berhenti releases. */
+export async function nomorTerencanaAktifDiLokasi(deps: Pick<PemesananDeps, "db">, lokasiId: string): Promise<string[]> {
+  const rows = await deps.db
+    .select({ nomor: pemesananTerencana.nomor })
+    .from(pemesananTerencana)
+    .where(and(eq(pemesananTerencana.lokasiId, lokasiId), eq(pemesananTerencana.status, "aktif")))
+    .orderBy(asc(pemesananTerencana.nomor));
+  return rows.map((row) => row.nomor);
+}
+
 export async function pesananBerjalanDiLokasi(deps: Pick<PemesananDeps, "db">, lokasiId: string): Promise<PesananBerjalan[]> {
   const terencana = await deps.db
     .select({ nomor: pemesananTerencana.nomor, status: pemesananTerencana.status, email: pemesananTerencana.email })

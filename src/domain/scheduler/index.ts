@@ -57,7 +57,7 @@ export interface SchedulerContext {
    * The Pemesanan module's own tick for a Pemesanan Terencana whose payment hold ran out unpaid
    * (ticket 37): the order becomes Dibatalkan and its plots are released.
    */
-  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "pesananBerjalanDiLokasi">;
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "nomorTerencanaAktifDiLokasi">;
   /** The Lokasi module's Berhenti effective dates that have come and are not yet settled (ticket 59). */
   lokasi: BerhentiContext["lokasi"];
   /** Refunds' own materialising tick: every Tagihan Billing flagged for a refund becomes a request here (ticket 31). */

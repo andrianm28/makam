@@ -14,15 +14,14 @@ export interface BerhentiContext {
   lokasi: Pick<Lokasi, "berhentiBerlakuBelumDiproses" | "tandaiBerhentiDiproses">;
   layanan: Pick<Layanan, "batalkanSisaBerhenti">;
   payouts: Pick<Payouts, "potonganBerhenti" | "lepaskanTerencanaBerhenti">;
-  terencana: Pick<Pemesanan, "pesananBerjalanDiLokasi">;
+  terencana: Pick<Pemesanan, "nomorTerencanaAktifDiLokasi">;
 }
 
 export async function berhentiBerlakuTick(ctx: BerhentiContext, _now: Date): Promise<void> {
   for (const lokasiId of await ctx.lokasi.berhentiBerlakuBelumDiproses()) {
     const layanan = await ctx.layanan.batalkanSisaBerhenti(lokasiId);
     await ctx.payouts.potonganBerhenti(lokasiId);
-    const aktif = (await ctx.terencana.pesananBerjalanDiLokasi(lokasiId)).filter((pesanan) => pesanan.kind === "terencana" && pesanan.status === "aktif");
-    await ctx.payouts.lepaskanTerencanaBerhenti(aktif.map((pesanan) => pesanan.nomor));
+    await ctx.payouts.lepaskanTerencanaBerhenti(await ctx.terencana.nomorTerencanaAktifDiLokasi(lokasiId));
     if (layanan.tertunda === 0) await ctx.lokasi.tandaiBerhentiDiproses(lokasiId);
   }
 }

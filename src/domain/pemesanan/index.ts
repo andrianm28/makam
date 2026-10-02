@@ -98,7 +98,7 @@ import {
   type OrderTerencanaAntrean,
   type OrderTerencanaStaf,
 } from "./reads-terencana-staf";
-import { pesananBerjalanDiLokasi, type PesananBerjalan } from "./pesanan-di-lokasi";
+import { nomorTerencanaAktifDiLokasi, pesananBerjalanDiLokasi, type PesananBerjalan } from "./pesanan-di-lokasi";
 import {
   denahTerencana,
   kotaTerencana,
@@ -385,6 +385,8 @@ export interface Pemesanan {
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
   /** The orders a Lokasi Mitra still has running (ticket 59): who is told at its Berhenti decision, and which paid Terencana orders its Pencairan release names. */
   pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]>;
+  /** The Nomor Pemesanan of the paid, Aktif Pemesanan Terencana of a Lokasi Mitra: what its Berhenti releases the Pencairan of. */
+  nomorTerencanaAktifDiLokasi(lokasiId: string): Promise<string[]>;
   /**
    * The Lokasi Mitra's answer to a Pemesanan Terencana (ticket 37). `konfirmasiTerencana` starts
    * the payment hold (Lokasi policy, 24 h by default) and issues the pay-first Tagihan due when it
@@ -503,6 +505,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
     pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi(deps, lokasiId),
+    nomorTerencanaAktifDiLokasi: (lokasiId) => nomorTerencanaAktifDiLokasi(deps, lokasiId),
     konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
     tolakTerencana: (by, input) => tolakTerencana(deps, by, input),
     tarikTerencana: (pemesan, input) => tarikTerencana(deps, pemesan, input),

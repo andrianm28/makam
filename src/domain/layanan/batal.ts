@@ -43,6 +43,12 @@ import type { LayananDeps, PemesanLayanan } from "./deps";
 import { batalkanPekerjaanSchema } from "./pesanan-schema";
 import { pengembalianLayanan, pekerjaanLayanan, pesananLayanan, pesananLayananItem, type PekerjaanLayananStatus } from "./schema";
 
+/** The Pekerjaan Layanan not yet finished or cancelled: what a Berhenti Lokasi's effective date cancels. */
+const PEKERJAAN_BELUM_SELESAI: readonly PekerjaanLayananStatus[] = ["menunggu_pembayaran", "dijadwalkan", "sedang_dikerjakan", "terlambat"];
+
+/** Why a cancelled job's money goes back, by who cancelled or why. */
+const ALASAN_PENGEMBALIAN = { pemesan: "pemesan_batal", terlambat: "terlambat_batal", berhenti: "berhenti" } as const;
+
 /** The last day a family may still cancel a job targeting this date: H-1, the day before. */
 export const batasBatal = (targetDate: string): string => addWibDateDays(targetDate, -1);
 
@@ -209,7 +215,7 @@ async function tulisPengembalian(
     pekerjaanId: row.job.id,
     pesananId: row.order.id,
     tagihanId: tagihan.id,
-    alasan: sebab === "pemesan" ? ("pemesan_batal" as const) : sebab === "terlambat" ? ("terlambat_batal" as const) : ("berhenti" as const),
+    alasan: ALASAN_PENGEMBALIAN[sebab],
     baris,
     total: diajukan.jumlah as Rupiah,
     platformDikembalikan: diajukan.biayaLayananPlatformDikembalikan,
@@ -267,7 +273,7 @@ export async function batalkanSisaBerhenti(deps: LayananDeps, lokasiId: string):
     .where(
       and(
         eq(pekerjaanLayanan.lokasiId, lokasiId),
-        inArray(pekerjaanLayanan.status, ["menunggu_pembayaran", "dijadwalkan", "sedang_dikerjakan", "terlambat"]),
+        inArray(pekerjaanLayanan.status, PEKERJAAN_BELUM_SELESAI),
       ),
     )
     .orderBy(pekerjaanLayanan.id);
@@ -282,7 +288,7 @@ export async function batalkanSisaBerhenti(deps: LayananDeps, lokasiId: string):
         .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
         .where(eq(pekerjaanLayanan.id, id))
         .for("update", { of: pekerjaanLayanan });
-      if (!row || !["menunggu_pembayaran", "dijadwalkan", "sedang_dikerjakan", "terlambat"].includes(row.job.status)) {
+      if (!row || !PEKERJAAN_BELUM_SELESAI.includes(row.job.status)) {
         return { ok: false as const, reason: "sudah_berubah" as const };
       }
       await tx
