@@ -174,6 +174,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
       dokumen: [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }],
       alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
       hanyaBaca: false,
+      pengelola: null,
     });
   });
 
@@ -190,13 +191,14 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
   });
 
   it("shows a Hak Pakai at a Berhenti Lokasi after the effective date as read-only: kept with its documents, no Perpanjang or Layanan", () => {
-    const berhenti = new Set(["lokasi-1"]);
+    const berhenti = new Map([["lokasi-1", { pengelolaName: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi" }]]);
     const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }], berhenti);
 
     expect(kartu.hanyaBaca).toBe(true);
+    expect(kartu.pengelola).toEqual({ name: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi" });
     expect(kartu.dokumen).toEqual([{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
     expect(kartu.pemakaman).toHaveLength(1);
-    expect(kartuMakamSaya(makamSaya(), nama, [], new Set(["lokasi-lain"])).hanyaBaca).toBe(false);
+    expect(kartuMakamSaya(makamSaya(), nama, [], new Map([["lokasi-lain", { pengelolaName: "X", address: "Y" }]])).hanyaBaca).toBe(false);
     expect(kartuMakamSaya(makamSaya(), nama, []).hanyaBaca).toBe(false);
   });
 
