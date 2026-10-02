@@ -54,9 +54,15 @@ const REKENING = new RegExp(
   "g",
 );
 
-/** Removes phone numbers, email addresses and bank account numbers. Emails first, so their digits are never read as a number. */
+export const TANDA_PLACEHOLDER = "[tanda]";
+
+/** The signed query of the Surat Kuasa render link (`tanda`, `sampai`): the signature is a short-lived key to a family document. */
+const TANDA_LINK = /([?&](?:tanda|sampai)=)[^&#\s"']*/g;
+
+/** Removes phone numbers, email addresses, bank account numbers and the signed query of a render link. Emails first, so their digits are never read as a number. */
 export function scrubText(text: string): string {
   return text
+    .replace(TANDA_LINK, `$1${TANDA_PLACEHOLDER}`)
     .replace(EMAIL, EMAIL_PLACEHOLDER)
     .replace(INDONESIAN_PHONE, PHONE_PLACEHOLDER)
     .replace(REKENING, REKENING_PLACEHOLDER);

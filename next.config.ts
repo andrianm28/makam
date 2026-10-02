@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      // The Surat Kuasa render page is opened by headless Chromium with a signed two-minute link: never cached, never a referrer.
+      {
+        source: "/pengurusan/:nomor/surat-kuasa/render",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       // Keyless Google Maps embed on the public Lokasi page (spec, "Maps on public pages"): frame-src only, no
       // default-src, so nothing else on the page is restricted.
       {
