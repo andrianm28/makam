@@ -168,3 +168,33 @@ describe("the Pemegang Hak's consent request for a further burial (Makamkan di s
     ]);
   });
 });
+
+describe("a refused further burial reaches the family in its own words", () => {
+  it("says the Lokasi cannot carry it out, nothing is due and the Hak Pakai is untouched, with the Kontak Siaga to call and no Pilih makam link, and opens no call row", async () => {
+    const setup = notificationsOnTestDatabase(db);
+    const hasil = await setup.notifications.tumpangDitolak({
+      pemesananId: PESANAN_ID,
+      nomor: "MKM-2026-000001",
+      email: "keluarga@contoh.id",
+      pemesanName: "Rina",
+      lokasi: LOKASI,
+      alasan: "Pemegang Hak tidak menyetujui",
+      almarhum: { name: "Hasan Basri", tanggalWafat: "2026-09-30" },
+      kontakSiaga: { name: "Pak Ahmad", phoneNumber: "081200000009" },
+    });
+    expect(hasil).toEqual({ ok: true });
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    const sent = setup.email.sent.filter((message) => message.to === "keluarga@contoh.id");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text).toContain("Pemegang Hak tidak menyetujui");
+    expect(sent[0]?.text).toContain("Hak Pakai");
+    expect(sent[0]?.text).toContain("tidak ada yang perlu dibayar");
+    expect(sent[0]?.text).toContain("Pak Ahmad");
+    expect(sent[0]?.text).toContain("081200000009");
+    expect(sent[0]?.text).not.toContain("Pilih makam");
+    expect(sent[0]?.text).not.toContain("saat-duka");
+    expect(await setup.notifications.pesanPemesanan(PESANAN_ID)).toEqual([expect.objectContaining({ template: "tumpang_ditolak", status: "terkirim" })]);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+  });
+});

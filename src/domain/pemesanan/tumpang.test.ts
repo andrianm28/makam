@@ -366,6 +366,28 @@ describe("Makamkan di sini", () => {
     expect(await setup.pemesanan.konsenMenungguSaya({ accountId: pemegang.accountId })).toEqual([]);
   });
 
+  it("tells the family a refused further burial is not the Saat Duka wording: the Lokasi's contact, nothing due, no Pilih makam, and no rebook", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id", "Rina Wulandari");
+    const { pemesan: pemegang } = await pemesanDenganEmail(setup, "pemegang@contoh.id", "Siti Aminah");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001", email: "pemegang@contoh.id" });
+    const oleh = (await ajukan(setup, lokasi, hakPakaiId, pemesan)) as { pesanan: { nomor: string } };
+    const olehHolder = (await ajukan(setup, lokasi, hakPakaiId, pemesan, "Almarhum Lain")) as { pesanan: { nomor: string } };
+
+    await setup.pemesanan.tolakSaatDuka(lokasi.adminLokasi, { nomor: oleh.pesanan.nomor, alasan: "di_luar_wilayah" });
+    await setup.pemesanan.jawabKonsenTumpang(pemegang, { nomor: olehHolder.pesanan.nomor, jawaban: "tolak" });
+
+    // Neither refusal goes through the Saat Duka "Pilih makam lain" announcement.
+    expect(setup.ditolak).toEqual([]);
+    expect(setup.tumpangDitolak.map((satu) => satu.nomor).sort()).toEqual([oleh.pesanan.nomor, olehHolder.pesanan.nomor].sort());
+    expect(setup.tumpangDitolak.find((satu) => satu.nomor === oleh.pesanan.nomor)).toMatchObject({ alasan: "Di luar wilayah pelayanan Lokasi Mitra ini", email: "keluarga@contoh.id" });
+    expect(setup.tumpangDitolak.find((satu) => satu.nomor === olehHolder.pesanan.nomor)).toMatchObject({ alasan: "Pemegang Hak tidak menyetujui" });
+    // The order page offers no "Pilih makam lain" for it.
+    expect(await setup.pemesanan.rebook(oleh.pesanan.nomor, pemesan)).toBeNull();
+  });
+
   it("cancelling a further burial cancels only the order and its Tagihan, and never issues a Bukti Pemesanan", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { lokasi, cells } = await lokasiDenganPetak(setup);
