@@ -3,6 +3,8 @@
  * read only through the Pengurusan module's public functions and what its neighbours show from outside.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { lapsePayFirstTagihanTick } from "@/domain/billing";
+import { addWorkingDays } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { pengajuanOnTestDatabase, type PengajuanSetup } from "../../../tests/support/pengurusan";
@@ -103,5 +105,48 @@ describe("Perlu Perbaikan before payment", () => {
     expect(await setup.pengurusan.perluTindakanBerkas(dasar.pemesan)).toEqual([]);
     expect(await setup.pengurusan.periksaBerkasTerbuka()).toEqual([expect.objectContaining({ nomor })]);
     expect(await setup.pengurusan.periksaDokumen(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "menunggu_pembayaran" });
+  });
+});
+
+/** Every document in, checked: the Tagihan is out, issued 20 December 2026 at 14:00. */
+async function sampaiMenungguPembayaran(setup: PengajuanSetup, dasar: Dasar) {
+  setup.clock.set(wib("2026-12-20 10:00"));
+  const nomor = await pesanan(setup, dasar);
+  setup.clock.set(wib("2026-12-20 14:00"));
+  await unggah(setup, dasar, nomor);
+  const hasil = await setup.pengurusan.periksaDokumen(dasar.admin, { nomor });
+  if (!hasil.ok || hasil.status !== "menunggu_pembayaran") throw new Error(`check refused: ${JSON.stringify(hasil)}`);
+  return { nomor, tagihan: hasil.tagihan };
+}
+
+describe("paying the Tagihan", () => {
+  it("lapses the order to Dibatalkan when the Tagihan is still unpaid 3×24 h after issue", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const { nomor } = await sampaiMenungguPembayaran(setup, dasar);
+    setup.clock.set(wib("2026-12-23 13:59"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+    await setup.pengurusan.pembayaranBerkasTick();
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "menunggu_pembayaran" });
+
+    setup.clock.set(wib("2026-12-23 14:01"));
+    await lapsePayFirstTagihanTick({ db }, setup.clock.now());
+    await setup.pengurusan.pembayaranBerkasTick();
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "dibatalkan" });
+  });
+
+  it("makes a paid order Diproses and lists its filing on the Admin Platform calendar, 3 working days after Lunas", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const { nomor, tagihan } = await sampaiMenungguPembayaran(setup, dasar);
+    setup.clock.set(wib("2026-12-21 09:00"));
+    expect((await setup.billing.recordPayment(tagihan.id, QRIS)).ok).toBe(true);
+    await setup.pengurusan.pembayaranBerkasTick();
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "diproses" });
+    const tenggat = addWorkingDays(await setup.lokasi.adminPlatformCalendar(), wib("2026-12-21 09:00"), 3);
+    if (!tenggat.ok) throw new Error("calendar unavailable");
+    expect(await setup.pengurusan.pengajuanBerkasTerbuka()).toEqual([expect.objectContaining({ nomor, dueAt: tenggat.at })]);
+    expect(await setup.fieldwork.ambilSuratPengantarTerbuka()).toEqual([]);
+    expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "iptm_diajukan" });
   });
 });
