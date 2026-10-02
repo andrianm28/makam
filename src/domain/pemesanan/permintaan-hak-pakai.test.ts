@@ -177,6 +177,9 @@ describe("Perlu tindakan and documents", () => {
     const dasar = { hakPakaiId: f.hakPakaiId, phoneNumber: "081200001111", alasan: "KTP diperiksa" };
     const sebelum = setup.files.stored.size;
 
+    const tanpa = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, dasar);
+    expect(tanpa).toEqual({ ok: false, reason: "ktp_wajib" });
+
     const salah = await setup.inventory.ubahKontakPemegangHak(f.lokasi.adminLokasi, f.lokasi.lokasiMitra.id, { ...dasar, ktp: { body: new Uint8Array([9]), contentType: "image/png" } });
     expect(salah).toEqual({ ok: false, reason: "berkas_tidak_didukung" });
 

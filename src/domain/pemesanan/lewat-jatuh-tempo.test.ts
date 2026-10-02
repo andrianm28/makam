@@ -90,4 +90,25 @@ describe("the pay-after clock of a Saat Duka Tagihan", () => {
 
     expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "lunas" });
   });
+
+  it("blocks a Ganti Pemegang Hak on its Hak Pakai while the Tagihan is Lewat Jatuh Tempo, at filing and again at approval", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDenganTagihan(setup);
+    const hakPakaiId = await setup.pemesanan.hakPakaiIdForTagihan(fixture.tagihanId);
+    if (!hakPakaiId) throw new Error("no Hak Pakai on the confirmed order");
+    const baru = { hakPakaiId, pemegangBaru: { name: "Bapak Hasan", phoneNumber: "081322223333" }, sebab: "waris" } as const;
+    const pemegang = { accountId: fixture.pemesan.accountId, email: fixture.pemesan.email };
+
+    // Filed while the Tagihan is still fine, then it lapses: the approval refuses.
+    const diajukan = await setup.pemesanan.ajukanGantiPemegangHak(pemegang, baru);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    setup.clock.set(wib("2026-10-06 08:00"));
+    await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-06" });
+    await lewatJatuhTempoPayAfterTagihanTick({ db }, wib("2026-10-09 08:00"));
+    expect(await setup.billing.tagihan(fixture.tagihanId)).toMatchObject({ status: "lewat_jatuh_tempo" });
+
+    expect(await setup.pemesanan.setujuiPermintaanHakPakai(fixture.adminLokasi, { id: diajukan.permintaan.id })).toEqual({ ok: false, reason: "tagihan_lewat_jatuh_tempo" });
+    await setup.pemesanan.batalkanPermintaanHakPakai(pemegang, { id: diajukan.permintaan.id });
+    expect(await setup.pemesanan.ajukanGantiPemegangHak(pemegang, baru)).toEqual({ ok: false, reason: "tagihan_lewat_jatuh_tempo" });
+  });
 });
