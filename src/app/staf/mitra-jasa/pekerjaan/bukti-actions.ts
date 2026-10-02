@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { akunResource } from "@/domain/identity";
+import { kirimPesanThreadSchema } from "@/domain/layanan/pesanan-schema";
 import { pekerjaanTpuIdSchema } from "@/domain/layanan/tpu-skema";
+import { pesanThreadMessages, type PesanThreadState } from "@/lib/thread-labels";
 import { guarded } from "@/server/guard";
+import { inputPesanThread } from "@/server/thread-form";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { refusalMessage } from "../../messages";
@@ -70,4 +73,23 @@ export async function kirimBuktiTpu(_previous: FormState, formData: FormData): P
   if (!hasil.value.ok) return { status: "gagal", message: pesan(hasil.value.reason) };
   revalidatePath(PEKERJAAN);
   return { status: "berhasil", message: "Bukti terkirim. Admin Platform memeriksanya dalam 24 jam." };
+}
+
+/**
+ * The Mitra Jasa writes in the thread of a job they hold (story 180). Thin, in order: authenticate, check the role,
+ * validate with Zod, call the Layanan module, which decides they hold the job, the thread is open, and emails the
+ * Pemesan a link without the message.
+ */
+export async function kirimPesanThreadMitraJasa(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
+  const hasil = await guarded({
+    action: "pekerjaan_tpu.jawab",
+    resource: (actor) => akunResource(actor.accountId),
+    schema: kirimPesanThreadSchema,
+    input: await inputPesanThread(formData),
+    run: (actor, data) => serverRuntime().layanan.kirimPesanStaf(actor, data),
+  });
+  if (!hasil.ok) return { status: "gagal", message: pesanThreadMessages[hasil.error] ?? "Periksa lagi isian Anda." };
+  revalidatePath(PEKERJAAN);
+  if (!hasil.value.ok) return { status: "gagal", message: pesanThreadMessages[hasil.value.reason] ?? "Pesan gagal dikirim." };
+  return { status: "berhasil", message: "Pesan terkirim. Keluarga diberi tahu lewat email." };
 }
