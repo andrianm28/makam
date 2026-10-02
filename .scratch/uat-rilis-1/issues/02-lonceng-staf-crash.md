@@ -16,3 +16,4 @@ Found in the staging UAT on 2026-10-02. Clicking the bell (Peringatan Staf) in t
 ## Comments
 
 - 2026-10-02 — Filed from the UAT (orchestrator). Branch `fix/lonceng-menu-group`.
+- 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main 0ff5acb, branch at 864426f). Standards: 0 hard; judgement — guard test is file-level (does not prove the Label sits inside the Group), possible duplicated file walker in tests/tooling. Spec: ACs met (not verified at runtime); same weak spot: a file with one grouped menu and one bare Label would pass. Fix pass: make the guard check each `<DropdownMenuLabel` is enclosed by a `<DropdownMenuGroup>`.

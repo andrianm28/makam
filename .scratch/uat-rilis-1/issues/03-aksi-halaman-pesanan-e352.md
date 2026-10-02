@@ -16,3 +16,4 @@ Found in the staging UAT on 2026-10-02. On `/pesanan/<nomor>`, "Simpan rekening"
 ## Comments
 
 - 2026-10-02 — Filed from the UAT (orchestrator). Branch `fix/pesanan-actions-use-server`.
+- 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main 0ff5acb, branch at 78e6b9a). Standards: 0 hard; judgement — stale comment + Middle Man alias `draftLayananSchema` at `src/app/layanan/actions.ts:32-33` (inline `placePesananLayananSchema`), stray blank line at the end of `pesanan/[nomor]/actions.ts`, terse names in `tests/tooling/use-server-exports.test.ts`, guard sees tracked files only. Spec: ACs met in code; `src/app/layanan/actions.ts` had the same E352 defect (in scope by AC 2); "Simpan rekening" end to end still to be verified on staging after deploy. Fix pass: the alias/comment, the blank line, clearer helper names.
