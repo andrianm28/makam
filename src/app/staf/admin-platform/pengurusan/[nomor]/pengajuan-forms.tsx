@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FormState } from "../../../form-state";
-import { ajukanIptmAction, buatSuratPengantarAction, catatDimakamkanAction, periksaDokumenAction, terbitkanIptmAction, tolakPtspAction } from "./pengajuan-actions";
+import { ajukanIptmAction, catatDimakamkanAction, periksaDokumenAction, terbitkanIptmAction, tolakPtspAction } from "./pengajuan-actions";
 
 const inputClass = "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 const labelClass = "flex flex-col gap-1 text-sm font-medium";
@@ -142,35 +142,6 @@ export function LangkahPengajuanForm({ nomor, langkah, petugas, perluBlokNomor }
             </Button>
             <Feedback state={terbitState} />
           </div>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** The Ambil surat pengantar Tugas of a paid filing-only order: a Petugas Lapangan is picked, and the Tugas exists once. */
-export function SuratPengantarForm({ nomor, petugas }: { nomor: string; petugas: { accountId: string; name: string }[] }) {
-  const [state, action, pending] = useActionState(buatSuratPengantarAction, idle);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Ambil surat pengantar</CardTitle>
-        <CardDescription>Tagihan sudah Lunas. Pilih Petugas Lapangan yang mengambil surat pengantar dari TPU; pengajuan jatuh tempo 3 hari kerja setelah Lunas.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form action={action} className="flex flex-col gap-3">
-          <input type="hidden" name="nomor" value={nomor} />
-          <label className={labelClass}>
-            Petugas Lapangan
-            <select name="petugasAccountId" required defaultValue="" className={inputClass}>
-              <option value="" disabled>Pilih petugas</option>
-              {petugas.map((akun) => (
-                <option key={akun.accountId} value={akun.accountId}>{akun.name}</option>
-              ))}
-            </select>
-          </label>
-          <Button type="submit" disabled={pending} className="self-start">{pending ? "Menyimpan…" : "Buat tugas"}</Button>
-          <Feedback state={state} />
         </form>
       </CardContent>
     </Card>

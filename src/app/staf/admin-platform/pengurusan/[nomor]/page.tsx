@@ -8,7 +8,7 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { ConfirmTpuForms } from "./konfirmasi-forms";
-import { LangkahPengajuanForm, SuratPengantarForm, TolakPtspForm, type LangkahPengajuan } from "./pengajuan-forms";
+import { LangkahPengajuanForm, TolakPtspForm, type LangkahPengajuan } from "./pengajuan-forms";
 
 /** The one filing step each status is waiting on (spec, Pengurusan); none from IPTM Terbit or when the order ended. */
 const LANGKAH: Partial<Record<string, LangkahPengajuan>> = {
@@ -154,10 +154,12 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
       ) : null}
       {berkas && (order.status === "menunggu_pembayaran" || order.status === "diproses") ? (
         order.status === "diproses" ? (
-          <SuratPengantarForm nomor={order.nomor} petugas={petugas} />
+          <p className="text-small text-muted-foreground">
+            Sudah Lunas. Tugas ambil surat pengantar sudah dibuat otomatis; tugaskan Petugas Lapangan di Antrean (Ambil surat pengantar).
+          </p>
         ) : (
           <p className="text-small text-muted-foreground">
-            Menunggu pembayaran Tagihan{order.tagihan ? ` ${order.tagihan.nomor}, jatuh tempo ${formatTanggalJam(order.tagihan.dueAt)}` : ""}. Tugas ambil surat pengantar dibuat setelah Lunas.
+            Menunggu pembayaran Tagihan{order.tagihan ? ` ${order.tagihan.nomor}, jatuh tempo ${formatTanggalJam(order.tagihan.dueAt)}` : ""}. Tugas ambil surat pengantar dibuat otomatis setelah Lunas.
           </p>
         )
       ) : null}

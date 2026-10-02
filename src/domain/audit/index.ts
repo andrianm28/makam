@@ -161,6 +161,8 @@ export type AuditAction =
   | "denah.pakai_petak"
   /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan. */
   | "tugas_lapangan.buat"
+  /** Admin Platform hands an open Tugas Lapangan to a Petugas Lapangan (ticket 47: the system-made, unassigned Ambil surat pengantar). */
+  | "tugas_lapangan.tugaskan"
   /** A Petugas Lapangan marks a Tugas Lapangan Selesai (its required uploads and type-specific form). */
   | "tugas_lapangan.selesai"
   /** A completed Kunjungan Verifikasi updates a Lokasi's pin, facilities, photos and "dikunjungi" date. */

@@ -203,6 +203,86 @@ export async function createTugasLapangan(
   return created;
 }
 
+/**
+ * The system makes a Tugas Lapangan nobody has been picked for yet (ticket 47: the Ambil surat pengantar of a paid
+ * filing-only Pengurusan IPTM, "so that pickup is never forgotten"). It is unassigned (an empty assignee, which the
+ * Antrean reads as "unassigned") until an Admin Platform assigns it with `tugaskanTugasLapangan`. A fact of the
+ * system and not a staff write, so it records no Entri Audit and sends no alert; the caller makes it inside the
+ * transaction of the fact it follows (`db` is that transaction) and is the one that keeps it from being made twice.
+ */
+export async function buatTugasSistem(
+  deps: { db: Database },
+  input: { type: "ambil_surat_pengantar"; subject: string; address: string; plannedDate: string },
+  now: Date,
+): Promise<TugasLapangan> {
+  const [row] = await deps.db
+    .insert(fieldworkTugas)
+    .values({
+      type: input.type,
+      subject: input.subject,
+      lokasiId: null,
+      address: input.address,
+      plannedDate: input.plannedDate,
+      assigneeAccountId: "",
+      status: "ditugaskan",
+      form: {},
+      uploads: [],
+      createdByAccountId: "sistem",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  return toTugasLapangan(row);
+}
+
+export const tugaskanTugasLapanganSchema = z.object({ id: z.uuid(), assigneeAccountId: z.string().trim().min(1) });
+
+export type TugaskanTugasLapanganResult =
+  | { ok: true; tugasLapangan: TugasLapangan }
+  | WriteRefusal
+  | { ok: false; reason: "input_tidak_valid" | "tidak_ditemukan" | "bukan_petugas_lapangan" | "sudah_selesai" };
+
+/** Admin Platform hands an open Tugas Lapangan (typically one the system made unassigned) to one Petugas Lapangan, audited; sends a Peringatan Staf. */
+export async function tugaskanTugasLapangan(deps: FieldworkDeps, by: Actor, rawInput: unknown): Promise<TugaskanTugasLapanganResult> {
+  const refusal = writeRefusal(by, "tugas_lapangan.buat", semuaTugasLapanganResource());
+  if (refusal) return refusal;
+  const parsed = tugaskanTugasLapanganSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const petugas = (await deps.identity.staffAccounts()).find((account) => account.accountId === parsed.data.assigneeAccountId);
+  if (!petugas || petugas.deactivated || !petugas.roles.includes("petugas_lapangan")) return { ok: false, reason: "bukan_petugas_lapangan" };
+
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [lama] = await tx.select().from(fieldworkTugas).where(eq(fieldworkTugas.id, parsed.data.id)).for("update");
+    if (!lama) return { ok: false as const, reason: "tidak_ditemukan" as const };
+    if (lama.status !== "ditugaskan") return { ok: false as const, reason: "sudah_selesai" as const };
+    const [row] = await tx
+      .update(fieldworkTugas)
+      .set({ assigneeAccountId: parsed.data.assigneeAccountId, updatedAt: deps.clock.now() })
+      .where(eq(fieldworkTugas.id, lama.id))
+      .returning();
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "tugas_lapangan.tugaskan",
+      entity: { kind: "fieldwork_tugas", id: lama.id },
+      lokasiId: lama.lokasiId,
+      before: { assigneeAccountId: lama.assigneeAccountId },
+      after: { assigneeAccountId: parsed.data.assigneeAccountId },
+      reason: null,
+    });
+    await deps.notifications.antrekanPeringatanStaf(
+      {
+        to: { accountId: parsed.data.assigneeAccountId },
+        kind: "staf_tugas_lapangan_baru",
+        subject: { kind: "tugas_lapangan", id: lama.id },
+        email: { subject: "Tugas Lapangan baru", text: `${lama.subject}: ${lama.address}, direncanakan ${lama.plannedDate}.` },
+        push: { title: "Tugas Lapangan baru", body: `${lama.subject}, ${lama.plannedDate}`, url: `/staf/petugas-lapangan/tugas/${lama.id}` },
+      },
+      tx,
+    );
+    return { ok: true as const, tugasLapangan: toTugasLapangan(row) };
+  });
+}
+
 /** Every Tugas Lapangan, newest first (Admin Platform's list); empty for anyone else. */
 export async function allTugasLapangan(deps: FieldworkDeps, by: Actor): Promise<TugasLapangan[]> {
   if (writeRefusal(by, "tugas_lapangan.lihat_semua", semuaTugasLapanganResource())) return [];

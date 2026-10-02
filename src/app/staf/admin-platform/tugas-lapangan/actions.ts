@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { newTugasLapanganSchema, tugasLapanganTypes } from "@/domain/fieldwork";
+import { newTugasLapanganSchema, tugaskanTugasLapanganSchema, tugasLapanganTypes } from "@/domain/fieldwork";
 import { semuaTugasLapanganResource } from "@/domain/identity";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
@@ -69,4 +69,20 @@ export async function buatTugasLapangan(_previous: FormState, formData: FormData
   revalidatePath("/staf/admin-platform/tugas-lapangan");
   if (!written.ok) return { status: "gagal", message: domainRefusalMessages[written.reason] ?? "Gagal membuat Tugas Lapangan." };
   return { status: "berhasil", message: "Tugas Lapangan dibuat dan ditugaskan." };
+}
+
+/** Admin Platform hands an open Tugas Lapangan (typically the system-made, unassigned Ambil surat pengantar) to a Petugas Lapangan. */
+export async function tugaskanTugasLapanganAction(_previous: FormState, formData: FormData): Promise<FormState> {
+  const result = await guarded({
+    action: "tugas_lapangan.buat",
+    resource: () => semuaTugasLapanganResource(),
+    schema: tugaskanTugasLapanganSchema,
+    input: { id: formData.get("id"), assigneeAccountId: formData.get("assigneeAccountId") },
+    run: (actor, data) => serverRuntime().fieldwork.tugaskanTugasLapangan(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  revalidatePath("/staf/admin-platform/tugas-lapangan");
+  revalidatePath("/staf/admin-platform/antrean");
+  if (!result.value.ok) return { status: "gagal", message: "Tugas tidak bisa ditugaskan: pilih Petugas Lapangan yang aktif untuk tugas yang masih terbuka." };
+  return { status: "berhasil", message: "Petugas Lapangan ditugaskan." };
 }

@@ -24,8 +24,9 @@ import { nilaiDibayarBaris } from "@/domain/billing";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
+import { hariKemudian, STATUS_BOLEH_DIBATALKAN, STATUS_MENERIMA_UNGGAHAN, STATUS_SUDAH_DIMAKAMKAN } from "./aturan";
 import { periksaDokumenBerkas, type TagihanBerkas } from "./pengurusan-berkas";
-import { makamTpu, pengurusanTpu, type DokumenDiunggah, type PengurusanTpuStatus } from "./schema";
+import { makamTpu, pengurusanTpu, type DokumenDiunggah } from "./schema";
 
 /** The filing documents are due this many days after the burial is recorded. */
 export const HARI_BERKAS_PENGAJUAN = 7;
@@ -53,7 +54,6 @@ async function muat(deps: Pick<PengurusanDeps, "db">, nomor: string): Promise<Ro
   return order && (order.kind === "saat_duka_tpu" || order.kind === "pengurusan_iptm") ? order : null;
 }
 
-const hariKemudian = (dari: Date, hari: number) => new Date(dari.getTime() + hari * 24 * 60 * 60 * 1000);
 
 function dokumenKurang(order: Row): string[] {
   const ada = order.dokumenDiunggah ?? {};
@@ -141,7 +141,7 @@ export async function unggahDokumenPengajuan(
   const { nomor, nama, berkas } = parsed.data;
   const order = await muat(deps, nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (order.status !== "dimakamkan" && order.status !== "perlu_perbaikan") return { ok: false, reason: "status_tidak_sesuai" };
+  if (!STATUS_MENERIMA_UNGGAHAN.includes(order.status)) return { ok: false, reason: "status_tidak_sesuai" };
   if (!order.dokumenPengajuan.some((dokumen) => dokumen.nama === nama)) return { ok: false, reason: "dokumen_tidak_dikenal" };
 
   const key = `pengurusan/${order.id}/pengajuan/${crypto.randomUUID()}`;
@@ -149,7 +149,7 @@ export async function unggahDokumenPengajuan(
   const now = deps.clock.now();
   const hasil = await deps.db.transaction(async (tx) => {
     const [terkunci] = await tx.select().from(pengurusanTpu).where(eq(pengurusanTpu.id, order.id)).for("update");
-    if (!terkunci || (terkunci.status !== "dimakamkan" && terkunci.status !== "perlu_perbaikan")) return null;
+    if (!terkunci || !STATUS_MENERIMA_UNGGAHAN.includes(terkunci.status)) return null;
     const lama = terkunci.dokumenDiunggah?.[nama];
     const diunggah: Record<string, DokumenDiunggah> = {
       ...(terkunci.dokumenDiunggah ?? {}),
@@ -168,6 +168,7 @@ export async function unggahDokumenPengajuan(
     await deps.files.delete(key).catch(() => undefined);
     return { ok: false, reason: "status_tidak_sesuai" };
   }
+  // Best effort: the replaced file is already unreferenced, so a failed delete leaves only an orphan blob, never a wrong order.
   if (hasil.lama) await deps.files.delete(hasil.lama.key).catch(() => undefined);
   return { ok: true, kurang: hasil.kurang };
 }
@@ -510,9 +511,6 @@ export type BatalkanPengurusanResult =
   | { ok: false; reason: "sudah_diajukan" }
   | { ok: false; reason: "tagihan_tidak_dibatalkan" | "pengembalian_tidak_terbit" };
 
-const BOLEH_DIBATALKAN: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
-/** From these on the Operator has arranged the burial with the TPU. */
-const SUDAH_DIMAKAMKAN: PengurusanTpuStatus[] = ["dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 
 /**
  * The Pemesan cancels before the IPTM is filed. The order, the Tagihan and the refund request all
@@ -529,10 +527,10 @@ export async function batalkanPengurusan(
   const order = await muat(deps, parsed.data.nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   if (order.status === "iptm_diajukan" || order.status === "iptm_terbit") return { ok: false, reason: "sudah_diajukan" };
-  if (!BOLEH_DIBATALKAN.includes(order.status)) return { ok: false, reason: "status_tidak_sesuai" };
+  if (!STATUS_BOLEH_DIBATALKAN.includes(order.status)) return { ok: false, reason: "status_tidak_sesuai" };
 
   const now = deps.clock.now();
-  const sudahDimakamkan = SUDAH_DIMAKAMKAN.includes(order.status);
+  const sudahDimakamkan = STATUS_SUDAH_DIMAKAMKAN.includes(order.status);
   return refusable<BatalkanPengurusanResult>(deps.db, async (tx) => {
     const moved = await tx
       .update(pengurusanTpu)
@@ -653,7 +651,7 @@ export async function perluTindakanBerkas(deps: PengurusanDeps, pemesan: { accou
     .select()
     .from(pengurusanTpu)
     .where(
-      and(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId), inArray(pengurusanTpu.status, ["dimakamkan", "perlu_perbaikan"])),
+      and(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId), inArray(pengurusanTpu.status, [...STATUS_MENERIMA_UNGGAHAN])),
     );
   const now = deps.clock.now();
   return rows

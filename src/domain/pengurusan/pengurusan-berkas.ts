@@ -11,19 +11,21 @@
  *   IPTM Diajukan -> Perlu Perbaikan (fixable PTSP rejection, refiled at no charge) | Ditolak (final, refunded in full).
  *
  * Nothing is billed before the documents pass. Whether the Tagihan is Lunas or has lapsed is Billing's fact, read
- * through its public function by an idempotent tick, never restated here. The Ambil surat pengantar Tugas needs a
- * Petugas Lapangan and so an Admin Platform to pick one: it can only be made once the Tagihan is Lunas.
+ * through its public function by an idempotent tick, never restated here. The Ambil surat pengantar Tugas is made by
+ * that tick when the Tagihan is Lunas, unassigned; an Admin Platform assigns it from the Antrean.
  */
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { nilaiDibayarBaris, withinPaymentCap } from "@/domain/billing";
 import { pengurusanTpuResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { addWorkingDays } from "@/domain/lokasi";
 import { wibDateOf } from "@/lib/time/jakarta";
+import { buatTugasSistem } from "@/domain/fieldwork";
 import type { PengurusanDeps } from "./deps";
+import { hariKemudian } from "./aturan";
 import { barisTagihan } from "./konfirmasi-saat-duka-tpu";
 import type { PeriksaDokumenResult } from "./pengajuan-iptm";
-import { pengurusanTpu, type PengurusanTpuStatus } from "./schema";
+import { pengurusanTpu } from "./schema";
 
 type Row = typeof pengurusanTpu.$inferSelect;
 
@@ -42,12 +44,10 @@ export interface TagihanBerkas {
   link: string;
 }
 
-const sehari = 24 * 60 * 60 * 1000;
-
 /** `n` working days on the Admin Platform calendar; calendar days while that calendar has no hours (the row must still exist). */
 async function tenggat(deps: Pick<PengurusanDeps, "lokasi">, dari: Date, n: number): Promise<Date> {
   const hasil = addWorkingDays(await deps.lokasi.adminPlatformCalendar(), dari, n);
-  return hasil.ok ? hasil.at : new Date(dari.getTime() + n * sehari);
+  return hasil.ok ? hasil.at : hariKemudian(dari, n);
 }
 
 // ---------------------------------------------------- the check and the Tagihan
@@ -137,8 +137,11 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
 
 /**
  * Follows the pay-first Tagihan of every Menunggu Pembayaran order: Lunas makes it Diproses (the moment it was seen
- * paid opens the 3-working-day filing); a Tagihan Billing has cancelled for lapsing makes it Dibatalkan. A write is
- * conditional on the order still waiting, so running it again, or two at once, changes nothing twice.
+ * paid opens the 3-working-day filing) and, in that same transaction, makes the order's Ambil surat pengantar Tugas
+ * Lapangan, unassigned, for an Admin Platform to hand to a Petugas (story 146); a Tagihan Billing has cancelled for
+ * lapsing makes it Dibatalkan. Each order moves in one transaction, conditional on it still waiting, so running the
+ * tick again, or two at once, changes nothing twice and makes one Tugas. These are facts of the system following
+ * Billing's, not staff writes, so they record no Entri Audit (the Tagihan's own payment and lapse are Billing's record).
  */
 export async function pembayaranBerkasTick(
   deps: { db: PengurusanDeps["db"]; billing: Pick<PengurusanDeps["billing"], "tagihanBerlaku"> },
@@ -153,10 +156,25 @@ export async function pembayaranBerkasTick(
     const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
     if (!tagihan) continue;
     if (tagihan.status === "lunas") {
-      await deps.db
-        .update(pengurusanTpu)
-        .set({ status: "diproses", lunasPada: now })
-        .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "menunggu_pembayaran")));
+      await deps.db.transaction(async (tx) => {
+        const moved = await tx
+          .update(pengurusanTpu)
+          .set({ status: "diproses", lunasPada: now })
+          .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "menunggu_pembayaran")))
+          .returning({ id: pengurusanTpu.id });
+        if (moved.length === 0) return;
+        const tugas = await buatTugasSistem(
+          { db: tx },
+          {
+            type: "ambil_surat_pengantar",
+            subject: `Surat pengantar ${order.tpuName} · ${order.nomor}`,
+            address: `${order.tpuName}, ${order.tpuAddress}`,
+            plannedDate: wibDateOf(now),
+          },
+          now,
+        );
+        await tx.update(pengurusanTpu).set({ suratPengantarTugasId: tugas.id }).where(eq(pengurusanTpu.id, order.id));
+      });
     } else if (tagihan.status === "dibatalkan") {
       await deps.db
         .update(pengurusanTpu)
@@ -168,67 +186,6 @@ export async function pembayaranBerkasTick(
         .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "menunggu_pembayaran")));
     }
   }
-}
-
-// ------------------------------------------------------- Ambil surat pengantar
-
-export const buatSuratPengantarSchema = z.object({ nomor: nomorSchema, petugasAccountId: z.string().trim().min(1) });
-
-export type BuatSuratPengantarResult =
-  | { ok: true; tugasId: string }
-  | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "pengurusan_tidak_ditemukan" | "status_tidak_sesuai" }
-  /** The Tagihan is not Lunas: the surat pengantar is fetched only for a paid order. */
-  | { ok: false; reason: "belum_lunas" }
-  | { ok: false; reason: "sudah_dibuat" | "bukan_petugas_lapangan" };
-
-const SESUDAH_BAYAR: PengurusanTpuStatus[] = ["menunggu_pembayaran", "diproses", "iptm_diajukan", "perlu_perbaikan"];
-
-/**
- * Admin Platform makes the Ambil surat pengantar Tugas Lapangan of a filing-only order, for a Petugas Lapangan to
- * fetch the letter from the TPU: only once the Tagihan is Lunas, and once. Audited.
- */
-export async function buatSuratPengantar(deps: PengurusanDeps, by: Actor, rawInput: unknown): Promise<BuatSuratPengantarResult> {
-  const refusal = writeRefusal(by, "pengurusan.konfirmasi", pengurusanTpuResource());
-  if (refusal) return refusal;
-  const parsed = buatSuratPengantarSchema.safeParse(rawInput);
-  if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
-  const order = await muatBerkas(deps, parsed.data.nomor);
-  if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
-  if (!SESUDAH_BAYAR.includes(order.status)) return { ok: false, reason: "status_tidak_sesuai" };
-  if (order.suratPengantarTugasId) return { ok: false, reason: "sudah_dibuat" };
-  const tagihan = order.tagihanId ? await deps.billing.tagihanBerlaku(order.tagihanId) : null;
-  if (!tagihan || tagihan.status !== "lunas") return { ok: false, reason: "belum_lunas" };
-
-  const now = deps.clock.now();
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
-    const tugas = await deps.fieldwork.within(tx).createTugasLapangan(by, {
-      type: "ambil_surat_pengantar",
-      subject: `Surat pengantar ${order.tpuName} · ${order.nomor}`,
-      lokasiId: null,
-      address: `${order.tpuName}, ${order.tpuAddress}`,
-      pin: null,
-      plannedDate: wibDateOf(now),
-      assigneeAccountId: parsed.data.petugasAccountId,
-    });
-    if (!tugas.ok) return { ok: false as const, reason: "bukan_petugas_lapangan" as const };
-    const moved = await tx
-      .update(pengurusanTpu)
-      .set({ suratPengantarTugasId: tugas.tugasLapangan.id })
-      .where(and(eq(pengurusanTpu.id, order.id), isNull(pengurusanTpu.suratPengantarTugasId)))
-      .returning({ id: pengurusanTpu.id });
-    if (moved.length === 0) return { ok: false as const, reason: "sudah_dibuat" as const };
-    await record({
-      actor: { accountId: by.accountId, role: "admin_platform" },
-      action: "pengurusan.surat_pengantar_dibuat",
-      entity: { kind: "pengurusan_tpu", id: order.id },
-      lokasiId: null,
-      before: null,
-      after: { tugasId: tugas.tugasLapangan.id, petugasAccountId: parsed.data.petugasAccountId },
-      reason: null,
-    });
-    return { ok: true as const, tugasId: tugas.tugasLapangan.id };
-  });
 }
 
 // ------------------------------------------------------------ PTSP rejection
@@ -299,6 +256,7 @@ export async function tolakPtsp(deps: PengurusanDeps, by: Actor, rawInput: unkno
       });
       return { ok: true as const, status: "perlu_perbaikan" as const };
     });
+    // Best effort, after the commit: the cleared files are no longer referenced, so a failed delete leaves only an orphan blob.
     if (hasil.ok) for (const [, berkas] of lama) await deps.files.delete(berkas.key).catch(() => undefined);
     return hasil;
   }
@@ -384,8 +342,6 @@ export interface PengajuanBerkasTerbuka {
   lunasPada: Date;
   /** 3 working days after Lunas, on the Admin Platform calendar. */
   dueAt: Date;
-  /** Whether the Ambil surat pengantar Tugas has been made. */
-  suratPengantarDibuat: boolean;
 }
 
 /** Every Diproses filing-only order, oldest first. No actor: the caller checks `antrean.lihat`. */
@@ -393,7 +349,7 @@ export async function pengajuanBerkasTerbuka(deps: Pick<PengurusanDeps, "db" | "
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), inArray(pengurusanTpu.status, ["diproses"])));
+    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "diproses")));
   const hasil = await Promise.all(
     rows
       .filter((row) => row.lunasPada !== null)
@@ -404,13 +360,7 @@ export async function pengajuanBerkasTerbuka(deps: Pick<PengurusanDeps, "db" | "
         almarhumName: row.almarhumName,
         lunasPada: row.lunasPada!,
         dueAt: await tenggat(deps, row.lunasPada!, HARI_KERJA_AJUKAN_BERKAS),
-        suratPengantarDibuat: row.suratPengantarTugasId !== null,
       })),
   );
   return hasil.sort((a, b) => a.lunasPada.getTime() - b.lunasPada.getTime());
-}
-
-async function muatBerkas(deps: Pick<PengurusanDeps, "db">, nomor: string): Promise<Row | null> {
-  const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
-  return order && order.kind === "pengurusan_iptm" ? order : null;
 }

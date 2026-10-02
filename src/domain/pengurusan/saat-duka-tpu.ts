@@ -24,6 +24,7 @@ import { documentExtension } from "@/lib/files/document-type";
 import { foldKey } from "@/lib/fold-key";
 import { daftarDokumen } from "./dokumen";
 import { JAM_KONFIRMASI_TPU } from "./pilihan";
+import { hariKemudian } from "./aturan";
 import { HARI_BERKAS_PENGAJUAN } from "./pengajuan-iptm";
 import { pengurusanTpu } from "./schema";
 import type { Pemesan, PengurusanDeps } from "./deps";
@@ -208,7 +209,7 @@ async function tempatkan(
 
   const dokumen = daftarDokumen({ jenis: input.jenis, kelayakan: input.kelayakan });
   const konfirmasiDueAt = berkas ? null : batasTpu(now);
-  const dokumenDueAt = berkas ? new Date(now.getTime() + HARI_BERKAS_PENGAJUAN * 24 * 60 * 60 * 1000) : null;
+  const dokumenDueAt = berkas ? hariKemudian(now, HARI_BERKAS_PENGAJUAN) : null;
   const phoneNumber = phoneOf(input.phoneNumber);
   const placed = await refusable(deps.db, async (tx) => {
     // The Nomor Pemesanan is taken inside this transaction, so a rolled-back order gives its number back.

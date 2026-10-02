@@ -4,13 +4,11 @@ import { revalidatePath } from "next/cache";
 import { pengurusanTpuResource } from "@/domain/identity";
 import {
   ajukanIptmSchema,
-  buatSuratPengantarSchema,
   catatDimakamkanSchema,
   nomorPengurusanSchema,
   terbitkanIptmSchema,
   tolakPtspSchema,
   type AjukanIptmResult,
-  type BuatSuratPengantarResult,
   type CatatDimakamkanResult,
   type PeriksaDokumenResult,
   type TerbitkanIptmResult,
@@ -23,7 +21,7 @@ import type { FormState } from "../../../form-state";
 import { guardMessage } from "../../../messages";
 
 /** Why a filing step was refused, in the words the screen shows. */
-type Hasil = CatatDimakamkanResult | PeriksaDokumenResult | AjukanIptmResult | TerbitkanIptmResult | BuatSuratPengantarResult | TolakPtspResult;
+type Hasil = CatatDimakamkanResult | PeriksaDokumenResult | AjukanIptmResult | TerbitkanIptmResult | TolakPtspResult;
 type Alasan = Extract<Hasil, { ok: false }>["reason"];
 const GAGAL: Partial<Record<Alasan, string>> = {
   input_tidak_valid: "Isian belum lengkap atau berkasnya tidak bisa diterima (JPG, PNG atau PDF, paling besar 8 MB).",
@@ -32,9 +30,6 @@ const GAGAL: Partial<Record<Alasan, string>> = {
   dokumen_belum_lengkap: "Dokumen pengajuan belum lengkap.",
   kedaluwarsa_di_masa_lalu: "Tanggal berlaku IPTM harus di masa depan.",
   blok_nomor_wajib: "Isi blok dan nomor makam sesuai IPTM.",
-  belum_lunas: "Tagihan belum Lunas: tugas ambil surat pengantar baru bisa dibuat setelah dibayar.",
-  sudah_dibuat: "Tugas ambil surat pengantar untuk pesanan ini sudah dibuat.",
-  bukan_petugas_lapangan: "Pilih seorang Petugas Lapangan.",
   dokumen_tidak_dikenal: "Salah satu dokumen yang dipilih tidak ada di daftar pesanan ini.",
   bukan_pengurusan_berkas: "Penolakan akhir dengan pengembalian penuh hanya untuk Pengurusan IPTM saja.",
   pengembalian_tidak_terbit: "Permintaan pengembalian dana tidak bisa dibuat; tidak ada yang diubah.",
@@ -112,20 +107,6 @@ export async function terbitkanIptmAction(_previous: FormState, formData: FormDa
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   return hasil(result.value, nomor, "IPTM terbit dan dikirim ke keluarga. Makam TPU diperbarui.");
-}
-
-/** Admin Platform makes the Ambil surat pengantar Tugas of a paid filing-only order. */
-export async function buatSuratPengantarAction(_previous: FormState, formData: FormData): Promise<FormState> {
-  const nomor = String(formData.get("nomor") ?? "");
-  const result = await guarded({
-    action: "pengurusan.konfirmasi",
-    resource: () => pengurusanTpuResource(),
-    schema: buatSuratPengantarSchema,
-    input: { nomor, petugasAccountId: formData.get("petugasAccountId") },
-    run: (actor, data) => serverRuntime().pengurusan.buatSuratPengantar(actor, data),
-  });
-  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
-  return hasil(result.value, nomor, "Tugas ambil surat pengantar dibuat.");
 }
 
 /** Admin Platform records the PTSP's answer: back to Perlu Perbaikan (fixable) or Ditolak with a full refund (final). */

@@ -34,12 +34,10 @@ import {
 import { pilihanSaatDukaTpu, type KartuTpu, type PilihanSaatDukaTpuQuery } from "./pilihan";
 import { placePengurusanIptm, placeSaatDukaTpu, type PlacePengurusanIptmInput, type PlacePengurusanIptmResult, type PlaceSaatDukaTpuInput, type PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 import {
-  buatSuratPengantar,
   pembayaranBerkasTick,
   pengajuanBerkasTerbuka,
   periksaBerkasTerbuka,
   tolakPtsp,
-  type BuatSuratPengantarResult,
   type PengajuanBerkasTerbuka,
   type PeriksaBerkasTerbuka,
   type TolakPtspResult,
@@ -79,8 +77,8 @@ export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
-export { pembayaranBerkasTick, buatSuratPengantarSchema, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
-export type { BuatSuratPengantarResult, PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
+export { pembayaranBerkasTick, tolakPtspSchema, HARI_KERJA_AJUKAN_BERKAS, HARI_KERJA_PERIKSA_BERKAS } from "./pengurusan-berkas";
+export type { PengajuanBerkasTerbuka, PeriksaBerkasTerbuka, TagihanBerkas, TolakPtspResult } from "./pengurusan-berkas";
 export type { PengurusanOrder } from "./reads";
 export {
   ajukanIptmSchema,
@@ -157,8 +155,6 @@ export interface Pengurusan {
    * (Dibatalkan) Tagihan makes the order Dibatalkan. Idempotent; the worker's tick (`now` defaults to the Clock).
    */
   pembayaranBerkasTick(now?: Date): Promise<void>;
-  /** Admin Platform makes the Ambil surat pengantar Tugas of a filing-only order: only once its Tagihan is Lunas, and once. Audited. */
-  buatSuratPengantar(by: Actor, input: unknown): Promise<BuatSuratPengantarResult>;
   /**
    * Admin Platform records the PTSP's answer to a filing: a fixable rejection goes back to Perlu Perbaikan (refiled at
    * no charge), a final one is Ditolak with the reason and refunds the whole Tagihan. Audited.
@@ -244,7 +240,6 @@ export function createPengurusan(deps: PengurusanDeps): Pengurusan {
     periksaBerkasTerbuka: () => periksaBerkasTerbuka(withAudit),
     pengajuanBerkasTerbuka: () => pengajuanBerkasTerbuka(withAudit),
     pembayaranBerkasTick: (now) => pembayaranBerkasTick(withAudit, now ?? deps.clock.now()),
-    buatSuratPengantar: (by, input) => buatSuratPengantar(withAudit, by, input),
     tolakPtsp: (by, input) => tolakPtsp(withAudit, by, input),
     placeSaatDukaTpu: (input) => placeSaatDukaTpu(withAudit, input),
     orderOf: (nomor, pemesan) => orderOf(withAudit, pemesan, nomor),

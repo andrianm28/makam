@@ -32,9 +32,9 @@ export default async function PengurusanIptmPage({ searchParams }: PageProps<"/p
       </div>
     );
   }
-  const { lokasi, tariffs } = serverRuntime();
+  const { lokasi, tariffs, adapters } = serverRuntime();
   const daftarTpu = await lokasi.publicTpuDkiList({});
-  const harga = await tariffs.quote([{ kind: "biaya_pengurusan", pengurusan: "berkas" }, { kind: "retribusi_pemda", retribusi: "iptm" }], new Date());
+  const harga = await tariffs.quote([{ kind: "biaya_pengurusan", pengurusan: "berkas" }, { kind: "retribusi_pemda", retribusi: "iptm" }], adapters.clock.now());
   return (
     <form action={pesanPengurusanIptmAction} encType="multipart/form-data" className="flex flex-col gap-4">
       <h1 className="text-title-2 text-foreground">Sudah dimakamkan? Kami urus IPTM-nya</h1>

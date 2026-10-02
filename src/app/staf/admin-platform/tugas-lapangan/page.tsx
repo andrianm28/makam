@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { tugasLapanganTypeLabels, tugasLapanganTypes } from "@/domain/fieldwork";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { CreateTugasLapanganForm } from "./tugas-lapangan-forms";
+import { CreateTugasLapanganForm, TugaskanTugasForm } from "./tugas-lapangan-forms";
 
 /** Admin Platform: every Tugas Lapangan, by planned date, and the form to create and assign a new one. */
 export default async function TugasLapanganListPage() {
@@ -51,6 +51,7 @@ export default async function TugasLapanganListPage() {
                   <th className="py-2 pr-3">Subjek</th>
                   <th className="py-2 pr-3">Tanggal rencana</th>
                   <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Petugas</th>
                 </tr>
               </thead>
               <tbody>
@@ -59,7 +60,10 @@ export default async function TugasLapanganListPage() {
                     <td className="py-2 pr-3">{tugasLapanganTypeLabels[item.type]}</td>
                     <td className="py-2 pr-3">{item.subject}</td>
                     <td className="py-2 pr-3">{item.plannedDate}</td>
-                    <td className="py-2 pr-3">{item.status === "selesai" ? "Selesai" : "Ditugaskan"}</td>
+                    <td className="py-2 pr-3">{item.status === "selesai" ? "Selesai" : item.assigneeAccountId === "" ? "Belum ditugaskan" : "Ditugaskan"}</td>
+                    <td className="py-2 pr-3">
+                      {item.assigneeAccountId === "" ? <TugaskanTugasForm id={item.id} petugas={petugas} /> : (petugas.find((akun) => akun.accountId === item.assigneeAccountId)?.email ?? item.assigneeAccountId)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

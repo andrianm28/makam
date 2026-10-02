@@ -84,6 +84,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "denah.bersihkan_petak": "Petak dibersihkan",
   "petak.nomor_ulang": "Nomor Petak diubah (renumbering)",
   "tugas_lapangan.buat": "Tugas Lapangan dibuat",
+  "tugas_lapangan.tugaskan": "Tugas Lapangan ditugaskan ke Petugas Lapangan",
   "tugas_lapangan.selesai": "Tugas Lapangan ditandai Selesai",
   "lokasi.catat_kunjungan_verifikasi": "Kunjungan Verifikasi dicatat",
   "lokasi.catat_cek_denah": "Cek Denah dicatat",

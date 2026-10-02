@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { PinPicker } from "@/components/map/pin-picker";
 import { Button } from "@/components/ui/button";
 import type { FormState } from "../../form-state";
-import { buatTugasLapangan } from "./actions";
+import { buatTugasLapangan, tugaskanTugasLapanganAction } from "./actions";
 
 const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -92,6 +92,24 @@ export function CreateTugasLapanganForm({
         </Button>
         <Feedback state={state} />
       </div>
+    </form>
+  );
+}
+
+/** Hands one open Tugas Lapangan to a Petugas Lapangan: how the system-made, unassigned Ambil surat pengantar gets its person. */
+export function TugaskanTugasForm({ id, petugas }: { id: string; petugas: { accountId: string; email: string }[] }) {
+  const [state, action, pending] = useActionState(tugaskanTugasLapanganAction, idle);
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="id" value={id} />
+      <select name="assigneeAccountId" required defaultValue="" aria-label="Petugas Lapangan" className={inputClass}>
+        <option value="" disabled>Pilih petugas</option>
+        {petugas.map((akun) => (
+          <option key={akun.accountId} value={akun.accountId}>{akun.email}</option>
+        ))}
+      </select>
+      <Button type="submit" disabled={pending}>{pending ? "Menyimpan…" : "Tugaskan"}</Button>
+      <Feedback state={state} />
     </form>
   );
 }

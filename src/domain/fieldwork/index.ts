@@ -34,6 +34,8 @@ import {
   completeTugasLapangan,
   createTugasLapangan,
   evidenceUrl,
+  tugaskanTugasLapangan,
+  type TugaskanTugasLapanganResult,
   readTugasLapangan,
   tugasSaya,
   type CompleteTugasLapanganResult,
@@ -45,7 +47,8 @@ import {
   type TugasLapanganResult,
 } from "./tugas";
 
-export { newTugasLapanganSchema } from "./tugas";
+export { buatTugasSistem, newTugasLapanganSchema, tugaskanTugasLapanganSchema } from "./tugas";
+export type { TugaskanTugasLapanganResult } from "./tugas";
 export type {
   CompleteTugasLapanganResult,
   CreateTugasLapanganResult,
@@ -98,6 +101,8 @@ export interface FieldworkModuleDeps {
 export interface Fieldwork {
   /** Admin Platform creates and assigns a Tugas Lapangan to one Petugas Lapangan, audited; sends a Peringatan Staf. */
   createTugasLapangan(by: Actor, input: NewTugasLapangan): Promise<CreateTugasLapanganResult>;
+  /** Admin Platform hands an open Tugas Lapangan (e.g. a system-made unassigned one) to a Petugas Lapangan, audited; sends a Peringatan Staf. */
+  tugaskanTugasLapangan(by: Actor, input: unknown): Promise<TugaskanTugasLapanganResult>;
   /** Every Tugas Lapangan, by planned date (Admin Platform; empty for anyone else). */
   allTugasLapangan(by: Actor): Promise<TugasLapangan[]>;
   /** The signed-in Petugas Lapangan's own "Tugas saya": every task assigned to them, by planned date. */
@@ -143,6 +148,7 @@ export interface Fieldwork {
 export function createFieldwork(deps: FieldworkModuleDeps): Fieldwork {
   return {
     createTugasLapangan: (by, input) => createTugasLapangan(deps, by, input),
+    tugaskanTugasLapangan: (by, input) => tugaskanTugasLapangan(deps, by, input),
     allTugasLapangan: (by) => allTugasLapangan(deps, by),
     tugasSaya: (by) => tugasSaya(deps, by),
     tugasLapangan: (by, id) => readTugasLapangan(deps, by, id),
