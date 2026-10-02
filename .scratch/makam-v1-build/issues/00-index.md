@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 85 resolved, 4 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 86 resolved, 3 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -50,7 +50,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-1
 | [44](44-saat-duka-tpu-submission.md) | Saat Duka at a DKI TPU: list section and submission | resolved | 22, 43, 63, 82 |
 | [45](45-tpu-saat-duka-confirmation-and-surat-pengantar.md) | TPU Saat Duka confirmation and Ambil surat pengantar | resolved | 28, 44 |
 | [46](46-tpu-filing-surat-kuasa-and-makam-tpu.md) | TPU filing: documents, Surat Kuasa, IPTM and Makam TPU | resolved | 45 |
-| [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | ready-for-agent | 31, 46 |
+| [47](47-pengurusan-iptm-filing-only.md) | Pengurusan IPTM (filing-only) and PTSP rejections | resolved | 31, 46 |
 | [48](48-perpanjangan-tpu.md) | Perpanjangan TPU (IPTM renewal) | ready-for-agent | 47 |
 | [49](49-layanan-catalog-and-paket-definitions.md) | Layanan catalog, prices and Paket Layanan definitions | resolved | 16 |
 | [50](50-layanan-order-at-lokasi-mitra.md) | Layanan order at a Lokasi Mitra and Admin Lokasi fulfilment | resolved | 19, 23, 34, 49 |
