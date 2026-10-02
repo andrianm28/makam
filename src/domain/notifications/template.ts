@@ -640,3 +640,35 @@ export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmail
     ].join("\n"),
   };
 }
+
+export interface LayananPesanBaruEmailInput {
+  nomor: string;
+  label: string;
+  /** Where the job is: a Lokasi Mitra's name or a TPU's. */
+  tempat: string;
+  /** Who wrote, by role only ("Admin Lokasi", "Mitra Jasa", "Admin Platform"). */
+  dariPeran: string;
+  tautan: string;
+}
+
+/**
+ * A new message in a Pekerjaan Layanan's thread (transactional: any hour). It says that
+ * someone wrote and where to answer, and **nothing of the message**: not its text, not a
+ * photo, not a name. The family reads it, and replies, inside the app.
+ */
+export function layananPesanBaruEmail(input: LayananPesanBaruEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Pesan baru untuk ${input.label}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Ada pesan baru dari ${input.dariPeran} tentang ${input.label} di ${input.tempat} (pesanan ${input.nomor}).`,
+      "Isi pesan dan foto hanya bisa dibaca di halaman pesanan Anda; balas juga dari sana.",
+      "",
+      `Baca dan balas: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}

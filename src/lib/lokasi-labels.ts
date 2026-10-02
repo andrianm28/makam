@@ -132,6 +132,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "hak_pakai.ubah_kontak_pemegang": "Kontak Pemegang Hak diubah",
   "layanan.mulai_pekerjaan": "Pekerjaan Layanan dimulai",
   "layanan.unggah_bukti": "Bukti Pekerjaan Layanan diambil",
+  "layanan.kirim_pesan": "Pesan di thread Pekerjaan Layanan dikirim",
   "layanan.selesaikan_pekerjaan": "Pekerjaan Layanan diselesaikan",
   "layanan.tugaskan_pekerjaan_tpu": "Pekerjaan TPU ditugaskan ke Mitra Jasa",
   "layanan.jawab_penugasan_tpu": "Penugasan pekerjaan TPU dijawab",

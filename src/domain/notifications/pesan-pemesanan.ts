@@ -24,6 +24,7 @@ import {
   pesananDikonfirmasiEmail,
   pesananDitolakEmail,
   layananPekerjaanSelesaiEmail,
+  layananPesanBaruEmail,
   layananPesananTerbitEmail,
   layananTpuPesananTerbitEmail,
   paketSiklusDijedaEmail,
@@ -586,6 +587,47 @@ export async function layananPekerjaanSelesai(deps: PesanKeluargaDeps, input: La
     pemesananId: null,
     nomorPemesanan: data.nomor,
     lokasiId: data.lokasi.id,
+    email: data.email,
+    subject: email.subject,
+    body: email.body,
+    sendAfter: now,
+  });
+  return { ok: true };
+}
+
+/** What the Layanan module announces when someone writes in a job's thread (ticket 52): no text, no photo, no name. */
+export const layananPesanBaruSchema = z.object({
+  pekerjaanId: z.uuid(),
+  nomor: z.string().trim().min(1).max(50),
+  email: z.email().max(320),
+  label: z.string().trim().min(1).max(300),
+  /** A Lokasi Mitra's own name, or null at a TPU (nobody's Lokasi: a failed send opens no Antrean Lokasi row). */
+  lokasi: lokasiSchema.nullable(),
+  tempat: z.string().trim().min(1).max(200),
+  dari: z.enum(["admin_lokasi", "admin_platform", "mitra_jasa"]),
+});
+export type LayananPesanBaruInput = z.infer<typeof layananPesanBaruSchema>;
+
+const PERAN_PESAN = { admin_lokasi: "Admin Lokasi", admin_platform: "Admin Platform", mitra_jasa: "Mitra Jasa" } as const;
+
+/** Tells the Pemesan that a message is waiting in a job's thread, by a link; the message itself never leaves the app. */
+export async function layananPesanBaru(deps: PesanKeluargaDeps, input: LayananPesanBaruInput): Promise<PesanLayananResult> {
+  const parsed = layananPesanBaruSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "layanan_tidak_valid" };
+  const data = parsed.data;
+  const now = deps.clock.now();
+  const email = layananPesanBaruEmail({
+    nomor: data.nomor,
+    label: data.label,
+    tempat: data.tempat,
+    dariPeran: PERAN_PESAN[data.dari],
+    tautan: deps.layananUrl(data.nomor),
+  });
+  await queueFamilyEmail(deps.db, now, {
+    template: "layanan_pesan_baru",
+    pemesananId: null,
+    nomorPemesanan: data.nomor,
+    lokasiId: data.lokasi?.id ?? null,
     email: data.email,
     subject: email.subject,
     body: email.body,

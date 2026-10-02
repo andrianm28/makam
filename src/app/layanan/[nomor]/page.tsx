@@ -13,6 +13,7 @@ import { currentActor } from "@/server/session";
 import { BatalkanPekerjaan } from "./batalkan";
 import { PekerjaanTpuDaftar } from "./pekerjaan-tpu";
 import { AjukanKeluhan, BeriPenilaian } from "./keluhan";
+import { ThreadPemesan } from "./thread";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
@@ -39,7 +40,7 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
   const nomor = (await params).nomor;
   const order = await serverRuntime().layanan.pesananLayananOf(nomor, { accountId: actor.accountId });
   // Not an order at a Lokasi Mitra: it may be an order at a DKI TPU, whose grave the family described (ticket 56).
-  if (!order) return <PesananTpuPage nomor={nomor} accountId={actor.accountId} />;
+  if (!order) return <PesananTpuPage nomor={nomor} accountId={actor.accountId} email={actor.email} />;
   const tagihan = await serverRuntime().billing.tagihan(order.tagihan?.id ?? "");
 
   return (
@@ -86,7 +87,7 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
             <p className="mt-1 text-body text-muted-foreground">
               Target {formatTanggal(satu.targetDate)} · boleh dikerjakan {formatTanggal(satu.jendela.dari)} sampai {formatTanggal(satu.jendela.sampai)}
             </p>
-            {satu.pekerjaan ? <Pekerjaan satu={satu} nomor={order.nomor} /> : null}
+            {satu.pekerjaan ? <Pekerjaan satu={satu} nomor={order.nomor} accountId={actor.accountId} email={actor.email} /> : null}
           </li>
         ))}
       </ul>
@@ -95,7 +96,7 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
 }
 
 /** One job: its status, its proof, and the cancel control while there is still time. */
-function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number]; nomor: string }) {
+async function Pekerjaan({ satu, nomor, accountId, email }: { satu: PesananLayananOrder["item"][number]; nomor: string; accountId: string; email: string }) {
   const kerja = satu.pekerjaan;
   if (!kerja) return null;
   const bisaBatal = kerja.status === "dijadwalkan" || kerja.status === "terlambat";
@@ -144,13 +145,15 @@ function Pekerjaan({ satu, nomor }: { satu: PesananLayananOrder["item"][number];
       {kerja.bolehDinilai ? <BeriPenilaian pekerjaanId={kerja.id} nomor={nomor} /> : null}
       {kerja.dinilai ? <p className="text-small text-muted-foreground">Terima kasih, Anda sudah menilai pekerjaan ini.</p> : null}
 
+      <ThreadPemesan pekerjaanId={kerja.id} nomor={nomor} accountId={accountId} email={email} />
+
       {bisaBatal ? <BatalkanPekerjaan pekerjaanId={kerja.id} nomor={nomor} /> : null}
     </div>
   );
 }
 
 /** An order Layanan at a DKI TPU: the grave as described, each job with its status, and the Mitra Jasa's first name and photo once accepted. */
-async function PesananTpuPage({ nomor, accountId }: { nomor: string; accountId: string }) {
+async function PesananTpuPage({ nomor, accountId, email }: { nomor: string; accountId: string; email: string }) {
   const order = await serverRuntime().layanan.pesananTpuOf(nomor, { accountId });
   if (!order) notFound();
   const tagihan = await serverRuntime().billing.tagihanBerlaku(order.tagihanId);
@@ -182,7 +185,7 @@ async function PesananTpuPage({ nomor, accountId }: { nomor: string; accountId: 
         </section>
       ) : null}
 
-      <PekerjaanTpuDaftar order={order} />
+      <PekerjaanTpuDaftar order={order} renderThread={(pekerjaanId) => <ThreadPemesan pekerjaanId={pekerjaanId} nomor={nomor} accountId={accountId} email={email} />} />
     </main>
   );
 }

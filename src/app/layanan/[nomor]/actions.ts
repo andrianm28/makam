@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { pesananLayananResource } from "@/domain/identity";
-import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema } from "@/domain/layanan/pesanan-schema";
+import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema, kirimPesanThreadSchema } from "@/domain/layanan/pesanan-schema";
 import { keluhanMessages, layananBatalMessages, penilaianMessages } from "@/lib/layanan-labels";
+import { pesanThreadMessages, type PesanThreadState } from "@/lib/thread-labels";
+import { inputPesanThread } from "@/server/thread-form";
 import { guarded } from "@/server/guard";
 import { serverRuntime } from "@/server/runtime";
 
@@ -84,4 +86,24 @@ export async function beriPenilaianLayanan(_previous: PemesanActionState, formDa
   revalidatePath(`/layanan/${nomor}`);
   if (!result.value.ok) return { status: "gagal", message: penilaianMessages[result.value.reason] ?? "Pilih 1 sampai 5 bintang." };
   return { status: "berhasil", message: "Terima kasih. Penilaian Anda sudah kami terima." };
+}
+
+/**
+ * The Pemesan writes in the thread of one of their own jobs. Thin, in order: authenticate, check the role,
+ * validate with Zod, call the Layanan module — which decides who may write, whether the thread is still open,
+ * and refuses a phone number or an email address.
+ */
+export async function kirimPesanThreadPemesan(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: kirimPesanThreadSchema,
+    input: await inputPesanThread(formData),
+    run: (actor, data) => serverRuntime().layanan.kirimPesanPemesan({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  if (!result.ok) return { status: "gagal", message: pesanThreadMessages[result.error] ?? "Periksa lagi isian Anda." };
+  revalidatePath(`/layanan/${nomor}`);
+  if (!result.value.ok) return { status: "gagal", message: pesanThreadMessages[result.value.reason] ?? "Pesan gagal dikirim." };
+  return { status: "berhasil", message: "Pesan terkirim." };
 }

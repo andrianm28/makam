@@ -351,6 +351,13 @@
       "when": 1790842181143,
       "tag": "0049_regular_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790923386615,
+      "tag": "0050_thankful_ego",
+      "breakpoints": true
     }
   ]
 }

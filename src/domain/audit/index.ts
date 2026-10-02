@@ -263,6 +263,8 @@ export type AuditAction =
   | "layanan.mulai_pekerjaan"
   /** The Admin Lokasi captures (or re-captures) one proof of a Pekerjaan Layanan in the app (ticket 50). */
   | "layanan.unggah_bukti"
+  /** A staff member or Mitra Jasa posts in a Pekerjaan Layanan's message thread (ticket 52). */
+  | "layanan.kirim_pesan"
   /** The Admin Lokasi marks a Pekerjaan Layanan Selesai once every proof its Layanan requires is there (ticket 50). */
   | "layanan.selesaikan_pekerjaan"
   /** Admin Platform hands a TPU job to one Mitra Jasa through the hard-filtered picker (ticket 56). */

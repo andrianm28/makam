@@ -40,6 +40,11 @@ export default async function KeluhanPage({ params }: PageProps<"/staf/admin-pla
         <p className="text-small text-muted-foreground">
           {keluhanStatusLabels[keluhan.status]} · diajukan {formatTanggalJam(keluhan.diajukanAt)} · respons pertama paling lambat {formatTanggalJam(keluhan.responPertamaDueAt)}
         </p>
+        <p className="text-small">
+          <Link href={`/staf/admin-platform/thread/${pekerjaan.id}`} className="font-medium text-brand underline underline-offset-4">
+            Baca percakapan pekerjaan ini
+          </Link>
+        </p>
       </PageHeader>
 
       <Card>
