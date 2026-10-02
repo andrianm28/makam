@@ -403,6 +403,53 @@ describe("a TPU job two days past its target date with no proof is Terlambat", (
   });
 });
 
+describe("Cancelling a Terlambat TPU job", () => {
+  async function terlambat(s: Siap, mitra: Mitra) {
+    const kerja = await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    return kerja;
+  }
+  async function dibatalkan(s: Siap, mitra: Mitra, pekerjaanId: string, tagihanId: string) {
+    expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId))?.status).toBe("dibatalkan");
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
+    expect(lain).toEqual([]);
+    // The whole Tagihan comes back, the Biaya Layanan Platform too: the lateness is the Mitra Jasa's.
+    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan", biayaLayananPlatformDikembalikan: true, jumlah: tagihan!.total });
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await pencairanSaya(s, mitra)).toEqual([]);
+  }
+
+  it("by the Pemesan: only once the job is Terlambat, refunding the whole Tagihan, and the Mitra Jasa gets no Pencairan", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, tagihanId } = await kerjaDiterima(s, mitra, s.bunga.id, "2026-10-05");
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId })).toEqual({ ok: false, reason: "bukan_terlambat" });
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    const lain = { accountId: "bukan-pemesan", email: "lain@contoh.id" };
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(lain, { pekerjaanId })).toMatchObject({ ok: false });
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId })).toEqual({ ok: true });
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId })).toEqual({ ok: false, reason: "bukan_terlambat" });
+    await dibatalkan(s, mitra, pekerjaanId, tagihanId);
+  });
+
+  it("by Admin Platform on the family's behalf: guarded, with a reason, audited", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, tagihanId } = await terlambat(s, mitra);
+    const batal = { pekerjaanId, catatan: "Keluarga menelepon, Mitra Jasa tidak datang" };
+
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpu(mitra.actor, batal)).toMatchObject({ ok: false, reason: "tidak_berwenang" });
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpu(s.admin, { pekerjaanId, catatan: " " })).toEqual({ ok: false, reason: "input_tidak_valid" });
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpu(s.admin, batal)).toEqual({ ok: true });
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpu(s.admin, batal)).toEqual({ ok: false, reason: "bukan_terlambat" });
+    await dibatalkan(s, mitra, pekerjaanId, tagihanId);
+    expect((await s.setup.audit.allEntries()).filter((satu) => satu.action === "layanan.batalkan_pekerjaan_terlambat_tpu")).toHaveLength(1);
+  });
+});
+
 describe("a Keluhan on a TPU job", () => {
   /** A job approved at 10:00 on 5 Oktober, so its Keluhan window is open until 8 Oktober 10:00. */
   async function selesai(s: Siap, mitra: Mitra) {
@@ -527,6 +574,40 @@ describe("a Keluhan on a TPU job", () => {
     await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-20 10:00"));
     expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF / 2, status: "jatuh_tempo" }]);
     expect((await s.setup.audit.allEntries()).filter((satu) => satu.action === "pencairan.override_jumlah")).toHaveLength(1);
+  });
+
+  it("refunded by Admin Platform: Refunds is asked for the job's own line, the Mitra Jasa at fault, and the Mitra Jasa's Pencairan stays at the full rate for Admin Platform to lower", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId, tagihanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    const keputusan = { keluhanId: diajukan.keluhanId, keputusan: "kembalikan_dana", catatan: "Pekerjaan tidak dilakukan" };
+
+    expect(await s.setup.layanan.putuskanKeluhanTpu(mitra.actor, keputusan)).toMatchObject({ ok: false, reason: "tidak_berwenang" });
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, keputusan)).toEqual({ ok: true });
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, keputusan)).toEqual({ ok: false, reason: "sudah_diputuskan" });
+
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
+    expect(lain).toEqual([]);
+    expect(permintaan).toMatchObject({ tagihanId, pihakBersalah: "mitra_jasa", status: "diajukan", biayaLayananPlatformDikembalikan: true });
+    expect(permintaan.lines).toEqual([{ label: tagihan!.lines[0].label, amount: tagihan!.lines[0].amount, lokasiId: null }]);
+    // The work was done: the job is Selesai and the Mitra Jasa's full rate falls due once the window is over.
+    expect((await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId))?.status).toBe("selesai");
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-20 10:00"));
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF, status: "jatuh_tempo" }]);
+    expect((await s.setup.audit.allEntries()).filter((satu) => satu.action === "layanan.putuskan_keluhan_tpu")).toHaveLength(1);
+  });
+
+  it("refunded: Admin Platform may still lower the Mitra Jasa's Pencairan with a note", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kembalikan_dana", catatan: "Ganti rugi" });
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, amount: TARIF / 2, catatan: "Setengah" })).toMatchObject({ ok: true, jumlah: TARIF / 2 });
   });
 
   it("is read by the Pemesan on the order: the form is on offer inside the window, and the Keluhan and its answer afterwards", async () => {
