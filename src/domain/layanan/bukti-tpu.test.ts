@@ -508,6 +508,27 @@ describe("a Keluhan on a TPU job", () => {
     expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "tolak", catatan: "Tidak jadi" })).toEqual({ ok: true });
   });
 
+  it("has the Mitra Jasa's Pencairan amount adjusted by Admin Platform with a note, audited, after a rejected or redone Keluhan only", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { pekerjaanId } = await selesai(s, mitra);
+    const diajukan = await ajukan(s, pekerjaanId);
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    const { keluhanId } = diajukan;
+    const sesuaikan = { keluhanId, amount: TARIF / 2, catatan: "Setengah: bersih sebagian" };
+
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(s.admin, sesuaikan)).toEqual({ ok: false, reason: "keluhan_belum_diputuskan" });
+    await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId, keputusan: "tolak", catatan: "Foto jelas" });
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(mitra.actor, sesuaikan)).toMatchObject({ ok: false, reason: "tidak_berwenang" });
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(s.admin, { ...sesuaikan, catatan: " " })).toEqual({ ok: false, reason: "input_tidak_valid" });
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(s.admin, { ...sesuaikan, amount: TARIF + 1 })).toEqual({ ok: false, reason: "melebihi_tarif" });
+    expect(await s.setup.layanan.sesuaikanPencairanKeluhanTpu(s.admin, sesuaikan)).toEqual({ ok: true, jumlah: TARIF / 2, jumlahAwal: TARIF });
+
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-20 10:00"));
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF / 2, status: "jatuh_tempo" }]);
+    expect((await s.setup.audit.allEntries()).filter((satu) => satu.action === "pencairan.override_jumlah")).toHaveLength(1);
+  });
+
   it("is read by the Pemesan on the order: the form is on offer inside the window, and the Keluhan and its answer afterwards", async () => {
     const s = await siap();
     const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
