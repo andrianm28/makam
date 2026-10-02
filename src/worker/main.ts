@@ -33,6 +33,7 @@ async function main() {
     sentry.captureException(error, context);
   };
   const adapters = createAdapters({
+    reportError,
     appEnv: env.APP_ENV,
     fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
     smtp: env.smtp,

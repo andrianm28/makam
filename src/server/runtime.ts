@@ -76,7 +76,9 @@ export function serverRuntime(): ServerRuntime {
   if (!globalForRuntime.__makamRuntime) {
     const env = readRuntimeEnv();
     const database = createDatabase(env.DATABASE_URL, { applicationName: "makam-web" });
+    const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
     const adapters = createAdapters({
+      reportError,
       appEnv: env.APP_ENV,
       fakePaymentWebhookSecret: env.FAKE_PAYMENT_WEBHOOK_SECRET,
       smtp: env.smtp,
@@ -89,7 +91,6 @@ export function serverRuntime(): ServerRuntime {
       devFilesRoot: env.DEV_FILES_ROOT,
     });
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
-    const reportError: ReportError = (error, context) => Sentry.captureException(error, context);
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
     const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
