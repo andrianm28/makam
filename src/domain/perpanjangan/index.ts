@@ -32,6 +32,7 @@ import {
   ajukanPerpanjanganSchema,
   statusPerpanjangan,
   tawaranPerpanjangan,
+  penawaranLayananPerpanjangan,
   type AjukanPerpanjanganInput,
   type AjukanResult,
   type JalurBukti,
@@ -39,6 +40,7 @@ import {
   type Pemohon,
   type StatusPerpanjangan,
   type TagihanTerbuka,
+  type PenawaranLayananResult,
   type TawaranResult,
 } from "./ajukan";
 import { kirimKode, verifikasiKode, type KirimKodeResult, type VerifikasiKodeResult } from "./kode";
@@ -88,7 +90,7 @@ export {
   type StatusPermohonan,
 } from "./permohonan";
 export type { AjukanPermohonanResult, KeputusanResult, PermohonanTercatat, PermohonanUntukStaf, PesanDariPermohonanResult, PeriksaDokumenRow, StatusManual, UbahPermohonanResult };
-export type { AjukanPerpanjanganInput, AjukanResult, JalurBukti, KirimKodeResult, OpsiMasa, Pemohon, StatusPerpanjangan, TagihanTerbuka, TawaranResult, VerifikasiKodeResult };
+export type { AjukanPerpanjanganInput, AjukanResult, JalurBukti, KirimKodeResult, OpsiMasa, Pemohon, PenawaranLayananResult, StatusPerpanjangan, TagihanTerbuka, TawaranResult, VerifikasiKodeResult };
 export type { PerpanjanganDeps } from "./deps";
 
 /** One Perpanjangan as its readers see it. */
@@ -116,6 +118,8 @@ export interface Perpanjangan {
   status(hakPakaiId: string, dengan?: Pemohon | null): Promise<StatusPerpanjangan>;
   /** Every choice of 1..K terms with its all-in price, or why none is offered. */
   tawaran(hakPakaiId: string): Promise<TawaranResult>;
+  /** The Layanan the optional "Tambah Layanan" step offers for this grave, with the first target date each allows. */
+  penawaranLayanan(hakPakaiId: string): Promise<PenawaranLayananResult>;
   /** Sends a Kode Masuk to the email recorded on the Hak Pakai (never revealed, only masked). */
   kirimKode(input: { hakPakaiId: string; ip: string }): Promise<KirimKodeResult>;
   /** Checks that code; a correct one logs the holder in (identity's own session), as Kirim's code step does. */
@@ -176,6 +180,7 @@ export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
   return {
     status: (hakPakaiId, dengan) => statusPerpanjangan(deps, hakPakaiId, dengan),
     tawaran: (hakPakaiId) => tawaranPerpanjangan(deps, hakPakaiId),
+    penawaranLayanan: (hakPakaiId) => penawaranLayananPerpanjangan(deps, hakPakaiId),
     kirimKode: (input) => kirimKode(deps, input),
     verifikasiKode: (input) => verifikasiKode(deps, input),
     ajukan: (input) => ajukanPerpanjangan(deps, input),

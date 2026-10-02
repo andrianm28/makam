@@ -39,7 +39,7 @@ export interface PerpanjanganDeps {
    * The optional "Tambah Layanan" step (ticket 53): the items are checked against the Lokasi's offer and the Perpanjangan's due date,
    * priced in the Perpanjangan's own quote and written under the same Tagihan. Optional: a process without it refuses an order that adds Layanan.
    */
-  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout">;
+  layanan?: Pick<Layanan, "siapkanCheckout" | "gabungkanBaris" | "tulisCheckout" | "penawaranCheckout">;
   /** Both take the transaction of the write they announce, so a message is queued with it and rolls back with it. */
   notifikasi: Pick<Notifications, "tagihanTerbit" | "buktiPerpanjanganTerbit">;
 }

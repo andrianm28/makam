@@ -72,4 +72,15 @@ describe("Tambah Layanan at a Perpanjangan checkout", () => {
     expect((await setup.billing.recordPayment(tagihan!.id, { method: QRIS, reference: null })).ok).toBe(true);
     expect((await setup.layanan.pesananLayananOf(nomor, fixture.pemohon))?.item).toMatchObject([{ pekerjaan: { status: "dijadwalkan" } }]);
   });
+
+  it("offers the Lokasi's Layanan for that grave, each with the first target date its lead time allows after the 3x24 h due date", async () => {
+    const setup = perpanjanganOnTestDatabase(db);
+    const fixture = await siap(setup);
+
+    const tawaran = await setup.perpanjangan.penawaranLayanan(fixture.hakPakaiId);
+
+    if (!tawaran.ok) throw new Error("no offer");
+    expect(tawaran.batasBayar).toEqual(wib("2026-10-04 09:00"));
+    expect(tawaran.opsi).toMatchObject([{ layanan: { name: "Pembersihan Makam" }, tanggalPalingDini: "2026-10-07", varian: [{ harga: 400_000 }] }]);
+  });
 });

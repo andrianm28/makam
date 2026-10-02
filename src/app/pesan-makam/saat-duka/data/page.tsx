@@ -22,7 +22,7 @@ export const metadata: Metadata = {
  */
 export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-makam/saat-duka/data">) {
   const { lokasiId, jenisMakamId, dari } = await searchParams;
-  const { pemesanan, lokasi, operatorSettings } = serverRuntime();
+  const { pemesanan, lokasi, operatorSettings, layanan } = serverRuntime();
   const actor = await currentActor();
   // A rebook carries the declined order's number, and with it the family's own
   // data: a family that has just been turned away does not type the same death
@@ -44,6 +44,8 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
   // What this Lokasi Mitra promises for the Tagihan it will issue: its own
   // payment window, so the note below never names a span the order will not keep.
   const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(grup.lokasi.id);
+  // Only the "bisa hari-H" Layanan the Lokasi offers (ticket 53); the module prices them again at the confirmation.
+  const hariH = await layanan.penawaranCheckout(grup.lokasi.id, "hari_h");
 
   return (
     <DataKirim
@@ -63,6 +65,13 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
       mintaKodeMasuk={kirimKodeMasuk}
       csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
       jumlahJamPembayaran={jumlahJamPembayaran}
+      layananHariH={hariH.map((satu) => ({
+        id: satu.layanan.id,
+        name: satu.layanan.name,
+        teksLabel: satu.layanan.teksLabel,
+        leadTimeDays: satu.layanan.leadTimeDays,
+        varian: satu.varian.map((varian) => ({ id: varian.id, name: varian.name, harga: varian.harga })),
+      }))}
     />
   );
 }

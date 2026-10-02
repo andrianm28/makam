@@ -42,3 +42,15 @@ Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment)
 ### Spec gaps and decisions for the owner
 - A hari-H item's price is taken when the Lokasi confirms (like the Petak), not at submission; the family's all-in total on "Data & kirim" therefore does not include it. Confirm shows nothing if the Layanan was switched off meanwhile: confirmation is refused with `layanan_tidak_tersedia`. Owner to decide whether the Lokasi should instead be allowed to confirm without it.
 - Terencana: the Layanan target date is checked at submission; if the Lokasi confirms later than the lead time allows, confirmation would have to refuse or move the date. Owner to decide.
+
+### 2026-10-02 builder (ticket 53, second slice: wiring and UI; Terencana and lapse left)
+
+**Built:**
+- Wiring (a) was real: a test through the test server runtime (`src/app/pesan-makam/saat-duka/actions.test.ts`) failed with `gagal` before `tests/support/server-runtime.ts` got the lazy Layanan box, and passes after. The worker now hands Layanan to Pemesanan directly (it is composed first there).
+- Saat Duka "Data & kirim": `draftSchema.layananHariH`, `kirim` passes it, the page offers `layanan.penawaranCheckout(lokasi, "hari_h")`, a "Layanan hari-H" fieldset and the sticky total adds the subtotal (edits to `data-kirim.tsx` kept to additions).
+- Perpanjangan "Tambah Layanan": domain `perpanjangan.penawaranLayanan(hakPakaiId)` (offer for the grave's Lokasi with each Layanan's first allowed date after the 3x24 h due date; test in `layanan.test.ts`); optional step on the direct page (the OTP path lands on the same form after the code) and on the approved-request page; `pesanPerpanjangan` and `pesanDariPermohonanAction` carry `layananJson` through Zod (`itemCheckoutListSchema`). Shared client pieces: `src/components/layanan/*`, `src/lib/layanan-pilihan.ts` (tested).
+
+**Not built (next agent):**
+1. Terencana empty-plot. Proposed expand-only design: migration with `ALTER TABLE pesanan_layanan ALTER COLUMN hak_pakai_id DROP NOT NULL` (not destructive: no data lost, old release still writes it) plus a nullable `pemesanan_terencana_id` on `pesanan_layanan`; store the items on `pemesanan_terencana`; price them at `konfirmasiTerencana` in the same quote (`mode: "petak_kosong"`, single plot only); at payment (`aktifkanTerencana`) set `hak_pakai_id` and schedule; close the jobs when the hold lapses or a Pembatalan is approved. Readers of `pesanan_layanan.hak_pakai_id` (hub, siklus.ts:111/240, pesanan.ts:223) must tolerate null. Wizard step: reuse `PilihLayanan` with `tanggalPalingDini`.
+2. (c) A lapsed Perpanjangan Tagihan still leaves its jobs Menunggu Pembayaran.
+3. Server Action tests for the Perpanjangan `layananJson` path; no e2e.

@@ -39,6 +39,8 @@ export const draftSchema = z.object({
   ]),
   lokasiId: z.string().trim().min(1),
   jenisMakamId: z.string().trim().min(1),
+  /** The hari-H Layanan the family added (story 23, ticket 53): a variant and its text each; priced onto the Tagihan when the Lokasi confirms. */
+  layananHariH: z.array(itemHariHTpuSchema).max(10).default([]),
 });
 
 export type DraftSaatDuka = z.infer<typeof draftSchema>;

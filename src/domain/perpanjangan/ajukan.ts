@@ -17,7 +17,8 @@ import { normaliseEmail } from "@/domain/identity";
 import { addYears } from "@/domain/inventory";
 import type { QuotedLine } from "@/domain/tariffs";
 import { quoteLineLabel } from "@/lib/quote-line-label";
-import { wibDateOf } from "@/lib/time/jakarta";
+import type { LayananUntukPesanan } from "@/domain/layanan";
+import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import { bolehDiperpanjang, samarkanEmail, type CatatanPerpanjangan } from "./aturan";
 import type { PerpanjanganDeps } from "./deps";
 import { perpanjangan } from "./schema";
@@ -155,6 +156,29 @@ export interface OpsiMasa {
   /** The end date this choice leads to, counted from the end date on record. */
   endDateBaru: string;
   lines: { label: string; amount: number }[];
+}
+
+/** The Layanan a Perpanjangan may add ("Tambah Layanan", ticket 53), each with the first day its lead time allows. */
+export type PenawaranLayananResult =
+  | {
+      ok: true;
+      /** The Perpanjangan Tagihan's due date (3x24 h): a Layanan's lead time is counted from it. */
+      batasBayar: Date;
+      opsi: (LayananUntukPesanan & { tanggalPalingDini: string })[];
+    }
+  | { ok: false };
+
+/** What the optional "Tambah Layanan" step offers for this grave's Lokasi; none when the Perpanjangan itself is not open. */
+export async function penawaranLayananPerpanjangan(deps: PerpanjanganDeps, hakPakaiId: string): Promise<PenawaranLayananResult> {
+  const dasar = await fakta(deps, hakPakaiId);
+  if (!dasar.ok || !deps.layanan) return { ok: false };
+  const batasBayar = tagihanDue({ kind: "perpanjangan" }, [], deps.clock.now()).dueAt;
+  const tawaran = await deps.layanan.penawaranCheckout(dasar.hak.lokasiId, "perpanjangan");
+  return {
+    ok: true,
+    batasBayar,
+    opsi: tawaran.map((grup) => ({ ...grup, tanggalPalingDini: addWibDateDays(wibDateOf(batasBayar), grup.layanan.leadTimeDays) })),
+  };
 }
 
 export type TawaranResult =

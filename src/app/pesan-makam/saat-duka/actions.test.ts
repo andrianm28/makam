@@ -7,6 +7,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
+import { cellsOf } from "../../../../tests/support/inventory";
+import { saatDukaFixture, siapkanOperatorPemesanan, tawarkanLayananDi } from "../../../../tests/support/pemesanan";
 import { kirimPesanan } from "./actions";
 import type { DraftSaatDuka } from "./draft";
 
@@ -70,5 +72,30 @@ describe("Kirim pesanan (Server Action)", () => {
     const hasil = await kirimPesanan(draft({ email: "orang.lain@contoh.id" }));
 
     expect(hasil).toEqual({ status: "gagal", message: "Email ini bukan email akun Anda. Kirim ulang dengan email lain." });
+  });
+});
+
+describe("Kirim pesanan with hari-H Layanan (ticket 53)", () => {
+  it("a signed-in Pemesan's hari-H Layanan reach the Pemesanan Saat Duka, and are on its Tagihan and Dijadwalkan when the Lokasi confirms", async () => {
+    const rt = server.runtime();
+    const setup = { ...rt, clock: server.clock, email: server.email() } as unknown as Parameters<typeof saatDukaFixture>[0];
+    const fixture = await saatDukaFixture(setup);
+    const { varian } = await tawarkanLayananDi(setup as never, fixture.lokasiMitra.id);
+    const login = await server.logIn("pemesan@contoh.id");
+    browser.store(login.session.cookies);
+
+    const hasil = await kirimPesanan(
+      draft({ lokasiId: fixture.lokasiMitra.id, jenisMakamId: fixture.jenisMakam.id, rencanaPemakamanAt: "2026-10-02T10:00", layananHariH: [{ layananVariantId: varian.id, teks: null }] }),
+    );
+    expect(hasil.status).toBe("selesai");
+    if (hasil.status !== "selesai") return;
+
+    const [blok] = await rt.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
+    const petak = (await cellsOf(setup as never, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).find((cell) => cell.kind === "petak")!;
+    await siapkanOperatorPemesanan(setup as never);
+    const konfirmasi = await rt.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, { nomor: hasil.nomor, petakId: petak.id, pemakamanAt: "2026-10-02T10:00" });
+    expect(konfirmasi.ok).toBe(true);
+    const pesanan = await rt.layanan.pesananLayananOf(hasil.nomor, fixture.pemesan);
+    expect(pesanan?.item).toMatchObject([{ targetDate: "2026-10-02", pekerjaan: { status: "dijadwalkan" } }]);
   });
 });

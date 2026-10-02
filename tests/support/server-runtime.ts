@@ -14,6 +14,7 @@ import { createInventory } from "@/domain/inventory";
 import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
+import type { Layanan } from "@/domain/layanan";
 import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -105,7 +106,19 @@ export function testServerRuntime() {
       layanan: layananHariHKosong,
       notifikasi: notifications,
     });
+    // Layanan is composed after Pemesanan (ticket 53): hari-H items reach it through this box, filled once it exists.
+    const layananRef: { current?: Layanan } = {};
+    const layananLazy = (): Layanan => {
+      if (!layananRef.current) throw new Error("Layanan is not composed yet");
+      return layananRef.current;
+    };
     const pemesanan = composePemesanan({
+      layanan: {
+        siapkanCheckout: (input) => layananLazy().siapkanCheckout(input),
+        gabungkanBaris: (...args) => layananLazy().gabungkanBaris(...args),
+        tulisCheckout: (input, within) => layananLazy().tulisCheckout(input, within),
+        batalkanLayananCheckout: (nomor, alasan, within) => layananLazy().batalkanLayananCheckout(nomor, alasan, within),
+      },
       db: database.db,
       clock: adapters.clock,
       files: adapters.files,
@@ -176,6 +189,7 @@ export function testServerRuntime() {
       payouts,
       notifications,
     });
+    layananRef.current = layanan;
     // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row reads the Perpanjangan module (ticket 41),
     // so it is composed before the queue that runs that query.
     const perpanjangan = createPerpanjangan({

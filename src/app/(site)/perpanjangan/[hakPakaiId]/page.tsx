@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { opsiLayananView } from "@/components/layanan/opsi-view";
+import { TambahLayananPerpanjangan, type OpsiTambahLayanan } from "@/components/layanan/tambah-layanan-perpanjangan";
 import { CsLink } from "@/components/site/cs-link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,7 @@ export default async function PerpanjanganPage({ params, searchParams }: PagePro
   const dengan = actor ? { accountId: actor.accountId, email: actor.email } : null;
   const status = await perpanjangan.status(id.data.hakPakaiId, dengan);
   const tawaran = status.boleh && !status.tagihanTerbuka && status.jalur !== "tanpa_email" ? await perpanjangan.tawaran(id.data.hakPakaiId) : null;
+  const layananTawaran = tawaran && tawaran.ok ? await perpanjangan.penawaranLayanan(id.data.hakPakaiId) : null;
   const settings = await operatorSettings.current();
   const contact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   // A request the family already filed on this Hak Pakai (KTP, heir or claim), still open or approved and unspent.
@@ -75,6 +78,7 @@ export default async function PerpanjanganPage({ params, searchParams }: PagePro
         <Buka
           status={status}
           opsi={tawaran && tawaran.ok ? tawaran.opsi : []}
+          opsiLayanan={layananTawaran && layananTawaran.ok ? layananTawaran.opsi.map(opsiLayananView) : []}
           tawaranDitolak={tawaran !== null && !tawaran.ok}
           masuk={actor !== null}
           kodeTerkirim={query.kode === "terkirim"}
@@ -119,6 +123,7 @@ function Catatan({
 function Buka({
   status,
   opsi,
+  opsiLayanan,
   tawaranDitolak,
   masuk,
   kodeTerkirim,
@@ -126,6 +131,7 @@ function Buka({
 }: {
   status: Extract<StatusPerpanjangan, { boleh: true }>;
   opsi: OpsiMasa[];
+  opsiLayanan: OpsiTambahLayanan[];
   tawaranDitolak: boolean;
   masuk: boolean;
   kodeTerkirim: boolean;
@@ -187,6 +193,7 @@ function Buka({
       <form action={pesanPerpanjangan} className="flex flex-col gap-4">
         <input type="hidden" name="hakPakaiId" value={status.hakPakaiId} />
         {pilihan}
+        <TambahLayananPerpanjangan opsi={opsiLayanan} />
         <Button type="submit" size="lg">
           Lanjut ke Tagihan
         </Button>
