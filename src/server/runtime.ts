@@ -20,6 +20,7 @@ import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
 import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
+import { createWakaf, type Wakaf } from "@/domain/wakaf";
 import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
@@ -57,6 +58,7 @@ export interface ServerRuntime {
   pengurusan: Pengurusan;
   /** Perpanjangan of a Hak Pakai at a Lokasi Mitra: the direct path, a code to the recorded email (ticket 40). */
   perpanjangan: Perpanjangan;
+  wakaf: Wakaf;
   /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
   payouts: Payouts;
   /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
@@ -265,6 +267,16 @@ export function serverRuntime(): ServerRuntime {
       audit,
       notifikasi: notifications,
     });
+    // Wakaf Tanah (ticket 58): the Pengajuan Wakaf, the Nazhir list and the Tier 3 row that reads them.
+    const wakaf = createWakaf({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      fieldwork,
+      notifikasi: notifications,
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -298,9 +310,11 @@ export function serverRuntime(): ServerRuntime {
         pengurusan,
         perpanjangan,
         refunds,
+        wakaf,
       }),
       pengurusan,
       perpanjangan,
+      wakaf,
     };
   }
   return globalForRuntime.__makamRuntime;

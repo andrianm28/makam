@@ -78,6 +78,7 @@ import {
 } from "./catatan-tagihan";
 
 export { tambahCatatanTagihanSchema, type CatatanTagihan, type TambahCatatanTagihanInput, type TambahCatatanTagihanResult };
+import { wakafStatusBerubah, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
 import {
   kirimPesanJatuhTempo,
   pengembalianTerbit,
@@ -483,6 +484,11 @@ export interface Notifications {
    * logged against the Perpanjangan itself. With no email a call row opens.
    */
   buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
+  /**
+   * Tells the Wakif that a Pengajuan Wakaf changed status (ticket 58), by email at any hour. One message
+   * per status change (`perubahanId`), whatever runs twice; the note to the Wakif, the date and the reason travel with it.
+   */
+  wakafStatusBerubah(input: WakafStatusBerubahInput, within?: Database): Promise<WakafStatusBerubahResult>;
   /**
    * Announces a Saat Duka TPU confirmation to its family: the agreed burial, the
    * TPU office and Admin Platform contacts, both document lists, the price lines
@@ -900,6 +906,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return pembatalanTerencana(within ? { ...deps, db: within } : deps, input);
     },
 
+    async wakafStatusBerubah(input, within) {
+      return wakafStatusBerubah(within ? { ...deps, db: within } : deps, input);
+    },
+
     async buktiPerpanjanganTerbit(input, within) {
       return buktiPerpanjanganTerbit(within ? { ...deps, db: within } : deps, input);
     },
@@ -1042,4 +1052,5 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   return { ok: true, role };
 }
 
+export { wakafStatusBerubahSchema, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
 export { buktiPerpanjanganTerbitSchema, type BuktiPerpanjanganTerbitInput, type BuktiPerpanjanganTerbitResult } from "./pesan-perpanjangan";

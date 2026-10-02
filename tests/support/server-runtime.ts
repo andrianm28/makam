@@ -14,6 +14,7 @@ import { createInventory } from "@/domain/inventory";
 import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
+import { createWakaf } from "@/domain/wakaf";
 import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
 import { createOperatorSettings } from "@/domain/operator-settings";
@@ -191,6 +192,16 @@ export function testServerRuntime() {
       audit,
       notifikasi: notifications,
     });
+    // Wakaf Tanah (ticket 58): the Pengajuan Wakaf, the Nazhir list and the Tier 3 row that reads them.
+    const wakaf = createWakaf({
+      db: database.db,
+      clock: adapters.clock,
+      files: adapters.files,
+      audit,
+      lokasi,
+      fieldwork,
+      notifikasi: notifications,
+    });
     holder.__makamRuntime = {
       env,
       database,
@@ -224,9 +235,11 @@ export function testServerRuntime() {
         pengurusan: pengursModule,
         perpanjangan,
         refunds,
+        wakaf,
       }),
       pengurusan: pengursModule,
       perpanjangan,
+      wakaf,
     };
   }
   afterAll(async () => {

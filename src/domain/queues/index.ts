@@ -27,6 +27,7 @@ import type { Pemesanan } from "@/domain/pemesanan";
 import type { Payouts } from "@/domain/payouts";
 import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
+import type { Wakaf } from "@/domain/wakaf";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
 import { ambilPengurus, ambilRow, type AmbilRowResult, type PengurusAmbil } from "./ambil";
@@ -131,6 +132,11 @@ export interface QueuesModuleDeps {
   perpanjangan: Pick<Perpanjangan, "antreanPeriksaDokumen">;
   /** The Antrean's Tier 3 "refund transfer" row reads the Refunds module's own query (ticket 31). */
   refunds: Pick<Refunds, "pengembalianJatuhTempo" | "pengembalianDibayar" | "transferKeluar">;
+  /**
+   * The Antrean's Tier 3 "Pengajuan Wakaf" row reads the Wakaf module's own open Pengajuan (ticket 58).
+   * Optional so a fixture that composes no Wakaf has no such row; the runtime always passes it.
+   */
+  wakaf?: Pick<Wakaf, "pengajuanTerbuka">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */
   identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */

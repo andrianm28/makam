@@ -22,6 +22,7 @@ import { pengembalianRowType } from "./tier3-pengembalian-row";
 import { tagihanLewatJatuhTempoRowType } from "./tier3-tagihan-lewat-jatuh-tempo-row";
 import { konfirmasiTerencanaTerlambatRowType } from "./tier3-konfirmasi-terencana-terlambat-row";
 import { pembatalanRefundRowType } from "./tier3-pembatalan-refund-row";
+import { pengajuanWakafRowType } from "./tier3-pengajuan-wakaf-row";
 import { keluhanRowType } from "./tier1-keluhan-row";
 
 /**
@@ -64,6 +65,7 @@ export const antreanRowTypes: AntreanRowType[] = [
   pengembalianRowType,
   konfirmasiTerencanaTerlambatRowType,
   pembatalanRefundRowType,
+  pengajuanWakafRowType,
   tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   layananTerlambatRowType,

@@ -16,3 +16,4 @@ export * from "@/domain/katalog-lama/schema";
 export * from "@/domain/tariffs/schema";
 export * from "@/domain/billing/schema";
 export * from "@/domain/pemesanan/schema";
+export * from "@/domain/wakaf/schema";

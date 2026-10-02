@@ -259,6 +259,7 @@ describe("the command palette (role visibility on the server)", () => {
           { label: "Antrean", href: "/staf/admin-platform/antrean" },
           { label: "Pekerjaan TPU", href: "/staf/admin-platform/pekerjaan-tpu" },
           { label: "Tagihan", href: "/staf/admin-platform/tagihan" },
+          { label: "Wakaf Tanah", href: "/staf/admin-platform/wakaf" },
         ],
       },
       {

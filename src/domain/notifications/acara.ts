@@ -46,6 +46,8 @@ export const TEMPLATE_EMAIL = [
   "paket_siklus_dijeda",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
+  // A Pengajuan Wakaf changed status (ticket 58): the Wakif hears each change by email, at any hour.
+  "wakaf_status",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -90,6 +92,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   paket_siklus_dijeda: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
+  wakaf_status: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -127,6 +130,7 @@ export const TABEL_ACARA: Record<
   | "layanan_pekerjaan_selesai"
   | "paket_siklus_dijeda"
   | "pembatalan_terencana"
+  | "wakaf_status"
   | "peringatan_staf",
   Acara
 > = {
@@ -265,6 +269,8 @@ export const TABEL_ACARA: Record<
     template: "pembatalan_terencana",
     waktu: WAKTU_TEMPLATE.pembatalan_terencana,
   },
+  /** A Pengajuan Wakaf's status change (ticket 58): by email at any hour, to the Wakif. */
+  wakaf_status: { penerima: "email_pemesan", kanal: "email", template: "wakaf_status", waktu: WAKTU_TEMPLATE.wakaf_status },
   /**
    * The staff events, one Peringatan Staf per kind (the module's
    * `staffAlertKinds`): by push to every Perangkat Push of the Akun Staf and
