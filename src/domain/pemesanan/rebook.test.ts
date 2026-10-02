@@ -11,6 +11,7 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
+import { setLokasiMitraStatusForTest } from "../../../tests/support/lokasi";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { orderSaatDuka, pemesananOnTestDatabase, saatDukaFixture, terverifikasiLokasi, type PemesananSetup } from "../../../tests/support/pemesanan";
 
@@ -51,6 +52,16 @@ describe("the rebook link of a declined Saat Duka order", () => {
         pemegangHak: { mode: "pemesan", name: "Budi Santoso" },
       },
     });
+  });
+
+  it("still names the city to look in when the Lokasi that refused is Ditangguhkan or Berhenti by the time the family follows the link", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await pesananDitolak(setup);
+
+    for (const status of ["ditangguhkan", "berhenti"] as const) {
+      await setLokasiMitraStatusForTest(db, fixture.lokasiMitra.id, status);
+      expect((await setup.pemesanan.rebook(fixture.nomor, fixture.pemesan))?.kota, status).toBe("Kota Jakarta Timur");
+    }
   });
 
   it("leaves the Lokasi that refused out of the list it opens, as the list itself answers it", async () => {
