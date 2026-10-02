@@ -8,6 +8,7 @@ import { addWorkingDays } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { pengajuanOnTestDatabase, type PengajuanSetup } from "../../../tests/support/pengurusan";
+import { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
 import { makamTpuDenganIptm } from "../../../tests/support/makam-tpu";
 
 const { db, close } = testDatabase();
@@ -296,5 +297,58 @@ describe("correcting the IPTM expiry date", () => {
     const masukan = { nomor, berlakuSampai: "2027-02-16", alasan: "Salah baca" };
     expect(await setup.pengurusan.koreksiIptmBerakhir(dasar.admin, masukan)).toEqual({ ok: false, reason: "status_tidak_sesuai" });
     expect(await setup.pengurusan.koreksiIptmBerakhir(dasar.admin, { ...masukan, alasan: "" })).toEqual({ ok: false, reason: "input_tidak_valid" });
+  });
+});
+
+describe("the IPTM expiry reminders", () => {
+  const deps = (setup: PengajuanSetup): PengingatIptmDeps => ({
+    db,
+    identity: setup.identity,
+    notifikasi: setup.notifications,
+    tautan: (makamTpuId) => `https://makam.test/perpanjang-iptm/${makamTpuId}`,
+  });
+  /** One run of the tick at `waktu`, then the queued emails are sent, as the worker would. */
+  async function tickPada(setup: PengajuanSetup, waktu: string) {
+    setup.clock.set(wib(waktu));
+    await pengingatIptmTick(deps(setup), setup.clock.now());
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+  }
+  const keHolder = (setup: PengajuanSetup) => setup.email.sent.filter((pesan) => pesan.to === "pemegang@contoh.id" && pesan.subject.startsWith("Pengingat IPTM"));
+
+  it("go to the Pemegang Hak 3 months and 1 month before the IPTM expires, once each, between 08:00 and 20:00, with the Perpanjangan link", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+
+    await tickPada(setup, "2026-11-14 10:00");
+    await tickPada(setup, "2026-11-15 07:00");
+    expect(keHolder(setup)).toEqual([]);
+
+    await tickPada(setup, "2026-11-15 10:00");
+    expect(keHolder(setup)).toHaveLength(1);
+    expect(keHolder(setup)[0]!.subject).toContain("3 bulan");
+    expect(keHolder(setup)[0]!.text).toContain(`https://makam.test/perpanjang-iptm/${dasar.makamTpuId}`);
+
+    await tickPada(setup, "2026-11-15 15:00");
+    await tickPada(setup, "2026-12-20 10:00");
+    expect(keHolder(setup)).toHaveLength(1);
+
+    await tickPada(setup, "2027-01-15 10:00");
+    expect(keHolder(setup)).toHaveLength(2);
+    expect(keHolder(setup)[1]!.subject).toContain("1 bulan");
+
+    await tickPada(setup, "2027-02-16 10:00");
+    expect(keHolder(setup)).toHaveLength(2);
+  });
+
+  it("stop once a Perpanjangan TPU is ordered for the IPTM", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    await tickPada(setup, "2026-11-15 10:00");
+    expect(keHolder(setup)).toHaveLength(1);
+
+    setup.clock.set(wib("2026-12-20 10:00"));
+    await pesanan(setup, dasar);
+    await tickPada(setup, "2027-01-15 10:00");
+    expect(keHolder(setup)).toHaveLength(1);
   });
 });
