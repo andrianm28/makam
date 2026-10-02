@@ -22,13 +22,7 @@ import { cn } from "@/lib/utils";
  * The header bell: the signed-in Akun Staf's Peringatan Staf, newest first,
  * each linking to its subject. Opening it marks every one of them read.
  */
-export function NotificationBell({
-  unread,
-  latest,
-}: {
-  unread: number;
-  latest: StaffAlertEntry[];
-}) {
+export function NotificationBell({ unread, latest }: { unread: number; latest: StaffAlertEntry[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -51,11 +45,7 @@ export function NotificationBell({
             variant="ghost"
             size="icon"
             className="relative"
-            aria-label={
-              unread > 0
-                ? `Peringatan Staf, ${unread} belum dibaca`
-                : "Peringatan Staf"
-            }
+            aria-label={unread > 0 ? `Peringatan Staf, ${unread} belum dibaca` : "Peringatan Staf"}
           />
         }
       >
@@ -71,9 +61,7 @@ export function NotificationBell({
           <DropdownMenuLabel>Peringatan Staf</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {latest.length === 0 ? (
-            <p className="px-1.5 py-4 text-center text-small text-muted-foreground">
-              Belum ada Peringatan Staf.
-            </p>
+            <p className="px-1.5 py-4 text-center text-small text-muted-foreground">Belum ada Peringatan Staf.</p>
           ) : (
             latest.map((alert) => (
               <DropdownMenuLinkItem
@@ -81,14 +69,8 @@ export function NotificationBell({
                 render={<Link href={alert.url} />}
                 className="flex-col items-start gap-0.5 py-1.5 whitespace-normal"
               >
-                <span
-                  className={cn("text-small", !alert.read && "font-semibold")}
-                >
-                  {alert.title}
-                </span>
-                <span className="text-caption text-muted-foreground">
-                  {alert.body}
-                </span>
+                <span className={cn("text-small", !alert.read && "font-semibold")}>{alert.title}</span>
+                <span className="text-caption text-muted-foreground">{alert.body}</span>
               </DropdownMenuLinkItem>
             ))
           )}
