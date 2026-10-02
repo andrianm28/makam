@@ -53,9 +53,21 @@ export async function adminPlatform(identity: Identity): Promise<Actor | null> {
   };
 }
 
-/** A fresh benchmarking IP per Kode Masuk request: the per-IP limit allows one per 60 s, and a fixture sends several in a row. */
+/** The benchmarking range handed out: 198.18.1.1 .. 198.18.4.250. */
+const BENCHMARKING_IPS = 4 * 250;
+/** Where this process starts in that range, so two seed runs in the same hour rarely begin on the same IP. */
+let nextBenchmarkingIp = Math.floor(Math.random() * BENCHMARKING_IPS);
+
+/**
+ * A fresh benchmarking IP per Kode Masuk request: the per-IP limit allows one
+ * per 60 s, and a fixture sends several in a row (under a test's fixed Clock,
+ * all inside one window). Handed out in turn, never drawn at random, so no two
+ * requests of one run share an IP.
+ */
 export function benchmarkingIp(): string {
-  return `198.18.${1 + Math.floor(Math.random() * 4)}.${1 + Math.floor(Math.random() * 250)}`;
+  const index = nextBenchmarkingIp;
+  nextBenchmarkingIp = (nextBenchmarkingIp + 1) % BENCHMARKING_IPS;
+  return `198.18.${1 + Math.floor(index / 250)}.${1 + (index % 250)}`;
 }
 
 /**
