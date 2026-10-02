@@ -1,6 +1,6 @@
 # Production would expose Rilis 2/3 features: decide the release scope before promote
 
-Status: ready-for-agent
+Status: resolved
 Spec: `.scratch/makam-v1/spec.md` "Release plan"; `docs/adr/0005-perpanjangan-in-rilis-1.md`; go-live checklist `go-live-rilis-1.md`.
 
 ## What happened
@@ -59,3 +59,4 @@ Release scope for the first production promote: widen Rilis 1 to what `main` hol
   - **5:** `readRilisEnv` parses once per distinct setting pair (cached).
   - **6:** staff-nav unmapped item is hidden (not open), a test shows Rilis 3 hides nothing; `Rilis` type replaces `number`; "TPU DKI" chip and TPU section hidden at 1; `route.ts` handlers (outside `/api`) in the page guard; the `terlambatTick` TPU skip logs once; `said` renamed `sudahDicatat`, `cocok` renamed `skorKecocokan` with named score constants.
 - 2026-10-02 — **Builder, re-review follow-up:** the action guard test now blanks comments before matching and fails closed on any export form it does not recognise (`export { a as b }`, `export *`, `export default`, sync `export function`); `export const x = async …` is checked like a function. Inline-source tests cover each.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: 3 hard (Standards) fixed and re-reviewed (hard remaining no), the action-guard blind spots closed after; merge gate on the merged tree: typecheck, lint, build, full suite 322 files / 2887 tests passed (1 skipped), exit 0 (the first suite run died on a stopped Docker daemon after a container restart; Docker restarted and the suite re-run). Production opens Rilis 1 only once the host runs this image; staging opens 3. Branches for 35, 39 and 47 must now pass `fitur` to `guarded()` before they merge.
