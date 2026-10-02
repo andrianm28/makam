@@ -1,6 +1,6 @@
 # Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 27, 29, 38
 Spec: Domain modules > 5. Inventory (Ganti Pemegang Hak, change number, Pengembalian, Calon Penghuni); 6. Pemesanan (Requests from the Pemegang Hak); stories 103, 104, 105, 125, 126
 
@@ -36,3 +36,4 @@ The other Pemegang Hak requests and holder changes. From the Makam tab: "Kembali
   - **Decision (orchestrator):** no hard finding on either axis, but the data-integrity items are cheap and are taken before merge: one transaction for the Calon Penghuni dual write; the Ganti re-check inside the approval transaction; a status guard in `kembalikanHakPakai`; `ktp` required in the domain; the overdue-Tagihan block test; `ON CONFLICT DO NOTHING` on the backfill; one shared upload check.
 
 - 2026-10-02 — Builder (last fix pass): `ubahKontakPemegangHak` accepts a stored `ktpKey` only under `perpanjangan-permohonan/` or `pemegang-hak-ktp/<hakPakaiId>/` (else `ktp_wajib`; red first, Perpanjangan path still passes). Merged origin/main (only the ticket file conflicted). Release gate: routes `/permintaan-hak-pakai/**` and `/staf/admin-lokasi/[x]/permintaan/**` and every new action are `perpanjangan_lanjutan` (Rilis 2); the Makam tab links/forms and the KTP form are hidden while it is closed. No tick. A second `db:generate` is clean.
+- 2026-10-02 — Merged to main by the orchestrator. Two-axis review: no hard finding left after the fix passes and re-reviews (entries above); mapped to Rilis 2 (`perpanjangan_lanjutan`) under the release gate; merge gate on the merged tree (with tickets 47 and 39/35 and the E2E release-gate fix; migrations renumbered 0058 for 39 with its hand-written backfill kept and proven statement-identical, 0059 for 35 byte-identical; clean second db:generate; snapshot chain without new gaps): typecheck, lint, build, full suite 330 files / 2959 tests passed (1 skipped), exit 0.

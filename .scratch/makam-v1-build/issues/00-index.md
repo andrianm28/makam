@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 86 resolved, 3 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-10-02): 88 resolved, 1 ready-for-agent, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -38,11 +38,11 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 99 tickets (as of 2026-1
 | [32](32-pencairan-potongan-and-bukti-pencairan.md) | Pencairan, Potongan and Bukti Pencairan | resolved | 25, 31 |
 | [33](33-laporan-and-transfer-list.md) | Monthly Laporan and weekly outgoing transfer list | resolved | 29, 32 |
 | [34](34-makam-keluarga-hub-and-lookup.md) | Makam keluarga hub and grave lookup | resolved | 14, 26 |
-| [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | ready-for-agent | 25, 34 |
+| [35](35-burial-under-existing-hak-pakai.md) | Burial under an existing Hak Pakai, with consent | resolved | 25, 34 |
 | [36](36-terencana-wizard.md) | Pemesanan Terencana wizard with Denah picker and plot hold | resolved | 16, 82 |
 | [37](37-terencana-confirmation-and-payment.md) | Terencana confirmation, payment hold and Aktif | resolved | 23, 32, 36 |
 | [38](38-pembatalan-terencana.md) | Pembatalan of a paid Pemesanan Terencana | resolved | 31, 37 |
-| [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | ready-for-agent | 27, 29, 38 |
+| [39](39-pengembalian-ganti-pemegang-hak-calon-penghuni.md) | Pengembalian Hak Pakai, Ganti Pemegang Hak and Calon Penghuni | resolved | 27, 29, 38 |
 | [40](40-perpanjangan-otp-path.md) | Perpanjangan at a Lokasi Mitra: OTP path and Bukti Perpanjangan | resolved | 29, 32, 34, 82 |
 | [41](41-perpanjangan-manual-paths.md) | Perpanjangan manual paths: KTP, heir and claim | resolved | 40 |
 | [42](42-hak-pakai-expiry-and-manual-ending.md) | Hak Pakai expiry reminders, masa tenggang and manual ending | resolved | 40 |
