@@ -18,3 +18,4 @@ Make the failure diagnosable before guessing: when the seed command exits non-ze
 ## Comments
 
 - 2026-10-02 — Filed by the orchestrator; one re-run spent (passed).
+- 2026-10-02 — Two-axis review (code-review skill, fixed point origin/main, branch at 7019245). Standards: 0 hard; judgement — the result type `{ exitCode; output }` written inline in `expectBerhasil` (possible Data Clump if the command exports one). Spec: AC 1 met (every success check uses the helper; the new test forces a real non-zero exit and asserts the command's own text); AC 2 open by design, so this ticket stays open after the merge. No fix pass.

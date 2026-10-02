@@ -29,3 +29,4 @@ Refund of a paid cancellation was settled on 2026-09-25 (see 00-index).
 ## Comments
 
 - 2026-09-26 — ADR 0004: the Makam TPU records the Pemegang Hak's phone and, when known, email (it shows in the Akun with that Email Terverifikasi); IPTM expiry reminders go by email (ticket 48).
+- 2026-10-02 — Owner decision 2026-10-02 ("ya setuju semua" to the orchestrator's list of open questions; small concrete choices put to the owner directly, recorded here as settled): spec gap 6 settled — the Surat Kuasa PDF is served through a **short-lived signed URL**, as AGENTS.md's Privacy rule already requires for family documents (never an unguessable-but-permanent link). Other open gaps of this ticket unchanged.
