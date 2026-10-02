@@ -98,6 +98,14 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
       </header>
 
       {order.status === "ditolak" && pemesanUlang ? <Ditolak order={order} pemesanUlang={pemesanUlang} /> : null}
+      {order.status === "ditolak" && order.kind === "tumpang" ? (
+        <section className="flex flex-col gap-3" data-testid="tumpang-ditolak">
+          <h2 className="text-title-3 text-foreground">Permintaan pemakaman tidak dapat dilaksanakan</h2>
+          <p className="text-body text-muted-foreground">
+            Hak Pakai makam itu tidak berubah dan tidak ada yang perlu dibayar. Hubungi {order.lokasi.name} untuk membicarakan langkah berikutnya.
+          </p>
+        </section>
+      ) : null}
 
       {order.alternatif ? (
         <AlternatifForm

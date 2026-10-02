@@ -92,6 +92,8 @@ export interface PemesananNotifikasi {
   pesananDibatalkan(hasil: PesananDibatalkan): Promise<void>;
   /** The Pemegang Hak consent request for a further burial: an ordinary email with a link to Akun Saya, no code (ticket 35, owner 2026-10-02). */
   tumpangMintaPersetujuan(hasil: TumpangMintaPersetujuan): Promise<void>;
+  /** A further burial refused by the Lokasi or the Pemegang Hak: its own wording, with the Kontak Siaga to call and no Pilih makam. */
+  tumpangDitolak(hasil: TumpangDitolak): Promise<void>;
   /**
    * The Bukti Pemesanan of a paid order: the link to the document that proves the
    * right (ADR 0004 — by email; an order with no email opens the call row, and
@@ -287,6 +289,18 @@ export interface PesananAlternatifDitawarkan {
 }
 
 /** A cancelled Pemesanan Makam as its family is told about it: what was given back, and what is on its way. */
+/** A refused further burial, as its family is told. */
+export interface TumpangDitolak {
+  pemesananId: string;
+  nomor: string;
+  email: string | null;
+  pemesanName: string;
+  lokasi: { id: string; name: string };
+  alasan: string;
+  almarhum: { name: string; tanggalWafat: string };
+  kontakSiaga: { name: string; phoneNumber: string | null } | null;
+}
+
 /** What the Pemegang Hak consent request needs: who is asked, by whom, about whom, where. */
 export interface TumpangMintaPersetujuan {
   pemesananId: string;

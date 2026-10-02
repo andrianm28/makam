@@ -170,6 +170,7 @@ export type {
   PemesananDiajukan,
   PesananDibatalkan,
   PemesananAhliWaris,
+  TumpangDitolak,
   TumpangMintaPersetujuan,
   PemesananDikonfirmasi,
   PesananDitolak,

@@ -74,6 +74,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       // A Pengajuan Wakaf's status change (ticket 58): transactional.
       "wakaf_status",
       "tumpang_minta_persetujuan",
+      "tumpang_ditolak",
     ]);
     expect(WAKTU_TEMPLATE.hak_pakai_berakhir_pengingat).toBe("pengingat");
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);

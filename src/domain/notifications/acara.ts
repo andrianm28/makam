@@ -59,6 +59,8 @@ export const TEMPLATE_EMAIL = [
   "wakaf_status",
   // The Pemegang Hak asked to answer a further burial under their Hak Pakai (ticket 35): a link to Akun Saya, no code of its own.
   "tumpang_minta_persetujuan",
+  // A further burial refused (by the Lokasi or the Pemegang Hak): its own wording, no Pilih makam (ticket 35).
+  "tumpang_ditolak",
 ] as const;
 export type TemplateEmail = (typeof TEMPLATE_EMAIL)[number];
 
@@ -114,6 +116,7 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   lokasi_berhenti: "transaksional",
   wakaf_status: "transaksional",
   tumpang_minta_persetujuan: "transaksional",
+  tumpang_ditolak: "transaksional",
 };
 
 /** True for a template of this module's, whose send waits for the window when it is a reminder. */
@@ -156,6 +159,7 @@ export const TABEL_ACARA: Record<
   | "lokasi_berhenti"
   | "wakaf_status"
   | "tumpang_minta_persetujuan"
+  | "tumpang_ditolak"
   | "peringatan_staf",
   Acara
 > = {
@@ -321,6 +325,12 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "tumpang_minta_persetujuan",
     waktu: WAKTU_TEMPLATE.tumpang_minta_persetujuan,
+  },
+  tumpang_ditolak: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "tumpang_ditolak",
+    waktu: WAKTU_TEMPLATE.tumpang_ditolak,
   },
   /**
    * The staff events, one Peringatan Staf per kind (the module's

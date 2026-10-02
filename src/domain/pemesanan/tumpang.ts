@@ -22,6 +22,8 @@ import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { foldKey } from "@/lib/fold-key";
 import { linesOf } from "./konfirmasi-saat-duka";
 import { penerimaOf } from "./saat-duka";
+import { ALASAN_TOLAK } from "./alasan-tolak";
+import { umumkanTumpangDitolak } from "./tolak";
 import { tagihanPerluDibayar, type NewTagihanLine, type Tagihan } from "@/domain/billing";
 import type { PemesananDeps } from "./deps";
 import { pemesananMakam, pemesananTerencana, pemesananTerencanaUnit, tumpangJenisKeys } from "./schema";
@@ -193,6 +195,7 @@ export async function jawabKonsenTumpang(deps: PemesananDeps, by: Pick<Actor, "a
     .update(pemesananMakam)
     .set({ status: "ditolak", konsenState: "ditolak", konsenVia: "email", konsenDiputuskanPada: now, ditolakPada: now, alasanTolak: "pemegang_hak_tidak_setuju" })
     .where(and(eq(pemesananMakam.id, order.id), eq(pemesananMakam.konsenState, "menunggu_pemegang")));
+  await umumkanTumpangDitolak(deps, order, ALASAN_TOLAK.pemegang_hak_tidak_setuju);
   return { ok: true, pesanan: { nomor: order.nomor, status: "ditolak" } };
 }
 

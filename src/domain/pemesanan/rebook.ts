@@ -65,7 +65,8 @@ export async function rebookPesanan(
     .select()
     .from(pemesananMakam)
     .where(and(eq(pemesananMakam.nomor, nomor), eq(pemesananMakam.pemesanAccountId, pemesan.accountId)));
-  if (!row || row.status !== "ditolak") return null;
+  // A further burial has no Pilih makam to go back to (ticket 35): its refusal has its own wording and no rebook.
+  if (!row || row.status !== "ditolak" || row.kind === "tumpang") return null;
   // A Ditolak order always carries a reason off the closed list; one that does not
   // is a hole in the data, and a hole is no reason to send a family back from.
   const alasan = alasanOrder(row.alasanTolak, null);

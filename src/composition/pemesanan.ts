@@ -41,6 +41,7 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
       pesananAlternatifDitawarkan: async () => {},
       pesananDibatalkan: async () => {},
       tumpangMintaPersetujuan: async () => {},
+      tumpangDitolak: async () => {},
       pesananBuktiPemesanan: async () => {},
       terencanaDiajukan: async () => {},
       terencanaDikonfirmasi: async () => {},
@@ -85,6 +86,9 @@ export function pemesananNotifikasiDari(notifications: Notifications | undefined
     },
     pesananAlternatifDitawarkan: async (hasil) => {
       await notifications.pesananAlternatifDitawarkan(hasil);
+    },
+    tumpangDitolak: async (hasil) => {
+      await notifications.tumpangDitolak(hasil);
     },
     tumpangMintaPersetujuan: async (hasil) => {
       await notifications.tumpangMintaPersetujuan(hasil);

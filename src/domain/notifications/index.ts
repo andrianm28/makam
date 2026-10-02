@@ -97,6 +97,8 @@ import {
   pesananDibatalkan,
   tumpangMintaPersetujuan,
   type TumpangMintaPersetujuanInput,
+  tumpangDitolak,
+  type TumpangDitolakInput,
   pesananBuktiPemesanan,
   pesananDiajukan,
   pesananDikonfirmasi,
@@ -469,6 +471,8 @@ export interface Notifications {
   pesananDibatalkan(input: PesananDibatalkanInput): Promise<PesanPemesananResult>;
   /** The Pemegang Hak consent request for a further burial: an ordinary email with a link to Akun Saya (ticket 35). */
   tumpangMintaPersetujuan(input: TumpangMintaPersetujuanInput): Promise<PesanPemesananResult>;
+  /** A further burial refused: its own message, no Pilih makam (ticket 35). */
+  tumpangDitolak(input: TumpangDitolakInput): Promise<PesanPemesananResult>;
   /**
    * Announces the Bukti Pemesanan of a paid order: the link to the document that
    * proves the right, by email (ADR 0004; ticket 25). An order with no email
@@ -909,6 +913,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pesananAlternatifDitawarkan(input) {
       return pesananAlternatifDitawarkan(deps, input);
+    },
+
+    async tumpangDitolak(input) {
+      return tumpangDitolak(deps, input);
     },
 
     async tumpangMintaPersetujuan(input) {

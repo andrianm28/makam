@@ -833,3 +833,39 @@ export function tumpangMintaPersetujuanEmail(input: TumpangMintaPersetujuanEmail
     ].join("\n"),
   };
 }
+
+export interface TumpangDitolakEmailInput {
+  nomor: string;
+  lokasiName: string;
+  almarhumName: string;
+  alasan: string;
+  tautan: string;
+  /** The Lokasi's Kontak Siaga, the person to call; null while none is picked. */
+  kontakSiaga: { name: string; phoneNumber: string | null } | null;
+}
+
+/**
+ * A further burial refused, by the Lokasi or by the Pemegang Hak (ticket 35). Not the Saat Duka refusal: there is no plot
+ * to choose elsewhere, the Hak Pakai is unaffected and nothing is due, so it names the reason and whom to call.
+ */
+export function tumpangDitolakEmail(input: TumpangDitolakEmailInput): { subject: string; body: string } {
+  const kontak = input.kontakSiaga
+    ? `Silakan hubungi ${input.kontakSiaga.name || `Admin ${input.lokasiName}`}${input.kontakSiaga.phoneNumber ? ` di ${input.kontakSiaga.phoneNumber}` : ""} untuk membicarakan langkah berikutnya.`
+    : `Silakan hubungi ${input.lokasiName} untuk membicarakan langkah berikutnya.`;
+  return {
+    subject: `Permintaan pemakaman ${input.nomor} tidak dapat dilaksanakan`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Permintaan pemakaman ${input.almarhumName} di makam yang sudah ada di ${input.lokasiName} tidak dapat dilaksanakan.`,
+      `Alasannya: ${input.alasan}.`,
+      "Hak Pakai makam itu tidak berubah, dan tidak ada yang perlu dibayar.",
+      kontak,
+      "",
+      `Detail pesanan Anda di: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
