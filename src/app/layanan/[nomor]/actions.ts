@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { pesananLayananResource } from "@/domain/identity";
 import { ajukanKeluhanSchema, batalkanPekerjaanSchema, beriPenilaianSchema, kirimPesanThreadSchema } from "@/domain/layanan/pesanan-schema";
-import { ajukanKeluhanTpuSchema } from "@/domain/layanan/tpu-skema";
+import { ajukanKeluhanTpuSchema, pekerjaanTpuIdSchema } from "@/domain/layanan/tpu-skema";
 import { keluhanMessages, layananBatalMessages, penilaianMessages } from "@/lib/layanan-labels";
-import { keluhanTpuMessages } from "@/lib/layanan-tpu-labels";
+import { batalkanPekerjaanTerlambatTpuMessages, keluhanTpuMessages } from "@/lib/layanan-tpu-labels";
 import { pesanThreadMessages, type PesanThreadState } from "@/lib/thread-labels";
 import { inputPesanThread } from "@/server/thread-form";
 import { guarded } from "@/server/guard";
@@ -129,4 +129,25 @@ export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, f
   revalidatePath(`/pengurusan/${nomor}`);
   if (gagal) return { status: "gagal", message: refusalMessage(gagal, keluhanTpuMessages) };
   return { status: "berhasil", message: "Keluhan Anda sudah kami terima. Kami akan menghubungi Anda secepatnya." };
+}
+
+/**
+ * The Pemesan cancels a Terlambat TPU job of their own order (ticket 57). Thin, in order: authenticate, check the
+ * role, validate with Zod, call the Layanan module, which decides that the job really is Terlambat and what comes back.
+ */
+export async function batalkanPekerjaanTerlambatTpuPemesan(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: pekerjaanTpuIdSchema,
+    input: { pekerjaanId: formData.get("pekerjaanId") },
+    run: (actor, data) => serverRuntime().layanan.batalkanPekerjaanTerlambatTpuOlehPemesan({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  const gagal = !result.ok ? result.error : !result.value.ok ? result.value.reason : null;
+  revalidatePath(`/layanan/${nomor}`);
+  // A hari-H item of a Saat Duka order is read on the Pengurusan page too.
+  revalidatePath(`/pengurusan/${nomor}`);
+  if (gagal) return { status: "gagal", message: refusalMessage(gagal, batalkanPekerjaanTerlambatTpuMessages) };
+  return { status: "berhasil", message: "Pekerjaan dibatalkan. Dana pekerjaan ini kami kembalikan." };
 }

@@ -4,6 +4,7 @@ import { keluhanStatusLabels, labelBuktiPekerjaan } from "@/lib/layanan-labels";
 import { keluhanTpuPenjelasan, pekerjaanTpuStatusLabels } from "@/lib/layanan-tpu-labels";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import { BatalkanPekerjaanTerlambatTpu } from "./batalkan-terlambat-tpu";
 import { AjukanKeluhanTpu } from "./keluhan";
 
 /**
@@ -69,6 +70,7 @@ export function PekerjaanTpuDaftar({ order, renderThread }: { order: PesananTpuT
           {satu.keluhan.bolehDiajukan && satu.keluhan.berakhirAt ? (
             <AjukanKeluhanTpu pekerjaanId={satu.id} nomor={nomor} berakhirPada={formatTanggalJam(satu.keluhan.berakhirAt)} />
           ) : null}
+          {satu.status === "terlambat" ? <BatalkanPekerjaanTerlambatTpu pekerjaanId={satu.id} nomor={nomor} /> : null}
           {renderThread ? <div className="mt-3">{renderThread(satu.id)}</div> : null}
         </li>
       ))}
