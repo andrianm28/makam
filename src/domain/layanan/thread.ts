@@ -23,6 +23,7 @@ import { z } from "zod";
 import { akunResource, lokasiMitraResource, normaliseEmail, pekerjaanTpuSemuaResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
 import { BUKTI_MAX_BYTES, buktiUrl } from "./bukti";
+import { jendelaKeluhanTpu } from "./bukti-tpu-baca";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { kirimPesanThreadSchema } from "./pesanan-schema";
 import {
@@ -108,9 +109,9 @@ async function bacaKonteks(deps: Pick<LayananDeps, "db">, pekerjaanId: string): 
     lokasi: null,
     pemesanAccountId: tpu.pemesanAccountId,
     pemesanEmail: tpu.pemesanEmail,
-    // The TPU's Keluhan window is ticket 57's (the proof is approved by Admin Platform); until it sets a closing
-    // signal a TPU thread closes only when the job is cancelled.
-    tertutup: tpu.status === "dibatalkan",
+    // The window-close tick sets `jendelaDitutupAt` once the TPU Keluhan window (opened by Admin Platform's approval
+    // of the proof) has ended with no Keluhan open; a cancelled job closes its thread too.
+    tertutup: tpu.status === "dibatalkan" || (await jendelaKeluhanTpu(deps.db, tpu.id))?.ditutup === true,
   };
 }
 
