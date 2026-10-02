@@ -5,6 +5,8 @@
  * tenure clock alone.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { tagihan as tagihanTable } from "@/domain/billing/schema";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { adminPlatformOf } from "../../../tests/support/identity";
@@ -294,6 +296,26 @@ describe("Makamkan di sini", () => {
     expect(await setup.pemesanan.orderUntukStaf(lokasi.adminLokasi, placed.pesanan.nomor)).toMatchObject({ status: "dibatalkan", buktiPemesananId: null });
     // The right itself is untouched.
     expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))?.status).toBe("aktif");
+  });
+
+  it("never lets Tidak Tertagih on a further burial's Tagihan end the Hak Pakai", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "pemegang@contoh.id", "Siti Aminah");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001", email: "pemegang@contoh.id" });
+    const placed = (await ajukan(setup, lokasi, hakPakaiId, pemesan)) as { pesanan: { nomor: string } };
+    const konfirmasi = await setup.pemesanan.konfirmasiTumpang(lokasi.adminLokasi, { nomor: placed.pesanan.nomor, pemakamanAt: "2026-10-02T10:00" });
+    if (!konfirmasi.ok) throw new Error(`konfirmasiTumpang refused: ${konfirmasi.reason}`);
+
+    // The overdue list offers "Akhiri Hak Pakai" only for a Saat Duka grant's own Tagihan: this one offers none.
+    expect(await setup.pemesanan.hakPakaiIdForTagihan(konfirmasi.tagihan.id)).toBeNull();
+    // Even with the Tagihan Tidak Tertagih, ending the Hak Pakai that way is refused and the right stays Aktif.
+    await db.update(tagihanTable).set({ status: "tidak_tertagih" }).where(eq(tagihanTable.id, konfirmasi.tagihan.id));
+    expect(await setup.pemesanan.akhiriHakPakaiTidakTertagih(lokasi.adminLokasi, { hakPakaiId })).toMatchObject({ ok: false });
+    expect((await setup.inventory.hakPakaiUntukTumpang(hakPakaiId))?.status).toBe("aktif");
+    // And it blocks nothing: the Perpanjangan / Ganti Pemegang Hak block reads the grant's own Tagihan only.
+    expect(await setup.pemesanan.isBlockedByOverdueTagihan(hakPakaiId)).toBe(false);
   });
 
   it("tells Payouts when a burial happens in a Pemesanan Terencana's plot, so its Pencairan is due at the first Pemakaman", async () => {
