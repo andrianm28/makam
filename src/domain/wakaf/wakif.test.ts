@@ -57,6 +57,16 @@ describe("Pengajuan Wakaf: the Wakif cancels", () => {
     expect(setup.email.sent.some((surat) => surat.to === "wakif@contoh.id" && surat.subject.endsWith(": Dibatalkan"))).toBe(true);
   });
 
+  it("keeps the Wakif's own cancel reason out of the notes written to the Wakif, and shows it to Admin Platform", async () => {
+    const { setup, admin, wakif, pengajuanId } = await disiapkan();
+
+    expect(await setup.wakaf.batalkanWakaf(wakif, { pengajuanId, alasan: "Tanah dijual" })).toEqual({ ok: true });
+
+    expect((await setup.wakaf.pengajuanSaya(wakif))[0]?.catatan).toEqual([]);
+    const staf = await setup.wakaf.pengajuanStaf(admin, pengajuanId);
+    expect(staf.ok && staf.pengajuan.catatan.map((satu) => satu.isi)).toEqual(["Dibatalkan oleh Wakif: Tanah dijual"]);
+  });
+
   it.each(["menunggu_ikrar", "proses_sertipikat", "selesai"] as const)("cannot cancel from %s on", async (status) => {
     const { setup, admin, wakif, pengajuanId } = await disiapkan();
     await sampai(setup, admin, pengajuanId, status);
