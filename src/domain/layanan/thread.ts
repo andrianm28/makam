@@ -127,15 +127,6 @@ async function mitraJasaPemegang(deps: Pick<LayananDeps, "db">, pekerjaanId: str
 
 const namaDepanOf = (namaLengkap: string) => namaLengkap.trim().split(/\s+/)[0] ?? namaLengkap;
 
-/**
- * Whether a message carries a contact detail: an email address, or a run of nine or more digits (a phone number written
- * with spaces, dots, dashes, brackets or a +62 prefix). A grave's number is shorter than that.
- */
-export function mengandungKontak(teks: string): boolean {
-  if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(teks)) return true;
-  return /\d(?:[\s().-]*\d){8,}/.test(teks);
-}
-
 /* ── who may be in a thread ── */
 
 type Peserta =
@@ -254,13 +245,12 @@ export async function bacaThreadStaf(deps: LayananDeps, by: Actor, pekerjaanId: 
 export type KirimPesanResult =
   | { ok: true; pesanId: string }
   | Extract<AksesThreadResult, { ok: false }>
-  | { ok: false; reason: "input_tidak_valid" | "tertutup" | "kontak_tidak_boleh" | "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" };
+  | { ok: false; reason: "input_tidak_valid" | "tertutup" | "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" };
 
 async function kirim(deps: LayananDeps, akses: Extract<AksesThreadResult, { ok: true }>, input: z.infer<typeof kirimPesanThreadSchema>, by: Actor | null): Promise<KirimPesanResult> {
   const { konteks, peserta } = akses;
   if (konteks.tertutup) return { ok: false, reason: "tertutup" };
   // Admin Platform steps in to protect the family and may name whatever it must; everyone else may not hand over a contact.
-  if (peserta.peran !== "admin_platform" && mengandungKontak(input.teks)) return { ok: false, reason: "kontak_tidak_boleh" };
   const ekstensi: string[] = [];
   for (const foto of input.foto) {
     const ext = documentExtension(foto, FOTO_TYPES);
