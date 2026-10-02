@@ -59,6 +59,8 @@ export async function verifikasiKodeMasukDanKirim(
   _state: KirimState,
   formData: FormData,
 ): Promise<KirimState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   return masukLaluKirim(draftSchema, draft, formData, kirim, pesananPath);
 }
 
@@ -75,6 +77,8 @@ const kotaSchema = z.object({
 
 /** Remembers the city the visitor filtered by, so the next visit starts there, and keeps the type chip it was filtered by. */
 export async function ingatKota(formData: FormData): Promise<void> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = kotaSchema.safeParse({
     kota: formData.get("kota"),
     kembali: formData.get("kembali"),
@@ -160,6 +164,7 @@ async function kirimTerpakai<T extends NamaDanEmail>(
   ) => Promise<KirimState>,
 ): Promise<KirimState> {
   const hasil = await guarded({
+    fitur: "inti",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema,

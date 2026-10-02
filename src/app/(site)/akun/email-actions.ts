@@ -23,6 +23,7 @@ import { serverRuntime } from "@/server/runtime";
 export async function kirimKodeVerifikasi(_previous: EmailRequestState, formData: FormData): Promise<EmailRequestState> {
   const ip = await clientIp();
   const result = await guarded({
+    fitur: "inti",
     action: "akun.email",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({ email: emailInput }),
@@ -51,6 +52,7 @@ export async function kirimKodeVerifikasi(_previous: EmailRequestState, formData
 /** Verifikasi Email, step 2: the code makes its email the Akun's Email Terverifikasi. */
 export async function konfirmasiVerifikasi(_previous: EmailProfileState, formData: FormData): Promise<EmailProfileState> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.email",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({ code: codeInput }),
@@ -72,6 +74,7 @@ export async function konfirmasiVerifikasi(_previous: EmailProfileState, formDat
 /** The Akun's phone number: a contact, validated (+62) and never verified. */
 export async function simpanNomorTelepon(_previous: EmailProfileState, formData: FormData): Promise<EmailProfileState> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.telepon",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({ phoneNumber: phoneNumberInput }),

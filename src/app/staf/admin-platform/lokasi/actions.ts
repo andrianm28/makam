@@ -90,7 +90,7 @@ async function lokasiWrite<S extends z.ZodType<{ lokasiId: string }>, R extends 
 }): Promise<FormState> {
   const { input } = options;
   const result = await guarded({
-    fitur: options.fitur,
+    fitur: options.fitur ?? "inti",
     action: options.action,
     resource: () => lokasiMitraResource(typeof input.lokasiId === "string" ? input.lokasiId : ""),
     schema: options.schema,
@@ -125,6 +125,7 @@ const createSchema = z.object({
 /** Admin Platform starts a Lokasi Mitra's onboarding record, then opens it. */
 export async function buatLokasiMitra(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "lokasi.buat",
     resource: () => semuaLokasiMitraResource(),
     schema: createSchema,

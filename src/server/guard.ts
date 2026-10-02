@@ -41,15 +41,15 @@ export class GuardRejected extends Error {
  * A caller who is not signed in is rejected before anything else happens.
  */
 export async function guarded<S extends z.ZodType, R>(options: {
-  /** The feature (release) this action belongs to; closed, the action answers 404 before step 1. Omitted: Rilis 1. */
-  fitur?: Fitur;
+  /** The feature (release) this action belongs to; closed, the action answers 404 before step 1. Required: a Rilis 1 action says "inti". */
+  fitur: Fitur;
   action: Action;
   resource: (actor: Actor) => Resource;
   schema: S;
   input: unknown;
   run: (actor: Actor, data: z.infer<S>) => Promise<R>;
 }): Promise<Guarded<R>> {
-  if (options.fitur) gerbangAksi(options.fitur);
+  gerbangAksi(options.fitur);
   const actor = await currentActor();
   if (!actor) return { ok: false, error: "belum_masuk" };
 

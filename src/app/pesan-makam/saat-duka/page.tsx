@@ -40,9 +40,10 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
     <PilihMakam
       grup={layar.grup.map((satu) => grupView(satu, layar.foto[satu.lokasi.id] ?? null))}
       tpu={rilisTerbuka("tpu") ? layar.tpu : []}
+      tpuTerbuka={rilisTerbuka("tpu")}
       semuaKota={layar.semuaKota}
       kota={layar.kota}
-      jenis={layar.jenis}
+      jenis={rilisTerbuka("tpu") ? layar.jenis : "semua"}
       kembali={kembaliKe(layar.asal?.id ?? null, layar.dari)}
       dari={layar.dari}
       banner={

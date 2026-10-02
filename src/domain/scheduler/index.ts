@@ -13,7 +13,7 @@
  */
 import type { Database } from "@/db/client";
 import { rilisAktif } from "@/lib/rilis";
-import { fiturUntukTick, terbukaDi } from "@/lib/rilis-peta";
+import { fiturUntukTick, terbukaDi, type Rilis } from "@/lib/rilis-peta";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type PaymentEffect } from "@/domain/billing";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
@@ -165,22 +165,24 @@ export const scheduledTicks: readonly ScheduledTick[] = [
  * feature does nothing when it fires and says so once (never reading its
  * context, so a closed feature sends no message and touches no row).
  */
-export function ticksForRelease(ticks: readonly ScheduledTick[], rilis: number, log: (message: string) => void = console.log): ScheduledTick[] {
+export function ticksForRelease(ticks: readonly ScheduledTick[], rilis: Rilis, log: (message: string) => void = console.log): ScheduledTick[] {
   return ticks.map((scheduled) => {
     const fitur = fiturUntukTick(scheduled.name);
     // A tick with no release is refused by the guard test; at run time it is treated as open.
     if (!fitur || terbukaDi(fitur, rilis)) return scheduled;
-    let said = false;
+    let sudahDicatat = false;
     return {
       ...scheduled,
       tick: async () => {
-        if (said) return;
-        said = true;
+        if (sudahDicatat) return;
+        sudahDicatat = true;
         log(`[worker] ${scheduled.name} skipped: ${fitur} is not open at RILIS_TERBUKA=${rilis}`);
       },
     };
   });
 }
+
+let terlambatTpuDicatat = false;
 
 async function hakPakaiKedaluwarsaTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await ctx.inventory.kedaluwarsaTick(now);
@@ -260,6 +262,10 @@ async function terlambatTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await tandaiTerlambat(ctx.db, now);
   // The TPU jobs are Mitra Jasa's, a Rilis 3 feature (ADR 0006).
   if (terbukaDi("mitra_jasa", rilisAktif())) await tandaiTerlambatTpu(ctx.db, now);
+  else if (!terlambatTpuDicatat) {
+    terlambatTpuDicatat = true;
+    console.log("[worker] layanan.tandai_terlambat: the TPU half is skipped, mitra_jasa is not open");
+  }
 }
 
 /** The worker wrapper around the Layanan module's lapsed-Tagihan tick (idempotent there, as every tick is). */

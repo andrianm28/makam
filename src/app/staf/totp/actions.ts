@@ -18,6 +18,7 @@ export type VerifyTotpState = { status: "idle" } | { status: "gagal"; message: s
 /** Starts TOTP enrolment: shows the secret for the authenticator app. */
 export async function mulaiDaftarTotp(): Promise<EnrolState> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.totp",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({}),
@@ -43,6 +44,7 @@ const codeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/) });
 /** Checks the authenticator code; on success the staff area opens. */
 export async function verifikasiTotp(_previous: VerifyTotpState, formData: FormData): Promise<VerifyTotpState> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.totp",
     resource: (actor) => akunResource(actor.accountId),
     schema: codeSchema,

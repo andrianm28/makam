@@ -14,7 +14,7 @@
 import type { LucideIcon } from "lucide-react";
 import { BadgeCheckIcon, HandHeartIcon, ReceiptTextIcon } from "lucide-react";
 import { tileKeHub } from "@/lib/makam-keluarga-content";
-import { terbukaDi, type Fitur } from "@/lib/rilis-peta";
+import { terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
 
 export interface HomepageTile {
   label: string;
@@ -107,7 +107,7 @@ export const homepageTiles: HomepageTile[] = [
 ];
 
 /** The tiles as the release `rilis` shows them: a tile whose feature is open links to its page, the rest say "Segera hadir" (ADR 0006). */
-export function homepageTilesUntuk(rilis: number): HomepageTile[] {
+export function homepageTilesUntuk(rilis: Rilis): HomepageTile[] {
   return homepageTiles.map((tile) => {
     const { hrefBilaTerbuka, ...rest } = tile;
     return hrefBilaTerbuka && terbukaDi(hrefBilaTerbuka.fitur, rilis) ? { ...rest, href: hrefBilaTerbuka.href } : rest;

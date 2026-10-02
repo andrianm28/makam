@@ -32,7 +32,7 @@ export const fiturRilis = {
 export type Fitur = keyof typeof fiturRilis;
 
 /** Whether a feature is open when `rilis` is the number the environment carries. */
-export function terbukaDi(fitur: Fitur, rilis: number): boolean {
+export function terbukaDi(fitur: Fitur, rilis: Rilis): boolean {
   return fiturRilis[fitur] <= rilis;
 }
 
@@ -150,7 +150,10 @@ export function fiturUntukTick(name: string): Fitur | undefined {
 
 const segmen = (path: string) => path.split("/").filter(Boolean);
 
-function cocok(pattern: string, parts: string[]): number | null {
+/** How well a pattern fits a route, or null when it does not fit; the higher score is the more specific pattern. */
+const SKOR_PER_SEGMEN = 1000;
+const SKOR_PER_SEGMEN_TETAP = 10;
+function skorKecocokan(pattern: string, parts: string[]): number | null {
   const prefix = pattern.endsWith("/**");
   const patternParts = segmen(prefix ? pattern.slice(0, -3) : pattern);
   if (prefix ? parts.length < patternParts.length : parts.length !== patternParts.length) return null;
@@ -160,8 +163,8 @@ function cocok(pattern: string, parts: string[]): number | null {
     if (part !== parts[index]) return null;
     literal += 1;
   }
-  // The longer, the more literal and the more exact pattern wins.
-  return patternParts.length * 1000 + literal * 10 + (prefix ? 0 : 1);
+  // Longer, then more literal segments, then an exact route over a prefix.
+  return patternParts.length * SKOR_PER_SEGMEN + literal * SKOR_PER_SEGMEN_TETAP + (prefix ? 0 : 1);
 }
 
 /** The feature a route belongs to; undefined when no pattern covers it (which the guard test refuses). */
@@ -171,7 +174,7 @@ export function fiturUntukRute(path: string, search = ""): Fitur | undefined {
   if (parts.length === 1 && parts[0] === "lokasi" && new URLSearchParams(search).get("jenis") === "tpu") return "tpu";
   let terbaik: { skor: number; fitur: Fitur } | undefined;
   for (const [pattern, fitur] of peraturanRute) {
-    const skor = cocok(pattern, parts);
+    const skor = skorKecocokan(pattern, parts);
     if (skor !== null && (!terbaik || skor > terbaik.skor)) terbaik = { skor, fitur };
   }
   return terbaik?.fitur;

@@ -10,7 +10,7 @@ function pages(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return pages(path);
-    return name === "page.tsx" ? [path] : [];
+    return name === "page.tsx" || (name === "route.ts" && !relative(appDir, path).startsWith(`api${sep}`)) ? [path] : [];
   });
 }
 
@@ -21,7 +21,7 @@ function routeOf(file: string): string {
 }
 
 describe("Release gate guard (ADR 0006)", () => {
-  it("every page has a release: a new page under an unmapped area fails here until it is added to the map", () => {
+  it("every page and route handler (outside /api) has a release: a new page under an unmapped area fails here until it is added to the map", () => {
     const unmapped = pages(appDir)
       .map(routeOf)
       .filter((route) => fiturUntukRute(route) === undefined);

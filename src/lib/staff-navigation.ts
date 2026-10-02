@@ -25,7 +25,13 @@ import {
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
-import { fiturUntukRute, terbukaDi } from "@/lib/rilis-peta";
+import { fiturUntukRute, terbukaDi, type Rilis } from "@/lib/rilis-peta";
+
+/** A page no release covers is closed, never open by default (the guard test refuses unmapped routes). */
+function bukaDi(href: string, rilis: Rilis): boolean {
+  const fitur = fiturUntukRute(href);
+  return fitur !== undefined && terbukaDi(fitur, rilis);
+}
 import type { StaffRole } from "@/domain/identity";
 import { staffRoleHome, staffRoleSlugs } from "@/lib/staff-area-path";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
@@ -68,13 +74,13 @@ function beranda(href: string, description: string): NavItem {
  * home derives its cards from it). An Admin Lokasi's menu is scoped to the
  * Lokasi Mitra it is working on (`lokasiId`, from the page's URL).
  */
-export function staffMenu(role: StaffRole, scope: { lokasiId?: string; rilis?: number } = {}): NavGroup[] {
+export function staffMenu(role: StaffRole, scope: { lokasiId?: string; rilis?: Rilis } = {}): NavGroup[] {
   const groups = semuaStaffMenu(role, scope);
   if (scope.rilis === undefined) return groups;
   // An item whose feature the environment has not opened is hidden (ADR 0006).
   const { rilis } = scope;
   return groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => !item.href || terbukaDi(fiturUntukRute(item.href) ?? "inti", rilis)) }))
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.href || bukaDi(item.href, rilis)) }))
     .filter((group) => group.items.length > 0);
 }
 
@@ -303,7 +309,7 @@ export function hasBottomNav(role: StaffRole): boolean {
 }
 
 /** A field role's bottom navigation items, in order (its whole menu, one group). */
-export function bottomNavItems(role: StaffRole, rilis?: number): NavItem[] {
+export function bottomNavItems(role: StaffRole, rilis?: Rilis): NavItem[] {
   return staffMenu(role, { rilis }).flatMap((group) => group.items);
 }
 
@@ -324,7 +330,7 @@ export interface PaletteGroup {
  * menu once for each Lokasi Mitra in `lokasi`, which must be only its own
  * (the server passes exactly those).
  */
-export function staffPalette(role: StaffRole, lokasi: readonly { id: string; name: string }[], rilis?: number): PaletteGroup[] {
+export function staffPalette(role: StaffRole, lokasi: readonly { id: string; name: string }[], rilis?: Rilis): PaletteGroup[] {
   const linked = (groups: NavGroup[], label?: string): PaletteGroup[] =>
     groups
       .map((group) => ({
@@ -351,7 +357,7 @@ export function staffPalette(role: StaffRole, lokasi: readonly { id: string; nam
 }
 
 /** A role's pages other than its Beranda: the cards on the role's home. */
-export function staffPages(role: StaffRole, scope: { lokasiId?: string; rilis?: number } = {}): NavItem[] {
+export function staffPages(role: StaffRole, scope: { lokasiId?: string; rilis?: Rilis } = {}): NavItem[] {
   return staffMenu(role, scope)
     .flatMap((group) => group.items)
     .filter((item) => !item.isBeranda);

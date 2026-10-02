@@ -14,6 +14,7 @@ import { endCurrentSession } from "@/server/session";
  */
 export async function keluar(): Promise<void> {
   const result = await guarded({
+    fitur: "inti",
     action: "akun.keluar",
     resource: (actor) => akunResource(actor.accountId),
     schema: z.object({}),

@@ -37,6 +37,7 @@ const setujuiSchema = z.object({
  */
 export async function setujuiPengembalianAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pengembalian.kelola",
     resource: () => pengembalianResource(),
     schema: setujuiSchema,
@@ -68,6 +69,7 @@ const isiRekeningSchema = z.object({ permintaanId: z.uuid(), rekening: rekeningS
 /** Admin Platform records the bank account on the Pemesan's behalf (e.g. taken by phone). */
 export async function isiRekeningAdminAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pengembalian.kelola",
     resource: () => pengembalianResource(),
     schema: isiRekeningSchema,
@@ -96,6 +98,7 @@ const GAGAL_TRANSFER: Record<string, string> = {
 export async function terbitkanBuktiPengembalianDanaAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const bukti = await buktiFromForm(formData);
   const result = await guarded({
+    fitur: "inti",
     action: "pengembalian.kelola",
     resource: () => pengembalianResource(),
     schema: z.object({ permintaanId: z.uuid(), ditransferPada: z.string(), bukti: z.object({ body: z.instanceof(Uint8Array), contentType: z.string() }) }),
@@ -120,6 +123,7 @@ const goodwillSchema = z.object({
 /** Admin Platform raises a goodwill refund on any Tagihan: from the Operator's own funds, never netted. */
 export async function ajukanGoodwillAction(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pengembalian.kelola",
     resource: () => pengembalianResource(),
     schema: goodwillSchema,

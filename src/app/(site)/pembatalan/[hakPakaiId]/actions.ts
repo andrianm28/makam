@@ -32,6 +32,7 @@ function segarkan(hakPakaiIdMentah: FormDataEntryValue | null, nomor?: string): 
  */
 export async function ajukanPembatalanAction(_previous: PembatalanActionState, formData: FormData): Promise<PembatalanActionState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanPembatalanTerencanaSchema,
@@ -47,6 +48,7 @@ export async function ajukanPembatalanAction(_previous: PembatalanActionState, f
 /** The Pemegang Hak files a request the Lokasi Mitra sent back for a fix again (Perlu Perbaikan ↺ Diajukan). */
 export async function ajukanUlangPembatalanAction(_previous: PembatalanActionState, formData: FormData): Promise<PembatalanActionState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: ajukanUlangPembatalanTerencanaSchema,
@@ -62,6 +64,7 @@ export async function ajukanUlangPembatalanAction(_previous: PembatalanActionSta
 /** The Pemegang Hak withdraws the request before a decision: nothing on the Hak Pakai changed, and it may be asked again. */
 export async function batalkanPermintaanPembatalanAction(_previous: PembatalanActionState, formData: FormData): Promise<PembatalanActionState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pembatalan.ajukan",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: permintaanPembatalanTerencanaSchema,

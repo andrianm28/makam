@@ -1,5 +1,6 @@
 "use server";
 
+import { gerbangAksi } from "@/server/guard";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -26,6 +27,8 @@ const verifySchema = z.object({ email: emailInput, code: codeInput });
 
 /** Sends (or re-sends) the Kode Masuk to the email typed; the same reply for every email. */
 export async function kirimKodeMasuk(_previous: KodeMasukRequestState, formData: FormData): Promise<KodeMasukRequestState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const typed = formData.get("email");
   const parsed = requestSchema.safeParse({ email: typed });
   if (!parsed.success) return { status: "gagal", message: identityMessage("email_tidak_valid") };
@@ -47,6 +50,8 @@ export async function kirimKodeMasuk(_previous: KodeMasukRequestState, formData:
  * Saya, or the staff area for staff.
  */
 export async function masukDenganKodeMasuk(_previous: KodeMasukVerifyState, formData: FormData): Promise<KodeMasukVerifyState> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = verifySchema.safeParse({ email: formData.get("email"), code: formData.get("code") });
   if (!parsed.success) return { status: "gagal", message: "Masukkan 6 angka Kode Masuk dari email Anda." };
 

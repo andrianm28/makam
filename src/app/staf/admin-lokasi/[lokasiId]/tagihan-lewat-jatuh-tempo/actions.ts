@@ -18,6 +18,7 @@ import { guardMessage } from "../../../messages";
 export async function tambahCatatanTagihanLokasi(_previous: FormState, formData: FormData): Promise<FormState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "telepon_pemesan.catat_lokasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: tambahCatatanTagihanSchema,
@@ -45,6 +46,7 @@ const GAGAL_AKHIRI: Record<string, string> = {
 export async function akhiriHakPakaiTidakTertagih(_previous: FormState, formData: FormData): Promise<FormState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "hak_pakai.akhiri_tidak_tertagih",
     resource: () => lokasiMitraResource(lokasiId),
     schema: z.object({ hakPakaiId: z.uuid(), alasan: z.string().trim().max(500).optional() }),
