@@ -98,6 +98,7 @@ import {
   type OrderTerencanaAntrean,
   type OrderTerencanaStaf,
 } from "./reads-terencana-staf";
+import { nomorTerencanaAktifDiLokasi, pesananBerjalanDiLokasi, type PesananBerjalan } from "./pesanan-di-lokasi";
 import {
   denahTerencana,
   kotaTerencana,
@@ -203,6 +204,7 @@ export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } fro
 export { DOKUMEN_MAX_BYTES, DOKUMEN_URL_SECONDS, centangDokumenSchema, unggahDokumenSchema } from "./berkas";
 export type { CalonPenghuniTerencana, PemegangHak, PemesananKind, PemesananStatus, PemesananTerencanaStatus, SyaratTerencana } from "./schema";
 export { pemesananTerencanaStatuses } from "./schema";
+export type { PesananBerjalan } from "./pesanan-di-lokasi";
 export { HARGA_BANDS } from "./terencana";
 export {
   konfirmasiTerencanaSchema,
@@ -382,6 +384,10 @@ export interface Pemesanan {
   placeTerencana(input: unknown): Promise<PlaceTerencanaResult>;
   /** The placed Terencana order as its own Pemesan reads it, with the Syarat it was placed under (its own snapshot, never the Lokasi's current policy). */
   terencanaOf(nomor: string, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder | null>;
+  /** The orders a Lokasi Mitra still has running (ticket 59): who is told at its Berhenti decision, and which paid Terencana orders its Pencairan release names. */
+  pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]>;
+  /** The Nomor Pemesanan of the paid, Aktif Pemesanan Terencana of a Lokasi Mitra: what its Berhenti releases the Pencairan of. */
+  nomorTerencanaAktifDiLokasi(lokasiId: string): Promise<string[]>;
   /** Every Pemesanan Terencana of that Akun, newest first: Akun Saya's Pesanan tab lists them with the Saat Duka orders. */
   terencanaSaya(pemesan: { accountId: string }): Promise<PemesananTerencanaOrder[]>;
   /**
@@ -501,6 +507,8 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
+    pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi(deps, lokasiId),
+    nomorTerencanaAktifDiLokasi: (lokasiId) => nomorTerencanaAktifDiLokasi(deps, lokasiId),
     terencanaSaya: (pemesan) => terencanaSaya(deps, pemesan),
     konfirmasiTerencana: (by, input) => konfirmasiTerencana(deps, by, input),
     tolakTerencana: (by, input) => tolakTerencana(deps, by, input),

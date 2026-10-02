@@ -56,6 +56,7 @@ import {
   potonganOfLokasi,
   potonganPerluOffline,
   tickPotonganUsia,
+  potonganBerhenti,
   type BarisPotonganUmum,
   type CatatPotonganInput,
   type CatatPotonganLunasResult,
@@ -86,7 +87,7 @@ import {
   type TerbitkanBuktiInput,
   type TerbitkanBuktiResult,
 } from "./transfer";
-import { masaPembatalanDimulai, pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
+import { lepaskanTerencanaBerhenti, masaPembatalanDimulai, pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
 
 export { NAMA_EFEK_PENCAIRAN, efekPencairanSaatLunas } from "./efek";
 export { BIAYA_LAYANAN_PLATFORM, TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
@@ -160,6 +161,8 @@ export interface Payouts {
    * the transaction that makes the order Aktif; the item itself is the tick's.
    */
   masaPembatalanDimulai(tx: Database, input: { nomorPemesanan: string; berakhirPada: Date }): Promise<void>;
+  /** A Lokasi Mitra went Berhenti: the held Pencairan of these Pemesanan Terencana is released now (ticket 59). Idempotent; the Nomor Pemesanan released. */
+  lepaskanTerencanaBerhenti(nomorPemesanan: readonly string[]): Promise<string[]>;
   /**
    * Worker tick: every order whose Tagihan is Lunas **and** whose Pemakaman is
    * recorded gets its Pencairan items, due from the later of the two instants; a
@@ -264,6 +267,8 @@ export interface Payouts {
   catatPotonganLunas(by: Actor, input: { potonganId: string; dibayarPada: string }): Promise<CatatPotonganLunasResult>;
   /** Worker tick: a Potongan 60 days old becomes an offline request, which Admin Platform records when it is paid. Idempotent. */
   tickPotongan(now?: Date): Promise<string[]>;
+  /** A Lokasi Mitra went Berhenti: its running Potongan become offline requests at once (ticket 59). Idempotent; the ids moved. */
+  potonganBerhenti(lokasiId: string): Promise<string[]>;
   /** What one Lokasi Mitra still owes, whatever its state. */
   potonganOfLokasi(lokasiId: string): Promise<BarisPotonganUmum[]>;
   /** Every Potongan waiting to be paid offline, oldest first. */
@@ -305,6 +310,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
   return {
     pemakamanTercatat: (tx, input) => pemakamanTercatat(tx, input),
     masaPembatalanDimulai: (tx, input) => masaPembatalanDimulai(tx, input),
+    lepaskanTerencanaBerhenti: (nomorPemesanan) => lepaskanTerencanaBerhenti(deps.db, nomorPemesanan, deps.clock.now()),
     tick: (now) => tickPencairan(pemicu, now ?? deps.clock.now()),
     tenggat: async (dueAt) => tenggat(deps.lokasi, dueAt),
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),
@@ -329,6 +335,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),
     tickPotongan: (now) => tickPotonganUsia(deps.db, now ?? deps.clock.now()),
+    potonganBerhenti: (lokasiId) => potonganBerhenti(deps.db, lokasiId, deps.clock.now()),
     potonganOfLokasi: (lokasiId) => potonganOfLokasi(deps.db, lokasiId),
     potonganPerluOffline: () => potonganPerluOffline(deps.db),
     pencairanJatuhTempo: () => pencairanJatuhTempo(deps.db),

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { LandPlot } from "lucide-react";
 import { EmptyState } from "@/components/makam/empty-state";
 import { documentPagePath } from "@/lib/document-links";
-import { kartuMakamSaya } from "@/lib/makam-keluarga-content";
+import { kartuMakamSaya, type PengelolaLokasi } from "@/lib/makam-keluarga-content";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { currentActor } from "@/server/session";
 import { serverRuntime } from "@/server/runtime";
@@ -30,6 +30,21 @@ export default async function AkunMakamPage() {
 
   const [unit, cards] = await Promise.all([inventory.makamKeluargaSaya({ email: actor.email }), lokasi.publicLokasiMitraList()]);
   const namaLokasi = new Map(cards.map((card) => [card.id, card.name]));
+  // A Lokasi that is Ditangguhkan or Berhenti is off the public list, but its Hak Pakai stays on this tab:
+  // name it from the status-aware profile, and mark the ones whose Berhenti has taken effect read-only.
+  const lokasiBerhenti = new Map<string, PengelolaLokasi>();
+  for (const lokasiId of new Set(unit.map((satu) => satu.lokasiId))) {
+    const profil = await lokasi.publicLokasiMitraTampil(lokasiId);
+    if (profil && !namaLokasi.has(lokasiId)) namaLokasi.set(lokasiId, profil.name);
+    if (profil && !(await lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan) {
+      lokasiBerhenti.set(lokasiId, {
+        pengelolaName: profil.pengelolaName,
+        address: profil.address,
+        telepon: profil.pengelolaTelepon,
+        email: profil.pengelolaEmail,
+      });
+    }
+  }
   // Which of them can be cancelled (or has a request open): the module decides, and says nothing for a Hak Pakai that is no Terencana order's.
   const pembatalan = new Map(
     await Promise.all(
@@ -43,6 +58,7 @@ export default async function AkunMakamPage() {
         satu,
         namaLokasi,
         bukti.map((satuBukti) => ({ nomor: satuBukti.nomor, href: documentPagePath(satuBukti.link) })),
+        lokasiBerhenti,
       );
     }),
   );
@@ -95,13 +111,21 @@ export default async function AkunMakamPage() {
             </Link>
           </div>
           <p className="text-small text-muted-foreground">{satu.status.arti}</p>
-          {satu.tanggalBerakhir && satu.status.label !== "Berakhir" && satu.status.label !== "Dibatalkan" ? (
+          {satu.hanyaBaca ? (
+            <p className="text-small text-muted-foreground">
+              Kemitraan Lokasi ini sudah berakhir. Catatan dan dokumen tetap bisa dilihat di sini; Perpanjang Makam dan Layanan tidak lagi tersedia.
+              {satu.pengelola
+                ? ` Untuk hal lain, hubungi pengelola: ${[satu.pengelola.name, satu.pengelola.address, satu.pengelola.telepon, satu.pengelola.email].filter(Boolean).join(", ")}.`
+                : ""}
+            </p>
+          ) : null}
+          {!satu.hanyaBaca && satu.tanggalBerakhir && satu.status.label !== "Berakhir" && satu.status.label !== "Dibatalkan" ? (
             <Link href={`/perpanjangan/${satu.hakPakaiId}`} className="text-small font-medium text-brand underline underline-offset-4">
               Perpanjang Makam
             </Link>
           ) : null}
 
-          <PembatalanTautan hakPakaiId={satu.hakPakaiId} info={pembatalan.get(satu.hakPakaiId)} />
+          {satu.hanyaBaca ? null : <PembatalanTautan hakPakaiId={satu.hakPakaiId} info={pembatalan.get(satu.hakPakaiId)} />}
 
           {satu.pemakaman.length > 0 ? (
             <div>

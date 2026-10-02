@@ -15,6 +15,12 @@ function pinOf(row: Row): { lat: number; lng: number } | null {
   return row.pinLat !== null && row.pinLng !== null ? { lat: row.pinLat, lng: row.pinLng } : null;
 }
 
+/** How the pengelola can be reached (null until recorded): what a family reads on a Berhenti Lokasi's read-only Makam card. */
+export interface PengelolaKontak {
+  pengelolaTelepon: string | null;
+  pengelolaEmail: string | null;
+}
+
 /** A Terverifikasi Lokasi Mitra's public profile, everything a visitor's Lokasi page needs but the prices (Tariffs). */
 export interface PublicLokasiMitra {
   id: string;
@@ -77,6 +83,22 @@ export async function publicLokasiMitra(deps: { db: Database }, lokasiId: string
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!row || row.status !== "terverifikasi" || row.dataContoh) return null;
   return toPublicLokasiMitra(row);
+}
+
+/**
+ * A Lokasi Mitra's public profile for a page that stays up after it stops taking new Hak Pakai (ticket 59): the
+ * Lokasi page ("sementara tidak menerima pesanan") and what a Hak Pakai Pemegang Hak still reads. Terverifikasi,
+ * Ditangguhkan or Berhenti, never Belum Tayang or example data; `status` says which. Null otherwise. Order entry
+ * points do not use this: they ask `izinPesanan`.
+ */
+export async function publicLokasiMitraTampil(
+  deps: { db: Database },
+  lokasiId: string,
+): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
+  if (!row || row.dataContoh || row.status === "belum_tayang") return null;
+  return { ...toPublicLokasiMitra(row), pengelolaTelepon: row.pengelolaTelepon, pengelolaEmail: row.pengelolaEmail, status: row.status };
 }
 
 /** Not example data: the one condition every public listing shares. */

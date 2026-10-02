@@ -10,6 +10,7 @@ import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { adminPlatformOf, logIn } from "../../../tests/support/identity";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds, type PemesananSetup } from "../../../tests/support/pemesanan";
+import { berhentiBerlakuTick } from "@/domain/scheduler/berhenti";
 import { buktiTransfer } from "../../../tests/support/refunds";
 import { terencanaLokasi, type TerencanaOptions } from "../../../tests/support/terencana";
 
@@ -880,5 +881,25 @@ describe("a Pembatalan after a Harga Khusus", () => {
     setup.clock.set(new Date(dasar.masaBerakhirPada.getTime() + 60_000));
     await setup.payouts.tick();
     expect(await setup.payouts.pencairanJatuhTempo()).toEqual([expect.objectContaining({ amount: 3_175_000 })]);
+  });
+});
+
+describe("a Pemesan still inside the Masa Pembatalan when the Lokasi Mitra's Berhenti takes effect", () => {
+  it("is still refunded the whole tariff if they cancel after the effective date", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const dasar = await pesananAktif(setup);
+    const berhenti = await setup.lokasi.hentikan(dasar.admin, dasar.fixture.lokasiMitra.id, { berlakuOn: "2026-10-02", alasan: "Perjanjian berakhir" });
+    expect(berhenti).toMatchObject({ ok: true });
+    setup.clock.set(wib("2026-10-02 00:05"));
+
+    await berhentiBerlakuTick(
+      { lokasi: setup.lokasi, layanan: { batalkanSisaBerhenti: async () => ({ dibatalkan: 0, tertunda: 0 }) }, payouts: setup.payouts, terencana: setup.pemesanan },
+      setup.clock.now(),
+    );
+    const permintaan = await ajukan(setup, dasar, "Lokasi sudah Berhenti");
+    await setujui(setup, dasar, permintaan.id);
+
+    expect(permintaan).toMatchObject({ status: "diajukan", dalamMasaPembatalan: true, persenRefund: 100, jumlahRefund: 2_500_000 });
+    expect(await barisRefund(setup, dasar.admin)).toHaveLength(1);
   });
 });

@@ -53,6 +53,8 @@ export const TEMPLATE_EMAIL = [
   "hak_pakai_berakhir_pengingat",
   // The Admin Lokasi's answer to a Pembatalan request of a paid Terencana order (ticket 38): approved, declined or sent back for a fix.
   "pembatalan_terencana",
+  // A Lokasi Mitra's Berhenti decision, told to every family with an order or a Paket Layanan there (ticket 59).
+  "lokasi_berhenti",
   // A Pengajuan Wakaf changed status (ticket 58): the Wakif hears each change by email, at any hour.
   "wakaf_status",
 ] as const;
@@ -106,6 +108,8 @@ export const WAKTU_TEMPLATE: Record<TemplateEmail, "transaksional" | "pengingat"
   hak_pakai_berakhir_pengingat: "pengingat",
   // The family is waiting for the answer to its request, and an approval asks it for a bank account it can give at any hour (ticket 38).
   pembatalan_terencana: "transaksional",
+  // News the family cannot wait on: its order or Paket ends on a date, so it goes at any hour (ticket 59).
+  lokasi_berhenti: "transaksional",
   wakaf_status: "transaksional",
 };
 
@@ -146,6 +150,7 @@ export const TABEL_ACARA: Record<
   | "layanan_pesan_baru"
   | "paket_siklus_dijeda"
   | "pembatalan_terencana"
+  | "lokasi_berhenti"
   | "wakaf_status"
   | "peringatan_staf",
   Acara
@@ -287,6 +292,13 @@ export const TABEL_ACARA: Record<
     kanal: "email",
     template: "paket_siklus_dijeda",
     waktu: WAKTU_TEMPLATE.paket_siklus_dijeda,
+  },
+  /** The Berhenti decision of a Lokasi Mitra, by email at any hour to each family with an order or Paket there (ticket 59). */
+  lokasi_berhenti: {
+    penerima: "email_pemesan",
+    kanal: "email",
+    template: "lokasi_berhenti",
+    waktu: WAKTU_TEMPLATE.lokasi_berhenti,
   },
   /**
    * The answer to a Pembatalan request of a paid Terencana order (ticket 38): by email at any hour,

@@ -32,6 +32,7 @@
  * for it.
  */
 import { and, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import { nilaiDibayarBaris } from "@/domain/billing";
@@ -41,6 +42,12 @@ import { addWibDateDays, wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { batalkanPekerjaanSchema } from "./pesanan-schema";
 import { pengembalianLayanan, pekerjaanLayanan, pesananLayanan, pesananLayananItem, type PekerjaanLayananStatus } from "./schema";
+
+/** The Pekerjaan Layanan not yet finished or cancelled: what a Berhenti Lokasi's effective date cancels. */
+const PEKERJAAN_BELUM_SELESAI: readonly PekerjaanLayananStatus[] = ["menunggu_pembayaran", "dijadwalkan", "sedang_dikerjakan", "terlambat"];
+
+/** Why a cancelled job's money goes back, by who cancelled or why. */
+const ALASAN_PENGEMBALIAN = { pemesan: "pemesan_batal", terlambat: "terlambat_batal", berhenti: "berhenti" } as const;
 
 /** The last day a family may still cancel a job targeting this date: H-1, the day before. */
 export const batasBatal = (targetDate: string): string => addWibDateDays(targetDate, -1);
@@ -154,7 +161,7 @@ export async function batalkanPekerjaan(
       .where(and(eq(pekerjaanLayanan.id, pekerjaanId), eq(pekerjaanLayanan.status, row.job.status)))
       .returning({ id: pekerjaanLayanan.id });
     if (moved.length === 0) return { ok: false as const, reason: "sudah_dibatalkan" as const };
-    const pengembalian = await tulisPengembalian(deps, tx, row, karenaLateness, now);
+    const pengembalian = await tulisPengembalian(deps, tx, row, karenaLateness ? "terlambat" : "pemesan", now);
     if (pengembalian === "tertunda") return { ok: false as const, reason: "pengembalian_tertunda" as const };
     return { ok: true as const, pengembalian };
   });
@@ -179,7 +186,7 @@ async function tulisPengembalian(
     order: typeof pesananLayanan.$inferSelect;
     item: typeof pesananLayananItem.$inferSelect;
   },
-  karenaLateness: boolean,
+  sebab: "pemesan" | "terlambat" | "berhenti",
   now: Date,
 ): Promise<PengembalianDiminta | null | "tertunda"> {
   const tagihan = await deps.billing.within(tx).tagihanBerlaku(row.order.tagihanId);
@@ -195,7 +202,7 @@ async function tulisPengembalian(
   const diajukan = await deps.refunds.ajukanBaris(
     tagihan.id,
     {
-      pihakBersalah: karenaLateness ? "lokasi" : "pemesan",
+      pihakBersalah: sebab === "pemesan" ? "pemesan" : "lokasi",
       lines: [{ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
     },
     tx,
@@ -208,7 +215,7 @@ async function tulisPengembalian(
     pekerjaanId: row.job.id,
     pesananId: row.order.id,
     tagihanId: tagihan.id,
-    alasan: karenaLateness ? ("terlambat_batal" as const) : ("pemesan_batal" as const),
+    alasan: ALASAN_PENGEMBALIAN[sebab],
     baris,
     total: diajukan.jumlah as Rupiah,
     platformDikembalikan: diajukan.biayaLayananPlatformDikembalikan,
@@ -225,8 +232,8 @@ async function tulisPengembalian(
 export interface PengembalianTerbuka extends PengembalianDiminta {
   pesananId: string;
   pekerjaanId: string;
-  /** `pemesan_batal` or `terlambat_batal`: which rule produced this amount. */
-  alasan: "pemesan_batal" | "terlambat_batal";
+  /** `pemesan_batal`, `terlambat_batal` or `berhenti` (the Lokasi Mitra stopped, ticket 59): which rule produced this amount. */
+  alasan: "pemesan_batal" | "terlambat_batal" | "berhenti";
   createdAt: Date;
 }
 
@@ -290,4 +297,53 @@ export async function batalkanLayananPetakDibatalkan(
     if (amount > 0) baris.push({ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null });
   }
   return { dibatalkan, baris };
+}
+
+/**
+ * The leftovers of a Lokasi Mitra whose Berhenti has taken effect (spec, Lokasi > Berhenti): every Pekerjaan
+ * Layanan there not finished (Menunggu Pembayaran, Dijadwalkan, Sedang Dikerjakan, Terlambat) is cancelled, and a
+ * paid one asks Refunds for the whole of its Tagihan, the Biaya Layanan Platform included (the Lokasi's fault,
+ * once per Tagihan). A job whose Tagihan was never paid is cancelled with no request. Idempotent: a cancelled job
+ * is not touched again. `tertunda` counts jobs Refunds could not take a request for just now (an approved one is
+ * still open on the Tagihan): they stay as they were and the next run takes them.
+ */
+export async function batalkanSisaBerhenti(deps: LayananDeps, lokasiId: string): Promise<{ dibatalkan: number; tertunda: number }> {
+  if (!z.uuid().safeParse(lokasiId).success) return { dibatalkan: 0, tertunda: 0 };
+  const now = deps.clock.now();
+  const terbuka = await deps.db
+    .select({ id: pekerjaanLayanan.id })
+    .from(pekerjaanLayanan)
+    .where(
+      and(
+        eq(pekerjaanLayanan.lokasiId, lokasiId),
+        inArray(pekerjaanLayanan.status, PEKERJAAN_BELUM_SELESAI),
+      ),
+    )
+    .orderBy(pekerjaanLayanan.id);
+  let dibatalkan = 0;
+  let tertunda = 0;
+  for (const { id } of terbuka) {
+    const hasil = await refusable<{ ok: true } | { ok: false; reason: "sudah_berubah" | "pengembalian_tertunda" }>(deps.db, async (tx) => {
+      const [row] = await tx
+        .select({ job: pekerjaanLayanan, order: pesananLayanan, item: pesananLayananItem })
+        .from(pekerjaanLayanan)
+        .innerJoin(pesananLayanan, eq(pesananLayanan.id, pekerjaanLayanan.pesananId))
+        .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
+        .where(eq(pekerjaanLayanan.id, id))
+        .for("update", { of: pekerjaanLayanan });
+      if (!row || !PEKERJAAN_BELUM_SELESAI.includes(row.job.status)) {
+        return { ok: false as const, reason: "sudah_berubah" as const };
+      }
+      await tx
+        .update(pekerjaanLayanan)
+        .set({ status: "dibatalkan", dibatalkanAt: now, alasanPembatalan: "berhenti" })
+        .where(eq(pekerjaanLayanan.id, id));
+      const pengembalian = await tulisPengembalian(deps, tx, row, "berhenti", now);
+      if (pengembalian === "tertunda") return { ok: false as const, reason: "pengembalian_tertunda" as const };
+      return { ok: true as const };
+    });
+    if (hasil.ok) dibatalkan += 1;
+    else if (hasil.reason === "pengembalian_tertunda") tertunda += 1;
+  }
+  return { dibatalkan, tertunda };
 }

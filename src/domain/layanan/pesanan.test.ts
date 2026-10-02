@@ -239,6 +239,22 @@ describe("placing an order Layanan", () => {
     expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toMatchObject({ ok: true, hak: { perluVerifikasi: true } });
   });
 
+  it("takes a Layanan order at a Ditangguhkan Lokasi Mitra, and at a Berhenti one only until its effective date (carry-on under an existing Hak Pakai)", async () => {
+    const { setup, lokasi, petak, pemesan } = await siap();
+
+    await setup.lokasi.tangguhkan(lokasi.admin, lokasi.lokasiMitra.id);
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toMatchObject({ ok: true });
+    expect(await setup.layanan.penawaranUntukPesanan(lokasi.lokasiMitra.id)).not.toEqual([]);
+    const hasil = await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"));
+    expect(hasil).toMatchObject({ ok: true });
+
+    await setup.lokasi.hentikan(lokasi.admin, lokasi.lokasiMitra.id, { berlakuOn: "2026-10-10" });
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toMatchObject({ ok: true });
+    setup.clock.advance({ days: 30 });
+    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toEqual({ ok: false, reason: "lokasi_tidak_terbuka" });
+    expect(await setup.layanan.penawaranUntukPesanan(lokasi.lokasiMitra.id)).toEqual([]);
+  });
+
   it("charges the Biaya Layanan Platform once for an order of two Layanan, not once each", async () => {
     const { setup, lokasi, petak, pemesan } = await siap({ amount: 750_000 });
     const kedua = await setup.layanan.tambahVarian(lokasi.admin, lokasi.layanan.id, { name: "Marmer 80 cm", reason: null });

@@ -24,7 +24,7 @@ export function composeSchedulerContext(deps: {
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
   notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick" | "pengingatHakPakaiBerakhir">;
-  lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf" | "aturanPerpanjanganOf">;
+  lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf" | "aturanPerpanjanganOf" | "berhentiBerlakuBelumDiproses" | "tandaiBerhentiDiproses">;
   identity: Pick<Identity, "adminLokasiOf">;
   inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick" | "hakPakaiMenjelangAkhir" | "hakPakaiUntukPerpanjangan">;
   /** The Hak Pakai end reminders stop for an ordered Perpanjangan whose Tagihan is still alive (ticket 42). */
@@ -32,11 +32,11 @@ export function composeSchedulerContext(deps: {
   /** A Hak Pakai's Perpanjangan page URL, the link in a reminder. */
   perpanjanganUrl: (hakPakaiId: string) => string;
   notifikasi: PemesananNotifikasi;
-  payouts: Pick<Payouts, "tick" | "tickPotongan">;
+  payouts: Pick<Payouts, "tick" | "tickPotongan" | "potonganBerhenti" | "lepaskanTerencanaBerhenti">;
   refunds: Pick<Refunds, "tick">;
-  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick" | "batalkanPekerjaanTagihanLapse">;
+  layanan: Pick<Layanan, "tinjauSkorTick" | "tandaiTidakDirespons" | "tutupJendelaKeluhan" | "paketSiklusTick" | "batalkanPekerjaanTagihanLapse" | "batalkanSisaBerhenti">;
   /** The Pemesanan module, for the Terencana payment-hold lapse (ticket 37). */
-  terencana: Pick<Pemesanan, "lewatBatasBayarTick">;
+  terencana: Pick<Pemesanan, "lewatBatasBayarTick" | "nomorTerencanaAktifDiLokasi">;
   /** The Antrean's Tier 1 alert tick and the Bertugas auto-off (ticket 28), from `createQueuesTicks`. */
   queues: QueuesTicks;
   /** Whether a queued direct Peringatan Staf's subject still needs it (ticket 96), answered by the raising module. */
@@ -47,6 +47,7 @@ export function composeSchedulerContext(deps: {
     paymentEffects: deps.paymentEffects ?? paymentEffects({ clock: deps.clock, dokumenUrl: deps.dokumenUrl, layanan: { db: deps.db, inventory: deps.inventory } }),
     reportError: deps.reportError,
     notifications: deps.notifications,
+    lokasi: deps.lokasi,
     peringatanStafSubjek: deps.peringatanStafSubjek,
     pemesanan: { db: deps.db, clock: deps.clock, lokasi: deps.lokasi, identity: deps.identity, notifikasi: deps.notifikasi },
     payouts: deps.payouts,

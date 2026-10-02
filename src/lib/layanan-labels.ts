@@ -101,6 +101,8 @@ export const pembatalanLayananLabels = {
   pemesan_batal: "Dibatalkan oleh pemesan; biaya layanan platform tidak dikembalikan.",
   /** The job ran late, so the whole Tagihan is refunded. */
   terlambat_batal: "Dibatalkan karena pekerjaan terlambat; seluruh Tagihan dikembalikan.",
+  /** The Lokasi Mitra ended its partnership before the job was done, so the whole Tagihan is refunded. */
+  berhenti: "Dibatalkan karena lokasi makam berhenti bekerja sama; seluruh Tagihan dikembalikan.",
 } as const;
 
 /**

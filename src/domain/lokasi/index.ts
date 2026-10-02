@@ -106,6 +106,21 @@ import {
   type PublishInput,
   type PublishLokasiMitraResult,
 } from "./publish";
+import {
+  berhentiBerlakuBelumDiproses,
+  dapatDiharga,
+  hentikan,
+  izinPesanan,
+  pulihkan,
+  statusPesananOf,
+  tandaiBerhentiDiproses,
+  tangguhkan,
+  type HentikanResult,
+  type IzinPesanan,
+  type JenisPesanan,
+  type StatusPesanan,
+  type UbahStatusResult,
+} from "./status-pesanan";
 import { activateTerencana, type ActivateTerencanaInput, type ActivateTerencanaResult } from "./terencana";
 import {
   createTpuDki,
@@ -125,6 +140,7 @@ import {
 } from "./tpu";
 import {
   publicLokasiMitra,
+  publicLokasiMitraTampil,
   publicLokasiMitraCities,
   publicLokasiMitraList,
   publicLokasiMakamCities,
@@ -132,6 +148,7 @@ import {
   publicVisitPhotoUrls,
   type LokasiMakamCard,
   type LokasiMakamQuery,
+  type PengelolaKontak,
   type PublicLokasiMitra,
   type PublicLokasiMitraCard,
   type PublicLokasiMitraQuery,
@@ -221,6 +238,7 @@ export type {
   RecordCekDenahResult,
   RecordKunjunganVerifikasiResult,
 } from "./kunjungan";
+export type { HentikanResult, IzinPesanan, JenisPesanan, StatusPesanan, UbahStatusResult } from "./status-pesanan";
 export type { PublishInput, PublishLokasiMitraResult } from "./publish";
 export type { TandaiDataContohInput, TandaiDataContohResult } from "./data-contoh";
 export {
@@ -241,7 +259,7 @@ export {
   type TerencanaSwitchGate,
   type TerencanaSwitchKey,
 } from "./terencana";
-export type { PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
+export type { PengelolaKontak, PublicLokasiMitra, PublicLokasiMitraCard, PublicLokasiMitraQuery } from "./public-reads";
 export type { LokasiMakamCard, LokasiMakamKind, LokasiMakamQuery } from "./public-reads";
 
 export interface LokasiModuleDeps {
@@ -410,6 +428,23 @@ export interface Lokasi {
    * audited.
    */
   recordPublishGateMasihTerpenuhi(by: Actor, lokasiId: string): Promise<WriteResult>;
+  /** Admin Platform sets a Terverifikasi Lokasi Ditangguhkan (ticket 59), audited. */
+  tangguhkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
+  /** Admin Platform reinstates a Ditangguhkan Lokasi, audited. */
+  pulihkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
+  /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
+  /** `within`: the caller's transaction, so the decision commits with what follows it (the family notices). */
+  hentikan(by: Actor, lokasiId: string, input: { berlakuOn?: string; alasan?: string }, within?: Database): Promise<HentikanResult>;
+  /** Whether a quote may price this Lokasi: listed, Ditangguhkan, or Berhenti before its effective date (carry-on actions price there). */
+  dapatDiharga(lokasiId: string): Promise<boolean>;
+  /** Every order entry point asks this first: may an order of this kind be taken at this Lokasi now. */
+  izinPesanan(lokasiId: string, jenis: JenisPesanan): Promise<IzinPesanan>;
+  /** The status facts the rules read (Berhenti's effective date included); null for an unknown Lokasi. */
+  statusPesananOf(lokasiId: string): Promise<StatusPesanan | null>;
+  /** Berhenti Lokasi whose effective date has come and whose leftovers are not yet settled. */
+  berhentiBerlakuBelumDiproses(): Promise<string[]>;
+  /** Marks a Berhenti Lokasi's leftovers settled; idempotent. */
+  tandaiBerhentiDiproses(lokasiId: string): Promise<void>;
   /**
    * Admin Platform switches "Pemesanan Terencana aktif" on, only once every
    * Petak is cleared and a Cek Denah is done. `input.hasPetakPerluVerifikasi`
@@ -418,6 +453,8 @@ export interface Lokasi {
   activateTerencana(by: Actor, lokasiId: string, input: ActivateTerencanaInput): Promise<ActivateTerencanaResult>;
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
+  /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang or example data. */
+  publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
   /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city, one Lokasi Mitra, and facilities. */
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
   /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
@@ -490,8 +527,17 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
+    tangguhkan: (by, lokasiId, input) => tangguhkan(deps, by, lokasiId, input),
+    pulihkan: (by, lokasiId, input) => pulihkan(deps, by, lokasiId, input),
+    hentikan: (by, lokasiId, input, within) => hentikan(within ? { ...deps, db: within } : deps, by, lokasiId, input),
+    dapatDiharga: (lokasiId) => dapatDiharga(deps, lokasiId),
+    izinPesanan: (lokasiId, jenis) => izinPesanan(deps, lokasiId, jenis),
+    statusPesananOf: (lokasiId) => statusPesananOf(deps, lokasiId),
+    berhentiBerlakuBelumDiproses: () => berhentiBerlakuBelumDiproses(deps),
+    tandaiBerhentiDiproses: (lokasiId) => tandaiBerhentiDiproses(deps, lokasiId),
     activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
+    publicLokasiMitraTampil: (lokasiId) => publicLokasiMitraTampil(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
     publicLokasiMitraCities: () => publicLokasiMitraCities(deps),
     tpuDkiList: (by) => tpuDkiList(deps, by),

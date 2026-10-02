@@ -21,7 +21,7 @@
  * to change them) and the family has been sent that number, so a tariff entered
  * between the issue and the burial must not move what the Lokasi Mitra is paid.
  */
-import { and, eq, isNotNull, isNull, lte, notExists } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lte, notExists } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
@@ -458,4 +458,21 @@ async function potongLangsung(tx: Database, tagihan: Tagihan, partnerLines: { li
     now,
   );
   return dibuat ? 1 : 0;
+}
+
+/**
+ * A Lokasi Mitra went Berhenti (ticket 59): the Hak Pakai Pencairan of each of these Pemesanan Terencana still
+ * waiting for its Masa Pembatalan to end is released now, so the tick makes its items. The caller (composition)
+ * names the orders, since the Lokasi of an order is the Pemesanan module's fact. A Pemesan who then cancels inside
+ * the Masa Pembatalan is refunded through Pembatalan as always, netted from the Lokasi like any refund. Idempotent;
+ * returns the Nomor Pemesanan it released.
+ */
+export async function lepaskanTerencanaBerhenti(db: Database, nomorPemesanan: readonly string[], now: Date): Promise<string[]> {
+  if (nomorPemesanan.length === 0) return [];
+  const released = await db
+    .update(pencairanTerencana)
+    .set({ masaPembatalanBerakhirPada: now })
+    .where(and(inArray(pencairanTerencana.nomorPemesanan, [...nomorPemesanan]), gt(pencairanTerencana.masaPembatalanBerakhirPada, now)))
+    .returning({ nomor: pencairanTerencana.nomorPemesanan });
+  return released.map((row) => row.nomor).sort();
 }

@@ -18,6 +18,7 @@
 
 // A type only, so it is erased: this module's values stay safe on a client
 // component's import graph, where a domain module's own code would not be.
+import { formatTelepon } from "@/lib/format-telepon";
 import type { MakamDitemukan, MakamSaya } from "@/domain/inventory";
 
 /** A Hak Pakai status as a family is told: the word, and what it means for them. */
@@ -228,6 +229,19 @@ export interface KartuMakamSaya {
   dokumen: DokumenMakamSaya[];
   /** The hub address that opens this grave, for a later ticket's actions (tumpang, Perpanjang, Layanan, Pengurusan IPTM). */
   alamat: string;
+  /** True once the Lokasi's Berhenti has taken effect: the record stays, with no Perpanjang, Layanan or other action (ticket 59). */
+  hanyaBaca: boolean;
+  /** Read-only cards only: who runs the Lokasi Mitra, for the family to reach it about the record (ticket 59). */
+  pengelola: { name: string; address: string; telepon: string | null; email: string | null } | null;
+}
+
+/** What the Lokasi Mitra holds of its pengelola. */
+export interface PengelolaLokasi {
+  pengelolaName: string;
+  address: string;
+  /** +62 form, as the Lokasi module holds it. */
+  telepon: string | null;
+  email: string | null;
 }
 
 /**
@@ -237,9 +251,16 @@ export interface KartuMakamSaya {
  * they are Pemesanan's own row, not Inventory's — AGENTS.md: only the owning
  * module reads its own tables).
  */
-export function kartuMakamSaya(satu: MakamSaya, namaLokasi: ReadonlyMap<string, string>, dokumen: readonly DokumenMakamSaya[]): KartuMakamSaya {
+export function kartuMakamSaya(
+  satu: MakamSaya,
+  namaLokasi: ReadonlyMap<string, string>,
+  dokumen: readonly DokumenMakamSaya[],
+  /** Lokasi whose Berhenti has taken effect (the Lokasi module says so, `izinPesanan(.., "lanjutan")`), with their pengelola. */
+  lokasiBerhenti: ReadonlyMap<string, PengelolaLokasi> = new Map(),
+): KartuMakamSaya {
   const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
   const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
+  const pengelola = lokasiBerhenti.get(satu.lokasiId);
   return {
     hakPakaiId: satu.hakPakaiId,
     lokasiId: satu.lokasiId,
@@ -251,5 +272,12 @@ export function kartuMakamSaya(satu: MakamSaya, namaLokasi: ReadonlyMap<string, 
     pemakaman: satu.pemakaman.map((satuPemakaman) => ({ almarhumName: satuPemakaman.almarhumName, date: satuPemakaman.date })),
     dokumen: [...dokumen],
     alamat: hubPath({ lokasiId: satu.lokasiId, cari, nomor }),
+    hanyaBaca: pengelola !== undefined,
+    pengelola: pengelola ? {
+          name: pengelola.pengelolaName,
+          address: pengelola.address,
+          telepon: pengelola.telepon === null ? null : formatTelepon(pengelola.telepon),
+          email: pengelola.email,
+        } : null,
   };
 }

@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf } from "../../../tests/support/inventory";
+import { setLokasiMitraStatusForTest } from "../../../tests/support/lokasi";
 import { siapkanOperatorPemesanan } from "../../../tests/support/pemesanan";
 import { orderSaatDuka, pemesananOnTestDatabase, saatDukaFixture, type PemesananSetup } from "../../../tests/support/pemesanan";
 
@@ -82,6 +83,29 @@ describe("the Bukti Pemesanan of a paid burial", () => {
     // Served from an unguessable link, like every document, and never indexed.
     expect(bukti?.link).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(await setup.billing.documentByLink(bukti!.link)).toMatchObject({ type: "bukti_pemesanan", bukti: { nomor: "BPM/2026/000001" } });
+  });
+
+  it("keeps the Lokasi's Petunjuk arah when the Lokasi Mitra is Ditangguhkan or Berhenti by the time the family pays", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const biasa = await pesananDikonfirmasi(setup);
+    setup.clock.set(wib("2026-10-02 11:00"));
+    await setup.pemesanan.catatPemakaman(biasa.adminLokasi, { nomor: biasa.nomor, tanggal: "2026-10-02" });
+    await bayar(setup, biasa.tagihanId);
+    const awal = await setup.pemesanan.orderOf(biasa.nomor, biasa.pemesan);
+    const petunjuk = (await setup.billing.buktiPemesananById(awal!.buktiPemesanan!.id))?.petunjukArah;
+    expect(petunjuk).toEqual(expect.stringContaining("http"));
+
+    for (const status of ["ditangguhkan", "berhenti"] as const) {
+      await resetDatabase();
+      const lain = pemesananOnTestDatabase(db);
+      const fixture = await pesananDikonfirmasi(lain);
+      lain.clock.set(wib("2026-10-02 11:00"));
+      await lain.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: fixture.nomor, tanggal: "2026-10-02" });
+      await setLokasiMitraStatusForTest(db, fixture.lokasiMitra.id, status);
+      await bayar(lain, fixture.tagihanId);
+      const order = await lain.pemesanan.orderOf(fixture.nomor, fixture.pemesan);
+      expect((await lain.billing.buktiPemesananById(order!.buktiPemesanan!.id))?.petunjukArah, status).toBe(petunjuk);
+    }
   });
 
   it("is issued when the payment comes after the burial too, and never a second time", async () => {

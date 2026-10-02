@@ -37,7 +37,7 @@ export interface BuktiPemesananEffectDeps {
    */
   billingOn: (tx: Database) => Pick<Billing, "issueBuktiPemesanan" | "tagihan" | "tagihanBerlaku">;
   inventory: Pick<PemesananDeps["inventory"], "within">;
-  lokasi: Pick<PemesananDeps["lokasi"], "publicLokasiMitra">;
+  lokasi: Pick<PemesananDeps["lokasi"], "publicLokasiMitraTampil">;
   notifikasi: PemesananDeps["notifikasi"];
   /**
    * Payouts' record that a paid Pemesanan Terencana's Masa Pembatalan runs until a given
@@ -107,7 +107,7 @@ export async function terbitkanBukti(
   // can drive this branch, and inventing one would assert on a fiction.
   const masa = masaHakPakai(hakPakai);
   if (!masa) return null;
-  const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
+  const lokasi = await deps.lokasi.publicLokasiMitraTampil(order.lokasiId);
   const query = lokasi ? mapsQueryFor(lokasi) : null;
   // The Bukti belongs to the Tagihan in force, the one the family paid, not one a Harga Khusus replaced (ticket 93).
   const berlaku = await deps.billingOn(tx).tagihanBerlaku(order.tagihanId);

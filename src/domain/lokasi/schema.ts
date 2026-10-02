@@ -16,6 +16,9 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   pengelolaName: text("pengelola_name").notNull(),
+  /** The pengelola's phone (+62) and email, shown to the family at a Berhenti Lokasi; null until recorded. */
+  pengelolaTelepon: text("pengelola_telepon"),
+  pengelolaEmail: text("pengelola_email"),
   address: text("address").notNull(),
   /** Kota or kabupaten, as typed (e.g. "Kota Jakarta Timur", "Kabupaten Bogor"). */
   city: text("city").notNull(),
@@ -68,6 +71,14 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
    */
   cekDenahAt: at("cek_denah_at"),
   cekDenahNote: text("cek_denah_note"),
+  /**
+   * Berhenti (ticket 59): when Admin Platform decided it, the WIB date from
+   * which no order of any kind is taken, and when the effective-date tick
+   * finished its leftovers. All null unless the status is Berhenti.
+   */
+  berhentiDecidedAt: at("berhenti_decided_at"),
+  berhentiBerlakuOn: date("berhenti_berlaku_on", { mode: "string" }),
+  berhentiDiprosesAt: at("berhenti_diproses_at"),
   /** Set once, when the publish gate first admits this Lokasi Mitra (Belum Tayang → Terverifikasi, ticket 16). Null before. */
   publishedAt: at("published_at"),
   /**

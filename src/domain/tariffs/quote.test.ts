@@ -498,3 +498,26 @@ describe("the all-in quote", () => {
     });
   });
 });
+
+describe("the all-in quote for a Lokasi Mitra that stopped being listed (ticket 59)", () => {
+  const perpanjangan = (jenisMakamId: string) => [{ kind: "perpanjangan" as const, jenisMakamId, tenure: { kind: "tahun" as const, years: 5 }, terms: 1 }];
+
+  it("prices a Perpanjangan at a Ditangguhkan Lokasi Mitra, since Perpanjangan carries on there", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra, reguler } = await pricedLokasiMitra(setup);
+    await setup.lokasi.tangguhkan(admin, lokasiMitra.id);
+
+    expect(await setup.tariffs.quote(perpanjangan(reguler.id), wib("2026-10-05 10:00"))).toMatchObject({ ok: true });
+  });
+
+  it("prices a Perpanjangan at a Berhenti Lokasi Mitra until its effective date, and not from that date", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra, reguler } = await pricedLokasiMitra(setup);
+    await setup.lokasi.hentikan(admin, lokasiMitra.id, { berlakuOn: "2026-10-20" });
+    const at = wib("2026-10-05 10:00");
+
+    expect(await setup.tariffs.quote(perpanjangan(reguler.id), at)).toMatchObject({ ok: true });
+    setup.clock.advance({ days: 30 });
+    expect(await setup.tariffs.quote(perpanjangan(reguler.id), at)).toMatchObject({ ok: false });
+  });
+});

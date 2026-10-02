@@ -673,6 +673,31 @@ export function layananPekerjaanSelesaiEmail(input: LayananPekerjaanSelesaiEmail
   };
 }
 
+export interface LokasiBerhentiEmailInput {
+  lokasiName: string;
+  nomor: string;
+  /** The WIB date the partnership ends. */
+  berlakuOn: string;
+}
+
+/** The notice of a Lokasi Mitra's Berhenti: what stops on the date, what carries on until then (ticket 59). */
+export function lokasiBerhentiEmail(input: LokasiBerhentiEmailInput): { subject: string; body: string } {
+  return {
+    subject: `${input.lokasiName} berhenti bermitra dengan makam.co.id mulai ${formatTanggal(input.berlakuOn)}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `${input.lokasiName} akan berhenti bermitra dengan makam.co.id mulai ${formatTanggal(input.berlakuOn)}.`,
+      `Pemesanan Anda: ${input.nomor}.`,
+      "Layanan atau paket yang belum selesai pada tanggal itu dibatalkan dan dikembalikan sepenuhnya, termasuk Biaya Layanan Platform. Paket berulang tidak membuat siklus baru lagi.",
+      "Hak Pakai Anda tetap tercatat; Anda dapat melihatnya di Akun Saya beserta kontak pengelola makam.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface WakafStatusEmailInput {
   nomor: string;
   labelStatus: string;

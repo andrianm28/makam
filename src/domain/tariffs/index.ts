@@ -35,7 +35,7 @@ import {
   type NewJenisMakam,
   type SetJenisMakamTariffResult,
 } from "./jenis-makam";
-import { publicVisibility, staffVisibility, tariffReads, type StaffTariffReads, type TariffReads } from "./reads";
+import { publicVisibility, quoteVisibility, staffVisibility, tariffReads, type StaffTariffReads, type TariffReads } from "./reads";
 import { markTariffsChecked, type MarkTariffsCheckedResult } from "./tariffs-checked";
 import {
   setBiayaPemakaman,
@@ -157,7 +157,7 @@ export interface Tariffs extends TariffReads {
 }
 
 export function createTariffs(deps: TariffDeps): Tariffs {
-  const { tariffsChecked, ...publicReads } = tariffReads(deps, publicVisibility(deps));
+  const { tariffsChecked, ...publicReads } = tariffReads(deps, publicVisibility(deps), quoteVisibility(deps));
   return {
     ...publicReads,
     tariffsChecked: async (lokasiId) => {

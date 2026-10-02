@@ -147,6 +147,84 @@ describe("the profile of a Lokasi Mitra", () => {
   });
 });
 
+describe("the pengelola's phone and email of a Lokasi Mitra", () => {
+  async function withProfile(extra: Record<string, unknown>) {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const created = await newLokasiMitra(setup, admin);
+    const profile = {
+      name: created.name,
+      pengelolaName: created.pengelolaName,
+      address: created.address,
+      city: created.city,
+      pin: null,
+      facilities: { checked: [], note: "" },
+    };
+    const result = await setup.lokasi.updateProfile(admin, created.id, { ...profile, ...extra } as never);
+    return { setup, admin, created, profile, result };
+  }
+
+  it("Admin Platform records them, the phone in +62 form, and reads them back", async () => {
+    const { setup, admin, created, result } = await withProfile({ pengelolaTelepon: "0812-3456-7890", pengelolaEmail: "rahmat@example.com" });
+
+    expect(result).toEqual({ ok: true });
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({
+      lokasiMitra: { pengelolaTelepon: "+6281234567890", pengelolaEmail: "rahmat@example.com" },
+    });
+  });
+
+  it("holds none until recorded, and blank values clear them", async () => {
+    const { setup, admin, created, profile } = await withProfile({});
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pengelolaTelepon: null, pengelolaEmail: null } });
+
+    await setup.lokasi.updateProfile(admin, created.id, { ...profile, pengelolaTelepon: "0812-3456-7890", pengelolaEmail: "a@b.id" } as never);
+    await setup.lokasi.updateProfile(admin, created.id, { ...profile, pengelolaTelepon: "", pengelolaEmail: " " } as never);
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pengelolaTelepon: null, pengelolaEmail: null } });
+  });
+
+  it("refuses a malformed email", async () => {
+    expect((await withProfile({ pengelolaEmail: "bukan-email" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
+  });
+
+  it.each([
+    ["021-1234567", "+62 21 1234567"],
+    ["(021) 1234 5678", "+62 21 12345678"],
+    ["+62 21 1234 5678", "+62 21 12345678"],
+    ["0251-123456", "+62 251 123456"],
+  ])("Admin Platform records the pengelola's office landline %s as %s", async (typed, stored) => {
+    const { setup, admin, created, result } = await withProfile({ pengelolaTelepon: typed });
+
+    expect(result).toEqual({ ok: true });
+    expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { pengelolaTelepon: stored } });
+  });
+
+  it("a Berhenti Lokasi's public profile carries the pengelola's landline as stored", async () => {
+    const { setup, created } = await withProfile({ pengelolaTelepon: "(021) 5551234" });
+    await setLokasiMitraStatusForTest(db, created.id, "berhenti");
+
+    expect(await setup.lokasi.publicLokasiMitraTampil(created.id)).toMatchObject({ pengelolaTelepon: "+62 21 5551234" });
+  });
+
+  it.each(["021-123", "+1 212 555 0100", "021-ABC-1234"])("refuses %s: neither an Indonesian mobile nor an office landline", async (typed) => {
+    expect((await withProfile({ pengelolaTelepon: typed })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
+  });
+
+  it("refuses a phone that is not an Indonesian mobile number", async () => {
+    expect((await withProfile({ pengelolaTelepon: "123" })).result).toEqual({ ok: false, reason: "profil_tidak_valid" });
+  });
+
+  it("a Berhenti Lokasi's public profile carries them for the family's read-only Makam card", async () => {
+    const { setup, created } = await withProfile({ pengelolaTelepon: "081234567890", pengelolaEmail: "rahmat@example.com" });
+    const lokasiId = created.id;
+    await setLokasiMitraStatusForTest(db, lokasiId, "berhenti");
+
+    expect(await setup.lokasi.publicLokasiMitraTampil(lokasiId)).toMatchObject({
+      pengelolaTelepon: "+6281234567890",
+      pengelolaEmail: "rahmat@example.com",
+    });
+  });
+});
+
 describe("the document checklist of a Lokasi Mitra", () => {
   it("defaults to the death certificate, the death report letter and the KTP + KK of the Almarhum and of the Pemesan", async () => {
     const setup = lokasiOnTestDatabase(db);

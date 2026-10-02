@@ -104,7 +104,7 @@ function JamOperasionalTable({ jamOperasional }: { jamOperasional: JamOperasiona
 
 export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]">) {
   const { lokasiId } = await params;
-  const profile = await serverRuntime().lokasi.publicLokasiMitra(lokasiId);
+  const profile = await serverRuntime().lokasi.publicLokasiMitraTampil(lokasiId);
   return { title: profile ? `${profile.name} — Makam.co.id` : "Lokasi tidak ditemukan — Makam.co.id" };
 }
 
@@ -120,8 +120,10 @@ export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]
 export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lokasiId]">) {
   const { lokasiId } = await params;
   const { lokasi, tariffs, layanan, inventory, adapters } = serverRuntime();
-  const profile = await lokasi.publicLokasiMitra(lokasiId);
+  // The page stays up while the Lokasi is Ditangguhkan or Berhenti, only without its order buttons (ticket 59).
+  const profile = await lokasi.publicLokasiMitraTampil(lokasiId);
   if (!profile) notFound();
+  const menerimaPesanan = profile.status === "terverifikasi";
 
   const [pricing, photoUrls, penawaran, ketersediaan] = await Promise.all([
     tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
@@ -150,6 +152,8 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
         )}
         <p className="text-small text-muted-foreground">Harga Hak Pakai termurah di sini, sudah all-in</p>
       </div>
+      {menerimaPesanan ? (
+        <>
       <Link
         href={pesanHref}
         className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-body-lg font-semibold text-primary-foreground hover:bg-primary/90"
@@ -177,11 +181,30 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
           </p>
         )}
       </div>
+        </>
+      ) : (
+        <p className="flex items-start gap-2 text-body text-muted-foreground">
+          <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            <span className="font-medium text-foreground">
+              {profile.status === "ditangguhkan" ? "Sementara tidak menerima pesanan." : "Tidak lagi menerima pesanan."}
+            </span>{" "}
+            Keluarga yang sudah punya Hak Pakai di sini tetap dilayani lewat Akun Saya.
+          </span>
+        </p>
+      )}
     </div>
   );
 
   return (
     <div className="mx-auto w-full max-w-(--page-max-width) px-4 pt-6 pb-28 md:px-8 md:pt-8 lg:pb-16">
+      {menerimaPesanan ? null : (
+        <p role="status" className="mb-4 rounded-xl bg-warning-soft px-4 py-3 text-body font-medium text-warning-soft-foreground">
+          {profile.status === "ditangguhkan"
+            ? "Lokasi ini sementara tidak menerima pesanan. Halaman ini tetap tersedia untuk keluarga yang sudah memesan."
+            : "Lokasi ini telah berhenti bermitra dengan makam.co.id dan tidak menerima pesanan."}
+        </p>
+      )}
       <nav aria-label="Jejak halaman" className="text-small text-muted-foreground">
         <Link href="/" className="hover:text-forest">
           Beranda
@@ -493,9 +516,13 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
             <p className="text-caption text-muted-foreground">mulai</p>
             <p className="text-title-2 tabular-nums">{pricing.mulaiDari !== null ? formatRupiah(pricing.mulaiDari) : "—"}</p>
           </div>
-          <Link href={pesanHref} className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-body font-semibold text-primary-foreground">
-            Pesan makam sekarang
-          </Link>
+          {menerimaPesanan ? (
+            <Link href={pesanHref} className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-body font-semibold text-primary-foreground">
+              Pesan makam sekarang
+            </Link>
+          ) : (
+            <p className="text-small font-medium text-warning-soft-foreground">Tidak menerima pesanan</p>
+          )}
         </div>
       </div>
       <div className="mt-10 lg:hidden">{cta}</div>

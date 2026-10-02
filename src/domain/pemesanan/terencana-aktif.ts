@@ -94,7 +94,7 @@ export async function aktifkanTerencana(
     await tx.update(pemesananTerencanaUnit).set({ hakPakaiId: granted.hakPakai[index].hakPakaiId }).where(eq(pemesananTerencanaUnit.id, unit.id));
   }
 
-  const lokasi = await deps.lokasi.publicLokasiMitra(order.lokasiId);
+  const lokasi = await deps.lokasi.publicLokasiMitraTampil(order.lokasiId);
   const query = lokasi ? mapsQueryFor(lokasi) : null;
   const masa = masaBelumMulai(perUnit.map((unit) => unit.tenureYears));
   const bukti = await deps.billingOn(tx).issueBuktiPemesanan({

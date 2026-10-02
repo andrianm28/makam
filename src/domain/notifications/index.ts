@@ -120,6 +120,7 @@ import {
   type PesananDikonfirmasiInput,
   type PesananDitolakInput,
 } from "./pesan-pemesanan";
+import { lokasiBerhenti, type LokasiBerhentiInput, type LokasiBerhentiResult } from "./pesan-lokasi-berhenti";
 import {
   buktiPerpanjanganTerbit,
   type BuktiPerpanjanganTerbitInput,
@@ -491,6 +492,8 @@ export interface Notifications {
    * logged against the Perpanjangan itself. With no email a call row opens.
    */
   buktiPerpanjanganTerbit(input: BuktiPerpanjanganTerbitInput, within?: Database): Promise<BuktiPerpanjanganTerbitResult>;
+  /** A Lokasi Mitra's Berhenti decision, emailed at once to each family named (ticket 59); one message per family, however often it is announced. */
+  lokasiBerhenti(input: LokasiBerhentiInput, within?: Database): Promise<LokasiBerhentiResult>;
   /**
    * Tells the Wakif that a Pengajuan Wakaf changed status (ticket 58), by email at any hour. One message
    * per status change (`perubahanId`), whatever runs twice; the note to the Wakif, the date and the reason travel with it.
@@ -928,6 +931,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
 
     async pembatalanTerencana(input, within) {
       return pembatalanTerencana(within ? { ...deps, db: within } : deps, input);
+    },
+
+    async lokasiBerhenti(input, within) {
+      return lokasiBerhenti(within ? { ...deps, db: within } : deps, input);
     },
 
     async wakafStatusBerubah(input, within) {

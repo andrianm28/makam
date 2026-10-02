@@ -70,6 +70,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "hak_pakai_berakhir_pengingat",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
+      "lokasi_berhenti",
       // A Pengajuan Wakaf's status change (ticket 58): transactional.
       "wakaf_status",
     ]);

@@ -193,3 +193,21 @@ describe("a Paket Layanan cycle", () => {
     ]);
   });
 });
+
+describe("a Paket Layanan cycle at a Lokasi Mitra that is Ditangguhkan or Berhenti", () => {
+  it("is still issued while the Lokasi is Ditangguhkan (Paket cycles carry on)", async () => {
+    const { setup, lokasi } = await siap();
+    await setup.lokasi.tangguhkan(lokasi.admin, lokasi.lokasiMitra.id);
+
+    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"))).toEqual({ diterbitkan: 1 });
+  });
+
+  it("is no longer issued from the Berhenti decision, and the Paket's cycles stay unissued", async () => {
+    const { setup, lokasi, langganan } = await siap();
+    await setup.lokasi.hentikan(lokasi.admin, lokasi.lokasiMitra.id, { berlakuOn: "2026-12-31" });
+
+    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"))).toEqual({ diterbitkan: 0 });
+    const dibaca = await setup.layanan.bacaPesananPaket(langganan.paket.id);
+    expect(dibaca?.siklus).toEqual([]);
+  });
+});
