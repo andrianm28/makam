@@ -159,7 +159,7 @@ import {
   type UnggahBuktiResult,
   type MulaiPekerjaanResult,
 } from "./pekerjaan";
-import { batalkanPekerjaan, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
+import { batalkanPekerjaan, batalkanSisaBerhenti, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
 import {
   barisHariHTpu,
   hargaPesananTpu,
@@ -532,6 +532,8 @@ export interface Layanan {
   batalkanPekerjaan(pemesan: PemesanLayanan, input: unknown): Promise<BatalkanPekerjaanResult>;
   /** Every refund request a cancellation has written, oldest first, for the refund flow to work through. */
   pengembalianTerbuka(): Promise<PengembalianTerbuka[]>;
+  /** A Berhenti Lokasi Mitra's effective date has come: cancel its unfinished jobs with full refunds (ticket 59); idempotent. */
+  batalkanSisaBerhenti(lokasiId: string): Promise<{ dibatalkan: number; tertunda: number }>;
   /* ── a Paket Layanan subscription and its cycles (ticket 54) ── */
 
   /**
@@ -715,6 +717,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     pesananLayananOf: (nomor, pemesan) => pesananLayananOf(deps, nomor, pemesan),
     batalkanPekerjaan: (pemesan, input) => batalkanPekerjaan(deps, pemesan, input),
     pengembalianTerbuka: () => pengembalianTerbuka(deps),
+    batalkanSisaBerhenti: (lokasiId) => batalkanSisaBerhenti(deps, lokasiId),
     pesananTertunda: () => pesananTertunda({ db: deps.db, inventory: deps.inventory }),
     jadwalkanTertunda: (now) => jadwalkanTertundaTick({ db: deps.db, inventory: deps.inventory }, now),
     berlanggananPaket: (pemesan, input) => berlanggananPaket(deps, pemesan, input),

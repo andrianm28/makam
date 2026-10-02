@@ -659,7 +659,7 @@ export const pengembalianLayanan = pgTable(
     /** The Tagihan the money came in on, which the Bukti Pengembalian Dana references. */
     tagihanId: uuid("tagihan_id").notNull(),
     /** Why it is being refunded: the family changed their mind, or the job was Terlambat. */
-    alasan: text("alasan", { enum: ["pemesan_batal", "terlambat_batal"] }).notNull(),
+    alasan: text("alasan", { enum: ["pemesan_batal", "terlambat_batal", "berhenti"] }).notNull(),
     /** The refunded lines, each `{ label, amount }` in whole rupiah. */
     baris: jsonb("baris").notNull(),
     /** What the refund comes to; never more than the Tagihan's total. */
