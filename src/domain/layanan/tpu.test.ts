@@ -645,6 +645,7 @@ describe("cancelling a paid Saat Duka TPU order that has hari-H Layanan", () => 
       .where(and(eq(pekerjaanLayananTpu.nomor, nomor), eq(pekerjaanLayananTpu.posisi, 0)));
 
     const batal = await s.setup.pengurusan.batalkanPengurusan(s.pemesan, { nomor });
+    if (!batal.ok) throw new Error(`cancel refused: ${batal.reason}`);
     expect(batal).toMatchObject({ ok: true, pengembalian: hasil.tagihan.total - HARGA_BUNGA_TABUR });
     const [permintaan] = await s.setup.refunds.permintaanTerbuka();
     const jumlah = permintaan!.lines.map((baris) => baris.amount);

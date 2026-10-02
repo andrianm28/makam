@@ -67,5 +67,5 @@ export interface PengurusanDeps {
    * Layanan inside that same transaction. Required: a missing wiring is a compile error,
    * never a runtime refusal of an order that named such items.
    */
-  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu">;
+  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu" | "pekerjaanTpuSelesaiUntukTagihan">;
 }

@@ -7,6 +7,7 @@ import type { PengurusanDeps } from "@/domain/pengurusan/deps";
  */
 export const layananHariHKosong: PengurusanDeps["layanan"] = {
   barisHariHTpu: async () => ({ ok: true, baris: [], total: 0 }),
+  pekerjaanTpuSelesaiUntukTagihan: async () => [],
   jadwalkanHariHTpu: async () => {
     throw new Error("This fixture has no Layanan module: compose layananOnTestDatabase to add hari-H items");
   },

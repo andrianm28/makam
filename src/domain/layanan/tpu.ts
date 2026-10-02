@@ -432,6 +432,25 @@ export async function jadwalkanHariHTpu(deps: LayananDeps, input: JadwalkanHariH
   return input.baris.length;
 }
 
+/** A hari-H Layanan job already done, as the Tagihan line it was billed on reads (label and amount). */
+export interface PekerjaanTpuSelesai {
+  label: string;
+  amount: number;
+}
+
+/**
+ * The jobs of one Tagihan that are already done (Selesai, or Selesai and then complained about):
+ * Pengurusan asks it when a paid TPU order is cancelled, because a Layanan already done is not refunded.
+ */
+export async function pekerjaanTpuSelesaiUntukTagihan(deps: LayananDeps, tagihanId: string, within?: Database): Promise<PekerjaanTpuSelesai[]> {
+  const rows = await (within ?? deps.db)
+    .select({ label: pekerjaanLayananTpu.label, amount: pekerjaanLayananTpu.amount })
+    .from(pekerjaanLayananTpu)
+    .where(and(eq(pekerjaanLayananTpu.tagihanId, tagihanId), inArray(pekerjaanLayananTpu.status, ["selesai", "keluhan"])))
+    .orderBy(asc(pekerjaanLayananTpu.posisi));
+  return rows.map((row) => ({ label: row.label, amount: Number(row.amount) }));
+}
+
 /** The burial day a hari-H item is targeted at, as a WIB calendar date. */
 export function hariPemakaman(pemakamanAt: Date): string {
   return wibDateOf(pemakamanAt);

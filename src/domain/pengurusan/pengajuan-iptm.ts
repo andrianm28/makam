@@ -521,7 +521,18 @@ export async function batalkanPengurusan(
     let pengembalian = 0;
     const berlaku = order.tagihanId ? await deps.billing.within(tx).tagihanBerlaku(order.tagihanId) : null;
     if (berlaku && berlaku.status === "lunas") {
-      const lines = berlaku.lines
+      // A hari-H Layanan already done is not refunded (owner decision 2026-10-02): each done job takes out one line of its label and price.
+      const selesai = [...(await deps.layanan.pekerjaanTpuSelesaiUntukTagihan(berlaku.id, tx))];
+      const sudahDikerjakan = (line: { kind: string; label: string; amount: number }) => {
+        if (line.kind !== "layanan") return false;
+        const posisi = selesai.findIndex((satu) => satu.label === line.label && satu.amount === line.amount);
+        if (posisi < 0) return false;
+        selesai.splice(posisi, 1);
+        return true;
+      };
+      const tanpaYangSelesai = berlaku.lines.filter((line) => !sudahDikerjakan(line));
+      const adaYangSelesai = tanpaYangSelesai.length < berlaku.lines.length;
+      const lines = tanpaYangSelesai
         .filter((line) => line.kind !== "penyesuaian_harga_khusus" && line.kind !== "biaya_layanan_platform")
         .filter((line) => !(sudahDimakamkan && line.kind === "biaya_pengurusan"))
         .map((line) => ({
@@ -531,7 +542,7 @@ export async function batalkanPengurusan(
         }))
         .filter((line) => line.amount > 0);
       if (lines.length > 0) {
-        const diajukan = await deps.refunds.ajukanBaris(berlaku.id, { pihakBersalah: "pemesan", penuh: !sudahDimakamkan, lines }, tx);
+        const diajukan = await deps.refunds.ajukanBaris(berlaku.id, { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && !adaYangSelesai, lines }, tx);
         if (!diajukan.ok) return { ok: false as const, reason: "pengembalian_tidak_terbit" as const };
         pengembalian = diajukan.jumlah;
       }
