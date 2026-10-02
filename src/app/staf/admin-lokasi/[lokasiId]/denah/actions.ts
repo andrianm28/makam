@@ -22,6 +22,7 @@ const newBlokSchema = z.object({
 /** An Admin Lokasi creates a Blok on its own Lokasi's Denah. */
 export async function createBlokAction(input: z.input<typeof newBlokSchema>): Promise<DenahActionResult> {
   const result = await guarded({
+    fitur: "inti",
     action: "denah.ubah",
     resource: () => lokasiMitraResource(input.lokasiId),
     schema: newBlokSchema,
@@ -52,6 +53,7 @@ export type HapusBlokActionResult = { ok: true; berikutnya: string } | { ok: fal
  */
 export async function hapusBlokAction(input: z.input<typeof hapusBlokSchema>): Promise<HapusBlokActionResult> {
   const result = await guarded({
+    fitur: "inti",
     action: "denah.ubah",
     resource: () => lokasiMitraResource(input.lokasiId),
     schema: hapusBlokSchema,

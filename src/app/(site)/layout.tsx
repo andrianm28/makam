@@ -1,4 +1,5 @@
 import { SiteFrame } from "@/components/site/site-frame";
+import { rilisAktif } from "@/lib/rilis";
 import { publicMenu } from "@/lib/public-navigation";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -20,7 +21,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
 
   return (
     <SiteFrame
-      items={publicMenu({ signedIn: actor !== null })}
+      items={publicMenu({ signedIn: actor !== null, rilis: rilisAktif() })}
       contact={settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null}
       legalName={settings?.legalName ?? null}
     >

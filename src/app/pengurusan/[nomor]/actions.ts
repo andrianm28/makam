@@ -16,6 +16,7 @@ import { guardMessage } from "../../staf/messages";
  */
 export async function jawabTpuLain(_previous: FormState, formData: FormData): Promise<FormState> {
   const result = await guarded({
+    fitur: "tpu",
     action: "pemesanan.lihat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: jawabTpuLainSchema,

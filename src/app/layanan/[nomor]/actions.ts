@@ -24,6 +24,7 @@ export type BatalActionState = { status: "idle" } | { status: "gagal"; message: 
 export async function batalkanPekerjaanLayanan(_previous: BatalActionState, formData: FormData): Promise<BatalActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: batalkanPekerjaanSchema,
@@ -63,6 +64,7 @@ export type PemesanActionState = { status: "idle" } | { status: "gagal"; message
 export async function ajukanKeluhanLayanan(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: ajukanKeluhanSchema,
@@ -79,6 +81,7 @@ export async function ajukanKeluhanLayanan(_previous: PemesanActionState, formDa
 export async function beriPenilaianLayanan(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: beriPenilaianSchema,
@@ -98,6 +101,7 @@ export async function beriPenilaianLayanan(_previous: PemesanActionState, formDa
 export async function kirimPesanThreadPemesan(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: kirimPesanThreadSchema,
@@ -117,6 +121,7 @@ export async function kirimPesanThreadPemesan(_previous: PesanThreadState, formD
 export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: ajukanKeluhanTpuSchema,
@@ -138,6 +143,7 @@ export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, f
 export async function batalkanPekerjaanTerlambatTpuPemesan(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
   const nomor = String(formData.get("nomor") ?? "");
   const result = await guarded({
+    fitur: "inti",
     action: "layanan.lihat",
     resource: (actor) => pesananLayananResource(actor.accountId),
     schema: pekerjaanTpuIdSchema,

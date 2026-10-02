@@ -21,6 +21,7 @@ const field = (formData: FormData, name: string) => String(formData.get(name) ??
 /** The Mitra Jasa accepts or declines one job. A decline may carry the reason. */
 export async function jawabPenugasan(_previous: FormState, formData: FormData): Promise<FormState> {
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.jawab",
     resource: (actor) => akunResource(actor.accountId),
     schema: jawabPenugasanSchema,

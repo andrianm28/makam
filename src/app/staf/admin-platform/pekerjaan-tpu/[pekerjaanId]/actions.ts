@@ -27,6 +27,7 @@ function refused(reason: keyof typeof penugasanMessages): FormState {
 export async function tugaskanMitraJasa(_previous: FormState, formData: FormData): Promise<FormState> {
   const pekerjaanId = field(formData, "pekerjaanId");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: tugaskanMitraJasaSchema,
@@ -44,6 +45,7 @@ export async function tugaskanMitraJasa(_previous: FormState, formData: FormData
 export async function lepasPenugasan(_previous: FormState, formData: FormData): Promise<FormState> {
   const pekerjaanId = field(formData, "pekerjaanId");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: lepasPenugasanSchema,
@@ -71,6 +73,7 @@ const buktiRefused = (reason: string): FormState => ({ status: "gagal", message:
 export async function setujuiBukti(_previous: FormState, formData: FormData): Promise<FormState> {
   const pekerjaanId = field(formData, "pekerjaanId");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: pekerjaanTpuIdSchema,
@@ -88,6 +91,7 @@ export async function setujuiBukti(_previous: FormState, formData: FormData): Pr
 export async function tolakBukti(_previous: FormState, formData: FormData): Promise<FormState> {
   const pekerjaanId = field(formData, "pekerjaanId");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: tolakBuktiTpuSchema,
@@ -105,6 +109,7 @@ export async function tolakBukti(_previous: FormState, formData: FormData): Prom
 export async function batalkanPekerjaanTerlambat(_previous: FormState, formData: FormData): Promise<FormState> {
   const pekerjaanId = field(formData, "pekerjaanId");
   const hasil = await guarded({
+    fitur: "mitra_jasa",
     action: "pekerjaan_tpu.kelola",
     resource: () => pekerjaanTpuSemuaResource(),
     schema: batalkanPekerjaanTerlambatTpuSchema,

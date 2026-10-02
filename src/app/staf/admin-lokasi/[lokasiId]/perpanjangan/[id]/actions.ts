@@ -25,6 +25,7 @@ export async function setujuiPermohonanAction(_previous: FormState, formData: Fo
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const permohonanId = String(formData.get("permohonanId") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "perpanjangan.periksa",
     resource: () => lokasiMitraResource(lokasiId),
     schema: setujuiPermohonanSchema,
@@ -42,6 +43,7 @@ export async function tolakPermohonanAction(_previous: FormState, formData: Form
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const permohonanId = String(formData.get("permohonanId") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "perpanjangan.periksa",
     resource: () => lokasiMitraResource(lokasiId),
     schema: putuskanPermohonanSchema,
@@ -59,6 +61,7 @@ export async function mintaPerbaikanAction(_previous: FormState, formData: FormD
   const lokasiId = String(formData.get("lokasiId") ?? "");
   const permohonanId = String(formData.get("permohonanId") ?? "");
   const result = await guarded({
+    fitur: "perpanjangan_lanjutan",
     action: "perpanjangan.periksa",
     resource: () => lokasiMitraResource(lokasiId),
     schema: putuskanPermohonanSchema,

@@ -8,7 +8,7 @@ import { documentPagePath } from "@/lib/document-links";
 import { alasanPerpanjanganText } from "@/lib/perpanjangan-labels";
 import { clientIp } from "@/server/client-ip";
 import { codeInput } from "@/server/code-inputs";
-import { guarded } from "@/server/guard";
+import { guarded, gerbangAksi } from "@/server/guard";
 import { layananDariForm } from "@/server/layanan-form";
 import { itemCheckoutListSchema } from "@/domain/layanan/pesanan-schema";
 import { serverRuntime } from "@/server/runtime";
@@ -41,6 +41,8 @@ function halaman(hakPakaiId: string, query: Record<string, string> = {}): string
 
 /** Sends the code to the email recorded on the Hak Pakai, then back to the page that asks for it. */
 export async function kirimKodePerpanjangan(formData: FormData): Promise<void> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = hakPakaiSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId") });
   if (!parsed.success) redirect("/makam-keluarga");
   const { hakPakaiId } = parsed.data;
@@ -57,6 +59,8 @@ export async function kirimKodePerpanjangan(formData: FormData): Promise<void> {
  * chooses the terms and orders through `pesanPerpanjangan`. Nothing is ordered here.
  */
 export async function verifikasiKodePerpanjangan(formData: FormData): Promise<void> {
+  // Rilis 1 (ADR 0006): said explicitly, so the guard test sees every action has a release.
+  gerbangAksi("inti");
   const parsed = masukSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId"), code: formData.get("code") });
   if (!parsed.success) {
     const id = hakPakaiSchema.safeParse({ hakPakaiId: formData.get("hakPakaiId") });
@@ -81,6 +85,7 @@ export async function verifikasiKodePerpanjangan(formData: FormData): Promise<vo
 export async function pesanPerpanjangan(formData: FormData): Promise<void> {
   const input = { hakPakaiId: formData.get("hakPakaiId"), terms: formData.get("terms"), layanan: layananDariForm(formData) };
   const dijaga = await guarded({
+    fitur: "inti",
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: pesanSchema,

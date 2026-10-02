@@ -21,7 +21,7 @@ const schema = z.object({ perangkat: z.string().min(1) });
 
 /** A Server Action body: Keluar from the caller's own Akun on one device. */
 function signOutOwnAccount(input: unknown) {
-  return guarded({
+  return guarded({ fitur: "inti",
     action: "akun.keluar",
     resource: (signedIn) => akunResource(signedIn.accountId),
     schema,
@@ -44,7 +44,7 @@ describe("a guarded Server Action", () => {
 
   it("cannot be talked out of authenticating: an actor handed in by the caller is ignored", async () => {
     const forged = { accountId: "akun-1", phoneNumber: "+6281234567890", roles: ["pemesan"] };
-    const result = await guarded({
+    const result = await guarded({ fitur: "inti",
       actor: forged,
       action: "akun.keluar",
       resource: () => akunResource("akun-1"),
@@ -58,7 +58,7 @@ describe("a guarded Server Action", () => {
 
   it("rejects a signed-in Pemesan acting on another Akun", async () => {
     await signIn();
-    const result = await guarded({
+    const result = await guarded({ fitur: "inti",
       action: "akun.lihat",
       resource: () => akunResource("akun-lain"),
       schema,
@@ -81,7 +81,7 @@ describe("a guarded Server Action", () => {
     browser.store(login.session.cookies);
     let ran = false;
 
-    const result = await guarded({
+    const result = await guarded({ fitur: "inti",
       action: "staf.undang",
       resource: () => stafResource(),
       schema,

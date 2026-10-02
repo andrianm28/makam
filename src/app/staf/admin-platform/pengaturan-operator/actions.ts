@@ -26,6 +26,7 @@ export async function simpanPengaturanOperator(
   formData: FormData,
 ): Promise<FormState> {
   const result = await guarded({
+    fitur: "inti",
     action: "pengaturan_operator.ubah",
     resource: () => pengaturanOperatorResource(),
     schema: pengaturanOperatorSchema,
