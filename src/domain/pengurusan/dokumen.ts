@@ -134,3 +134,20 @@ export function daftarDokumen(input: {
       : [...pengajuan, ...pasal17Dua],
   };
 }
+
+/**
+ * What a Perpanjangan TPU uploads for the filing: the Pemegang Hak's own papers, the Surat Kuasa the platform
+ * generates and the scan of the IPTM being renewed. Nothing is brought anywhere (no burial), so the first set is empty.
+ * The spec names no list for a renewal; this one is the Pemegang Hak's half of the filing set above (ticket 48 records it).
+ */
+export function daftarDokumenPerpanjangan(): DokumenPemakamanDanPengajuan {
+  return {
+    pemakaman: [],
+    pengajuan: [
+      { nama: "Scan IPTM yang diperpanjang", catatan: "Foto IPTM yang Anda unggah saat pengajuan sudah cukup; unggah ulang bila perlu lebih jelas." },
+      { nama: "Surat Kuasa bermaterai", catatan: "Dihasilkan platform di atas kertas bermaterai untuk Anda tanda tangani, lalu diunggah di sini." },
+      { nama: "KTP Pemegang Hak", catatan: "Fotokopi seluruh halaman." },
+      { nama: "Kartu Keluarga Pemegang Hak", catatan: "Fotokopi." },
+    ],
+  };
+}

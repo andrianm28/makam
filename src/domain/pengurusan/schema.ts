@@ -1,4 +1,4 @@
-import { date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { ItemHariHTpu } from "@/domain/layanan";
 import {
   jenisPenguburanValues,
@@ -215,6 +215,14 @@ export const pengurusanTpu = pgTable(
     suratPengantarTugasId: text("surat_pengantar_tugas_id"),
     perbaikan: jsonb("perbaikan").$type<PerbaikanPtsp>(),
     ditolakPada: at("ditolak_pada"),
+    /**
+     * The Perpanjangan TPU (ticket 48). `iptm_berakhir_pada` is the expiry of the IPTM being renewed, as the form
+     * gave it (read off the IPTM photo) and as Admin Platform may correct it; `lewat_masa_tenggang` says the request
+     * came after the masa tenggang, so the TPU is asked first and no Tagihan is issued until `cek_tpu_selesai_pada`.
+     */
+    iptmBerakhirPada: date("iptm_berakhir_pada", { mode: "string" }),
+    lewatMasaTenggang: boolean("lewat_masa_tenggang").notNull().default(false),
+    cekTpuSelesaiPada: at("cek_tpu_selesai_pada"),
   },
   (table) => [
     uniqueIndex("pengurusan_tpu_nomor_idx").on(table.nomor),

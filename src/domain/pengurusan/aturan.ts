@@ -15,3 +15,8 @@ export const STATUS_BOLEH_DIBATALKAN: readonly PengurusanTpuStatus[] = ["diajuka
 
 /** From these on the Operator has arranged the burial with the TPU, so a refund keeps its Biaya Pengurusan. */
 export const STATUS_SUDAH_DIMAKAMKAN: readonly PengurusanTpuStatus[] = ["dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
+
+/** A Perpanjangan TPU may be requested from this many months before the IPTM expires (spec, Pengurusan; story 80). */
+export const BULAN_PERPANJANGAN_TPU_DIBUKA = 3;
+/** The masa tenggang of a DKI TPU's IPTM, in months after it expires; past it the TPU is asked first (story 81). */
+export const BULAN_MASA_TENGGANG_TPU = 3;
