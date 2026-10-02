@@ -83,3 +83,16 @@ export const lepasPenugasanSchema = z.object({
   alasan: z.string().trim().min(1, "Tulis alasan penugasan ulang.").max(500),
 });
 export type LepasPenugasanInput = z.infer<typeof lepasPenugasanSchema>;
+
+/** A Mitra Jasa sends the captured proof of a job for approval, or Admin Platform approves it. */
+export const pekerjaanTpuIdSchema = z.object({ pekerjaanId: z.uuid() });
+
+/** Admin Platform sends a proof back with the reason the Mitra Jasa will read. */
+export const tolakBuktiTpuSchema = z.object({
+  pekerjaanId: z.uuid(),
+  alasan: z.string().trim().min(1, "Tulis alasan bukti ditolak.").max(500),
+});
+export type TolakBuktiTpuInput = z.infer<typeof tolakBuktiTpuSchema>;
+
+/** Admin Platform has the Mitra Jasa (the same or another) redo a job after an upheld Keluhan. */
+export const kerjaUlangTpuSchema = z.object({ pekerjaanId: z.uuid(), mitraJasaId: z.uuid() });

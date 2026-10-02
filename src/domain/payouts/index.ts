@@ -38,6 +38,7 @@ import { itemLayananOf, jadikanLayananJatuhTempo, type ItemLayanan, type Layanan
 import {
   batalkanPencairanTagihan,
   catatItemLayananMitraJasa,
+  batalkanItem,
   itemJatuhTempo,
   kurangiPencairanPesanan,
   kurangiPencairanSebisanya,
@@ -45,6 +46,7 @@ import {
   type BatalkanTagihanResult,
   type KurangiSebisanyaResult,
   type CatatLayananMitraJasaResult,
+  type BatalkanItemResult,
   type KurangiPesananResult,
   type TurunkanJumlahResult,
 } from "./item";
@@ -248,6 +250,8 @@ export interface Payouts {
    * answer is `belum_ada` (the Lunas half has not written the item yet). Idempotent.
    */
   jadikanLayananJatuhTempo(tx: Database, input: { tagihanId: string; tagihanPosisi: number }): Promise<LayananJatuhTempoResult>;
+  /** Cancels one untransferred item by id: a Mitra Jasa's job redone by another Mitra Jasa (ticket 57). */
+  batalkanItem(tx: Database, input: { itemId: string; alasan: "diganti_pelaksana" }): Promise<BatalkanItemResult>;
   /** The 2 Hari Kerja deadline for an item that another ticket's trigger has just made due. */
   jadikanJatuhTempo(tx: Database, itemId: string): Promise<{ ok: true } | { ok: false; reason: "tidak_ditemukan" }>;
 
@@ -317,6 +321,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
         now: deps.clock.now(),
         jatuhTempoAt: () => tenggat(deps.lokasi, deps.clock.now()),
       }),
+    batalkanItem: (tx, input) => batalkanItem(tx, input, deps.clock.now()),
     jadikanJatuhTempo: async (tx, itemId) => itemJatuhTempo(tx, itemId, { now: deps.clock.now(), jatuhTempoAt: await tenggat(deps.lokasi, deps.clock.now()) }),
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),

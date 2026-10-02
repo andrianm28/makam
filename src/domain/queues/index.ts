@@ -145,6 +145,7 @@ export interface QueuesModuleDeps {
     | "kerjakanUlangUntukLokasi"
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
+    | "pekerjaanTpuMenungguVerifikasi"
   >;
 }
 

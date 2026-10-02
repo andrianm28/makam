@@ -1,4 +1,5 @@
 import type { AntreanRowType, Tier1RowType } from "./row-types";
+import { buktiTpuRowType } from "./tier2-bukti-tpu-row";
 import { layananTerlambatRowType } from "./tier2-layanan-terlambat-row";
 import {
   pekerjaanTpuDitolakRowType,
@@ -70,6 +71,7 @@ export const antreanRowTypes: AntreanRowType[] = [
   pekerjaanTpuTidakDiresponsRowType,
   pekerjaanTpuDitolakRowType,
   pekerjaanTpuPenugasanUlangRowType,
+  buktiTpuRowType,
   lokasiRevisitRowType,
   publishGateCheckRowType,
   otherTugasLapanganRowType,

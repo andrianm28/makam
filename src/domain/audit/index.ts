@@ -269,6 +269,10 @@ export type AuditAction =
   | "layanan.tugaskan_pekerjaan_tpu"
   /** A Mitra Jasa accepts or declines the TPU job assigned to them (ticket 56). */
   | "layanan.jawab_penugasan_tpu"
+  | "layanan.unggah_bukti_tpu"
+  | "layanan.kirim_bukti_tpu"
+  | "layanan.setujui_bukti_tpu"
+  | "layanan.tolak_bukti_tpu"
   /** Admin Platform takes a TPU job off the Mitra Jasa who holds it, so it can be given to another (ticket 56). */
   | "layanan.lepas_penugasan_tpu"
   /** An Admin Lokasi approves a manual Perpanjangan request (KTP, heir or claim); the approval stays valid 30 days (ticket 41). */

@@ -86,6 +86,7 @@ export interface AntreanRowDeps {
     // The TPU jobs' Tier 1 and Tier 2 rows (ticket 56).
     | "pekerjaanTpuHariIniTanpaMitra"
     | "pekerjaanTpuPerluTindakan"
+    | "pekerjaanTpuMenungguVerifikasi"
   >;
 }
 

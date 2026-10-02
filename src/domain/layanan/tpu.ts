@@ -32,6 +32,7 @@ import type { Rupiah } from "@/lib/rupiah";
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { offerings, type LayananUntukPesanan, type VarianUntukOrder } from "./harga";
+import { buktiTpuPerPekerjaan, type BuktiTpuTerbaca } from "./bukti-tpu-baca";
 import { katalog } from "./katalog";
 import { jendelaTarget, targetPalingDini } from "./pesanan";
 import {
@@ -478,6 +479,8 @@ export interface PekerjaanTpuPemesan {
   status: PekerjaanTpuStatus;
   /** The Mitra Jasa's first name and photo, once they have accepted; null before, and never their surname or contact. */
   mitraJasa: { namaDepan: string; fotoUrl: string | null } | null;
+  /** The proof, once Admin Platform has approved it (and never before): what was captured and a short-lived link. */
+  bukti: BuktiTpuTerbaca[];
 }
 
 /** One order at a DKI TPU as its Pemesan reads it: standalone, or the hari-H items of a Saat Duka TPU order. */
@@ -516,6 +519,11 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
     .innerJoin(layananMitraJasa, eq(layananMitraJasa.id, pekerjaanLayananTpuPenugasan.mitraJasaId))
     .where(and(inArray(pekerjaanLayananTpuPenugasan.pekerjaanId, jobs.map((job) => job.id)), eq(pekerjaanLayananTpuPenugasan.hasil, "diterima")));
   const mitraOf = new Map(diterima.map((row) => [row.pekerjaanId, row] as const));
+  // Only an approved proof is shown to the Pemesan: a job Menunggu Verifikasi has none to show yet.
+  const buktiOf = await buktiTpuPerPekerjaan(
+    deps,
+    jobs.filter((job) => job.buktiDitunjukkanAt !== null).map((job) => job.id),
+  );
 
   const [pertama] = jobs;
   return {
@@ -545,6 +553,7 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
           mitraJasa: mitra
             ? { namaDepan: namaDepan(mitra.namaLengkap), fotoUrl: await fotoUrl(deps, mitra.fotoFileKey) }
             : null,
+          bukti: buktiOf.get(job.id) ?? [],
         };
       }),
     ),

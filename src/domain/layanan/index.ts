@@ -174,6 +174,25 @@ import {
   type PlacePesananLayananTpuResult,
 } from "./tpu";
 import {
+  buktiTpuSaya,
+  buktiTpuUntukStaf,
+  kerjaUlangTpu,
+  kirimBuktiTpu,
+  pekerjaanTpuMenungguVerifikasi,
+  setujuiBuktiTpu,
+  simpanBuktiTpu,
+  tolakBuktiTpu,
+  tutupJendelaTpu,
+  type BuktiTpuMitraJasa,
+  type BuktiTpuStaf,
+  type KerjaUlangTpuResult,
+  type KirimBuktiTpuResult,
+  type PekerjaanTpuMenungguVerifikasi,
+  type SetujuiBuktiTpuResult,
+  type SimpanBuktiTpuResult,
+  type TolakBuktiTpuResult,
+} from "./bukti-tpu";
+import {
   bacaPekerjaanTpu,
   jawabPenugasan,
   lepasPenugasan,
@@ -318,6 +337,7 @@ export type {
 export { keluhanStatuses, type KeluhanStatus } from "./schema";
 export { batasBatal, bolehDibatalkan } from "./batal";
 export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
+export { BATAS_VERIFIKASI_BUKTI_JAM } from "./bukti-tpu";
 export type {
   BacaPekerjaanTpuResult,
   JawabPenugasanResult,
@@ -620,6 +640,24 @@ export interface Layanan {
   pekerjaanTpuHariIniTanpaMitra(): Promise<PekerjaanTpuAntrean[]>;
   /** The Antrean's Tier 2 rows: jobs back in the queue after Tidak direspons, Ditolak or a release for reassignment. */
   pekerjaanTpuPerluTindakan(): Promise<PekerjaanTpuAntrean[]>;
+  /* ── Photo proof, approval and Mitra Jasa pay (ticket 57) ── */
+
+  /** The Mitra Jasa takes one shot of a TPU job's proof with the in-app camera; the first makes it Sedang Dikerjakan. */
+  simpanBuktiTpu(by: Actor, input: unknown): Promise<SimpanBuktiTpuResult>;
+  /** The Mitra Jasa sends the proof once every required shot is taken: Menunggu Verifikasi. */
+  kirimBuktiTpu(by: Actor, input: unknown): Promise<KirimBuktiTpuResult>;
+  /** What the Mitra Jasa's job screen shows of the proof: what is asked, what is taken, why it came back. */
+  buktiTpuSaya(by: Actor, pekerjaanId: string): Promise<BuktiTpuMitraJasa | null>;
+  /** Admin Platform reads the proof it has to decide on. */
+  buktiTpuUntukStaf(by: Actor, pekerjaanId: string): Promise<BuktiTpuStaf | null>;
+  /** Admin Platform approves: Selesai, proof shown to the Pemesan, Keluhan window opens, Pencairan by the pay rules. */
+  setujuiBuktiTpu(by: Actor, input: unknown): Promise<SetujuiBuktiTpuResult>;
+  /** Admin Platform rejects with a reason: back to Sedang Dikerjakan. */
+  tolakBuktiTpu(by: Actor, input: unknown): Promise<TolakBuktiTpuResult>;
+  /** Admin Platform has a finished job redone by the same or another Mitra Jasa. */
+  kerjaUlangTpu(by: Actor, input: unknown): Promise<KerjaUlangTpuResult>;
+  /** The Antrean's Tier 2 "foto bukti" rows: proofs waiting for approval, oldest first. */
+  pekerjaanTpuMenungguVerifikasi(): Promise<PekerjaanTpuMenungguVerifikasi[]>;
   /* ── Keluhan and Penilaian (ticket 51) ── */
 
   /**
@@ -743,6 +781,14 @@ export function createLayanan(deps: LayananDeps): Layanan {
     tandaiTidakDirespons: (at) => tandaiTidakDirespons(deps.db, at),
     pekerjaanTpuHariIniTanpaMitra: () => pekerjaanTpuHariIniTanpaMitra(deps.db, now()),
     pekerjaanTpuPerluTindakan: () => pekerjaanTpuPerluTindakan(deps.db),
+    simpanBuktiTpu: (by, input) => simpanBuktiTpu(deps, by, input),
+    kirimBuktiTpu: (by, input) => kirimBuktiTpu(deps, by, input),
+    buktiTpuSaya: (by, pekerjaanId) => buktiTpuSaya(deps, by, pekerjaanId),
+    buktiTpuUntukStaf: (by, pekerjaanId) => buktiTpuUntukStaf(deps, by, pekerjaanId),
+    setujuiBuktiTpu: (by, input) => setujuiBuktiTpu(deps, by, input),
+    tolakBuktiTpu: (by, input) => tolakBuktiTpu(deps, by, input),
+    kerjaUlangTpu: (by, input) => kerjaUlangTpu(deps, by, input),
+    pekerjaanTpuMenungguVerifikasi: () => pekerjaanTpuMenungguVerifikasi(deps.db),
     ajukanKeluhan: (pemesan, input) => ajukanKeluhan(deps, pemesan, input),
     beriPenilaian: (pemesan, input) => beriPenilaian(deps, pemesan, input),
     putuskanKeluhan: (by, input) => putuskanKeluhan(deps, by, input),
@@ -751,7 +797,11 @@ export function createLayanan(deps: LayananDeps): Layanan {
     daftarPenilaian: (by) => daftarPenilaian(deps, by),
     keluhanTerbuka: () => keluhanTerbuka(deps),
     kerjakanUlangUntukLokasi: (by, lokasiId) => kerjakanUlangUntukLokasi(deps, by, lokasiId),
-    tutupJendelaKeluhan: (now) => tutupJendelaKeluhan(deps, now),
+    tutupJendelaKeluhan: async (now) => {
+      const lokasi = await tutupJendelaKeluhan(deps, now);
+      const tpu = await tutupJendelaTpu(deps, now);
+      return { ditutup: lokasi.ditutup + tpu.ditutup, pencairanJatuhTempo: lokasi.pencairanJatuhTempo + tpu.pencairanJatuhTempo };
+    },
   };
 }
 

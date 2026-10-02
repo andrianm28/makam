@@ -322,6 +322,27 @@ export async function batalkanPencairanTagihan(
   return { ok: true, dibatalkan: dibatalkan.map((row) => row.id) };
 }
 
+export type BatalkanItemResult = { ok: true } | { ok: false; reason: "tidak_ditemukan" };
+
+/**
+ * Cancels one Pencairan item that has not been transferred, by id (a Mitra Jasa job redone by
+ * another Mitra Jasa: the original Pencairan is cancelled, spec Layanan > Mitra Jasa pay; ticket 57).
+ * An item already due is cancelled too; one already transferred or cancelled is left as it is.
+ */
+export async function batalkanItem(
+  tx: Database,
+  input: { itemId: string; alasan: Extract<PencairanItemBatalReason, "diganti_pelaksana"> },
+  now: Date,
+): Promise<BatalkanItemResult> {
+  if (!z.uuid().safeParse(input.itemId).success) return { ok: false, reason: "tidak_ditemukan" };
+  const hasil = await tx
+    .update(pencairanItem)
+    .set({ status: "dibatalkan", batalAlasan: input.alasan, batalPada: now })
+    .where(and(eq(pencairanItem.id, input.itemId), inArray(pencairanItem.status, ["belum_jatuh_tempo", "jatuh_tempo"])))
+    .returning({ id: pencairanItem.id });
+  return hasil.length > 0 ? { ok: true } : { ok: false, reason: "tidak_ditemukan" };
+}
+
 export type CatatLayananMitraJasaResult = { ok: true; id: string } | { ok: false; reason: "input_tidak_valid" };
 
 /**
