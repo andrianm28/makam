@@ -206,5 +206,5 @@ export async function pesanDariPermohonan(deps: PerpanjanganDeps, pemohon: Pemoh
   // The same blocks as ticket 40 (overdue Tagihan, perpetual, too early, Berakhir, Dibatalkan) apply at the order.
   const dasar = await fakta(deps, row.hakPakaiId);
   if (!dasar.ok) return { ok: false, reason: "tidak_boleh", catatan: dasar.catatan };
-  return pesanTagihan(deps, { hak: dasar.hak, aturan: dasar.aturan, akun: { id: akun.id, email: akun.email }, terms: input.terms, now, permohonanId: row.id });
+  return pesanTagihan(deps, { hak: dasar.hak, aturan: dasar.aturan, akun: { id: akun.id, email: akun.email }, terms: input.terms, now, permohonanId: row.id, layanan: input.layanan });
 }

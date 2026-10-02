@@ -8,7 +8,11 @@ import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import { csWhatsAppLink, type KodeMasukRequestState } from "@/components/kode-masuk/state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PilihLayanan } from "@/components/layanan/pilih-layanan";
+import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 import { formatTelepon } from "@/lib/format-telepon";
+import { itemDariPilihan, subtotalPilihan, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
+import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { kirimPesananTerencana, verifikasiKodeMasukDanKirimTerencana } from "./actions";
 import type { PilihanPicker } from "./denah-picker";
@@ -36,6 +40,7 @@ export function DataKirim({
   sudahMasuk,
   mintaKodeMasuk,
   csContact,
+  layananOpsi = [],
 }: {
   /** What the picker chose, with the Lokasi Mitra and the contact already known. */
   draft: Pick<DraftTerencana, "lokasiId" | "units" | "email" | "phoneNumber">;
@@ -52,7 +57,11 @@ export function DataKirim({
   /** Sends the Kode Masuk to the typed email (Masuk's own action, as the spec says). */
   mintaKodeMasuk: (state: KodeMasukRequestState, formData: FormData) => Promise<KodeMasukRequestState>;
   csContact: { whatsApp: string; replyHours: string } | null;
+  /** The Layanan this Lokasi offers for an empty plot, each with the first date its lead time allows (offered for one Petak Makam only). */
+  layananOpsi?: readonly OpsiTambahLayanan[];
 }) {
+  const [pilihanLayanan, setPilihanLayanan] = useState<PilihanPerLayanan>({});
+  const satuPetak = draft.units.length === 1 && "petakId" in draft.units[0];
   const [isi, setIsi] = useState({ pemesanName: "", email: draft.email, phoneNumber: draft.phoneNumber });
   const [calon, setCalon] = useState<"saya" | "lain">("saya");
   const [calonNama, setCalonNama] = useState("");
@@ -75,6 +84,9 @@ export function DataKirim({
         ? { mode: "pemesan" }
         : { mode: "lain", name: namaHolder, phoneNumber: teleponHolder, email: emailHolder },
     calonPenghuni: calon === "saya" ? { mode: "saya" } : { mode: "lain", name: calonNama },
+    layanan: satuPetak
+      ? itemDariPilihan(layananOpsi, pilihanLayanan, "petak_kosong").flatMap((satu) => (satu.targetDate ? [{ layananVariantId: satu.layananVariantId, targetDate: satu.targetDate, teks: satu.teks }] : []))
+      : [],
   });
 
   /** Kirim for a Pemesan already signed in; the Kode Masuk path places the order inside its own action. */
@@ -205,6 +217,27 @@ export function DataKirim({
         ) : null}
       </fieldset>
 
+      {satuPetak && layananOpsi.length > 0 ? (
+        <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+          <legend className="text-title-3 text-foreground">Layanan untuk petak ini (boleh dikosongkan)</legend>
+          <p className="text-small text-muted-foreground">
+            Dikerjakan Mitra Jasa kami pada tanggal yang Anda pilih, ditagihkan pada Tagihan yang sama dengan Hak Pakai. Harga dipastikan saat Lokasi Mitra mengonfirmasi.
+          </p>
+          <PilihLayanan
+            idAwalan="petak-kosong"
+            opsi={layananOpsi}
+            nilai={pilihanLayanan}
+            onChange={setPilihanLayanan}
+            tanggalPalingDini={(grup) => layananOpsi.find((satu) => satu.id === grup.id)?.tanggalPalingDini ?? ""}
+          />
+          {subtotalPilihan(layananOpsi, pilihanLayanan) > 0 ? (
+            <p className="text-body font-semibold text-foreground" data-testid="total-layanan">
+              Layanan ditambahkan ke Tagihan: {formatRupiah(subtotalPilihan(layananOpsi, pilihanLayanan))}
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
+
       <section aria-labelledby="syarat" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
         <h2 id="syarat" className="flex items-center gap-2 text-title-3 text-foreground">
           <ScrollText className="size-5 text-primary" aria-hidden /> Syarat Pemesanan Terencana
@@ -284,7 +317,7 @@ export function DataKirim({
         </div>
       ) : null}
 
-      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada />
+      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada layananTambahan={satuPetak ? subtotalPilihan(layananOpsi, pilihanLayanan) : 0} />
     </div>
   );
 }

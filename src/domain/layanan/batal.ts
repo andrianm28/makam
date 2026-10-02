@@ -31,7 +31,7 @@
  * Tagihan lapses at its due date by Billing's own rule — so no request is written
  * for it.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { refusable } from "@/db/unit-of-work";
 import { nilaiDibayarBaris } from "@/domain/billing";
@@ -247,4 +247,47 @@ export async function pengembalianTerbuka(deps: LayananDeps): Promise<Pengembali
     platformDikembalikan: row.platformDikembalikan,
     createdAt: row.createdAt,
   }));
+}
+
+/**
+ * A Pembatalan Terencana of the plot a Layanan order was placed for (owner decision, 2026-10-02): every job
+ * of that order not yet done (Dijadwalkan or Terlambat; one still Menunggu Pembayaran has nothing paid) becomes Dibatalkan, and
+ * the lines to refund for them come back for the cancellation to ask of Refunds together with the Hak Pakai, in
+ * its own transaction (`within`). A job Sedang Dikerjakan or Selesai keeps its price: it is not returned. The
+ * amounts are what was paid for each line, after any Harga Khusus. A Nomor Pemesanan with no Layanan answers none.
+ */
+export async function batalkanLayananPetakDibatalkan(
+  deps: LayananDeps,
+  nomor: string,
+  within: Database,
+): Promise<{ dibatalkan: number; baris: { label: string; amount: number; lokasiId: string | null }[] }> {
+  const [order] = await within.select().from(pesananLayanan).where(eq(pesananLayanan.nomor, nomor));
+  if (!order) return { dibatalkan: 0, baris: [] };
+  const jobs = await within
+    .select({ job: pekerjaanLayanan, item: pesananLayananItem })
+    .from(pekerjaanLayanan)
+    .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
+    .where(and(eq(pekerjaanLayanan.pesananId, order.id), inArray(pekerjaanLayanan.status, ["menunggu_pembayaran", "dijadwalkan", "terlambat"])))
+    .orderBy(pesananLayananItem.posisi);
+  if (jobs.length === 0) return { dibatalkan: 0, baris: [] };
+  const now = deps.clock.now();
+  const tagihan = await deps.billing.within(within).tagihanBerlaku(order.tagihanId);
+  const dibayar = tagihan?.status === "lunas";
+  const baris: { label: string; amount: number; lokasiId: string | null }[] = [];
+  let dibatalkan = 0;
+  for (const { job, item } of jobs) {
+    const moved = await within
+      .update(pekerjaanLayanan)
+      .set({ status: "dibatalkan", dibatalkanAt: now, alasanPembatalan: "Pembatalan Terencana disetujui" })
+      .where(and(eq(pekerjaanLayanan.id, job.id), eq(pekerjaanLayanan.status, job.status)))
+      .returning({ id: pekerjaanLayanan.id });
+    if (moved.length === 0) continue;
+    dibatalkan += 1;
+    if (!dibayar || !tagihan) continue;
+    const line = tagihan.lines[item.posisi];
+    if (!line || line.kind !== "layanan" || line.label !== item.label) continue;
+    const amount = nilaiDibayarBaris(tagihan.lines, line);
+    if (amount > 0) baris.push({ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null });
+  }
+  return { dibatalkan, baris };
 }

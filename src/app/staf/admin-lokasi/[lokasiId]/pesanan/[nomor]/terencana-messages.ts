@@ -33,6 +33,8 @@ export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaRe
       return "Lokasi Mitra ini tidak lagi tayang, jadi pesanan tidak bisa dikonfirmasi.";
     case "tagihan_tidak_terbit":
       return "Tagihan belum bisa terbit. Minta Admin Platform mengisi Pengaturan Operator, lalu coba lagi.";
+    case "layanan_tidak_tersedia":
+      return "Layanan yang dipilih keluarga tidak bisa ditawarkan lagi (dimatikan, belum berharga, atau tanggalnya terlalu dekat). Hubungi Admin Platform atau tolak pesanan ini.";
   }
 }
 

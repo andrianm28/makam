@@ -328,7 +328,15 @@ export type PlaceTerencanaResult =
   | { ok: false; reason: "unit_tidak_bisa_dipilih"; nomor: string; status: string }
   /** v1 takes no order whose Tagihan would pass the Rp 10.000.000 QRIS cap. */
   | { ok: false; reason: "melebihi_batas_qris"; total: number }
-  | { ok: false; reason: "harga_tidak_tersedia" };
+  | { ok: false; reason: "harga_tidak_tersedia" }
+  /** Layanan for the empty plot go with one Petak Makam only (not several plots, not a Kavling Keluarga). */
+  | { ok: false; reason: "layanan_satu_petak" }
+  /** A chosen Layanan is not offered for an empty plot at this Lokasi Mitra, or has no price in force (or no Layanan module is composed). */
+  | { ok: false; reason: "layanan_tidak_tersedia" }
+  /** A Layanan's target date is inside its lead time. */
+  | { ok: false; reason: "lead_time_melewati" }
+  /** A Layanan that asks for a text (a name, an inscription) was given none. */
+  | { ok: false; reason: "teks_kosong" };
 
 /**
  * Places a Pemesanan Terencana: it holds every chosen plot, takes the next Nomor
@@ -379,6 +387,15 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
     const dicek = await periksaPilihanTerencana(deps, { lokasiId: draft.lokasiId, units: draft.units });
     if (!dicek.ok) return refusalOf(dicek);
 
+    // Checked now so the family is refused early; priced and dated again where the Tagihan is issued, at the confirmation.
+    const layanan = draft.layanan.map((satu) => ({ layananVariantId: satu.layananVariantId, targetDate: satu.targetDate, teks: satu.teks?.trim() || null }));
+    if (layanan.length > 0) {
+      if (draft.units.length !== 1 || !("petakId" in draft.units[0])) return { ok: false, reason: "layanan_satu_petak" };
+      if (!deps.layanan) return { ok: false, reason: "layanan_tidak_tersedia" };
+      const siap = await deps.layanan.siapkanCheckout({ lokasiId: draft.lokasiId, mode: "petak_kosong", items: layanan, at: now });
+      if (!siap.ok) return { ok: false, reason: siap.reason === "lead_time_melewati" || siap.reason === "teks_kosong" ? siap.reason : "layanan_tidak_tersedia" };
+    }
+
     const inventory = deps.inventory.within(tx);
     const nomor = await deps.billing.within(tx).nextNomorPemesanan();
     const ditahan = await inventory.tahan({ lokasiId: draft.lokasiId, units: draft.units, nomorPemesanan: nomor });
@@ -417,6 +434,7 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
         pemegangHak,
         calonPenghuni,
         syarat: syaratOf(profile),
+        layanan: layanan.length > 0 ? layanan : null,
         diajukanAt: now,
       })
       .returning({ id: pemesananTerencana.id });

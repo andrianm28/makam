@@ -10,6 +10,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
+import { opsiLayananView } from "@/components/layanan/opsi-view";
 import { BatalkanForm, PerbaikiForm, PesanForm } from "./permohonan-forms";
 
 export const metadata: Metadata = {
@@ -38,6 +39,7 @@ export default async function PermohonanPerpanjanganPage({ params }: PageProps<"
   const menunggu = permohonan.status === "diajukan";
   const perluPerbaikan = permohonan.status === "perlu_perbaikan";
   const tawaran = permohonan.dapatDipesan ? await perpanjangan.tawaran(permohonan.hakPakaiId) : null;
+  const layananTawaran = tawaran && tawaran.ok ? await perpanjangan.penawaranLayanan(permohonan.hakPakaiId) : { ok: false as const };
   const status = permohonan.dapatDipesan ? await perpanjangan.status(permohonan.hakPakaiId, pemohon) : null;
   const tagihanTerbuka = status && status.boleh ? status.tagihanTerbuka : null;
   const kedaluwarsa = permohonan.masaPersetujuan === "kedaluwarsa";
@@ -103,6 +105,7 @@ export default async function PermohonanPerpanjanganPage({ params }: PageProps<"
           ) : tawaran && tawaran.ok ? (
             <PesanForm
               permohonanId={permohonan.id}
+              opsiLayanan={layananTawaran.ok ? layananTawaran.opsi.map(opsiLayananView) : []}
               opsi={tawaran.opsi.map((satu) => ({
                 terms: satu.terms,
                 judul: `${satu.terms} masa · ${formatRupiah(satu.total)}`,

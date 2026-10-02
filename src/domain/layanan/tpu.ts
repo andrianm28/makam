@@ -63,9 +63,7 @@ export interface FotoMakamTpu {
 const FOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 /** One variant a TPU offers, with the facts that belong to its Layanan (lead time, text, hari-H). */
-export interface VarianTpuUntukOrder extends VarianUntukOrder {
-  bisaHariH: boolean;
-}
+export type VarianTpuUntukOrder = VarianUntukOrder;
 
 /**
  * Every Layanan variant offered at every DKI TPU at `at` (Admin Platform's "boleh di
@@ -79,7 +77,7 @@ export async function offeringsTpuUntukOrder(deps: LayananDeps, at: Date): Promi
   return ditawarkan.flatMap((varian) => {
     const entry = entryOf.get(varian.layananId);
     return entry
-      ? [{ ...varian, leadTimeDays: entry.leadTimeDays, teksLabel: entry.teksLabel, proof: entry.proof, bisaHariH: entry.bisaHariH }]
+      ? [{ ...varian, leadTimeDays: entry.leadTimeDays, teksLabel: entry.teksLabel, proof: entry.proof, bisaHariH: entry.bisaHariH, adaDiPetakKosong: entry.adaDiPetakKosong }]
       : [];
   });
 }

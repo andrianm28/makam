@@ -1,5 +1,6 @@
 import { composeLayanan } from "@/composition/layanan";
 import { suratKuasaDeps } from "./surat-kuasa";
+import { efekJadwalkanPekerjaan } from "@/domain/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
@@ -48,7 +49,9 @@ export function perpanjanganOnTestDatabase(db: Database) {
     lokasi: { aturanPerpanjanganOf: (lokasiId) => ref.setup!.lokasi.aturanPerpanjanganOf(lokasiId) },
     notifikasi,
   });
-  const paymentEffects = [efekPencairanSaatLunas(), efek];
+  // A paid Perpanjangan Tagihan that carries Layanan schedules their jobs (ticket 53), as the runtime registers it.
+  const efekLayanan = efekJadwalkanPekerjaan({ db, inventory: { hakPakaiOfUnit: (unit) => ref.setup!.inventory.hakPakaiOfUnit(unit) } });
+  const paymentEffects = [efekPencairanSaatLunas(), efek, efekLayanan];
   const setup = publishOnTestDatabase(db, { paymentEffects });
   ref.setup = setup;
   // Payouts first: the Pemesanan module tells it every Pemakaman it records (ticket 90).
@@ -84,19 +87,6 @@ export function perpanjanganOnTestDatabase(db: Database) {
     notifikasi: setup.notifications,
     refunds: refundsTertunda().refunds,
   });
-  const perpanjangan = createPerpanjangan({
-    db,
-    clock: setup.clock,
-    lokasi: setup.lokasi,
-    tariffs: setup.tariffs,
-    inventory: setup.inventory,
-    billing: setup.billing,
-    pemesanan,
-    identity: setup.identity,
-    files: setup.files,
-    audit: setup.audit,
-    notifikasi,
-  });
   // The Antrean Lokasi's "Periksa dokumen Perpanjangan" row (ticket 41) is read through the queue itself.
   const { refunds } = refundsFor(setup, payouts);
   const layanan = composeLayanan({
@@ -112,6 +102,20 @@ export function perpanjanganOnTestDatabase(db: Database) {
     refunds,
     payouts,
     notifications: setup.notifications,
+  });
+  const perpanjangan = createPerpanjangan({
+    layanan,
+    db,
+    clock: setup.clock,
+    lokasi: setup.lokasi,
+    tariffs: setup.tariffs,
+    inventory: setup.inventory,
+    billing: setup.billing,
+    pemesanan,
+    identity: setup.identity,
+    files: setup.files,
+    audit: setup.audit,
+    notifikasi,
   });
   const queues = createQueues({
     db,
@@ -130,7 +134,7 @@ export function perpanjanganOnTestDatabase(db: Database) {
     perpanjangan,
     refunds,
   });
-  return { ...setup, pemesanan, pengurusan, payouts, dikirim, perpanjangan, queues, gagalSetelahAntre, paymentEffects };
+  return { ...setup, pemesanan, layanan, pengurusan, payouts, dikirim, perpanjangan, queues, gagalSetelahAntre, paymentEffects };
 }
 
 export type PerpanjanganSetup = ReturnType<typeof perpanjanganOnTestDatabase>;

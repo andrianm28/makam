@@ -365,7 +365,8 @@ export const pesananLayanan = pgTable(
     /** The grave this order is for: a Petak Makam of that Lokasi Mitra, with its Hak Pakai. */
     lokasiId: uuid("lokasi_id").notNull(),
     petakId: uuid("petak_id").notNull(),
-    hakPakaiId: uuid("hak_pakai_id").notNull(),
+    /** The grave's Hak Pakai; null for a Layanan chosen with an empty plot (Terencana), whose Hak Pakai only exists once it is paid (ticket 53). */
+    hakPakaiId: uuid("hak_pakai_id"),
     /** The Lokasi Mitra and the Petak as they were named at submission, for the Tagihan and the messages. */
     lokasiName: text("lokasi_name").notNull(),
     petakNomor: text("petak_nomor").notNull(),

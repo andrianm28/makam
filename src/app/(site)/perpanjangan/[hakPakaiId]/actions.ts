@@ -9,6 +9,8 @@ import { alasanPerpanjanganText } from "@/lib/perpanjangan-labels";
 import { clientIp } from "@/server/client-ip";
 import { codeInput } from "@/server/code-inputs";
 import { guarded } from "@/server/guard";
+import { layananDariForm } from "@/server/layanan-form";
+import { itemCheckoutListSchema } from "@/domain/layanan/pesanan-schema";
 import { serverRuntime } from "@/server/runtime";
 import { setSessionCookies } from "@/server/session";
 
@@ -28,7 +30,7 @@ import { setSessionCookies } from "@/server/session";
 
 const hakPakaiSchema = z.object({ hakPakaiId: z.uuid() });
 const termsSchema = z.coerce.number().int().min(1).max(100);
-const pesanSchema = hakPakaiSchema.extend({ terms: termsSchema });
+const pesanSchema = hakPakaiSchema.extend({ terms: termsSchema, layanan: itemCheckoutListSchema });
 const masukSchema = hakPakaiSchema.extend({ code: codeInput });
 
 /** The page of one Hak Pakai's Perpanjangan, optionally with a message the last step ended with. */
@@ -77,13 +79,13 @@ export async function verifikasiKodePerpanjangan(formData: FormData): Promise<vo
 
 /** Orders the Perpanjangan for the signed-in Akun, landing on its Tagihan. */
 export async function pesanPerpanjangan(formData: FormData): Promise<void> {
-  const input = { hakPakaiId: formData.get("hakPakaiId"), terms: formData.get("terms") };
+  const input = { hakPakaiId: formData.get("hakPakaiId"), terms: formData.get("terms"), layanan: layananDariForm(formData) };
   const dijaga = await guarded({
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: pesanSchema,
     input,
-    run: (actor, data) => serverRuntime().perpanjangan.ajukan({ hakPakaiId: data.hakPakaiId, terms: data.terms, pemohon: { accountId: actor.accountId, email: actor.email } }),
+    run: (actor, data) => serverRuntime().perpanjangan.ajukan({ hakPakaiId: data.hakPakaiId, terms: data.terms, layanan: data.layanan, pemohon: { accountId: actor.accountId, email: actor.email } }),
   });
   const id = hakPakaiSchema.safeParse({ hakPakaiId: input.hakPakaiId });
   if (!id.success) redirect("/makam-keluarga");

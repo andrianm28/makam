@@ -1,12 +1,14 @@
 import { FakePdfRenderer } from "@/adapters/memory";
 import { suratKuasaDeps } from "./surat-kuasa";
 import { composeLayanan } from "@/composition/layanan";
+import type { Layanan } from "@/domain/layanan";
 import { composePemesanan } from "@/composition/pemesanan";
 import { pemilikPesananDari, refundsTertunda } from "@/composition/refunds";
 import type { Database } from "@/db/client";
 import { createBilling } from "@/domain/billing";
 import type { Actor } from "@/domain/identity";
 import { efekBuktiPembayaran } from "@/domain/notifications";
+import { efekJadwalkanPekerjaan } from "@/domain/layanan/pembayaran";
 import { efekBuktiPemesanan } from "@/domain/pemesanan";
 import type {
   PesananAlternatifDitawarkan,
@@ -40,6 +42,7 @@ import { payoutsFor } from "./payouts";
 import { jenisMakamInput, publishOnTestDatabase } from "./publish";
 import type { TerencanaLokasi } from "./terencana";
 import { layananHariHKosong } from "./layanan-hari-h-kosong";
+import { newLayananInput } from "./layanan";
 
 /** The publish fixture's Kunjungan Verifikasi photo, as a real upload is. */
 const fotoLokasi = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
@@ -154,6 +157,8 @@ export function pemesananOnTestDatabase(
       // The Lunas half of the Pencairan trigger, as the runtime registers it (ticket 32), so a test of a paid
       // Pemesanan Terencana's Pencairan (ticket 37) pays through the real module.
       efekPencairanSaatLunas(),
+      // As the runtime registers it: the payment of a Tagihan with Layanan on it schedules their jobs (ticket 53).
+      efekJadwalkanPekerjaan({ db, inventory: setup.inventory }),
       efekBuktiPemesanan({
         clock: setup.clock,
         billingOn: (tx) => createBilling({ ...deps, db: tx }),
@@ -168,7 +173,20 @@ export function pemesananOnTestDatabase(
   const { payouts } = payoutsFor(setup);
   // Refunds asks Pemesanan who placed an order, and Pemesanan asks Refunds for the refund of a Pembatalan (ticket 38).
   const refundsMenunggu = refundsTertunda();
+  // Layanan is composed after Pemesanan (it needs the Refunds below), so the hari-H items reach it through a box filled later.
+  const layananBox: { current: Layanan | null } = { current: null };
+  const layananLazy = (): Layanan => {
+    if (!layananBox.current) throw new Error("Layanan is not composed yet");
+    return layananBox.current;
+  };
   const pemesanan = composePemesanan({
+    layanan: {
+      siapkanCheckout: (input) => layananLazy().siapkanCheckout(input),
+      gabungkanBaris: (...args) => layananLazy().gabungkanBaris(...args),
+      tulisCheckout: (input, within) => layananLazy().tulisCheckout(input, within),
+      batalkanLayananCheckout: (nomor, alasan, within) => layananLazy().batalkanLayananCheckout(nomor, alasan, within),
+      batalkanLayananPetakDibatalkan: (nomor, within) => layananLazy().batalkanLayananPetakDibatalkan(nomor, within),
+    },
     db,
     clock: setup.clock,
     files: setup.files,
@@ -237,6 +255,7 @@ export function pemesananOnTestDatabase(
     payouts,
     notifications: setup.notifications,
   });
+  layananBox.current = layanan;
   const perpanjangan = createPerpanjangan({
     db,
     clock: setup.clock,
@@ -271,6 +290,7 @@ export function pemesananOnTestDatabase(
     ...setup,
     billing,
     pemesanan,
+    layanan,
     pengurusan,
     payouts,
     refunds,
@@ -320,6 +340,7 @@ export type PemesananModul = Omit<
   | "payouts"
   | "refunds"
   | "queues"
+  | "layanan"
 >;
 
 /**
@@ -592,3 +613,34 @@ export function orderSaatDuka(lokasi: Awaited<ReturnType<typeof saatDukaFixture>
 
 export { jenisMakamInput } from "./publish";
 export { logIn } from "./identity";
+/**
+ * A Layanan the Lokasi Mitra offers at a price, as Admin Platform enters it (ticket 53): the catalog entry, one variant,
+ * and that place's price from 1 Oktober 2026. Defaults to a hari-H item that also makes sense on an empty plot.
+ */
+export async function tawarkanLayananDi(
+  setup: Parameters<typeof adminPlatformOf>[0] & { layanan: Layanan },
+  lokasiId: string,
+  options: { nama?: string; amount?: number; bisaHariH?: boolean; adaDiPetakKosong?: boolean; leadTimeDays?: number; teksLabel?: string | null } = {},
+) {
+  const { actor: admin } = await adminPlatformOf(setup);
+  const dibuat = await setup.layanan.createLayanan(
+    admin,
+    newLayananInput({
+      name: options.nama ?? "Tabur Bunga",
+      jenis: "bunga",
+      bisaHariH: options.bisaHariH ?? true,
+      adaDiPetakKosong: options.adaDiPetakKosong ?? false,
+      leadTimeDays: options.leadTimeDays ?? 0,
+      teksLabel: options.teksLabel ?? null,
+    }),
+  );
+  if (!dibuat.ok) throw new Error(`Layanan refused: ${dibuat.reason}`);
+  const varian = dibuat.layanan.varian[0]!;
+  const ditawarkan = await setup.layanan.tawarkanLayanan(admin, lokasiId, varian.id, {
+    amount: options.amount ?? 150_000,
+    effectiveOn: "2026-10-01",
+    reason: null,
+  });
+  if (!ditawarkan.ok) throw new Error(`Layanan offering refused: ${ditawarkan.reason}`);
+  return { layanan: dibuat.layanan, varian };
+}

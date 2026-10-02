@@ -46,6 +46,11 @@ export const periksaPilihanTerencanaSchema = z.object({
 });
 export type PeriksaPilihanTerencanaInput = z.infer<typeof periksaPilihanTerencanaSchema>;
 
+/** The Layanan a family adds for the empty plot: each on a date it picks (checked against the Layanan's lead time by the module). */
+export const terencanaLayananSchema = z
+  .array(z.object({ layananVariantId: z.uuid(), targetDate: z.iso.date(), teks: z.string().trim().max(500).nullish() }))
+  .max(10);
+
 /** What an order is placed with, at its boundary. */
 export const placeTerencanaSchema = z.object({
   pemesan: z.object({ accountId: z.string().min(1), email: z.email() }),
@@ -55,5 +60,7 @@ export const placeTerencanaSchema = z.object({
   units: z.array(terencanaUnitSchema).min(1).max(TERENCANA_MAKS_UNIT),
   pemegangHak: terencanaPemegangHakSchema,
   calonPenghuni: terencanaCalonPenghuniSchema,
+  /** Layanan for the empty plot (ticket 53): one Petak Makam only, each on a date the Pemesan picks. */
+  layanan: terencanaLayananSchema.default([]),
 });
 export type PlaceTerencanaInput = z.infer<typeof placeTerencanaSchema>;

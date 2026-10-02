@@ -19,6 +19,7 @@ export function TotalBarTerencana({
   ringkasanText,
   ada,
   pesanBatas = null,
+  layananTambahan = 0,
   action,
 }: {
   denah: DenahView;
@@ -28,10 +29,13 @@ export function TotalBarTerencana({
   ada: boolean;
   /** What the read said about a total past the payment cap; shown above the bar's own row. */
   pesanBatas?: string | null;
+  /** The Layanan the family has added to this order (ticket 53): shown as its own line and counted in the total. */
+  layananTambahan?: number;
   action?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const total = denah.total;
+  const totalSemua = total.total + layananTambahan;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
@@ -50,6 +54,12 @@ export function TotalBarTerencana({
                   <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
                 </div>
               ))}
+              {layananTambahan > 0 ? (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Layanan untuk petak ini</dt>
+                  <dd className="whitespace-nowrap">{formatRupiah(layananTambahan)}</dd>
+                </div>
+              ) : null}
             </dl>
             {denah.nanti ? (
               <div className="mt-3 rounded-xl bg-muted px-3 py-2.5 text-small text-foreground">
@@ -74,11 +84,11 @@ export function TotalBarTerencana({
             <span className="min-w-0">
               <span className="line-clamp-2 block text-caption text-muted-foreground">{ringkasanText}</span>
               <span className="block text-title-2 tabular-nums text-foreground">
-                {ada ? formatRupiah(total.total) : "Pilih petak di denah"}
+                {ada ? formatRupiah(totalSemua) : "Pilih petak di denah"}
               </span>
               {ada ? (
                 <span className="hidden text-caption text-muted-foreground sm:block">
-                  Hak Pakai + Biaya Layanan Platform; biaya pemakaman nanti
+                  Hak Pakai + Layanan + Biaya Layanan Platform; biaya pemakaman nanti
                 </span>
               ) : null}
             </span>

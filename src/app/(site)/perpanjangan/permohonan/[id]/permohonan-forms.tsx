@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TambahLayananPerpanjangan } from "@/components/layanan/tambah-layanan-perpanjangan";
+import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 import { batalkanPermohonanAction, perbaikiPermohonanAction, pesanDariPermohonanAction, type PermohonanActionState } from "./actions";
 
 const idle: PermohonanActionState = { status: "idle" };
@@ -53,7 +55,7 @@ export function BatalkanForm({ permohonanId }: { permohonanId: string }) {
 }
 
 /** The term choice on an approved request: the same options and price as the direct path, then on to the Tagihan. */
-export function PesanForm({ permohonanId, opsi }: { permohonanId: string; opsi: { terms: number; judul: string; keterangan: string }[] }) {
+export function PesanForm({ permohonanId, opsi, opsiLayanan }: { permohonanId: string; opsi: { terms: number; judul: string; keterangan: string }[]; opsiLayanan: OpsiTambahLayanan[] }) {
   const [state, action, pending] = useActionState(pesanDariPermohonanAction, idle);
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -70,6 +72,7 @@ export function PesanForm({ permohonanId, opsi }: { permohonanId: string; opsi: 
           </label>
         ))}
       </fieldset>
+      <TambahLayananPerpanjangan opsi={opsiLayanan} />
       <div className="flex flex-col items-start gap-2">
         <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Membuat Tagihan…" : "Lanjut ke Tagihan"}

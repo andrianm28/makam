@@ -15,6 +15,8 @@ import {
 import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PilihLayanan } from "@/components/layanan/pilih-layanan";
+import { itemDariPilihan, subtotalPilihan, type OpsiLayananView, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
 import { Progress } from "../progress";
 import { Field, Fieldset, Pilihan } from "../form";
 import { kirimPesanan, verifikasiKodeMasukDanKirim } from "../actions";
@@ -48,6 +50,8 @@ export interface DataKirimProps {
    * copy then says so instead of naming a span.
    */
   jumlahJamPembayaran: number | null;
+  /** The Layanan "bisa hari-H" this Lokasi Mitra offers for the burial day (story 23, ticket 53); empty when it offers none. */
+  layananHariH?: OpsiLayananView[];
 }
 
 /**
@@ -56,20 +60,21 @@ export interface DataKirimProps {
  * the Kode Masuk that opens inline under the form when there is no session yet.
  * The draft lives here, so the Kode Masuk step can place the order with it.
  */
-export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran }: DataKirimProps) {
+export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran, layananHariH = [] }: DataKirimProps) {
   const router = useRouter();
   // The rebook's data is already in `draft` (the page filled it from the declined
   // order), so the family types nothing twice: only the wish and the holder are
   // theirs to decide afresh.
   const [isi, setisi] = useState<Isi>({ ...draft, keinginanPenempatan: "" });
   const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
+  const [pilihanLayanan, setPilihanLayanan] = useState<PilihanPerLayanan>({});
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
 
   const kirimPesananSekarang = () =>
     kirim(async () => {
-      const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak));
+      const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak, itemDariPilihan(layananHariH, pilihanLayanan, "hari_h")));
       setHasil(hasilKirim);
       // A signed-in Pemesan has no Kode Masuk step to carry the redirect, so the screen carries it.
       const tujuan = tujuanSetelahKirim(hasilKirim);
@@ -283,6 +288,15 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           ) : null}
         </Fieldset>
 
+        {layananHariH.length > 0 ? (
+          <Fieldset
+            legend="Layanan hari-H (boleh dikosongkan)"
+            note="Dikerjakan Mitra Jasa kami pada hari pemakaman, ditagihkan pada Tagihan yang sama. Harga dipastikan saat Lokasi Mitra mengonfirmasi."
+          >
+            <PilihLayanan idAwalan="hari-h" opsi={layananHariH} nilai={pilihanLayanan} onChange={setPilihanLayanan} />
+          </Fieldset>
+        ) : null}
+
         <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />
 
         {kodeMasukTerbuka ? (
@@ -292,7 +306,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
             </p>
             <KodeMasukForm
               requestAction={mintaKodeMasuk}
-              verifyAction={verifikasiDengan(draftLengkap(isi, pemegangHak))}
+              verifyAction={verifikasiDengan(draftLengkap(isi, pemegangHak, itemDariPilihan(layananHariH, pilihanLayanan, "hari_h")))}
               submitLabel="Kirim pesanan"
               defaultEmail={isi.email}
               csContact={csContact}
@@ -343,7 +357,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         ) : null}
       </div>
 
-      <StickyBar kartu={kartu} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
+      <StickyBar kartu={kartu} layanan={subtotalPilihan(layananHariH, pilihanLayanan)} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
     </div>
   );
 }
@@ -353,7 +367,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
  * same one "Pilih makam" carries, so the total a family reads here is the total
  * it chose there).
  */
-function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
+function StickyBar({ kartu, layanan, terbuka, setTerbuka }: { kartu: KartuView; layanan: number; terbuka: boolean; setTerbuka: (buka: boolean) => void }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
       <div className="mx-auto max-w-3xl px-4">
@@ -365,6 +379,12 @@ function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: 
                 <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
               </div>
             ))}
+            {layanan > 0 ? (
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Layanan hari-H</dt>
+                <dd className="whitespace-nowrap">{formatRupiah(layanan)}</dd>
+              </div>
+            ) : null}
             <p className="text-small text-muted-foreground">
               Belum ada yang dibayar sekarang. Tagihan terbit setelah Lokasi Mitra mengonfirmasi.
             </p>
@@ -381,7 +401,7 @@ function StickyBar({ kartu, terbuka, setTerbuka }: { kartu: KartuView; terbuka: 
             <span className="min-w-0">
               <span className="block text-caption text-muted-foreground">Total semua biaya</span>
               <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
-                {formatRupiah(kartu.total)}
+                {formatRupiah(kartu.total + layanan)}
               </span>
             </span>
             <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !terbuka && "rotate-180")} aria-hidden />
@@ -404,12 +424,12 @@ function PesanGagal({ message }: { message: string }) {
 }
 
 /** The draft the Server Action receives, with the Pemegang Hak the screen chose. */
-function draftLengkap(isi: Isi, pemegangHak: DraftSaatDuka["pemegangHak"]): DraftSaatDuka {
-  return { ...isi, pemegangHak };
+function draftLengkap(isi: Isi, pemegangHak: DraftSaatDuka["pemegangHak"], layananHariH: DraftSaatDuka["layananHariH"]): DraftSaatDuka {
+  return { ...isi, pemegangHak, layananHariH };
 }
 
 /** The fields "Data & kirim" holds, as the draft starts (the choice always begins at "Saya sendiri"). */
-type Isi = Omit<DraftSaatDuka, "pemegangHak">;
+type Isi = Omit<DraftSaatDuka, "pemegangHak" | "layananHariH">;
 
 /**
  * The Kode Masuk step's own verify action: a correct code places the order with

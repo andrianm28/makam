@@ -116,6 +116,7 @@ async function kirim(
     rencanaPemakamanAt: draft.rencanaPemakamanAt,
     keinginanPenempatan: draft.keinginanPenempatan,
     pemegangHak: draft.pemegangHak,
+    layananHariH: draft.layananHariH,
   });
   if (!hasil.ok)
     return { status: "gagal", message: pemesananMessage(hasil.reason) };

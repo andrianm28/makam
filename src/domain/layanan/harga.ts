@@ -260,6 +260,9 @@ export interface VarianUntukOrder extends VarianDenganLayanan {
   teksLabel: string | null;
   /** What the work has to show, derived from the Layanan's own kind. */
   proof: ProofRequirement;
+  /** The Layanan's own flags, which decide where a checkout may offer it (ticket 53). */
+  bisaHariH: boolean;
+  adaDiPetakKosong: boolean;
 }
 
 /**
@@ -272,7 +275,9 @@ export async function offeringsUntukOrder(deps: LayananDeps, lokasiId: string, a
   const entryOf = new Map(semua.map((entry) => [entry.id, entry] as const));
   return ditawarkan.flatMap((varian) => {
     const entry = entryOf.get(varian.layananId);
-    return entry ? [{ ...varian, leadTimeDays: entry.leadTimeDays, teksLabel: entry.teksLabel, proof: entry.proof }] : [];
+    return entry
+      ? [{ ...varian, leadTimeDays: entry.leadTimeDays, teksLabel: entry.teksLabel, proof: entry.proof, bisaHariH: entry.bisaHariH, adaDiPetakKosong: entry.adaDiPetakKosong }]
+      : [];
   });
 }
 

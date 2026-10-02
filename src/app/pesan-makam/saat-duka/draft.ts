@@ -3,6 +3,9 @@ import { itemHariHTpuSchema } from "@/domain/layanan/tpu-skema";
 import { FOTO_IPTM_MAX_BYTES, jenisPenguburanSchema, kelayakanSchema, kuburanTpuSchema, pemegangHakSchema } from "@/domain/pengurusan/skema-pengurusan";
 import { fileBase64 } from "@/lib/files/base64";
 
+/** The hari-H Layanan the family added (story 23, ticket 53): a variant and its text each; priced onto the Tagihan when the Lokasi confirms. */
+const layananHariHSchema = z.array(itemHariHTpuSchema).max(10).default([]);
+
 /**
  * What the Saat Duka wizard's "Data & kirim" screen holds, and what its Kirim
  * hands the Server Action: the draft as one value, the state a Kirim answers
@@ -39,6 +42,7 @@ export const draftSchema = z.object({
   ]),
   lokasiId: z.string().trim().min(1),
   jenisMakamId: z.string().trim().min(1),
+  layananHariH: layananHariHSchema,
 });
 
 export type DraftSaatDuka = z.infer<typeof draftSchema>;
@@ -71,8 +75,7 @@ export const draftTpuSchema = z
     kuburan: kuburanTpuSchema.nullable(),
     fotoIptm: fotoIptmSchema.nullable(),
     pemegangHak: pemegangHakSchema,
-    /** The hari-H Layanan the family added (story 23): a variant and its text each; priced onto the Tagihan at the confirmation. */
-    layananHariH: z.array(itemHariHTpuSchema).max(10).default([]),
+    layananHariH: layananHariHSchema,
   })
   .superRefine((draft, ctx) => {
     if (draft.jenis !== "tumpang") return;

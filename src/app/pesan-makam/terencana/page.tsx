@@ -24,6 +24,8 @@ import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type Terencana
 import { pesanBatasPembayaran, pesanPeriksa } from "@/lib/terencana-pesan";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
+import { opsiLayananView } from "@/components/layanan/opsi-view";
+import { targetPalingDini } from "@/domain/layanan";
 import { DataKirim } from "./data-kirim";
 import { DenahPicker } from "./denah-picker";
 import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
@@ -282,9 +284,14 @@ async function PilihPetakScreen({ lokasiId, pilihan, filter, pesan }: { lokasiId
 
 /** Step 3: the family's data, the Syarat, and the Kode Masuk that proves the email at Kirim. */
 async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; pilihan: PilihanTerencana }) {
-  const { pemesanan, operatorSettings } = serverRuntime();
+  const { pemesanan, operatorSettings, layanan, adapters } = serverRuntime();
   const [denah, actor, pengaturan] = await Promise.all([pemesanan.denahTerencana(lokasiId, pilihan), currentActor(), operatorSettings.current()]);
   if (!denah) notFound();
+  // The Layanan offered for an empty plot, for one Petak Makam only (ticket 53); each with the first day its lead time allows.
+  const layananOpsi =
+    denah.unit.length === 1 && denah.unit[0].jenis === "petak"
+      ? (await layanan.penawaranCheckout(lokasiId, "petak_kosong")).map((grup) => opsiLayananView({ ...grup, tanggalPalingDini: targetPalingDini(grup.layanan.leadTimeDays, adapters.clock.now()) }))
+      : [];
   const tampilan = denahView(denah);
   const units = unitsDari(denah.unit);
 
@@ -327,6 +334,7 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
         sudahMasuk={actor !== null}
         mintaKodeMasuk={kirimKodeMasuk}
         csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
+        layananOpsi={layananOpsi}
       />
     </main>
   );

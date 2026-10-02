@@ -20,6 +20,8 @@ export type PemesananRefusal =
   | "pemesan_kosong"
   | "almarhum_kosong"
   | "pemegang_hak_almarhum"
+  | "layanan_tidak_tersedia"
+  | "teks_kosong"
   | "tidak_berwenang"
   | "perlu_totp"
   | "input_tidak_valid";
@@ -39,6 +41,10 @@ export function pemesananMessage(reason: PemesananRefusal): string {
       return "Tulis nama almarhum / almarhumah.";
     case "pemegang_hak_almarhum":
       return "Pemegang Hak tidak boleh almarhum / almarhumah. Pilih Pemegang Hak lain.";
+    case "layanan_tidak_tersedia":
+      return "Layanan hari-H yang Anda pilih tidak tersedia di Lokasi Mitra ini. Hapus layanan itu lalu kirim lagi.";
+    case "teks_kosong":
+      return "Isi tulisan yang diminta layanan hari-H Anda.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     case "perlu_totp":

@@ -143,6 +143,8 @@ async function main() {
     payouts,
     // A Pembatalan's refund is asked of Refunds when the Admin Lokasi approves; the worker decides none, but the module needs it.
     refunds,
+    // A lapsed hold or a cancellation closes the order's Layanan jobs (ticket 53).
+    layanan,
   });
 
   const worker = await startWorker({

@@ -21,6 +21,62 @@ Add Layanan to the booking checkouts. Saat Duka checkout offers only "bisa hari-
 ## Notes
 
 Hari-H Layanan on a TPU Saat Duka checkout are ticket 56 (Mitra Jasa fulfilment).
+
+## Comments
+
+### 2026-10-02 builder (ticket 53, first slice: domain + tests; UI and Terencana left)
+
+**Built (green, domain level):**
+- Layanan `checkout.ts`: `penawaranCheckout` (offer per checkout mode), `siapkanCheckout` (offered, mode flag, text, date rules: hari-H = burial day; Terencana = lead time from today; Perpanjangan = lead time after the Tagihan due date), `gabungkanBaris`, `tulisCheckout` (jobs under the owner's Nomor Pemesanan, Dijadwalkan at once for hari-H), `batalkanLayananCheckout`.
+- Saat Duka (Lokasi Mitra): `placeSaatDuka({ layananHariH })` checks early; `konfirmasiSaatDuka` prices them in the same quote (one Biaya Layanan Platform), keeps pay-after and the due date, Dijadwalkan at confirmation, target = burial day. Cancellation closes unstarted jobs; Billing `batalkanTagihan` takes `ditahan` so a job already Sedang Dikerjakan is not refunded. Tidak Tertagih: no Pencairan item unless the family pays later (test).
+- Perpanjangan: `ajukan`/`pesanDariPermohonan` take `layanan: [{ layananVariantId, targetDate, teks }]`; Tagihan keeps the 3x24 h due date, a too-early date is `lead_time_melewati`, nothing issued; payment schedules the jobs. Result carries `layananNomor`. Inventory `hakPakaiUntukPerpanjangan` now also returns `petakId`.
+- Migration `0050_slippery_stature.sql` (pemesanan_makam.layanan_hari_h, nullable).
+- Verified: lint 0, typecheck 0 errors (before the last runtime.ts lazy-box edit; rerun), vitest subset (pemesanan, perpanjangan, billing, pengurusan, layanan checkout/pesanan/tpu/batal) 51 files / 534 tests passed.
+
+**HANDOFF (next agent, after slice 3):**
+1. Done in slice 3: Terencana empty plot, lapse cleanup, action tests (see the 2026-10-02 slice 3 entry). Left: `pesanDariPermohonanAction` test (approved-request path); e2e; sticky-bar total on the Terencana screen is a line inside the Layanan fieldset, not in `TotalBarTerencana`.
+2. Owner decisions pending: whether a Pembatalan Terencana of a Hak Pakai should also cancel/refund that plot's Layanan (now it does not; the family cancels a job itself until H-1); Terencana target date vs a late confirmation.
+3. Migration `0051_*` is expand-only; a number collision is fixed at merge.
+4. Unverified: full-suite and `npm run build` are the orchestrator's (see the entry).
+
+### Spec gaps and decisions for the owner
+- A hari-H item's price is taken when the Lokasi confirms (like the Petak), not at submission; the family's all-in total on "Data & kirim" therefore does not include it. Confirm shows nothing if the Layanan was switched off meanwhile: confirmation is refused with `layanan_tidak_tersedia`. Owner to decide whether the Lokasi should instead be allowed to confirm without it.
+- Terencana: the Layanan target date is checked at submission; if the Lokasi confirms later than the lead time allows, confirmation would have to refuse or move the date. Owner to decide.
+
+### 2026-10-02 builder (ticket 53, second slice: wiring and UI; Terencana and lapse left)
+
+**Built:**
+- Wiring (a) was real: a test through the test server runtime (`src/app/pesan-makam/saat-duka/actions.test.ts`) failed with `gagal` before `tests/support/server-runtime.ts` got the lazy Layanan box, and passes after. The worker now hands Layanan to Pemesanan directly (it is composed first there).
+- Saat Duka "Data & kirim": `draftSchema.layananHariH`, `kirim` passes it, the page offers `layanan.penawaranCheckout(lokasi, "hari_h")`, a "Layanan hari-H" fieldset and the sticky total adds the subtotal (edits to `data-kirim.tsx` kept to additions).
+- Perpanjangan "Tambah Layanan": domain `perpanjangan.penawaranLayanan(hakPakaiId)` (offer for the grave's Lokasi with each Layanan's first allowed date after the 3x24 h due date; test in `layanan.test.ts`); optional step on the direct page (the OTP path lands on the same form after the code) and on the approved-request page; `pesanPerpanjangan` and `pesanDariPermohonanAction` carry `layananJson` through Zod (`itemCheckoutListSchema`). Shared client pieces: `src/components/layanan/*`, `src/lib/layanan-pilihan.ts` (tested).
+
+**Not built (next agent):**
+1. Terencana empty-plot. Proposed expand-only design: migration with `ALTER TABLE pesanan_layanan ALTER COLUMN hak_pakai_id DROP NOT NULL` (not destructive: no data lost, old release still writes it) plus a nullable `pemesanan_terencana_id` on `pesanan_layanan`; store the items on `pemesanan_terencana`; price them at `konfirmasiTerencana` in the same quote (`mode: "petak_kosong"`, single plot only); at payment (`aktifkanTerencana`) set `hak_pakai_id` and schedule; close the jobs when the hold lapses or a Pembatalan is approved. Readers of `pesanan_layanan.hak_pakai_id` (hub, siklus.ts:111/240, pesanan.ts:223) must tolerate null. Wizard step: reuse `PilihLayanan` with `tanggalPalingDini`.
+2. (c) A lapsed Perpanjangan Tagihan still leaves its jobs Menunggu Pembayaran.
+3. Server Action tests for the Perpanjangan `layananJson` path; no e2e.
+
+### 2026-10-02 builder (ticket 53, third slice: Terencana empty plot, lapse, action tests)
+
+**Built:**
+- Terencana empty plot, one Petak Makam only: `placeTerencana({ layanan: [{ layananVariantId, targetDate, teks }] })` checks them at submission (`layanan_satu_petak`, `layanan_tidak_tersedia`, `lead_time_melewati`, `teks_kosong`) and stores them on `pemesanan_terencana.layanan`; `konfirmasiTerencana` checks again, prices them in the same quote (one Biaya Layanan Platform) and writes the order and its jobs (Menunggu Pembayaran) on the Tagihan; payment schedules them through the existing Layanan payment effect. Migration `0051` (expand-only): `pemesanan_terencana.layanan` jsonb, `pesanan_layanan.hak_pakai_id` DROP NOT NULL (nothing reads it; Terencana writes null).
+- Lapse: `layanan.batalkanPekerjaanTagihanLapse` (scheduled `layanan.batalkan_tagihan_lapse`, hourly, idempotent, reads Billing's `tagihanBerlaku`) cancels the jobs of any Dibatalkan Tagihan (the Perpanjangan case). Terencana withdrawal (`tarikTerencana`) and hold lapse (`lewatBatasBayarTerencana`) cancel the jobs in their own transaction.
+- Wizard: Layanan picker on the Terencana "Data & kirim" (one plot only), draft/action carry `layanan`, messages in `terencana-pesan.ts`.
+- Tests: `layanan-terencana.test.ts`, `perpanjangan/layanan.test.ts` (lapse), Server Action tests for Terencana Kirim and `pesanPerpanjangan` (`layananJson`). Test harness gaps closed: Layanan payment effect in the Pemesanan setup, `layanan` in the test server runtime's Perpanjangan.
+
+### Spec gaps and decisions for the owner (slice 3)
+- A Pembatalan Terencana (paid, refund per Hak Pakai) refunds only the Hak Pakai line and leaves that plot's Layanan jobs running; the family can cancel a job itself until H-1. Owner to decide whether approving the Pembatalan should cancel them.
+- The Layanan's date is checked at submission and again at the confirmation; a late confirmation refuses (`layanan_tidak_tersedia`) rather than moving the date.
+
+### Builder fix pass (2026-10-02)
+
+- Standards: `OpsiLayananView`/`OpsiTambahLayanan` now live in `@/lib/layanan-pilihan`; `opsi-view.ts` imports its type from `@/domain/layanan/harga` (the mapping is kept: it strips catalog internals before props reach the client); one `layananHariHSchema` in the Saat Duka `draft.ts`; the `layanan.batalkan_tagihan_lapse` entry sits above the ticket 54 comment again.
+- Spec: the Terencana Layanan total is a line and part of the total in `TotalBarTerencana`. Test "makes the Tagihan due at the earliest of the hold expiry and the Layanan's lead-time rule" (Layanan rule earlier, and hold earlier); it passed on first run (the rule already existed, so no red was possible).
+- Owner decision (grilling round 1 Q5): approving a Pembatalan Terencana (`setujuiPembatalanTerencana`) cancels the plot's Layanan not yet done through `layanan.batalkanLayananPetakDibatalkan` and asks Refunds for them in the same request as the Hak Pakai; a Layanan done is kept, not refunded. Red commit first, then green.
+
+### Spec gaps and decisions for the owner (fix pass)
+
+- A Kavling Keluarga unit is refused for a Terencana Layanan order (`layanan_satu_petak`) although the spec only says "single plot".
+- Owner decision (grilling round 2 Q7, 2026-10-02): on a Pembatalan Terencana, Layanan that are Dijadwalkan or Terlambat are cancelled and refunded; a job Sedang Dikerjakan carries on and is paid; a Selesai job is not refunded. Built test-first (red commit, then green). Reading by status: a job flagged Terlambat after it was started is cancelled too (the Terlambat flag replaces Sedang Dikerjakan in the status); the owner may want that case kept.
 - 2026-10-02 — **Two-axis review of the whole branch (head 3ed0a7e).** Fixed point origin/main = 93944ff, confirmed by the orchestrator before spawning; diff 69 files.
   - **Standards: 0 hard, 4 judgement.** (1) `src/components/layanan/opsi-view.ts` imports a type from the `@/domain/layanan` barrel (AGENTS.md: never anything from a barrel) — import from the module's own file or move it to `src/lib`; it is also a one-for-one renaming Middle Man. (2) In `src/domain/scheduler/index.ts` the new `layanan.batalkan_tagihan_lapse` entry splits the ticket 54 comment from its `layanan.paket_siklus` entry. (3) `z.array(itemHariHTpuSchema).max(10).default([])` written twice in the Saat Duka `draft.ts`. (4) `OpsiTambahLayanan` / `OpsiLayananView` shape shared from a component file — move to `@/lib/layanan-pilihan`. Clean: guarded actions, `layananJson` through Zod, client graphs, Clock, idempotent lapse tick, cancellation in the caller's transaction, migration 0051 (DROP NOT NULL is expand per `scripts/migrations/destructive-ddl.ts:91`).
   - **Spec: 0 hard, 4 judgement.** All 7 ACs delivered at domain level. (a) AC "All show in the sticky total bar": the Terencana total sits in the Layanan fieldset, not `TotalBarTerencana` (recorded). (b) "earliest of hold expiry and Layanan rule" is not proven: no test where the Layanan lead time is earlier than the hold expiry. (c) A Kavling Keluarga unit is refused although the spec says only "single plot" (unrecorded). (d) Whether a Pembatalan Terencana cancels that plot's Layanan is a real spec gap (spec lines ~389/~400 silent) — to the owner through grilling.

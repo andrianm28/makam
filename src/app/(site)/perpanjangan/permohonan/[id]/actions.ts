@@ -9,6 +9,7 @@ import { documentPagePath } from "@/lib/document-links";
 import { alasanPermohonanText } from "@/lib/permohonan-labels";
 import { isi } from "@/server/form-fields";
 import { guarded } from "@/server/guard";
+import { layananDariForm } from "@/server/layanan-form";
 import { serverRuntime } from "@/server/runtime";
 
 export type PermohonanActionState = { status: "idle" } | { status: "gagal" | "berhasil"; message: string };
@@ -62,10 +63,10 @@ export async function pesanDariPermohonanAction(_previous: PermohonanActionState
     action: "pemesanan.buat",
     resource: (actor) => pemesananResource(actor.accountId),
     schema: pesanDariPermohonanSchema.extend({ terms: z.coerce.number().int().min(1).max(100) }),
-    input: { permohonanId: formData.get("permohonanId"), terms: formData.get("terms") },
+    input: { permohonanId: formData.get("permohonanId"), terms: formData.get("terms"), layanan: layananDariForm(formData) },
     run: (actor, data) => serverRuntime().perpanjangan.pesanDariPermohonan({ accountId: actor.accountId, email: actor.email }, data),
   });
-  if (!result.ok) return { status: "gagal", message: result.error === "belum_masuk" ? "Silakan masuk lagi." : "Pilih jumlah masa terlebih dahulu." };
+  if (!result.ok) return { status: "gagal", message: result.error === "belum_masuk" ? "Silakan masuk lagi." : "Pilih jumlah masa terlebih dahulu, dan periksa Layanan yang ditambahkan." };
   const hasil = result.value;
   if (hasil.ok) redirect(documentPagePath(hasil.perpanjangan.tagihan.link));
   if (hasil.reason === "tagihan_terbuka") redirect(documentPagePath(hasil.tagihanTerbuka.link));
