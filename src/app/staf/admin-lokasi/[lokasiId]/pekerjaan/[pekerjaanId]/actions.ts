@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { lokasiMitraResource } from "@/domain/identity";
-import { buktiPekerjaanSchema, mulaiPekerjaanSchema } from "@/domain/layanan/pesanan-schema";
+import { buktiPekerjaanSchema, kirimPesanThreadSchema, mulaiPekerjaanSchema } from "@/domain/layanan/pesanan-schema";
 import { pekerjaanPesanMessages } from "@/lib/layanan-labels";
+import { pesanThreadMessages, type PesanThreadState } from "@/lib/thread-labels";
 import { guarded } from "@/server/guard";
+import { inputPesanThread } from "@/server/thread-form";
 import { serverRuntime } from "@/server/runtime";
 
 /** What a staff step's form state carries back to the screen. */
@@ -135,4 +137,23 @@ function revalidateHalaman(lokasiId: string, pekerjaanId: string): void {
 /** Why a step was refused, saying what to do next. */
 function pesan(reason: string): string {
   return pekerjaanPesanMessages[reason as keyof typeof pekerjaanPesanMessages] ?? "Periksa lagi isian Anda.";
+}
+
+/**
+ * The Admin Lokasi writes in the thread of a job at its own Lokasi. Thin, in order: authenticate, check the
+ * role on that Lokasi, validate with Zod, call the Layanan module — which emails the Pemesan a link, never the message.
+ */
+export async function kirimPesanThreadLokasi(_previous: PesanThreadState, formData: FormData): Promise<PesanThreadState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  const result = await guarded({
+    action: "layanan.lihat_staf",
+    resource: () => lokasiMitraResource(lokasiId),
+    schema: kirimPesanThreadSchema,
+    input: await inputPesanThread(formData),
+    run: (actor, data) => serverRuntime().layanan.kirimPesanStaf(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: pesanThreadMessages[result.error] ?? "Periksa lagi isian Anda." };
+  revalidateHalaman(lokasiId, String(formData.get("pekerjaanId") ?? ""));
+  if (!result.value.ok) return { status: "gagal", message: pesanThreadMessages[result.value.reason] ?? "Pesan gagal dikirim." };
+  return { status: "berhasil", message: "Pesan terkirim. Pemesan diberi tahu lewat email." };
 }

@@ -11,6 +11,7 @@ import {
   type LayananNotifikasi,
   type NewLayanan,
   type PaketSiklusDijeda,
+  type PesanThreadBaru,
   type PekerjaanMitraJasa,
   type PekerjaanMitraJasaPort,
   type PekerjaanTpuDitugaskan,
@@ -55,13 +56,19 @@ export function collectLayananNotifikasi(): LayananNotifikasi & {
   pesananTpuDicatat: PesananTpuTerbit[];
   ditugaskan: PekerjaanTpuDitugaskan[];
   paketDijeda: PaketSiklusDijeda[];
+  pesanThread: PesanThreadBaru[];
 } {
   const pesananTerbit: PesananLayananTerb[] = [];
   const selesai: PekerjaanLayananSelesaiTerb[] = [];
   const pesananTpuDicatat: PesananTpuTerbit[] = [];
   const ditugaskan: PekerjaanTpuDitugaskan[] = [];
   const paketDijeda: PaketSiklusDijeda[] = [];
+  const pesanThread: PesanThreadBaru[] = [];
   return {
+    pesanThread,
+    pesanThreadBaru: async (_tx, hasil) => {
+      pesanThread.push(hasil);
+    },
     pesananTerbit,
     selesai,
     pesananTpuDicatat,

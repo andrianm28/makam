@@ -9,6 +9,9 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
+import { DaftarPesanThread } from "@/components/layanan/thread-daftar";
+import { FormPesanThread } from "@/components/layanan/thread-pesan";
+import { kirimPesanThreadLokasi } from "./actions";
 import { LangkahPekerjaan } from "./langkah-pekerjaan";
 
 export const metadata: Metadata = {
@@ -34,6 +37,7 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
   // is where they met it, and its own list is their list.
   if (pekerjaan.lokasi.id !== lokasiId) redirect(`/staf/admin-lokasi/${lokasiId}/antrean`);
   const jendela = jendelaKerja(pekerjaan.targetDate);
+  const percakapan = await serverRuntime().layanan.bacaThreadStaf(actor, pekerjaanId);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
@@ -89,6 +93,16 @@ export default async function PekerjaanPage({ params }: PageProps<"/staf/admin-l
       ) : null}
 
       <LangkahPekerjaan lokasiId={lokasiId} pekerjaan={pekerjaan} />
+
+      {percakapan.ok ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4" aria-labelledby="pesan-heading">
+          <h2 id="pesan-heading" className="text-body font-semibold">
+            Pesan dengan pemesan
+          </h2>
+          <DaftarPesanThread thread={percakapan.thread} />
+          {percakapan.thread.tertutup ? null : <FormPesanThread pekerjaanId={pekerjaanId} action={kirimPesanThreadLokasi} hidden={{ lokasiId }} />}
+        </section>
+      ) : null}
     </main>
   );
 }

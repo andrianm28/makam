@@ -142,6 +142,7 @@ import {
   type TinjauanMitraJasa,
 } from "./skor";
 
+import { bacaThreadPemesan, bacaThreadStaf, kirimPesanPemesan, kirimPesanStaf, type BacaThreadResult, type KirimPesanResult } from "./thread";
 import { cekHakPakai, pesananLayananOf, placePesananLayanan, type PesananLayananOrder, type PlacePesananLayananResult, type Tertulis } from "./pesanan";
 import { pesananTertunda, jadwalkanTertunda as jadwalkanTertundaTick } from "./pembayaran";
 import {
@@ -223,6 +224,7 @@ export type {
   PaketSiklusDijeda,
   PemesanLayanan,
   PesananLayananTerbit,
+  PesanThreadBaru,
   PekerjaanTpuDitugaskan,
   PesananTpuTerbit,
 } from "./deps";
@@ -378,6 +380,8 @@ export {
   type BuktiTerbaca as BuktiPekerjaanTerbaca,
 } from "./bukti";
 export { EFEK_JADWALKAN, efekJadwalkanPekerjaan, jadwalkan, jadwalkanTertunda, pesananTertunda, type HasilJadwalkan, type JadwalkanDeps } from "./pembayaran";
+
+export type { PesanTerbaca, ThreadTerbaca, BacaThreadResult, KirimPesanResult } from "./thread";
 
 export interface Layanan {
   /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
@@ -572,6 +576,16 @@ export interface Layanan {
   unggahBuktiPekerjaan(by: Actor, input: unknown): Promise<UnggahBuktiResult>;
   /** The Admin Lokasi marks a job Selesai and the Pemesan is sent its proof link; refused until every required proof is there. */
   selesaikanPekerjaan(by: Actor, input: unknown): Promise<SelesaikanPekerjaanResult>;
+  /* ── the message thread of one job (ticket 52) ── */
+
+  /** The Pemesan reads the thread of one of their own jobs. */
+  bacaThreadPemesan(pemesan: PemesanLayanan, pekerjaanId: string): Promise<BacaThreadResult>;
+  /** The job's Admin Lokasi, the Mitra Jasa who holds it or Admin Platform reads its thread. */
+  bacaThreadStaf(by: Actor, pekerjaanId: string): Promise<BacaThreadResult>;
+  /** The Pemesan writes (text, up to three photos); read-only once the Keluhan window closed. */
+  kirimPesanPemesan(pemesan: PemesanLayanan, input: unknown): Promise<KirimPesanResult>;
+  /** The job's Admin Lokasi, the Mitra Jasa who holds it or Admin Platform writes; the Pemesan is emailed a link, never the message. */
+  kirimPesanStaf(by: Actor, input: unknown): Promise<KirimPesanResult>;
   /** Every job currently Terlambat, oldest target date first (the Tier 2 row's list). */
   pekerjaanTerlambat(): Promise<TerlambatTerbaca[]>;
 
@@ -726,6 +740,10 @@ export function createLayanan(deps: LayananDeps): Layanan {
     bacaPesananPaket: (pesananPaketId) => bacaPesananPaket(deps, pesananPaketId),
     paketSiklusTick: (now) => tickSiklusPaket(deps, now),
 
+    bacaThreadPemesan: (pemesan, pekerjaanId) => bacaThreadPemesan(deps, pemesan, pekerjaanId),
+    bacaThreadStaf: (by, pekerjaanId) => bacaThreadStaf(deps, by, pekerjaanId),
+    kirimPesanPemesan: (pemesan, input) => kirimPesanPemesan(deps, pemesan, input),
+    kirimPesanStaf: (by, input) => kirimPesanStaf(deps, by, input),
     pekerjaanUntukStaf: (by, input) => pekerjaanUntukStaf(deps, by, input),
     pekerjaanUntukStafTerbaru: (by, lokasiId) => pekerjaanUntukStafTerbaru(deps, by, lokasiId),
     mulaiPekerjaan: (by, input) => mulaiPekerjaan(deps, by, input),

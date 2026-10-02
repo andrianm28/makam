@@ -863,3 +863,49 @@ export const pekerjaanLayananTpuPenugasan = pgTable(
     index("pekerjaan_layanan_tpu_penugasan_batas_idx").on(table.hasil, table.batasJawab),
   ],
 );
+
+/** Who wrote a message in a Pekerjaan Layanan's thread (ticket 52). */
+export const pesanPengirimValues = ["pemesan", "admin_lokasi", "admin_platform", "mitra_jasa"] as const;
+export type PesanPengirim = (typeof pesanPengirimValues)[number];
+
+/** Which kind of job a thread belongs to: one at a Lokasi Mitra (`pekerjaan_layanan`) or one at a DKI TPU (`pekerjaan_layanan_tpu`). */
+export const pesanSumberValues = ["lokasi", "tpu"] as const;
+export type PesanSumber = (typeof pesanSumberValues)[number];
+
+/**
+ * Owned by the Layanan module: one message in a Pekerjaan Layanan's thread, between the
+ * Pemesan and the fulfiller (spec, Layanan > Message thread). The text stays here; the
+ * email the Pemesan gets carries a link and nothing of it. `pekerjaan_id` names a row of
+ * either job table (see `sumber`), so it has no foreign key. Photos are rows of
+ * `pekerjaan_layanan_pesan_foto`, kept in the private FileStore.
+ */
+export const pekerjaanLayananPesan = pgTable(
+  "pekerjaan_layanan_pesan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Arrival order: two messages in one clock instant still read in the order they were written. */
+    urutan: integer("urutan").generatedAlwaysAsIdentity(),
+    sumber: text("sumber", { enum: pesanSumberValues }).notNull(),
+    pekerjaanId: uuid("pekerjaan_id").notNull(),
+    pengirim: text("pengirim", { enum: pesanPengirimValues }).notNull(),
+    pengirimAccountId: text("pengirim_account_id").notNull(),
+    teks: text("teks").notNull().default(""),
+    createdAt: at("created_at").notNull(),
+  },
+  (table) => [index("pekerjaan_layanan_pesan_pekerjaan_idx").on(table.pekerjaanId, table.createdAt)],
+);
+
+/** One photo of a thread message: a private FileStore key, shown by a short-lived signed URL. */
+export const pekerjaanLayananPesanFoto = pgTable(
+  "pekerjaan_layanan_pesan_foto",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pesanId: uuid("pesan_id")
+      .notNull()
+      .references(() => pekerjaanLayananPesan.id),
+    posisi: integer("posisi").notNull(),
+    fileKey: text("file_key").notNull(),
+    contentType: text("content_type").notNull(),
+  },
+  (table) => [uniqueIndex("pekerjaan_layanan_pesan_foto_idx").on(table.pesanId, table.posisi)],
+);

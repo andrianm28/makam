@@ -53,7 +53,7 @@ export function composeLayanan(
 
 export function layananNotifikasiDari(notifications: Notifications | undefined, identity?: Pick<Identity, "accountByEmail">): LayananNotifikasi {
   if (!notifications) {
-    return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {}, pesananTpuTerbit: async () => {}, pekerjaanTpuDitugaskan: async () => {}, paketSiklusDijeda: async () => {} };
+    return { pesananLayananTerbit: async () => {}, pekerjaanSelesai: async () => {}, pesananTpuTerbit: async () => {}, pekerjaanTpuDitugaskan: async () => {}, paketSiklusDijeda: async () => {}, pesanThreadBaru: async () => {} };
   }
   return {
     pesananTpuTerbit: async (tx, hasil) => {
@@ -116,6 +116,9 @@ export function layananNotifikasiDari(notifications: Notifications | undefined, 
     },
     pekerjaanSelesai: async (tx, hasil) => {
       await notifications.layananPekerjaanSelesai(hasil, tx);
+    },
+    pesanThreadBaru: async (tx, hasil) => {
+      await notifications.layananPesanBaru(hasil, tx);
     },
     paketSiklusDijeda: async (tx, hasil) => {
       // The same transaction that set the Paket to `dijeda`: the pause and the

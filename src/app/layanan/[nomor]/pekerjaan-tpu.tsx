@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { PesananTpuTerbaca } from "@/domain/layanan";
 import { pekerjaanTpuStatusLabels } from "@/lib/layanan-tpu-labels";
 import { formatRupiah } from "@/lib/rupiah";
@@ -10,7 +11,7 @@ import { formatTanggal } from "@/lib/time/jakarta";
  * that person's first name and photo, and nothing else of them. Shared by the Layanan
  * order page and the Pengurusan order page, whose hari-H items are the same jobs.
  */
-export function PekerjaanTpuDaftar({ order }: { order: PesananTpuTerbaca }) {
+export function PekerjaanTpuDaftar({ order, renderThread }: { order: PesananTpuTerbaca; renderThread?: (pekerjaanId: string) => ReactNode }) {
   return (
     <ul className="flex flex-col gap-4">
       {order.item.map((satu) => (
@@ -37,6 +38,7 @@ export function PekerjaanTpuDaftar({ order }: { order: PesananTpuTerbaca }) {
           ) : (
             <p className="mt-3 text-small text-muted-foreground">Mitra Jasa akan ditugaskan sebelum tanggal target. Nama depan dan fotonya muncul di sini setelah ia menerima pekerjaan.</p>
           )}
+          {renderThread ? <div className="mt-3">{renderThread(satu.id)}</div> : null}
         </li>
       ))}
     </ul>

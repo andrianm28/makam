@@ -101,11 +101,13 @@ import {
   pesananDitolak,
   pesanPemesanan,
   layananPekerjaanSelesai,
+  layananPesanBaru,
   layananPesananTerbit,
   layananTpuPesananTerbit,
   paketSiklusDijeda,
   pesanLayanan,
   type LayananPekerjaanSelesaiInput,
+  type LayananPesanBaruInput,
   type LayananPesananTerbitInput,
   type LayananTpuPesananTerbitInput,
   type PaketSiklusDijedaInput,
@@ -158,6 +160,7 @@ export {
 export {
   pesananBuktiPemesananSchema,
   layananPekerjaanSelesaiSchema,
+  layananPesanBaruSchema,
   layananPesananTerbitSchema,
   layananTpuPesananTerbitSchema,
   paketSiklusDijedaSchema,
@@ -519,6 +522,8 @@ export interface Notifications {
   layananTpuPesananTerbit(input: LayananTpuPesananTerbitInput, within?: Database): Promise<PesanLayananResult>;
   /** A job finished: the Pemesan is sent the link to its photo proof, which is why it is finished. */
   layananPekerjaanSelesai(input: LayananPekerjaanSelesaiInput, within?: Database): Promise<PesanLayananResult>;
+  /** Someone wrote in a job's thread: the Pemesan is sent a link to read and reply, never the text or a photo (ticket 52). */
+  layananPesanBaru(input: LayananPesanBaruInput, within?: Database): Promise<PesanLayananResult>;
   /**
    * A Paket Layanan cycle whose Tagihan would pass the Rilis 1 QRIS cap, so the
    * Paket was paused (ticket 54): the Pemesan hears why, queued on the
@@ -944,6 +949,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
     async layananPekerjaanSelesai(input, within) {
       return layananPekerjaanSelesai(within ? { ...deps, db: within } : deps, input);
+    },
+    async layananPesanBaru(input, within) {
+      return layananPesanBaru(within ? { ...deps, db: within } : deps, input);
     },
     async paketSiklusDijeda(input, within) {
       return paketSiklusDijeda(within ? { ...deps, db: within } : deps, input);
