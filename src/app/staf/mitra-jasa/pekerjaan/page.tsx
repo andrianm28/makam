@@ -7,6 +7,9 @@ import { staffMenuActor } from "@/server/staff-area";
 import { penugasanHasilLabels } from "@/lib/layanan-tpu-labels";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { TidakTersediaForm } from "../../admin-platform/mitra-jasa/mitra-jasa-forms";
+import { DaftarPesanThread } from "@/components/layanan/thread-daftar";
+import { FormPesanThread } from "@/components/layanan/thread-pesan";
+import { kirimPesanThreadMitraJasa } from "./bukti-actions";
 import { AmbilBuktiTpu } from "./ambil-bukti-tpu";
 import { JawabForm } from "./jawab-form";
 import { KirimBuktiForm } from "./kirim-bukti-form";
@@ -17,7 +20,7 @@ import { KirimBuktiForm } from "./kirim-bukti-form";
  * grave is, the Layanan, the target date and the reference photos — and never the
  * family's name or contact. Under it, the dates they take none (the "Tidak tersedia"
  * ranges the assignment picker reads), the 90-day scorecard, and what came before.
- * The photo proof steps are ticket 57's.
+ * The photo proof steps and the thread with the family are ticket 57's.
  */
 export default async function PekerjaanPage() {
   const actor = await staffMenuActor("mitra_jasa");
@@ -85,6 +88,7 @@ export default async function PekerjaanPage() {
                     <p className="font-medium text-success-soft-foreground">{penugasanHasilLabels.diterima}. Kerjakan pada tanggal targetnya.</p>
                   )}
                   {satu.penugasan.hasil === "diterima" ? <BuktiPekerjaan pekerjaanId={satu.id} bukti={bukti.get(satu.id) ?? null} /> : null}
+                  {satu.penugasan.hasil === "diterima" ? <ThreadPekerjaan actor={actor} pekerjaanId={satu.id} /> : null}
                 </CardContent>
               </Card>
             </li>
@@ -163,6 +167,22 @@ function BuktiPekerjaan({ pekerjaanId, bukti }: { pekerjaanId: string; bukti: Aw
         <AmbilBuktiTpu key={kind} pekerjaanId={pekerjaanId} kind={kind} sudahAda={ada.has(kind)} />
       ))}
       <KirimBuktiForm pekerjaanId={pekerjaanId} siap={bukti.dibutuhkan.every((kind) => ada.has(kind))} />
+    </div>
+  );
+}
+
+/**
+ * The message thread of one accepted job (story 180): the Mitra Jasa and the family write through the app, never by
+ * contact details. It closes when the window-close tick (`tutupJendelaKeluhan`) runs past the end of the TPU Keluhan window; then it is read-only, with what was said.
+ */
+async function ThreadPekerjaan({ actor, pekerjaanId }: { actor: Awaited<ReturnType<typeof staffMenuActor>>; pekerjaanId: string }) {
+  const hasil = await serverRuntime().layanan.bacaThreadStaf(actor, pekerjaanId);
+  if (!hasil.ok) return null;
+  return (
+    <div className="flex flex-col gap-3" data-testid="thread-pekerjaan">
+      <p className="font-medium">Percakapan dengan keluarga</p>
+      <DaftarPesanThread thread={hasil.thread} />
+      {hasil.thread.tertutup ? null : <FormPesanThread pekerjaanId={pekerjaanId} action={kirimPesanThreadMitraJasa} />}
     </div>
   );
 }

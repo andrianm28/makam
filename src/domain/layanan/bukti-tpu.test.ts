@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { layananOnTestDatabase, type LayananSetup } from "../../../tests/support/layanan";
-import { mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
+import { HARGA_BUNGA_TABUR, HARGA_PEMBERSIHAN, mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
 import { tandaiTerlambatTpu } from "./terlambat-tpu";
 
@@ -678,5 +678,95 @@ describe("the Keluhan window of a TPU job, as the message thread reads it", () =
     await s.setup.layanan.tutupJendelaKeluhan(wib("2026-10-08 10:01"));
     expect(await s.setup.layanan.jendelaKeluhanTpu(pekerjaanId)).toMatchObject({ ditutup: true });
     expect(await s.setup.layanan.jendelaKeluhanTpu("00000000-0000-4000-8000-000000000000")).toBeNull();
+  });
+});
+
+describe("a Tagihan holding several TPU jobs", () => {
+  /** One paid order of two Layanan: Bunga Tabur due 2026-10-05, then `varianAkhir` (Bunga Tabur unless named) due 2026-10-10. Each is handed to its Mitra Jasa. */
+  async function duaPekerjaan(s: Siap, mitra: Mitra, akhir_: { varianId: string; mitra: Mitra } = { varianId: s.bunga.id, mitra }) {
+    const dipesan = await s.setup.layanan.placePesananLayananTpu(
+      s.pemesan,
+      orderTpu(s, [
+        { layananVariantId: s.bunga.id, targetDate: "2026-10-05" },
+        { layananVariantId: akhir_.varianId, targetDate: "2026-10-10" },
+      ]),
+    );
+    if (!dipesan.ok) throw new Error(`order refused: ${dipesan.reason}`);
+    await bayar(s.setup, dipesan.tagihan.id);
+    const jobs = await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin);
+    const awal = jobs.find((job) => job.targetDate === "2026-10-05");
+    const akhir = jobs.find((job) => job.targetDate === "2026-10-10");
+    if (!awal || !akhir) throw new Error("jobs missing");
+    await diterima(s, mitra, awal.id);
+    await diterima(s, akhir_.mitra, akhir.id);
+    return { awal: awal.id, akhir: akhir.id, tagihanId: dipesan.tagihan.id };
+  }
+
+  it("cancelling one Terlambat job of a Tagihan holding two different Layanan refunds that job's line only; the other job carries on and stays paid", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const mitraPembersihan = await mitraJasaUntuk(s.setup, s, s.pembersihan.id, { email: "pembersihan@contoh.id" });
+    const { awal, akhir, tagihanId } = await duaPekerjaan(s, mitra, { varianId: s.pembersihan.id, mitra: mitraPembersihan });
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId: awal })).toEqual({ ok: true });
+
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const baris = tagihan!.lines.filter((satu) => satu.kind === "layanan");
+    const bunga = baris.find((satu) => satu.amount === HARGA_BUNGA_TABUR);
+    const pembersihan = baris.find((satu) => satu.amount === HARGA_PEMBERSIHAN);
+    if (!bunga || !pembersihan) throw new Error("lines missing");
+    expect(bunga.label).not.toBe(pembersihan.label);
+    const [permintaan, ...lain] = await s.setup.refunds.permintaanTerbuka();
+    expect(lain).toEqual([]);
+    expect(permintaan.lines).toEqual([expect.objectContaining({ label: bunga.label, amount: HARGA_BUNGA_TABUR })]);
+    expect(permintaan.lines.some((satu) => satu.label === pembersihan.label)).toBe(false);
+    expect(permintaan.jumlah).toBe(HARGA_BUNGA_TABUR);
+
+    // The other job is untouched: it is done, approved, and its Mitra Jasa is paid in full.
+    expect((await s.setup.layanan.buktiTpuSaya(mitraPembersihan.actor, akhir))?.status).toBe("dijadwalkan");
+    s.setup.clock.set(wib("2026-10-09 10:00"));
+    for (const kind of ["foto_sebelum", "foto_sesudah"] as const) {
+      const diambil = await ambil(s, mitraPembersihan, akhir, kind);
+      if (!diambil.ok) throw new Error(`shot refused: ${diambil.reason}`);
+    }
+    const kirim = await s.setup.layanan.kirimBuktiTpu(mitraPembersihan.actor, { pekerjaanId: akhir });
+    if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
+    await setujui(s, akhir);
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await pencairanSaya(s, mitraPembersihan)).toMatchObject([{ tarif: TARIF, status: "jatuh_tempo" }]);
+  });
+
+  it("a DKI TPU Tagihan carries no Biaya Layanan Platform, so only the job's price comes back", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { awal, tagihanId } = await duaPekerjaan(s, mitra);
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    expect(tagihan!.lines.filter((satu) => satu.kind === "biaya_layanan_platform")).toEqual([]);
+    s.setup.clock.set(wib("2026-10-08 09:00"));
+    await tandaiTerlambatTpu(s.setup.db, s.setup.clock.now());
+    expect(await s.setup.layanan.batalkanPekerjaanTerlambatTpuOlehPemesan(s.pemesan, { pekerjaanId: awal })).toEqual({ ok: true });
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan.jumlah).toBe(HARGA_BUNGA_TABUR);
+  });
+
+  it("a TPU Keluhan decided dana kembali refunds the job's price only, never a Biaya Layanan Platform line", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { awal, tagihanId } = await duaPekerjaan(s, mitra);
+    s.setup.clock.set(wib("2026-10-05 10:00"));
+    await kirimBunga(s, mitra, awal);
+    await setujui(s, awal);
+    s.setup.clock.set(wib("2026-10-06 09:00"));
+    const diajukan = await s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId: awal, alasan: "Nisan masih kotor" });
+    if (!diajukan.ok) throw new Error(diajukan.reason);
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: diajukan.keluhanId, keputusan: "kembalikan_dana", catatan: "Tidak bersih" })).toEqual({ ok: true });
+
+    const tagihan = await s.setup.billing.tagihan(tagihanId);
+    const harga = tagihan!.lines.filter((baris) => baris.kind === "layanan")[0].amount;
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan.lines.map((baris) => baris.label)).toEqual([tagihan!.lines.find((baris) => baris.kind === "layanan")!.label]);
+    expect(permintaan.jumlah).toBe(harga);
+    expect(permintaan.biayaLayananPlatformDikembalikan).toBe(false);
   });
 });
