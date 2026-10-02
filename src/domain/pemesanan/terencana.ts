@@ -6,7 +6,7 @@
  * transaction. The prices are always `quote()`'s, and a selection v1 may not take
  * (above the Rp 10.000.000 QRIS cap) is refused here, not only in the picker.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { refusable } from "@/db/unit-of-work";
 import { withinPaymentCap, QRIS_PAYMENT_CAP } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
@@ -548,7 +548,20 @@ export async function terencanaOf(deps: Pick<PemesananDeps, "db">, pemesan: { ac
     .select()
     .from(pemesananTerencana)
     .where(and(eq(pemesananTerencana.nomor, nomor), eq(pemesananTerencana.pemesanAccountId, pemesan.accountId)));
-  if (!row) return null;
+  return row ? toTerencanaOrder(deps, row) : null;
+}
+
+/** Every Pemesanan Terencana of that Akun, newest first (Akun Saya's Pesanan tab, beside the Saat Duka orders). */
+export async function terencanaSaya(deps: Pick<PemesananDeps, "db">, pemesan: { accountId: string }): Promise<PemesananTerencanaOrder[]> {
+  const rows = await deps.db
+    .select()
+    .from(pemesananTerencana)
+    .where(eq(pemesananTerencana.pemesanAccountId, pemesan.accountId))
+    .orderBy(desc(pemesananTerencana.diajukanAt));
+  return Promise.all(rows.map((row) => toTerencanaOrder(deps, row)));
+}
+
+async function toTerencanaOrder(deps: Pick<PemesananDeps, "db">, row: typeof pemesananTerencana.$inferSelect): Promise<PemesananTerencanaOrder> {
   const units = await deps.db
     .select()
     .from(pemesananTerencanaUnit)

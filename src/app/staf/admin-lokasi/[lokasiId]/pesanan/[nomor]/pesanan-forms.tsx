@@ -43,7 +43,7 @@ export function KonfirmasiForm({
       <input type="hidden" name="nomor" value={nomor} />
       <div className="flex flex-col gap-2">
         <label htmlFor="petakId" className="text-sm font-medium">Petak Makam</label>
-        <Select name="petakId" defaultValue={petak[0]?.petakId}>
+        <Select name="petakId" defaultValue={petak[0]?.petakId} items={Object.fromEntries(petak.map((unit) => [unit.petakId, `${unit.nomor} (Blok ${unit.blok})`]))}>
           <SelectTrigger id="petakId">
             <SelectValue placeholder="Pilih petak" />
           </SelectTrigger>

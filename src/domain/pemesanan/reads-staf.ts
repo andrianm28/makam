@@ -225,7 +225,7 @@ export async function saatDukaDitolak(deps: Pick<PemesananDeps, "db">): Promise<
  * an Admin Lokasi sees its own Lokasi's orders only). Admin Platform may read
  * any order, as everywhere else in the staff area.
  */
-export async function orderUntukStaf(deps: Pick<PemesananDeps, "db">, by: Actor, nomor: string): Promise<OrderStaf | null> {
+export async function orderUntukStaf(deps: Pick<PemesananDeps, "db" | "lokasi">, by: Actor, nomor: string): Promise<OrderStaf | null> {
   const [row] = await deps.db.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, nomor));
   if (!row) return null;
   if (!authorize(by, "pemesanan.lihat_staf", lokasiMitraResource(row.lokasiId)).allowed) return null;
@@ -234,7 +234,7 @@ export async function orderUntukStaf(deps: Pick<PemesananDeps, "db">, by: Actor,
 
 /** Every order of the Lokasi Mitra this Admin Lokasi manages that is not finished yet, newest first: its work list. */
 export async function orderUntukStafTerbaru(
-  deps: Pick<PemesananDeps, "db">,
+  deps: Pick<PemesananDeps, "db" | "lokasi">,
   by: Actor,
   lokasiId: string,
 ): Promise<OrderStaf[]> {
@@ -248,7 +248,7 @@ export async function orderUntukStafTerbaru(
 }
 
 /** One order, its documents and all, as the staff reads it. */
-async function toOrderStaf(deps: Pick<PemesananDeps, "db">, row: Row): Promise<OrderStaf> {
+async function toOrderStaf(deps: Pick<PemesananDeps, "db" | "lokasi">, row: Row): Promise<OrderStaf> {
   return {
     nomor: row.nomor,
     kind: row.kind,
@@ -271,23 +271,29 @@ async function toOrderStaf(deps: Pick<PemesananDeps, "db">, row: Row): Promise<O
     alternatif: row.alternatifDitawarkanPada
       ? { jenisMakam: row.alternatifJenisMakamId ? row.jenisMakamName : null, pemakamanAt: row.alternatifPemakamanAt }
       : null,
-    dokumen: await dokumenOf(deps, row.id),
+    dokumen: await dokumenOf(deps, row.id, row.lokasiId),
   };
 }
 
 /**
- * One order's documents, oldest first by the checklist wording they were
- * created with: an item's file and its tick, either of which may be missing.
+ * One order's documents as the staff reads them: every item of the Lokasi Mitra's
+ * checklist (so a family that has uploaded nothing still shows what is asked), each
+ * with its file and its tick, then any item the order holds that the checklist no
+ * longer names.
  */
-export async function dokumenOf(deps: Pick<PemesananDeps, "db">, pemesananId: string): Promise<DokumenOrder[]> {
-  const rows = await deps.db
-    .select()
-    .from(pemesananBerkas)
-    .where(eq(pemesananBerkas.pemesananId, pemesananId))
-    .orderBy(pemesananBerkas.dibuatPada, pemesananBerkas.nama);
-  return rows.map((row) => ({
-    nama: row.nama,
-    diunggah: row.diunggahPada ? { at: row.diunggahPada, oleh: row.diunggahOleh ?? "" } : null,
-    dicentang: row.dicentangPada ? { at: row.dicentangPada, oleh: row.dicentangOleh ?? "" } : null,
-  }));
+export async function dokumenOf(deps: Pick<PemesananDeps, "db" | "lokasi">, pemesananId: string, lokasiId: string): Promise<DokumenOrder[]> {
+  const [rows, checklist] = await Promise.all([
+    deps.db.select().from(pemesananBerkas).where(eq(pemesananBerkas.pemesananId, pemesananId)).orderBy(pemesananBerkas.dibuatPada, pemesananBerkas.nama),
+    deps.lokasi.documentChecklistOf(lokasiId),
+  ]);
+  const punya = new Map(rows.map((row) => [row.nama, row]));
+  const names = [...checklist, ...rows.map((row) => row.nama).filter((nama) => !checklist.includes(nama))];
+  return names.map((nama) => {
+    const row = punya.get(nama);
+    return {
+      nama,
+      diunggah: row?.diunggahPada ? { at: row.diunggahPada, oleh: row.diunggahOleh ?? "" } : null,
+      dicentang: row?.dicentangPada ? { at: row.dicentangPada, oleh: row.dicentangOleh ?? "" } : null,
+    };
+  });
 }

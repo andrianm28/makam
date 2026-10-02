@@ -5,7 +5,7 @@ import { ClipboardList } from "lucide-react";
 import { EmptyState } from "@/components/makam/empty-state";
 import { StatusBadge, type StatusKey } from "@/components/makam/status-badge";
 import type { PengurusanTpuStatus } from "@/domain/pengurusan";
-import type { PemesananStatus } from "@/domain/pemesanan";
+import type { PemesananTerencanaStatus } from "@/domain/pemesanan";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { currentActor } from "@/server/session";
 import { dataAkunSaya } from "../data";
@@ -29,18 +29,19 @@ const BADGE = {
   selesai: "selesai",
   ditolak: "ditolak",
   dibatalkan: "dibatalkan",
+  aktif: "aktif",
   dokumen_lengkap: null,
   menunggu_pembayaran: null,
   diproses: null,
   perlu_perbaikan: null,
   iptm_diajukan: null,
   iptm_terbit: null,
-} satisfies Record<PemesananStatus | PengurusanTpuStatus, StatusKey | null>;
+} satisfies Record<PemesananTerencanaStatus | PengurusanTpuStatus, StatusKey | null>;
 
 interface BarisPesanan {
   nomor: string;
   href: string;
-  status: PemesananStatus | PengurusanTpuStatus;
+  status: PemesananTerencanaStatus | PengurusanTpuStatus;
   judul: string;
   diajukanAt: Date;
 }
@@ -64,6 +65,13 @@ export default async function AkunPesananPage() {
       href: `/pesanan/${order.nomor}`,
       status: order.status,
       judul: `${order.lokasi.name} · ${order.almarhum.name}`,
+      diajukanAt: order.diajukanAt,
+    })),
+    ...pesanan.terencana.map((order): BarisPesanan => ({
+      nomor: order.nomor,
+      href: `/pesanan/${order.nomor}`,
+      status: order.status,
+      judul: `${order.lokasi.name} · Terencana · ${order.calonPenghuni.name ?? order.pemesan.name}`,
       diajukanAt: order.diajukanAt,
     })),
     ...pesanan.pengurusan.map((order): BarisPesanan => ({
@@ -116,7 +124,7 @@ export default async function AkunPesananPage() {
  * order's further statuses (dokumen lengkap, IPTM diajukan, …) are ticket
  * 46/47's own slice and carry no badge here yet, same as the order page itself.
  */
-function BadgePesanan({ status }: { status: PemesananStatus | PengurusanTpuStatus }) {
+function BadgePesanan({ status }: { status: PemesananTerencanaStatus | PengurusanTpuStatus }) {
   const key = BADGE[status];
   return key ? <StatusBadge status={key} /> : null;
 }

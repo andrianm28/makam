@@ -6,8 +6,10 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { adminPlatformOf } from "../../../tests/support/identity";
+import { terencanaLokasi } from "../../../tests/support/terencana";
 import { cellsOf } from "../../../tests/support/inventory";
-import { orderSaatDuka, pemesananOnTestDatabase, saatDukaFixture, siapkanOperatorPemesanan, type PemesananSetup } from "../../../tests/support/pemesanan";
+import { orderSaatDuka, pemesanDenganEmail, pemesananOnTestDatabase, unitIds, saatDukaFixture, siapkanOperatorPemesanan, type PemesananSetup } from "../../../tests/support/pemesanan";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -91,5 +93,35 @@ describe("Akun Saya's Makam tab: the Bukti Pemesanan of the Hak Pakai's own orde
   it("is empty for a Hak Pakai id that names nothing, or that names one with no order yet", async () => {
     const setup = pemesananOnTestDatabase(db);
     expect(await setup.pemesanan.buktiUntukHakPakai("no-such-hak-pakai")).toEqual([]);
+  });
+});
+
+describe("Akun Saya's Pesanan tab: Pemesanan Terencana of that Akun", () => {
+  it("lists a Pemesanan Terencana newest first, and nobody else's", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { actor: admin } = await adminPlatformOf(setup);
+    await siapkanOperatorPemesanan(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id");
+    const { pemesan: lain } = await pemesanDenganEmail(setup, "lain@contoh.id");
+    const id = await unitIds(setup, fixture, ["A-01", "A-02"]);
+    const data = {
+      pemesanName: "Rina Wulandari",
+      phoneNumber: "081234567890",
+      pemegangHak: { mode: "pemesan" },
+      calonPenghuni: { mode: "saya" },
+      lokasiId: fixture.lokasiMitra.id,
+    } as const;
+
+    const pertama = await setup.pemesanan.placeTerencana({ ...data, pemesan, units: [{ petakId: id["A-01"] }] });
+    if (!pertama.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(pertama)}`);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    const kedua = await setup.pemesanan.placeTerencana({ ...data, pemesan, units: [{ petakId: id["A-02"] }] });
+    if (!kedua.ok) throw new Error(`placeTerencana refused: ${JSON.stringify(kedua)}`);
+
+    const tab = await setup.pemesanan.terencanaSaya(pemesan);
+
+    expect(tab.map((order) => order.nomor)).toEqual([kedua.pemesanan.nomor, pertama.pemesanan.nomor]);
+    expect(await setup.pemesanan.terencanaSaya(lain)).toEqual([]);
   });
 });
