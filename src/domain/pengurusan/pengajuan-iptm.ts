@@ -316,7 +316,7 @@ export async function ajukanIptm(deps: PengurusanDeps, by: Actor, rawInput: unkn
   if (!order) return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   // A Saat Duka TPU order is filed once its documents are checked; a filing-only one once its Tagihan is Lunas (Diproses);
   // either one again after a fixable PTSP rejection (Perlu Perbaikan), at no charge, once the documents asked for are in.
-  const dariStatus = order.kind === "pengurusan_iptm" ? "diproses" : "dokumen_lengkap";
+  const dariStatus = order.kind === "saat_duka_tpu" ? "dokumen_lengkap" : "diproses";
   if (order.status !== dariStatus && order.status !== "perlu_perbaikan") return { ok: false, reason: "status_tidak_sesuai" };
   const diajukanUlang = order.status === "perlu_perbaikan";
   if (diajukanUlang) {

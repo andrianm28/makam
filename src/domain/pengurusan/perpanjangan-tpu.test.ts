@@ -139,6 +139,7 @@ describe("paying the Tagihan", () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await makamBerakhir(setup, "2027-02-15");
     const { nomor, tagihan } = await sampaiMenungguPembayaran(setup, dasar);
+    const suratPengantarSebelumnya = await setup.fieldwork.ambilSuratPengantarTerbuka();
     setup.clock.set(wib("2026-12-21 09:00"));
     expect((await setup.billing.recordPayment(tagihan.id, QRIS)).ok).toBe(true);
     await setup.pengurusan.pembayaranBerkasTick();
@@ -146,7 +147,8 @@ describe("paying the Tagihan", () => {
     const tenggat = addWorkingDays(await setup.lokasi.adminPlatformCalendar(), wib("2026-12-21 09:00"), 3);
     if (!tenggat.ok) throw new Error("calendar unavailable");
     expect(await setup.pengurusan.pengajuanBerkasTerbuka()).toEqual([expect.objectContaining({ nomor, dueAt: tenggat.at })]);
-    expect(await setup.fieldwork.ambilSuratPengantarTerbuka()).toEqual([]);
+    // A renewal is filed from its own documents: paying makes no Ambil surat pengantar Tugas (that is the filing-only order's).
+    expect(await setup.fieldwork.ambilSuratPengantarTerbuka()).toEqual(suratPengantarSebelumnya);
     expect(await setup.pengurusan.ajukanIptm(dasar.admin, { nomor })).toMatchObject({ ok: true, status: "iptm_diajukan" });
   });
 });

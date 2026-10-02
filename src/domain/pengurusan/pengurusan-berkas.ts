@@ -136,7 +136,7 @@ export async function periksaDokumenBerkas(deps: PengurusanDeps, by: Actor, orde
 // --------------------------------------------------- Lunas and the lapse (tick)
 
 /**
- * Follows the pay-first Tagihan of every Menunggu Pembayaran order: Lunas makes it Diproses (the moment it was seen
+ * Follows the pay-first Tagihan of every Menunggu Pembayaran filing-only or Perpanjangan TPU order: Lunas makes it Diproses (the moment it was seen
  * paid opens the 3-working-day filing) and, in that same transaction, makes the order's Ambil surat pengantar Tugas
  * Lapangan, unassigned, for an Admin Platform to hand to a Petugas (story 146); a Tagihan Billing has cancelled for
  * lapsing makes it Dibatalkan. Each order moves in one transaction, conditional on it still waiting, so running the
@@ -150,7 +150,7 @@ export async function pembayaranBerkasTick(
   const menunggu = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "menunggu_pembayaran")));
+    .where(and(ne(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "menunggu_pembayaran")));
   for (const order of menunggu) {
     if (!order.tagihanId) continue;
     const tagihan = await deps.billing.tagihanBerlaku(order.tagihanId);
@@ -163,6 +163,8 @@ export async function pembayaranBerkasTick(
           .where(and(eq(pengurusanTpu.id, order.id), eq(pengurusanTpu.status, "menunggu_pembayaran")))
           .returning({ id: pengurusanTpu.id });
         if (moved.length === 0) return;
+        // Only a filing-only order has a surat pengantar to fetch (story 146); a renewal is filed from its own documents.
+        if (order.kind !== "pengurusan_iptm") return;
         const tugas = await buatTugasSistem(
           { db: tx },
           {
@@ -366,7 +368,7 @@ export async function pengajuanBerkasTerbuka(deps: Pick<PengurusanDeps, "db" | "
   const rows = await deps.db
     .select()
     .from(pengurusanTpu)
-    .where(and(eq(pengurusanTpu.kind, "pengurusan_iptm"), eq(pengurusanTpu.status, "diproses")));
+    .where(and(ne(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "diproses")));
   const hasil = await Promise.all(
     rows
       .filter((row) => row.lunasPada !== null)
