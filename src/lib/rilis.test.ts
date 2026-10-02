@@ -10,9 +10,16 @@ describe("Rilis terbuka (ADR 0006)", () => {
     expect(rilisAktif({ APP_ENV: "staging" })).toBe(3);
     expect(rilisAktif({ APP_ENV: "development" })).toBe(3);
     expect(rilisAktif({ APP_ENV: "test" })).toBe(3);
-    expect(rilisAktif({})).toBe(3);
+    expect(rilisAktif({})).toBe(1);
     expect(rilisAktif({ APP_ENV: "production", RILIS_TERBUKA: "2" })).toBe(2);
     expect(rilisAktif({ APP_ENV: "staging", RILIS_TERBUKA: "" })).toBe(3);
+  });
+
+  it("fails closed: without APP_ENV, or with one it does not know, Rilis 1 is open", () => {
+    expect(rilisAktif({})).toBe(1);
+    expect(rilisAktif({ APP_ENV: "prod" })).toBe(1);
+    expect(rilisAktif({ APP_ENV: "" })).toBe(1);
+    expect(rilisAktif({ RILIS_TERBUKA: "3" })).toBe(3);
   });
 
   it("refuses a release number outside 1 to 3", () => {

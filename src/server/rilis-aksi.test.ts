@@ -3,6 +3,9 @@ import { browser } from "../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { testServerRuntime } from "../../tests/support/server-runtime";
 import { signInAsAdminPlatform } from "../../tests/support/server-sign-in";
+import { batalkanPengurusanAction } from "@/app/pengurusan/[nomor]/pengajuan-actions";
+import { periksaDokumenAction } from "@/app/staf/admin-platform/pengurusan/[nomor]/pengajuan-actions";
+import { kirimBuktiTpu } from "@/app/staf/mitra-jasa/pekerjaan/bukti-actions";
 import { tambahNazhirDaftar } from "@/app/staf/admin-platform/wakaf/actions";
 
 vi.mock("server-only", () => ({}));
@@ -38,5 +41,12 @@ describe("Server Actions of a closed release (ADR 0006)", () => {
     vi.stubEnv("RILIS_TERBUKA", "3");
     expect(await tambahNazhirDaftar({ status: "idle" }, form(nazhir))).toMatchObject({ status: "berhasil" });
     expect(await server.runtime().wakaf.daftarNazhir(admin)).toHaveLength(1);
+  });
+
+  it("the Pengurusan TPU, Admin Platform and Mitra Jasa bukti actions answer 404 at Rilis 1, signed in or not", async () => {
+    vi.stubEnv("RILIS_TERBUKA", "1");
+    for (const aksi of [batalkanPengurusanAction, periksaDokumenAction, kirimBuktiTpu]) {
+      await expect(aksi({ status: "idle" } as never, form({ nomor: "X" }))).rejects.toMatchObject({ digest: expect.stringContaining("404") });
+    }
   });
 });
