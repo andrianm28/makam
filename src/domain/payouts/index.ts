@@ -85,7 +85,7 @@ import {
   type TerbitkanBuktiInput,
   type TerbitkanBuktiResult,
 } from "./transfer";
-import { masaPembatalanDimulai, pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
+import { lepaskanTerencanaBerhenti, masaPembatalanDimulai, pemakamanTercatat, tickPencairan, TENGGAT_PENCAIRAN_HARI_KERJA, type TickPencairanResult } from "./trigger";
 
 export { NAMA_EFEK_PENCAIRAN, efekPencairanSaatLunas } from "./efek";
 export { BIAYA_LAYANAN_PLATFORM, TENGGAT_PENCAIRAN_HARI_KERJA } from "./trigger";
@@ -159,6 +159,8 @@ export interface Payouts {
    * the transaction that makes the order Aktif; the item itself is the tick's.
    */
   masaPembatalanDimulai(tx: Database, input: { nomorPemesanan: string; berakhirPada: Date }): Promise<void>;
+  /** A Lokasi Mitra went Berhenti: the held Pencairan of these Pemesanan Terencana is released now (ticket 59). Idempotent; the Nomor Pemesanan released. */
+  lepaskanTerencanaBerhenti(nomorPemesanan: readonly string[]): Promise<string[]>;
   /**
    * Worker tick: every order whose Tagihan is Lunas **and** whose Pemakaman is
    * recorded gets its Pencairan items, due from the later of the two instants; a
@@ -302,6 +304,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
   return {
     pemakamanTercatat: (tx, input) => pemakamanTercatat(tx, input),
     masaPembatalanDimulai: (tx, input) => masaPembatalanDimulai(tx, input),
+    lepaskanTerencanaBerhenti: (nomorPemesanan) => lepaskanTerencanaBerhenti(deps.db, nomorPemesanan, deps.clock.now()),
     tick: (now) => tickPencairan(pemicu, now ?? deps.clock.now()),
     tenggat: async (dueAt) => tenggat(deps.lokasi, dueAt),
     jalankanPencairan: (by) => jalankanPencairan(runDeps, by),

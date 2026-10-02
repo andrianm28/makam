@@ -51,3 +51,21 @@ describe("a refund netted before the Pencairan items exist", () => {
     ]);
   });
 });
+
+describe("a held Terencana Pencairan when its Lokasi Mitra goes Berhenti", () => {
+  it("is released at once, so the Lokasi is paid for the order even though its Masa Pembatalan has not ended", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const fixture = await pesananSaatDukaSiap(setup);
+    const konfirmasi = await konfirmasiPesanan(setup, fixture);
+    await bayarTagihan(setup, konfirmasi.tagihanId);
+    await db.transaction((tx) => setup.payouts.masaPembatalanDimulai(tx, { nomorPemesanan: fixture.nomor, berakhirPada: wib("2026-10-05 09:00") }));
+    await setup.payouts.tick();
+    expect(await setup.payouts.pencairanJatuhTempo()).toEqual([]);
+
+    expect(await setup.payouts.lepaskanTerencanaBerhenti([fixture.nomor])).toEqual([fixture.nomor]);
+    await setup.payouts.tick();
+    expect(await setup.payouts.pencairanJatuhTempo()).not.toEqual([]);
+    // Harmless to repeat: nothing is still held.
+    expect(await setup.payouts.lepaskanTerencanaBerhenti([fixture.nomor])).toEqual([]);
+  });
+});
