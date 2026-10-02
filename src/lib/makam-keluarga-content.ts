@@ -228,6 +228,8 @@ export interface KartuMakamSaya {
   dokumen: DokumenMakamSaya[];
   /** The hub address that opens this grave, for a later ticket's actions (tumpang, Perpanjang, Layanan, Pengurusan IPTM). */
   alamat: string;
+  /** True once the Lokasi's Berhenti has taken effect: the record stays, with no Perpanjang, Layanan or other action (ticket 59). */
+  hanyaBaca: boolean;
 }
 
 /**
@@ -237,7 +239,13 @@ export interface KartuMakamSaya {
  * they are Pemesanan's own row, not Inventory's — AGENTS.md: only the owning
  * module reads its own tables).
  */
-export function kartuMakamSaya(satu: MakamSaya, namaLokasi: ReadonlyMap<string, string>, dokumen: readonly DokumenMakamSaya[]): KartuMakamSaya {
+export function kartuMakamSaya(
+  satu: MakamSaya,
+  namaLokasi: ReadonlyMap<string, string>,
+  dokumen: readonly DokumenMakamSaya[],
+  /** Lokasi whose Berhenti has taken effect (the Lokasi module says so, `izinPesanan(.., "lanjutan")`). */
+  lokasiBerhenti: ReadonlySet<string> = new Set(),
+): KartuMakamSaya {
   const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
   const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
   return {
@@ -251,5 +259,6 @@ export function kartuMakamSaya(satu: MakamSaya, namaLokasi: ReadonlyMap<string, 
     pemakaman: satu.pemakaman.map((satuPemakaman) => ({ almarhumName: satuPemakaman.almarhumName, date: satuPemakaman.date })),
     dokumen: [...dokumen],
     alamat: hubPath({ lokasiId: satu.lokasiId, cari, nomor }),
+    hanyaBaca: lokasiBerhenti.has(satu.lokasiId),
   };
 }

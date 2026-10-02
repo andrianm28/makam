@@ -114,7 +114,6 @@ describe("the Makam tab row, which the hub and Akun Saya both render", () => {
       nomor: "A-01",
       almarhum: ["Hasan"],
       alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
-      hanyaBaca: false,
     });
   });
 
@@ -174,6 +173,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
       pemakaman: [{ almarhumName: "Siti Nur", date: "2019-04-02" }],
       dokumen: [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }],
       alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
+      hanyaBaca: false,
     });
   });
 
