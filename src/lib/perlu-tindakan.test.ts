@@ -98,6 +98,15 @@ describe("a TPU filing in Perlu tindakan (ticket 46)", () => {
     expect(item!.deskripsi).toContain("lewat");
   });
 
+  it("says the PTSP asked for the fix on a Pengurusan IPTM, and just that a fix was asked on a Perpanjangan TPU", () => {
+    const dasar = { nomor: "TPU-2026-000001", tpuName: "TPU Karet Bivak", kurang: ["KTP Pemesan"], terlambat: false, alasanPerbaikan: "Scan buram" };
+    const [iptm] = perluTindakanDariBerkasTpu([{ ...dasar, dueAt }]);
+    const [perpanjangan] = perluTindakanDariBerkasTpu([{ ...dasar, dueAt: null }]);
+    expect(iptm!.deskripsi).toContain("PTSP meminta perbaikan: Scan buram");
+    expect(perpanjangan!.deskripsi).toContain("Perbaikan diminta: Scan buram");
+    expect(perpanjangan!.deskripsi).not.toContain("PTSP");
+  });
+
   it("has nothing for an order whose documents are all in", () => {
     expect(perluTindakanDariBerkasTpu([])).toEqual([]);
   });
