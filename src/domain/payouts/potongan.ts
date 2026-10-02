@@ -270,3 +270,17 @@ function toUmum(row: typeof potongan.$inferSelect): BarisPotonganUmum {
     dibuatPada: row.dibuatPada,
   };
 }
+
+/**
+ * A Lokasi Mitra went Berhenti (ticket 59): everything it still owes through a running Potongan becomes an
+ * offline request at once, which Admin Platform records when it is paid (spec, Payouts > Potongan). Called by the
+ * Berhenti effective-date sweep. Idempotent; returns the ids it moved.
+ */
+export async function potonganBerhenti(db: Database, lokasiId: string, now: Date): Promise<string[]> {
+  const moved = await db
+    .update(potongan)
+    .set({ status: "perlu_offline", perluOfflinePada: now })
+    .where(and(eq(potongan.lokasiId, lokasiId), eq(potongan.status, "berjalan")))
+    .returning({ id: potongan.id });
+  return moved.map((row) => row.id);
+}

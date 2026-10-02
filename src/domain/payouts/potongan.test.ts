@@ -93,6 +93,25 @@ describe("a Potongan", () => {
     ]);
   });
 
+  it("becomes an offline request at once when its Lokasi Mitra goes Berhenti, and only that Lokasi's", async () => {
+    const setup = payoutsOnTestDatabase(db);
+    const order = await orderDue(setup);
+    const potongan = await setup.payouts.catatPotongan(order.admin, {
+      lokasiId: order.lokasiMitra.id,
+      amount: 2_000_000,
+      alasanKind: "lainnya",
+      alasan: "Koreksi transfer",
+    });
+    if (!potongan.ok) throw new Error(`Potongan refused: ${potongan.reason}`);
+
+    expect(await setup.payouts.potonganBerhenti("00000000-0000-4000-8000-000000000000")).toEqual([]);
+    expect(await setup.payouts.potonganBerhenti(order.lokasiMitra.id)).toEqual([potongan.potongan.id]);
+    expect(await setup.payouts.potonganOfLokasi(order.lokasiMitra.id)).toMatchObject([{ status: "perlu_offline", sisa: 2_000_000 }]);
+    expect(await setup.payouts.potonganPerluOffline()).toHaveLength(1);
+    // Harmless to repeat.
+    expect(await setup.payouts.potonganBerhenti(order.lokasiMitra.id)).toEqual([]);
+  });
+
   it("stays owed after 60 days as an offline request, which Admin Platform records when it is paid", async () => {
     const setup = payoutsOnTestDatabase(db);
     const order = await orderDue(setup);

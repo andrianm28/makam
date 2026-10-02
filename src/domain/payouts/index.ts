@@ -54,6 +54,7 @@ import {
   potonganOfLokasi,
   potonganPerluOffline,
   tickPotonganUsia,
+  potonganBerhenti,
   type BarisPotonganUmum,
   type CatatPotonganInput,
   type CatatPotonganLunasResult,
@@ -258,6 +259,8 @@ export interface Payouts {
   catatPotonganLunas(by: Actor, input: { potonganId: string; dibayarPada: string }): Promise<CatatPotonganLunasResult>;
   /** Worker tick: a Potongan 60 days old becomes an offline request, which Admin Platform records when it is paid. Idempotent. */
   tickPotongan(now?: Date): Promise<string[]>;
+  /** A Lokasi Mitra went Berhenti: its running Potongan become offline requests at once (ticket 59). Idempotent; the ids moved. */
+  potonganBerhenti(lokasiId: string): Promise<string[]>;
   /** What one Lokasi Mitra still owes, whatever its state. */
   potonganOfLokasi(lokasiId: string): Promise<BarisPotonganUmum[]>;
   /** Every Potongan waiting to be paid offline, oldest first. */
@@ -321,6 +324,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),
     tickPotongan: (now) => tickPotonganUsia(deps.db, now ?? deps.clock.now()),
+    potonganBerhenti: (lokasiId) => potonganBerhenti(deps.db, lokasiId, deps.clock.now()),
     potonganOfLokasi: (lokasiId) => potonganOfLokasi(deps.db, lokasiId),
     potonganPerluOffline: () => potonganPerluOffline(deps.db),
     pencairanJatuhTempo: () => pencairanJatuhTempo(deps.db),
