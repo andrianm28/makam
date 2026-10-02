@@ -192,6 +192,7 @@ export function barisMakamSaya(
 ): BarisMakamSaya {
   const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
   const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
+  const pengelola = lokasiBerhenti.get(satu.lokasiId);
   return {
     lokasiId: satu.lokasiId,
     namaLokasi: namaLokasi.get(satu.lokasiId) ?? "Lokasi Mitra",
@@ -230,6 +231,14 @@ export interface KartuMakamSaya {
   alamat: string;
   /** True once the Lokasi's Berhenti has taken effect: the record stays, with no Perpanjang, Layanan or other action (ticket 59). */
   hanyaBaca: boolean;
+  /** Read-only cards only: who runs the Lokasi Mitra, for the family to reach it about the record (ticket 59). */
+  pengelola: { name: string; address: string } | null;
+}
+
+/** What the Lokasi Mitra holds of its pengelola. */
+export interface PengelolaLokasi {
+  pengelolaName: string;
+  address: string;
 }
 
 /**
@@ -243,11 +252,12 @@ export function kartuMakamSaya(
   satu: MakamSaya,
   namaLokasi: ReadonlyMap<string, string>,
   dokumen: readonly DokumenMakamSaya[],
-  /** Lokasi whose Berhenti has taken effect (the Lokasi module says so, `izinPesanan(.., "lanjutan")`). */
-  lokasiBerhenti: ReadonlySet<string> = new Set(),
+  /** Lokasi whose Berhenti has taken effect (the Lokasi module says so, `izinPesanan(.., "lanjutan")`), with their pengelola. */
+  lokasiBerhenti: ReadonlyMap<string, PengelolaLokasi> = new Map(),
 ): KartuMakamSaya {
   const cari: BentukCari = satu.kavlingId === null ? "nomor_makam" : "nomor_kavling";
   const nomor = satu.nomorKavling ?? satu.petak[0]?.nomorMakam ?? "";
+  const pengelola = lokasiBerhenti.get(satu.lokasiId);
   return {
     hakPakaiId: satu.hakPakaiId,
     lokasiId: satu.lokasiId,
@@ -259,6 +269,7 @@ export function kartuMakamSaya(
     pemakaman: satu.pemakaman.map((satuPemakaman) => ({ almarhumName: satuPemakaman.almarhumName, date: satuPemakaman.date })),
     dokumen: [...dokumen],
     alamat: hubPath({ lokasiId: satu.lokasiId, cari, nomor }),
-    hanyaBaca: lokasiBerhenti.has(satu.lokasiId),
+    hanyaBaca: pengelola !== undefined,
+    pengelola: pengelola ? { name: pengelola.pengelolaName, address: pengelola.address } : null,
   };
 }

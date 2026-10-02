@@ -31,13 +31,13 @@ export default async function AkunMakamPage() {
   const namaLokasi = new Map(cards.map((card) => [card.id, card.name]));
   // A Lokasi that is Ditangguhkan or Berhenti is off the public list, but its Hak Pakai stays on this tab:
   // name it from the status-aware profile, and mark the ones whose Berhenti has taken effect read-only.
-  const lokasiBerhenti = new Set<string>();
+  const lokasiBerhenti = new Map<string, { pengelolaName: string; address: string }>();
   for (const lokasiId of new Set(unit.map((satu) => satu.lokasiId))) {
-    if (!namaLokasi.has(lokasiId)) {
-      const profil = await lokasi.publicLokasiMitraTampil(lokasiId);
-      if (profil) namaLokasi.set(lokasiId, profil.name);
+    const profil = await lokasi.publicLokasiMitraTampil(lokasiId);
+    if (profil && !namaLokasi.has(lokasiId)) namaLokasi.set(lokasiId, profil.name);
+    if (profil && !(await lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan) {
+      lokasiBerhenti.set(lokasiId, { pengelolaName: profil.pengelolaName, address: profil.address });
     }
-    if (!(await lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan) lokasiBerhenti.add(lokasiId);
   }
   // Which of them can be cancelled (or has a request open): the module decides, and says nothing for a Hak Pakai that is no Terencana order's.
   const pembatalan = new Map(
@@ -94,6 +94,7 @@ export default async function AkunMakamPage() {
           {satu.hanyaBaca ? (
             <p className="text-small text-muted-foreground">
               Kemitraan Lokasi ini sudah berakhir. Catatan dan dokumen tetap bisa dilihat di sini; Perpanjang Makam dan Layanan tidak lagi tersedia.
+              {satu.pengelola ? ` Untuk hal lain, hubungi pengelola: ${satu.pengelola.name}, ${satu.pengelola.address}.` : ""}
             </p>
           ) : null}
           {!satu.hanyaBaca && satu.tanggalBerakhir && satu.status.label !== "Berakhir" && satu.status.label !== "Dibatalkan" ? (
