@@ -42,4 +42,5 @@ INSERT INTO "inventory_calon_penghuni" ("hak_pakai_id", "petak_id", "label", "up
 SELECT h."id", COALESCE(h."petak_id", (SELECT p."id" FROM "inventory_petak" p WHERE p."kavling_id" = h."kavling_id" AND p."nomor_makam" IS NOT NULL ORDER BY p."row", p."col" LIMIT 1)), h."calon_penghuni", h."created_at"
 FROM "inventory_hak_pakai" h
 WHERE h."calon_penghuni" IS NOT NULL AND h."calon_penghuni" <> ''
-  AND COALESCE(h."petak_id", (SELECT p."id" FROM "inventory_petak" p WHERE p."kavling_id" = h."kavling_id" AND p."nomor_makam" IS NOT NULL ORDER BY p."row", p."col" LIMIT 1)) IS NOT NULL;
+  AND COALESCE(h."petak_id", (SELECT p."id" FROM "inventory_petak" p WHERE p."kavling_id" = h."kavling_id" AND p."nomor_makam" IS NOT NULL ORDER BY p."row", p."col" LIMIT 1)) IS NOT NULL
+ON CONFLICT DO NOTHING;

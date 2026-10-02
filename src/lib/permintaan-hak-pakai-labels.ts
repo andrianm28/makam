@@ -61,6 +61,8 @@ export function permintaanHakPakaiText(reason: string): string {
       return "Lokasi Mitra ini tidak mengizinkan pengalihan Hak Pakai lewat jual-beli. Pewarisan tetap diizinkan.";
     case "berkas_tidak_didukung":
       return "Berkas harus berupa JPEG, PNG atau PDF yang tidak kosong, paling besar 10 MB.";
+    case "ktp_wajib":
+      return "Unggah hasil pemeriksaan KTP (JPEG, PNG atau PDF) sebelum mengubah kontak.";
     case "penyimpanan_belum_tersedia":
       return "Penyimpanan berkas sedang tidak tersedia. Coba lagi sebentar lagi.";
     case "status_tidak_sesuai":

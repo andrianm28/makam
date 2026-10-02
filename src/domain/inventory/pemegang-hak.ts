@@ -16,13 +16,10 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
+import { ekstensiUnggahan } from "@/lib/files/upload-check";
 import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { InventoryDeps } from "./deps";
 import { inventoryHakPakai, inventoryPemegangHak } from "./schema";
-
-const KTP_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "application/pdf"];
-const KTP_MAX_BYTES = 10 * 1024 * 1024;
 
 const kontakSchema = z.object({
   phoneNumber: z.string().trim().min(1).max(30),
@@ -47,6 +44,8 @@ export const ubahKontakPemegangHakSchema = z.object({
   alasan: z.string().trim().min(1).max(300),
   /** The KTP check the Admin Lokasi did, as the file it uploaded (kept in the private FileStore; ticket 39). */
   ktp: z.object({ body: z.instanceof(Uint8Array), contentType: z.string() }).optional(),
+  /** Or the key of a KTP check already in the private FileStore (a Perpanjangan request's own KTP); one of the two is required. */
+  ktpKey: z.string().trim().min(1).max(500).optional(),
 });
 export type UbahKontakPemegangHakInput = z.infer<typeof ubahKontakPemegangHakSchema>;
 
@@ -57,6 +56,8 @@ export type PemegangHakResult =
   | { ok: false; reason: "nomor_telepon_tidak_valid" | "email_tidak_valid" }
   /** The KTP check file is not a JPEG, PNG or PDF, is empty or is too large; or the private FileStore is not available. */
   | { ok: false; reason: "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" }
+  /** No KTP check was given: the contact never changes without one. */
+  | { ok: false; reason: "ktp_wajib" }
   /** A holder has to be named when none is on record. */
   | { ok: false; reason: "nama_wajib" };
 
@@ -142,10 +143,13 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
   const kontak = kontakOf(input);
   if (!kontak.ok) return kontak;
 
-  let ktpKey: string | null = null;
+  if (!input.ktp && !input.ktpKey) return { ok: false, reason: "ktp_wajib" };
+  let ktpKey: string | null = input.ktpKey ?? null;
+  let diunggah = false;
   if (input.ktp) {
-    const extension = documentExtension(input.ktp, KTP_TYPES);
-    if (!extension || input.ktp.body.byteLength > KTP_MAX_BYTES) return { ok: false, reason: "berkas_tidak_didukung" };
+    const extension = ekstensiUnggahan(input.ktp);
+    if (!extension) return { ok: false, reason: "berkas_tidak_didukung" };
+    diunggah = true;
     ktpKey = `pemegang-hak-ktp/${input.hakPakaiId}/${randomUUID()}.${extension}`;
     try {
       await deps.files.put({ key: ktpKey, body: input.ktp.body, contentType: input.ktp.contentType });
@@ -190,7 +194,7 @@ export async function ubahKontakPemegangHak(deps: InventoryDeps, by: Actor, loka
     return { ok: true as const };
   });
   // A refused write leaves no orphan KTP file behind.
-  if (!hasil.ok && ktpKey) await deps.files.delete(ktpKey).catch(() => undefined);
+  if (!hasil.ok && diunggah && ktpKey) await deps.files.delete(ktpKey).catch(() => undefined);
   return hasil;
 }
 

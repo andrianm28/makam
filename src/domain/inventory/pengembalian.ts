@@ -15,10 +15,10 @@
  * review"). The caller has already checked the Akun is that holder; the label
  * itself is all this write touches, so the notification stays the caller's.
  */
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, notExists, sql } from "drizzle-orm";
 import { pemakamanOfHakPakai } from "./hak-pakai-reads";
 import type { InventoryDeps } from "./deps";
-import { inventoryCalonPenghuni, inventoryHakPakai, inventoryPetak } from "./schema";
+import { inventoryCalonPenghuni, inventoryHakPakai, inventoryPemakaman, inventoryPetak } from "./schema";
 import { PENGEMBALIAN_END_REASON } from "./status";
 
 export type KembalikanHakPakaiResult =
@@ -42,9 +42,20 @@ export async function kembalikanHakPakai(
   const berakhir = await deps.db
     .update(inventoryHakPakai)
     .set({ status: "berakhir", endReason: PENGEMBALIAN_END_REASON })
-    .where(eq(inventoryHakPakai.id, hakPakai.id))
+    // Re-checked in the UPDATE itself: a Pemakaman recorded since the read above, or a right that ended meanwhile, refuses it.
+    .where(
+      and(
+        eq(inventoryHakPakai.id, hakPakai.id),
+        eq(inventoryHakPakai.status, "aktif"),
+        notExists(deps.db.select({ one: sql`1` }).from(inventoryPemakaman).where(eq(inventoryPemakaman.hakPakaiId, hakPakai.id))),
+      ),
+    )
     .returning({ id: inventoryHakPakai.id });
-  if (berakhir.length === 0) return { ok: false, reason: "tidak_ditemukan" };
+  if (berakhir.length === 0) {
+    const [sekarang] = await deps.db.select({ status: inventoryHakPakai.status }).from(inventoryHakPakai).where(eq(inventoryHakPakai.id, hakPakai.id));
+    if (sekarang?.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
+    return { ok: false, reason: "pemakaman_sudah_dicatat" };
+  }
   return { ok: true, hakPakaiId: hakPakai.id };
 }
 
@@ -81,14 +92,17 @@ export async function ubahCalonPenghuni(
   if (!petak || (input.petakId !== undefined && input.petakId !== petak.id)) return { ok: false, reason: "petak_tidak_dikenal" };
 
   const now = deps.clock.now();
-  if (input.label === null || input.label === "") {
-    await deps.db.delete(inventoryCalonPenghuni).where(and(eq(inventoryCalonPenghuni.hakPakaiId, hakPakai.id), eq(inventoryCalonPenghuni.petakId, petak.id)));
-  } else {
-    await deps.db
-      .insert(inventoryCalonPenghuni)
-      .values({ hakPakaiId: hakPakai.id, petakId: petak.id, label: input.label, updatedAt: now })
-      .onConflictDoUpdate({ target: [inventoryCalonPenghuni.hakPakaiId, inventoryCalonPenghuni.petakId], set: { label: input.label, updatedAt: now } });
-  }
-  if (petak.id === anggota[0].id) await deps.db.update(inventoryHakPakai).set({ calonPenghuni: input.label || null }).where(eq(inventoryHakPakai.id, hakPakai.id));
+  // The new table and the older column change together or not at all.
+  await deps.db.transaction(async (tx) => {
+    if (input.label === null || input.label === "") {
+      await tx.delete(inventoryCalonPenghuni).where(and(eq(inventoryCalonPenghuni.hakPakaiId, hakPakai.id), eq(inventoryCalonPenghuni.petakId, petak.id)));
+    } else {
+      await tx
+        .insert(inventoryCalonPenghuni)
+        .values({ hakPakaiId: hakPakai.id, petakId: petak.id, label: input.label, updatedAt: now })
+        .onConflictDoUpdate({ target: [inventoryCalonPenghuni.hakPakaiId, inventoryCalonPenghuni.petakId], set: { label: input.label, updatedAt: now } });
+    }
+    if (petak.id === anggota[0].id) await tx.update(inventoryHakPakai).set({ calonPenghuni: input.label || null }).where(eq(inventoryHakPakai.id, hakPakai.id));
+  });
   return { ok: true, calonPenghuni: input.label || null, petakId: petak.id, nomorMakam: petak.nomorMakam };
 }

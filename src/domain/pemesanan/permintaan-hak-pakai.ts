@@ -23,7 +23,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
+import { ekstensiUnggahan } from "@/lib/files/upload-check";
 import { lokasiMitraResource, normaliseEmail, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { addWorkingDays } from "@/domain/lokasi";
 import { isBlockedByOverdueTagihan } from "./chasing";
@@ -214,8 +214,6 @@ export async function ajukanPengembalian(deps: PemesananDeps, pemesan: Pemesan, 
   return { ok: true, permintaan: toPermintaan(dibuat) };
 }
 
-const BERKAS_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", "application/pdf"];
-const BERKAS_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Checks every attached document (type, content, size) and stores it privately; stores nothing when one is refused. */
 async function simpanBerkas(
@@ -223,7 +221,7 @@ async function simpanBerkas(
   hakPakaiId: string,
   berkas: readonly { body: Uint8Array; contentType: string }[],
 ): Promise<{ ok: true; kunci: string[] } | { ok: false; reason: "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" }> {
-  const ekstensi = berkas.map((satu) => (satu.body.byteLength > BERKAS_MAX_BYTES ? null : documentExtension(satu, BERKAS_TYPES)));
+  const ekstensi = berkas.map((satu) => ekstensiUnggahan(satu));
   if (ekstensi.some((satu) => satu === null)) return { ok: false, reason: "berkas_tidak_didukung" };
   const kunci: string[] = [];
   for (const [indeks, satu] of berkas.entries()) {
@@ -431,22 +429,6 @@ export async function setujuiPermintaanHakPakai(deps: PemesananDeps, by: Actor, 
   if (!dimuat.ok) return dimuat.penolakan;
   const { row } = dimuat;
   const now = deps.clock.now();
-  const hakPakai = await deps.inventory.hakPakaiById(row.hakPakaiId);
-  if (!hakPakai) return { ok: false, reason: "tidak_ditemukan" };
-
-  if (row.jenis === "pengembalian") {
-    if (hakPakai.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
-    if (hakPakai.pemakaman.length > 0) return { ok: false, reason: "sudah_ada_pemakaman" };
-  } else {
-    if (hakPakai.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
-    if (await pembatalanTerbuka(deps, row.hakPakaiId)) return { ok: false, reason: "pembatalan_terbuka" };
-    if (await isBlockedByOverdueTagihan(deps, row.hakPakaiId)) return { ok: false, reason: "tagihan_lewat_jatuh_tempo" };
-    // Re-checked here as well as at filing: a Lokasi that forbids sale transfers while the request is in flight still refuses it.
-    if (row.sebab === "jual") {
-      const aturanJual = await deps.lokasi.aturanGantiPemegangHak(row.lokasiId);
-      if (!aturanJual?.saleTransfersAllowed) return { ok: false, reason: "jual_tidak_diizinkan" };
-    }
-  }
 
   return deps.audit.staffWrite<SetujuiPermintaanHakPakaiResult>(deps.db, async (tx, record) => {
     const [disetujui] = await tx
@@ -456,6 +438,22 @@ export async function setujuiPermintaanHakPakai(deps: PemesananDeps, by: Actor, 
       .returning();
     if (!disetujui) return { ok: false, reason: "sudah_diputuskan" };
     const inventory = deps.inventory.within(tx);
+
+    // The blocks are read inside this transaction, so what is checked is what is committed.
+    const sekarang = await inventory.hakPakaiById(row.hakPakaiId);
+    if (!sekarang) return { ok: false, reason: "tidak_ditemukan" };
+    if (sekarang.status !== "aktif") return { ok: false, reason: "hak_pakai_sudah_berakhir" };
+    if (row.jenis === "pengembalian") {
+      if (sekarang.pemakaman.length > 0) return { ok: false, reason: "sudah_ada_pemakaman" };
+    } else {
+      if (await pembatalanTerbuka({ db: tx }, row.hakPakaiId)) return { ok: false, reason: "pembatalan_terbuka" };
+      if (await isBlockedByOverdueTagihan({ ...deps, db: tx }, row.hakPakaiId)) return { ok: false, reason: "tagihan_lewat_jatuh_tempo" };
+      // Re-checked here as well as at filing: a Lokasi that forbids sale transfers while the request is in flight still refuses it.
+      if (row.sebab === "jual") {
+        const aturanJual = await deps.lokasi.aturanGantiPemegangHak(row.lokasiId);
+        if (!aturanJual?.saleTransfersAllowed) return { ok: false, reason: "jual_tidak_diizinkan" };
+      }
+    }
 
     if (row.jenis === "pengembalian") {
       const berakhir = await inventory.kembalikanHakPakai({ hakPakaiId: row.hakPakaiId });

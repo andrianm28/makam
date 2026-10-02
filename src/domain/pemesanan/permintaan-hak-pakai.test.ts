@@ -341,6 +341,7 @@ describe("Calon Penghuni and the holder's contact", () => {
       phoneNumber: "081200001111",
       email: "ibu.baru@contoh.id",
       alasan: "KTP diperiksa",
+      ktp: { body: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0]), contentType: "image/png" },
     });
 
     expect(hasil).toEqual({ ok: true });
