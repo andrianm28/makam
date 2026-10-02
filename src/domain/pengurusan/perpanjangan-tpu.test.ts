@@ -24,11 +24,12 @@ const QRIS = { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, referen
 type Dasar = Awaited<ReturnType<typeof makamBerakhir>>;
 
 /** An order placed on 20 December 2026, inside the 3 months before the IPTM's expiry on 15 February 2027. */
-async function pesanan(setup: PengajuanSetup, dasar: Dasar, berlakuSampai = "2027-02-15") {
+async function pesananPada(setup: PengajuanSetup, dasar: Dasar, berlakuSampai: string) {
   const hasil = await ajukan(setup, dasar, berlakuSampai);
   if (!hasil.ok) throw new Error(`order refused: ${hasil.reason}`);
   return hasil.pengurusan.nomor;
 }
+const pesanan = (setup: PengajuanSetup, dasar: Dasar) => pesananPada(setup, dasar, "2027-02-15");
 
 async function unggah(setup: PengajuanSetup, dasar: Dasar, nomor: string, nama?: string) {
   const order = await setup.pengurusan.orderOf(nomor, dasar.pemesan);
@@ -267,5 +268,33 @@ describe("IPTM Terbit of a Perpanjangan TPU", () => {
     expect(makam[0]!.riwayatIptm[1]).toMatchObject({ nomorPengurusan: nomor });
     expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ status: "iptm_terbit", makamTpuId: dasar.makamTpuId, iptm: { berlakuSampai: "2030-02-15" } });
     expect(await setup.pengurusan.iptmScanUrl(dasar.pemesan, nomor)).not.toBeNull();
+  });
+});
+
+describe("correcting the IPTM expiry date", () => {
+  it("lets Admin Platform correct the date read off the photo, audited with its reason, and re-reads the masa tenggang from it", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2027-05-20 10:00"));
+    const nomor = await pesananPada(setup, dasar, "2027-05-30");
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ perpanjangan: { iptmBerakhirPada: "2027-05-30", lewatMasaTenggang: false } });
+
+    const koreksi = await setup.pengurusan.koreksiIptmBerakhir(dasar.admin, { nomor, berlakuSampai: "2027-02-15", alasan: "Tanggal di foto IPTM: 15 Februari 2027" });
+    expect(koreksi).toEqual({ ok: true, berlakuSampai: "2027-02-15" });
+    expect(await setup.pengurusan.orderOf(nomor, dasar.pemesan)).toMatchObject({ perpanjangan: { iptmBerakhirPada: "2027-02-15", lewatMasaTenggang: true } });
+    expect(await setup.pengurusan.cekTpuTerbuka()).toEqual([expect.objectContaining({ nomor })]);
+
+    const order = await setup.pengurusan.orderForStaff(dasar.admin, nomor);
+    const entri = (await setup.audit.entriesAbout({ kind: "pengurusan_tpu", id: order!.id })).find((satu) => satu.action === "pengurusan.iptm_berakhir_dikoreksi");
+    expect(entri).toMatchObject({ before: { berlakuSampai: "2027-05-30" }, after: { berlakuSampai: "2027-02-15" }, reason: "Tanggal di foto IPTM: 15 Februari 2027" });
+  });
+
+  it("is Admin Platform's alone and only until the Tagihan is issued", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    const { nomor } = await sampaiMenungguPembayaran(setup, dasar);
+    const masukan = { nomor, berlakuSampai: "2027-02-16", alasan: "Salah baca" };
+    expect(await setup.pengurusan.koreksiIptmBerakhir(dasar.admin, masukan)).toEqual({ ok: false, reason: "status_tidak_sesuai" });
+    expect(await setup.pengurusan.koreksiIptmBerakhir(dasar.admin, { ...masukan, alasan: "" })).toEqual({ ok: false, reason: "input_tidak_valid" });
   });
 });
