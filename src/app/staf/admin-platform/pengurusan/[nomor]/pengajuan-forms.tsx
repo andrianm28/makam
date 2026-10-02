@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FormState } from "../../../form-state";
-import { ajukanIptmAction, catatDimakamkanAction, periksaDokumenAction, terbitkanIptmAction } from "./pengajuan-actions";
+import { ajukanIptmAction, buatSuratPengantarAction, catatDimakamkanAction, periksaDokumenAction, terbitkanIptmAction, tolakPtspAction } from "./pengajuan-actions";
 
 const inputClass = "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 const labelClass = "flex flex-col gap-1 text-sm font-medium";
@@ -142,6 +142,76 @@ export function LangkahPengajuanForm({ nomor, langkah, petugas, perluBlokNomor }
             </Button>
             <Feedback state={terbitState} />
           </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The Ambil surat pengantar Tugas of a paid filing-only order: a Petugas Lapangan is picked, and the Tugas exists once. */
+export function SuratPengantarForm({ nomor, petugas }: { nomor: string; petugas: { accountId: string; name: string }[] }) {
+  const [state, action, pending] = useActionState(buatSuratPengantarAction, idle);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Ambil surat pengantar</CardTitle>
+        <CardDescription>Tagihan sudah Lunas. Pilih Petugas Lapangan yang mengambil surat pengantar dari TPU; pengajuan jatuh tempo 3 hari kerja setelah Lunas.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={action} className="flex flex-col gap-3">
+          <input type="hidden" name="nomor" value={nomor} />
+          <label className={labelClass}>
+            Petugas Lapangan
+            <select name="petugasAccountId" required defaultValue="" className={inputClass}>
+              <option value="" disabled>Pilih petugas</option>
+              {petugas.map((akun) => (
+                <option key={akun.accountId} value={akun.accountId}>{akun.name}</option>
+              ))}
+            </select>
+          </label>
+          <Button type="submit" disabled={pending} className="self-start">{pending ? "Menyimpan…" : "Buat tugas"}</Button>
+          <Feedback state={state} />
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The PTSP's answer to a filed order: fixable (Perlu Perbaikan, refiled at no charge) or final (Ditolak, refunded in full). */
+export function TolakPtspForm({ nomor, dokumen, bisaFinal }: { nomor: string; dokumen: string[]; bisaFinal: boolean }) {
+  const [state, action, pending] = useActionState(tolakPtspAction, idle);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>PTSP menolak pengajuan</CardTitle>
+        <CardDescription>
+          Dapat diperbaiki: dikembalikan ke keluarga untuk unggah ulang dokumen yang dipilih, tanpa Tagihan baru. Final{bisaFinal ? ": ditolak dan seluruh Tagihan dikembalikan, Biaya Pengurusan termasuk." : " hanya untuk Pengurusan IPTM saja."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={action} className="flex flex-col gap-3">
+          <input type="hidden" name="nomor" value={nomor} />
+          <label className={labelClass}>
+            Putusan
+            <select name="putusan" defaultValue="perbaikan" className={inputClass}>
+              <option value="perbaikan">Dapat diperbaiki (Perlu Perbaikan)</option>
+              {bisaFinal ? <option value="final">Ditolak final (pengembalian penuh)</option> : null}
+            </select>
+          </label>
+          <label className={labelClass}>
+            Alasan dari PTSP (dibaca keluarga)
+            <textarea name="alasan" required maxLength={500} rows={3} className="rounded-lg border border-input bg-background px-3 py-2" />
+          </label>
+          <fieldset className="flex flex-col gap-1 text-sm">
+            <legend className="font-medium">Dokumen yang harus diunggah ulang (untuk yang dapat diperbaiki)</legend>
+            {dokumen.map((nama) => (
+              <label key={nama} className="flex items-center gap-2">
+                <input type="checkbox" name="dokumen" value={nama} /> {nama}
+              </label>
+            ))}
+          </fieldset>
+          <Button type="submit" disabled={pending} className="self-start">{pending ? "Menyimpan…" : "Catat putusan PTSP"}</Button>
+          <Feedback state={state} />
         </form>
       </CardContent>
     </Card>

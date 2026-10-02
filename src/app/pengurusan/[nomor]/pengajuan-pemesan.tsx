@@ -8,13 +8,17 @@ const LABEL: Partial<Record<PengurusanTpuStatus, string>> = {
   dikonfirmasi: "Dikonfirmasi",
   dimakamkan: "Dimakamkan",
   dokumen_lengkap: "Dokumen Lengkap",
+  menunggu_pembayaran: "Menunggu Pembayaran",
+  diproses: "Sudah dibayar, menunggu pengajuan",
+  perlu_perbaikan: "Perlu Perbaikan",
+  ditolak: "Ditolak",
   iptm_diajukan: "IPTM Diajukan",
   iptm_terbit: "IPTM Terbit",
   dibatalkan: "Dibatalkan",
 };
 
 /** Cancelling is open until the IPTM is filed (spec, Pengurusan). */
-const BOLEH_BATAL: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap"];
+const BOLEH_BATAL: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 
 /**
  * What the Pemesan follows after the confirmation (spec, Pengurusan; stories 74-77): the timeline, the
@@ -23,7 +27,7 @@ const BOLEH_BATAL: PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakam
  */
 export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; scanUrl: string | null }) {
   const { status, pengajuan } = order;
-  const unggah = status === "dimakamkan";
+  const unggah = status === "dimakamkan" || status === "perlu_perbaikan";
   return (
     <>
       <section className="flex flex-col gap-3" aria-label="Linimasa">
@@ -38,10 +42,15 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
         </ol>
       </section>
 
-      {unggah || status === "dokumen_lengkap" || status === "iptm_diajukan" ? (
+      {unggah || status === "dokumen_lengkap" || status === "menunggu_pembayaran" || status === "diproses" || status === "iptm_diajukan" ? (
         <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4" aria-label="Berkas pengajuan IPTM">
           <h2 className="text-title-3 text-foreground">Berkas pengajuan IPTM</h2>
-          {pengajuan.dokumenDueAt ? (
+          {status === "perlu_perbaikan" && order.alasan ? (
+            <p className="text-body font-medium text-foreground" role="alert">
+              PTSP meminta perbaikan: {order.alasan}. Unggah ulang dokumen di bawah; tidak ada biaya baru.
+            </p>
+          ) : null}
+          {status === "dimakamkan" && pengajuan.dokumenDueAt ? (
             <p className="text-small text-muted-foreground">Unggah paling lambat {formatTanggalJam(pengajuan.dokumenDueAt)}.</p>
           ) : null}
           <p className="text-body">
@@ -66,7 +75,14 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
               <p className="text-body">Semua berkas sudah kami terima. Tim kami memeriksanya.</p>
             )
           ) : (
-            <p className="text-body">Berkas lengkap. {status === "iptm_diajukan" ? "IPTM sudah diajukan di JakEVO." : "IPTM akan diajukan oleh tim kami."}</p>
+            <p className="text-body">
+              Berkas lengkap.{" "}
+              {status === "iptm_diajukan"
+                ? "IPTM sudah diajukan di JakEVO."
+                : status === "menunggu_pembayaran"
+                  ? "Bayar Tagihan agar kami bisa mengajukan IPTM. Tagihan yang tidak dibayar dalam 3×24 jam membatalkan pesanan."
+                  : "IPTM akan diajukan oleh tim kami."}
+            </p>
           )}
         </section>
       ) : null}
@@ -81,6 +97,14 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
             </a>
           ) : null}
           <p className="text-small text-muted-foreground">IPTM tetap dikirim walaupun Tagihan belum dibayar.</p>
+        </section>
+      ) : null}
+
+      {status === "ditolak" ? (
+        <section className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4" aria-label="Ditolak">
+          <h2 className="text-title-3 text-foreground">Pengajuan ditolak PTSP</h2>
+          {order.alasan ? <p className="text-body">Alasan: {order.alasan}</p> : null}
+          <p className="text-small text-muted-foreground">Seluruh pembayaran Anda, Biaya Pengurusan termasuk, dikembalikan.</p>
         </section>
       ) : null}
 

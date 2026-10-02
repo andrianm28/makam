@@ -128,14 +128,18 @@ export interface RingkasanBerkasTpu {
   dueAt: Date;
   /** Past the 7-day window. */
   terlambat: boolean;
+  /** What the PTSP asked to be corrected (Perlu Perbaikan, ticket 47); absent or null while the documents are simply not all in. */
+  alasanPerbaikan?: string | null;
 }
 
 /** The item a TPU filing with missing documents adds to the strip; it clears when the last document is uploaded. */
 export function perluTindakanDariBerkasTpu(daftar: readonly RingkasanBerkasTpu[]): PerluTindakanItem[] {
   return daftar.map((satu) => ({
     id: `berkas-tpu:${satu.nomor}`,
-    judul: `Berkas IPTM pesanan ${satu.nomor} belum lengkap`,
-    deskripsi: `${satu.tpuName}: belum ada ${satu.kurang.join(", ")}.${satu.terlambat ? " Batas 7 hari sudah lewat, segera unggah agar IPTM bisa diajukan." : " Unggah dalam 7 hari sejak pemakaman."}`,
+    judul: satu.alasanPerbaikan ? `Perbaiki berkas IPTM pesanan ${satu.nomor}` : `Berkas IPTM pesanan ${satu.nomor} belum lengkap`,
+    deskripsi: satu.alasanPerbaikan
+      ? `PTSP meminta perbaikan: ${satu.alasanPerbaikan}. Unggah ulang ${satu.kurang.join(", ")}; tidak ada biaya baru.`
+      : `${satu.tpuName}: belum ada ${satu.kurang.join(", ")}.${satu.terlambat ? " Batas 7 hari sudah lewat, segera unggah agar IPTM bisa diajukan." : " Unggah dalam 7 hari sejak pemakaman."}`,
     href: `/pengurusan/${satu.nomor}`,
   }));
 }

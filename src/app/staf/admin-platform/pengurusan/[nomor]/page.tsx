@@ -8,13 +8,24 @@ import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
 import { ConfirmTpuForms } from "./konfirmasi-forms";
-import { LangkahPengajuanForm, type LangkahPengajuan } from "./pengajuan-forms";
+import { LangkahPengajuanForm, SuratPengantarForm, TolakPtspForm, type LangkahPengajuan } from "./pengajuan-forms";
 
 /** The one filing step each status is waiting on (spec, Pengurusan); none from IPTM Terbit or when the order ended. */
 const LANGKAH: Partial<Record<string, LangkahPengajuan>> = {
   dikonfirmasi: "catat_dimakamkan",
   dimakamkan: "periksa_dokumen",
   dokumen_lengkap: "ajukan_iptm",
+  iptm_diajukan: "terbitkan_iptm",
+};
+
+/**
+ * A filing-only Pengurusan IPTM (ticket 47) starts Dimakamkan, is filed once its Tagihan is Lunas (Diproses) and again,
+ * at no charge, after a fixable PTSP rejection (Perlu Perbaikan); it waits on the family while Menunggu Pembayaran.
+ */
+const LANGKAH_BERKAS: Partial<Record<string, LangkahPengajuan>> = {
+  dimakamkan: "periksa_dokumen",
+  diproses: "ajukan_iptm",
+  perlu_perbaikan: "ajukan_iptm",
   iptm_diajukan: "terbitkan_iptm",
 };
 
@@ -36,7 +47,8 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
     lokasi.publicTpuDkiList({}),
   ]);
   if (!order) notFound();
-  const langkah = LANGKAH[order.status];
+  const berkas = order.kind === "pengurusan_iptm";
+  const langkah = (berkas ? LANGKAH_BERKAS : LANGKAH)[order.status];
   const petugas = staffAccounts
     .filter((account) => account.roles.includes("petugas_lapangan") && !account.deactivated)
     .map((account) => ({ accountId: account.accountId, name: account.name || account.email || account.accountId }));
@@ -114,7 +126,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
             {order.catatanKonfirmasi ? <p className="text-body text-muted-foreground">{order.catatanKonfirmasi}</p> : null}
           </CardContent>
         </Card>
-      ) : order.status === "dibatalkan" ? null : (
+      ) : order.status === "dibatalkan" || berkas ? null : (
         <ConfirmTpuForms
           nomor={order.nomor}
           petugas={petugas}
@@ -140,6 +152,20 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           ) : null}
         </>
       ) : null}
+      {berkas && (order.status === "menunggu_pembayaran" || order.status === "diproses") ? (
+        order.status === "diproses" ? (
+          <SuratPengantarForm nomor={order.nomor} petugas={petugas} />
+        ) : (
+          <p className="text-small text-muted-foreground">
+            Menunggu pembayaran Tagihan{order.tagihan ? ` ${order.tagihan.nomor}, jatuh tempo ${formatTanggalJam(order.tagihan.dueAt)}` : ""}. Tugas ambil surat pengantar dibuat setelah Lunas.
+          </p>
+        )
+      ) : null}
+      {order.status === "iptm_diajukan" ? (
+        <TolakPtspForm nomor={order.nomor} dokumen={order.dokumen.pengajuan.map((dokumen) => dokumen.nama)} bisaFinal={berkas} />
+      ) : null}
+      {order.status === "ditolak" && order.alasan ? <p className="text-body">Ditolak PTSP: {order.alasan}</p> : null}
+      {order.status === "perlu_perbaikan" && order.alasan ? <p className="text-body">Perlu Perbaikan: {order.alasan}</p> : null}
     </>
   );
 }
