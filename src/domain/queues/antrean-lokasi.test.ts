@@ -119,6 +119,36 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
   });
 
+  it("lists a Hak Pakai in masa tenggang under Lainnya, and closes it when the Admin Lokasi ends it", async () => {
+    const setup = setupAntrean();
+    const fixture = await saatDukaFixture(setup);
+    const [blok] = await setup.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
+    const [petak] = (await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
+    const diisi = await setup.inventory.clearPetak(fixture.adminLokasi, fixture.lokasiMitra.id, petak!.id, {
+      mode: "terisi",
+      dataMenyusul: false,
+      pemegangHak: { name: "Budi Santoso", phoneNumber: "081234567890" },
+    });
+    if (!diisi.ok || !diisi.hakPakaiId) throw new Error("clearPetak refused");
+    // A 5-year Hak Pakai from a burial on 2021-10-01 ends on 2026-10-01.
+    await setup.inventory.catatPemakaman(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId: diisi.hakPakaiId, almarhumName: "Siti Aminah", tanggal: "2021-10-01" });
+
+    setup.clock.set(wib("2026-10-01 12:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+    expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
+
+    setup.clock.set(wib("2026-10-02 09:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+    const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
+    expect(lain).toEqual([
+      expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: diisi.hakPakaiId, deadline: null, href: `/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${diisi.hakPakaiId}` }),
+    ]);
+    expect(lain[0]?.subjectLabel).toContain("1 Oktober 2026");
+
+    await setup.inventory.akhiriHakPakaiManual(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId: diisi.hakPakaiId, alasan: "Tidak diperpanjang" });
+    expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
+  });
+
   it("lists a failed Lokasi-work message as a call row, and closes it once the call is logged", async () => {
     const pemesanan = setupAntrean();
     const setup = pemesanan;

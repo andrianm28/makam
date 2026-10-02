@@ -1,4 +1,4 @@
-import { date, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -103,4 +103,23 @@ export const perpanjanganPermohonan = pgTable(
     index("perpanjangan_permohonan_lokasi_idx").on(table.lokasiId, table.status),
     index("perpanjangan_permohonan_pemohon_idx").on(table.pemohonAccountId),
   ],
+);
+
+/**
+ * Owned by the Perpanjangan module: the claim on one Hak Pakai end reminder (ticket 42), so a tick that
+ * runs twice, or two workers at once, announce each reminder once. `tahap` names it: `h60`, `h30`, `h7`
+ * before the end date, or `tenggang-<n>` for the n-th weekly reminder after it. Keyed by the end date too,
+ * so a Perpanjangan that moves the end date starts a fresh schedule. `hak_pakai_id` names Inventory's row
+ * and has no foreign key.
+ */
+export const perpanjanganPengingat = pgTable(
+  "perpanjangan_pengingat",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hakPakaiId: text("hak_pakai_id").notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    tahap: text("tahap").notNull(),
+    dicatatPada: timestamp("dicatat_pada", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [unique("perpanjangan_pengingat_unik").on(table.hakPakaiId, table.endDate, table.tahap)],
 );

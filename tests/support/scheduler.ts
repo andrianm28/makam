@@ -22,6 +22,7 @@ export function schedulerContext(parts: {
   layanan?: SchedulerContext["layanan"];
   terencana?: SchedulerContext["terencana"];
   inventory?: SchedulerContext["inventory"];
+  pengingatHakPakai?: SchedulerContext["pengingatHakPakai"];
   queues?: SchedulerContext["queues"];
 }): SchedulerContext {
   return {
@@ -56,7 +57,17 @@ export function schedulerContext(parts: {
     terencana: parts.terencana ?? { lewatBatasBayarTick: async () => ({ dibatalkan: 0 }) },
     // A grave no tick but the Layanan release one reads: a test of another module's
     // tick is undisturbed by it, and a test of the release one passes the real read.
-    inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null },
+    inventory: parts.inventory ?? { hakPakaiOfUnit: async () => null, kedaluwarsaTick: async () => ({ kedaluwarsa: 0 }) },
+    // No Hak Pakai is near its end until a test gives the reminders a real Inventory.
+    pengingatHakPakai: parts.pengingatHakPakai ?? {
+      db: parts.db,
+      inventory: { hakPakaiMenjelangAkhir: async () => [], hakPakaiUntukPerpanjangan: async () => null },
+      lokasi: { aturanPerpanjanganOf: async () => null },
+      identity: { adminLokasiOf: async () => [] },
+      billing: { tagihanBerlaku: async () => null },
+      notifikasi: { pengingatHakPakaiBerakhir: async () => ({ ok: true as const }) },
+      perpanjanganUrl: (hakPakaiId) => `https://makam.test/perpanjangan/${hakPakaiId}`,
+    },
     // No Tier 1 row alerts and no Bertugas ends until a test gives the ticks a real Antrean.
     queues: parts.queues ?? { peringatanTick: async () => ({ diantrekan: 0 }), barisMasihTerbukaBelumDiambil: async () => true, barisMasihTerbuka: async () => true, bertugasTick: async () => ({ dimatikan: 0 }) },
   };

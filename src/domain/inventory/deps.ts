@@ -15,7 +15,7 @@ export interface InventoryDeps {
   /** Jenis Makam are defined by the Tariffs module; a Petak or Kavling Keluarga only ever carries one that belongs to its own Lokasi. */
   tariffs: Pick<Tariffs, "asStaff">;
   /** Whether a Lokasi Mitra is listed with Pemesanan Terencana on, and its own tumpang rules: the public Denah read needs both. */
-  lokasi: Pick<Lokasi, "publicLokasiMitra">;
+  lokasi: Pick<Lokasi, "publicLokasiMitra" | "aturanPerpanjanganOf">;
   /**
    * Whether any Pemesanan ever named one of these plots. Pemesanan owns those
    * tables and refers to a Petak with no foreign key, so removing a Blok asks it

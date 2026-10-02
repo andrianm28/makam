@@ -122,6 +122,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "pengembalian.terbitkan_bukti": "Bukti Pengembalian Dana diterbitkan",
   "hak_pakai.akhiri_tidak_tertagih": "Hak Pakai diakhiri (Tagihan Tidak Tertagih)",
   "hak_pakai.lengkapi": "Data Hak Pakai dilengkapi",
+  "hak_pakai.akhiri": "Hak Pakai diakhiri",
+  "hak_pakai.catat_pembongkaran": "Pembongkaran dicatat",
   "tagihan.tidak_tertagih": "Tagihan dinyatakan Tidak Tertagih",
   "tagihan.catatan_ditambah": "Catatan ditambahkan pada Tagihan",
   "hak_pakai.selesaikan_verifikasi": "Hak Pakai dilengkapi (Perlu Verifikasi selesai)",

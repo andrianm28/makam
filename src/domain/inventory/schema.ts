@@ -159,6 +159,8 @@ export const inventoryHakPakai = pgTable(
     kavlingId: uuid("kavling_id").references(() => inventoryKavling.id),
     status: text("status", { enum: inventoryHakPakaiStatuses }).notNull().default("aktif"),
     endReason: text("end_reason"),
+    /** Ticket 42: when the Admin Lokasi recorded the Pembongkaran of a Berakhir Hak Pakai's plot; only then does the plot become Tersedia again. */
+    pembongkaranAt: at("pembongkaran_at"),
     tenureYears: integer("tenure_years"),
     startAt: at("start_at").notNull(),
     tenureStartAt: at("tenure_start_at"),

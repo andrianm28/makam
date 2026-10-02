@@ -136,7 +136,7 @@ export const notificationsMessage = pgTable(
  * the row reopens for each call the overdue list still expects, around H+1
  * and H+14).
  */
-export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak", "tagihan_lewat_jatuh_tempo"] as const;
+export const teleponSebab = ["pesan_gagal", "tanpa_email", "saat_duka_ditolak", "tagihan_lewat_jatuh_tempo", "hak_pakai_berakhir"] as const;
 
 /**
  * What the staff member found when they called, logged to close the row.

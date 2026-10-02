@@ -507,6 +507,38 @@ export function buktiPerpanjanganEmail(input: BuktiPerpanjanganEmailInput): { su
   };
 }
 
+export interface HakPakaiBerakhirEmailInput {
+  lokasiName: string;
+  /** The plot as named in text (`labelSatuanHakPakai`). */
+  satuan: string;
+  pemegangHakName: string | null;
+  endDate: string;
+  /** Days to the end date; zero or negative once it has passed. */
+  sisaHari: number;
+  masaTenggangBerakhir: string;
+  tautan: string;
+}
+
+/** The reminder that a Hak Pakai is ending (a reminder: it waits for 08:00-20:00 WIB), with the link to extend it. */
+export function hakPakaiBerakhirEmail(input: HakPakaiBerakhirEmailInput): { subject: string; body: string } {
+  const sudah = input.sisaHari <= 0;
+  return {
+    subject: `Pengingat Hak Pakai: ${input.satuan} di ${input.lokasiName} ${sudah ? "sudah melewati masa berlaku" : `berakhir ${input.sisaHari} hari lagi`}`,
+    body: [
+      input.pemegangHakName ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
+      "",
+      sudah
+        ? `Hak Pakai ${input.satuan} di ${input.lokasiName} berakhir pada ${formatTanggal(input.endDate)}. Perpanjangan masih kami terima sampai ${formatTanggal(input.masaTenggangBerakhir)}; sesudahnya pengelola dapat mengakhiri Hak Pakai ini.`
+        : `Hak Pakai ${input.satuan} di ${input.lokasiName} berakhir pada ${formatTanggal(input.endDate)}. Perpanjangan dapat dipesan dari sekarang.`,
+      "",
+      `Perpanjang Hak Pakai: ${input.tautan}`,
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ].join("\n"),
+  };
+}
+
 export interface LayananPesananTerbitEmailInput {
   nomor: string;
   lokasiName: string;

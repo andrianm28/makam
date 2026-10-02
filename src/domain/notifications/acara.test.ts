@@ -61,11 +61,14 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       // A Paket Layanan cycle over the QRIS cap pauses the Paket and tells the
       // Pemesan (ticket 54): it asks them to act, so it waits for the window.
       "paket_siklus_dijeda",
+      // A Hak Pakai's end reminders (ticket 42): they ask the family to extend, so they wait for the window.
+      "hak_pakai_berakhir_pengingat",
       // The Admin Lokasi's answer to a Pembatalan request (ticket 38): transactional.
       "pembatalan_terencana",
       // A Pengajuan Wakaf's status change (ticket 58): transactional.
       "wakaf_status",
     ]);
+    expect(WAKTU_TEMPLATE.hak_pakai_berakhir_pengingat).toBe("pengingat");
     expect(Object.keys(WAKTU_TEMPLATE)).toEqual([...TEMPLATE_EMAIL]);
   });
 
