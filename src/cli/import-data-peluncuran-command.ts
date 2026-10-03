@@ -128,6 +128,8 @@ export async function importDataPeluncuranCommand(
 ): Promise<{ exitCode: number; output: string }> {
   let sumber: string;
   let tulis: boolean;
+  let izinkanStaging: boolean;
+  let izinkanProduction: boolean;
   try {
     const args = parseArgs({
       args: argv,
@@ -143,11 +145,22 @@ export async function importDataPeluncuranCommand(
     if (!args.values.sumber) return { exitCode: 2, output: USAGE };
     sumber = args.values.sumber;
     tulis = args.values.tulis === true;
+    izinkanStaging = args.values["izinkan-staging"] === true;
+    izinkanProduction = args.values["izinkan-production"] === true;
   } catch {
     return { exitCode: 2, output: USAGE };
   }
   const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
   if (!appEnv.success) return { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` };
+
+  // Each stack beyond development and test is named: staging by its allowance, production by its own flag
+  // (never implied by the staging one).
+  if (appEnv.data === "production" && !izinkanProduction) {
+    return { exitCode: 1, output: "Ditolak: di production perlu --izinkan-production (ditolak secara bawaan)." };
+  }
+  if (appEnv.data === "staging" && !izinkanStaging) {
+    return { exitCode: 1, output: "Ditolak: di staging perlu --izinkan-staging (ditolak secara bawaan)." };
+  }
 
   try {
     const env = readRuntimeEnv(source);
