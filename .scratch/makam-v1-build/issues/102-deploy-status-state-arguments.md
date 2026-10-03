@@ -42,3 +42,24 @@ Make the calls and the script agree, and keep the best-effort rule: a missing to
 - Found and fixed: `makam-deploy-status` was committed as mode 100644 (not executable), so `status()`'s `[ -x ... ]` check could skip it silently wherever the installer keeps the mode. Now 100755.
 - Tests: `tests/tooling/makam-deploy-status.test.ts` (fake curl; begin+success, in_progress, failure, positional form is a 64, non-2xx and no token exit 0 without usage text, stale id, makam-deploy call shapes). `npx vitest run tests/tooling`: 25 files, 340 tests passed; lint and typecheck exit 0.
 - Unverified: a real run on the host and the live GitHub API; the installed copy in /opt/makam-v1 must be refreshed by the usual install step.
+
+### Review (2026-10-03, orchestrator on the VPS; fixed point origin/main 23362717, head 3dc445e1)
+
+Two axes, run as parallel reviewers (sonnet). Both reported "Hard: 0"; the orchestrator raised Spec's third soft finding to HARD after reproducing it (below).
+
+**Standards** (Hard: 0, soft: 3; the vitest file ran 9/9, exit 0)
+- SOFT: `tests/tooling/makam-deploy-status.test.ts:93-103` greps `makam-deploy`'s source for the call shapes (`>=5` count, regex). That is a source-shape assertion, which AGENTS.md says to avoid; it is brittle to reformatting. Prefer running the calls against stubs.
+- SOFT: `:60`, `:72` only assert the log does not match `/usage/i`; the "non-2xx" test (`:70-73`) never checks the "one line" its title claims.
+- SOFT: `:20-30` needs host `jq`, `bash` and `grep`; nothing skips or fails clearly when `jq` is missing.
+
+**Spec** (Hard: 0 as reported, soft: 3)
+- AC1 PARTIAL/MET, AC2 MET, AC3 MET by reading (begin sends `payload.image_digest`; the smoke workflow finds the Deployment by digest and is unaffected by `rm -f .deployment-id`), AC4 PARTIAL, AC5 PARTIAL.
+- SOFT: AC4 is not one line. `status()` (`makam-deploy:152`) sends stderr into deploy.log and `curl -sS` prints `curl: (22) …` there, so a failure leaves two lines; the tests' fake curl never checks the line count.
+- SOFT: AC5's makam-deploy side is a static regex, not "running makam-deploy's status calls" as the AC says.
+- SOFT → **HARD (reproduced by the orchestrator)**: `begin` sends `ref: $TAG`, and `TAG=sha-<rev>` (`makam-deploy:221`). GitHub rejects that. The staging deploy at 2026-10-03T18:28:26Z logged `curl: (22) The requested URL returned error: 422` and then `[deploy-status] could not create the GitHub deployment; continuing without it` (host deploy.log line ~44754, with MAKAM_GITHUB_TOKEN set). `gh api repos/andrianm28/makam/commits/sha-bc71fe22…` answers "No commit found for SHA: sha-…", while the bare SHA resolves. `promote.yml:67` also reads `.ref` as the commit SHA. Without this fix no Deployment is ever created, so AC3 fails on the host.
+
+**Fix list for the builder**
+1. HARD: the Deployment `ref` must be the bare commit SHA (40 hex, no `sha-` prefix), for both staging and prod; a test asserts the body's `ref` is the bare SHA when makam-deploy passes `sha-<rev>`.
+2. AC4: a failed call leaves exactly one line in deploy.log (no `curl: (22)` line); a test asserts the line count.
+3. AC5: exercise makam-deploy's real status calls (for example run its `status` path, or the script with `--local` and stubs) instead of grepping its source. If that is not feasible without a large refactor, say why under "Spec gaps and decisions for the owner" rather than keeping the grep silently.
+4. The tests skip with a clear message, or fail with a clear message, when `jq` is missing.
