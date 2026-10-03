@@ -93,3 +93,35 @@ describe("the maintenance block and page for makam.co.id", () => {
     expect(page).not.toMatch(/@import/);
   });
 });
+
+describe("install-host.sh", () => {
+  const install = read("deploy/install-host.sh");
+
+  it("installs makam-switch and makam-arsip-app-lama, and the nginx blocks they read, without enabling or reloading anything", () => {
+    expect(install).toMatch(/deploy\/bin\/makam-switch/);
+    expect(install).toMatch(/deploy\/bin\/makam-arsip-app-lama/);
+    expect(install).toMatch(/deploy\/nginx\/makam\.co\.id\.conf/);
+    expect(install).toMatch(/deploy\/nginx\/makam-prod-proxy\.conf/);
+    expect(install).toMatch(/deploy\/nginx\/maintenance/);
+    // The switch is makam-switch's, on the day: the installer never copies a block into /etc/nginx/sites-*.
+    expect(install).not.toMatch(/sites-available\/makam\.co\.id/);
+  });
+});
+
+describe('the runbook "Hari switch"', () => {
+  const runbook = read("docs/ops/runbook.md");
+  const section = runbook.slice(runbook.indexOf("## Hari switch"), runbook.indexOf("\n## ", runbook.indexOf("## Hari switch") + 5));
+
+  it("gives the day's steps in order: preflight, archive, promotion, switch, checks, fallback", () => {
+    expect(runbook).toContain("## Hari switch");
+    const order = ["makam-preflight", "makam-arsip-app-lama", "promote.yml", "makam-switch --ke v1", "/api/health", "/api/webhooks/pembayaran", "makam-switch --ke pemeliharaan"];
+    const at = order.map((step) => section.indexOf(step));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+
+  it("has the owner archive the makam-app GitHub repository, read-only", () => {
+    expect(section).toMatch(/makam-app/);
+    expect(section).toMatch(/archive/i);
+  });
+});
