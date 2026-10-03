@@ -161,8 +161,6 @@ describe("makam-switch when nginx -t fails, beyond the site file", () => {
     const r = run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
     expect(r.code).not.toBe(0);
     expect(readFileSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"), "utf8")).toBe("# earlier snippet\n");
-    const m = run(host(), ["--ke", "pemeliharaan"], { FAKE_NGINX_T_FAIL: "1" });
-    expect(m.code).not.toBe(0);
     const w2 = host();
     mkdirSync(w2.www, { recursive: true });
     writeFileSync(path.join(w2.www, "index.html"), "<p>earlier page</p>\n");

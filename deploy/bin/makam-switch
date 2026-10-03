@@ -80,16 +80,26 @@ n=1
 while [ -e "$BACKUP" ]; do BACKUP="$BACKUPS/makam.co.id.conf.$STAMP-$n"; n=$((n + 1)); done
 cp -p "$SITE" "$BACKUP"
 echo "backed up the current block to $BACKUP"
-install -m 0640 "$BLOCK" "$SITE"
+# The block's companion file: the proxy snippet for v1, the page for the
+# maintenance block. A failed `nginx -t` puts it back as well, or removes it when
+# there was none before.
 if [ "$TARGET" = v1 ]; then
-  install -m 0644 "$SRC/makam-prod-proxy.conf" "$SNIPPET"
+  AUX_SRC="$SRC/makam-prod-proxy.conf"; AUX_DEST="$SNIPPET"; AUX_MODE=0644
 else
-  install -d -m 0755 "$WWW"
-  install -m 0644 "$SRC/maintenance/index.html" "$WWW/index.html"
+  AUX_SRC="$SRC/maintenance/index.html"; AUX_DEST="$WWW/index.html"; AUX_MODE=0644
 fi
+AUX_BACKUP=""
+if [ -e "$AUX_DEST" ]; then
+  AUX_BACKUP="$BACKUP.aux"
+  cp -p "$AUX_DEST" "$AUX_BACKUP"
+fi
+install -m 0640 "$BLOCK" "$SITE"
+install -d -m 0755 "$(dirname "$AUX_DEST")"
+install -m "$AUX_MODE" "$AUX_SRC" "$AUX_DEST"
 if ! nginx -t; then
   cp -p "$BACKUP" "$SITE"
-  echo "nginx -t failed: restored the previous block from $BACKUP; nginx was not reloaded" >&2
+  if [ -n "$AUX_BACKUP" ]; then cp -p "$AUX_BACKUP" "$AUX_DEST"; else rm -f "$AUX_DEST"; fi
+  echo "nginx -t failed: restored the previous block from $BACKUP and its companion file; nginx was not reloaded" >&2
   exit 1
 fi
 systemctl reload nginx
