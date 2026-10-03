@@ -64,3 +64,17 @@ describe("the merge-proofs command line's exit code", () => {
     expect(failed.out).toContain("PROOFS FAILED");
   });
 });
+
+describe("the merge-proofs command line on a hand-written block", () => {
+  it("exits 1, prints the block to re-append and never says PROOFS OK", () => {
+    const backfill = 'UPDATE "feat" SET "id" = 0 WHERE "id" IS NULL;';
+    const { cwd, asideDir } = mergeWorktree(`${sql}${BREAKPOINT}${backfill}`, sql);
+
+    const { code, out } = run(cwd, [asideDir]);
+
+    expect(code).toBe(1);
+    expect(out).toContain(`RE-APPEND`);
+    expect(out).toContain(backfill);
+    expect(out).not.toContain("PROOFS OK");
+  });
+});
