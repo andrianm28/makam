@@ -52,6 +52,13 @@ check_env_file() {
     fail "02, 72" "env file" "$ENV_FILE is missing or unreadable; create it as in docs/ops/runbook.md, \"Production (ticket 65)\""
     return 1
   fi
+  local mode
+  mode=$(stat -c %a "$ENV_FILE")
+  if [ "$mode" != 600 ]; then
+    fail "02, 72" "env file" "$ENV_FILE has mode 0$mode; it holds every secret, so chmod 600 it"
+    return 1
+  fi
+  pass "02, 72" "env file" "$ENV_FILE exists, mode 0600"
 }
 
 #@FUNCS
