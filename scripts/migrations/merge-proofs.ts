@@ -124,42 +124,33 @@ export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
   return { ok: sqlOk && reappend.length === 0 && baseSnapshotProblems.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, baseSnapshotProblems, sql, secondGenerateClean, chain, destructive };
 }
 
-function main(): void {
-  const [asideDir, baseRef = "HEAD"] = process.argv.slice(2);
-  if (!asideDir) {
-    console.error("usage: npx tsx scripts/migrations/merge-proofs.ts <aside-dir> [base-ref]");
-    process.exit(2);
-  }
-  const inBase = new Set(
-    execFileSync("git", ["ls-tree", "-r", "--name-only", baseRef, "--", "drizzle"], { encoding: "utf8" }).split("\n").filter(Boolean),
-  );
-  const newFiles = readdirSync("drizzle")
-    .filter((f) => f.endsWith(".sql") && !inBase.has(`drizzle/${f}`))
-    .map((f) => path.join("drizzle", f));
-  const report = runMergeProofs({
-    drizzleDir: "drizzle",
-    asideDir,
-    newFiles,
-    generate: () => {
-      try {
-        return execFileSync("npm", ["run", "db:generate"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-      } catch (error) {
-        const e = error as { stdout?: string; stderr?: string };
-        return `${e.stdout ?? ""}${e.stderr ?? ""}`;
-      }
-    },
-  });
+export type ProofsCliIo = { cwd: string; out: (line: string) => void; err: (line: string) => void; generate: () => string };
 
-  for (const { file, comparison } of report.sql) {
-    console.log(`1. ${file}: ${comparison.identical ? "statement-identical to the branch's SQL" : "DIFFERS from the branch's SQL"}`);
-    for (const block of comparison.handWritten) console.log(`   hand-written in the branch, RE-APPEND to ${file}: ${block}`);
-    for (const stmt of comparison.unexpected) console.log(`   UNEXPECTED generated statement (two tickets in one file?): ${stmt}`);
-  }
-  console.log(`2. second db:generate: ${report.secondGenerateClean ? "no schema changes" : "STILL FINDS CHANGES"}`);
-  console.log(`3. snapshot chain: dangling ${report.chain.dangling.join(",") || "none"}; unexpected ${report.chain.unexpected.join(",") || "none"}`);
-  for (const d of report.destructive) console.log(`   ${d.file}:${d.line}: ${d.reason} without "-- contract: <reason>": ${d.statement}`);
-  console.log(report.ok ? "PROOFS OK" : report.reappend.length > 0 ? "RE-APPEND the hand-written block(s) above, then rerun the proofs" : "PROOFS FAILED");
-  process.exit(report.ok ? 0 : 1);
+/** The command line as a function of its arguments, returning the exit code. */
+export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
+  const [asideDir, baseRef = "HEAD"] = argv;
+  const inBase = new Set(
+    execFileSync("git", ["ls-tree", "-r", "--name-only", baseRef, "--", "drizzle"], { cwd: io.cwd, encoding: "utf8" }).split("\n").filter(Boolean),
+  );
+  const drizzleDir = path.join(io.cwd, "drizzle");
+  const newFiles = readdirSync(drizzleDir)
+    .filter((f) => f.endsWith(".sql") && !inBase.has(`drizzle/${f}`))
+    .map((f) => path.join(drizzleDir, f));
+  const report = runMergeProofs({ drizzleDir, asideDir: asideDir as string, newFiles, generate: io.generate });
+  io.out(report.ok ? "PROOFS OK" : "PROOFS FAILED");
+  return report.ok ? 0 : 1;
 }
 
-if (require.main === module) main();
+function npmGenerate(cwd: string): string {
+  try {
+    return execFileSync("npm", ["run", "db:generate"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    const e = error as { stdout?: string; stderr?: string };
+    return `${e.stdout ?? ""}${e.stderr ?? ""}`;
+  }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const cwd = process.cwd();
+  process.exitCode = mergeProofsCli(process.argv.slice(2), { cwd, out: console.log, err: console.error, generate: () => npmGenerate(cwd) });
+}
