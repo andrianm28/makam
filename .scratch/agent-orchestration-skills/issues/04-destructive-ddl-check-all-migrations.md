@@ -6,10 +6,10 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A test runs the existing destructive-DDL checker over every migration numbered after 0018 and fails naming the file and the statement.
-- [ ] Today's migrations pass; an unmarked destructive statement in a migration fails, shown by a test of the test.
+- [x] A test runs the existing destructive-DDL checker over every migration numbered after 0018 and fails naming the file and the statement.
+- [x] Today's migrations pass; an unmarked destructive statement in a migration fails, shown by a test of the test.
 
 ## Comments
 
@@ -43,3 +43,5 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 - **Context:** small (~15 tool calls on my side); sub-agent reports were short because the brief capped them at ≤250 words.
 - **Rule conflict to settle in ticket 06:** the brief says "fix pass if any should-fix", but a process-only should-fix on pushed history has nothing to fix. The role should let the thread decide "accept with reason" for such findings, and say so in the report.
 - **Stop hook:** it complained about uncommitted changes while the builder was mid-work; the thread must not commit a builder's in-progress files.
+
+- 2026-10-03 — Merged to main by the merge thread (6159c6f). Two-axis review complete (Standards + Spec); its one should-fix is a process finding on pushed history, accepted by the coordinator. No migration.

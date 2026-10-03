@@ -329,3 +329,5 @@ New: nothing narrowed or over-built; main-CI fix (gitleaks) is in and clean.
 Spec: 0 new findings.
 
 **Result**: new 0 blocking / 0 should-fix / 1 nit; gitleaks clean; tests, lint, typecheck green on the head. Hard remaining: **no**. The branch is clean to merge; the remaining BELUM items are history that cannot be changed without rewriting pushed commits. Ticket boxes stay unticked.
+
+- 2026-10-03 — Added (production preflight) merged to main by the merge thread (b78cdf5, clean after re-review 3), with the `.gitleaks.toml` entry for the test fixture in a445e1ec. Two-axis review complete (Standards + Spec). Status stays `in-progress`: the Added boxes stay unticked until the owner has run the preflight on the VPS. No migration.
