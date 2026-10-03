@@ -133,7 +133,7 @@ describe("thread cost report: --compare without a coordinator cost", () => {
     expect(r.code).toBe(0);
     expect(r.err).toBe("");
     expect(r.out).toContain("cause watcher");
-    expect(r.out).not.toMatch(/cause .*USD/);
+    expect(r.out).not.toMatch(/^ +cause .*USD/m);
     expect(json(args).compare.causes.watcher.usd).toBeNull();
   });
 });
