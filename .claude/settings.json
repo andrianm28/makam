@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "allow": ["Bash(/home/ubuntu/aos/sync.sh:*)"]
+  },
   "extraKnownMarketplaces": {
     "mattpocock": {
       "source": { "source": "github", "repo": "mattpocock/skills" }
