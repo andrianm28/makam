@@ -1757,6 +1757,34 @@ key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
 with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then follow "Hari switch" for the
 gated nginx switch.
 
+Production on SumoPod's sandbox (owner decision 2026-10-03): makam.co.id
+switches while SumoPod is still on its sandbox, in the same sandbox project as
+staging ("Project yang sama"). Visitors see the trial banner (ticket 101) for as
+long as the sandbox is used, and the preflight's live-host key check fails until
+ticket 101 (expected).
+
+| Variable in `prod.env` | Value | Note |
+|---|---|---|
+| `MAKAM_IMAGE` | `ghcr.io/andrianm28/makam` | the digest comes from the `makam-deploy` command |
+| `SENTRY_ENVIRONMENT` | `production` | |
+| `SMTP_PORT` | `465` | |
+| `EMAIL_FROM_NAME` | `Makam.co.id` | |
+| `SUMOPOD_BASE_URL` | `https://api-pay-sandbox.sumopod.com` | the sandbox host, until SumoPod is live |
+| `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret: the sandbox API key and the `whsec_` signing secret, installed by the owner (rotated 2026-10-03) | v1 reads only these two and `SUMOPOD_BASE_URL`; the `whtok_` webhook token is not used and stored nowhere |
+
+Webhook URL (owner decision 2026-10-03): a SumoPod project has two
+environments, sandbox and live, and each has exactly one webhook URL; makam uses
+one project. Until the switch, the sandbox webhook is
+`https://dev.makam.co.id/api/webhooks/pembayaran`, because makam.co.id still
+serves the old app (test events reached it with HTTP 200 on 2026-10-03). At the
+switch the owner moves it to `https://makam.co.id/api/webhooks/pembayaran`. From
+then on staging's sandbox payments are not confirmed, so finish the UAT payment
+cases before the switch. A payment created on staging whose event arrives after
+the switch shows in production as a "perlu ditinjau" item (reason
+`pembayaran_tidak_dikenal`) and is resolved as such. When production moves to
+SumoPod's live environment, its webhook goes to the live URL and the sandbox URL
+can return to staging.
+
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
 ## Production preflight (`makam-preflight`)
