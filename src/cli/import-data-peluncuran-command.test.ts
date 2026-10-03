@@ -108,6 +108,28 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect((await lokasi.tpuDkiList(admin))[0]).toMatchObject({ address: "Jl. Contoh No. 1, Kelurahan Contoh", menerimaMakamBaru: true });
   });
 
+  it("matches a TPU DKI on its name as Lokasi does, ignoring case and spacing, so a corrected row updates instead of failing", async () => {
+    const { lokasi, admin } = await modul();
+    await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": TPU_CONTOH }), "--tulis"], env(), { clock: clock() });
+    const koreksi = `${TPU_HEADER}\n tpu   UTARA ,Jl. Baru No. 9,Kota Jakarta Utara,,,Dinas (kunjungan),ya\n`;
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": koreksi }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect(await lokasi.tpuDkiList(admin)).toMatchObject([{ name: "TPU Utara", address: "Jl. Baru No. 9" }]);
+  });
+
+  it("refuses a second row whose name differs from an earlier one only in case or spacing", async () => {
+    const { lokasi, admin } = await modul();
+    const dobel = [TPU_HEADER, "TPU Timur,Jl. A,Kota Jakarta Timur,,,Dinas,ya", "tpu  timur,Jl. B,Kota Jakarta Timur,,,Dinas,ya", ""].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": dobel }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.output).toContain('tpu-dki.csv baris 3: nama "tpu  timur" sudah muncul di baris 2');
+    expect((await lokasi.tpuDkiList(admin)).map((tpu) => tpu.address)).toEqual(["Jl. A"]);
+  });
+
   it("refuses a row with the reason naming its column and line, writes the good rows, and exits 1", async () => {
     const { lokasi, admin } = await modul();
     const campur = [
