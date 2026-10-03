@@ -98,3 +98,16 @@ describe("makam-switch when nginx -t fails", () => {
     expect(r.output).toMatch(/restored/i);
   });
 });
+
+describe("makam-switch run twice", () => {
+  it("changes nothing the second time: no new backup, no reload, and says so", () => {
+    const w = host();
+    run(w, ["--ke", "v1"]);
+    writeFileSync(w.calls, "");
+    const again = run(w, ["--ke", "v1"]);
+    expect(again.code).toBe(0);
+    expect(backupFiles(w)).toHaveLength(1);
+    expect(again.calls).toEqual([]);
+    expect(again.output).toMatch(/already/i);
+  });
+});
