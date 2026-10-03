@@ -20,6 +20,7 @@
     "seed:admin": "tsx src/cli/seed-admin.ts",
     "seed:contoh-publik": "tsx src/cli/seed-contoh-publik.ts",
     "import:katalog-lama": "tsx src/cli/import-katalog-lama.ts",
+    "import:data-peluncuran": "tsx src/cli/import-data-peluncuran.ts",
     "reset-totp": "tsx src/cli/reset-totp.ts",
     "verify-email": "tsx src/cli/verify-email.ts",
     "email-check": "tsx src/cli/email-check.ts",

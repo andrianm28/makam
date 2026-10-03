@@ -7,7 +7,7 @@
  * stack's first Admin Platform past TOTP (an ops command on a stack whose shell the
  * operator already holds, as `import:katalog-lama` does). A dry run unless `--tulis`.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
@@ -310,6 +310,11 @@ export async function importDataPeluncuranCommand(
     izinkanProduction = args.values["izinkan-production"] === true;
   } catch {
     return { exitCode: 2, output: USAGE };
+  }
+  if (!existsSync(sumber) || !statSync(sumber).isDirectory()) return { exitCode: 2, output: `${USAGE}\n--sumber harus folder yang berisi berkas CSV template.` };
+  const berkasTemplate = ["tpu-dki.csv", "biaya-pengurusan.csv", "layanan-dki.csv", "nazhir.csv"];
+  if (!berkasTemplate.some((nama) => existsSync(join(sumber, nama)))) {
+    return { exitCode: 1, output: `Ditolak: tidak ada satu pun berkas template di ${sumber}: ${berkasTemplate.join(", ")}.` };
   }
   const appEnv = z.enum(appEnvironments).default("development").safeParse(source.APP_ENV);
   if (!appEnv.success) return { exitCode: 1, output: `Ditolak: APP_ENV tidak dikenal (${String(source.APP_ENV)}).` };
