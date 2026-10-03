@@ -43,6 +43,20 @@ const ENV_FILE = [
   "",
 ].join("\n");
 
+/**
+ * Shell for a fake that simulates Ctrl-C: it sends SIGTERM to the running
+ * makam-preflight (found by walking up the parent processes), as an interrupt
+ * would, when FAKE_INTERRUPT names this step.
+ */
+const INTERRUPT_AT = (step: string) =>
+  [
+    `if [ "\${FAKE_INTERRUPT:-}" = ${step} ]; then`,
+    "  p=$PPID",
+    '  while ! grep -qa makam-preflight "/proc/$p/cmdline" 2> /dev/null; do p=$(ps -o ppid= -p "$p" | tr -d " "); [ -n "$p" ] || break; done',
+    '  kill -TERM "$p"',
+    "fi",
+  ].join("\n");
+
 /** A fake command: logs "name args" to $FAKE_LOG, then the body runs. */
 function install(bin: string, name: string, body: string): void {
   const file = path.join(bin, name);
@@ -60,6 +74,7 @@ function world(options: { envFile?: string | null; envMode?: number } = {}) {
     chmodSync(path.join(root, "prod", "prod.env"), options.envMode ?? 0o600);
   }
   writeFileSync(path.join(root, "prod", "backup-passphrase"), "fake-backup-passphrase\n", { mode: 0o600 });
+  mkdirSync(path.join(root, "tmp"));
   writeFileSync(path.join(root, "log"), "");
   return { root, bin };
 }
@@ -75,7 +90,7 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$1" in',
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
-      '  pull) exit "${FAKE_PULL:-0}" ;;',
+      `  pull) ${INTERRUPT_AT("pull")}; exit "\${FAKE_PULL:-0}" ;;`,
       "  login) cat > /dev/null ;;",
       '  image) echo "${FAKE_REVISION:-' + REVISION + '}" ;;',
       '  run) case "$*" in',
@@ -187,6 +202,7 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
       NODE_ENV: "test",
       MAKAM_ROOT: w.root,
       FAKE_LOG: path.join(w.root, "log"),
+      TMPDIR: path.join(w.root, "tmp"),
       ...extra,
     },
   });
@@ -196,6 +212,7 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
     output,
     lines: output.split("\n").filter((line) => /^(PASS|FAIL|SKIP)/.test(line)),
     calls: readFileSync(path.join(w.root, "log"), "utf8"),
+    leftovers: readdirSync(path.join(w.root, "tmp")),
   };
 }
 
@@ -524,5 +541,14 @@ describe("makam-preflight", () => {
     const noS3 = ENV_FILE.split("\n").filter((line) => !line.startsWith("S3_")).join("\n");
     const missing = preflight(healthy(world({ envFile: noS3 })), ["--met-s3"]);
     expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 settings.*S3_BUCKET_FILES/));
+  });
+
+  it("removes the throwaway Docker config that holds the ghcr token when it is interrupted mid-pull", () => {
+    const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "pull" });
+    expect(interrupted.code).toBe(143);
+    expect(interrupted.leftovers).toEqual([]);
+
+    const finished = preflight(healthy(world()), ["--digest", DIGEST, "--met-s3", "--email-to", "owner@example.test"]);
+    expect(finished.leftovers).toEqual([]);
   });
 });
