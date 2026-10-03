@@ -1312,8 +1312,8 @@ time. The new block (`deploy/nginx/dev.makam.co.id.conf`) proxies to
 `makam-staging` web on `127.0.0.1:3110`, keeps the Certbot certificate lines
 and the 80 → 443 redirect, and adds HTTP basic auth. These stay open without
 auth: `/.well-known/acme-challenge/` (renewals), `= /api/health` (uptime
-monitor), and `= /api/webhooks/sumopod` (SumoPod sandbox; the route checks
-the Svix signature). Both API exemptions are exact paths: `/api/webhooks/sumopod-x`
+monitor), and `= /api/webhooks/pembayaran` (SumoPod sandbox; the route checks
+the Svix signature). Both API exemptions are exact paths: `/api/webhooks/pembayaran-x`
 still needs auth, and `/.env`-style dotfiles are denied everywhere. The proxy
 lines live in `/etc/nginx/snippets/makam-staging-proxy.conf`, which the site
 file includes; `install-host.sh` installs it.
