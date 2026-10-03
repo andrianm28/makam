@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 
 // The old app is switched off at the switch (ticket 65, owner decision
 // 2026-10-03): its database is archived first, and what is deleted afterwards
-// is deleted by name. The fakes here stand in for docker and aws, so a run is
-// judged by what ends up in the "bucket", what the restore check says, which
+// is deleted by name. The fakes here stand in for docker, so a run is
+// judged by what ends up in the host's backup folder, what the restore check says, which
 // names docker was told to remove, and that nothing else was touched.
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 const script = path.join(repo, "deploy/bin/makam-arsip-app-lama");
@@ -19,11 +19,9 @@ const CONFIRM = "hapus-app-lama";
 function host() {
   const root = mkdtempSync(path.join(tmpdir(), "makam-arsip-"));
   const bin = path.join(root, "bin");
-  const bucket = path.join(root, "bucket");
   const oldApp = path.join(root, "home-ubuntu-makam-app");
   const notify = path.join(root, "opt-makam-notify");
   mkdirSync(bin);
-  mkdirSync(bucket);
   mkdirSync(path.join(root, "prod"), { recursive: true });
   mkdirSync(path.join(root, "nginx-backups"));
   mkdirSync(oldApp);
@@ -64,28 +62,15 @@ function host() {
       "",
     ].join("\n"),
   );
-  writeFileSync(
-    path.join(bin, "aws"),
-    [
-      "#!/usr/bin/env bash",
-      'echo "aws $*" >> "$FAKE_AWS_LOG"',
-      '[ "${FAKE_AWS_FAIL:-0}" = 1 ] && exit 1',
-      'if [ "$1 $2" = "s3 cp" ]; then cp "$3" "$FAKE_BUCKET/$(basename "$4")"; fi',
-      "exit 0",
-      "",
-    ].join("\n"),
-  );
   chmodSync(path.join(bin, "docker"), 0o755);
-  chmodSync(path.join(bin, "aws"), 0o755);
-  return { root, bin, bucket, oldApp, notify, dockerLog: path.join(root, "docker.log"), awsLog: path.join(root, "aws.log"), restoreIn: path.join(root, "restore.in") };
+  return { root, bin, archive, oldApp, notify, dockerLog: path.join(root, "docker.log"), restoreIn: path.join(root, "restore.in") };
 }
 
 type World = ReturnType<typeof host>;
 
 function run(w: World, args: string[] = [], stdin = "", extra: Record<string, string> = {}) {
   writeFileSync(w.dockerLog, "");
-  writeFileSync(w.awsLog, "");
-  const result = spawnSync("bash", [script, "--container", SOURCE, "--bucket", "makam-backups", ...args], {
+  const result = spawnSync("bash", [script, "--container", SOURCE, ...args], {
     encoding: "utf8",
     input: stdin,
     env: {
@@ -96,8 +81,6 @@ function run(w: World, args: string[] = [], stdin = "", extra: Record<string, st
       MAKAM_OLD_NOTIFY_DIR: w.notify,
       MAKAM_BACKUP_FREE_BYTES: "1000000000",
       FAKE_DOCKER_LOG: w.dockerLog,
-      FAKE_AWS_LOG: w.awsLog,
-      FAKE_BUCKET: w.bucket,
       FAKE_RESTORE_IN: w.restoreIn,
       FAKE_OLD_COUNTS: OLD_COUNTS,
       FAKE_PS: `${SOURCE} makam-nonprod-web-1 makam-prod-web-1 makam-staging-postgres-1 makam-v1-thing`,
@@ -106,21 +89,21 @@ function run(w: World, args: string[] = [], stdin = "", extra: Record<string, st
       ...extra,
     },
   });
-  return { code: result.status, output: `${result.stdout}${result.stderr}`, docker: readFileSync(w.dockerLog, "utf8"), aws: readFileSync(w.awsLog, "utf8") };
+  return { code: result.status, output: `${result.stdout}${result.stderr}`, docker: readFileSync(w.dockerLog, "utf8") };
 }
 
-const uploaded = (w: World) => readdirSync(w.bucket);
+const archived = (w: World) => (existsSync(w.archive) ? readdirSync(w.archive) : []);
 
 describe("makam-arsip-app-lama (the archive, before any deletion)", () => {
-  it("encrypts the old database's dump, uploads it, restores it into a throwaway Postgres and row-counts it", () => {
+  it("encrypts the old database's dump into the host's backup folder, restores it into a throwaway Postgres and row-counts it", () => {
     const w = host();
     const r = run(w);
     expect(r.code).toBe(0);
 
-    // The bucket holds an encrypted dump that only the backup key opens.
-    const dump = uploaded(w).find((f) => f.endsWith(".dump.enc"));
+    // The backup folder holds an encrypted dump that only the backup key opens; nothing leaves the host.
+    const dump = archived(w).find((f) => f.endsWith(".dump.enc"));
     expect(dump).toBeDefined();
-    const bytes = readFileSync(path.join(w.bucket, dump!));
+    const bytes = readFileSync(path.join(w.archive, dump!));
     expect(bytes.toString("utf8")).not.toContain("DUMPDATA");
     const decrypted = spawnSync(
       "openssl",
@@ -128,8 +111,8 @@ describe("makam-arsip-app-lama (the archive, before any deletion)", () => {
       { input: bytes },
     );
     expect(decrypted.stdout.toString("utf8")).toBe("DUMPDATA");
-    expect(uploaded(w).some((f) => f.endsWith(".counts.enc"))).toBe(true);
-    expect(r.aws).toMatch(/s3 cp .* s3:\/\/makam-backups\/app-lama\//);
+    expect(archived(w).some((f) => f.endsWith(".counts.enc"))).toBe(true);
+    expect(archived(w).some((f) => f.endsWith(".part"))).toBe(false);
 
     // The same bytes went into a throwaway container with no network, and it is gone again.
     expect(readFileSync(w.restoreIn, "utf8")).toBe("DUMPDATA");
@@ -151,12 +134,11 @@ describe("makam-arsip-app-lama fails closed", () => {
     expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
   });
 
-  it("stops when the upload fails: nothing is proven, so nothing is restored or deleted", () => {
+  it("refuses an option it no longer has: there is no upload to a bucket (S3 is v2, ticket 03)", () => {
     const w = host();
-    const r = run(w, ["--hapus"], `${CONFIRM}\n`, { FAKE_AWS_FAIL: "1" });
-    expect(r.code).not.toBe(0);
-    expect(r.docker).not.toMatch(/\brun\b|volume rm|rmi /);
-    expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+    const r = run(w, ["--bucket", "makam-backups"]);
+    expect(r.code).toBe(64);
+    expect(archived(w)).toEqual([]);
   });
 
   it("refuses without the backup key, and with a key others can read", () => {
@@ -164,7 +146,7 @@ describe("makam-arsip-app-lama fails closed", () => {
     chmodSync(path.join(w.root, "prod", "backup-passphrase"), 0o644);
     const r = run(w);
     expect(r.code).toBe(78);
-    expect(uploaded(w)).toEqual([]);
+    expect(archived(w)).toEqual([]);
   });
 });
 
@@ -225,7 +207,7 @@ describe("makam-arsip-app-lama --hapus", () => {
     // The old app's nginx blocks go; v1's backup stays.
     const left = readdirSync(path.join(w.root, "nginx-backups"));
     expect(left).toEqual(["makam.co.id.conf.20261003T020000Z"]);
-    // The archive stays.
-    expect(readdirSync(path.join(w.root, "archive", "app-lama")).some((f) => f.endsWith(".dump.enc"))).toBe(true);
+    // The archive stays, on the host.
+    expect(archived(w).some((f) => f.endsWith(".dump.enc"))).toBe(true);
   });
 });
