@@ -21,7 +21,7 @@
  * A dry run unless `--tulis` is given. Development and test always; staging —
  * the environment the beta for UAT runs on — only with the named allowance
  * `--izinkan-staging`, which is refused by default and named in the reason of
- * every write it makes. Production is refused outright.
+ * every write it makes. Production only under `--izinkan-produksi`, named the same way.
  */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -42,15 +42,17 @@ import { cliFailure } from "./cli-failure";
 import { bacaEkspor, KATALOG_LAMA_FORMAT } from "./katalog-lama/ekspor";
 import { susunRencana, type Rencana, type RencanaLokasi } from "./katalog-lama/peta";
 
-const USAGE = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis] [--izinkan-staging]";
+const USAGE = "Pakai: import:katalog-lama --sumber <berkas.json> [--tulis] [--izinkan-staging | --izinkan-produksi]";
 
 /**
  * The reason every write an import makes carries. On staging it names the
  * allowance, so the Audit Log of every row says the row was created on the
  * beta's own environment under an explicit `--izinkan-staging`, and by whom.
  */
-function alasanImport(staging: boolean): string {
-  return staging ? `${IMPOR_KATALOG_LAMA} (staging, --izinkan-staging)` : IMPOR_KATALOG_LAMA;
+function alasanImport(appEnv: string): string {
+  if (appEnv === "staging") return `${IMPOR_KATALOG_LAMA} (staging, --izinkan-staging)`;
+  if (appEnv === "production") return `${IMPOR_KATALOG_LAMA} (production, --izinkan-produksi)`;
+  return IMPOR_KATALOG_LAMA;
 }
 
 /** What one run did, as the report counts it. */
@@ -79,7 +81,7 @@ interface Modul {
 /**
  * `npm run import:katalog-lama -- --sumber <berkas.json> [--tulis] [--izinkan-staging]`:
  * imports a cemetery catalog export into a development or test stack, or into
- * staging under the named allowance (never into production). A dry run unless
+ * staging under the named allowance (or production under its own). A dry run unless
  * `--tulis`. Exit 0 done, 1 refused or failed, 2 usage.
  */
 export async function importKatalogLamaCommand(
@@ -90,10 +92,11 @@ export async function importKatalogLamaCommand(
   let sumber: string;
   let tulis: boolean;
   let izinkanStaging: boolean;
+  let izinkanProduksi: boolean;
   try {
     const args = parseArgs({
       args: argv,
-      options: { sumber: { type: "string" }, tulis: { type: "boolean" }, "izinkan-staging": { type: "boolean" } },
+      options: { sumber: { type: "string" }, tulis: { type: "boolean" }, "izinkan-staging": { type: "boolean" }, "izinkan-produksi": { type: "boolean" } },
       allowPositionals: false,
       strict: true,
     });
@@ -101,6 +104,7 @@ export async function importKatalogLamaCommand(
     sumber = args.values.sumber;
     tulis = args.values.tulis === true;
     izinkanStaging = args.values["izinkan-staging"] === true;
+    izinkanProduksi = args.values["izinkan-produksi"] === true;
   } catch {
     return { exitCode: 2, output: USAGE };
   }
@@ -111,14 +115,16 @@ export async function importKatalogLamaCommand(
   }
   // The beta for UAT runs on staging, so the import has to be able to run there: the
   // allowance is named, refused by default, and every write it makes says so in the
-  // Audit Log. Production is refused outright, allowance or not.
-  if (appEnv.data === "production") {
-    return { exitCode: 1, output: "Ditolak: import-katalog-lama tidak pernah jalan di production." };
+  // Audit Log. Production has its own allowance, `--izinkan-produksi` (owner decision
+  // 2026-10-03: the example catalog goes to production as data contoh); the staging one
+  // never opens it.
+  if (appEnv.data === "production" && !izinkanProduksi) {
+    return { exitCode: 1, output: "Ditolak: di production perlu allowance --izinkan-produksi (ditolak secara bawaan)." };
   }
   if (appEnv.data === "staging" && !izinkanStaging) {
     return { exitCode: 1, output: "Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan)." };
   }
-  if (!usesInMemoryFakes(appEnv.data) && !izinkanStaging) {
+  if (!usesInMemoryFakes(appEnv.data) && !(appEnv.data === "production" ? izinkanProduksi : izinkanStaging)) {
     return { exitCode: 1, output: "Ditolak: import-katalog-lama hanya untuk development, test, atau staging dengan allowance." };
   }
   if (source.KATALOG_LAMA_DATABASE_URL) {
@@ -204,7 +210,7 @@ export async function importKatalogLamaCommand(
         hariIni: wibDateOf(now),
       };
       const rencana = susunRencana(bacaan.ekspor, modul.hariIni);
-      const hasil = tulis ? await tulisRencana(rencana, modul, alasanImport(env.APP_ENV === "staging")) : hasilKosong();
+      const hasil = tulis ? await tulisRencana(rencana, modul, alasanImport(env.APP_ENV)) : hasilKosong();
       const sudahImpor = tulis ? null : await modul.katalog.diimpor();
 
       return {
