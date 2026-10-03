@@ -6,9 +6,17 @@ set -uo pipefail
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 cd "${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
-# Dependencies (the cloud clone has no node_modules).
-if [ ! -d node_modules ]; then
-  npm ci --no-audit --no-fund >/tmp/makam-npm-ci.log 2>&1 || echo "npm ci failed, see /tmp/makam-npm-ci.log" >&2
+# Dependencies. The cloud clone starts from a snapshot whose node_modules can lag the lockfile, so
+# a thread's gate would run on stale packages: reinstall when the lockfile's hash differs from the
+# one recorded at the last install (a missing node_modules or a missing record counts as different).
+lock_hash=""
+[ -f package-lock.json ] && lock_hash="$(sha256sum package-lock.json | cut -d' ' -f1)"
+if [ ! -d node_modules ] || [ "$(cat node_modules/.makam-lock-hash 2>/dev/null)" != "$lock_hash" ]; then
+  if npm ci --no-audit --no-fund >/tmp/makam-npm-ci.log 2>&1; then
+    [ -n "$lock_hash" ] && echo "$lock_hash" > node_modules/.makam-lock-hash
+  else
+    echo "npm ci failed, see /tmp/makam-npm-ci.log" >&2
+  fi
 fi
 
 # Docker: Vitest starts a Postgres 18 test container (the image's Postgres 16 is not used).
