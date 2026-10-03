@@ -197,6 +197,8 @@ function healthy(w: ReturnType<typeof world>) {
       "    esac ;;",
       "esac",
       '[ -z "$out" ] || [ "$out" = /dev/null ] || printf "%s" "$body" > "$out"',
+      // A network failure: real curl -w still prints 000, then exits non-zero.
+      'if [ "${FAKE_NETWORK_DOWN:-0}" = 1 ]; then printf 000; exit 7; fi',
       'printf "%s" "$code"',
     ].join("\n"),
   );
@@ -638,5 +640,11 @@ describe("makam-preflight", () => {
     const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "gh-create" });
     expect(interrupted.code).toBe(143);
     expect(interrupted.leftovers).toEqual([]);
+  });
+
+  it("reports a network failure to SumoPod as no answer, not as 000 glued to it", () => {
+    const down = preflight(healthy(world()), [], { FAKE_NETWORK_DOWN: "1" });
+    expect(down.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod api key.*HTTP no answer,/));
+    expect(down.output).not.toContain("000no answer");
   });
 });
