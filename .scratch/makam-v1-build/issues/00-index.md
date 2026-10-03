@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 101 tickets (as of 2026-10-03): 90 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98), 1 ready-for-agent (101).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 102 tickets (as of 2026-10-03): 90 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 4 in-progress (72, 87, 98, 103), 1 ready-for-agent (101).
 
 ## Tickets
 
@@ -405,3 +405,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [99](99-tagihan-detail-404.md) | Admin Platform Tagihan detail always 404s | resolved | — |
 | [100](100-ticket-guard-three-digit-numbers.md) | The ticket guard reads three-digit ticket numbers | resolved | — |
 | [101](101-banner-pembayaran-uji-coba.md) | Banner "pembayaran uji coba" while production pays through SumoPod's sandbox | ready-for-agent | 100, 65 |
+| [103](103-import-data-di-host.md) | Launch-data importer runs on the staging and production hosts | in-progress | 06 |
