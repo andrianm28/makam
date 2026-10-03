@@ -293,7 +293,7 @@ function markerRole(push) {
   }
 }
 
-/** Files the commits being pushed change, outside docs/ and .scratch/: from where `src` forked off the remote `main` (three dots), renames counted as a delete and an add. */
+/** Files the commits being pushed change, outside docs/, .scratch/ and the main-writers list: from where `src` forked off the remote `main` (three dots), renames counted as a delete and an add. */
 function changedOutsideDocs(push, src) {
   if (!src) return ["(a deletion of main)"];
   try {
@@ -303,7 +303,7 @@ function changedOutsideDocs(push, src) {
   }
   return git(push, ["diff", "--name-only", "--no-renames", `origin/main...${src}`])
     .split("\n")
-    .filter((f) => f && !f.startsWith("docs/") && !f.startsWith(".scratch/"));
+    .filter((f) => f && !f.startsWith("docs/") && !f.startsWith(".scratch/") && f !== ".claude/main-writers");
 }
 
 /** CI runs gitleaks on `main` only, so a secret on a ticket branch would be published unscanned: scan before the push. */
