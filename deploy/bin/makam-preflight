@@ -361,6 +361,28 @@ check_backup_and_restore() {
   fi
 }
 
+# The same CLI the runbook's "Test email" uses, inside the image, with the env
+# file's SMTP settings. It prints the check code and Message-ID, never the
+# address, and so does this line.
+check_smtp() {
+  local out code=0
+  if [ -z "$EMAIL_TO" ]; then
+    skip "04" "smtp send" "not run: pass --email-to <your address> to send one real test email through SumoPod SMTP"
+    return 0
+  fi
+  if [ "$PULLED" -ne 1 ]; then
+    skip "04" "smtp send" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  out=$(docker run --rm --env-file "$ENV_FILE" -e APP_ENV=production "$IMAGE_REF" node dist/email-check.mjs "$EMAIL_TO" 2>&1) || code=$?
+  out=$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)
+  if [ "$code" -eq 0 ]; then
+    pass "04" "smtp send" "accepted by the SumoPod relay; read the received headers for DKIM, SPF and DMARC (runbook, \"Test email\")"
+  else
+    fail "04" "smtp send" "email-check exited $code: ${out:-no output}"
+  fi
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -370,6 +392,7 @@ check_dns_and_certificates
 check_image_pull
 check_signature
 check_env_schema
+check_smtp
 check_s3
 check_backup_key
 check_backup_and_restore
