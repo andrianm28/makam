@@ -71,6 +71,8 @@ export type MergeProofsOptions = {
 
 export type MergeProofsReport = {
   ok: boolean;
+  /** Hand-written blocks of the branch the regenerated files lack: re-append them, then rerun the proofs. */
+  reappend: string[];
   sql: { file: string; comparison: SqlComparison }[];
   secondGenerateClean: boolean;
   chain: SnapshotChain;
@@ -93,7 +95,8 @@ export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
   const chain = checkSnapshotChain(options.drizzleDir);
   const sqlOk = options.newFiles.length === aside.length && sql.every((s) => s.comparison.unexpected.length === 0);
   const destructive = options.newFiles.flatMap((file) => unmarkedDestructiveStatements(readFileSync(file, "utf8")).map((d) => ({ ...d, file })));
-  return { ok: sqlOk && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, sql, secondGenerateClean, chain, destructive };
+  const reappend = sql.flatMap((s) => s.comparison.handWritten);
+  return { ok: sqlOk && reappend.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, sql, secondGenerateClean, chain, destructive };
 }
 
 function main(): void {
@@ -130,7 +133,7 @@ function main(): void {
   console.log(`2. second db:generate: ${report.secondGenerateClean ? "no schema changes" : "STILL FINDS CHANGES"}`);
   console.log(`3. snapshot chain: dangling ${report.chain.dangling.join(",") || "none"}; unexpected ${report.chain.unexpected.join(",") || "none"}`);
   for (const d of report.destructive) console.log(`   ${d.file}:${d.line}: ${d.reason} without "-- contract: <reason>": ${d.statement}`);
-  console.log(report.ok ? "PROOFS OK" : "PROOFS FAILED");
+  console.log(report.ok ? "PROOFS OK" : report.reappend.length > 0 ? "RE-APPEND the hand-written block(s) above, then rerun the proofs" : "PROOFS FAILED");
   process.exit(report.ok ? 0 : 1);
 }
 
