@@ -95,6 +95,11 @@ describe("the maintenance block and page for makam.co.id", () => {
     expect(block).not.toMatch(/proxy_pass/);
   });
 
+  it("sends the same security headers as the production block, and says which paths are not 503", () => {
+    expect(block).toContain('add_header X-Frame-Options        "SAMEORIGIN" always;');
+    expect(block).toMatch(/ACME[^]*port 80[^]*redirect/i);
+  });
+
   it("answers /api/health with a 503 JSON body, so the uptime alarm sees the outage", () => {
     expect(block).toMatch(/location = \/api\/health \{[^}]*default_type application\/json;[^}]*return 503 '\{[^']*"ok":false/);
   });

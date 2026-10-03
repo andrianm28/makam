@@ -56,7 +56,7 @@ function host() {
       '      pg_isready*) exit 0 ;;',
       '      *pg_dump*) printf DUMPDATA ;;',
       '      *pg_restore*) cat > "$FAKE_RESTORE_IN" ;;',
-      '      *pg_database_size*) echo 1000 ;;',
+      '      *pg_database_size*) echo "${FAKE_DB_SIZE-1000}" ;;',
       '      *pg_tables*) case "$name" in makam-restoretest-*) printf "%s" "${FAKE_RESTORED_COUNTS:-$FAKE_OLD_COUNTS}" ;; *) printf "%s" "$FAKE_OLD_COUNTS" ;; esac ;;',
       "    esac ;;",
       "esac",
@@ -257,5 +257,14 @@ describe("makam-arsip-app-lama's old nginx blocks", () => {
     const r = run(w, ["--hapus"], `${CONFIRM}\n`);
     expect(r.code).toBe(0);
     expect(readdirSync(path.join(w.root, "nginx-backups")).sort()).toEqual(["makam.co.id.conf.20261003T020000Z", "notes.txt"]);
+  });
+});
+
+describe("makam-arsip-app-lama's free-space guard", () => {
+  it("refuses when the database size cannot be read, rather than needing no space", () => {
+    const w = host();
+    const r = run(w, [], "", { FAKE_DB_SIZE: "" });
+    expect(r.code).toBe(78);
+    expect(archived(w)).toEqual([]);
   });
 });
