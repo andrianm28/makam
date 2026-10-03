@@ -228,3 +228,32 @@ describe("makam-arsip-app-lama's proof", () => {
     expect(r.output).not.toMatch(/Cleanup plan/);
   });
 });
+
+describe("makam-arsip-app-lama refuses a directory it must never delete", () => {
+  it.each([
+    ["empty", ""],
+    ["the root", "/"],
+    ["a relative path", "makam-app"],
+    ["makam-v1's own tree", "$ROOT/prod"],
+    ["a path with .. in it", "$ROOT/../etc"],
+  ])("%s: no plan, nothing removed", (_name, value) => {
+    for (const variable of ["MAKAM_OLD_APP_DIR", "MAKAM_OLD_NOTIFY_DIR"]) {
+      const w = host();
+      const r = run(w, ["--hapus"], `${CONFIRM}\n`, { [variable]: value.replace("$ROOT", w.root) });
+      expect(r.code).toBe(78);
+      expect(r.docker).not.toMatch(/volume rm|rmi |rm -f makam-nonprod/);
+      expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+      expect(existsSync(path.join(w.root, "prod", "backup-passphrase"))).toBe(true);
+    }
+  });
+});
+
+describe("makam-arsip-app-lama's old nginx blocks", () => {
+  it("are chosen by file name as well as by upstream: a note that merely mentions a port stays", () => {
+    const w = host();
+    writeFileSync(path.join(w.root, "nginx-backups", "notes.txt"), "the old app used 127.0.0.1:8083\n");
+    const r = run(w, ["--hapus"], `${CONFIRM}\n`);
+    expect(r.code).toBe(0);
+    expect(readdirSync(path.join(w.root, "nginx-backups")).sort()).toEqual(["makam.co.id.conf.20261003T020000Z", "notes.txt"]);
+  });
+});
