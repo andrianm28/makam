@@ -436,6 +436,62 @@ go through the real live FileStore. See `src/cli/seed-contoh-publik-command.ts`'
 header comment for exactly which of the prototype's fields this reproduces,
 approximates, or has no real counterpart for.
 
+## Import the launch data on the host (`import-data-peluncuran`)
+
+The owner's launch reference data (the DKI TPU, the Biaya Pengurusan, the
+Layanan catalog with the DKI prices and Mitra Jasa rates, the Nazhir list;
+`docs/ops/data-peluncuran/`, ticket 06) goes in with the bundle
+`dist/import-data-peluncuran.mjs` (ticket 103), so the host needs no Node
+toolchain. The runtime image carries no CSVs: copy the folder into the running
+`web` container first, then dry run, then write. `$S` is the compose command of
+the runbook's other ops commands (here staging's; production's has its own
+project, compose file and env files).
+
+```bash
+cd /opt/makam-v1/staging
+S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
+# 1. Put the owner's CSV folder on the host (the host has no checkout), e.g. from your machine:
+#    scp -r docs/ops/data-peluncuran <host>:/opt/makam-v1/data-peluncuran
+#    then copy it into the container.
+$S cp /opt/makam-v1/data-peluncuran web:/tmp/data-peluncuran
+# 2. Dry run: the real import inside a transaction that is rolled back; nothing is written.
+$S exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran --izinkan-staging
+# [import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.
+# TPU DKI: 38 baris dibaca, 38 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.
+# Biaya Pengurusan: 2 baris dibaca, 2 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.
+# Katalog Layanan: 6 baris dibaca, 6 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.
+# Layanan DKI: 0 baris dibaca, 0 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.
+# Nazhir: 0 baris dibaca, 0 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.
+# Gunakan --tulis untuk menulisnya.
+# 3. Write.
+$S exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran --tulis --izinkan-staging
+# [import-data-peluncuran] Ditulis.
+# TPU DKI: 38 baris dibaca, 38 dibuat, 0 diubah, 0 sama, 0 ditolak.
+# ...
+# 4. Remove the copies (container and host).
+$S exec -u root web rm -rf /tmp/data-peluncuran   # cp creates root-owned files
+rm -rf /opt/makam-v1/data-peluncuran
+```
+
+The counts above are the folder's rows at ticket 103 on a stack that has never been imported ("akan dibuat"; a later run shows "sama"); yours follow the CSVs you
+copy. Exit code 1 with a "Ditolak (N):" list of file, line and reason means
+some rows were refused (the others are still imported, and a re-run over the
+fixed file does the rest); exit code 0 means none was.
+
+- Needs an Admin Platform first (`seed:admin`, above): the import acts as that
+  stack's first Admin Platform, and refuses with "belum ada Admin Platform"
+  without one.
+- Refused without its allowance: staging needs `--izinkan-staging`, production
+  `--izinkan-production` (the staging flag never opens production; the flag is
+  `--izinkan-production`, not the `-produksi` spelling of `import-katalog-lama`).
+  Every write's Audit Log reason names the allowance it ran under.
+- `--sumber` is a folder inside the container; the bundle reads nothing relative
+  to its own file, so nothing else has to be copied into `dist/` (unlike
+  `seed-contoh-publik`'s JPEGs, above).
+- Idempotent: a re-run over the same files reports every row "sama" and writes
+  nothing.
+- Never run it from a development machine against a host's database.
+
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
 When an Admin Platform loses their authenticator, ops resets it. Confirm who

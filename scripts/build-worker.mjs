@@ -21,6 +21,7 @@ await build({
     "env-check": "src/cli/env-check.ts",
     "pdf-check": "src/cli/pdf-check.ts",
     "import-katalog-lama": "src/cli/import-katalog-lama.ts",
+    "import-data-peluncuran": "src/cli/import-data-peluncuran.ts",
   },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },
