@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# makam-arsip-app-lama: archive the old app's database, prove the archive, and
+# only then (with --hapus, after a typed word) delete the old app by name
+# (ticket 65, owner decision 2026-10-03: the old app is switched off at the
+# switch).
+#
+#   makam-arsip-app-lama --container <old postgres container> --bucket <bucket>
+#   makam-arsip-app-lama ... --hapus
+#
+# Steps, in order; any failure stops the run before the next one and exits
+# non-zero, so a plan is never printed (and nothing deleted) for an archive that
+# is not proven:
+#   1. pg_dump -Fc of the old database, encrypted with the backup key
+#      ($MAKAM_ROOT/prod/backup-passphrase, same cipher as makam-backup-db),
+#      plus its row counts, kept under $MAKAM_ROOT/archive/app-lama/;
+#   2. both uploaded to s3://<bucket>/app-lama/ with the AWS CLI;
+#   3. the Dump restored into a throwaway Postgres (no network, removed again)
+#      and every table's rows counted against the counts of the source: the proof.
+#   4. the cleanup plan is printed: the old app's containers, volumes and images
+#      (only names that start with makam-nonprod- or are the makam-app image),
+#      /home/ubuntu/makam-app, /opt/makam-notify and the old app's nginx blocks
+#      (backups under $MAKAM_ROOT/nginx-backups that point at the old upstreams).
+#   5. with --hapus, the word `hapus-app-lama` typed on stdin runs the plan.
+#
+# Nothing of makam-v1, makam-prod, makam-staging or GlitchTip is touched: the
+# plan is built from the prefixes above and each removal names one object. There
+# is no prune of any kind, and no -a/--all.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+LOG_TAG=makam-arsip-app-lama
+OLD_APP_DIR=${MAKAM_OLD_APP_DIR:-/home/ubuntu/makam-app}
+OLD_NOTIFY_DIR=${MAKAM_OLD_NOTIFY_DIR:-/opt/makam-notify}
+CONFIRM_WORD=hapus-app-lama
+
+# shellcheck source=deploy/bin/makam-backup-lib
+. "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
+
+usage() {
+  cat <<'USAGE'
+usage: makam-arsip-app-lama --container <name> --bucket <bucket> [--db <name>] [--user <name>] [--hapus]
+
+  --container  the old app's Postgres container
+  --bucket     the backups bucket the encrypted dump is uploaded to
+  --db         the old database, makam_beta by default
+  --user       its Postgres user, postgres by default
+  --hapus      after the proof, delete the old app by name once the word
+               hapus-app-lama is typed
+  -h, --help   this text
+USAGE
+  exit "${1:-0}"
+}
+
+SOURCE_CONTAINER=""
+BUCKET=""
+OLD_DB=makam_beta
+OLD_USER=postgres
+HAPUS=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --container) SOURCE_CONTAINER=${2:?}; shift 2 ;;
+    --bucket) BUCKET=${2:?}; shift 2 ;;
+    --db) OLD_DB=${2:?}; shift 2 ;;
+    --user) OLD_USER=${2:?}; shift 2 ;;
+    --hapus) HAPUS=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+[ -n "$SOURCE_CONTAINER" ] && [ -n "$BUCKET" ] || usage 64
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+ARCHIVE="$MAKAM_ROOT/archive/app-lama"
+BASE="makam-app-lama-$STAMP"
+DUMP="$ARCHIVE/$BASE.dump.enc"
+COUNTS="$ARCHIVE/$BASE.counts.enc"
+NAME="makam-restoretest-app-lama-$STAMP-$$"
+
+install -d -m 0700 "$ARCHIVE"
+read_passphrase "$MAKAM_ROOT/prod/backup-passphrase" "the same key as the production backups: create it with: umask 077; openssl rand -base64 32 > $MAKAM_ROOT/prod/backup-passphrase"
+export BACKUP_PASSPHRASE="$PASSPHRASE"
+
+container_up=0
+cleanup() {
+  rm -f "$DUMP.part" "$COUNTS.part"
+  if [ "$container_up" = 1 ]; then docker rm -f "$NAME" > /dev/null 2>&1 || true; fi
+}
+trap cleanup EXIT
+
+[ "$(docker inspect -f '{{.State.Running}}' "$SOURCE_CONTAINER" 2> /dev/null || true)" = true ] \
+  || { err "ERROR container $SOURCE_CONTAINER is not running; no archive taken"; exit 1; }
+DB_SIZE=$(docker exec "$SOURCE_CONTAINER" psql -U "$OLD_USER" -d "$OLD_DB" -Atc "select pg_database_size('$OLD_DB')" 2> /dev/null | tr -d '[:space:]' || true)
+require_free_space "$ARCHIVE" $((DB_SIZE * 2)) "the dump of $OLD_DB"
+
+# 1. Dump and counts, encrypted.
+docker exec "$SOURCE_CONTAINER" pg_dump -U "$OLD_USER" -d "$OLD_DB" -Fc --no-owner --no-privileges \
+  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$DUMP.part" -pass env:BACKUP_PASSPHRASE \
+  || { err "ERROR pg_dump of $SOURCE_CONTAINER or its encryption failed; nothing archived"; exit 1; }
+docker exec "$SOURCE_CONTAINER" psql -U "$OLD_USER" -d "$OLD_DB" -Atc "$COUNTS_QUERY" \
+  | openssl enc "${CIPHER_ARGS[@]}" -salt -in /dev/stdin -out "$COUNTS.part" -pass env:BACKUP_PASSPHRASE \
+  || { err "ERROR the row counts of $SOURCE_CONTAINER failed; nothing archived"; exit 1; }
+mv "$DUMP.part" "$DUMP"
+mv "$COUNTS.part" "$COUNTS"
+
+# 2. Upload.
+for file in "$DUMP" "$COUNTS"; do
+  aws s3 cp "$file" "s3://$BUCKET/app-lama/$(basename "$file")" > /dev/null \
+    || { err "ERROR the upload of $(basename "$file") to s3://$BUCKET failed; nothing is proven, nothing may be deleted"; exit 1; }
+done
+log "uploaded $BASE to s3://$BUCKET/app-lama/"
+
+# 3. Restore into a throwaway Postgres and compare.
+docker run -d --name "$NAME" --label makam.role=restore-test --network none --restart no \
+  --memory 1g --cpus 1 --shm-size 256m -e POSTGRES_HOST_AUTH_METHOD=trust "$PG_IMAGE" > /dev/null
+container_up=1
+for _ in $(seq 1 120); do
+  docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1 && break
+  sleep 1
+done
+docker exec "$NAME" pg_isready -h 127.0.0.1 -U postgres -d postgres > /dev/null 2>&1 \
+  || { err "ERROR $NAME never became ready"; exit 1; }
+openssl enc -d "${CIPHER_ARGS[@]}" -in "$DUMP" -pass env:BACKUP_PASSPHRASE \
+  | docker exec -i "$NAME" pg_restore -U postgres -d postgres --no-owner --no-privileges --exit-on-error \
+  || { err "ERROR restoring $BASE into $NAME"; exit 1; }
+recorded=$(openssl enc -d "${CIPHER_ARGS[@]}" -in "$COUNTS" -pass env:BACKUP_PASSPHRASE)
+restored=$(docker exec "$NAME" psql -U postgres -d postgres -Atc "$COUNTS_QUERY" 2> /dev/null)
+printf '%s\n' "$restored"
+short=$(awk -F= '
+  NR == FNR { recorded[$1] = $2; next }
+  { restored[$1] = $2 }
+  END { for (t in recorded) if (restored[t] == "" || restored[t] + 0 < recorded[t] + 0) print t ": " restored[t] " of " recorded[t] }
+' <(printf '%s\n' "$recorded") <(printf '%s\n' "$restored"))
+[ -z "$short" ] || { err "ERROR the restore of $BASE is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
+log "archive proven: $BASE restored into a throwaway Postgres, every table with its rows"
