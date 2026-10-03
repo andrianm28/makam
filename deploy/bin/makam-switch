@@ -57,6 +57,11 @@ esac
 BLOCK="$SRC/makam.co.id.conf"
 [ -r "$BLOCK" ] || { echo "refusing: no block at $BLOCK" >&2; exit 78; }
 
+if cmp -s "$BLOCK" "$SITE"; then
+  echo "makam.co.id already serves $TARGET: nothing changed, nginx not reloaded"
+  exit 0
+fi
+
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 install -d -m 0700 "$BACKUPS"
 BACKUP="$BACKUPS/makam.co.id.conf.$STAMP"
