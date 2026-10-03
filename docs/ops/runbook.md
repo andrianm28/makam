@@ -89,7 +89,7 @@ to run unless the first three match `--env`:
 | `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
 | `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret (SumoPod's **sandbox** project key and Svix secret in staging for the v1 beta; ticket 04) | the live PaymentProvider (QRIS, ticket 61); **required from ticket 61 on**: without them `migrate`, `web` and `worker` refuse to start |
-| `SUMOPOD_BASE_URL` | unset (defaults to the sandbox host in staging, the live host in production) | override only if SumoPod ever splits sandbox/live differently than by environment |
+| `SUMOPOD_BASE_URL` | unset (defaults to the sandbox host in staging, the live host in production) | override of the Managed Payment API host. **Production on the sandbox** until the live merchant account exists: `https://api-pay-sandbox.sumopod.com` (ticket 101; see "Production on SumoPod's sandbox" below). Remove it when the live keys are installed |
 | `FILES_ROOT` | not set (defaults to `/data/files`, the `files` volume's mount point) | where the live FileStore (ticket 60) reads and writes; only set it to something else if the volume is ever mounted elsewhere |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
@@ -1759,6 +1759,36 @@ gated nginx switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
+## Production on SumoPod's sandbox (ticket 101)
+
+Owner decision, 2026-10-03: `makam.co.id` may switch while payments still go
+through SumoPod's **sandbox**, until the live merchant account and keys exist.
+No money moves in that time, and visitors are told so.
+
+Go-live checklist, sandbox variant (replaces "live SumoPod key" in step 1 of
+"Hari switch" until the live account exists), in `/opt/makam-v1/prod/prod.env`:
+
+1. `SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com`
+2. `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` of the sandbox project
+   (the same pair staging holds, or a second sandbox project of your own).
+3. In the sandbox dashboard, the webhook points at
+   `https://makam.co.id/api/webhooks/pembayaran`.
+4. Redeploy (`makam-deploy --env prod --digest ...`), then check that every page
+   of `https://makam.co.id/` shows the banner "PEMBAYARAN UJI COBA" and that a
+   Tagihan's Bayar step shows "Pembayaran ini uji coba: tidak ada uang yang
+   berpindah." beside the button.
+
+The banner and the Bayar notice appear **by themselves**: the running web
+process reads `APP_ENV=production` with `SUMOPOD_BASE_URL` on the sandbox host
+(`/api/browser-config`, per request, never at build time). Staging and
+development never show them (staging keeps its own banner). `makam-preflight`
+names this state in one SKIP line, "production on the sandbox".
+
+**Going live:** put the live `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` in
+`prod.env`, point the live webhook at the same URL, **delete the
+`SUMOPOD_BASE_URL` line** (production then uses the live host), redeploy. The
+banner and the notice disappear; the preflight SKIP line goes with them.
+
 ## Production preflight (`makam-preflight`)
 
 Run this on the VPS before the production rehearsal (ticket 72) and again
@@ -1805,6 +1835,7 @@ What it checks, and what runs it:
 | SMTP | `email-check` in the image | 04 |
 | SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
 | GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
+| production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
 Public access, versioning and encryption of the buckets are a console check
@@ -1833,8 +1864,11 @@ after the first release, rollback is the previous v1 digest (`rollback.yml`).
 `deploy/install-host.sh` has installed `makam-switch`, `makam-arsip-app-lama`
 and the blocks under `/opt/makam-v1/nginx/`.
 
-1. **Preflight.** `makam-preflight` (ticket 72) must pass: live SumoPod key,
-   secret and webhook URL installed in `prod.env`, SMTP, buckets, the backup key
+1. **Preflight.** `makam-preflight` (ticket 72) must pass: SumoPod key,
+   secret and webhook URL installed in `prod.env` (live, or the sandbox set from
+   "Production on SumoPod's sandbox" while the live merchant account does not
+   exist yet; then the preflight prints one SKIP line, "production on the
+   sandbox"), SMTP, buckets, the backup key
    `/opt/makam-v1/prod/backup-passphrase` (0600).
 2. **Archive the old app's database.**
    ```bash
