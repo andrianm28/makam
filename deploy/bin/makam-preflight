@@ -62,8 +62,14 @@ setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2> /dev/null | tail -n 1 || true; }
 # included.
 TMP_PATHS=()
 new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
+PENDING_S3_KEY=""
 cleanup() {
   local path
+  if [ -n "$PENDING_S3_KEY" ]; then
+    s3api "$(setting S3_ACCESS_KEY_ID)" "$(setting S3_SECRET_ACCESS_KEY)" delete-object \
+      --bucket "$(setting S3_BUCKET_FILES)" --key "$PENDING_S3_KEY" > /dev/null 2>&1 || true
+    PENDING_S3_KEY=""
+  fi
   for path in ${TMP_PATHS[@]+"${TMP_PATHS[@]}"}; do rm -rf "$path"; done
   TMP_PATHS=()
 }
@@ -244,6 +250,7 @@ check_s3_probe() {
   new_tmp
   got=$REPLY
   printf 'makam-preflight %s\n' "$probe" > "$body"
+  PENDING_S3_KEY=$probe
   if ! s3api "$key_id" "$secret" put-object --bucket "$bucket" --key "$probe" --body "$body" > /dev/null 2>&1; then
     problem="put was refused"
   elif ! s3api "$key_id" "$secret" get-object --bucket "$bucket" --key "$probe" "$got" > /dev/null 2>&1; then
@@ -251,7 +258,9 @@ check_s3_probe() {
   elif ! cmp -s "$body" "$got"; then
     problem="read back returned other bytes"
   fi
-  if ! s3api "$key_id" "$secret" delete-object --bucket "$bucket" --key "$probe" > /dev/null 2>&1; then
+  if s3api "$key_id" "$secret" delete-object --bucket "$bucket" --key "$probe" > /dev/null 2>&1; then
+    PENDING_S3_KEY=""
+  else
     problem="${problem:+$problem; }delete failed, remove $probe from $bucket by hand"
   fi
   rm -f "$body" "$got"
