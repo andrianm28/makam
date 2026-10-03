@@ -106,4 +106,23 @@ describe("the three proofs as one run", () => {
     expect(report.secondGenerateClean).toBe(false);
     expect(report.ok).toBe(false);
   });
+
+  it("fails when the new migration holds destructive DDL without a contract marker", () => {
+    const drop = 'DROP TABLE "base";';
+
+    const report = runMergeProofs({ ...setup({ generated: drop, branch: drop }), generate: () => "nothing to migrate" });
+
+    expect(report.destructive).toHaveLength(1);
+    expect(report.destructive[0]!.reason).toMatch(/drop/i);
+    expect(report.ok).toBe(false);
+  });
+
+  it("accepts destructive DDL marked with a contract reason", () => {
+    const drop = '-- contract: nothing running reads it\nDROP TABLE "base";';
+
+    const report = runMergeProofs({ ...setup({ generated: drop, branch: drop }), generate: () => "nothing to migrate" });
+
+    expect(report.destructive).toEqual([]);
+    expect(report.ok).toBe(true);
+  });
 });
