@@ -137,7 +137,8 @@ export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
     .filter((f) => f.endsWith(".sql") && !inBase.has(`drizzle/${f}`))
     .map((f) => path.join(drizzleDir, f));
   const report = runMergeProofs({ drizzleDir, asideDir: asideDir as string, newFiles, generate: io.generate });
-  io.out(report.ok ? "PROOFS OK" : "PROOFS FAILED");
+  for (const block of report.reappend) io.out(`hand-written in the branch, RE-APPEND to the regenerated file: ${block}`);
+  io.out(report.ok ? "PROOFS OK" : report.reappend.length > 0 ? "RE-APPEND the hand-written block(s) above, then rerun the proofs" : "PROOFS FAILED");
   return report.ok ? 0 : 1;
 }
 
