@@ -187,3 +187,21 @@ Every check the Added section names is implemented and reads real code, not a li
 Spec: 5 findings (0 blocking / 2 should-fix / 3 nit). Worst: SumoPod key check can pass vacuously on a wrong path. No scope creep beyond the `env-check` CLI the spec requires.
 
 Combined, for the fix pass (builder): the five Standards should-fix and the two Spec should-fix. The ticket's tick boxes stay unticked.
+
+- 2026-10-03 — **Builder: fix pass for the preflight review (head 4f198062).** Each fix is its own red/green pair on `ticket-72-preflight` (no two reds before a green). Counts off a whole log: `npx vitest run` on env-check, preflight, `makam-deploy`, `makam-diskcheck`, global-prune → 5 files, 75 tests passed, exit 0 (preflight alone 31); `npm run lint` exit 0 (0 errors, 6 existing warnings); `npm run typecheck` exit 0.
+
+  - **Owner decision, S3 (instruction 3): done.** S3 lines are one SKIP by default ("ticket 03 moved to v2 on 2026-09-26 …"); `--met-s3` turns them on and then a missing setting is a FAIL. `--skip-s3` is gone; runbook and tests updated.
+  - Standards should-fix **trap**: fixed. One `trap cleanup EXIT` plus INT/TERM (exit 130/143) removes the throwaway Docker config, header files and probe bodies, deletes the S3 probe object and the probe Deployment. Tested by a fake that sends SIGTERM to the running script mid-pull, mid-read and mid-status (three tests).
+  - **Probe Deployment results**: fixed. Inactive-status and DELETE are checked (201 / 204); any other answer is a FAIL naming the orphan Deployment, never a PASS (also on the plain-SHA diagnostic path).
+  - **Backup removes only its own files**: fixed. The Dump is the one `makam-backup-db` names in its log line; only it and its counts file are removed; a Dump the nightly timer wrote meanwhile stays (tested). If no Dump is named, nothing is removed and the check FAILs.
+  - **Header and runbook name the 7-day pruning**: fixed; both now say the backup step is not read-only in that one respect.
+  - **Process (horizontal slicing, `bffd583c`/`d5af1812`)**: history left as instructed; every new pair alternates.
+  - Spec should-fix **SumoPod negative control**: fixed. After a 200/404 the same call is made with a deliberately wrong key; refused (401/403) → PASS, else SKIP "path unverified" with the codes (a 404 can come before authentication).
+  - Spec should-fix **bucket settings**: fixed in the runbook (console check unless a read-capable key is given, with the three IAM actions).
+  - Nit `ref sha-` with no revision label: fixed (FAIL says the image has no revision label; no probe is made).
+  - Nit empty `endpoint` array under `set -u` on bash < 4.4: fixed with `${endpoint[@]+…}`. Untestable here (bash 5), so no red test.
+  - Nit unanchored `sed` key and quoted values: **left**. `makam-deploy` and `makam-deploy-status` read the env file the same way, and `docker --env-file` keeps quotes literally, so a quoted value is already wrong for the stack; the keys are fixed names without regex characters.
+  - Judgement items: `#@FUNCS`/`#@CALLS` scaffolding markers removed. Left: the duplicated `openssl s_client` and Deployment calls (small, each reads straight), the hard-coded IP and `andrianm28` (overridable, same as the other `deploy/bin` scripts), the `MAKAM_PREFLIGHT_*` knobs (each is documented in the runbook table and costs one line), English `env-check` messages (its only reader is the preflight and the owner reading the runbook; `email-check` is Indonesian because Operators read it).
+  - Spec nits (backup key under S3 skip, webhook route name, new env names): no change; the review calls them fine and they are documented.
+
+  HANDOFF: all seven should-fix and the nits I agree with are done. Open for the owner, unchanged: the `makam-deploy-status` ref fix (above), and the SumoPod read call still unverified against SumoPod (now at least flagged by the negative control).

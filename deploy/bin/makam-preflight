@@ -578,7 +578,6 @@ check_manual_steps() {
   skip "72" "nginx switch" "manual, the owner's gated step: only after every line above is PASS, switch makam.co.id to v1 (runbook, \"Production (ticket 65)\")"
 }
 
-#@FUNCS
 
 check_env_file || true
 check_docker
@@ -596,7 +595,6 @@ check_s3
 check_backup_key
 check_backup_and_restore
 check_manual_steps
-#@CALLS
 
 echo
 if [ "$FAILS" -eq 0 ]; then
