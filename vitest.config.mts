@@ -8,7 +8,7 @@ export default defineConfig({
   test: {
     // Tests run as the "test" environment: every release open (ADR 0006), unless a test sets RILIS_TERBUKA.
     env: { APP_ENV: "test" },
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "tests/**/*.test.ts", "scripts/agents/*.test.ts"],
     environment: "node",
     // One Postgres for the whole run, migrated fresh; tests reset it between cases.
     globalSetup: ["tests/global-setup.ts"],

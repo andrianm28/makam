@@ -1,0 +1,10 @@
+{
+  "coordinator": "c",
+  "sessions": [
+    {"session_id": "c", "title": "coordinator", "cost_usd": 1.0, "parent_session_id": null},
+    {"session_id": "t1", "title": "retry 3 builder", "parent_session_id": "c", "cost_usd": 1.0},
+    {"session_id": "t2", "title": "builder for ticket 87", "parent_session_id": "c", "cost_usd": 1.0},
+    {"session_id": "t3", "title": "builder #91", "parent_session_id": "c", "cost_usd": 1.0},
+    {"session_id": "t4", "title": "aos-05 reviewer", "parent_session_id": "c", "cost_usd": 1.0}
+  ]
+}
