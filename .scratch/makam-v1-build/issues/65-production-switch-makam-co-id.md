@@ -17,6 +17,14 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
 - [ ] **Rollback** (changed by the owner, 2026-10-03: the old app is switched off at the switch): a documented, tested step replaces the `makam.co.id` block with a static maintenance page and reloads nginx; after the first release, rollback is the previous v1 digest (`rollback.yml`).
 - [ ] After the switch, `https://makam.co.id/api/health` reports DB and worker heartbeat, the SumoPod webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1, and the uptime alarm watches production.
 
+## Added (2026-10-03, owner decisions: the switch files)
+
+- [ ] `deploy/nginx/makam.co.id.conf`: the production server block for `makam.co.id` and `www`, proxying to `makam-prod` `web` on 127.0.0.1:3100, keeping the existing Certbot certificate paths and the staging block's headers, body size and timeouts; the webhook route `/api/webhooks/pembayaran` reachable without any auth.
+- [ ] `deploy/nginx/maintenance/`: a static maintenance page (Bahasa Indonesia, no external assets) and the block that serves it for every path with 503 and `Retry-After`, `/api/health` answering a 503 JSON body.
+- [ ] `deploy/bin/makam-switch --ke v1|pemeliharaan` (and `--cek`): backs up the current block verbatim with a timestamp, installs the chosen block, runs `nginx -t` before the reload and restores the backup if it fails; idempotent; prints what it did. Switch-day rollback is `makam-switch --ke pemeliharaan`.
+- [ ] `deploy/bin/makam-arsip-app-lama`: dumps the old app's database, encrypts the dump with the backup key, uploads it to the backups bucket (superseded 2026-10-03, owner: stays local, S3 is v2), restores it into a throwaway Postgres container and row-counts it as proof; only then prints the cleanup plan (the old app's containers, volumes, images, `/home/ubuntu/makam-app`, `/opt/makam-notify`, the old nginx blocks) and runs it with `--hapus` after a typed confirmation word; touches nothing of `makam-v1`, `makam-prod` or staging, and removes by name only.
+- [ ] Runbook section "Hari switch", in order: preflight (`makam-preflight`, ticket 72), archive, promotion, `makam-switch --ke v1`, the checks of this ticket, the fallback; the owner archives the `makam-app` GitHub repository (read-only).
+
 ## Comments
 
 - 2026-09-26 — ADR 0004: now also blocked by 68: the live SumoPod SMTP EmailSender is a launch requirement, since email carries every Kode Masuk and family message. The WhatsApp vendor items (ticket 05) are out of v1 and no longer part of the pre-launch checklist.
@@ -33,3 +41,132 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   The index row for this ticket listed blockers 04, 07, 64, 68; this ticket's header says 07, 60, 64, 68, 86 (04 dropped when the beta went live on sandbox keys, 2026-09-26): the index is corrected to the header.
 
 - 2026-10-03 — **Old-app data question answered (owner, grilling with the option tool), and the switch decisions.** Facts read first, from the repo: the old `makam_beta` holds test data and no real money (this ticket's 2026-09-26 cleanup entry); its catalog is 10 example rows (ticket 86); it has no Hak Pakai or Pemegang Hak table (`research/old-app-catalog-and-cutover-data.md`). Answers: (1) **the old app is switched off at the switch**, not kept as a rollback target: its database is dumped encrypted to the backups bucket and the dump restore-checked first; then its containers, volumes, images, `/home/ubuntu/makam-app`, `/opt/makam-notify` and the old nginx blocks are deleted the same day, and the `makam-app` GitHub repository is archived (read-only), not deleted; (2) old accounts are not migrated: people sign in to v1 with email and a Kode Masuk, staff come from `seed:admin` and Undangan Staf; (3) old payments and documents stay in the archive only; (4) the 10 example catalog rows are imported into production as data contoh (Belum Tayang), which needs the importer to accept production behind an explicit flag (ticket 86 Added); (5) the owner confirms all old-app data is team test data, so no order or SumoPod payment is open at the switch; (6) the Lokasi Mitra's existing Hak Pakai enter v1 through Denah clearing by the Admin Lokasi after the go-live (Perlu Verifikasi when data follows; the Excel import stays deferred), so the runbook's "Hak Pakai rows loaded from the old app" precondition for Rilis 2 no longer applies; (7) **the switch-day fallback is a static maintenance page** in nginx; after the first release, rollback is the previous v1 digest. Also decided today (option tool): **production opens `RILIS_TERBUKA=3` at the go-live** (ADR 0006 amended), so ticket 06's data and a UAT at 3 are switch prerequisites; **ticket 98 blocks the go-live** until its cause is named. The webhook path in this ticket, ticket 04 and the go-live checklist is corrected to the route that exists, `/api/webhooks/pembayaran`.
+
+- 2026-10-03 — **Builder (switch files).** Built test-first on `ticket-65-switch`: `deploy/nginx/makam.co.id.conf` + `makam-prod-proxy.conf` (127.0.0.1:3100, Certbot paths, staging's headers/12m body/timeouts, `/api/webhooks/pembayaran` and `/api/health` with no auth), `deploy/nginx/maintenance/` (page + block, 503, `Retry-After`, `/api/health` 503 JSON), `deploy/bin/makam-switch` (`--ke v1|pemeliharaan`, `--cek`, verbatim timestamped backup, `nginx -t` before reload, restore on failure, idempotent), `deploy/bin/makam-arsip-app-lama` (dump → encrypt → upload → throwaway restore + row counts → plan → `--hapus` with typed word `hapus-app-lama`, by name only, no prune/`-a`), `install-host.sh` copies them, runbook "Hari switch". **Staging fix:** the staging block exempted `/api/webhooks/sumopod`; it now exempts `/api/webhooks/pembayaran` (and the runbook's dev-block paragraph). No migrations, so `check-destructive-ddl` does not apply.
+
+  **Spec gaps and decisions for the owner**
+  - No upload tooling or bucket name exists yet (ticket 03): the archive uses the AWS CLI (`aws s3 cp`, `--bucket`, key prefix `app-lama/`); the host needs `aws` configured with the backups bucket's keys.
+  - The old app's Postgres container name, user and database are not in the repo: `--container` is required, `--db` defaults to `makam_beta`, `--user` to `postgres`.
+  - "The old nginx blocks" are taken to be files in `/opt/makam-v1/nginx-backups/` whose content points at the old upstreams (127.0.0.1:3001, 8081, 8083); v1's own backups stay. Old live files under `/etc/nginx/sites-*` are not touched (the switch replaces `makam.co.id.conf`; the old file name is assumed to be `makam.co.id.conf`: confirm on the host).
+  - `makam-preflight` (ticket 72) does not exist yet; the runbook names it as step 1.
+  - The production block uses `$makam_connection_upgrade`, defined in the staging block, so `dev.makam.co.id.conf` must stay installed.
+  - Containers are listed with `docker ps --filter status=…` rather than `-a`, to keep the no-`-a` rule.
+  - Never run against a real host: all tested with fakes (fake nginx, systemctl, docker, aws).
+  - One characterization commit (`test: …fail-closed cases`) was green on arrival, not red.
+
+  **HANDOFF** — Head: see `git log` on `ticket-65-switch`. Tests read off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 272 passed, 1 skipped, exit 0; `npm run lint` exit 0 (0 errors, 6 warnings, not mine); `npm run typecheck` exit 0. Next: reviewer on both axes; owner runs the Hari switch only after the gate.
+
+- 2026-10-03 — **Review of the switch files (reviewer thread, sonnet; not money code). Head reviewed: 74664077765394388a2ccd5ca0b35f068216278f; fixed point: merge-base with `origin/main` (8a8ee62c).** Tests re-run by the reviewer: `npx vitest run tests/tooling/makam-arsip-app-lama.test.ts tests/tooling/makam-switch.test.ts tests/tooling/nginx-blocks.test.ts` → 3 files, 27 passed, exit 0, read off a whole log. Verdict: not ready to merge until the blocking item is fixed.
+
+  ## Standards
+  - **blocking** — Ticket file lines 13–21: the "Added (2026-10-03 …)" section was pasted into the middle of the first AC bullet (cut at "is recorded in `## Added…", resumed at "## Comments`, including what happens to old-app SumoPod payments…"), leaving a stray `## Comments` heading before the human-gate/makam-prod/Switch/Rollback/health ACs. Restore the bullet on one line and give the Added block its own heading after the ACs. (This entry is appended at the end of the file, under the real `## Comments`.)
+  - **should-fix** — `deploy/bin/makam-switch:83-95`: a failed `nginx -t` restores only `$SITE`; the proxy snippet (`:85`) and `$WWW/index.html` (`:88`) stay overwritten. Back them up too, or state they are idempotent copies.
+  - **should-fix** — `makam-switch:81`: on a first install with no `$SITE`, `cp -p` aborts under `set -e` without a message; `makam-prod-proxy.conf` and `maintenance/index.html` are not checked readable (only `$BLOCK`, `:68`), so a missing file fails after the site file is replaced and the restore path is never reached.
+  - **should-fix** — `makam-switch:26`: `ENABLED` is declared, never used; `sites-enabled` is never checked, so a missing symlink reports success while nginx serves nothing new. Use it or remove it.
+  - **should-fix** — `deploy/bin/makam-arsip-app-lama:170`: `rm -rf -- "$OLD_APP_DIR" "$OLD_NOTIFY_DIR"` takes both paths from env overrides with no guard against empty, `/` or `/opt/makam-v1*`. Assert the paths first.
+  - **should-fix** — `makam-arsip-app-lama:147`: the old nginx blocks are chosen by grepping `nginx-backups` for ports 3001/8081/8083 rather than by name (`dev.makam.co.id.conf:7` says old dev containers use 8081). The plan is printed first, so not blocking.
+  - **should-fix** — `makam-arsip-app-lama:93`: an empty `DB_SIZE` makes `$((DB_SIZE * 2))` 0, so the free-space guard passes silently.
+  - **nit** — Duplicated Code (judgement): the `read -r` loops (`:140-144`) and the dump/counts pipelines (`:96-101`) repeat a shape. `:19` capitalisation/punctuation of the plan item. `makam-switch --ke` uses `${2:?}` (bare bash error) where siblings print a usage line.
+  - Checked and fine: no global prune, `-a` or `--all`; no `set -x`; passphrase to openssl through env, not argv; `set -euo pipefail`, trap and `.part` cleanup; `nginx -t` before reload with restore on failure; typed word before `--hapus`; tests use fakes and assert outcomes; commits are red/green per behaviour (no horizontal slicing); `c3711fe` green on arrival is disclosed.
+  - **Count: 1 blocking / 5 should-fix / 3 nit. Worst: the corrupted ticket AC structure; in the code, the partial restore in `makam-switch`.**
+
+  ## Spec
+  - **blocking** — Same ticket damage (file lines 13–21): the five Added bullets are not under a real heading, the first AC is split, and a stray `## Comments` swallows the later ACs.
+  - **should-fix** — `deploy/nginx/makam.co.id.conf:21-25,53-57`: spec says "keeping … the staging block's headers". Production adds HSTS (`max-age=31536000`, hard to undo, not asked for) and drops `X-Robots-Tag`. Follow the spec word for word, or record both deviations as owner decisions.
+  - **should-fix** — `makam-arsip-app-lama:~118-123`: proof treats a table as short only if `restored < recorded`; the spec's proof is row counts equal to the source. Recorded counts come from a separate query, not the dump's snapshot, while the old app is still live at that step. Use `!=` or one snapshot; an empty `recorded` passes vacuously, so require at least one table counted.
+  - **should-fix** — `makam-switch` never uses `ENABLED`: the block is assumed to be `sites-available/makam.co.id.conf` and already symlinked; that assumption is not flagged.
+  - **nit** — Maintenance block: ACME path answers 200/404 and port 80 returns 301, so "every path 503" has unstated exceptions (both sensible); no `X-Frame-Options`.
+  - **nit** — `makam-switch` v1→v1 re-run with a changed snippet exits idempotently without updating the snippet; the `nginx -t` failure restore does not cover the snippet or `index.html`.
+  - Checked and matching: production block proxies to 127.0.0.1:3100 with Certbot paths kept, 12m body and 30s/60s timeouts as staging, `/api/webhooks/pembayaran` without auth; the staging fix is right (`src/app/api/webhooks/pembayaran/route.ts` exists, no `sumopod` route); maintenance page in Bahasa Indonesia with no external assets, 503 with `Retry-After`, `/api/health` 503 JSON; `makam-switch` backup, `nginx -t`, restore, idempotence, `--cek`; archive order dump → encrypt → upload → throwaway restore → counts → plan → `--hapus` (word `hapus-app-lama`), failure paths exit before the plan, by name only, nothing of `makam-v1`/`makam-prod`/staging; runbook "Hari switch" order and the owner's decisions (old app off at the switch, maintenance page fallback, previous v1 digest via `rollback.yml`) match.
+  - **Count: 1 blocking / 3 should-fix / 2 nit. Worst: the damaged ticket structure.**
+
+  Read-only review; no fix pass done. Reviewer-side notes: one sub-agent per axis, as the skill requires.
+
+- 2026-10-03 — **Fix pass on the review above (builder).** Branch `ticket-65-switch`, from review head 2a274e1. Owner decisions applied: HSTS in steps; the old app's archive stays local (S3 is v2, ticket 03: the archive AC's "uploads it to the backups bucket" is superseded by this decision, not reworded).
+
+  **Standards**
+  - blocking, ticket structure: **fixed** (first criterion restored on one line, byte-identical to `main`; Added has its own heading after the criteria).
+  - `makam-switch` partial restore: **fixed** (snippet and page are backed up and put back, or removed on a first install).
+  - first install / unreadable sources: **fixed** (all inputs checked readable before anything changes, exit 78 naming the file; no site file gives a note, not a bare error).
+  - `ENABLED` unused: **fixed** (the `sites-enabled` link is created when missing, and removed again if `nginx -t` fails).
+  - `rm -rf` of the env-overridable directories: **fixed** (empty, `/`, relative, `..` and anything under `$MAKAM_ROOT` are refused, exit 78, before any plan).
+  - old nginx blocks chosen by content only: **fixed** (file name `makam.co.id.conf.*` / `dev.makam.co.id.conf.*` and old upstream).
+  - empty `DB_SIZE` passes the guard: **left, already covered**: `require_free_space` refuses a size of 0 or unreadable (exit 78); a characterization test now pins it (green on arrival).
+  - nits: `--ke` without a value prints the usage (fixed); the duplicated `read` loops and dump pipelines (left: each is three lines and differs in what it filters; no third copy); plan-item capitalisation (left, cosmetic).
+
+  **Spec**
+  - blocking: same as above, **fixed**.
+  - staging headers: **fixed per owner**: HSTS `max-age=86400`, raised to `31536000` after two stable weeks (runbook, "Hari switch", step 8); production sends no noindex header (stays indexable).
+  - proof "equal": **fixed** (row counts must be equal, at least one table counted). Left as a runbook-level caveat: the counts are taken just after the dump, so rerun the archive if the old app took a write between them.
+  - `ENABLED`: **fixed** (above).
+  - nits: maintenance exceptions (ACME path, port 80 redirect) now stated in the block's comment and `X-Frame-Options` added, also inside the 503 location, since `add_header` there replaces the server-level headers (fixed); v1→v1 re-run with only the snippet changed now installs it, tests and reloads (covered, green on arrival).
+
+  **Also:** the production block defines its own upgrade map, `$makam_prod_connection_upgrade`, so it installs without the staging block and cannot clash with its map (fixed). `makam-arsip-app-lama` no longer takes `--bucket` (exit 64) and writes to `/opt/makam-v1/prod/backups/app-lama/`, outside `backups/db` so the 7-day pruning never reaches it; runbook updated. The red commit for that change had a broken test helper (red for the wrong reason); the green commit repairs the helper.
+
+  **HANDOFF** — Tests off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 293 passed, 1 skipped, exit 0; `npm run lint` exit 0 (0 errors, 6 warnings, not mine); `npm run typecheck` exit 0. Next: re-review, then the owner's Hari switch after the gate.
+
+- 2026-10-03 — **Re-review of the switch files after the fix pass (reviewer thread, sonnet; not money code). Head reviewed: b97f3e5e9d4a2b9d249c44f5f82b2298fd2c3cd4; fixed point: merge-base with `origin/main` (8a8ee62).** Tests re-run by the reviewer: `npx vitest run tests/tooling` → 23 files, 283 passed, 1 skipped, exit 0, read off a whole log (the builder's 24 files / 293 also counts `tests/support/global-prune.test.ts`, not run). Each of the nine fix-pass `test(red)` commits was run in a temporary worktree. Verdict: the earlier blocking items are fixed; two should-fix on the Spec axis and process findings remain.
+
+  ## Standards
+  Earlier findings, item by item: ticket structure OK; `makam-switch` partial restore OK (`:98-102,114-119`); first install and unreadable sources OK (`:76-78`, exit 78); `ENABLED` OK (`:104-111`, link removed again on `nginx -t` failure `:115`); `rm -rf` directory guard OK (`makam-arsip-app-lama:138-145`); old blocks chosen by file name plus upstream OK (`:158`); empty `DB_SIZE` OK, accepted as left (`require_free_space` refuses 0 or blank, `makam-backup-lib:119`; the characterization test was green on arrival, disclosed); `--ke` usage OK; duplicated read loops and dump pipelines: accepted as left (nit, extract at a third copy); plan-item capitalisation: BELUM (nit, `:19` "the Dump restored" mid-sentence, `:20` ends with a full stop where `:18` ends with ";").
+  - **should-fix (process)** — red commit `8cb0b4bc` failed for the wrong reason: all 7 tests fail with `ReferenceError: archive is not defined` (a broken test helper), so it proves nothing about "the archive stays local". The green commit `26948235` repairs the helper inside the same change. The helper repair belonged in its own commit before the red. Disclosed by the builder, confirmed by the reviewer. The other eight red commits failed for their behaviour.
+  - **should-fix (process)** — horizontal slicing (the repo's rule: one red/green per behaviour): `e2bb295b` bundles three behaviours (refuse early, first install, `--ke` usage) answered by one green `5fc626e5`; `80d71083` bundles directory refusal and name-based block selection; `71e919a9` bundles the nginx headers with the size-guard characterization test, which was green on arrival and should have its own commit as `c3711fea` had.
+  - **nit** — `makam-arsip-app-lama:61-63` still uses `${2:?}`, the bare bash error the fix removed from `makam-switch`.
+  - **nit** — `:143` has two redundant `case` patterns (`"$MAKAM_ROOT"/*` and `"${MAKAM_ROOT%/}"/*`): Speculative Generality, small.
+  - **nit** — plan-item capitalisation (above).
+  - Checked and fine: no prune, `-a` or `--all`; nothing of makam-v1, makam-prod or staging touched; no secrets.
+  - **Count: 0 blocking / 2 should-fix / 3 nit. Worst: the bundled red commits (`e2bb295b` above all); the broken-helper red `8cb0b4bc` is the process finding the builder disclosed.**
+
+  ## Spec
+  Earlier findings, item by item: damaged ticket structure OK (six criteria, Added has its own heading before `## Comments`); staging headers OK (HSTS `max-age=86400` at `deploy/nginx/makam.co.id.conf:57`, no `X-Robots-Tag`, runbook step 8 raises it to 31536000 after two stable weeks and says production stays indexable, deviation stated in the block's header comment, tests pin both); proof "equal, at least one table" OK (`makam-arsip-app-lama:123,130`); `ENABLED` OK; maintenance exceptions and `X-Frame-Options` OK (`maintenance/makam.co.id.conf:106-108,137,169`); v1→v1 re-run with a changed snippet OK (`makam-switch:80`) and the `nginx -t` restore now covers snippet and page.
+  Every "fixed" claim in the fix-pass entry holds against the code. Owner decisions: HSTS stepping OK; archive stays local OK (`:104`, runbook step 2); indexable OK; rollback is the maintenance page OK (runbook step 6); webhook path `/api/webhooks/pembayaran` OK in the production block, the staging block and the runbook. The maintenance block (503, `Retry-After`, `/api/health` 503 JSON), `makam-switch`, the archive order and the "Hari switch" order match their criteria.
+  - **should-fix** — the fix-pass entry says the count-timing caveat was "left as a runbook-level caveat", but `docs/ops/runbook.md` has no such sentence (grep confirmed); only a script comment (`makam-arsip-app-lama:124-126`) says it. Add one sentence to "Hari switch" step 2: counts are taken just after the dump; if the old app took a write between them the proof fails and the archive is rerun.
+  - **should-fix** — the Added criterion for `makam-arsip-app-lama` (ticket line 25) still says "uploads it to the backups bucket", while the fix-pass entry says it is superseded. Mark it "(superseded 2026-10-03, owner: stays local, S3 is v2)" so the criterion and the code agree, without rewording the requirement.
+  - **nit** — runbook step 8 says to raise HSTS in `deploy/nginx/makam.co.id.conf` and run `makam-switch --ke v1`, but `makam-switch` installs from `/opt/makam-v1/nginx` (copied by `install-host.sh`); without re-running `install-host.sh` it answers "already serves v1". Add that step.
+  - **nit** — the `/api/health` location in the maintenance block repeats only `Retry-After`; the server-level security headers are dropped there. Harmless on JSON.
+  - **Count: 0 blocking / 2 should-fix / 2 nit. Worst: the runbook lacks the count-timing caveat the fix-pass entry says is there.**
+
+  Read-only review; no fix pass done. One sub-agent per axis. Not blocking merge: no blocking item on either axis; the two Spec should-fix items are one-line doc edits.
+
+- 2026-10-03 — **Fix pass 2 on the re-review above (builder).** Branch `ticket-65-switch`, from re-review head 3725aed. Each change below is one red/green pair; each red was run and failed for its own behaviour (an assertion on the behaviour, not a broken helper).
+
+  **Should-fix**
+  - Spec, count-timing caveat missing from the runbook: **fixed** (step 2 of "Hari switch" now says the counts are taken just after the dump and a write in between fails the proof: rerun).
+  - Spec, archive criterion still says "uploads it to the backups bucket": **fixed** by a marker, wording kept: "(superseded 2026-10-03, owner: stays local, S3 is v2)"; a test pins both.
+  - Standards, red `8cb0b4bc` failed for a broken helper: **left**: history on the pushed branch is not rewritten; this pass has no such red, and the helper repair is already disclosed in the first fix-pass entry.
+  - Standards, bundled red commits (`e2bb295b`, `80d71083`, `71e919a9`): **left** for the same reason; this pass keeps one behaviour per pair, and a test that is green on arrival is not committed as a red.
+
+  **Nits**
+  - HSTS runbook step must re-run `install-host.sh` before `makam-switch --ke v1`: **fixed** (the step now says so; test pins the order).
+  - `${2:?}` in `makam-arsip-app-lama`: **fixed** (`--container`, `--db`, `--user` without a value print the usage, exit 64).
+  - Maintenance `/api/health` drops the security headers: **fixed** (repeated there; test).
+  - Plan-item punctuation in the script header: **fixed** (steps read as one list, a comment-only change).
+  - Two `case` patterns on `$MAKAM_ROOT`: **left**: they are not redundant when `MAKAM_ROOT` ends in a slash (`"$MAKAM_ROOT"/*` would be `//*`), so the second is the one that catches `/opt/makam-v1/` configured with a trailing slash.
+  - Earlier left items (duplicated `read` loops, the `DB_SIZE` guard) unchanged.
+
+  Also: a typecheck error in my own new test (`NODE_ENV` missing from a spawn env) was fixed in a test-only commit.
+
+  **HANDOFF** — Tests off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 300 passed, 1 skipped, exit 0 (before the one-line typecheck fix, after which `makam-arsip-app-lama.test.ts` alone was re-run: 19 passed); `npm run lint` exit 0 (0 errors, warnings not mine); `npm run typecheck` exit 0. Next: owner's Hari switch after the gate.
+
+- 2026-10-03 — **Re-review 2 of the switch files after fix pass 2 (reviewer thread, sonnet; not money code). Head reviewed: 3c8f3c5223edd5d3ed64b89b5d94bdbd5077d799; fixed point: merge-base with `origin/main` (8a8ee62c), non-empty diff (13 files).** Tests run by the reviewer: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files passed, 300 passed, 1 skipped, exit 0, read off a whole log. One sub-agent per axis.
+
+  ## Spec
+  Re-review 1 items (at 3725aed), item by item:
+  - should-fix, count-timing caveat in the runbook: **OK** (step 2 of "Hari switch" states it).
+  - should-fix, archive criterion marked superseded: **OK** (marker added after "uploads it to the backups bucket", wording kept).
+  - nit, HSTS step re-runs `install-host.sh` before `makam-switch --ke v1`: **OK**.
+  - nit, maintenance `/api/health` repeats the security headers: **OK** (`maintenance/makam.co.id.conf:58-62`).
+  Owner decisions (HSTS stepping, archive local, indexable, maintenance page rollback, `/api/webhooks/pembayaran`): still matching. Runbook order, `--hapus` typed word and by-name removal unchanged.
+  Deferrals judged: red `8cb0b4bc` and the three bundled reds (`e2bb295b`, `80d71083`, `71e919a9`): **acceptable** (history of a pushed branch is not rewritten; disclosed; no new case in this pass). Duplicate `case` patterns on `$MAKAM_ROOT` (`makam-arsip-app-lama:143`): **acceptable**, the claim holds (with `MAKAM_ROOT=/opt/makam-v1/` the first pattern becomes `//*` and the second catches it). Duplicated read loops and the `DB_SIZE` guard: acceptable (guard confirmed in re-review 1, `makam-backup-lib:119`).
+  Fix-pass-2 commit order (3725aed..HEAD): five pairs, each red then green, one behaviour each; `d6a1aa3d` is a comment-only docs commit. No horizontal slicing.
+  - **Count: 0 blocking / 0 should-fix / 0 nit.** New: none.
+
+  ## Standards
+  Each of the four test-first pairs targets its own behaviour (`462661e3`/`c846ef80`, `5dca9af5`/`7f7db298`, `0e712137`/`1c4418a1`, `479d6fa8`/`a7507240`, `92c6b7d0`/`5159c3d0`); none leans on the broken helper of `8cb0b4bc`. `${2:?}` in the archive script: **OK** (`:51-54` prints usage, exit 64; older sibling scripts keep it, out of scope). Plan-item punctuation: **OK** (`:11-26`). No prune, `-a`, `--all`, no secrets.
+  - **nit** — `tests/tooling/nginx-blocks.test.ts` (from `479d6fa8`) reads the ticket's prose and fails once the ticket moves or closes.
+  - **nit** — same file (from `92c6b7d0`): `section.split(...)[2]` is a positional index into the runbook; inserting a step breaks it.
+  - **nit** — `3c8f3c52` bundles the ticket entry with a test typing fix.
+  - Process debt, recorded and not blocking: the bundled reds of fix pass 1 stay as they are.
+  - **Count: 0 blocking / 0 should-fix / 3 nit** (the earlier bundled-red process finding stays as an accepted deferral).
+
+  **Summary:** earlier findings fixed 6/9 (4 should-fix and 5 nits of re-review 1; the 3 not fixed are reasoned deferrals judged acceptable); new 0 blocking / 0 should-fix / 3 nit; hard remaining: no. Ready to merge on both axes. Read-only review; only this entry committed.

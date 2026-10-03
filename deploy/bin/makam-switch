@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# makam-switch: choose what nginx serves for makam.co.id and www (ticket 65).
+#
+#   makam-switch --ke v1            the production block, proxying to makam-prod
+#   makam-switch --ke pemeliharaan  the static maintenance page (503), the
+#                                   switch-day fallback and its rollback
+#   makam-switch --cek              which one is installed now
+#
+# Run as root on the host (docs/ops/runbook.md, "Hari switch"). The current site
+# file is backed up verbatim with a UTC timestamp under
+# $MAKAM_ROOT/nginx-backups/ before anything is replaced; `nginx -t` runs
+# before the reload, and when it fails the backup is put back and nginx is not
+# reloaded. Running the same switch twice changes nothing and reloads nothing.
+#
+# The blocks come from $MAKAM_SWITCH_SRC (default $MAKAM_ROOT/nginx, where
+# deploy/install-host.sh copies deploy/nginx). The staging block
+# (dev.makam.co.id.conf) is never touched.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+NGINX_DIR=${MAKAM_NGINX_DIR:-/etc/nginx}
+SRC=${MAKAM_SWITCH_SRC:-$MAKAM_ROOT/nginx}
+WWW=${MAKAM_MAINTENANCE_DIR:-/var/www/makam-maintenance}
+BACKUPS="$MAKAM_ROOT/nginx-backups"
+SITE="$NGINX_DIR/sites-available/makam.co.id.conf"
+ENABLED="$NGINX_DIR/sites-enabled/makam.co.id.conf"
+SNIPPET="$NGINX_DIR/snippets/makam-prod-proxy.conf"
+
+usage() {
+  cat <<'USAGE'
+usage: makam-switch --ke v1|pemeliharaan
+       makam-switch --cek
+
+  --ke v1            serve makam.co.id from makam-prod (127.0.0.1:3100)
+  --ke pemeliharaan  serve the static maintenance page with 503
+  --cek              print which block is installed: v1, pemeliharaan or lain
+  -h, --help         this text
+USAGE
+  exit "${1:-0}"
+}
+
+TARGET=""
+CHECK=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ke) [ $# -ge 2 ] || usage 64; TARGET=$2; shift 2 ;;
+    --cek) CHECK=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+
+V1_BLOCK="$SRC/makam.co.id.conf"
+MAINT_BLOCK="$SRC/maintenance/makam.co.id.conf"
+
+if [ "$CHECK" = 1 ]; then
+  if cmp -s "$V1_BLOCK" "$SITE"; then echo v1; exit 0; fi
+  if cmp -s "$MAINT_BLOCK" "$SITE"; then echo pemeliharaan; exit 0; fi
+  echo lain
+  exit 1
+fi
+
+case "$TARGET" in
+  v1) BLOCK=$V1_BLOCK ;;
+  pemeliharaan) BLOCK=$MAINT_BLOCK ;;
+  *) usage 64 ;;
+esac
+# The block's companion file: the proxy snippet for v1, the page for the
+# maintenance block. Everything this run installs must be readable before
+# anything is replaced, so a missing file cannot leave a half switch.
+if [ "$TARGET" = v1 ]; then
+  AUX_SRC="$SRC/makam-prod-proxy.conf"; AUX_DEST="$SNIPPET"
+else
+  AUX_SRC="$SRC/maintenance/index.html"; AUX_DEST="$WWW/index.html"
+fi
+for file in "$BLOCK" "$AUX_SRC"; do
+  [ -r "$file" ] || { echo "refusing: cannot read $file; nothing was changed" >&2; exit 78; }
+done
+
+if cmp -s "$BLOCK" "$SITE" && cmp -s "$AUX_SRC" "$AUX_DEST"; then
+  echo "makam.co.id already serves $TARGET: nothing changed, nginx not reloaded"
+  exit 0
+fi
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d -m 0700 "$BACKUPS"
+BACKUP="$BACKUPS/makam.co.id.conf.$STAMP"
+# Two switches in one second must not overwrite each other's backup.
+n=1
+while [ -e "$BACKUP" ]; do BACKUP="$BACKUPS/makam.co.id.conf.$STAMP-$n"; n=$((n + 1)); done
+if [ -e "$SITE" ]; then
+  cp -p "$SITE" "$BACKUP"
+  echo "backed up the current block to $BACKUP"
+else
+  BACKUP=""
+  echo "no current block at $SITE: nothing to back up (a first install)"
+fi
+AUX_BACKUP=""
+if [ -e "$AUX_DEST" ]; then
+  AUX_BACKUP="$BACKUPS/makam.co.id.conf.$STAMP.aux"
+  cp -p "$AUX_DEST" "$AUX_BACKUP"
+fi
+install -m 0640 "$BLOCK" "$SITE"
+# nginx reads sites-enabled: a site file without its link would report success
+# and serve nothing new.
+LINKED=0
+if [ ! -e "$ENABLED" ] && [ ! -L "$ENABLED" ]; then
+  ln -s "$SITE" "$ENABLED"
+  LINKED=1
+  echo "linked $ENABLED to $SITE (sites-enabled had no link)"
+fi
+install -d -m 0755 "$(dirname "$AUX_DEST")"
+install -m 0644 "$AUX_SRC" "$AUX_DEST"
+if ! nginx -t; then
+  if [ "$LINKED" = 1 ]; then rm -f "$ENABLED"; fi
+  if [ -n "$BACKUP" ]; then cp -p "$BACKUP" "$SITE"; else rm -f "$SITE"; fi
+  if [ -n "$AUX_BACKUP" ]; then cp -p "$AUX_BACKUP" "$AUX_DEST"; else rm -f "$AUX_DEST"; fi
+  echo "nginx -t failed: restored the previous block (${BACKUP:-none: first install}) and its companion file; nginx was not reloaded" >&2
+  exit 1
+fi
+systemctl reload nginx
+echo "makam.co.id now serves $TARGET"

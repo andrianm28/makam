@@ -1331,8 +1331,8 @@ time. The new block (`deploy/nginx/dev.makam.co.id.conf`) proxies to
 `makam-staging` web on `127.0.0.1:3110`, keeps the Certbot certificate lines
 and the 80 → 443 redirect, and adds HTTP basic auth. These stay open without
 auth: `/.well-known/acme-challenge/` (renewals), `= /api/health` (uptime
-monitor), and `= /api/webhooks/sumopod` (SumoPod sandbox; the route checks
-the Svix signature). Both API exemptions are exact paths: `/api/webhooks/sumopod-x`
+monitor), and `= /api/webhooks/pembayaran` (SumoPod sandbox; the route checks
+the Svix signature). Both API exemptions are exact paths: `/api/webhooks/pembayaran-x`
 still needs auth, and `/.env`-style dotfiles are denied everywhere. The proxy
 lines live in `/etc/nginx/snippets/makam-staging-proxy.conf`, which the site
 file includes; `install-host.sh` installs it.
@@ -1754,7 +1754,7 @@ makam-deploy --env prod --digest sha256:<digest from the promotion>
 
 That digest is the one "Promosikan ke produksi" signed with the production
 key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
-with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then do the
+with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then follow "Hari switch" for the
 gated nginx switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
@@ -1822,6 +1822,78 @@ for a non-AWS endpoint. The `aws` CLI must be installed.
 
 The images built before this preflight have no `dist/env-check.mjs`; the env
 schema line says so. Use a digest built from a `main` that has it.
+
+## Hari switch
+
+The day `makam.co.id` moves from the old app to v1 (ticket 65). Human-gated: the
+owner runs it, in this order, after the gate in the ticket's `## Comments`.
+Facts it rests on (owner decisions, 2026-10-03): the old app is switched off at
+the switch and archived; the switch-day fallback is a static maintenance page;
+after the first release, rollback is the previous v1 digest (`rollback.yml`).
+`deploy/install-host.sh` has installed `makam-switch`, `makam-arsip-app-lama`
+and the blocks under `/opt/makam-v1/nginx/`.
+
+1. **Preflight.** `makam-preflight` (ticket 72) must pass: live SumoPod key,
+   secret and webhook URL installed in `prod.env`, SMTP, buckets, the backup key
+   `/opt/makam-v1/prod/backup-passphrase` (0600).
+2. **Archive the old app's database.**
+   ```bash
+   sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <old postgres container>
+   ```
+   It dumps `makam_beta`, encrypts the dump with the backup key and keeps it in
+   the host's backup folder `/opt/makam-v1/prod/backups/app-lama/` (the way the
+   nightly backups are kept; S3 is v2, ticket 03, so nothing is uploaded),
+   restores it into a throwaway Postgres (no network, removed again) and
+   compares every table's row count with the source. The counts are taken just after the dump,
+   so if the old app took a write between the two the proof fails: rerun the
+   archive. Only a proven archive prints the cleanup
+   plan; it deletes nothing yet. Any failure exits non-zero: do not switch on
+   an unproven archive.
+3. **Promotion.** Run `promote.yml` ("Promosikan ke produksi", owner only, the
+   release tag typed again), then `makam-deploy --env prod --digest sha256:<digest>`
+   and check `curl -s http://127.0.0.1:3100/api/health`.
+4. **Switch.**
+   ```bash
+   sudo /opt/makam-v1/bin/makam-switch --cek            # lain: the old app's block is still there
+   sudo /opt/makam-v1/bin/makam-switch --ke v1
+   ```
+   It backs up the current block verbatim to
+   `/opt/makam-v1/nginx-backups/makam.co.id.conf.<UTC timestamp>`, installs the
+   production block and `snippets/makam-prod-proxy.conf`, runs `nginx -t` and
+   only then reloads; when `nginx -t` fails it puts the backup back and does not
+   reload. Running it again changes nothing.
+5. **Checks** (ticket 65): `curl -s https://makam.co.id/api/health` shows the
+   database and the worker heartbeat; `https://www.makam.co.id/` answers;
+   SumoPod's webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1
+   (the dashboard's "Simulate Payment" or a resend shows 2xx, see "Test payment");
+   the uptime alarm watches production (see "Uptime alarm").
+6. **Fallback.** If anything above fails and cannot be fixed in minutes:
+   ```bash
+   sudo /opt/makam-v1/bin/makam-switch --ke pemeliharaan
+   curl -si https://makam.co.id/ | head -3             # 503, Retry-After
+   curl -s https://makam.co.id/api/health              # 503 JSON
+   ```
+   This serves the static maintenance page for every path (the old app is not
+   coming back). `makam-switch --ke v1` puts v1 back. After the first release,
+   rollback is the previous v1 digest ("Rolling back").
+7. **Delete the old app** the same day, once the checks pass:
+   `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <name> --hapus`
+   re-proves the archive, prints the plan and runs it only after you type
+   `hapus-app-lama`: the old app's containers, volumes and images (the
+   `makam-nonprod-*` names and `makam-app`), `/home/ubuntu/makam-app`,
+   `/opt/makam-notify` and the old nginx blocks under
+   `/opt/makam-v1/nginx-backups/`. Nothing of `makam-v1`, `makam-prod` or staging
+   is touched, and nothing is pruned.
+8. **HSTS, in steps.** The production block sends `Strict-Transport-Security`
+   with `max-age=86400` at the switch. After two stable weeks, raise it to one
+   year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, merge it to
+   `main`, re-run `deploy/install-host.sh` from a checkout of `main` (it copies the
+   block to `/opt/makam-v1/nginx/`, where `makam-switch` reads it; without it
+   `makam-switch` answers "already serves v1"), install it with
+   `makam-switch --ke v1`, and check the header with `curl -sI https://makam.co.id/`.
+   Production stays indexable: it must not send the staging block's `X-Robots-Tag`.
+9. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
+   this repository): read-only, not deleted.
 
 ## Staging is public (2026-09-25)
 

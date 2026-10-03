@@ -53,9 +53,15 @@ install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-i
   "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-diskcheck" \
   "$REPO/deploy/bin/makam-backup-files" \
   "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" \
-  "$REPO/deploy/bin/makam-preflight" "$ROOT/bin/"
+  "$REPO/deploy/bin/makam-preflight" \
+  "$REPO/deploy/bin/makam-switch" "$REPO/deploy/bin/makam-arsip-app-lama" "$ROOT/bin/"
 # Sourced by the two backup scripts, never run: 0644, beside them in $ROOT/bin.
 install -m 0644 "$REPO/deploy/bin/makam-backup-lib" "$ROOT/bin/"
+# The production and maintenance blocks, for makam-switch to install on the
+# switch day (ticket 65). Only copied here: nothing is enabled or reloaded.
+install -d -m 0755 "$ROOT/nginx/maintenance"
+install -m 0644 "$REPO/deploy/nginx/makam.co.id.conf" "$REPO/deploy/nginx/makam-prod-proxy.conf" "$ROOT/nginx/"
+install -m 0644 "$REPO/deploy/nginx/maintenance/makam.co.id.conf" "$REPO/deploy/nginx/maintenance/index.html" "$ROOT/nginx/maintenance/"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/prod/compose.yml"
 install -m 0600 "$REPO/deploy/glitchtip/compose.yml" "$ROOT/glitchtip/compose.yml"
