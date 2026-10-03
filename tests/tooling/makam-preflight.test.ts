@@ -146,6 +146,17 @@ function healthy(w: ReturnType<typeof world>) {
       'echo dump > "$d/makam-20261003T000000Z.dump.enc"; echo counts > "$d/makam-20261003T000000Z.counts.enc"',
     ].join("\n"),
   );
+  install(
+    w.bin,
+    "curl",
+    [
+      'case "$*" in',
+      '  *api-pay*) printf "%s" "${FAKE_SUMOPOD_CODE:-404}" ;;',
+      '  *webhooks*) printf "%s" "${FAKE_WEBHOOK_CODE:-401}" ;;',
+      '  *api.github.com*) printf "%s" "${FAKE_GITHUB_CODE:-200}" ;;',
+      "esac",
+    ].join("\n"),
+  );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
   return w;
 }
@@ -374,5 +385,20 @@ describe("makam-preflight", () => {
     });
     expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*smtp.*Gagal kirim: rejected 550/));
     expect(refused.output).not.toContain("owner@example.test");
+  });
+
+  it("authenticates the SumoPod API key on a read-only call: a rejected key fails, a missing payment still proves the key", () => {
+    const known = preflight(healthy(world()));
+    expect(known.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*sumopod api key/));
+    expect(known.calls).toMatch(/curl .* https:\/\/api-pay\.sumopod\.com\/api\/v1\/payments\/makam-preflight/);
+    expect(known.calls).not.toMatch(/-X (POST|PUT|DELETE)[^\n]*api-pay/);
+    expect(known.calls).not.toContain(SECRETS.SUMOPOD_API_KEY);
+    expect(known.output).not.toContain(SECRETS.SUMOPOD_API_KEY);
+
+    const rejected = preflight(healthy(world()), [], { FAKE_SUMOPOD_CODE: "401" });
+    expect(rejected.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod api key.*401/));
+
+    const down = preflight(healthy(world()), [], { FAKE_SUMOPOD_CODE: "502" });
+    expect(down.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod api key.*502/));
   });
 });
