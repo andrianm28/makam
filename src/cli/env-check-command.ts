@@ -18,6 +18,9 @@ export async function envCheckCommand(
 ): Promise<{ exitCode: number; output: string }> {
   const [expected] = argv;
   if (argv.length !== 1 || !expected) return { exitCode: 2, output: "Pakai: env-check <APP_ENV>" };
+  if (source.APP_ENV !== expected) {
+    return { exitCode: 1, output: `APP_ENV is not ${expected}; check: APP_ENV` };
+  }
   try {
     readRuntimeEnv(source);
   } catch (error) {

@@ -18,6 +18,7 @@ await build({
     "verify-email": "src/cli/verify-email.ts",
     "sentry-check": "src/cli/sentry-check.ts",
     "email-check": "src/cli/email-check.ts",
+    "env-check": "src/cli/env-check.ts",
     "pdf-check": "src/cli/pdf-check.ts",
   },
   outdir: "dist",
