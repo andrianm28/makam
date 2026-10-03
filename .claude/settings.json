@@ -1,7 +1,10 @@
 {
   "extraKnownMarketplaces": {
     "mattpocock": {
-      "source": { "source": "github", "repo": "mattpocock/skills" }
+      "source": {
+        "source": "github",
+        "repo": "mattpocock/skills"
+      }
     }
   },
   "enabledPlugins": {
@@ -11,7 +14,10 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh" }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+          }
         ]
       }
     ],
@@ -19,7 +25,19 @@
       {
         "matcher": "Agent|Task",
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-subagent-model.sh" }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-subagent-model.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__.*__create_session$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-subagent-model.sh"
+          }
         ]
       }
     ]
