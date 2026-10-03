@@ -100,4 +100,11 @@ describe("the merge-proofs command line's arguments", () => {
     expect(code).toBe(64);
     expect(err).toMatch(/usage: .*merge-proofs\.ts <aside-dir>/);
   });
+
+  it("exits 64 for a base ref that starts with a dash and for a set-aside folder that does not exist", () => {
+    const { cwd, asideDir } = mergeWorktree(sql, sql);
+
+    expect(run(cwd, [asideDir, "--output=x"]).code).toBe(64);
+    expect(run(cwd, [path.join(asideDir, "missing")]).code).toBe(64);
+  });
 });
