@@ -577,12 +577,12 @@ describe("npm run import:data-peluncuran: reading the spreadsheet's CSV", () => 
   });
 });
 
-describe("npm run import:data-peluncuran: the template the owner fills in", () => {
+describe("npm run import:data-peluncuran: the template's worked examples and the shipped launch data", () => {
   /** The worked example rows the template once shipped with, kept as fixtures now that the folder holds the real launch data. */
   const TEMPLATE = fileURLToPath(new URL("./data-peluncuran/fixtures/contoh", import.meta.url));
   const DATA_PELUNCURAN = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
 
-  it("passes the dry run with its worked example rows alone: the example Layanan comes from the template's own catalog file", async () => {
+  it("passes the dry run with its worked example rows alone: the example Layanan comes from the example catalog file", async () => {
     await modul();
 
     const hasil = await importDataPeluncuranCommand(["--sumber", TEMPLATE], env(), { clock: clock() });
@@ -639,9 +639,9 @@ describe("npm run import:data-peluncuran: a dry run leaves no trace", () => {
   it("leaves the Audit Log as empty as it found it, after a dry run over every kind", async () => {
     const { audit } = await modul();
     const sebelum = await audit.allEntries();
-    const TEMPLATE = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
+    const dataPeluncuran = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
 
-    const hasil = await importDataPeluncuranCommand(["--sumber", TEMPLATE], env(), { clock: clock() });
+    const hasil = await importDataPeluncuranCommand(["--sumber", dataPeluncuran], env(), { clock: clock() });
 
     expect(hasil.exitCode).toBe(0);
     expect(await audit.allEntries()).toEqual(sebelum);
