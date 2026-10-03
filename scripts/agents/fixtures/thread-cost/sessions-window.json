@@ -1,0 +1,12 @@
+{
+  "coordinator": "sess-coord",
+  "sessions": [
+    {"session_id": "sess-coord", "title": "coordinator", "role": "coordinator", "parent_session_id": null, "status_bucket": "working", "cost_usd": 10.0, "cost_usd_at_window_start": 4.0, "created_at": "2026-10-01T08:00:00Z"},
+    {"session_id": "sess-a", "title": "aos-05 builder", "role": "builder", "ticket": "aos-05", "parent_session_id": "sess-coord", "status_bucket": "done", "cost_usd": 1.5, "created_at": "2026-10-01T09:00:00Z"},
+    {"session_id": "sess-b", "title": "aos-05 reviewer", "role": "reviewer", "ticket": "aos-05", "parent_session_id": "sess-coord", "status_bucket": "done", "cost_usd": 0.5, "created_at": "2026-10-02T09:00:00Z"},
+    {"session_id": "sess-c", "title": "48 builder", "role": "builder", "ticket": "48", "parent_session_id": "sess-coord", "status_bucket": "done", "cost_usd": 2.0, "created_at": "2026-10-09T09:00:00Z"},
+    {"session_id": "sess-d", "title": "aos-07 builder", "parent_session_id": "sess-coord", "status_bucket": "done", "cost_usd": 1.0, "created_at": "2026-10-02T10:00:00Z"},
+    {"session_id": "sess-e", "title": "scratch", "parent_session_id": "sess-coord", "status_bucket": "done", "created_at": "2026-10-02T11:00:00Z"},
+    {"session_id": "sess-f", "title": "someone else's", "role": "builder", "ticket": "99", "parent_session_id": "sess-other", "status_bucket": "done", "cost_usd": 7.0, "created_at": "2026-10-02T12:00:00Z"}
+  ]
+}
