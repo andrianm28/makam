@@ -148,7 +148,8 @@ export async function orderForStaff(
 }
 
 /** `tagihan` is the one in force (a Harga Khusus may have reissued the one the order stored, ticket 93): its own id, number and link are what the family is shown. */
-async function blokMakamOf(db: PengurusanDeps["db"], row: Row): Promise<string | null> {
+/** The Blok of the Makam TPU a Perpanjangan TPU row is for; null for any other kind, and no query is made for them. */
+export async function blokMakamOf(db: PengurusanDeps["db"], row: Pick<Row, "kind" | "makamTpuId">): Promise<string | null> {
   if (row.kind !== "perpanjangan_tpu" || !row.makamTpuId) return null;
   const [makam] = await db.select({ blokNomor: makamTpu.blokNomor }).from(makamTpu).where(eq(makamTpu.id, row.makamTpuId));
   return makam?.blokNomor ?? null;

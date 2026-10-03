@@ -26,6 +26,7 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
 import { hariKemudian, menerimaUnggahan, menungguPemeriksaan, STATUS_BOLEH_DIBATALKAN, STATUS_MENERIMA_UNGGAHAN, STATUS_SUDAH_DIMAKAMKAN } from "./aturan";
 import { periksaDokumenBerkas, type TagihanBerkas } from "./pengurusan-berkas";
+import { blokMakamOf } from "./reads";
 import { makamTpu, pengurusanTpu, type DokumenDiunggah } from "./schema";
 
 /** The filing documents are due this many days after the burial is recorded. */
@@ -196,7 +197,7 @@ async function bangunSuratKuasa(deps: Pick<PengurusanDeps, "db">, order: Row, no
   if (!order.adminPlatformName && !berkas) return null;
   // A Saat Duka TPU order has none before its confirmation; a Perpanjangan TPU needs it from Diajukan, the signed copy being one of its documents.
   if ((order.status === "diajukan" && order.kind !== "perpanjangan_tpu") || order.status === "dibatalkan" || order.status === "ditolak") return null;
-  const makam = order.kind === "perpanjangan_tpu" && order.makamTpuId ? (await deps.db.select({ blokNomor: makamTpu.blokNomor }).from(makamTpu).where(eq(makamTpu.id, order.makamTpuId)))[0] : undefined;
+  const blokMakam = await blokMakamOf(deps.db, order);
   return {
     nomor: order.nomor,
     penerimaKuasa: {
@@ -206,7 +207,7 @@ async function bangunSuratKuasa(deps: Pick<PengurusanDeps, "db">, order: Row, no
     pemberiKuasa: { name: order.pemegangHak.name, phoneNumber: order.pemegangHak.phoneNumber, email: order.pemegangHak.email },
     tpu: { name: order.tpuName, address: order.tpuAddress },
     almarhum: order.almarhumName !== null && order.tanggalWafat !== null ? { name: order.almarhumName, tanggalWafat: order.tanggalWafat } : null,
-    blokNomor: makam?.blokNomor ?? order.kuburan?.blokNomor ?? null,
+    blokNomor: blokMakam ?? order.kuburan?.blokNomor ?? null,
     tanggal: wibDateOf(now),
   };
 }
@@ -400,8 +401,7 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
   const now = deps.clock.now();
   if (input.berlakuSampai <= wibDateOf(now)) return { ok: false, reason: "kedaluwarsa_di_masa_lalu" };
   // A renewal is for a Makam TPU already on record: its Blok is that record's own.
-  const dariMakam = order.kind === "perpanjangan_tpu" && order.makamTpuId ? (await deps.db.select({ blokNomor: makamTpu.blokNomor }).from(makamTpu).where(eq(makamTpu.id, order.makamTpuId)))[0] : undefined;
-  const blokNomor = input.blokNomor ?? dariMakam?.blokNomor ?? order.kuburan?.blokNomor;
+  const blokNomor = input.blokNomor ?? (await blokMakamOf(deps.db, order)) ?? order.kuburan?.blokNomor;
   if (!blokNomor) return { ok: false, reason: "blok_nomor_wajib" };
 
   const scanKey = `pengurusan/${order.id}/iptm/${crypto.randomUUID()}`;
