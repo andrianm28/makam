@@ -120,12 +120,16 @@ openssl enc -d "${CIPHER_ARGS[@]}" -in "$DUMP" -pass env:BACKUP_PASSPHRASE \
 recorded=$(openssl enc -d "${CIPHER_ARGS[@]}" -in "$COUNTS" -pass env:BACKUP_PASSPHRASE)
 restored=$(docker exec "$NAME" psql -U postgres -d postgres -Atc "$COUNTS_QUERY" 2> /dev/null)
 printf '%s\n' "$restored"
-short=$(awk -F= '
+[ -n "$recorded" ] || { err "ERROR $BASE has no tables counted at the source; that is no proof"; exit 1; }
+# Equal, not at least: the proof is that nothing was lost or invented. A table
+# the source had must be in the restore with exactly its rows; run the archive
+# again if the old app took writes between the dump and the counts.
+differ=$(awk -F= '
   NR == FNR { recorded[$1] = $2; next }
   { restored[$1] = $2 }
-  END { for (t in recorded) if (restored[t] == "" || restored[t] + 0 < recorded[t] + 0) print t ": " restored[t] " of " recorded[t] }
+  END { for (t in recorded) if (restored[t] == "" || restored[t] + 0 != recorded[t] + 0) print t ": " restored[t] " of " recorded[t] }
 ' <(printf '%s\n' "$recorded") <(printf '%s\n' "$restored"))
-[ -z "$short" ] || { err "ERROR the restore of $BASE is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
+[ -z "$differ" ] || { err "ERROR the restore of $BASE: row counts differ from the source: $(printf '%s' "$differ" | tr '\n' ' ')"; exit 1; }
 log "archive proven: $BASE restored into a throwaway Postgres, every table with its rows"
 
 # 3. The plan: objects by exact name, from prefixes only the old app uses.

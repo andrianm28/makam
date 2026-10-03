@@ -124,11 +124,11 @@ describe("makam-arsip-app-lama (the archive, before any deletion)", () => {
 });
 
 describe("makam-arsip-app-lama fails closed", () => {
-  it("refuses a restore that is short of rows: no success, no cleanup plan", () => {
+  it("refuses a restore that is row counts differ: no success, no cleanup plan", () => {
     const w = host();
     const r = run(w, ["--hapus"], `${CONFIRM}\n`, { FAKE_RESTORED_COUNTS: "orders=3\nusers=4\n" });
     expect(r.code).not.toBe(0);
-    expect(r.output).toMatch(/short of rows/);
+    expect(r.output).toMatch(/row counts differ/);
     expect(r.output).not.toMatch(/makam-nonprod-web-1/);
     expect(r.docker).not.toMatch(/rm -f makam-nonprod|volume rm|rmi /);
     expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
