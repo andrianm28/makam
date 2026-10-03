@@ -250,3 +250,34 @@ Spec: 0 new findings. Worst: none.
   - Nits left: the interrupt window between `gh_call POST` returning and `PENDING_DEPLOY_ID` being set (the id is only known from the response, so it cannot be closed; a Deployment orphaned that way is a `preflight` environment on GitHub, deletable by hand); the `docs(ticket-72)` commit label of `59424069` (history stays); "English env-check messages" (as before).
 
   HANDOFF: nothing open on my side. Owner items unchanged: the `makam-deploy-status` ref fix, and the SumoPod read call unverified against SumoPod.
+
+### Re-review 2 of the preflight (2026-10-03, reviewer thread, sonnet; head 05674e45, fixed point ad348079 = the first re-review's head)
+
+Not money code, so sonnet. Two parallel sub-agents (Standards, Spec) on `git diff ad348079..05674e45` (3 files besides this ticket, 12 commits). **Tests: NOT re-run by me.** `npm run deps` died on the host (`rmdir node_modules`) and a retry with `npm ci` was refused by the permission classifier, so there is no whole log of my own and I read no counts. The builder's 80 tests (preflight 36) are unverified by me; the Standards sub-agent ran single tests in a scratch copy with vitest 5 and a minimal config (not the repo's setup), which is evidence for the red/green findings below, not a suite run. The script was not run against a host.
+
+**Items of the first re-review**
+- Header files with the SumoPod key and GitHub token, removed on every way out: **FIXED**. One `HEADER_FILE` made by `new_tmp` in the main shell (`makam-preflight:93-95`), so it is on the trap's list; `cleanup` removes it last (`:79-86`) after `remove_probe_deployment`; EXIT/INT/TERM traps at `:89,96-97`; `new_tmp` is called in no subshell (`:81,93,191,267,269,322,548`); `sumopod_get` (`:438-444`) and `gh_call` (`:500-507`) only write to that path and truncate it (`: >`) after each call. Proven by signal tests during the SumoPod call and the Deployment create call (`makam-preflight.test.ts`, "leaves no header file ... when interrupted during ..."), whose fake now kills every subshell between itself and the script. Caveat: the SumoPod test is not red against its parent (see Standards 1).
+- `000no answer`: **FIXED**: `code=$(curl ...) || code="no answer"` at `:442` (also `:486-490`, `:502-505`); test with a curl fake that prints 000 and exits 7; red against the parent, green after.
+- Empty-endpoint array guard without a red: **FIXED in form** (`:256`, `${endpoint[@]+"${endpoint[@]}"}`), but the red is invalid (Standards 3).
+- Nits: pruning sentence re-wrapped **FIXED** (`:18-26`); `sumopod_get` takes the URL **FIXED** (`:438,446`); runbook names the negative control **FIXED** (`runbook.md:1786`); SIGINT → 130 tested **FIXED** (characterisation test, passes at once); `PENDING_DEPLOY_ID` window **LEFT, reason accepted** (id only known from the response; the orphan is a `preflight` environment, deletable by hand); `docs(ticket-72)` label **LEFT**, history; English env-check messages **LEFT**.
+
+## Standards
+1. **should-fix** `d9b35ef1` (SumoPod interrupt test): not a red. It passes against its parent script because the old fake killed only the top process; it is labelled `test:` and `56a76170` is a feat with no genuine red before it. The builder disclosed this; the pair is still not red/green.
+2. **should-fix (horizontal slicing)** `ec1a9157`: changes the shared fake (`INTERRUPT_AT`, `FAKE_SIGNAL`, `FAKE_NETWORK_DOWN`) and adds two tests in one commit; only the gh-create test is red (against `56a76170`), green in `712e60cc`.
+3. **should-fix** `f2fc0463` / `76c86e21` (endpoint array): the red test's negative regex also matches the guarded form, so it fails against the fixed script too (the Standards sub-agent ran it against `76c86e21`'s script); the feat commit had to rewrite the regex (`makam-preflight.test.ts:~655`). The red proves nothing about the guard.
+4. **should-fix** `makam-preflight.test.ts:~651-657`: the test reads the script source and greps it, which asserts text, not an outcome (AGENTS.md, Tests). The builder's reason (no bash < 4.4 to run) is stated; keep it only as a recorded exception, or run the script under a bash 4.3 stub/container, or drop the test and keep the comment.
+5. nit `21298d40`: characterisation test, passes against its parent; fine, but say so in the message.
+6. nit `ce39b292`: labelled `refactor` but also edits the runbook row; could be a `docs:` commit.
+Green pair confirmed: `25433325` → `a7a3d5e5` (`no answer`), and `712e60cc` for the Deployment header file.
+
+Standards: 6 findings (0 blocking / 4 should-fix / 2 nit). Worst: the endpoint-array red (`f2fc0463`) is not a valid red and the test reads source text.
+
+## Spec
+Nothing in the Added section is narrowed or over-built; the builder's claims (a), (b), (c) match the code; S3 default SKIP / `--met-s3` unchanged. 
+- nit: the builder's 80/36 test counts are not reproducible from the diff (nor re-run by me).
+- nit `makam-preflight:61-64`: the comment "removed on any way out" is now true; only SIGKILL leaves the already-emptied header file, which holds no secret.
+- nit: the `PENDING_DEPLOY_ID` window above, disclosed.
+
+Spec: 3 findings (0 blocking / 0 should-fix / 3 nit). Worst: unverified test counts.
+
+**Result**: first re-review items: 3 of 3 should-fix FIXED in behaviour (the empty-endpoint one only in form), 6 of 6 nits FIXED or accepted; new 0 blocking / 4 should-fix / 5 nit (all four should-fix are process or test-style, none about behaviour); hard remaining: **no**. A third pass would only repair test history and the source-reading test, so the owner may accept these instead. Ticket boxes stay unticked; my own test run is still owed (needs a working `node_modules`).
