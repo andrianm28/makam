@@ -109,7 +109,7 @@ describe("thread cost report: coordinator cost in a window", () => {
   });
 
   it("labels the coordinator USD and total as cumulative, not windowed, when a window has no start value", () => {
-    const args = [fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--since", "2026-10-02"];
+    const args = [fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--since", "2026-10-02", "--until", "2026-10-08"];
     const text = run(args).out;
     expect(text).toMatch(/Coordinator 10\.00.*cumulative, not windowed/);
     expect(text).toMatch(/Total 11\.50.*cumulative, not windowed/);
@@ -118,7 +118,7 @@ describe("thread cost report: coordinator cost in a window", () => {
   });
 
   it("--compare does not treat a cumulative coordinator cost as a delta", () => {
-    const args = [fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--since", "2026-10-02", "--compare", fx("previous.json")];
+    const args = [fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--since", "2026-10-02", "--until", "2026-10-08", "--compare", fx("previous.json")];
     const text = run(args).out;
     expect(text).not.toMatch(/total .* \+/);
     expect(text).toContain("not comparable");

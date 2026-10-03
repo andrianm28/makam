@@ -16,7 +16,12 @@ The coordinator's own record is in `sessions` too (its `cost_usd` is the coordin
 `ticket` may be missing: they are read from the title ("aos-05 builder") and tags, else "unknown". A
 missing `cost_usd` counts as 0 and is flagged "no cost"; a session whose parent is not the coordinator is
 listed under "other sessions" and not counted. --since/--until (whole days, inclusive) filter the threads by
-`created_at` and the wakes by timestamp; the coordinator's `cost_usd` is cumulative and is not windowed.
+`created_at` and the wakes by timestamp. The coordinator's `cost_usd` is cumulative: under a window the
+report charges `cost_usd - cost_usd_at_window_start`, so the coordinator's record may carry that optional
+field. Save step for it: save the coordinator's `get_session` cost at each window start (the Monday run's
+`cost_usd` is next week's `cost_usd_at_window_start`). Under a window without it, the coordinator USD and
+the total are printed labelled "cumulative, not windowed — estimate" and `--compare` does not treat them
+as a delta (no total delta, no per-cause USD deltas).
 
 COORDINATOR.jsonl is the coordinator's transcript (the format usage-report.py reads): every user text turn
 starts a wake, classified by the MARKERS table below; its cost is the units of the assistant calls until the
@@ -121,9 +126,15 @@ def in_window(stamp, since, until):
 def build(data, since=None, until=None):
     coord = data["coordinator"]
     threads, tickets, coordinator_cost, other = [], {}, 0.0, []
+    windowed, cumulative = bool(since or until), False
     for s in data["sessions"]:
         cost = s.get("cost_usd") or 0
         if s["session_id"] == coord:
+            start = s.get("cost_usd_at_window_start")
+            if windowed and start is not None:
+                cost = cost - start
+            elif windowed:
+                cumulative = True
             coordinator_cost = cost
             continue
         if s.get("parent_session_id") != coord:
@@ -136,7 +147,8 @@ def build(data, since=None, until=None):
         threads.append(t)
         tickets[t["ticket"]] = tickets.get(t["ticket"], 0) + cost
     total = coordinator_cost + sum(t["cost_usd"] for t in threads)
-    return {"coordinator_cost": coordinator_cost, "threads": threads, "tickets": tickets, "total": total, "other_sessions": other}
+    return {"coordinator_cost": coordinator_cost, "threads": threads, "tickets": tickets, "total": total, "other_sessions": other,
+            "coordinator_cumulative": cumulative}
 
 
 def delta(prev, cur):
@@ -151,6 +163,11 @@ def compare(prev, cur):
     causes = {}
     for k in {**pc, **cc}:
         causes[k] = {f: delta(pc.get(k, {}).get(f), cc.get(k, {}).get(f)) for f in ("units", "usd")}
+    if cur.get("coordinator_cumulative"):
+        # the coordinator's cumulative USD is not a delta: leave out the total and the per-cause USD
+        for v in causes.values():
+            v["usd"] = None
+        return {"total": None, "tickets": tickets, "causes": causes}
     return {"total": delta(prev.get("total"), cur["total"]), "tickets": tickets, "causes": causes}
 
 
@@ -161,8 +178,9 @@ def text(r):
     out.append("Per ticket")
     for k, v in sorted(r["tickets"].items()):
         out.append(f"  {k:<8} {v:8.2f}")
-    out.append(f"Coordinator {r['coordinator_cost']:.2f}")
-    out.append(f"Total {r['total']:.2f}")
+    note = "  (cumulative, not windowed — estimate)" if r.get("coordinator_cumulative") else ""
+    out.append(f"Coordinator {r['coordinator_cost']:.2f}{note}")
+    out.append(f"Total {r['total']:.2f}{note}")
     if r["other_sessions"]:
         out.append("other sessions (not counted)")
         for o in r["other_sessions"]:
@@ -175,11 +193,15 @@ def text(r):
     if "compare" in r:
         c = r["compare"]
         out.append("Change since the previous run (previous -> current, delta)")
-        out.append(f"  total {c['total']['previous']:.2f} -> {c['total']['current']:.2f}  {c['total']['delta']:+.2f}")
+        if c["total"] is None:
+            out.append("  total not comparable (coordinator cost is cumulative, not windowed)")
+        else:
+            out.append(f"  total {c['total']['previous']:.2f} -> {c['total']['current']:.2f}  {c['total']['delta']:+.2f}")
         for k, v in sorted(c["tickets"].items()):
             out.append(f"  ticket {k:<8} {v['delta']:+.2f}")
         for k, v in sorted(c["causes"].items()):
-            out.append(f"  cause {k:<12} units {v['units']['delta']:+.0f}  USD {v['usd']['delta']:+.2f}")
+            usd = "" if v["usd"] is None else f"  USD {v['usd']['delta']:+.2f}"
+            out.append(f"  cause {k:<12} units {v['units']['delta']:+.0f}{usd}")
     return "\n".join(out)
 
 
