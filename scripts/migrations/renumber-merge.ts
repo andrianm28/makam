@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { z } from "zod";
 
 export type RenumberOptions = {
   cwd: string;
@@ -111,17 +112,22 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   return { asideDir, setAside, unionResolved, codeConflicts };
 }
 
+/** A ref git would not take for an option: non-empty, no leading dash, no whitespace or control characters. */
+const refSchema = z.string().regex(/^[^-\s\x00-\x1f][^\s\x00-\x1f]*$/);
+const argsSchema = z.tuple([refSchema], refSchema).refine((a) => a.length <= 2);
+
 export type CliIo = { cwd: string; out: (line: string) => void; err: (line: string) => void };
 
 /** The command line as a function of its arguments, returning the exit code. */
 export function renumberMergeCli(argv: string[], io: CliIo): number {
-  const [branchRef, baseRef] = argv;
-  if (branchRef === undefined) {
-    io.err("usage: npx tsx scripts/migrations/renumber-merge.ts <branch-ref> [base-ref]");
+  const args = argsSchema.safeParse(argv);
+  if (!args.success) {
+    io.err("usage: npx tsx scripts/migrations/renumber-merge.ts <branch-ref> [base-ref]  (a ref never starts with '-')");
     return 64;
   }
+  const [branchRef, baseRef] = args.data;
   try {
-    const result = renumberForMerge({ cwd: io.cwd, branchRef: branchRef as string, baseRef });
+    const result = renumberForMerge({ cwd: io.cwd, branchRef, baseRef });
     io.out(`Set aside ${result.setAside.length} migration file(s) in ${result.asideDir}`);
     for (const file of result.unionResolved) io.out(`Ticket file resolved by union: ${file}`);
     for (const file of result.codeConflicts) io.out(`CODE CONFLICT (not resolved): ${file}`);
