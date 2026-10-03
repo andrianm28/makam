@@ -40,3 +40,14 @@ describe("review tier matrix", () => {
     expect(agent({ subagent_type: "reviewer", description: "Review ticket 48", prompt: "Review perpanjangan" }).status).toBe(0);
   });
 });
+
+describe("haiku", () => {
+  it("is refused for a review, and allowed for a doc sweep", () => {
+    const r = agent({ subagent_type: "reviewer", description: "Review ticket 48", prompt: "x", model: "haiku" });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/haiku/);
+    expect(createSession({ title: "Re-review ticket 48", prompt: "x", model: "claude-haiku-4-5-20251001" }).status).toBe(2);
+    expect(agent({ description: "Docs sweep", prompt: "rename a term", model: "haiku" }).status).toBe(0);
+  });
+});
+
