@@ -105,3 +105,35 @@ describe("guard-git hook, pushes to main", () => {
     }
   });
 });
+
+describe("guard-git hook, the writers to main", () => {
+  const mark = (dir: string, who: string) => writeFileSync(path.join(dir, ".git/makam-main-writer"), `${who}\n`);
+
+  it("lets the merge thread push to main once it has said so", () => {
+    const { dir, bash } = repo({ branch: "merge/batch-1" });
+    expect(bash("git push origin HEAD:main").status).toBe(2);
+    mark(dir, "merge");
+    for (const command of ["git push origin HEAD:main", "git push origin main", "git push --force-with-lease origin main"]) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+
+  it("lets the coordinator push only docs and ticket files to main", () => {
+    const { dir, bash, commit } = repo({ branch: "main" });
+    mark(dir, "docs");
+    commit("docs/agents/notes.md");
+    commit(".scratch/makam-v1-build/issues/90-x.md");
+    expect(bash("git push origin main").status).toBe(0);
+    commit("src/lib/time/jakarta.ts");
+    const r = bash("git push origin main");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/src\/lib\/time\/jakarta\.ts/);
+    expect(r.stderr).toMatch(/docs/);
+  });
+
+  it("ignores a marker it does not know", () => {
+    const { dir, bash } = repo({ branch: "ticket-5-x" });
+    mark(dir, "please");
+    expect(bash("git push origin HEAD:main").status).toBe(2);
+  });
+});
