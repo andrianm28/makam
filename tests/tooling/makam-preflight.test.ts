@@ -183,7 +183,7 @@ function healthy(w: ReturnType<typeof world>) {
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
-      '      "POST "*/deployments)',
+      `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
       '        # GitHub wants a branch, tag or commit SHA as ref; the image tag sha-<sha> is none of them.',
       "        shaRef=0; case \"$data\" in *'\"ref\":\"sha-'*) shaRef=1 ;; esac",
       '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [ "$shaRef" = 1 ]; then',

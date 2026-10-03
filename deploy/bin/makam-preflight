@@ -85,6 +85,12 @@ cleanup() {
   TMP_PATHS=()
 }
 trap cleanup EXIT
+# The one file the SumoPod key and the GitHub token are written to for curl's
+# `-H @file`. It is made here, in the main shell, so the trap knows it (a file
+# made inside $(...) would be lost to the cleanup list), and emptied after each call.
+new_tmp
+HEADER_FILE=$REPLY
+chmod 600 "$HEADER_FILE"
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -428,13 +434,10 @@ check_smtp() {
 # in neither the argument list nor the output. The path can be overridden with
 # MAKAM_PREFLIGHT_SUMOPOD_PATH if SumoPod documents a better read-only call.
 sumopod_get() {
-  local key=$1 headers
-  new_tmp
-  headers=$REPLY
-  chmod 600 "$headers"
-  printf 'X-Api-Key: %s\n' "$key" > "$headers"
-  curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$headers" "$SUMOPOD_URL" 2> /dev/null || printf 'no answer'
-  rm -f "$headers"
+  local key=$1
+  printf 'X-Api-Key: %s\n' "$key" > "$HEADER_FILE"
+  curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$SUMOPOD_URL" 2> /dev/null || printf 'no answer'
+  : > "$HEADER_FILE"
 }
 
 check_sumopod_key() {
