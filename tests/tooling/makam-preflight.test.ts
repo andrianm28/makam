@@ -206,4 +206,17 @@ describe("makam-preflight", () => {
     expect(pulled.calls).not.toContain(SECRETS.GHCR_READ_TOKEN);
     expect(pulled.output).not.toContain(SECRETS.GHCR_READ_TOKEN);
   });
+
+  it("runs makam-verify-image on the pulled digest and fails an image the production key did not sign", () => {
+    const unsigned = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_COSIGN_SIGNED: "0" });
+    expect(unsigned.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*image signature.*production.*unsigned/));
+
+    const signed = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(signed.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*image signature/));
+    expect(signed.calls).toContain(`cosign verify --key ${signed.calls.includes("prod/cosign.pub") ? "" : ""}`.trimEnd());
+    expect(signed.calls).toContain(`@${DIGEST}`);
+
+    const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+    expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*image signature.*pull/));
+  });
 });
