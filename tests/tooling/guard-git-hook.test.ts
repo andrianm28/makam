@@ -164,3 +164,20 @@ describe("guard-git hook, secrets in outgoing commits", () => {
     expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
   });
 });
+
+describe("guard-git hook, failing closed", () => {
+  it("refuses what it cannot read, with a way forward", () => {
+    for (const input of ["not json", JSON.stringify({ tool_input: {} })]) {
+      const r = runHook("guard-git.sh", input);
+      expect(r.status, input).toBe(2);
+      expect(r.stderr, input).toMatch(/fail-closed/);
+    }
+  });
+
+  it("refuses a push it cannot place when the directory is not a git repository", () => {
+    const dir = tmpDir("gg-nogit-", dirs);
+    const r = runHook("guard-git.sh", { tool_input: { command: "git push origin x" }, cwd: dir }, { cwd: dir });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/fail-closed/);
+  });
+});

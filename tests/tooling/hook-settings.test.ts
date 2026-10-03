@@ -42,4 +42,8 @@ describe("settings.json registrations", () => {
     // Rules with parentheses are skipped for MCP tools: only bare tool names.
     expect(deny.filter((r) => r.startsWith("mcp__") && r.includes("("))).toEqual([]);
   });
+
+  it("runs the git guard before every Bash command", () => {
+    expect(preToolUse("Bash").join("\n")).toContain("guard-git.sh");
+  });
 });

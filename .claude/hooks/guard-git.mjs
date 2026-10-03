@@ -177,7 +177,7 @@ function noSecrets(cwd) {
       "gitleaks found a possible secret in the commits this push would send (or could not scan them). Output:\n" +
         `${(r.stdout + r.stderr).trim().slice(0, 1500)}\n` +
         "Remove the secret from the commits (a new commit does not remove it from history: amend or reset the unpushed commits), " +
-        "rotate it if it was real, or, for a false positive, add the accepted finding with a reason to `.gitleaks.toml` and push again.",
+        "rotate it if it was real; if the scan itself failed, `git fetch origin main` and push again; for a false positive, add the accepted finding with a reason to `.gitleaks.toml` and push again.",
     );
   }
 }
