@@ -485,4 +485,32 @@ describe("makam-preflight", () => {
     expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[02\].*uptime monitor.*outside the VPS.*alert contact/));
     expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*nginx switch.*owner.*Production \(ticket 65\)/));
   });
+
+  it("exits 0 with only PASS and SKIP lines on a ready host, exits 1 on any FAIL, and never prints a secret either way", () => {
+    const args = ["--digest", DIGEST, "--email-to", "owner@example.test"];
+    const ready = preflight(healthy(world()), args);
+    expect(ready.code).toBe(0);
+    expect(ready.lines.filter((line) => line.startsWith("FAIL"))).toEqual([]);
+    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(2);
+
+    const broken = preflight(healthy(world()), args, {
+      FAKE_DOCKER_INFO: "1",
+      FAKE_DF_USE: "99",
+      FAKE_DNS_IP: "203.0.113.9",
+      FAKE_PULL: "1",
+      FAKE_S3_PUT: "1",
+      FAKE_SUMOPOD_CODE: "401",
+      FAKE_WEBHOOK_CODE: "200",
+      FAKE_BACKUP_CODE: "78",
+    });
+    expect(broken.code).toBe(1);
+    expect(broken.lines.filter((line) => line.startsWith("FAIL")).length).toBeGreaterThan(5);
+
+    for (const result of [ready, broken]) {
+      for (const secret of Object.values(SECRETS)) {
+        expect(result.output).not.toContain(secret);
+        expect(result.calls).not.toContain(secret);
+      }
+    }
+  });
 });
