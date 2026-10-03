@@ -16,7 +16,9 @@
 # 04 SumoPod, 72 deploys). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
 #
 # Read-only, except for objects it names itself and removes again: the S3 probe
-# object and the GitHub probe Deployment. It never prints a secret value: env
+# object, the GitHub probe Deployment and the Dump its own backup writes. One
+# thing is not removed: makam-backup-db prunes Dumps older than 7 days, as it does
+# on every run, so a preflight can age out the oldest night's Dump. It never prints a secret value: env
 # file settings are read with sed (the file is never sourced), handed to the one
 # command that needs them, and only names or reasons are written out. The
 # existing scripts and CLIs do the work (makam-diskcheck, makam-verify-image,

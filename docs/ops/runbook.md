@@ -1743,9 +1743,11 @@ Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-C
 
 Run this on the VPS before the production rehearsal (ticket 72) and again
 before the nginx switch. It answers one question: which prerequisite of tickets
-02, 03, 04 and 72 is still missing? It is read-only, except for two probes it
-names and removes again (an S3 object and a GitHub Deployment), and it never
-prints a secret value.
+02, 03, 04 and 72 is still missing? It is read-only, except for three things it
+names and removes again (an S3 object, a GitHub Deployment, and the Dump its own
+backup writes), and it never prints a secret value. One exception stays:
+`makam-backup-db` prunes Dumps older than 7 days on every run, so a preflight can
+age out the oldest night's Dump.
 
 ```bash
 makam-preflight --env prod --digest sha256:<released digest> --email-to <your address>
