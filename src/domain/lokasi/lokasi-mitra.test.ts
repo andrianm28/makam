@@ -412,3 +412,20 @@ describe("the policies and flags of a Lokasi Mitra", () => {
     expect(await setup.lokasi.lokasiMitra(admin, created.id)).toMatchObject({ lokasiMitra: { policies, flags } });
   });
 });
+
+describe("the reason of a Lokasi Mitra's creating write", () => {
+  it("is recorded on the Entri Audit of lokasi.buat when the caller gives one, and is empty when it gives none", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const baru = { name: "Makam Wakaf Al-Amin", pengelolaName: "Yayasan Al-Amin", address: "Jl. Mawar 3", city: "Kota Bogor" };
+
+    const tanpa = await setup.lokasi.createLokasiMitra(admin, baru);
+    const dengan = await setup.lokasi.createLokasiMitra(admin, baru, { reason: "impor katalog (production, --izinkan-produksi)" });
+
+    if (!tanpa.ok || !dengan.ok) throw new Error("create refused");
+    const alasanDari = async (id: string) =>
+      (await setup.audit.entriesAbout({ kind: "lokasi_mitra", id })).find((entry) => entry.action === "lokasi.buat")?.reason;
+    expect(await alasanDari(tanpa.lokasiMitra.id)).toBeNull();
+    expect(await alasanDari(dengan.lokasiMitra.id)).toBe("impor katalog (production, --izinkan-produksi)");
+  });
+});
