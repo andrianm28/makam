@@ -116,6 +116,7 @@ describe("makam-switch --ke pemeliharaan", () => {
   it("installs the maintenance block and page, and v1 again afterwards, each backed up", () => {
     const w = host();
     run(w, ["--ke", "v1"]);
+    writeFileSync(w.calls, "");
     const r = run(w, ["--ke", "pemeliharaan"]);
     expect(r.code).toBe(0);
     expect(site(w)).toBe(readFileSync(path.join(repo, "deploy/nginx/maintenance/makam.co.id.conf"), "utf8"));

@@ -49,12 +49,22 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
 done
+
+V1_BLOCK="$SRC/makam.co.id.conf"
+MAINT_BLOCK="$SRC/maintenance/makam.co.id.conf"
+
+if [ "$CHECK" = 1 ]; then
+  if cmp -s "$V1_BLOCK" "$SITE"; then echo v1; exit 0; fi
+  if cmp -s "$MAINT_BLOCK" "$SITE"; then echo pemeliharaan; exit 0; fi
+  echo lain
+  exit 1
+fi
+
 case "$TARGET" in
-  v1|pemeliharaan) ;;
+  v1) BLOCK=$V1_BLOCK ;;
+  pemeliharaan) BLOCK=$MAINT_BLOCK ;;
   *) usage 64 ;;
 esac
-
-BLOCK="$SRC/makam.co.id.conf"
 [ -r "$BLOCK" ] || { echo "refusing: no block at $BLOCK" >&2; exit 78; }
 
 if cmp -s "$BLOCK" "$SITE"; then
@@ -65,14 +75,22 @@ fi
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 install -d -m 0700 "$BACKUPS"
 BACKUP="$BACKUPS/makam.co.id.conf.$STAMP"
+# Two switches in one second must not overwrite each other's backup.
+n=1
+while [ -e "$BACKUP" ]; do BACKUP="$BACKUPS/makam.co.id.conf.$STAMP-$n"; n=$((n + 1)); done
 cp -p "$SITE" "$BACKUP"
 echo "backed up the current block to $BACKUP"
 install -m 0640 "$BLOCK" "$SITE"
-install -m 0644 "$SRC/makam-prod-proxy.conf" "$SNIPPET"
+if [ "$TARGET" = v1 ]; then
+  install -m 0644 "$SRC/makam-prod-proxy.conf" "$SNIPPET"
+else
+  install -d -m 0755 "$WWW"
+  install -m 0644 "$SRC/maintenance/index.html" "$WWW/index.html"
+fi
 if ! nginx -t; then
   cp -p "$BACKUP" "$SITE"
   echo "nginx -t failed: restored the previous block from $BACKUP; nginx was not reloaded" >&2
   exit 1
 fi
 systemctl reload nginx
-echo "makam.co.id now serves v1"
+echo "makam.co.id now serves $TARGET"
