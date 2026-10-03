@@ -110,10 +110,21 @@ function commands(line) {
 
 const PUSH_FLAGS_WITH_VALUE = new Set(["-o", "--push-option", "--receive-pack", "--exec", "--repo"]);
 
+/** Drops redirections (`> f`, `2>f`, `2>`, `< f`): their targets are file names, not arguments. */
+function withoutRedirects(words) {
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    if (/^\d*[<>]+&?\d*$/.test(words[i])) i++; // a bare operator takes the next word as its target
+    else if (!/^\d*[<>]/.test(words[i])) out.push(words[i]);
+  }
+  return out;
+}
+
 /** The `git push` invocations in a command line: { all, deletes, refspecs } (refspecs after the remote). */
 function pushes(line) {
   const found = [];
-  for (const words of commands(line)) {
+  for (const raw of commands(line)) {
+    const words = withoutRedirects(raw);
     let i = words.indexOf("git");
     if (i < 0) continue;
     // Skip git's own options (-C dir, -c k=v, --git-dir=...) up to the subcommand.
