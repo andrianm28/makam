@@ -151,3 +151,20 @@ describe("a merge that fails for a reason other than conflicts", () => {
     expect(existsSync(path.join(cwd, "drizzle/0000_init.sql"))).toBe(true);
   });
 });
+
+describe("a merge worktree with uncommitted changes", () => {
+  it("is refused before anything is set aside, merged, deleted or restored", () => {
+    const cwd = fixtureRepo();
+    git(cwd, "checkout", "-q", "-b", "ticket-5");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+    write(cwd, "drizzle/0000_init.sql", 'CREATE TABLE "base" ("id" int);\n-- uncommitted edit\n');
+    const asideDir = path.join(tmp("makam-aside-"), "aside");
+
+    expect(() => renumberForMerge({ cwd, branchRef: "ticket-5", baseRef: "HEAD", asideDir })).toThrow(/uncommitted/i);
+    expect(read(cwd, "drizzle/0000_init.sql")).toContain("uncommitted edit");
+    expect(existsSync(asideDir)).toBe(false);
+    expect(git(cwd, "rev-parse", "-q", "--verify", "HEAD").trim()).not.toBe("");
+  });
+});
