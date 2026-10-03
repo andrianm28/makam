@@ -56,6 +56,21 @@ PULLED=0
 # One setting of the env file; the file is never sourced and the value never printed.
 setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2> /dev/null | tail -n 1 || true; }
 
+# Everything a run creates that must not outlive it (a throwaway Docker config
+# with the ghcr token, header files with the SumoPod key and GitHub token, probe
+# bodies) is registered here and removed on any way out, Ctrl-C and SIGTERM
+# included.
+TMP_PATHS=()
+new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
+cleanup() {
+  local path
+  for path in ${TMP_PATHS[@]+"${TMP_PATHS[@]}"}; do rm -rf "$path"; done
+  TMP_PATHS=()
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 line() { printf '%s [%s] %s: %s\n' "$1" "$2" "$3" "$4"; }
 pass() { line PASS "$@"; }
 skip() { line SKIP "$@"; }
@@ -148,7 +163,8 @@ check_image_pull() {
   login_note="the host's own ghcr login"
   token=$(setting GHCR_READ_TOKEN)
   if [ -n "$token" ]; then
-    config=$(mktemp -d)
+    new_tmp -d
+    config=$REPLY
     login_note="the read token from $ENV_NAME.env"
     if ! printf '%s' "$token" | DOCKER_CONFIG="$config" docker login ghcr.io -u andrianm28 --password-stdin > /dev/null 2>&1; then
       rm -rf "$config"
@@ -223,8 +239,10 @@ check_s3_probe() {
   key_id=$(setting S3_ACCESS_KEY_ID)
   secret=$(setting S3_SECRET_ACCESS_KEY)
   probe="makam-preflight-probe-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  body=$(mktemp)
-  got=$(mktemp)
+  new_tmp
+  body=$REPLY
+  new_tmp
+  got=$REPLY
   printf 'makam-preflight %s\n' "$probe" > "$body"
   if ! s3api "$key_id" "$secret" put-object --bucket "$bucket" --key "$probe" --body "$body" > /dev/null 2>&1; then
     problem="put was refused"
@@ -273,7 +291,8 @@ check_s3_settings() {
   bucket=$(setting S3_BUCKET_FILES)
   key_id=$(setting S3_ACCESS_KEY_ID)
   secret=$(setting S3_SECRET_ACCESS_KEY)
-  err=$(mktemp)
+  new_tmp
+  err=$REPLY
   if out=$(s3api "$key_id" "$secret" get-public-access-block --bucket "$bucket" --output text \
     --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' 2> "$err"); then
     out=$(printf '%s' "$out" | tr 'A-Z\t' 'a-z ')
@@ -392,7 +411,8 @@ check_sumopod_key() {
   base=$(setting SUMOPOD_BASE_URL)
   base=${base:-https://api-pay.sumopod.com}
   url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
-  headers=$(mktemp)
+  new_tmp
+  headers=$REPLY
   chmod 600 "$headers"
   printf 'X-Api-Key: %s\n' "$(setting SUMOPOD_API_KEY)" > "$headers"
   code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$headers" "$url" 2> /dev/null) || code="no answer"
@@ -437,7 +457,8 @@ check_webhook_forged() {
 # the HTTP status; the response body goes to $BODY_FILE.
 gh_call() {
   local method=$1 path=$2 data=${3:-} headers code
-  headers=$(mktemp)
+  new_tmp
+  headers=$REPLY
   chmod 600 "$headers"
   printf 'Authorization: Bearer %s\n' "$(setting MAKAM_GITHUB_TOKEN)" > "$headers"
   code=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' --max-time 20 -X "$method" \
@@ -464,7 +485,8 @@ check_github_deployments() {
   fi
   rev=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF" 2> /dev/null || true)
   ref="sha-$rev"
-  BODY_FILE=$(mktemp)
+  new_tmp
+  BODY_FILE=$REPLY
   code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$ref\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
   id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
   message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
