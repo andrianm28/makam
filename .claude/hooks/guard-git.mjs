@@ -253,6 +253,13 @@ function noPushToMain(push) {
  * Only without a session id (an unknown platform) does it fall back to a marker the session wrote in its git dir, and says so.
  */
 function mainWriter(push) {
+  if (writersListMissing(push)) {
+    notes.push(
+      "guard-git: bootstrap mode: origin/main has no `.claude/main-writers` yet, so any session may push `main` for now. " +
+        "The merge thread that merges ticket 87 writes the coordinator (`docs`) and itself (`merge`) into that file; from then on only listed sessions may push `main`.",
+    );
+    return "merge";
+  }
   const sid = process.env.CLAUDE_CODE_REMOTE_SESSION_ID;
   if (!sid) {
     notes.push(
@@ -263,6 +270,27 @@ function mainWriter(push) {
   }
   const id = sid.replace(/^[A-Za-z]+_/, ""); // cse_X and session_X name the same session
   return roleIn(readWriters(push), id) ?? roleIn(readWriters(push, true), id);
+}
+
+/** True when origin/main exists (after a fetch if needed) and carries no `.claude/main-writers`: the list has not been bootstrapped yet. */
+function writersListMissing(push) {
+  const has = () => {
+    try {
+      git(push, ["rev-parse", "--verify", "-q", "origin/main"]);
+    } catch {
+      return null; // no origin/main to look at
+    }
+    try {
+      git(push, ["cat-file", "-e", "origin/main:.claude/main-writers"]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const first = has();
+  if (first !== false) return false;
+  readWriters(push, true); // fetch, then look again
+  return has() === false;
 }
 
 /** The text of .claude/main-writers on origin/main, after a fetch when `fetch` is set; empty when there is none. */
