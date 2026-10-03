@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { repoRoot } from "../support/hook";
@@ -47,10 +47,7 @@ describe("settings.json registrations", () => {
     expect(preToolUse("Bash").join("\n")).toContain("guard-git.sh");
   });
 
-  it("ships the allowlist of main writers, with only comments and valid entries", () => {
-    const lines = readFileSync(path.join(repoRoot, ".claude/main-writers"), "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
-    expect(lines.some((l) => l.startsWith("#"))).toBe(true);
-    for (const l of lines.filter((l) => !l.startsWith("#"))) expect(l).toMatch(/^[A-Za-z0-9]+\s+(merge|docs)(\s.*)?$/);
+  it("does not ship .claude/main-writers: the merge thread of ticket 87 creates it, and its arrival ends bootstrap mode", () => {
+    expect(existsSync(path.join(repoRoot, ".claude/main-writers"))).toBe(false);
   });
 });
-
