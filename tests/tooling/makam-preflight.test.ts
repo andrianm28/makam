@@ -96,7 +96,7 @@ function healthy(w: ReturnType<typeof world>) {
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
       `  pull) ${INTERRUPT_AT("pull")}; exit "\${FAKE_PULL:-0}" ;;`,
       "  login) cat > /dev/null ;;",
-      '  image) echo "${FAKE_REVISION:-' + REVISION + '}" ;;',
+      '  image) echo "${FAKE_REVISION-' + REVISION + '}" ;;',
       '  run) case "$*" in',
       '        *env-check.mjs*) echo "${FAKE_ENVCHECK_OUT:-environment is complete for production}"; exit "${FAKE_ENVCHECK_CODE:-0}" ;;',
       '        *email-check.mjs*) echo "${FAKE_EMAIL_OUT:-Email uji accepted}"; exit "${FAKE_EMAIL_CODE:-0}" ;;',
