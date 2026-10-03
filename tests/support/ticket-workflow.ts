@@ -69,6 +69,11 @@ export function ticketComments(text: string): string[] {
  */
 export const TICKET_FILE_NAME = /^\d\d-[^\s]+\.md$/;
 
+/** The ticket number a ticket file's name carries: every digit before the first dash. */
+export function ticketNumber(name: string): number {
+  return Number(name.slice(0, name.indexOf("-")));
+}
+
 /**
  * The `.md` files of the issues directory that are not ticket files. A `100-*.md`
  * and a `07-*.MD` are the same class of problem: the readers match file names
