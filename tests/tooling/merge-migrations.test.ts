@@ -78,3 +78,23 @@ describe("renumbering a branch's migration at merge time", () => {
     expect(readFileSync(result.setAside[0]!, "utf8")).toBe('CREATE TABLE "feat" ("id" int);');
   });
 });
+
+describe("renumbering when main has taken the branch's number", () => {
+  it("keeps main's own migration, journal and snapshot and sets the branch's aside", () => {
+    const cwd = fixtureRepo();
+    git(cwd, "checkout", "-q", "-b", "ticket-2");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+    addMigration(cwd, "0001_other", 'CREATE TABLE "other" ("id" int);');
+    commit(cwd, "main took 0001");
+
+    const result = renumberForMerge({ cwd, branchRef: "ticket-2", baseRef: "HEAD" });
+
+    expect(readdirSync(path.join(cwd, "drizzle")).filter((f) => f.endsWith(".sql")).sort()).toEqual(["0000_init.sql", "0001_other.sql"]);
+    expect(journalTags(cwd)).toEqual(["0000_init", "0001_other"]);
+    expect(JSON.parse(read(cwd, "drizzle/meta/0001_snapshot.json")).id).toBe("id-0001_other");
+    expect(result.setAside.map((f) => path.basename(f))).toEqual(["0001_feat.sql"]);
+    expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("");
+  });
+});
