@@ -493,15 +493,12 @@ check_webhook_forged() {
 # One GitHub API call with the deploy token in a mode 0600 header file. Prints
 # the HTTP status; the response body goes to $BODY_FILE.
 gh_call() {
-  local method=$1 path=$2 data=${3:-} headers code
-  new_tmp
-  headers=$REPLY
-  chmod 600 "$headers"
-  printf 'Authorization: Bearer %s\n' "$(setting MAKAM_GITHUB_TOKEN)" > "$headers"
+  local method=$1 path=$2 data=${3:-} code
+  printf 'Authorization: Bearer %s\n' "$(setting MAKAM_GITHUB_TOKEN)" > "$HEADER_FILE"
   code=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' --max-time 20 -X "$method" \
-    -H "@$headers" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' -H 'User-Agent: makam-preflight' \
+    -H "@$HEADER_FILE" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' -H 'User-Agent: makam-preflight' \
     ${data:+--data "$data"} "https://api.github.com$path" 2> /dev/null) || code="no answer"
-  rm -f "$headers"
+  : > "$HEADER_FILE"
   printf '%s' "$code"
 }
 
