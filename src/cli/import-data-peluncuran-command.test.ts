@@ -171,6 +171,19 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan"
     expect(await tariffs.globalTariffHistory("biaya_pengurusan_pemakaman")).toHaveLength(2);
   });
 
+  it("shows in the dry run the same refusals the write would make, a past date and an amount beyond the limit", async () => {
+    const { tariffs } = await modul();
+    const salah = ["jenis,jumlah_rupiah,berlaku_mulai", "berkas,350000,2026-09-01", "pemakaman,100000000001,", ""].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "biaya-pengurusan.csv": salah })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("Biaya Pengurusan: 2 baris dibaca, 0 akan dibuat, 0 akan diubah, 0 sama, 2 ditolak.");
+    expect(hasil.output).toContain("biaya-pengurusan.csv baris 2: berlaku_mulai 2026-09-01 sudah lewat");
+    expect(hasil.output).toContain("biaya-pengurusan.csv baris 3: jumlah_rupiah");
+    expect(await tariffs.globalTariffHistory("biaya_pengurusan_berkas")).toEqual([]);
+  });
+
   it("refuses an unknown jenis, an amount written with a thousands separator, and a past date, each with its reason", async () => {
     const { tariffs } = await modul();
     const salah = ["jenis,jumlah_rupiah,berlaku_mulai", "kremasi,100000,", "pemakaman,750.000,", "berkas,350000,2026-09-01", ""].join("\n");
@@ -181,7 +194,7 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan"
     expect(hasil.output).toContain("Biaya Pengurusan: 3 baris dibaca, 0 dibuat, 0 diubah, 0 sama, 3 ditolak.");
     expect(hasil.output).toContain('biaya-pengurusan.csv baris 2: jenis: jenis harus "pemakaman" atau "berkas"');
     expect(hasil.output).toContain("biaya-pengurusan.csv baris 3: jumlah_rupiah: jumlah_rupiah harus bilangan bulat rupiah");
-    expect(hasil.output).toContain("biaya-pengurusan.csv baris 4: tanggal_berlaku_lampau");
+    expect(hasil.output).toContain("biaya-pengurusan.csv baris 4: berlaku_mulai 2026-09-01 sudah lewat");
     expect(await tariffs.globalTariffHistory("biaya_pengurusan_berkas")).toEqual([]);
   });
 });
