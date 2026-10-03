@@ -10,7 +10,7 @@
  * regenerates the branch's schema change under the next free number.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -27,7 +27,14 @@ export type RenumberResult = {
   asideDir: string;
   /** The branch's added migration files, as copied into `asideDir`. */
   setAside: string[];
+  /** Ticket files (`.scratch/**\/*.md`) whose conflict was resolved by keeping both sides. */
+  unionResolved: string[];
 };
+
+/** Keeps both sides of every conflict hunk (ours, then theirs); the diff3 base section is dropped. */
+export function unionConflictMarkers(text: string): string {
+  return text.replace(/<<<<<<< [^\n]*\n([\s\S]*?)(?:\|\|\|\|\|\|\| [^\n]*\n[\s\S]*?)?=======\n([\s\S]*?)>>>>>>> [^\n]*\n/g, (_m, ours: string, theirs: string) => ours + theirs);
+}
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -59,6 +66,15 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
     // conflicts are expected; they are handled below
   }
 
+  const unionResolved: string[] = [];
+  for (const file of lines(git(cwd, ["diff", "--name-only", "--diff-filter=U"]))) {
+    if (/^\.scratch\/.*\.md$/.test(file)) {
+      writeFileSync(path.join(cwd, file), unionConflictMarkers(readFileSync(path.join(cwd, file), "utf8")));
+      git(cwd, ["add", "--", file]);
+      unionResolved.push(file);
+    }
+  }
+
   // `git checkout <ref> -- <path>` on a path that is still unmerged does not restore it
   // (the silent failure in the orchestration manual), so clear every unmerged drizzle path
   // from the index first, then restore main's copies by name and verify them.
@@ -73,7 +89,7 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   git(cwd, ["checkout", base, "--", ...restore]);
   const stray = lines(git(cwd, ["diff", "--name-only", base, "--", ...restore]));
   if (stray.length > 0) throw new Error(`could not restore ${base}'s copy of: ${stray.join(", ")}`);
-  return { asideDir, setAside };
+  return { asideDir, setAside, unionResolved };
 }
 
 if (require.main === module) {
