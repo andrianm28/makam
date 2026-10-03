@@ -33,7 +33,7 @@ function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1] } =
   if (opts.branch) git(dir, "checkout", "-q", "-b", opts.branch);
   const bin = fakeBin(tmpDir("gg-bin-", dirs), opts.tools ?? {});
   const bash = (command: string) =>
-    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, path: `${bin}:/usr/bin:/bin` });
+    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, path: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin` });
   return { dir, bin, bash, commit };
 }
 
