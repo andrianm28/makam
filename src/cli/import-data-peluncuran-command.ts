@@ -264,7 +264,8 @@ export async function olahKatalog(
   return hasil;
 }
 
-async function olahLayanan(
+/** The DKI price rows of `layanan-dki.csv`. Exported so a test can hand it a Tariffs module that refuses the second write of a row. */
+export async function olahLayanan(
   folder: string,
   db: Database,
   katalogLayanan: Pick<Layanan, "katalog">,

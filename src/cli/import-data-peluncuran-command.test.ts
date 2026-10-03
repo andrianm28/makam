@@ -12,7 +12,7 @@ import { layananOnTestDatabase, catalogFixture } from "../../tests/support/layan
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { signedInAdminPlatform } from "../../tests/support/identity";
 import { lokasiOnTestDatabase } from "../../tests/support/lokasi";
-import { importDataPeluncuranCommand, olahKatalog } from "./import-data-peluncuran-command";
+import { importDataPeluncuranCommand, olahKatalog, olahLayanan } from "./import-data-peluncuran-command";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -398,7 +398,27 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI
     expect(await tarifMitraJasa()).toBe(190_000);
   });
 
-  it("enters neither price when one of the row's two amounts is refused", async () => {
+  it("enters neither price when Tariffs refuses the second write of the row, after the first succeeded", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { admin, varian } = await catalogFixture(setup);
+    const sekarang = wib("2026-10-01 09:00");
+    // Tariffs accepts the DKI price and refuses the Mitra Jasa rate: only the transaction can take the first back.
+    const menolakTarifMitra = {
+      ...setup.tariffs,
+      within: (tx: typeof db) => ({
+        ...setup.tariffs.within(tx),
+        setTarifMitraJasa: async () => ({ ok: false as const, reason: "tarif_tidak_valid" as const }),
+      }),
+    };
+
+    const hasil = await olahLayanan(folder({ "layanan-dki.csv": LAYANAN }), db, setup.layanan, menolakTarifMitra, admin, sekarang, "uji");
+
+    expect(hasil.ditolak).toEqual([expect.stringContaining("layanan-dki.csv baris 2: jumlah tidak diterima Tariffs")]);
+    expect(hasil.dibuat).toBe(0);
+    expect(await setup.tariffs.hargaLayananDki(varian!.id, sekarang)).toBeNull();
+  });
+
+  it("refuses the row whose Mitra Jasa rate is above the limit before anything is entered", async () => {
     const { hargaDki, tarifMitraJasa } = await katalog();
     const salah = LAYANAN.replace("180000", "100000000001");
 
