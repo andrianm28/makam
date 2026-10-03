@@ -487,14 +487,14 @@ describe("npm run import:data-peluncuran: reading the spreadsheet's CSV", () => 
 describe("npm run import:data-peluncuran: the template the owner fills in", () => {
   const TEMPLATE = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
 
-  it("passes the dry run with its worked example rows, once the catalog has the example Layanan", async () => {
-    const setup = layananOnTestDatabase(db);
-    await catalogFixture(setup, { varian: ["Standar"] });
+  it("passes the dry run with its worked example rows alone: the example Layanan comes from the template's own catalog file", async () => {
+    await modul();
 
     const hasil = await importDataPeluncuranCommand(["--sumber", TEMPLATE], env(), { clock: clock() });
 
     expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.output).toContain("Biaya Pengurusan: 2 baris dibaca, 2 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.output).toContain("Nazhir: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.exitCode).toBe(0);
