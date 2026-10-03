@@ -52,9 +52,12 @@ const INTERRUPT_AT = (step: string) =>
   [
     `if [ "\${FAKE_INTERRUPT:-}" = ${step} ] && [ ! -e "$FAKE_LOG.interrupted" ]; then`,
     '  touch "$FAKE_LOG.interrupted"',
-    "  p=$PPID",
-    '  while ! grep -qa makam-preflight "/proc/$p/cmdline" 2> /dev/null; do p=$(ps -o ppid= -p "$p" | tr -d " "); [ -n "$p" ] || break; done',
-    '  kill -TERM "$p"',
+    "  p=$PPID; top=",
+    '  while [ -n "$p" ] && [ "$p" != 1 ]; do',
+    '    if grep -qa makam-preflight "/proc/$p/cmdline" 2> /dev/null; then top=$p; elif [ -n "$top" ]; then break; fi',
+    '    p=$(ps -o ppid= -p "$p" | tr -d " ")',
+    "  done",
+    '  kill -TERM "$top"',
     "fi",
   ].join("\n");
 

@@ -63,6 +63,8 @@ setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2> /dev/null | tail -n 1 || true; }
 TMP_PATHS=()
 new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
 PENDING_S3_KEY=""
+PENDING_DEPLOY_ID=""
+PENDING_DEPLOY_REPO=""
 REMOVE_NOTE=""
 cleanup() {
   local path
@@ -70,6 +72,12 @@ cleanup() {
     s3api "$(setting S3_ACCESS_KEY_ID)" "$(setting S3_SECRET_ACCESS_KEY)" delete-object \
       --bucket "$(setting S3_BUCKET_FILES)" --key "$PENDING_S3_KEY" > /dev/null 2>&1 || true
     PENDING_S3_KEY=""
+  fi
+  if [ -n "$PENDING_DEPLOY_ID" ]; then
+    new_tmp
+    BODY_FILE=$REPLY
+    remove_probe_deployment "$PENDING_DEPLOY_REPO" "$PENDING_DEPLOY_ID" > /dev/null 2>&1 || true
+    PENDING_DEPLOY_ID=""
   fi
   for path in ${TMP_PATHS[@]+"${TMP_PATHS[@]}"}; do rm -rf "$path"; done
   TMP_PATHS=()
@@ -493,6 +501,7 @@ remove_probe_deployment() {
     REMOVE_PROBLEM="probe deployment $id is left on $repo ($REMOVE_PROBLEM): delete it by hand in GitHub, Deployments"
     return 1
   fi
+  PENDING_DEPLOY_ID=""
 }
 
 # Does makam-deploy-status work from this host? It creates a Deployment with
@@ -518,6 +527,8 @@ check_github_deployments() {
   id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
   message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
   if [ -n "$id" ] && [ "$code" = 201 ]; then
+    PENDING_DEPLOY_ID=$id
+    PENDING_DEPLOY_REPO=$repo
     if remove_probe_deployment "$repo" "$id"; then
       pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
     else
@@ -528,6 +539,8 @@ check_github_deployments() {
     code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[]}")
     id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
     if [ -n "$id" ] && [ "$code" = 201 ]; then
+      PENDING_DEPLOY_ID=$id
+      PENDING_DEPLOY_REPO=$repo
       remove_probe_deployment "$repo" "$id" || REMOVE_NOTE=" Also: $REMOVE_PROBLEM."
       fail "72" "github deployments" "ref $ref is not a branch, tag or commit SHA, so GitHub answers 422: makam-deploy-status sends the image tag as ref and every deploy then goes unreported (logged only in deploy.log); GitHub accepts the plain commit SHA $rev, so the ref must be the revision.${REMOVE_NOTE:-}"
     else
