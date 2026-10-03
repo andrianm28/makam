@@ -22,10 +22,31 @@ function decide(text) {
   const command = input?.tool_input?.command;
   if (typeof command !== "string") deny("no command in the tool input; refusing (fail-closed).");
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
-  for (const words of commands(command)) noPullRequest(words);
-  const sent = pushes(command);
+  const all = allCommands(command);
+  for (const words of all) noPullRequest(words);
+  const sent = pushes(all);
   for (const push of sent) noPushToMain(push, cwd);
   if (sent.length) noSecrets(cwd);
+}
+
+const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
+
+/** Every command in a line, including those inside `bash -c "…"`, `sh -c '…'` and `eval …` strings, at any depth. */
+function allCommands(line, depth = 0) {
+  const out = [];
+  for (const words of commands(line)) {
+    out.push(words);
+    const [tool, ...rest] = program(words);
+    let inner = null;
+    if (tool === "eval") inner = rest.join(" ");
+    else if (SHELLS.has(tool)) {
+      const flag = rest.findIndex((w) => /^-[A-Za-z]*c[A-Za-z]*$/.test(w));
+      if (flag >= 0 && rest[flag + 1] !== undefined) inner = rest[flag + 1];
+    }
+    if (inner !== null && depth >= 5) throw new Error("shell strings nested more than 5 deep");
+    if (inner !== null) out.push(...allCommands(inner, depth + 1));
+  }
+  return out;
 }
 
 const WRAPPERS = new Set(["command", "env", "sudo", "exec", "nohup", "time", "nice", "stdbuf"]);
@@ -147,9 +168,9 @@ function withoutRedirects(words) {
 }
 
 /** The `git push` invocations in a command line: { all, deletes, refspecs } (refspecs after the remote). */
-function pushes(line) {
+function pushes(all) {
   const found = [];
-  for (const raw of commands(line)) {
+  for (const raw of all) {
     const words = program(withoutRedirects(raw));
     if (words[0] !== "git") continue;
     let i = 0;
