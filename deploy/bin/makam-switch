@@ -64,6 +64,10 @@ cp -p "$SITE" "$BACKUP"
 echo "backed up the current block to $BACKUP"
 install -m 0640 "$BLOCK" "$SITE"
 install -m 0644 "$SRC/makam-prod-proxy.conf" "$SNIPPET"
-nginx -t
+if ! nginx -t; then
+  cp -p "$BACKUP" "$SITE"
+  echo "nginx -t failed: restored the previous block from $BACKUP; nginx was not reloaded" >&2
+  exit 1
+fi
 systemctl reload nginx
 echo "makam.co.id now serves v1"
