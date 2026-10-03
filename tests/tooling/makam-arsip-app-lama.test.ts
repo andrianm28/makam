@@ -167,3 +167,65 @@ describe("makam-arsip-app-lama fails closed", () => {
     expect(uploaded(w)).toEqual([]);
   });
 });
+
+describe("makam-arsip-app-lama's cleanup plan", () => {
+  it("prints the old app's objects by name after the proof, and deletes nothing without --hapus", () => {
+    const w = host();
+    const r = run(w);
+    expect(r.code).toBe(0);
+    for (const named of [
+      "makam-nonprod-db-1",
+      "makam-nonprod-web-1",
+      "makam-nonprod-pgdata",
+      "makam-app:latest",
+      "makam-app:old",
+      w.oldApp,
+      w.notify,
+      "makam.co.id.conf.20261003T010000Z",
+      "dev.makam.co.id.conf.20260925T111554Z",
+    ]) {
+      expect(r.output).toContain(named);
+    }
+    // Nothing of v1, production or staging is in the plan.
+    for (const foreign of ["makam-prod-web-1", "makam-staging-postgres-1", "makam-v1-thing", "makam-prod_pgdata", "makam-staging_files", "ghcr.io/andrianm28/makam", "postgres:18.6", "makam.co.id.conf.20261003T020000Z"]) {
+      expect(r.output).not.toContain(foreign);
+    }
+    expect(r.docker).not.toMatch(/volume rm|rmi |rm -f makam-nonprod/);
+    expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+  });
+});
+
+describe("makam-arsip-app-lama --hapus", () => {
+  it("deletes nothing unless the word is typed exactly", () => {
+    const w = host();
+    const r = run(w, ["--hapus"], "ya\n");
+    expect(r.code).not.toBe(0);
+    expect(r.docker).not.toMatch(/volume rm|rmi |rm -f makam-nonprod/);
+    expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+    expect(existsSync(path.join(w.root, "nginx-backups", "makam.co.id.conf.20261003T010000Z"))).toBe(true);
+  });
+
+  it("removes exactly the planned objects by name, and never prunes or takes -a/--all", () => {
+    const w = host();
+    const r = run(w, ["--hapus"], `${CONFIRM}\n`);
+    expect(r.code).toBe(0);
+    const removals = r.docker.split("\n").filter((l) => /^docker (rm -f makam-nonprod|volume rm|rmi )/.test(l));
+    expect(removals.sort()).toEqual(
+      [
+        "docker rm -f makam-nonprod-db-1",
+        "docker rm -f makam-nonprod-web-1",
+        "docker volume rm makam-nonprod-pgdata",
+        "docker rmi makam-app:latest",
+        "docker rmi makam-app:old",
+      ].sort(),
+    );
+    expect(r.docker).not.toMatch(/prune|\s-a\b|--all/);
+    expect(existsSync(w.oldApp)).toBe(false);
+    expect(existsSync(w.notify)).toBe(false);
+    // The old app's nginx blocks go; v1's backup stays.
+    const left = readdirSync(path.join(w.root, "nginx-backups"));
+    expect(left).toEqual(["makam.co.id.conf.20261003T020000Z"]);
+    // The archive stays.
+    expect(readdirSync(path.join(w.root, "archive", "app-lama")).some((f) => f.endsWith(".dump.enc"))).toBe(true);
+  });
+});
