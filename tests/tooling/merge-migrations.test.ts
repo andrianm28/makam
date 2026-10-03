@@ -199,3 +199,39 @@ describe("a restore that leaves main's journal changed", () => {
     expect(err.join("\n")).toMatch(/could not restore/);
   });
 });
+
+describe("the renumber command line's exit code", () => {
+  function runCli(cwd: string, argv: string[]): { code: number; out: string; err: string } {
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = renumberMergeCli(argv, { cwd, out: (l) => out.push(l), err: (l) => err.push(l) });
+    return { code, out: out.join("\n"), err: err.join("\n") };
+  }
+
+  function repoWithBranch(branchFile: string, mainFile?: string): string {
+    const cwd = fixtureRepo();
+    write(cwd, "src/x.ts", "start\n");
+    commit(cwd, "file");
+    git(cwd, "checkout", "-q", "-b", "ticket-7");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    write(cwd, "src/x.ts", branchFile);
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+    if (mainFile !== undefined) {
+      write(cwd, "src/x.ts", mainFile);
+      commit(cwd, "main edit");
+    }
+    return cwd;
+  }
+
+  it("is 0 after a clean renumber, and names the set-aside folder and the next commands", () => {
+    const cwd = repoWithBranch("start\nbranch\n");
+
+    const { code, out } = runCli(cwd, ["ticket-7"]);
+
+    expect(code).toBe(0);
+    expect(out).toMatch(/Set aside 1 migration file/);
+    expect(out).toMatch(/npm run db:generate/);
+    expect(out).toMatch(/merge-proofs\.ts /);
+  });
+});
