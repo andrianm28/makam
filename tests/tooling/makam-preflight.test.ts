@@ -357,4 +357,22 @@ describe("makam-preflight", () => {
     expect(failed.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03, 72\].*backup and restore.*makam-restore-test.*1/));
     expect(readdirSync(path.join(badRestore.root, "prod", "backups", "db"))).toEqual([]);
   });
+
+  it("sends one email through the image's email-check to the address the owner passes, and skips with the instruction when none is passed", () => {
+    const none = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(none.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[04\].*smtp.*--email-to/));
+    expect(none.calls).not.toContain("email-check");
+
+    const sent = preflight(healthy(world()), ["--digest", DIGEST, "--email-to", "owner@example.test"]);
+    expect(sent.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*smtp.*relay/));
+    expect(sent.calls).toMatch(/docker run --rm --env-file \S+\/prod\/prod\.env -e APP_ENV=production ghcr\.io\/andrianm28\/makam@sha256:b{64} node dist\/email-check\.mjs owner@example\.test/);
+    expect(sent.output).not.toContain("owner@example.test");
+
+    const refused = preflight(healthy(world()), ["--digest", DIGEST, "--email-to", "owner@example.test"], {
+      FAKE_EMAIL_CODE: "1",
+      FAKE_EMAIL_OUT: "[email-check] Gagal kirim: rejected 550",
+    });
+    expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*smtp.*Gagal kirim: rejected 550/));
+    expect(refused.output).not.toContain("owner@example.test");
+  });
 });
