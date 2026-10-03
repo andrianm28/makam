@@ -87,3 +87,14 @@ describe("makam-switch --ke v1", () => {
     expect(r.output).toMatch(/v1/);
   });
 });
+
+describe("makam-switch when nginx -t fails", () => {
+  it("puts the backup back, does not reload, and exits non-zero", () => {
+    const w = host();
+    const r = run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(r.code).not.toBe(0);
+    expect(site(w)).toBe(OLD_BLOCK);
+    expect(r.calls).not.toContain("systemctl reload nginx");
+    expect(r.output).toMatch(/restored/i);
+  });
+});
