@@ -436,8 +436,10 @@ check_smtp() {
 sumopod_get() {
   local key=$1
   printf 'X-Api-Key: %s\n' "$key" > "$HEADER_FILE"
-  curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$SUMOPOD_URL" 2> /dev/null || printf 'no answer'
+  local code
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$SUMOPOD_URL" 2> /dev/null) || code="no answer"
   : > "$HEADER_FILE"
+  printf '%s' "$code"
 }
 
 check_sumopod_key() {
