@@ -104,7 +104,7 @@ export function ticketFileProblems(names: string[], index = "00-index.md"): stri
 export function indexRows(index: string): Map<number, IndexRow> {
   const rows = new Map<number, IndexRow>();
   for (const line of index.split("\n")) {
-    const match = /^\|[ \t]*\[(\d{1,2})\]\(([^)]+\.md)\)[ \t]*\|/.exec(line);
+    const match = /^\|[ \t]*\[(\d+)\]\(([^)]+\.md)\)[ \t]*\|/.exec(line);
     if (match === null) continue;
     const cells = line.split("|").map((cell) => cell.trim());
     rows.set(Number(match[1]), { file: match[2], status: cells[3] ?? "" });
