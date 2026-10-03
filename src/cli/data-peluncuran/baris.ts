@@ -55,3 +55,28 @@ export type BarisTpu = z.output<typeof barisTpuSchema>;
 export function alasanBaris(error: z.ZodError): string {
   return error.issues.map((isu) => `${isu.path.join(".") || "baris"}: ${isu.message}`).join("; ");
 }
+
+/** A whole-rupiah cell: digits only, no "Rp", no thousands separator, so `750.000` is refused rather than read as 750. */
+const rupiah = (nama: string) =>
+  z.string().regex(/^\d+$/, `${nama} harus bilangan bulat rupiah tanpa titik atau "Rp", misalnya 750000`).transform(Number);
+
+/** An optional effective date: blank means the day of the import, anything else is `TTTT-BB-HH`. */
+const berlakuMulai = z
+  .string()
+  .transform((nilai) => (nilai === "" ? null : nilai))
+  .pipe(z.iso.date({ error: "berlaku_mulai harus TTTT-BB-HH atau kosong" }).nullable());
+
+export const barisBiayaSchema = z
+  .object({
+    jenis: z.enum(["pemakaman", "berkas"], { error: 'jenis harus "pemakaman" atau "berkas"' }),
+    jumlah_rupiah: rupiah("jumlah_rupiah"),
+    berlaku_mulai: berlakuMulai,
+  })
+  .transform((baris) => ({
+    kunci: baris.jenis === "pemakaman" ? ("biaya_pengurusan_pemakaman" as const) : ("biaya_pengurusan_berkas" as const),
+    jenis: baris.jenis,
+    jumlah: baris.jumlah_rupiah,
+    berlakuMulai: baris.berlaku_mulai,
+  }));
+
+export type BarisBiaya = z.output<typeof barisBiayaSchema>;

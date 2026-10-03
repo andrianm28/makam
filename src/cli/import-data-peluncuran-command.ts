@@ -16,10 +16,11 @@ import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
+import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
-import { wibDateOf } from "@/lib/time/jakarta";
+import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
-import { alasanBaris, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
+import { alasanBaris, barisBiayaSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
 import { bacaCsv } from "./data-peluncuran/csv";
 import { cliFailure } from "./cli-failure";
 
@@ -99,6 +100,55 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
       }
     }
     hasil.dibuat += 1;
+  }
+  return hasil;
+}
+
+const ALASAN_IMPOR = "Impor data peluncuran (ticket 06)";
+
+/** The moment a version entered for `berlakuMulai` is in force: now, or the start of a later date. */
+function saatBerlaku(berlakuMulai: string | null, sekarang: Date): Date {
+  const hariIni = wibDateOf(sekarang);
+  return berlakuMulai !== null && berlakuMulai > hariIni ? wib(`${berlakuMulai} 00:00`) : sekarang;
+}
+
+async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekarang: Date, tulis: boolean): Promise<Ringkasan> {
+  const hasil = kosong();
+  const csv = bacaBerkas(folder, "biaya-pengurusan.csv");
+  if (!csv) return hasil;
+  const terlihat = new Set<string>();
+  for (const baris of csv.baris) {
+    hasil.dibaca += 1;
+    const parsed = barisBiayaSchema.safeParse(baris.nilai);
+    if (!parsed.success) {
+      hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: ${alasanBaris(parsed.error)}`);
+      continue;
+    }
+    const biaya = parsed.data;
+    if (terlihat.has(biaya.jenis)) {
+      hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: jenis "${biaya.jenis}" sudah muncul di baris sebelumnya`);
+      continue;
+    }
+    terlihat.add(biaya.jenis);
+    const berlaku = await tariffs.globalTariff(biaya.kunci, saatBerlaku(biaya.berlakuMulai, sekarang));
+    if (berlaku?.amount === biaya.jumlah) {
+      hasil.sama += 1;
+      continue;
+    }
+    if (tulis) {
+      const dicatat = await tariffs.setGlobalTariff(aktor, {
+        key: biaya.kunci,
+        amount: biaya.jumlah,
+        effectiveOn: biaya.berlakuMulai ?? wibDateOf(sekarang),
+        reason: ALASAN_IMPOR,
+      });
+      if (!dicatat.ok) {
+        hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: ${dicatat.reason}`);
+        continue;
+      }
+    }
+    if (berlaku) hasil.diubah += 1;
+    else hasil.dibuat += 1;
   }
   return hasil;
 }
@@ -188,8 +238,13 @@ export async function importDataPeluncuranCommand(
         totp: "lolos",
         sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
       };
+      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
       const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
-      return laporan(tulis, [{ judul: "TPU DKI", ringkasan: tpu }]);
+      const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), tulis);
+      return laporan(tulis, [
+        { judul: "TPU DKI", ringkasan: tpu },
+        { judul: "Biaya Pengurusan", ringkasan: biaya },
+      ]);
     } finally {
       await database.close();
     }
