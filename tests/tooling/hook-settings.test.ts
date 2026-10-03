@@ -23,4 +23,23 @@ describe("settings.json registrations", () => {
       "require-subagent-model.sh",
     );
   });
+
+  it("denies the GitHub MCP tools that open, merge or update pull requests or write files and branches through the API", () => {
+    const deny = settings.permissions?.deny ?? [];
+    for (const tool of [
+      "mcp__github__create_pull_request",
+      "mcp__github__merge_pull_request",
+      "mcp__github__update_pull_request",
+      "mcp__github__update_pull_request_branch",
+      "mcp__github__enable_pr_auto_merge",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "mcp__github__delete_file",
+      "mcp__github__create_branch",
+    ]) {
+      expect(deny, tool).toContain(tool);
+    }
+    // Rules with parentheses are skipped for MCP tools: only bare tool names.
+    expect(deny.filter((r) => r.startsWith("mcp__") && r.includes("("))).toEqual([]);
+  });
 });
