@@ -58,7 +58,7 @@ const MARKER = "Two-axis review";
  * reconstructed here.
  *
  * Above 43 the discipline *was* in force when those tickets merged, so they are
- * what a plain `>= 43` rule would fail on today. GRACE below names them: 17
+ * what a plain `>= 43` rule would fail on today. GRACE below names them: 16
  * tickets at or above the boundary that resolved before this guard existed, so
  * no marker was ever written for them. Their record is left exactly as the
  * merges left it — several carry review evidence in another wording, some carry
