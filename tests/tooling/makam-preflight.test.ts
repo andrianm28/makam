@@ -479,4 +479,10 @@ describe("makam-preflight", () => {
     // The probe made with the plain SHA is cleaned up too.
     expect(result.calls).toMatch(/-X DELETE .*deployments\/42/);
   });
+
+  it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
+    const result = preflight(healthy(world()));
+    expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[02\].*uptime monitor.*outside the VPS.*alert contact/));
+    expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*nginx switch.*owner.*Production \(ticket 65\)/));
+  });
 });
