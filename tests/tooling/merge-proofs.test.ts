@@ -36,6 +36,13 @@ describe("the snapshot chain, resolved as a program", () => {
     expect(chain.unexpected).toEqual([]);
   });
 
+  it("names a snapshot file that is not valid JSON with an id and a prevId, instead of guessing", () => {
+    const dir = drizzleDir([["0000", "a", "00000000-0000-0000-0000-000000000000"]]);
+    writeFileSync(path.join(dir, "meta/0001_snapshot.json"), JSON.stringify({ version: "7" }));
+
+    expect(() => checkSnapshotChain(dir)).toThrow(/0001_snapshot\.json/);
+  });
+
   it("flags a dangling prevId outside the known gaps", () => {
     const dir = drizzleDir([
       ["0018", "b", "gone-1"],
