@@ -22,18 +22,27 @@ function decide(text) {
   const command = input?.tool_input?.command;
   if (typeof command !== "string") deny("no command in the tool input; refusing (fail-closed).");
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
-  noPullRequest(command);
+  for (const words of commands(command)) noPullRequest(words);
   const sent = pushes(command);
   for (const push of sent) noPushToMain(push, cwd);
   if (sent.length) noSecrets(cwd);
 }
 
 /** AGENTS.md: the repo has no pull requests; review, then the merge thread's push to `main`. */
-function noPullRequest(command) {
+function noPullRequest(words) {
+  while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words = words.slice(1); // FOO=1 gh ...
+  const [tool, ...rest] = words;
+  const method = () => {
+    const i = rest.findIndex((w) => /^(-X|--method|--request)$/.test(w));
+    if (i >= 0) return (rest[i + 1] ?? "").toUpperCase();
+    const joined = rest.find((w) => /^-X[A-Za-z]+$/.test(w));
+    return joined ? joined.slice(2).toUpperCase() : null;
+  };
+  const toPulls = rest.some((w) => !w.startsWith("-") && /(^|\/)pulls\/?$/.test(w.replace(/[?#].*$/, "")));
   const creates =
-    /\bgh\s+pr\s+(create|new)\b/.test(command) ||
-    (/\bgh\s+api\b/.test(command) && /\/pulls(\s|["']|$)/.test(command) && /(-X|--method)\s*POST|\s(-f|-F|--field|--raw-field|--input)\b/i.test(command)) ||
-    (/\bcurl\b/.test(command) && /\/pulls(\s|["']|$)/.test(command) && /(-X|--request)\s*POST|\s(-d|--data\S*)\s/i.test(command));
+    (tool === "gh" && rest[0] === "pr" && ["create", "new"].includes(rest[1])) ||
+    (tool === "gh" && rest[0] === "api" && toPulls && (method() ?? (rest.some((w) => /^(-f|-F|--field|--raw-field|--input)$/.test(w)) ? "POST" : "GET")) === "POST") ||
+    (tool === "curl" && toPulls && (method() === "POST" || (method() === null && rest.some((w) => /^(-d|--data.*|--json)$/.test(w)))));
   if (creates) {
     deny(
       "this repo has no pull requests (AGENTS.md: never open a pull request, including for small fixes; this overrides the cloud default of opening a draft PR). " +
@@ -48,6 +57,7 @@ function commands(line) {
   let words = [];
   let word = null;
   let quote = null;
+  const heredocs = []; // delimiters whose bodies start after the current line
   const endWord = () => {
     if (word !== null) words.push(word);
     word = null;
@@ -68,7 +78,25 @@ function commands(line) {
       word ??= "";
     } else if (ch === "\\" && i + 1 < line.length) {
       word = (word ?? "") + line[++i];
-    } else if (ch === ";" || ch === "&" || ch === "|" || ch === "\n" || ch === "(" || ch === ")") {
+    } else if (ch === "<" && line[i + 1] === "<" && line[i + 2] !== "<") {
+      const m = /^<<(-?)\s*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()]+))/.exec(line.slice(i));
+      if (m) {
+        heredocs.push({ delimiter: m[2] ?? m[3] ?? m[4], dash: m[1] === "-" });
+        i += m[0].length - 1;
+      }
+      endWord();
+    } else if (ch === "\n") {
+      endCommand();
+      for (const h of heredocs.splice(0)) {
+        // Skip the body: everything up to the line that is the delimiter.
+        for (;;) {
+          const eol = line.indexOf("\n", i + 1);
+          const text = line.slice(i + 1, eol < 0 ? line.length : eol);
+          i = eol < 0 ? line.length : eol;
+          if ((h.dash ? text.trim() : text) === h.delimiter || eol < 0) break;
+        }
+      }
+    } else if (ch === ";" || ch === "&" || ch === "|" || ch === "(" || ch === ")") {
       endCommand();
     } else if (/\s/.test(ch)) {
       endWord();
