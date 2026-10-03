@@ -104,6 +104,7 @@ export async function createLokasiMitra(
   deps: LokasiDeps,
   by: Actor,
   input: NewLokasiMitra,
+  options: { reason?: string } = {},
 ): Promise<CreateLokasiMitraResult> {
   const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
   if (refusal) return refusal;
@@ -140,7 +141,7 @@ export async function createLokasiMitra(
         city: created.city,
         status: created.status,
       },
-      reason: null,
+      reason: options.reason ?? null,
     });
     return { ok: true, lokasiMitra: created } as const;
   });
@@ -258,6 +259,7 @@ export async function updateProfile(
   by: Actor,
   lokasiId: string,
   input: LokasiProfileInput,
+  options: { reason?: string } = {},
 ): Promise<UpdateProfileResult> {
   const parsed = lokasiProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "profil_tidak_valid" };
@@ -294,6 +296,7 @@ export async function updateProfile(
       facilities: { checked: row.facilities, note: row.facilitiesNote },
     },
     after: { ...profile },
+    reason: options.reason,
   }));
 }
 
