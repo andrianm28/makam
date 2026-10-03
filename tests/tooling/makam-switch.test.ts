@@ -151,3 +151,28 @@ describe("makam-switch --cek", () => {
     expect(run(host(), []).code).toBe(64);
   });
 });
+
+describe("makam-switch when nginx -t fails, beyond the site file", () => {
+  it("also puts back the proxy snippet and the maintenance page it had replaced", () => {
+    const w = host();
+    writeFileSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"), "# earlier snippet\n");
+    mkdirSync(w.www, { recursive: true });
+    writeFileSync(path.join(w.www, "index.html"), "<p>earlier page</p>\n");
+    const r = run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(r.code).not.toBe(0);
+    expect(readFileSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"), "utf8")).toBe("# earlier snippet\n");
+    const m = run(host(), ["--ke", "pemeliharaan"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(m.code).not.toBe(0);
+    const w2 = host();
+    mkdirSync(w2.www, { recursive: true });
+    writeFileSync(path.join(w2.www, "index.html"), "<p>earlier page</p>\n");
+    run(w2, ["--ke", "pemeliharaan"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(readFileSync(path.join(w2.www, "index.html"), "utf8")).toBe("<p>earlier page</p>\n");
+  });
+
+  it("removes a snippet or page that did not exist before, rather than leaving it behind", () => {
+    const w = host();
+    run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(existsSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"))).toBe(false);
+  });
+});
