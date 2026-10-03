@@ -114,10 +114,18 @@ describe('the runbook "Hari switch"', () => {
 
   it("gives the day's steps in order: preflight, archive, promotion, switch, checks, fallback", () => {
     expect(runbook).toContain("## Hari switch");
-    const order = ["makam-preflight", "makam-arsip-app-lama", "promote.yml", "makam-switch --ke v1", "/api/health", "/api/webhooks/pembayaran", "makam-switch --ke pemeliharaan"];
-    const at = order.map((step) => section.indexOf(step));
-    expect(at.every((i) => i >= 0)).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // Each step is a numbered item; the markers must sit in steps 1, 2, 3, 4, 5, 5 and 6 respectively.
+    const steps = section.split(/\n(?=\d+\. \*\*)/).slice(1);
+    const markers: [number, string][] = [
+      [0, "makam-preflight"],
+      [1, "makam-arsip-app-lama"],
+      [2, "promote.yml"],
+      [3, "makam-switch --ke v1"],
+      [4, "/api/health"],
+      [4, "/api/webhooks/pembayaran"],
+      [5, "makam-switch --ke pemeliharaan"],
+    ];
+    for (const [step, marker] of markers) expect(steps[step], marker).toContain(marker);
   });
 
   it("has the owner archive the makam-app GitHub repository, read-only", () => {
