@@ -278,3 +278,31 @@ Blocking remaining: no. Standards: 1 partly (item 8, nit); Spec: clean.
   - **Q11 (owner decision), bootstrap of `.claude/main-writers`:** while the list is absent from `origin/main` (after one fetch), a push to `main` is allowed with a plain "bootstrap mode" warning; once it exists only listed ids may push, as built. The merge thread that merges ticket 87 creates the file in that same merge with the coordinator's id (`docs`) and its own (`merge`); afterwards the coordinator adds each new merge thread's id, and at rotation its successor's. No owner step. Because the file's arrival ends bootstrap, **the repo does not ship it** (I removed my empty-comments version; a test guards that). Documented in `docs/agents/orchestration.md` ("Enforcement in settings", the "Who may push `main`" sub-bullet). This closes my earlier gap (1).
   - **Q12 (owner decision), gitleaks before a push:** the hook runs CI's pinned image (`zricethezav/gitleaks:v8.30.1@sha256:c00b…`) through Docker with CI's arguments (`git . --config .gitleaks.toml --redact --no-banner`) and refuses the push on a finding (exit 1); exit 125–127 or a Docker that is down gives the plain "NOT scanned" notice. Refs covered, as documented: the whole local repository, every ref this clone has plus the unpushed commits (what CI sees after `fetch-depth: 0`, which is why a fixture on a builder's branch turned main red); a shallow clone sees only what it fetched. The scanner is injectable (`MAKAM_GITLEAKS_CMD`, an executable given the repo directory), so Vitest tests the decisions with a stub and with a fake `docker` that records the command line; no image is pulled in tests, and no secret-like string is committed. This closes my earlier gap (2); the old "range `origin/main..HEAD`, local gitleaks binary" check is replaced.
   - Counts off whole logs: `npx vitest run` on the four hook test files + `ticket-workflow.test.ts`: 5 files, 113 tests passed, exit 0; `npm run lint` exit 0 (0 errors, 6 pre-existing warnings); `npm run typecheck` exit 0. Full suite not run (orchestrator's). Remaining for the owner: nothing from this pass; gap (3) (tokenizer limits) and (4) (merge-thread id check) of the first fix pass stand.
+
+### Re-review at 996dbcf (fix passes c3a25c5 and 996dbcf), 2026-10-03
+
+Fixed point 8a8ee62..996dbcf. Hook tests run by the reviewer: `npx vitest run tests/tooling`, 24 files passed, 289 tests passed, 1 skipped, exit 0 (read off a whole log).
+
+**Earlier findings (ebe4937), item by item**
+- Standards 1 blocking (coordinator's docs push falsely denied by two-dot diff): OK (`guard-git.mjs:332` three-dot, test `guard-git-hook.test.ts:138`).
+- Should-fix: redirect target read as refspec OK; `gh api`/curl writes to refs and contents OK; other spellings (`/usr/bin/git`, `bash -c`, `eval`, wildcard, `heads/main`) OK; `-C`/`--git-dir` OK; denial text no longer names the marker escape OK.
+- Nit `echo git push` OK; nit unused `push.deletes`: code OK, but the doc comment at `guard-git.mjs:176` still lists `deletes` (BELUM, trivial).
+- Nit duplicated regex: BELUM, partly (`httpMethod` keeps two near-identical regexes). Nit `settings.json` reformatting: BELUM. Nit long orchestration bullet: BELUM.
+- Spec: model matrix OK; role identification OK (allowlist keyed on session id); marker in no brief OK; gitleaks OK (real scan); `gh pr merge` not addressed (trivial, BELUM).
+
+**Owner decisions**
+- Q11 (bootstrap, then listed ids only; merge thread writes `docs` and `merge`; documented): OK, in code (`guard-git.mjs:256-294`), tests and `orchestration.md`; the repo does not ship the list (test `22dfc103`).
+- Q12 (CI's pinned image through Docker, CI's arguments, blocks on a finding, "NOT scanned" only without Docker, docs name the refs): OK. Image and digest match `ci.yml:87`; arguments match `ci.yml:88` except `--verbose`.
+
+**Red/green order**: vertical pairs for nearly all behaviours. Should-fix: `e8eda7f8` + `01bc333c` are two reds before one feat `ad6582ec` (three behaviours); `c17eb412` + `05394465` are two tests before one feat `0c826485` (allowlist read, fetch on a miss, marker fallback). Nit: `fda9cef1` removed the old gitleaks tests before `19e93c62` brought new ones; the green for `22dfc103` is folded into docs commit `996dbcf`.
+
+**New findings**: 0 blocking / 3 should-fix / 8 nit. Worst should-fix first:
+1. Should-fix (reviewer, Spec): grouped reds before one feat (above), twice.
+2. Should-fix (reviewer, from the live probe): the pre-push scan covers every ref in the clone, so one leak on another branch blocks every push, and the denial text says "remove it from the unpushed commits", which is wrong then. See Probe.
+3. Nits: `--verbose` missing versus CI and docs say "the arguments CI uses"; duplicated `--git-dir` option building (`:208-209`, `:299`); the "Docker unavailable" test does not say daemon or binary; plus the BELUM nits above.
+
+**Gitleaks, CI's command over all fetched refs**: 1 leak, so NOT the expected "no leaks". It is not on this branch: `VAPID_PRIVATE_KEY` in `src/cli/env-check-command.test.ts:16`, commit `a445e1ec` (`test(red): env-check accepts a complete production environment...`), present on `origin/ticket-72-preflight`, `-rereview`, `-rereview-2` and `-review`, not in this branch and not in `origin/main`. Owner/ticket 72 must build that value at runtime or allow it in `.gitleaks.toml` with a reason before 72 merges. Log deleted.
+
+**Probe**: `git push --dry-run origin HEAD:main` printed `guard-git: gitleaks found a possible secret in this repository's history, the same scan main CI runs on every branch` (the leak above), and refused; the bootstrap warning was not reached because the scan runs first. So the expected bootstrap warning is NOT confirmed live in this clone. A clone without ticket-72 refs should be probed again.
+
+Hard remaining: no for ticket 87's own code (nothing blocking); the ticket-72 leak and finding 2 are open.
