@@ -1,0 +1,80 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { renumberForMerge } from "../../scripts/migrations/renumber-merge";
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
+function tmp(prefix: string): string {
+  const d = mkdtempSync(path.join(tmpdir(), prefix));
+  dirs.push(d);
+  return d;
+}
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+function write(cwd: string, file: string, content: string): void {
+  mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true });
+  writeFileSync(path.join(cwd, file), content);
+}
+
+function read(cwd: string, file: string): string {
+  return readFileSync(path.join(cwd, file), "utf8");
+}
+
+/** Appends migration `tag` (e.g. "0001_feat") to the drizzle folder: SQL, snapshot chained to the previous one, journal entry. */
+function addMigration(cwd: string, tag: string, sql: string): void {
+  const journalPath = "drizzle/meta/_journal.json";
+  const journal = existsSync(path.join(cwd, journalPath)) ? JSON.parse(read(cwd, journalPath)) : { entries: [] };
+  const prev = journal.entries.at(-1);
+  const prevId = prev ? `id-${prev.tag}` : "00000000-0000-0000-0000-000000000000";
+  journal.entries.push({ idx: journal.entries.length, tag });
+  write(cwd, journalPath, `${JSON.stringify(journal, null, 2)}\n`);
+  write(cwd, `drizzle/${tag}.sql`, sql);
+  write(cwd, `drizzle/meta/${tag.slice(0, 4)}_snapshot.json`, `${JSON.stringify({ id: `id-${tag}`, prevId }, null, 2)}\n`);
+}
+
+function commit(cwd: string, message: string): void {
+  git(cwd, "add", "-A");
+  git(cwd, "commit", "-q", "-m", message);
+}
+
+/** A repo on `main` with migration 0000 committed. */
+function fixtureRepo(): string {
+  const cwd = tmp("makam-merge-mig-");
+  git(cwd, "init", "-q", "-b", "main");
+  git(cwd, "config", "user.email", "t@example.test");
+  git(cwd, "config", "user.name", "t");
+  addMigration(cwd, "0000_init", 'CREATE TABLE "base" ("id" int);');
+  commit(cwd, "base");
+  return cwd;
+}
+
+function journalTags(cwd: string): string[] {
+  return JSON.parse(read(cwd, "drizzle/meta/_journal.json")).entries.map((e: { tag: string }) => e.tag);
+}
+
+describe("renumbering a branch's migration at merge time", () => {
+  it("sets the branch's migration aside and leaves main's journal and snapshots, so the next generate takes the next free number", () => {
+    const cwd = fixtureRepo();
+    git(cwd, "checkout", "-q", "-b", "ticket-1");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+
+    const result = renumberForMerge({ cwd, branchRef: "ticket-1", baseRef: "HEAD" });
+
+    expect(readdirSync(path.join(cwd, "drizzle")).filter((f) => f.endsWith(".sql"))).toEqual(["0000_init.sql"]);
+    expect(existsSync(path.join(cwd, "drizzle/meta/0001_snapshot.json"))).toBe(false);
+    expect(journalTags(cwd)).toEqual(["0000_init"]);
+    expect(result.setAside.map((f) => path.basename(f))).toEqual(["0001_feat.sql"]);
+    expect(readFileSync(result.setAside[0]!, "utf8")).toBe('CREATE TABLE "feat" ("id" int);');
+  });
+});
