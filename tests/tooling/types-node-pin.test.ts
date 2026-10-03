@@ -23,9 +23,16 @@ function declaredMajor(range: string): string {
   return major;
 }
 
-/** The Node major of the Dockerfile's `FROM node:` line (first only, for now). */
+/**
+ * The one Node major of the Dockerfile's `FROM node:<major>…` lines (the form
+ * used today is digest-pinned: `node:22-bookworm-slim@sha256:…`); throws when
+ * there is none or when the stages name different majors.
+ */
 function dockerNodeMajor(dockerfile: string): string {
-  return dockerfile.match(/^FROM node:(\d+)[-.@\s]/m)![1]!;
+  const majors = [...new Set([...dockerfile.matchAll(/^FROM node:(\d+)[-.@\s]/gm)].map((m) => m[1]!))];
+  if (majors.length === 0) throw new Error("no `FROM node:<major>` line in the Dockerfile");
+  if (majors.length > 1) throw new Error(`the Dockerfile's node: stages differ in major: ${majors.join(", ")}`);
+  return majors[0]!;
 }
 
 describe("@types/node follows the runtime's Node major", () => {
