@@ -417,4 +417,19 @@ describe("makam-preflight", () => {
     expect(bad.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod webhook secret.*whsec_/));
     expect(bad.output).not.toContain("plainsecret");
   });
+
+  it("posts a forged Svix signature to the webhook URL and fails unless it answers 401", () => {
+    const refused = preflight(healthy(world()));
+    expect(refused.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*webhook forged signature.*https:\/\/makam\.co\.id\/api\/webhooks\/pembayaran.*401/));
+    expect(refused.calls).toMatch(/curl .*-X POST .*svix-signature: v1,[A-Za-z0-9+/=]+ .*https:\/\/makam\.co\.id\/api\/webhooks\/pembayaran/);
+
+    const accepted = preflight(healthy(world()), [], { FAKE_WEBHOOK_CODE: "200" });
+    expect(accepted.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*webhook forged signature.*200.*accepts forged/));
+
+    const old = preflight(healthy(world()), [], { FAKE_WEBHOOK_CODE: "404" });
+    expect(old.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*webhook forged signature.*404.*nginx switch/));
+
+    const local = preflight(healthy(world()), ["--webhook-url", "http://127.0.0.1:3100/api/webhooks/pembayaran"]);
+    expect(local.calls).toContain("http://127.0.0.1:3100/api/webhooks/pembayaran");
+  });
 });
