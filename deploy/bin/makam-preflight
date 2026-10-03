@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# makam-preflight: which prerequisite of the production go-live is still missing?
+#
+#   makam-preflight --env prod [--digest sha256:...] [--email-to <address>]
+#                   [--skip-s3] [--webhook-url <url>]
+#
+# Run by the owner on the VPS before the production rehearsal (ticket 72,
+# "Added 2026-10-03"; docs/ops/runbook.md, "Production preflight"). One line per
+# check:
+#
+#   PASS [02] docker: ...        the prerequisite holds
+#   FAIL [03] s3 probe: ...      it does not; the reason says what to do
+#   SKIP [72] uptime monitor: .. cannot be checked from here; the instruction is on the line
+#
+# The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
+# 04 SumoPod, 72 deploys). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+#
+# Read-only, except for objects it names itself and removes again: the S3 probe
+# object and the GitHub probe Deployment. It never prints a secret value: env
+# file settings are read with sed (the file is never sourced), handed to the one
+# command that needs them, and only names or reasons are written out. The
+# existing scripts and CLIs do the work (makam-diskcheck, makam-verify-image,
+# makam-backup-db, makam-restore-test, email-check, env-check); this script
+# only calls them and reads their exit codes.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+[ "$ENV_NAME" = prod ] || { echo "--env must be prod" >&2; usage 64; }
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+FAILS=0
+
+line() { printf '%s [%s] %s: %s\n' "$1" "$2" "$3" "$4"; }
+pass() { line PASS "$@"; }
+skip() { line SKIP "$@"; }
+fail() { FAILS=$((FAILS + 1)); line FAIL "$@"; }
+
+check_env_file() {
+  if [ ! -r "$ENV_FILE" ]; then
+    fail "02, 72" "env file" "$ENV_FILE is missing or unreadable; create it as in docs/ops/runbook.md, \"Production (ticket 65)\""
+    return 1
+  fi
+}
+
+#@FUNCS
+
+check_env_file || true
+#@CALLS
+
+echo
+if [ "$FAILS" -eq 0 ]; then
+  echo "preflight: nothing FAILed (read the SKIP lines: they are yours to do)"
+  exit 0
+fi
+echo "preflight: $FAILS check(s) FAILed"
+exit 1

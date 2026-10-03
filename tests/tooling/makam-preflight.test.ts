@@ -89,4 +89,12 @@ describe("makam-preflight", () => {
     expect(result.code).toBe(1);
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*env file.*prod\.env/));
   });
+
+  it("fails the env file check when other users can read the file, and passes a 0600 one", () => {
+    const loose = preflight(world({ envMode: 0o644 }));
+    expect(loose.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*env file.*0644/));
+
+    const private_ = preflight(world());
+    expect(private_.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*env file/));
+  });
 });
