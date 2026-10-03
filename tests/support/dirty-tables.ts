@@ -51,18 +51,30 @@ async function watchNewTables(query: Query): Promise<void> {
 
 /**
  * Empties every table written to since the last reset (all of them the first
- * time), restarting identities; a table dropped since is skipped.
+ * time), restarting identities, in one statement so a record cannot be cleared
+ * unread. A table dropped since is skipped. A sequence a rolled-back insert
+ * advanced leaves no record, so every sequence in use is restarted as well.
  */
 export async function truncateDirtyTables(query: Query): Promise<void> {
   await watchNewTables(query);
-  const { rows } = await query(
-    `select distinct d.tablename from ${SCHEMA}.dirty d
-      where exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
-                     where n.nspname = 'public' and c.relname = d.tablename and c.relkind in ('r', 'p'))`,
+  await query(
+    `do $reset$
+     declare tables text; used record;
+     begin
+       select string_agg(format('public.%I', tablename), ', ') into tables
+         from (select distinct d.tablename from ${SCHEMA}.dirty d
+                where exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                               where n.nspname = 'public' and c.relname = d.tablename and c.relkind in ('r', 'p'))) dirty;
+       delete from ${SCHEMA}.dirty;
+       if tables is not null then
+         execute 'truncate ' || tables || ' restart identity cascade';
+       end if;
+       for used in select format('%I.%I', schemaname, sequencename) as name from pg_sequences
+                    where schemaname = 'public' and last_value is not null loop
+         execute 'alter sequence ' || used.name || ' restart';
+       end loop;
+     end $reset$`,
   );
-  if (rows.length === 0) return;
-  const tables = rows.map((row) => `public.${quote(row.tablename)}`).join(", ");
-  await query(`begin; truncate ${tables} restart identity cascade; truncate ${SCHEMA}.dirty; commit;`);
 }
 
 /** Forgets the record, so the next reset empties every table once; a run starts from here on a database an earlier run used. */

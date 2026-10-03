@@ -39,3 +39,18 @@ The Vitest suite is about 65 % of a main run's 23 minutes. Three of the research
 | After (A + B; D is CI-only) | 345 | 3199 passed, 1 skipped | **1103 s (18.4 min)** | 1102 s (tests 72 %, import 27 %) |
 
 −351 s (−24 %) locally; the 2 extra files and 7 extra tests are this ticket's own. Less than the research's estimate (it expected A alone to save 300–500 s): the truncate cost was lower than estimated, and the box was also running one other task for part of the "before" run. D is not measurable locally: by the research's job timings it takes the image build (3.5 min) off the critical path of a main run.
+
+### Review (two axes, sonnet reviewers, head 6b81cfb)
+
+**Standards**: 0 hard, 2 should-fix, 3 nit.
+1. should-fix: `reset-database.test.ts` counts rows in every table and creates a probe table, against "never on table layouts". Decision: kept, as the one exception; it is the test of the test harness itself (the ticket asks for it) and its assertions are "no row left anywhere", not any table's layout. Test names stay in plain words because the subject is the harness, not a domain term.
+2. should-fix: `ci-workflow.test.ts` parses `needs:` with regexes, so a multi-line list would read as `[]` and the `image` check would pass wrongly. Fix: the parser must account for every `needs:` line in the file.
+3. nit: the B test's title promised deploy scripts but read only the compose files. Fix: it reads every tracked file under `deploy/` too.
+4. nit: the tuning step is duplicated in two jobs. Left (no pins; factor out if a third service appears).
+5. nit: the "before" run overlapped a light task, so 24 % is soft. Stated in the timings.
+
+**Spec**: 5 criteria met, 2 partly (the deploy-script title above, and sequences below); 4 holes: 1 should-fix, 3 minor.
+1. should-fix: a rolled-back or failed insert still advances an identity sequence but leaves no trigger record, so ids no longer restart as `truncate … restart identity` on every table did. Fix: a reset also restarts every sequence that has been used.
+2. minor: reading the dirty list and truncating were two statements. Fix: one `do` block.
+3. minor: only `public` is watched, a later table is caught at the next reset: same as before, no change.
+4. covered: COPY, INSERT … SELECT, ON CONFLICT and cascades behave.

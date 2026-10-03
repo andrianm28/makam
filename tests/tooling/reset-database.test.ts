@@ -67,4 +67,18 @@ describe("Resetting the test database between tests", () => {
       await resetDatabase();
     }
   });
+
+  it("restarts an identity that only a rolled-back insert advanced", async () => {
+    await handle.pool.query("create table public.zz_seq_probe (id serial primary key, note text)");
+    try {
+      await resetDatabase();
+      await handle.pool.query("begin; insert into public.zz_seq_probe (note) values ('gone'); rollback");
+      await resetDatabase();
+      const next = await handle.pool.query<{ id: number }>("insert into public.zz_seq_probe (note) values ('first') returning id");
+      expect(next.rows[0].id).toBe(1);
+    } finally {
+      await handle.pool.query("drop table public.zz_seq_probe");
+      await resetDatabase();
+    }
+  });
 });

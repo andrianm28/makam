@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -29,6 +30,14 @@ function mustPass(graph: Map<string, string[]>, job: string, seen = new Set<stri
 describe("ci.yml job graph", () => {
   const graph = needsGraph(ci);
 
+  it("is read in full: every needs: line of the file is one the reader understood", () => {
+    // A multi-line list or a re-indented job would otherwise read as "needs nothing".
+    const lines = ci.match(/^\s*needs:.*$/gm) ?? [];
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.filter((line) => !/^ {4}needs:[ \t]*\S/.test(line))).toEqual([]);
+    expect([...graph.values()].filter((needs) => needs.length > 0)).toHaveLength(lines.length);
+  });
+
   it("the image job does not wait for check", () => {
     expect(graph.get("image")).toEqual([]);
   });
@@ -42,10 +51,15 @@ describe("ci.yml job graph", () => {
 });
 
 describe("test-tuned Postgres", () => {
-  it("is set only on CI's two test services, never in a compose file or the deploy scripts", () => {
+  it("is set only on CI's two test services, never in a compose file or anything under deploy/", () => {
     expect(ci.match(/alter system set \$setting = off/g)).toHaveLength(2);
-    for (const file of ["../../docker-compose.yml", "../../docker-compose.prod.yml"]) {
-      expect(readFileSync(new URL(file, import.meta.url), "utf8")).not.toMatch(/fsync|synchronous_commit|full_page_writes/);
+    const repo = new URL("../..", import.meta.url).pathname;
+    const files = execFileSync("git", ["ls-files", "deploy", "docker-compose.yml", "docker-compose.prod.yml"], { cwd: repo, encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    expect(files.length).toBeGreaterThan(2);
+    for (const file of files) {
+      expect(readFileSync(`${repo}/${file}`, "utf8"), file).not.toMatch(/fsync|synchronous_commit|full_page_writes/);
     }
   });
 });
