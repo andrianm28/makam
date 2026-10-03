@@ -79,7 +79,7 @@ interface Modul {
 }
 
 /**
- * `npm run import:katalog-lama -- --sumber <berkas.json> [--tulis] [--izinkan-staging]`:
+ * `npm run import:katalog-lama -- --sumber <berkas.json> [--tulis] [--izinkan-staging | --izinkan-produksi]`:
  * imports a cemetery catalog export into a development or test stack, or into
  * staging under the named allowance (or production under its own). A dry run unless
  * `--tulis`. Exit 0 done, 1 refused or failed, 2 usage.
@@ -257,13 +257,13 @@ async function tulisRencana(rencana: Rencana, modul: Modul, alasan: string): Pro
     }
 
     const { name, pengelolaName, address, city } = baris.profil;
-    const dibuat = await modul.lokasi.createLokasiMitra(modul.aktor, { name, pengelolaName, address, city });
+    const dibuat = await modul.lokasi.createLokasiMitra(modul.aktor, { name, pengelolaName, address, city }, { reason: alasan });
     if (!dibuat.ok) {
       hasil.ditolak.push(`${baris.kode} [lokasi]: ${dibuat.reason}`);
       continue;
     }
     const lokasiId = dibuat.lokasiMitra.id;
-    const profil = await modul.lokasi.updateProfile(modul.aktor, lokasiId, baris.profil);
+    const profil = await modul.lokasi.updateProfile(modul.aktor, lokasiId, baris.profil, { reason: alasan });
     if (!profil.ok) {
       hasil.ditolak.push(`${baris.kode} [lokasi]: ${profil.reason}`);
       continue;
