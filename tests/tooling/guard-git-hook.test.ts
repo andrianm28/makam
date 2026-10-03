@@ -284,3 +284,27 @@ describe("guard-git hook, writes through the GitHub API", () => {
   });
 });
 
+describe("guard-git hook, other spellings of a command", () => {
+  it("sees git, gh and curl by the name of the program, wherever it lives or however it is wrapped", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "/usr/bin/git push origin main",
+      "./git push origin HEAD:main",
+      "/usr/local/bin/gh pr create --fill",
+      "command git push origin main",
+      "env GIT_TRACE=1 git push origin main",
+      "sudo -n git push origin main",
+      "exec git push origin main",
+    ]) {
+      expect(bash(command).status, command).toBe(2);
+    }
+  });
+
+  it("does not take a word that merely follows another command for the program", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of ["echo git push origin main", "echo gh pr create", "grep -r git push src", "git log --grep='git push origin main'"]) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+});
+
