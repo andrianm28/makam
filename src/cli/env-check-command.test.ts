@@ -44,4 +44,11 @@ describe("env-check: is this environment complete for production?", () => {
     expect(result.output).toContain("TOTP_ENCRYPTION_KEY");
     expect(result.output).not.toContain(SECRET);
   });
+
+  it("refuses an environment that is not the one asked for, so a staging file cannot pass as production", async () => {
+    const result = await envCheckCommand(["production"], { ...completeProduction(), APP_ENV: "staging" });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("APP_ENV");
+  });
 });
