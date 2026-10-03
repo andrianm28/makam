@@ -1,6 +1,8 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import pg from "pg";
 import type { TestProject } from "vitest/node";
 import { migrateDatabase } from "../src/db/migrate";
+import { forgetDirtyTables } from "./support/dirty-tables";
 import { dropDatabase, ensureSharedTestPostgres, recreateDatabase } from "./support/shared-test-postgres";
 import { testDatabaseName } from "../scripts/lib/worktree";
 
@@ -39,11 +41,21 @@ export default async function setup(project: TestProject) {
       .withDatabase("makam_test")
       .withUsername("makam")
       .withPassword("makam")
+      // Test-tuned: nothing here has to survive a crash (never staging or production; CI's service is tuned in ci.yml).
+      .withCommand(["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"])
       .start();
     databaseUrl = container.getConnectionUri();
   }
 
   await migrateDatabase(databaseUrl);
+  // A database an earlier run used may still carry that run's record of written tables.
+  const client = new pg.Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await forgetDirtyTables((text) => client.query(text));
+  } finally {
+    await client.end();
+  }
   project.provide("databaseUrl", databaseUrl);
 
   return async () => {

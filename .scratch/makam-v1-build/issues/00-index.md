@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 103 tickets (as of 2026-10-03): 93 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 104 tickets (as of 2026-10-03): 94 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -407,3 +407,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [101](101-banner-pembayaran-uji-coba.md) | Banner "pembayaran uji coba" while production pays through SumoPod's sandbox | resolved | 100, 65 |
 | [102](102-deploy-status-state-arguments.md) | makam-deploy records no Deployment status, so promotion always refuses | resolved | — |
 | [103](103-import-data-di-host.md) | Launch-data importer runs on the staging and production hosts | resolved | 06 |
+| [104](104-faster-tests.md) | Faster tests: reset only dirty tables, test-tuned Postgres, image build in parallel | resolved | — |

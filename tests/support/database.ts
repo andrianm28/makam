@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
 import { inject } from "vitest";
 import { createDatabase, type DatabaseHandle } from "@/db/client";
+import { truncateDirtyTables } from "./dirty-tables";
 
 let handle: DatabaseHandle | undefined;
 
@@ -21,13 +21,12 @@ export function testDatabase(): DatabaseHandle {
   };
 }
 
-/** Empties every app table (not the migration journal, not pg-boss). */
+/**
+ * Empties every app table written to since the last reset (not the migration
+ * journal, not pg-boss), and every table the first time: see dirty-tables.ts.
+ */
 export async function resetDatabase(): Promise<void> {
   if (!handle) throw new Error("call testDatabase() before resetDatabase()");
-  const { rows } = await handle.pool.query<{ tablename: string }>(
-    "select tablename from pg_tables where schemaname = 'public'",
-  );
-  if (rows.length === 0) return;
-  const tables = rows.map((row) => `"public"."${row.tablename}"`).join(", ");
-  await handle.db.execute(sql.raw(`truncate ${tables} restart identity cascade`));
+  const { pool } = handle;
+  await truncateDirtyTables((text) => pool.query<{ tablename: string }>(text));
 }
