@@ -104,6 +104,11 @@ describe("the maintenance block and page for makam.co.id", () => {
     expect(block).toMatch(/location = \/api\/health \{[^}]*default_type application\/json;[^}]*return 503 '\{[^']*"ok":false/);
   });
 
+  it("sends the security headers on the /api/health answer too, since add_header there replaces the inherited ones", () => {
+    const health = block.match(/location = \/api\/health \{[^}]*\}/)![0];
+    for (const header of ["X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Retry-After"]) expect(health).toContain(header);
+  });
+
   it("is a page in Bahasa Indonesia with no external assets", () => {
     expect(page).toMatch(/<html lang="id">/);
     expect(page).toMatch(/pemeliharaan/i);
