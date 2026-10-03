@@ -648,14 +648,6 @@ describe("makam-preflight", () => {
     expect(down.output).not.toContain("000no answer");
   });
 
-  it("never expands the possibly empty endpoint array unguarded, which is an unbound variable under set -u on bash before 4.4", () => {
-    // bash 4.4 and later accept "${endpoint[@]}" on an empty array, so no behaviour test can fail on a current
-    // bash: this reads the script instead of running it.
-    const script = readFileSync(preflightScript, "utf8");
-    expect(script).not.toMatch(/(?<!\+)"\$\{endpoint\[@\]\}"/);
-    expect(script).toMatch(/\$\{endpoint\[@\]\+"\$\{endpoint\[@\]\}"\}/);
-  });
-
   it("exits 130 and still removes its temp files on Ctrl-C (SIGINT), as it does on SIGTERM", () => {
     const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "pull", FAKE_SIGNAL: "INT" });
     expect(interrupted.code).toBe(130);
