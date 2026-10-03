@@ -578,7 +578,9 @@ describe("npm run import:data-peluncuran: reading the spreadsheet's CSV", () => 
 });
 
 describe("npm run import:data-peluncuran: the template the owner fills in", () => {
-  const TEMPLATE = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
+  /** The worked example rows the template once shipped with, kept as fixtures now that the folder holds the real launch data. */
+  const TEMPLATE = fileURLToPath(new URL("./data-peluncuran/fixtures/contoh", import.meta.url));
+  const DATA_PELUNCURAN = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
 
   it("passes the dry run with its worked example rows alone: the example Layanan comes from the template's own catalog file", async () => {
     await modul();
@@ -590,6 +592,16 @@ describe("npm run import:data-peluncuran: the template the owner fills in", () =
     expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(hasil.output).toContain("Nazhir: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.exitCode).toBe(0);
+  });
+
+  it("passes the dry run with the launch data shipped in docs/ops/data-peluncuran, no row refused", async () => {
+    await modul();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", DATA_PELUNCURAN], env(), { clock: clock() });
+
+    expect(hasil.output).not.toMatch(/[1-9]\d* ditolak/);
+    expect(hasil.output).not.toContain("Ditolak (");
     expect(hasil.exitCode).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 # Data peluncuran: template untuk diisi owner
 
-Isi lima berkas CSV di folder ini dengan spreadsheet (Excel, Google Sheets, LibreOffice), lalu simpan sebagai **CSV**. Setiap berkas punya baris judul dan **satu baris contoh**: ganti atau hapus baris contoh itu, jangan biarkan terbawa ke data sungguhan. Pemisah koma maupun titik koma (`;`, bawaan Excel berbahasa Indonesia) sama-sama dibaca. Angka rupiah ditulis polos, tanpa "Rp" dan tanpa titik: `750000`.
+Isi lima berkas CSV di folder ini dengan spreadsheet (Excel, Google Sheets, LibreOffice), lalu simpan sebagai **CSV**. Setiap berkas punya baris judul; folder ini sekarang berisi **data peluncuran sungguhan** hasil draf dan konfirmasi owner (lihat `.scratch/makam-v1-build/data-peluncuran-draf.md`), bukan baris contoh. Baris contoh template (satu per berkas) disimpan sebagai fixture uji di `src/cli/data-peluncuran/fixtures/contoh/`; jangan menyalinnya ke data sungguhan. Pemisah koma maupun titik koma (`;`, bawaan Excel berbahasa Indonesia) sama-sama dibaca. Angka rupiah ditulis polos, tanpa "Rp" dan tanpa titik: `750000`.
 
 ## Sebelum mengisi: tiga jebakan spreadsheet
 
