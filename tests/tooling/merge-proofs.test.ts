@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -156,6 +156,25 @@ describe("the three proofs as one run", () => {
     const report = runMergeProofs({ ...setup({ generated: sql, branch: `${sql}${bp}${backfill}` }), generate: () => "nothing to migrate" });
 
     expect(report.reappend).toEqual([backfill]);
+    expect(report.ok).toBe(false);
+  });
+
+  it("is not OK when a snapshot main has is gone from the merged tree", () => {
+    const fixture = setup({ generated: sql, branch: sql });
+    const onBase = { "0000_snapshot.json": readFileSync(path.join(fixture.drizzleDir, "meta/0000_snapshot.json"), "utf8"), "0007_snapshot.json": "{}" };
+
+    const report = runMergeProofs({ ...fixture, baseSnapshots: onBase, generate: () => "nothing to migrate" });
+
+    expect(report.baseSnapshotProblems).toEqual(["0007_snapshot.json: missing"]);
+    expect(report.ok).toBe(false);
+  });
+
+  it("is not OK when a snapshot main has differs byte for byte in the merged tree", () => {
+    const fixture = setup({ generated: sql, branch: sql });
+
+    const report = runMergeProofs({ ...fixture, baseSnapshots: { "0000_snapshot.json": '{"id":"other"}' }, generate: () => "nothing to migrate" });
+
+    expect(report.baseSnapshotProblems).toEqual(["0000_snapshot.json: differs from main's"]);
     expect(report.ok).toBe(false);
   });
 });
