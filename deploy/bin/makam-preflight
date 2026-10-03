@@ -261,6 +261,46 @@ check_s3() {
     return 0
   fi
   check_s3_probe
+  check_s3_settings
+}
+
+# Public access blocked, versioning and default encryption of the files bucket,
+# as far as the app's key may read them (its IAM policy is Get/Put/DeleteObject,
+# so AccessDenied is a SKIP with the console instruction, not a FAIL).
+check_s3_settings() {
+  local bucket key_id secret out err
+  bucket=$(setting S3_BUCKET_FILES)
+  key_id=$(setting S3_ACCESS_KEY_ID)
+  secret=$(setting S3_SECRET_ACCESS_KEY)
+  err=$(mktemp)
+  if out=$(s3api "$key_id" "$secret" get-public-access-block --bucket "$bucket" --output text \
+    --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' 2> "$err"); then
+    out=$(printf '%s' "$out" | tr 'A-Z\t' 'a-z ')
+    if [ "$out" = "true true true true" ]; then
+      pass "03" "s3 public access" "all four public access blocks are on for $bucket"
+    else
+      fail "03" "s3 public access" "$bucket is not fully blocked ($out): turn on all four Block Public Access settings"
+    fi
+  elif grep -q AccessDenied "$err"; then
+    rm -f "$err"
+    skip "03" "s3 public access" "the app key cannot read the bucket settings (by design); check public access, versioning and encryption of $bucket in the AWS console"
+    return 0
+  else
+    fail "03" "s3 public access" "$bucket: no public access block is configured, or it cannot be read"
+  fi
+  rm -f "$err"
+  out=$(s3api "$key_id" "$secret" get-bucket-versioning --bucket "$bucket" --output text --query Status 2> /dev/null) || out="unreadable"
+  if [ "$out" = Enabled ]; then
+    pass "03" "s3 versioning" "$bucket: Enabled"
+  else
+    fail "03" "s3 versioning" "$bucket versioning is $out, expected Enabled"
+  fi
+  if out=$(s3api "$key_id" "$secret" get-bucket-encryption --bucket "$bucket" --output text \
+    --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' 2> /dev/null) && [ -n "$out" ]; then
+    pass "03" "s3 encryption" "$bucket default encryption: $out"
+  else
+    fail "03" "s3 encryption" "$bucket has no default encryption: turn on SSE-S3 (AES256)"
+  fi
 }
 
 #@FUNCS
