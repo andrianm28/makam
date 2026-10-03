@@ -370,29 +370,30 @@ check_backup_key() {
 }
 
 # One real backup, then makam-restore-test on exactly that Dump. The Dump (and
-# its counts) this run created are removed again; Dumps that were already there
-# are never touched.
+# its counts) this run created are removed again; no other file is touched here.
+# Note that makam-backup-db itself prunes Dumps older than 7 days, as every run of it does.
 check_backup_and_restore() {
-  local db before after new="" f code=0 problem=""
+  local db out f="" code=0 problem=""
   db="$DIR/backups/db"
-  before=$(ls "$db" 2> /dev/null || true)
-  "$MAKAM_ROOT/bin/makam-backup-db" --env "$ENV_NAME" > /dev/null 2>&1 || code=$?
+  out=$("$MAKAM_ROOT/bin/makam-backup-db" --env "$ENV_NAME" 2>&1) || code=$?
   if [ "$code" -ne 0 ]; then
     fail "03, 72" "backup and restore" "makam-backup-db exited $code (is the makam-prod stack up? needs the passphrase and free space)"
     return 0
   fi
-  after=$(ls "$db" 2> /dev/null || true)
-  new=$(comm -13 <(printf '%s\n' "$before" | sort) <(printf '%s\n' "$after" | sort))
-  f=$(printf '%s\n' "$new" | grep -E '\.dump\.enc$' | tail -n 1 || true)
-  if [ -z "$f" ]; then
-    problem="makam-backup-db wrote no new Dump in $db"
-  else
-    "$MAKAM_ROOT/bin/makam-restore-test" --env "$ENV_NAME" --dump "$db/$f" > /dev/null 2>&1 || code=$?
-    [ "$code" -eq 0 ] || problem="makam-restore-test exited $code on $f"
+  # makam-backup-db names the Dump it wrote in its log line; that file and its
+  # counts file are the only ones this check may remove (the nightly timer can
+  # finish a Dump of its own in the same minute).
+  f=$(printf '%s\n' "$out" | sed -n 's/.* to \(.*\.dump\.enc\),.*/\1/p' | tail -n 1)
+  f=${f##*/}
+  if [ -z "$f" ] || [ ! -e "$db/$f" ]; then
+    fail "03, 72" "backup and restore" "makam-backup-db succeeded but did not name a Dump in $db; nothing was removed"
+    return 0
   fi
-  printf '%s\n' "$new" | while IFS= read -r n; do [ -z "$n" ] || rm -f "$db/$n"; done
+  "$MAKAM_ROOT/bin/makam-restore-test" --env "$ENV_NAME" --dump "$db/$f" > /dev/null 2>&1 || code=$?
+  [ "$code" -eq 0 ] || problem="makam-restore-test exited $code on $f"
+  rm -f "$db/$f" "$db/${f%.dump.enc}.counts.enc"
   if [ -z "$problem" ]; then
-    pass "03, 72" "backup and restore" "makam-backup-db wrote $f and makam-restore-test restored it; the probe Dump was removed again"
+    pass "03, 72" "backup and restore" "makam-backup-db wrote $f and makam-restore-test restored it; this Dump and its counts file were removed again"
   else
     fail "03, 72" "backup and restore" "$problem"
   fi

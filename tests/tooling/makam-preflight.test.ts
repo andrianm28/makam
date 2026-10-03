@@ -54,7 +54,7 @@ const INTERRUPT_AT = (step: string) =>
     '  touch "$FAKE_LOG.interrupted"',
     "  p=$PPID; top=",
     '  while [ -n "$p" ] && [ "$p" != 1 ]; do',
-    '    if grep -qa makam-preflight "/proc/$p/cmdline" 2> /dev/null; then top=$p; elif [ -n "$top" ]; then break; fi',
+    '    if grep -qa deploy/bin/makam-preflight "/proc/$p/cmdline" 2> /dev/null; then top=$p; elif [ -n "$top" ]; then break; fi',
     '    p=$(ps -o ppid= -p "$p" | tr -d " ")',
     "  done",
     '  kill -TERM "$top"',
