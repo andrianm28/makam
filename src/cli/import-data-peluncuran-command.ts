@@ -183,8 +183,14 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
   return hasil;
 }
 
-async function olahKatalog(
+/**
+ * The catalog rows of `katalog-layanan.csv`. Exported so a test can hand it a Layanan module that refuses one
+ * write after another has succeeded: no input the owner can type reaches that, and the row's all-or-nothing
+ * rule is the behaviour under test.
+ */
+export async function olahKatalog(
   folder: string,
+  db: Database,
   katalogLayanan: Pick<Layanan, "katalog" | "createLayanan" | "ubahLayanan" | "tambahVarian">,
   aktor: Actor,
   alasan: string,
@@ -391,7 +397,7 @@ async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntim
   const tpu = await olahTpu(sumber, lokasi, aktor);
   const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), alasan);
   const katalogLayanan = createKatalogLayanan({ db, clock: adapters.clock, audit });
-  const katalog = await olahKatalog(sumber, katalogLayanan, aktor, alasan);
+  const katalog = await olahKatalog(sumber, db, katalogLayanan, aktor, alasan);
   const layanan = await olahLayanan(sumber, db, katalogLayanan, tariffs, aktor, adapters.clock.now(), alasan);
   const nazhir = await olahNazhir(sumber, createNazhirList({ db, clock: adapters.clock, audit }), aktor);
   return [
