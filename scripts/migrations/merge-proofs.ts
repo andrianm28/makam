@@ -136,7 +136,13 @@ export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
   const newFiles = readdirSync(drizzleDir)
     .filter((f) => f.endsWith(".sql") && !inBase.has(`drizzle/${f}`))
     .map((f) => path.join(drizzleDir, f));
-  const report = runMergeProofs({ drizzleDir, asideDir: asideDir as string, newFiles, generate: io.generate });
+  const baseSnapshots = Object.fromEntries(
+    [...inBase]
+      .filter((f) => f.endsWith("_snapshot.json"))
+      .map((f) => [path.basename(f), execFileSync("git", ["show", `${baseRef}:${f}`], { cwd: io.cwd, encoding: "utf8" })]),
+  );
+  const report = runMergeProofs({ drizzleDir, asideDir: asideDir as string, newFiles, generate: io.generate, baseSnapshots });
+  for (const problem of report.baseSnapshotProblems) io.out(`main's snapshot ${problem}`);
   for (const block of report.reappend) io.out(`hand-written in the branch, RE-APPEND to the regenerated file: ${block}`);
   io.out(report.ok ? "PROOFS OK" : report.reappend.length > 0 ? "RE-APPEND the hand-written block(s) above, then rerun the proofs" : "PROOFS FAILED");
   return report.ok ? 0 : 1;
